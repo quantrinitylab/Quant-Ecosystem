@@ -1,0 +1,20 @@
+{
+  "name": "@quant/quantai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QuantAI - Central AI hub controlling all ecosystem AI, device automation, and workflow orchestration",
+  "main": "api/server.ts",
+  "scripts": {
+    "dev": "node --loader ts-node/esm api/server.ts",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@quant/auth": "*",
+    "@quant/ai": "*",
+    "@quant/common": "*",
+    "@quant/database": "*",
+    "@quant/realtime": "*",
+    "@quant/shared-ui": "*"
+  }
+}

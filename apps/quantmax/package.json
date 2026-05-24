@@ -1,0 +1,20 @@
+{
+  "name": "@quant/quantmax",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QuantMax - Short video social, random video chat, and dating platform hybrid",
+  "main": "api/server.ts",
+  "scripts": {
+    "dev": "node --loader ts-node/esm api/server.ts",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@quant/auth": "*",
+    "@quant/ai": "*",
+    "@quant/common": "*",
+    "@quant/database": "*",
+    "@quant/realtime": "*",
+    "@quant/shared-ui": "*"
+  }
+}
