@@ -1,0 +1,19 @@
+{
+  "name": "quant-ecosystem",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Quant Ecosystem - A 9-app interconnected platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.js",
+    "lint": "tsc --noEmit --strict"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "incremental": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@quant/common": ["packages/common/src/index.ts"],
+      "@quant/common/*": ["packages/common/src/*"],
+      "@quant/database": ["packages/database/src/index.ts"],
+      "@quant/database/*": ["packages/database/src/*"],
+      "@quant/auth": ["packages/auth/src/index.ts"],
+      "@quant/auth/*": ["packages/auth/src/*"],
+      "@quant/ai": ["packages/ai/src/index.ts"],
+      "@quant/ai/*": ["packages/ai/src/*"],
+      "@quant/shared-ui": ["packages/shared-ui/src/index.ts"],
+      "@quant/shared-ui/*": ["packages/shared-ui/src/*"],
+      "@quant/realtime": ["packages/realtime/src/index.ts"],
+      "@quant/realtime/*": ["packages/realtime/src/*"]
+    }
+  },
+  "references": [
+    { "path": "packages/common" },
+    { "path": "packages/database" },
+    { "path": "packages/auth" },
+    { "path": "packages/ai" },
+    { "path": "packages/shared-ui" },
+    { "path": "packages/realtime" }
+  ],
+  "exclude": ["node_modules", "dist", "build"]
+}
