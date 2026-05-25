@@ -22,6 +22,7 @@ async function main(): Promise<void> {
   const shutdown = async (): Promise<void> => {
     logger.info('Shutting down CDC Relay...');
     poller.stop();
+    await poller.disconnect();
     await producer.disconnect();
     process.exit(0);
   };

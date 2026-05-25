@@ -196,21 +196,27 @@ export class DataPlaneRepository<T extends Record<string, unknown>> {
     const result = await (client as PrismaClient).$transaction(async (tx: TransactionClient) => {
       const delegate = this.getDelegate(tx);
 
+      let before: T | null = null;
+      let updated: T;
+
       if (this.config.enableOptimisticLocking && context?.expectedVersion !== undefined) {
-        await this.optimisticLock.checkAndUpdate(
+        // Optimistic lock path: checkAndUpdate reads, verifies version, and updates in one pass
+        before = (await delegate.findUnique({ where: { id } })) as T | null;
+        updated = (await this.optimisticLock.checkAndUpdate(
           tx,
           this.config.modelName,
           id,
           context.expectedVersion,
           encryptedData,
-        );
+        )) as T;
+      } else {
+        // Normal path: read then update
+        before = (await delegate.findUnique({ where: { id } })) as T | null;
+        updated = await delegate.update({
+          where: { id },
+          data: encryptedData,
+        });
       }
-
-      const before = await delegate.findUnique({ where: { id } });
-      const updated = await delegate.update({
-        where: { id },
-        data: encryptedData,
-      });
 
       await this.outbox.publish(tx, this.config.modelName, id, `${this.config.modelName}.updated`, {
         data: encryptedData,

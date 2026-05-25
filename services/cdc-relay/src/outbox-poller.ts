@@ -68,6 +68,11 @@ export class OutboxPoller {
     logger.info('Outbox poller stopped');
   }
 
+  async disconnect(): Promise<void> {
+    await this.prisma.$disconnect();
+    logger.info('Prisma client disconnected');
+  }
+
   async pollOnce(): Promise<void> {
     try {
       await this.prisma.$transaction(async (tx: TransactionClient) => {
@@ -79,15 +84,27 @@ export class OutboxPoller {
 
         if (events.length === 0) return;
 
+        // Group messages by topic for batch send
+        const topicMap = new Map<string, { key: string; value: string }[]>();
         for (const event of events) {
           const topic = `outbox.${event.aggregateType}`;
-          await this.producer.send(topic, [
-            {
-              key: event.aggregateId,
-              value: JSON.stringify(event.payload),
-            },
-          ]);
+          let messages = topicMap.get(topic);
+          if (!messages) {
+            messages = [];
+            topicMap.set(topic, messages);
+          }
+          messages.push({
+            key: event.aggregateId,
+            value: JSON.stringify(event.payload),
+          });
         }
+
+        // Send all messages in a single batch call
+        const topicMessages = Array.from(topicMap.entries()).map(([topic, messages]) => ({
+          topic,
+          messages,
+        }));
+        await this.producer.sendBatch(topicMessages);
 
         const eventIds = events.map((event) => event.id);
         await tx.outboxEvent.updateMany({

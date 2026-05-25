@@ -79,12 +79,18 @@ describe('OutboxPoller', () => {
 
     await poller.pollOnce();
 
-    expect(mockSend).toHaveBeenCalledWith('outbox.user', [
-      { key: 'user-123', value: JSON.stringify({ name: 'John' }) },
-    ]);
-    expect(mockSend).toHaveBeenCalledWith('outbox.order', [
-      { key: 'order-456', value: JSON.stringify({ total: 99.99 }) },
-    ]);
+    expect(mockProducer.sendBatch).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        {
+          topic: 'outbox.user',
+          messages: [{ key: 'user-123', value: JSON.stringify({ name: 'John' }) }],
+        },
+        {
+          topic: 'outbox.order',
+          messages: [{ key: 'order-456', value: JSON.stringify({ total: 99.99 }) }],
+        },
+      ]),
+    );
   });
 
   it('should do nothing when no unpublished events exist', async () => {
@@ -101,6 +107,7 @@ describe('OutboxPoller', () => {
     await poller.pollOnce();
 
     expect(mockSend).not.toHaveBeenCalled();
+    expect(mockProducer.sendBatch).not.toHaveBeenCalled();
   });
 
   it('should mark events as published after sending', async () => {
@@ -130,6 +137,12 @@ describe('OutboxPoller', () => {
 
     await poller.pollOnce();
 
+    expect(mockProducer.sendBatch).toHaveBeenCalledWith([
+      {
+        topic: 'outbox.payment',
+        messages: [{ key: 'pay-789', value: JSON.stringify({ amount: 50 }) }],
+      },
+    ]);
     expect(mockUpdateManyTx).toHaveBeenCalledWith({
       where: { id: { in: ['evt-3'] } },
       data: { publishedAt: expect.any(Date) },
