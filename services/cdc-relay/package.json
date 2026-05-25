@@ -1,0 +1,26 @@
+{
+  "name": "@quant/cdc-relay",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "node --loader ts-node/esm src/index.ts",
+    "dev": "node --loader ts-node/esm --watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "kafkajs": "^2.2.4",
+    "@prisma/client": "^6.19.3",
+    "@quant/common": "workspace:*",
+    "zod": "^3.24.2",
+    "pino": "^9.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "vitest": "^2",
+    "typescript": "~5.5.0",
+    "ts-node": "^10.9.0"
+  }
+}
