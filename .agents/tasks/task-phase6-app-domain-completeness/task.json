@@ -1,0 +1,7 @@
+{
+  "task_id": "task-phase6-app-domain-completeness",
+  "task_description": "Phase 6 Per-App Domain Completeness: Build production-ready service layers for all 9 apps. QuantChat, QuantMail, and QuantAI get full domain logic with services, routes, and tests. Remaining 6 apps get production-ready scaffolding with core CRUD services.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}

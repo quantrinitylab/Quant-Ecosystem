@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "QuantMail production backend - expand from Phase 3 identity service with full email CRUD, threading, folders, AI-powered features (summarize, compose, priority, phishing), contact management, and attachment handling. Uses Prisma EmailRepository, MailAIService from @quant/ai, and server-core Fastify pattern.",
+  "status": "pending",
+  "steps": [
+    "Create apps/quantmail/backend/ directory structure: app.ts, routes/, services/, __tests__/",
+    "Create apps/quantmail/backend/app.ts: Fastify app using createApp from @quant/server-core. Register email routes, folder routes, contact routes, ai routes. Follow the api-v2/app.ts config pattern.",
+    "Create apps/quantmail/backend/services/email.service.ts: EmailService class wrapping EmailRepository. Methods: compose(userId, draft), send(userId, emailId), receive(userId, emailData), getEmail(emailId, userId), listByFolder(userId, folderId, pagination), moveToFolder(emailId, folderId), archive(emailId), delete(emailId, soft/hard), markRead(emailId), markStarred(emailId), search(userId, query).",
+    "Create apps/quantmail/backend/services/thread.service.ts: ThreadService - getThread(threadId, userId) returns emails in conversation view, listThreads(userId, folderId, pagination), getThreadParticipants(threadId). Groups emails by threadId with unread counts.",
+    "Create apps/quantmail/backend/services/folder.service.ts: FolderService - createFolder(userId, name, type), listFolders(userId), updateFolder(folderId, data), deleteFolder(folderId), getFolderStats(folderId). Includes default folder initialization (inbox, sent, drafts, trash, spam, archive).",
+    "Create apps/quantmail/backend/services/ai-email.service.ts: AIEmailService wrapping MailAIService from @quant/ai. Methods: summarize(emailId, userId), composeAssistant(userId, instructions, context), classifyPriority(emailId, userId), detectPhishing(emailId, userId), suggestReplies(emailId, userId). Each method fetches the email from DB then calls the appropriate MailAIService method.",
+    "Create apps/quantmail/backend/services/contact.service.ts: ContactService - addContact(userId, contact), getContacts(userId, pagination), searchContacts(userId, query) for autocomplete, updateContact(contactId, data), deleteContact(contactId). Contact data: name, email, avatar, frequency of communication.",
+    "Create apps/quantmail/backend/services/attachment.service.ts: AttachmentService - generateUploadUrl(userId, filename, contentType, size) returns presigned URL, getAttachment(attachmentId), deleteAttachment(attachmentId). Size validation (max 25MB).",
+    "Create apps/quantmail/backend/routes/emails.ts: Fastify route plugin - POST /emails (compose/send), GET /emails, GET /emails/:id, PUT /emails/:id, DELETE /emails/:id, POST /emails/:id/read, POST /emails/:id/star, POST /emails/:id/move. Zod validation.",
+    "Create apps/quantmail/backend/routes/threads.ts: Fastify route plugin - GET /threads, GET /threads/:id.",
+    "Create apps/quantmail/backend/routes/folders.ts: Fastify route plugin - POST /folders, GET /folders, PUT /folders/:id, DELETE /folders/:id.",
+    "Create apps/quantmail/backend/routes/contacts.ts: Fastify route plugin - POST /contacts, GET /contacts, GET /contacts/search, PUT /contacts/:id, DELETE /contacts/:id.",
+    "Create apps/quantmail/backend/routes/ai.ts: Fastify route plugin - POST /emails/:id/summarize, POST /emails/compose-assist, POST /emails/:id/classify-priority, POST /emails/:id/detect-phishing, GET /emails/:id/reply-suggestions.",
+    "Create apps/quantmail/backend/__tests__/email.service.test.ts: Unit tests - compose creates draft, send moves to sent folder and sets sentAt, receive creates email in inbox, moveToFolder updates folderId, delete soft-deletes, search filters by query.",
+    "Create apps/quantmail/backend/__tests__/folder.service.test.ts: Unit tests - createFolder validates unique name, listFolders returns with counts, default folder initialization.",
+    "Create apps/quantmail/backend/__tests__/ai-email.service.test.ts: Unit tests - summarize calls MailAIService.summarizeEmail with email content, classifyPriority returns high/normal/low, detectPhishing returns structured result.",
+    "Update apps/quantmail/tsconfig.json: add backend/**/*.ts to include"
+  ],
+  "acceptance_criteria": [
+    "EmailService.send moves email to sent folder, sets sentAt, and would trigger notification",
+    "ThreadService.getThread returns grouped emails in chronological order with unread count",
+    "FolderService.createFolder prevents duplicate names per user",
+    "AIEmailService.summarize fetches email then delegates to MailAIService",
+    "All tests pass: unset NODE_OPTIONS && npx vitest run apps/quantmail/backend/__tests__/",
+    "TypeScript compiles cleanly: unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantmail/tsconfig.json"
+  ],
+  "verification": [
+    "unset NODE_OPTIONS && npx vitest run apps/quantmail/backend/__tests__/",
+    "unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantmail/tsconfig.json"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

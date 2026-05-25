@@ -1,0 +1,41 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "QuantAI production backend - Multi-model conversational interface with session management, tool calling framework, multi-modal support, streaming SSE, usage tracking, and agent marketplace. Leverages Phase 4 AI engine (AIEngine, CostTracker, ModelRouter) and Phase 5 realtime (streaming events).",
+  "status": "pending",
+  "steps": [
+    "Create apps/quantai/backend/ directory structure: app.ts, routes/, services/, __tests__/",
+    "Create apps/quantai/backend/app.ts: Fastify app using createApp from @quant/server-core. Register session routes, chat routes, tools routes, agents routes.",
+    "Create apps/quantai/backend/services/session.service.ts: SessionService wrapping AISessionRepository. Methods: createSession(userId, title, model, systemPrompt), getSession(sessionId, userId), listSessions(userId, pagination), updateSession(sessionId, data), archiveSession(sessionId), deleteSession(sessionId), pinSession(sessionId).",
+    "Create apps/quantai/backend/services/chat.service.ts: ChatService using AIEngine. Methods: sendMessage(sessionId, userId, content, attachments) - adds user message to DB, calls AIEngine.infer(), stores assistant response, returns response. streamMessage(sessionId, userId, content) - uses AIEngine.stream() and yields chunks as SSE events. getHistory(sessionId, pagination).",
+    "Create apps/quantai/backend/services/tool.service.ts: ToolService - tool calling / function execution framework. registerTool(toolDef: ToolDefinition), executeTool(toolName, args, userId), listTools(userId). ToolDefinition includes name, description, parameters (JSON Schema), handler function. Built-in tools: web_search, calculator, code_interpreter (stubs with proper interfaces).",
+    "Create apps/quantai/backend/services/multimodal.service.ts: MultiModalService - processInput(input: {text?, imageUrl?, audioUrl?}, userId) routes to appropriate model based on input type. Uses ModelRouter to select vision model for image inputs.",
+    "Create apps/quantai/backend/services/usage.service.ts: UsageService wrapping CostTracker. Methods: getUsage(userId, period: 'day'|'week'|'month'), getBilling(userId), checkQuota(userId), trackUsage(userId, model, tokens, cost). Aggregates from AISession/AIMessage models.",
+    "Create apps/quantai/backend/services/agent-marketplace.service.ts: AgentMarketplace - installAgent(userId, agentId), listAgents(pagination), getAgent(agentId), createAgent(userId, manifest: AgentManifest), uninstallAgent(userId, agentId). AgentManifest is JSON schema with name, description, capabilities, systemPrompt, tools[], model preferences.",
+    "Create apps/quantai/backend/routes/sessions.ts: Fastify route plugin - POST /sessions, GET /sessions, GET /sessions/:id, PUT /sessions/:id, DELETE /sessions/:id, POST /sessions/:id/archive, POST /sessions/:id/pin.",
+    "Create apps/quantai/backend/routes/chat.ts: Fastify route plugin - POST /sessions/:id/messages (regular), POST /sessions/:id/messages/stream (SSE streaming), GET /sessions/:id/messages.",
+    "Create apps/quantai/backend/routes/tools.ts: Fastify route plugin - GET /tools, POST /tools/:name/execute.",
+    "Create apps/quantai/backend/routes/agents.ts: Fastify route plugin - GET /agents/marketplace, GET /agents/:id, POST /agents/install, DELETE /agents/:id/uninstall, POST /agents (create custom).",
+    "Create apps/quantai/backend/routes/usage.ts: Fastify route plugin - GET /usage, GET /usage/billing.",
+    "Create apps/quantai/backend/__tests__/session.service.test.ts: Unit tests - createSession stores in DB, listSessions returns paginated, archiveSession sets isArchived flag.",
+    "Create apps/quantai/backend/__tests__/chat.service.test.ts: Unit tests - sendMessage creates user message, calls engine.infer, stores assistant response. Mock AIEngine. Test error handling when engine fails.",
+    "Create apps/quantai/backend/__tests__/tool.service.test.ts: Unit tests - registerTool adds to registry, executeTool calls handler with validated args, unknown tool throws error.",
+    "Create apps/quantai/backend/__tests__/agent-marketplace.service.test.ts: Unit tests - installAgent adds to user's agents, listAgents returns paginated catalog, createAgent validates manifest schema.",
+    "Update apps/quantai/package.json: add @quant/server-core, fastify, zod, ioredis dependencies and test script",
+    "Update apps/quantai/tsconfig.json: add backend/**/*.ts to include, add server-core reference"
+  ],
+  "acceptance_criteria": [
+    "ChatService.sendMessage creates user+assistant messages and returns AI response with token usage",
+    "ToolService.executeTool validates args against JSON schema and calls handler",
+    "AgentMarketplace.installAgent persists installation and validates manifest",
+    "UsageService.getUsage aggregates costs from AI sessions for the given period",
+    "All tests pass: unset NODE_OPTIONS && npx vitest run apps/quantai/backend/__tests__/",
+    "TypeScript compiles cleanly: unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantai/tsconfig.json"
+  ],
+  "verification": [
+    "unset NODE_OPTIONS && npx vitest run apps/quantai/backend/__tests__/",
+    "unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantai/tsconfig.json"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

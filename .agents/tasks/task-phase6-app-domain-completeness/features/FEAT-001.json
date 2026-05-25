@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "QuantChat production backend - Fastify-based API with real message service, E2E encryption key exchange, group chat, delivery receipts, disappearing messages, media uploads, and typing indicators. Uses Prisma repositories (MessageRepository), server-core (createApp), realtime (WebSocket events), and AI services (ChatAIService).",
+  "status": "in_progress",
+  "steps": [
+    "Create apps/quantchat/backend/ directory structure: app.ts, routes/, services/, __tests__/",
+    "Create apps/quantchat/backend/app.ts following the apps/quantmail/api-v2/app.ts pattern - use createApp from @quant/server-core, register all route plugins",
+    "Create apps/quantchat/backend/services/message.service.ts: MessageService class that wraps MessageRepository from @quant/database. Methods: sendMessage(userId, conversationId, content, type, metadata), getMessages(conversationId, pagination), editMessage(messageId, userId, content), deleteMessage(messageId, userId), pinMessage(messageId, userId). Include proper error handling and validation.",
+    "Create apps/quantchat/backend/services/conversation.service.ts: ConversationService - createConversation(creatorId, participantIds, type, name), getConversation(id), getUserConversations(userId, pagination), addMember(conversationId, userId, role), removeMember(conversationId, userId), updateConversation(id, data). Uses Prisma conversation/conversationMember models.",
+    "Create apps/quantchat/backend/services/encryption.service.ts: E2E encryption key exchange - uploadPreKeyBundle(userId, bundle), getPreKeyBundle(userId), establishSession(initiatorId, responderId). Uses crypto module for real X3DH-style key derivation (referencing existing apps/quantchat/api/services/encryption-service.ts pattern but with proper async and Prisma-backed key storage interface).",
+    "Create apps/quantchat/backend/services/delivery.service.ts: Message delivery receipts - markDelivered(messageId, userId), markRead(messageId, userId), getDeliveryStatus(messageId). Emits WebSocket events using @quant/realtime event types (MessageReadEvent).",
+    "Create apps/quantchat/backend/services/disappearing.service.ts: Disappearing messages with configurable expiry. scheduleExpiry(messageId, mode: 'after_view'|'24h'|'7d'|'30d'), cancelExpiry(messageId), processExpiredMessages(). Uses setTimeout/BullMQ-style delayed job interface.",
+    "Create apps/quantchat/backend/services/media.service.ts: Media message support - generateUploadUrl(userId, filename, contentType) returns presigned S3 URL structure, getMediaMetadata(mediaId), deleteMedia(mediaId).",
+    "Create apps/quantchat/backend/services/typing.service.ts: Typing indicators - setTyping(conversationId, userId, isTyping), getTypingUsers(conversationId). Integrates with @quant/realtime PresenceManager.",
+    "Create apps/quantchat/backend/routes/messages.ts: Fastify route plugin - POST /conversations/:id/messages, GET /conversations/:id/messages, PUT /messages/:id, DELETE /messages/:id, POST /messages/:id/pin. Use Zod schemas for request validation.",
+    "Create apps/quantchat/backend/routes/conversations.ts: Fastify route plugin - POST /conversations, GET /conversations, GET /conversations/:id, PUT /conversations/:id, POST /conversations/:id/members, DELETE /conversations/:id/members/:userId.",
+    "Create apps/quantchat/backend/routes/encryption.ts: Fastify route plugin - POST /encryption/keys, GET /encryption/keys/:userId, POST /encryption/sessions.",
+    "Create apps/quantchat/backend/routes/media.ts: Fastify route plugin - POST /media/upload-url, GET /media/:id.",
+    "Create apps/quantchat/backend/__tests__/message.service.test.ts: Unit tests for MessageService - mock PrismaClient, test sendMessage (validates conversation membership), editMessage (only sender can edit within window), deleteMessage (soft delete), getMessages pagination.",
+    "Create apps/quantchat/backend/__tests__/conversation.service.test.ts: Unit tests - createConversation (creates members), addMember/removeMember role checks, getUserConversations returns sorted.",
+    "Create apps/quantchat/backend/__tests__/delivery.service.test.ts: Unit tests - markDelivered/markRead update status, prevent duplicate reads, getDeliveryStatus returns correct aggregate.",
+    "Update apps/quantchat/package.json: add @quant/server-core, fastify, zod, ioredis dependencies and test script",
+    "Update apps/quantchat/tsconfig.json: add backend/**/*.ts to include, add server-core reference"
+  ],
+  "acceptance_criteria": [
+    "MessageService.sendMessage creates a message via Prisma and returns it with proper fields",
+    "ConversationService.createConversation creates conversation + members in a transaction pattern",
+    "DeliveryService.markRead updates message status and would emit a WebSocket event",
+    "All tests pass: unset NODE_OPTIONS && npx vitest run apps/quantchat/backend/__tests__/",
+    "TypeScript compiles cleanly: unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantchat/tsconfig.json"
+  ],
+  "verification": [
+    "unset NODE_OPTIONS && npx vitest run apps/quantchat/backend/__tests__/",
+    "unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantchat/tsconfig.json"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
