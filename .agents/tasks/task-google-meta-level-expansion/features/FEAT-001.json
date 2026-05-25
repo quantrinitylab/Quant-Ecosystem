@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Complete the recommendations package barrel export and add data-pipeline package with full event streaming, ETL, aggregation, and metrics systems",
+  "status": "in_progress",
+  "steps": [
+    "Create packages/recommendations/src/index.ts barrel exporting all 13 core modules: CollaborativeFilter, ContentBasedFilter, HybridEngine, NeuralCF, MatrixFactorization, RealtimePersonalizer, CrossAppRecommender, TrendingDetector, DiversityInjector, FeedbackProcessor, ContextEngine, ColdStartHandler, RecommendationAB, and all types from types.ts",
+    "Create packages/data-pipeline/src/types.ts with all interfaces: Topic, Partition, ConsumerGroup, Offset, Message, ETLStage, ExtractConfig, TransformConfig, LoadConfig, Pipeline, DeadLetterEntry, BatchJob, CronSchedule, AggregationWindow, WindowType (tumbling/sliding), FactTable, DimensionTable, StarSchema, MaterializedView, UserSession, FunnelStep, GrowthMetrics, RevenueMetrics",
+    "Create packages/data-pipeline/src/core/event-stream-processor.ts - Kafka-like event streaming with topics, partitions, consumer groups, offsets, publish/subscribe, partition assignment, offset tracking, consumer rebalancing",
+    "Create packages/data-pipeline/src/core/etl-pipeline.ts - ETL pipeline builder with extract/transform/load stages, error handling, retry logic, pipeline composition, stage metrics",
+    "Create packages/data-pipeline/src/core/data-validator.ts - Schema validation engine with JSON Schema-like validation, type coercion, custom validators, schema registry",
+    "Create packages/data-pipeline/src/core/dead-letter-queue.ts - DLQ for failed messages with retry scheduling, max retry tracking, error categorization, manual replay",
+    "Create packages/data-pipeline/src/core/batch-scheduler.ts - Batch processing scheduler with cron expression parsing, job queuing, dependency management, concurrency limits",
+    "Create packages/data-pipeline/src/core/aggregation-engine.ts - Real-time aggregation with tumbling/sliding windows, counts/sums/averages/percentiles, watermark handling, late event processing",
+    "Create packages/data-pipeline/src/core/warehouse-schema.ts - Data warehouse schema definitions with star schema modeling, fact/dimension tables, slowly changing dimensions, partition strategies",
+    "Create packages/data-pipeline/src/core/materialized-views.ts - Materialized view system for dashboards with incremental refresh, dependency tracking, query optimization hints",
+    "Create packages/data-pipeline/src/core/behavior-aggregator.ts - User behavior aggregation with session reconstruction, event sequencing, funnel analysis, path analysis",
+    "Create packages/data-pipeline/src/core/growth-metrics.ts - Growth metrics calculator: DAU/WAU/MAU calculation, retention cohorts, churn prediction, activation rates, power user identification",
+    "Create packages/data-pipeline/src/core/revenue-pipeline.ts - Revenue metrics: MRR/ARR calculation, LTV estimation, CAC tracking, expansion/contraction MRR, quick ratio",
+    "Create packages/data-pipeline/src/index.ts barrel exporting all core modules and types"
+  ],
+  "acceptance_criteria": [
+    "packages/recommendations/src/index.ts exports all 13 core modules and types",
+    "packages/data-pipeline/src/index.ts exists with barrel exports for all 11 core modules",
+    "packages/data-pipeline/src/types.ts defines comprehensive interfaces for all modules",
+    "All files have proper TypeScript type annotations and export statements",
+    "node scripts/test.js passes (after updating requiredPackages list)"
+  ],
+  "verification": ["Run: node scripts/test.js from /projects/sandbox/Quant-Ecosystem"],
+  "blocked_reason": null,
+  "findings": ""
+}

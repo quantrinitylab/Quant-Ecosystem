@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Add comprehensive mobile features to all 9 apps - push notifications, biometric auth, camera, contacts sync, location, offline sync, haptics, gestures, deep linking, widgets, app state, share extension, and accessibility",
+  "status": "pending",
+  "steps": [
+    "For each of the 9 apps (quantmail, quantchat, quantads, quantai, quantedits, quantmax, quantneon, quantsync, quantube), create src/mobile/ directory with 13 feature files",
+    "Create push-notifications.ts in each app: deep link routing from notification payload, notification channels (urgent/social/marketing/system), badge count management, notification grouping, scheduled notifications, rich media notifications",
+    "Create biometric-auth.ts in each app: fingerprint authentication, Face ID support, fallback PIN/pattern, biometric availability check, key storage with biometric protection, session extension via biometric",
+    "Create camera.ts in each app: photo capture with resolution options, video recording with duration limits, QR/barcode scanner, AR overlay framework, image filters, gallery picker, crop/rotate",
+    "Create contacts-sync.ts in each app: import device contacts with permission handling, find registered friends by phone/email hash, invite non-registered contacts, contact matching algorithm, sync status tracking",
+    "Create location.ts in each app: GPS tracking with accuracy levels (high/balanced/low power), geofencing (enter/exit/dwell events), reverse geocoding, location history, background location updates, location permissions management",
+    "Create offline-sync.ts in each app: sync queue with priority ordering, conflict resolution strategies (last-write-wins/merge/manual), background sync with connectivity detection, delta sync for bandwidth efficiency, sync status per entity",
+    "Create haptics.ts in each app: feedback patterns (light/medium/heavy impact, success/warning/error notification, selection change), custom pattern sequences, haptic availability check",
+    "Create gestures.ts in each app: swipe handlers (left/right/up/down with velocity), pinch-to-zoom, long press with duration threshold, double tap detection, pan gesture with momentum, edge swipe for navigation",
+    "Create deep-linking.ts in each app: universal link handling (iOS), app link verification (Android), route matching with parameters, deferred deep links for new installs, link generation for sharing",
+    "Create widgets.ts in each app: home screen widget data providers, widget refresh scheduling, widget configuration, interactive widgets, data compression for widget payload, multiple widget sizes (small/medium/large)",
+    "Create app-state.ts in each app: state persistence to device storage, state restoration on cold start, background/foreground lifecycle handlers, memory warning response, state migration between app versions",
+    "Create share-extension.ts in each app: receive shared content (text/URL/image/file), content type detection, pre-fill compose UI with shared data, share target registration, recent shares history",
+    "Create accessibility.ts in each app: screen reader announcements and labels, dynamic type/font scaling support, reduced motion alternatives, high contrast mode, voice control actions, focus management"
+  ],
+  "acceptance_criteria": [
+    "Each of the 9 apps has apps/[name]/src/mobile/ directory with all 13 files",
+    "Total of 117 new mobile feature files (9 apps x 13 files)",
+    "All files export typed classes/services with proper interfaces",
+    "Each file has app-specific customizations (e.g., quantchat push notifications mention message types)",
+    "node scripts/test.js passes"
+  ],
+  "verification": ["Run: node scripts/test.js from /projects/sandbox/Quant-Ecosystem"],
+  "blocked_reason": null,
+  "findings": ""
+}

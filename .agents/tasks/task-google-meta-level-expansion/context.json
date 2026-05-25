@@ -1,0 +1,22 @@
+{
+  "project_type": "TypeScript monorepo - 9-app interconnected ecosystem platform",
+  "language": "TypeScript",
+  "build_system": "npm workspaces with tsc --noEmit for type checking",
+  "test_framework": "Custom node scripts/test.js that validates file structure, exports, and type annotations",
+  "build_command": "node scripts/test.js",
+  "test_command": "node scripts/test.js",
+  "verification_instructions": "Run node scripts/test.js from project root - checks all packages have src/index.ts barrel exports",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "No setup needed - pure TypeScript without compilation, validated by structure checker",
+  "environment_constraints": "INTEGRATIONS_ONLY network - no npm install possible. All code must be written directly without external dependencies. Use only TypeScript with type annotations.",
+  "contribution_requirements": "Each package needs: src/index.ts (barrel export), src/types.ts (type definitions), src/core/ (implementation files). No package.json or tsconfig.json observed in existing packages.",
+  "key_patterns": "1) Each package has src/index.ts barrel exporting from src/core/*.ts files. 2) src/types.ts defines all interfaces/types. 3) Classes are exported with full JSDoc. 4) Files use header comment blocks with package name. 5) Apps have src/ with components/, hooks/, pages/, services/, types/ directories.",
+  "relevant_files": [
+    "packages/recommendations/src/core/",
+    "packages/security/src/index.ts",
+    "packages/analytics/src/index.ts",
+    "apps/quantmail/src/",
+    "scripts/test.js"
+  ],
+  "directory_structure": "packages/ - shared libraries (18 existing). apps/ - 9 applications (quantmail, quantchat, quantads, quantai, quantedits, quantmax, quantneon, quantsync, quantube). scripts/ - test runner."
+}

@@ -76,7 +76,7 @@ if (errors.length > 0) {
 }
 
 // Verify key structure
-const requiredPackages = ['common', 'database', 'auth', 'ai', 'shared-ui', 'realtime', 'server', 'analytics', 'notifications', 'search', 'media', 'payments', 'moderation', 'i18n', 'ecosystem-bridge'];
+const requiredPackages = ['common', 'database', 'auth', 'ai', 'shared-ui', 'realtime', 'server', 'analytics', 'notifications', 'search', 'media', 'payments', 'moderation', 'i18n', 'ecosystem-bridge', 'recommendations', 'data-pipeline'];
 const missingPackages = requiredPackages.filter(p => !fs.existsSync(path.join(PACKAGES_DIR, p, 'src', 'index.ts')));
 
 if (missingPackages.length > 0) {

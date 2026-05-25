@@ -1,0 +1,19 @@
+{
+  "id": "FEAT-005",
+  "type": "chore",
+  "description": "Update the test runner script to validate all new packages (data-pipeline, developer-platform, admin, recommendations) and run final verification",
+  "status": "pending",
+  "steps": [
+    "Update scripts/test.js requiredPackages array to include: 'recommendations', 'data-pipeline', 'developer-platform', 'admin' in addition to existing packages",
+    "Add validation that each new package has src/index.ts with exports",
+    "Run the test script to confirm all packages and apps pass validation"
+  ],
+  "acceptance_criteria": [
+    "scripts/test.js requiredPackages includes all new packages",
+    "Running node scripts/test.js exits with code 0",
+    "Total file count reported by test.js shows significant increase reflecting new packages and mobile features"
+  ],
+  "verification": ["Run: node scripts/test.js from /projects/sandbox/Quant-Ecosystem and confirm exit code 0"],
+  "blocked_reason": null,
+  "findings": ""
+}
