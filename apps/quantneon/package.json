@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "node --loader ts-node/esm api/server.ts",
     "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@quant/auth": "workspace:*",
@@ -15,6 +16,10 @@
     "@quant/common": "workspace:*",
     "@quant/database": "workspace:*",
     "@quant/realtime": "workspace:*",
-    "@quant/shared-ui": "workspace:*"
+    "@quant/server-core": "workspace:*",
+    "@quant/shared-ui": "workspace:*",
+    "fastify": "^5.3.3",
+    "ioredis": "^5.6.1",
+    "zod": "^3.25.23"
   }
 }

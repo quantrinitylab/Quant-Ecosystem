@@ -68,9 +68,21 @@ importers:
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
+      '@quant/server-core':
+        specifier: workspace:*
+        version: link:../../packages/server-core
       '@quant/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.6.1
+        version: 5.10.1
+      zod:
+        specifier: ^3.25.23
+        version: 3.25.76
 
   apps/quantai:
     dependencies:
@@ -89,9 +101,21 @@ importers:
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
+      '@quant/server-core':
+        specifier: workspace:*
+        version: link:../../packages/server-core
       '@quant/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.6.1
+        version: 5.10.1
+      zod:
+        specifier: ^3.25.23
+        version: 3.25.76
 
   apps/quantchat:
     dependencies:
@@ -110,9 +134,21 @@ importers:
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
+      '@quant/server-core':
+        specifier: workspace:*
+        version: link:../../packages/server-core
       '@quant/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.6.1
+        version: 5.10.1
+      zod:
+        specifier: ^3.25.23
+        version: 3.25.76
 
   apps/quantedits:
     dependencies:
@@ -131,9 +167,21 @@ importers:
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
+      '@quant/server-core':
+        specifier: workspace:*
+        version: link:../../packages/server-core
       '@quant/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.6.1
+        version: 5.10.1
+      zod:
+        specifier: ^3.25.23
+        version: 3.25.76
 
   apps/quantmail:
     dependencies:
@@ -189,9 +237,21 @@ importers:
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
+      '@quant/server-core':
+        specifier: workspace:*
+        version: link:../../packages/server-core
       '@quant/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.6.1
+        version: 5.10.1
+      zod:
+        specifier: ^3.25.23
+        version: 3.25.76
 
   apps/quantneon:
     dependencies:
@@ -210,9 +270,21 @@ importers:
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
+      '@quant/server-core':
+        specifier: workspace:*
+        version: link:../../packages/server-core
       '@quant/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.6.1
+        version: 5.10.1
+      zod:
+        specifier: ^3.25.23
+        version: 3.25.76
 
   apps/quantsync:
     dependencies:
@@ -231,9 +303,21 @@ importers:
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
+      '@quant/server-core':
+        specifier: workspace:*
+        version: link:../../packages/server-core
       '@quant/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.6.1
+        version: 5.10.1
+      zod:
+        specifier: ^3.25.23
+        version: 3.25.76
 
   apps/quantube:
     dependencies:
@@ -252,9 +336,21 @@ importers:
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
+      '@quant/server-core':
+        specifier: workspace:*
+        version: link:../../packages/server-core
       '@quant/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.6.1
+        version: 5.10.1
+      zod:
+        specifier: ^3.25.23
+        version: 3.25.76
 
   packages/ai:
     dependencies:

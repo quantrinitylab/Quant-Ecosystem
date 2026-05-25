@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-005",
+  "type": "fix",
+  "description": "Address critical security and correctness issues from code review: replace Function() eval in calculator tool, add auth to prekey endpoint, fix non-atomic counter increments, fix feed personalization, and replace PrismaClient = any with narrow interfaces.",
+  "status": "in_progress",
+  "steps": [
+    "Replace Function() constructor in calculator tool with safe token-by-token math evaluator",
+    "Add auth check to GET /encryption/keys/:userId endpoint",
+    "Fix likePost, likePhoto, incrementView to use Prisma { increment: 1 } pattern",
+    "Fix getFeed to filter by followed users via userRelationship table",
+    "Replace PrismaClient = any in 5 apps with narrow interface types"
+  ],
+  "acceptance_criteria": [
+    "Calculator evaluates math without using Function() or eval",
+    "GET /encryption/keys/:userId requires authentication",
+    "All counter increments use atomic Prisma increment pattern",
+    "getFeed queries userRelationship to filter posts by followed users",
+    "Each app types.ts defines narrow interfaces matching actual usage",
+    "All 547+ existing tests continue to pass"
+  ],
+  "verification": [
+    "unset NODE_OPTIONS && npx vitest run",
+    "unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantai/tsconfig.json",
+    "unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantchat/tsconfig.json",
+    "unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantsync/tsconfig.json",
+    "unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantube/tsconfig.json",
+    "unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantneon/tsconfig.json",
+    "unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantads/tsconfig.json",
+    "unset NODE_OPTIONS && npx tsc --noEmit -p apps/quantmax/tsconfig.json"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
