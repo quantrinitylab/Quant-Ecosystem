@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Create Terraform modules under infra/terraform/ for AWS infrastructure: VPC, EKS, RDS, ElastiCache, S3, CloudFront, and Monitoring. Plus staging and production environment compositions.",
+  "status": "in_progress",
+  "steps": [
+    "Create infra/terraform/modules/vpc/main.tf - 3-AZ VPC with public/private/isolated subnets, NAT gateway, Internet Gateway, route tables, flow logs. Include variables.tf and outputs.tf.",
+    "Create infra/terraform/modules/eks/main.tf - EKS cluster with managed node groups, OIDC provider, Karpenter provisioner support, cluster autoscaler IAM. Include variables.tf and outputs.tf.",
+    "Create infra/terraform/modules/rds/main.tf - PostgreSQL RDS Multi-AZ with pgvector extension, automated backups, encryption at rest (KMS), parameter group, subnet group. Include variables.tf and outputs.tf.",
+    "Create infra/terraform/modules/elasticache/main.tf - Redis cluster mode with encryption in transit/at rest, subnet group, auth token. Include variables.tf and outputs.tf.",
+    "Create infra/terraform/modules/s3/main.tf - Per-app buckets with lifecycle rules, versioning, server-side encryption, CORS configuration, block public access. Include variables.tf and outputs.tf.",
+    "Create infra/terraform/modules/cloudfront/main.tf - CDN distributions with OAI (Origin Access Identity), custom domain support, TLS certificate, cache behaviors. Include variables.tf and outputs.tf.",
+    "Create infra/terraform/modules/monitoring/main.tf - CloudWatch log groups, metric alarms (CPU, memory, 5xx), dashboard definitions, SNS topics for alerts. Include variables.tf and outputs.tf.",
+    "Create infra/terraform/environments/production/main.tf - Production composition calling all modules with production-grade settings (multi-AZ, larger instances, strict security).",
+    "Create infra/terraform/environments/production/variables.tf and outputs.tf.",
+    "Create infra/terraform/environments/staging/main.tf - Staging composition with smaller instances, same architecture but cost-optimized.",
+    "Create infra/terraform/environments/staging/variables.tf and outputs.tf.",
+    "Create infra/terraform/versions.tf with required providers (AWS, Kubernetes, Helm)."
+  ],
+  "acceptance_criteria": [
+    "All terraform module directories exist with main.tf, variables.tf, outputs.tf",
+    "HCL syntax is valid (proper block structure, no syntax errors)",
+    "VPC module creates 3-AZ subnets (public, private, isolated)",
+    "EKS module supports managed node groups and Karpenter",
+    "RDS module has Multi-AZ, encryption, and automated backups",
+    "ElastiCache module has cluster mode and encryption",
+    "S3 module creates per-service buckets with lifecycle rules",
+    "CloudFront module has OAI and TLS",
+    "Monitoring module has CloudWatch alarms and dashboards",
+    "Production environment uses all modules with production settings",
+    "Staging environment uses all modules with cost-optimized settings"
+  ],
+  "verification": [
+    "Check that all .tf files exist and have valid HCL block structure",
+    "Run pnpm turbo build to ensure no existing code was broken"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
