@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Add 3-Tier Device Control layer and 12 Pre-Built Pilot Agents plus Agent Marketplace to the @quant/agent-runtime package. The device control provides tiered hardware interaction (API, OS, Vision). The pilot agents are concrete WorkerAgent implementations for common tasks. The marketplace enables publishing and installing community agents.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create src/device/tier1-api.ts - Tier1ApiController: direct calls to Quant internal APIs. Methods: callApi(endpoint, params), getAvailableApis(). Instant execution, perfect reliability. Uses typed API definitions.",
     "Create src/device/tier2-os.ts - Tier2OsController: native OS interactions via platform bridges. Methods: executeOsCommand(command), getSystemInfo(), openUrl(url), setClipboard(text). Platform detection (ios/android/desktop).",
@@ -61,5 +61,5 @@
     "NODE_OPTIONS='' npx vitest run packages/agent-runtime"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 232 tests pass across 34 test files. TypeScript strict compilation passes. Prettier pre-commit hook formats code on commit. NODE_OPTIONS must be cleared for all npm/node commands."
 }
