@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Stripe Connect service, revenue share engine (90/10 ad, 95/5 tips), wallet/subscription/tip/cashout/ledger services in packages/payments/src/services/, with Zod validation and comprehensive tests",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create packages/payments/src/services/stripe-connect.service.ts with Express accounts for creators: createCreatorAccount (onboarding link), getAccountStatus, transferToCreator, createPayout. Use Stripe SDK (already a dep). Validate inputs with Zod schemas. Follow the pattern in gateway-service.ts for Stripe mocking setup.",
     "Create packages/payments/src/services/revshare.service.ts - a new revenue share engine that implements 90/10 split on ad revenue and 95/5 on tips. Uses an immutable ledger approach (entries are append-only, never modified). Methods: recordAdRevenue(creatorId, adImpressionId, grossAmount), recordTip(creatorId, tipId, grossAmount), getCreatorBalance(creatorId), getPlatformBalance(), getLedgerEntries(creatorId). Each entry stores: id, type (ad_revenue|tip), creatorId, grossAmount, creatorShare, platformShare, timestamp. This is separate from the existing RevenueSharing class which has different default splits.",
@@ -38,5 +38,5 @@
     "Run npx tsc --noEmit -p packages/payments/tsconfig.json to confirm type safety"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 122 new tests pass. TypeScript type check passes for new code (pre-existing errors in wallet-service.ts, subscription-service.ts, revenue-sharing-service.ts are not from this change). Prettier formatted files via lint-staged pre-commit hook. Commit-msg hook enforces 100-char header limit."
 }
