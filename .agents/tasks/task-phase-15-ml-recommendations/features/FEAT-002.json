@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Create recommendation models (Two-Tower retrieval, collaborative, trending, MMoE ranking, score fusion, anti-rage scorer, DPP diversity, full pipeline, on-device ranker) and A/B testing framework in packages/recommendations/src/",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create packages/recommendations/src/retrieval/two-tower.ts - TwoTowerRetrieval class: User tower (embedding from user features) + Item tower (embedding from item features) producing embeddings, then ANN retrieval via Qdrant-like interface. Methods: encodeUser(features), encodeItem(features), retrieve(userEmbedding, k) returning top-k candidates with scores.",
     "Create packages/recommendations/src/retrieval/collaborative.ts - ItemItemCollaborative class: computes item-item similarity using cosine on co-occurrence vectors. Methods: buildCooccurrenceMatrix(interactions), computeSimilarity(itemA, itemB), getSimilarItems(itemId, k).",

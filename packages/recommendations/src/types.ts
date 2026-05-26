@@ -216,7 +216,12 @@ export interface ColdStartConfig {
 }
 
 /** Cold start strategies */
-export type ColdStartStrategy = 'popularity' | 'demographic' | 'onboarding' | 'exploration' | 'hybrid';
+export type ColdStartStrategy =
+  | 'popularity'
+  | 'demographic'
+  | 'onboarding'
+  | 'exploration'
+  | 'hybrid';
 
 /** Diversity configuration */
 export interface DiversityConfig {
@@ -287,7 +292,17 @@ export interface FeedbackEvent {
 }
 
 /** Feedback types */
-export type FeedbackType = 'view' | 'click' | 'like' | 'dislike' | 'rating' | 'purchase' | 'share' | 'save' | 'scroll' | 'dwell';
+export type FeedbackType =
+  | 'view'
+  | 'click'
+  | 'like'
+  | 'dislike'
+  | 'rating'
+  | 'purchase'
+  | 'share'
+  | 'save'
+  | 'scroll'
+  | 'dwell';
 
 /** Cross-app mapping */
 export interface CrossAppMapping {
@@ -356,4 +371,33 @@ export interface FeatureContribution {
   feature: string;
   weight: number;
   direction: 'positive' | 'negative';
+}
+
+// ============================================================================
+// Phase 15 - ML Recommendation Types
+// ============================================================================
+
+/** Content item for anti-rage scoring (re-exported from ranking/anti-rage) */
+export type { ContentItem } from './ranking/anti-rage';
+
+/** User preferences for on-device ranking (re-exported from on-device-ranker) */
+export type { UserPrefs } from './on-device-ranker';
+
+/** Experiment configuration */
+export interface ExperimentConfigType {
+  id: string;
+  name: string;
+  buckets: string[];
+  trafficAllocation: Record<string, number>;
+  startDate: number;
+  endDate: number;
+}
+
+/** Experiment result */
+export interface ExperimentResultType {
+  experimentId: string;
+  pValue: number;
+  lift: number;
+  significant: boolean;
+  bucketStats: Record<string, { exposures: number; conversions: number; rate: number }>;
 }
