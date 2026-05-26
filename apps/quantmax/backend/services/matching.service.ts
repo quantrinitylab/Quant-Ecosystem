@@ -191,17 +191,25 @@ export class MatchingService {
     });
 
     // Use raw SQL with pgvector cosine similarity operator
+    // Embedding values are self-generated numbers, safe for interpolation.
+    // We use $queryRawUnsafe because Prisma's tagged template parameterization
+    // breaks the ::vector cast when the vector literal is passed as a parameter.
     const vectorStr = `[${embedding.join(',')}]`;
 
-    const results = await this.prisma.$queryRaw<Array<{ user_id: string; similarity: number }>>`
-      SELECT dp.user_id, 1 - (dp.embedding <=> ${vectorStr}::vector) as similarity
-      FROM dating_profiles dp
-      WHERE dp.user_id != ${userId}
-        AND dp.is_active = true
-        AND dp.embedding IS NOT NULL
-      ORDER BY dp.embedding <=> ${vectorStr}::vector
-      LIMIT ${limit}
-    `;
+    const results = await this.prisma.$queryRawUnsafe<
+      Array<{ user_id: string; similarity: number }>
+    >(
+      `SELECT dp.user_id, 1 - (dp.embedding <=> $1::vector) as similarity
+       FROM dating_profiles dp
+       WHERE dp.user_id != $2
+         AND dp.is_active = true
+         AND dp.embedding IS NOT NULL
+       ORDER BY dp.embedding <=> $1::vector
+       LIMIT $3`,
+      vectorStr,
+      userId,
+      limit,
+    );
 
     return results.map((r: { user_id: string; similarity: number }) => ({
       userId: r.user_id,

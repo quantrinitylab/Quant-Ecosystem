@@ -52,9 +52,9 @@ export class EmailSender {
   }
 
   async send(options: SendEmailOptions): Promise<SendResult> {
-    const validated = SendEmailOptionsSchema.parse(options);
-
     try {
+      const validated = SendEmailOptionsSchema.parse(options);
+
       const info = await this.transporter.sendMail({
         from: validated.from,
         to: Array.isArray(validated.to) ? validated.to.join(', ') : validated.to,
@@ -68,11 +68,9 @@ export class EmailSender {
         success: true,
         messageId: info.messageId as string | undefined,
       };
-    } catch (err) {
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : String(err),
-      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      return { success: false, error: message };
     }
   }
 

@@ -35,6 +35,7 @@ export interface PushResult {
 export interface PushServiceConfig {
   firebaseCredential: admin.ServiceAccount;
   apnOptions?: apn.ProviderOptions;
+  apnTopic?: string; // iOS bundle identifier
 }
 
 /**
@@ -47,6 +48,7 @@ export interface PushServiceConfig {
 export class PushService {
   private fcmApp: admin.app.App | null = null;
   private apnProvider: apn.Provider | null = null;
+  private apnTopic: string = 'com.quant.app';
 
   /**
    * Initialize the push service with Firebase and APNs credentials
@@ -59,6 +61,10 @@ export class PushService {
 
     if (config.apnOptions) {
       this.apnProvider = new apn.Provider(config.apnOptions);
+    }
+
+    if (config.apnTopic) {
+      this.apnTopic = config.apnTopic;
     }
   }
 
@@ -170,7 +176,6 @@ export class PushService {
         notification: {
           title: payload.title,
           body: payload.body,
-          badge: payload.imageUrl,
         },
       };
     }
@@ -193,7 +198,7 @@ export class PushService {
       notification.badge = payload.badge;
     }
     notification.sound = payload.sound ?? 'default';
-    notification.topic = 'com.quant.app';
+    notification.topic = this.apnTopic;
 
     if (payload.data) {
       notification.payload = payload.data;

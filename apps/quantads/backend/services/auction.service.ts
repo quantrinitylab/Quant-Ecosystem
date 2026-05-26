@@ -98,6 +98,11 @@ export class AuctionService {
       const bidAmountStr = await this.redis.hget(metaKey, 'bidAmount');
       const bidAmount = bidAmountStr ? parseFloat(bidAmountStr) : winningScore;
 
+      // Clean up bid key, active set, and metadata
+      await this.redis.del(key);
+      await this.redis.srem(AuctionService.ACTIVE_AUCTIONS_KEY, auctionId);
+      await this.redis.del(metaKey);
+
       return {
         winnerId,
         winningBid: bidAmount,
@@ -108,16 +113,21 @@ export class AuctionService {
 
     const winnerId = topBidders[0]!;
     const winningScore = parseFloat(topBidders[1]!);
+    const secondBidderId = topBidders[2]!;
     const secondScore = parseFloat(topBidders[3]!); // second bidder's score
 
     // Get winner's original bid amount
-    const metaKey = `${AuctionService.AUCTION_META_PREFIX}${auctionId}:${winnerId}`;
-    const bidAmountStr = await this.redis.hget(metaKey, 'bidAmount');
+    const winnerMetaKey = `${AuctionService.AUCTION_META_PREFIX}${auctionId}:${winnerId}`;
+    const bidAmountStr = await this.redis.hget(winnerMetaKey, 'bidAmount');
     const winningBid = bidAmountStr ? parseFloat(bidAmountStr) : winningScore;
 
-    // Clean up
+    // Clean up bid key and active set
     await this.redis.del(key);
     await this.redis.srem(AuctionService.ACTIVE_AUCTIONS_KEY, auctionId);
+
+    // Clean up metadata keys for all bidders
+    await this.redis.del(winnerMetaKey);
+    await this.redis.del(`${AuctionService.AUCTION_META_PREFIX}${auctionId}:${secondBidderId}`);
 
     return { winnerId, winningBid, secondPrice: secondScore, effectiveScore: winningScore };
   }

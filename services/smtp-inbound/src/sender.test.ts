@@ -136,17 +136,18 @@ describe('EmailSender', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('Unknown error string');
+      expect(result.error).toBe('Unknown error');
     });
 
-    it('should reject invalid email options before sending', async () => {
-      await expect(
-        sender.send({
-          from: 'invalid',
-          to: 'recipient@example.com',
-          subject: 'Test',
-        }),
-      ).rejects.toThrow();
+    it('should return error result for invalid email options instead of throwing', async () => {
+      const result = await sender.send({
+        from: 'invalid',
+        to: 'recipient@example.com',
+        subject: 'Test',
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
       expect(mockSendMail).not.toHaveBeenCalled();
     });
 

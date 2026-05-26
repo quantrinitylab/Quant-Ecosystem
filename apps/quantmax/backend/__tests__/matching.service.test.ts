@@ -19,6 +19,7 @@ function createMockPrisma() {
       create: vi.fn(),
     },
     $queryRaw: vi.fn().mockResolvedValue([]),
+    $queryRawUnsafe: vi.fn().mockResolvedValue([]),
   };
 }
 
@@ -205,7 +206,7 @@ describe('MatchingService', () => {
         genderPreference: ['female'],
         interests: ['music', 'hiking'],
       });
-      prisma.$queryRaw.mockResolvedValue([
+      prisma.$queryRawUnsafe.mockResolvedValue([
         { user_id: 'user-2', similarity: 0.95 },
         { user_id: 'user-3', similarity: 0.87 },
       ]);
@@ -225,7 +226,7 @@ describe('MatchingService', () => {
       await expect(service.findMatches('user-1')).rejects.toThrow('Profile not found');
     });
 
-    it('calls $queryRaw with vector string', async () => {
+    it('calls $queryRawUnsafe with vector string and parameters', async () => {
       prisma.datingProfile.findUnique.mockResolvedValue({
         userId: 'user-1',
         age: 25,
@@ -233,11 +234,16 @@ describe('MatchingService', () => {
         genderPreference: ['female'],
         interests: ['music'],
       });
-      prisma.$queryRaw.mockResolvedValue([]);
+      prisma.$queryRawUnsafe.mockResolvedValue([]);
 
       await service.findMatches('user-1', 5);
 
-      expect(prisma.$queryRaw).toHaveBeenCalled();
+      expect(prisma.$queryRawUnsafe).toHaveBeenCalledWith(
+        expect.stringContaining('<=>'),
+        expect.stringContaining('['),
+        'user-1',
+        5,
+      );
     });
   });
 });
