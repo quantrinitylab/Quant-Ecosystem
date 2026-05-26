@@ -1,7 +1,14 @@
 {
   "task_id": "task-phase-25-quantcalendar",
   "task_description": "Phase 25: Create apps/quantcalendar/ - a standalone calendar app with AI scheduling, recurring events, booking links, buffer time, focus blocks, cancel detection, rescheduling, and weekly digests.",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001"],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "All 2545 tests pass (271 test files), including 51 new quantcalendar tests. Three review passes completed (v1: 7 issues found/5 fixed, v2: 2 issues found/2 fixed, v3: APPROVED). TypeScript strict mode passes."
+  }
 }
