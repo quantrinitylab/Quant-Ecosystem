@@ -5,7 +5,22 @@
 import type { QuantApp } from '@quant/common';
 
 /** AI model providers */
-export type AIProvider = 'openai' | 'anthropic' | 'meta' | 'stability' | 'whisper';
+export type AIProvider =
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'deepseek'
+  | 'groq'
+  | 'mistral'
+  | 'fireworks'
+  | 'togetherai'
+  | 'deepinfra'
+  | 'cohere'
+  | 'perplexity'
+  | 'ollama'
+  | 'meta'
+  | 'stability'
+  | 'whisper';
 
 /** AI capability types */
 export type AICapability =
@@ -20,7 +35,60 @@ export type AICapability =
   | 'content_moderation'
   | 'embedding'
   | 'recommendation'
-  | 'device_control';
+  | 'device_control'
+  | 'voice_stt'
+  | 'voice_tts'
+  | 'reranking'
+  | 'web_search'
+  | 'long_context';
+
+/** Task types for routing */
+export type TaskType =
+  | 'autocomplete'
+  | 'code_generation'
+  | 'complex_reasoning'
+  | 'cheap_reasoning'
+  | 'summarization'
+  | 'translation'
+  | 'voice_stt'
+  | 'voice_tts'
+  | 'image_generation'
+  | 'embedding_bulk'
+  | 'embedding_quality'
+  | 'reranking'
+  | 'moderation'
+  | 'web_search'
+  | 'vision_screenshot'
+  | 'long_context';
+
+/** User tier for cost-aware routing */
+export type UserTier = 'free' | 'paid' | 'enterprise';
+
+/** Routing entry for task-based routing */
+export interface RoutingEntry {
+  taskType: TaskType;
+  primary: string;
+  fallbacks: string[];
+}
+
+/** Provider health statistics */
+export interface ProviderHealthStats {
+  provider: AIProvider;
+  windowStartMs: number;
+  totalRequests: number;
+  successCount: number;
+  errorCount: number;
+  latencies: number[];
+  lastErrorAt: number | null;
+  circuitOpen: boolean;
+  circuitOpenedAt: number | null;
+}
+
+/** Cost-aware request extending AIInferenceRequest */
+export interface CostAwareRequest extends AIInferenceRequest {
+  taskType?: TaskType;
+  userTier?: UserTier;
+}
 
 /** AI model configuration */
 export interface AIModelConfig {

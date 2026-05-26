@@ -15,6 +15,10 @@ export { PromptRegistry } from './core/prompt-registry';
 export { SemanticCache } from './core/semantic-cache';
 export { SafetyPipeline } from './core/safety';
 export { CostTracker } from './core/cost-tracker';
+export { RoutingTable } from './core/routing-table';
+export { ProviderHealthMonitor } from './core/provider-health';
+export { RequestCostLogger } from './core/request-cost-logger';
+export type { CostLogEntry } from './core/request-cost-logger';
 
 // Services
 export { ChatAIService } from './services/chat-ai';

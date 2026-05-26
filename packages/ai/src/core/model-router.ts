@@ -2,8 +2,17 @@
 // AI Core - Model Router
 // ============================================================================
 
-import type { AIModelConfig, AIInferenceRequest, AICapability, FallbackChain } from '../types';
+import type {
+  AIModelConfig,
+  AIInferenceRequest,
+  AICapability,
+  FallbackChain,
+  TaskType,
+  UserTier,
+} from '../types';
 import type { CircuitBreakerRegistry } from './circuit-breaker';
+import { RoutingTable } from './routing-table';
+import type { ProviderHealthMonitor } from './provider-health';
 
 /**
  * Model Router
@@ -15,15 +24,24 @@ import type { CircuitBreakerRegistry } from './circuit-breaker';
  * - Model availability and load
  * - Quality requirements
  * - Circuit breaker state
+ * - Task-based routing with provider health awareness
  */
 export class ModelRouter {
   private models: Map<string, AIModelConfig> = new Map();
   private modelLoad: Map<string, number> = new Map();
   private fallbackChains: FallbackChain[] = [];
   private circuitBreakerRegistry: CircuitBreakerRegistry | null = null;
+  private routingTable: RoutingTable | null = null;
+  private healthMonitor: ProviderHealthMonitor | null = null;
 
-  constructor(circuitBreakerRegistry?: CircuitBreakerRegistry) {
+  constructor(
+    circuitBreakerRegistry?: CircuitBreakerRegistry,
+    routingTable?: RoutingTable,
+    healthMonitor?: ProviderHealthMonitor,
+  ) {
     this.circuitBreakerRegistry = circuitBreakerRegistry ?? null;
+    this.routingTable = routingTable ?? null;
+    this.healthMonitor = healthMonitor ?? null;
     this.registerDefaultModels();
     this.registerDefaultFallbackChains();
   }
@@ -67,11 +85,56 @@ export class ModelRouter {
   }
 
   /**
+   * Select the best model for a task type and user tier
+   */
+  selectForTask(taskType: TaskType, userTier: UserTier): AIModelConfig {
+    // Use internal default routing table if none provided
+    const table = this.routingTable ?? this.getDefaultRoutingTable();
+    const route = table.getRoute(taskType);
+
+    // Collect candidate model IDs
+    const candidateIds = [route.primary, ...route.fallbacks];
+
+    // Filter out models whose provider is unhealthy
+    const healthyCandidates: AIModelConfig[] = [];
+    for (const id of candidateIds) {
+      const model = this.models.get(id);
+      if (!model) continue;
+      if (this.healthMonitor && !this.healthMonitor.isHealthy(model.provider)) continue;
+      healthyCandidates.push(model);
+    }
+
+    if (healthyCandidates.length === 0) {
+      throw new Error(`No healthy models available for task: ${taskType}`);
+    }
+
+    // Route based on user tier
+    switch (userTier) {
+      case 'free': {
+        // Sort by costPerInputToken ascending, pick cheapest
+        const sorted = [...healthyCandidates].sort(
+          (a, b) => a.costPerInputToken - b.costPerInputToken,
+        );
+        return sorted[0]!;
+      }
+      case 'paid': {
+        // Use primary model if healthy, else first healthy fallback
+        return healthyCandidates[0]!;
+      }
+      case 'enterprise': {
+        // Sort by qualityScore descending, pick best
+        const sorted = [...healthyCandidates].sort((a, b) => b.qualityScore - a.qualityScore);
+        return sorted[0]!;
+      }
+    }
+  }
+
+  /**
    * Get fallback chain for a capability
    */
   getFallbackChain(capability: AICapability): string[] {
     const chain = this.fallbackChains.find((fc) => fc.capability === capability);
-    if (!chain) return ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-haiku'];
+    if (!chain) return ['gpt-4o', 'gpt-4o-mini', 'claude-haiku-4'];
     return chain.models;
   }
 
@@ -110,7 +173,7 @@ export class ModelRouter {
    * Get a fallback model from the fallback chains
    */
   private getFallbackModel(capabilities: AICapability[]): AIModelConfig | null {
-    const primaryCapability = capabilities[0] || 'text_generation';
+    const primaryCapability = capabilities[0] ?? 'text_generation';
     const chain = this.getFallbackChain(primaryCapability);
 
     for (const modelId of chain) {
@@ -207,7 +270,7 @@ export class ModelRouter {
     score += Math.max(0, 20 - estimatedCost * 1000);
 
     // Load balancing (0-10 points)
-    const load = this.modelLoad.get(model.id) || 0;
+    const load = this.modelLoad.get(model.id) ?? 0;
     score += Math.max(0, 10 - load);
 
     // Context window fit (0-10 points)
@@ -218,10 +281,18 @@ export class ModelRouter {
   }
 
   /**
+   * Get default routing table for selectForTask when none is provided
+   */
+  private getDefaultRoutingTable(): RoutingTable {
+    return new RoutingTable();
+  }
+
+  /**
    * Register default models available in the ecosystem
    */
   private registerDefaultModels(): void {
     const defaultModels: AIModelConfig[] = [
+      // OpenAI models
       {
         id: 'gpt-4o',
         name: 'GPT-4o',
@@ -263,8 +334,69 @@ export class ModelRouter {
         qualityScore: 0.85,
       },
       {
-        id: 'claude-3-5-sonnet',
-        name: 'Claude 3.5 Sonnet',
+        id: 'o3-mini',
+        name: 'O3 Mini',
+        provider: 'openai',
+        capabilities: ['text_generation', 'text_summarization', 'code_generation', 'translation'],
+        maxContextLength: 128000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.0000011,
+        costPerOutputToken: 0.0000044,
+        latencyMs: 600,
+        qualityScore: 0.92,
+      },
+      {
+        id: 'tts-1-hd',
+        name: 'TTS-1 HD',
+        provider: 'openai',
+        capabilities: ['voice_tts'],
+        maxContextLength: 4000,
+        maxOutputTokens: 4000,
+        costPerInputToken: 0.000015,
+        costPerOutputToken: 0.000015,
+        latencyMs: 300,
+        qualityScore: 0.9,
+      },
+      {
+        id: 'dall-e-3',
+        name: 'DALL-E 3',
+        provider: 'openai',
+        capabilities: ['image_generation'],
+        maxContextLength: 4000,
+        maxOutputTokens: 4000,
+        costPerInputToken: 0.00004,
+        costPerOutputToken: 0.00004,
+        latencyMs: 2000,
+        qualityScore: 0.92,
+      },
+      {
+        id: 'text-embedding-3-large',
+        name: 'Text Embedding 3 Large',
+        provider: 'openai',
+        capabilities: ['embedding'],
+        maxContextLength: 8191,
+        maxOutputTokens: 8191,
+        costPerInputToken: 0.00000013,
+        costPerOutputToken: 0.00000013,
+        latencyMs: 100,
+        qualityScore: 0.9,
+      },
+      {
+        id: 'omni-moderation-latest',
+        name: 'Omni Moderation Latest',
+        provider: 'openai',
+        capabilities: ['content_moderation'],
+        maxContextLength: 32000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0,
+        costPerOutputToken: 0,
+        latencyMs: 150,
+        qualityScore: 0.88,
+      },
+      // Anthropic models
+      {
+        id: 'claude-sonnet-4',
+        name: 'Claude Sonnet 4',
         provider: 'anthropic',
         capabilities: [
           'text_generation',
@@ -275,6 +407,7 @@ export class ModelRouter {
           'content_moderation',
           'recommendation',
           'device_control',
+          'long_context',
         ],
         maxContextLength: 200000,
         maxOutputTokens: 4096,
@@ -284,8 +417,8 @@ export class ModelRouter {
         qualityScore: 0.97,
       },
       {
-        id: 'claude-3-5-haiku',
-        name: 'Claude 3.5 Haiku',
+        id: 'claude-haiku-4',
+        name: 'Claude Haiku 4',
         provider: 'anthropic',
         capabilities: [
           'text_generation',
@@ -297,8 +430,221 @@ export class ModelRouter {
         ],
         maxContextLength: 200000,
         maxOutputTokens: 4096,
-        costPerInputToken: 0.000001,
-        costPerOutputToken: 0.000005,
+        costPerInputToken: 0.0000008,
+        costPerOutputToken: 0.000004,
+        latencyMs: 250,
+        qualityScore: 0.89,
+      },
+      // Google models
+      {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro',
+        provider: 'google',
+        capabilities: [
+          'text_generation',
+          'text_summarization',
+          'code_generation',
+          'translation',
+          'sentiment_analysis',
+          'long_context',
+        ],
+        maxContextLength: 1000000,
+        maxOutputTokens: 8192,
+        costPerInputToken: 0.00000125,
+        costPerOutputToken: 0.00001,
+        latencyMs: 600,
+        qualityScore: 0.96,
+      },
+      {
+        id: 'gemini-2.5-flash',
+        name: 'Gemini 2.5 Flash',
+        provider: 'google',
+        capabilities: [
+          'text_generation',
+          'text_summarization',
+          'code_generation',
+          'translation',
+          'long_context',
+        ],
+        maxContextLength: 1000000,
+        maxOutputTokens: 8192,
+        costPerInputToken: 0.00000015,
+        costPerOutputToken: 0.0000006,
+        latencyMs: 200,
+        qualityScore: 0.88,
+      },
+      // DeepSeek models
+      {
+        id: 'deepseek-v3',
+        name: 'DeepSeek V3',
+        provider: 'deepseek',
+        capabilities: ['text_generation', 'text_summarization', 'code_generation', 'translation'],
+        maxContextLength: 64000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.00000027,
+        costPerOutputToken: 0.0000011,
+        latencyMs: 350,
+        qualityScore: 0.88,
+      },
+      {
+        id: 'deepseek-r1',
+        name: 'DeepSeek R1',
+        provider: 'deepseek',
+        capabilities: ['text_generation', 'text_summarization', 'code_generation', 'translation'],
+        maxContextLength: 64000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.00000055,
+        costPerOutputToken: 0.00000219,
+        latencyMs: 800,
+        qualityScore: 0.91,
+      },
+      {
+        id: 'deepseek-coder-v3',
+        name: 'DeepSeek Coder V3',
+        provider: 'deepseek',
+        capabilities: ['text_generation', 'code_generation'],
+        maxContextLength: 64000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.00000027,
+        costPerOutputToken: 0.0000011,
+        latencyMs: 350,
+        qualityScore: 0.9,
+      },
+      // Groq models
+      {
+        id: 'llama-3.3-70b-versatile',
+        name: 'Llama 3.3 70B Versatile',
+        provider: 'groq',
+        capabilities: ['text_generation', 'text_summarization', 'code_generation', 'translation'],
+        maxContextLength: 128000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.00000059,
+        costPerOutputToken: 0.00000079,
+        latencyMs: 100,
+        qualityScore: 0.86,
+      },
+      {
+        id: 'llama-3.1-8b-instant',
+        name: 'Llama 3.1 8B Instant',
+        provider: 'groq',
+        capabilities: ['text_generation', 'text_summarization', 'code_generation', 'translation'],
+        maxContextLength: 128000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.00000005,
+        costPerOutputToken: 0.00000008,
+        latencyMs: 50,
+        qualityScore: 0.75,
+      },
+      {
+        id: 'whisper-large-v3',
+        name: 'Whisper Large V3',
+        provider: 'groq',
+        capabilities: ['voice_stt'],
+        maxContextLength: 25000,
+        maxOutputTokens: 25000,
+        costPerInputToken: 0.00000011,
+        costPerOutputToken: 0.00000011,
+        latencyMs: 150,
+        qualityScore: 0.88,
+      },
+      // Mistral models
+      {
+        id: 'mistral-large-2',
+        name: 'Mistral Large 2',
+        provider: 'mistral',
+        capabilities: ['text_generation', 'text_summarization', 'code_generation', 'translation'],
+        maxContextLength: 128000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.000002,
+        costPerOutputToken: 0.000006,
+        latencyMs: 400,
+        qualityScore: 0.9,
+      },
+      {
+        id: 'codestral-2',
+        name: 'Codestral 2',
+        provider: 'mistral',
+        capabilities: ['text_generation', 'code_generation'],
+        maxContextLength: 32000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.0000003,
+        costPerOutputToken: 0.0000009,
+        latencyMs: 200,
+        qualityScore: 0.87,
+      },
+      // Cohere models
+      {
+        id: 'rerank-v3',
+        name: 'Rerank V3',
+        provider: 'cohere',
+        capabilities: ['reranking'],
+        maxContextLength: 4096,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.000002,
+        costPerOutputToken: 0.000002,
+        latencyMs: 100,
+        qualityScore: 0.92,
+      },
+      {
+        id: 'embed-multilingual-v3',
+        name: 'Embed Multilingual V3',
+        provider: 'cohere',
+        capabilities: ['embedding'],
+        maxContextLength: 512,
+        maxOutputTokens: 512,
+        costPerInputToken: 0.0000001,
+        costPerOutputToken: 0.0000001,
+        latencyMs: 80,
+        qualityScore: 0.91,
+      },
+      // DeepInfra models
+      {
+        id: 'bge-large-en-v1.5',
+        name: 'BGE Large EN v1.5',
+        provider: 'deepinfra',
+        capabilities: ['embedding'],
+        maxContextLength: 512,
+        maxOutputTokens: 512,
+        costPerInputToken: 0.00000001,
+        costPerOutputToken: 0.00000001,
+        latencyMs: 50,
+        qualityScore: 0.85,
+      },
+      {
+        id: 'qwen-2.5-72b',
+        name: 'Qwen 2.5 72B',
+        provider: 'deepinfra',
+        capabilities: ['text_generation', 'text_summarization', 'code_generation', 'translation'],
+        maxContextLength: 32000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.00000035,
+        costPerOutputToken: 0.0000004,
+        latencyMs: 300,
+        qualityScore: 0.87,
+      },
+      // Perplexity models
+      {
+        id: 'sonar-pro',
+        name: 'Sonar Pro',
+        provider: 'perplexity',
+        capabilities: ['text_generation', 'text_summarization', 'web_search'],
+        maxContextLength: 127000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.000003,
+        costPerOutputToken: 0.000015,
+        latencyMs: 500,
+        qualityScore: 0.89,
+      },
+      // Fireworks models
+      {
+        id: 'fireworks-llama-3.1-405b',
+        name: 'Fireworks Llama 3.1 405B',
+        provider: 'fireworks',
+        capabilities: ['text_generation', 'text_summarization', 'code_generation', 'translation'],
+        maxContextLength: 128000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.000003,
+        costPerOutputToken: 0.000003,
         latencyMs: 300,
         qualityScore: 0.88,
       },
@@ -316,19 +662,19 @@ export class ModelRouter {
     this.fallbackChains = [
       {
         capability: 'text_generation',
-        models: ['gpt-4o', 'gpt-4o-mini', 'claude-3-5-haiku'],
+        models: ['gpt-4o', 'gpt-4o-mini', 'claude-haiku-4'],
       },
       {
         capability: 'code_generation',
-        models: ['gpt-4o', 'claude-3-5-sonnet', 'gpt-4o-mini'],
+        models: ['gpt-4o', 'claude-sonnet-4', 'gpt-4o-mini'],
       },
       {
         capability: 'text_summarization',
-        models: ['gpt-4o-mini', 'claude-3-5-haiku', 'gpt-4o'],
+        models: ['gpt-4o-mini', 'claude-haiku-4', 'gpt-4o'],
       },
       {
         capability: 'content_moderation',
-        models: ['gpt-4o-mini', 'claude-3-5-haiku', 'gpt-4o'],
+        models: ['omni-moderation-latest', 'gpt-4o-mini', 'claude-haiku-4'],
       },
     ];
   }
@@ -337,7 +683,7 @@ export class ModelRouter {
    * Update load for a model
    */
   updateLoad(modelId: string, delta: number): void {
-    const current = this.modelLoad.get(modelId) || 0;
+    const current = this.modelLoad.get(modelId) ?? 0;
     this.modelLoad.set(modelId, Math.max(0, current + delta));
   }
 }
