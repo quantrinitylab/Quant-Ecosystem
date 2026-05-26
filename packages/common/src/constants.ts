@@ -51,6 +51,11 @@ export const QUANT_APPS: Record<QuantApp, { name: string; description: string; c
     description: 'Central AI hub for the ecosystem with device control',
     color: '#00D4AA',
   },
+  quantdocs: {
+    name: 'QuantDocs',
+    description: 'Collaborative document editing with real-time co-authoring',
+    color: '#4A90D9',
+  },
 };
 
 /** API Base URLs */

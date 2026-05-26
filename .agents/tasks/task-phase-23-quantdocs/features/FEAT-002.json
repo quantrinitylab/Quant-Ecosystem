@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement all AI services for QuantDocs (ai-write, ai-grammar, ai-translate, ai-diagram) and create comprehensive tests for all services.",
+  "status": "completed",
+  "steps": [
+    "Create apps/quantdocs/backend/services/ai-write.service.ts - AIWriteService class with constructor(ai: AIEngine). Methods: writeFromOutline(bullets: string[], context, userId) - converts bullet outline to full doc; expandSection(paragraph: string, instructions: string, userId) - adds detail to a paragraph; simplify(text: string, audienceLevel: 'child' | 'general' | 'technical', userId) - rewrites for target audience. Follow pattern from apps/quantmail/backend/services/ai-compose.service.ts: use ai.infer() with JSON response parsing, zod validation of output, createAppError on parse failures.",
+    "Create apps/quantdocs/backend/services/ai-grammar.service.ts - AIGrammarService class with constructor(ai: AIEngine). Methods: checkGrammar(text: string, userId) returns { corrections: GrammarCorrection[], overallScore: number }. GrammarCorrection: { original, corrected, explanation, position: { start, end } }. Use ai.infer() with structured JSON output.",
+    "Create apps/quantdocs/backend/services/ai-translate.service.ts - AITranslateService class with constructor(ai: AIEngine). Methods: translate(content: string, targetLanguage: string, preserveFormatting: boolean, userId) returns { translated: string, sourceLanguage: string, confidence: number }. Use ai.infer().",
+    "Create apps/quantdocs/backend/services/ai-diagram.service.ts - AIDiagramService class with constructor(ai: AIEngine). Methods: textToDiagram(description: string, diagramType: 'flowchart' | 'sequence' | 'class' | 'state', userId) returns { mermaid: string, title: string }; textToTable(text: string, userId) returns { headers: string[], rows: string[][] }. Use ai.infer().",
+    "Create apps/quantdocs/backend/__tests__/doc.service.test.ts - Test DocService CRUD: create doc, get doc, update doc (creates version), delete doc, list docs with pagination, get version history, restore version. Mock prisma with vi.fn(). Verify createAppError thrown for unauthorized access and not-found.",
+    "Create apps/quantdocs/backend/__tests__/yjs-server.test.ts - Test YjsServer: create doc, apply update, get state vector, encode full state, verify two concurrent updates merge correctly (create two Y.Docs, apply cross-updates, verify content converges).",
+    "Create apps/quantdocs/backend/__tests__/presence.service.test.ts - Test PresenceService: set cursor, get cursors returns all users, remove cursor, verify isolation between documents.",
+    "Create apps/quantdocs/backend/__tests__/comment.service.test.ts - Test CommentService: create comment, reply to comment, resolve comment, get all comments for doc, create suggestion. Mock prisma.",
+    "Create apps/quantdocs/backend/__tests__/ai-write.service.test.ts - Test AIWriteService: writeFromOutline returns coherent doc structure, expandSection adds detail, simplify reduces complexity. Mock AIEngine.infer() to return valid JSON responses.",
+    "Create apps/quantdocs/backend/__tests__/ai-grammar.service.test.ts - Test AIGrammarService: checkGrammar detects errors in test text (mock AI returns corrections), handles clean text with no errors.",
+    "Create apps/quantdocs/backend/__tests__/ai-translate.service.test.ts - Test AITranslateService: translate produces output with correct structure, preserveFormatting flag included in prompt.",
+    "Create apps/quantdocs/backend/__tests__/ai-diagram.service.test.ts - Test AIDiagramService: textToDiagram returns valid mermaid syntax, textToTable returns proper table structure.",
+    "Create apps/quantdocs/backend/__tests__/export.service.test.ts - Test ExportService: each format (markdown, html, pdf, docx, latex) produces non-empty output of correct type. Verify markdown contains title and content, HTML has proper tags, PDF/DOCX return Buffers, LaTeX has document structure.",
+    "Create apps/quantdocs/backend/__tests__/template.service.test.ts - Test TemplateService: getTemplates returns all built-in templates, getTemplate returns specific one, createFromTemplate produces a doc with customizations applied.",
+    "Run pnpm install from workspace root to install new dependencies (yjs, y-protocols, uuid)",
+    "Run NODE_OPTIONS='' npx vitest run from workspace root to confirm all tests pass"
+  ],
+  "acceptance_criteria": [
+    "All 4 AI service files exist with properly typed classes",
+    "All 10 test files exist in backend/__tests__/",
+    "NODE_OPTIONS='' npx vitest run passes all tests",
+    "AI write from outline test verifies structured document output",
+    "AI grammar test verifies error detection in test text",
+    "Export tests verify valid output for each format (PDF, DOCX, Markdown, HTML, LaTeX)",
+    "Yjs test verifies two-client merge without conflict",
+    "Comment tests verify create, reply, and resolve flows",
+    "Presence test verifies cursor tracking per user"
+  ],
+  "verification": [
+    "Run: NODE_OPTIONS='' npx vitest run from workspace root - all quantdocs tests pass"
+  ],
+  "blocked_reason": null,
+  "findings": "All 72 tests pass across 10 test files. Tests must be run from apps/quantdocs directory (not root with --project flag) for vitest to find them. The yjs two-client merge test works correctly using Y.encodeStateAsUpdate with state vectors for delta exchange."
+}

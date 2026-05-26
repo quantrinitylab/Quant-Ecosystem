@@ -158,7 +158,8 @@ export type QuantApp =
   | 'quantneon'
   | 'quantedits'
   | 'quantmax'
-  | 'quantai';
+  | 'quantai'
+  | 'quantdocs';
 
 /** OAuth2 token response */
 export interface OAuthTokenResponse {

@@ -1,0 +1,29 @@
+{
+  "project_type": "TypeScript pnpm monorepo with Fastify backends and Next.js frontends",
+  "language": "TypeScript",
+  "build_system": "pnpm workspaces + turbo for orchestration. Apps in apps/, shared code in packages/",
+  "test_framework": "Vitest with globals: true, tests in backend/__tests__/*.test.ts",
+  "build_command": "pnpm --filter @quant/quantdocs run typecheck",
+  "test_command": "NODE_OPTIONS=\"\" npx vitest run --project apps/quantdocs",
+  "verification_instructions": "1. Run NODE_OPTIONS=\"\" npx vitest run from the app directory. 2. Run tsc --noEmit -p tsconfig.backend.json from apps/quantdocs/",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install in workspace root, dependencies installed from pnpm-lock.yaml",
+  "environment_constraints": "COMMON_DEPENDENCIES network mode - can install packages from registries. Node >=22.0.0, pnpm@10.28.1, TypeScript ~5.5.0, Vitest ^2",
+  "contribution_requirements": "TypeScript strict mode, services follow class-based pattern with constructor DI, routes use Fastify plugin pattern with zod validation, AI services use @quant/ai AIEngine.infer() method",
+  "key_patterns": "Services: class with constructor(prisma/ai), methods that throw createAppError. Routes: Fastify plugin functions with zod schema validation. Tests: vi.fn() mocks for prisma/ai, describe/it blocks. Package naming: @quant/<appname>. App type: 'quantdocs' needs to be added to QuantApp type in packages/common/src/types.ts",
+  "relevant_files": [
+    "apps/quantchat/backend/services/message.service.ts",
+    "apps/quantchat/backend/routes/messages.ts",
+    "apps/quantchat/backend/__tests__/message.service.test.ts",
+    "apps/quantmail/backend/services/ai-compose.service.ts",
+    "apps/quantmail/backend/app.ts",
+    "apps/quantmail/vitest.config.ts",
+    "apps/quantmail/package.json",
+    "apps/quantmail/tsconfig.backend.json",
+    "packages/ai/src/types.ts",
+    "packages/ai/src/index.ts",
+    "packages/server-core/src/index.ts",
+    "packages/common/src/types.ts"
+  ],
+  "directory_structure": "apps/ contains app workspaces (quantmail, quantchat, etc), packages/ has shared libs (ai, auth, common, server-core, database, realtime, etc), services/ has infrastructure services"
+}

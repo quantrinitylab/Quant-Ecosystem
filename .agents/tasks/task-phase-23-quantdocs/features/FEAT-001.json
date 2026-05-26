@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Set up apps/quantdocs workspace with package.json, tsconfig files, vitest config, app.ts entry point, and all backend services (doc, yjs-server, presence, comment, export, template) plus routes (docs, ai). Add 'quantdocs' to QuantApp type in packages/common/src/types.ts.",
+  "status": "completed",
+  "steps": [
+    "Create apps/quantdocs/package.json following apps/quantmail/package.json pattern. Name: @quant/quantdocs, deps: @quant/auth, @quant/ai, @quant/common, @quant/database, @quant/realtime, @quant/server-core, @quant/shared-ui, fastify, ioredis, zod, yjs, y-protocols (for Yjs collab), uuid. Scripts: test: vitest run, typecheck: tsc --noEmit -p tsconfig.backend.json",
+    "Create apps/quantdocs/tsconfig.json and apps/quantdocs/tsconfig.backend.json following quantmail pattern with paths to workspace packages",
+    "Create apps/quantdocs/vitest.config.ts following quantmail pattern: globals true, environment node, include backend/__tests__/**/*.test.ts",
+    "Add 'quantdocs' to the QuantApp type union in packages/common/src/types.ts",
+    "Create apps/quantdocs/backend/services/doc.service.ts - DocService class with constructor(prisma). Methods: createDoc(input: CreateDocInput), getDoc(docId, userId), updateDoc(docId, userId, content, title), deleteDoc(docId, userId), listDocs(userId, pagination), getVersionHistory(docId, userId), restoreVersion(docId, userId, versionId). Store versions on update. Use createAppError for auth/not-found errors.",
+    "Create apps/quantdocs/backend/services/yjs-server.ts - YjsServer class managing Yjs doc instances in memory. Methods: getOrCreateDoc(docId), applyUpdate(docId, update: Uint8Array), getStateVector(docId), encodeState(docId), handleConnection(docId, clientId). Use yjs library's Y.Doc, Y.applyUpdate, Y.encodeStateAsUpdate, Y.encodeStateVector.",
+    "Create apps/quantdocs/backend/services/presence.service.ts - PresenceService class. Methods: setCursor(docId, userId, position: CursorPosition), removeCursor(docId, userId), getCursors(docId). CursorPosition interface: { line, column, selection?: {start, end} }. Store in a Map<docId, Map<userId, CursorInfo>>.",
+    "Create apps/quantdocs/backend/services/comment.service.ts - CommentService class with constructor(prisma). Methods: createComment(docId, userId, content, selection), replyToComment(commentId, userId, content), resolveComment(commentId, userId), getComments(docId), createSuggestion(docId, userId, originalText, suggestedText, selection). Use createAppError for errors.",
+    "Create apps/quantdocs/backend/services/export.service.ts - ExportService class. Methods: exportToMarkdown(doc), exportToHtml(doc), exportToPdf(doc) (return Buffer), exportToDocx(doc) (return Buffer), exportToLatex(doc). Doc interface: { title, content (HTML or structured blocks), metadata }. For PDF/DOCX, generate minimal valid binary format representations.",
+    "Create apps/quantdocs/backend/services/template.service.ts - TemplateService class. Methods: getTemplates(), getTemplate(templateId), createFromTemplate(templateId, userId, customizations). Provide built-in templates: blank, meeting-notes, project-proposal, technical-spec, report.",
+    "Create apps/quantdocs/backend/routes/docs.ts - Fastify plugin with routes: POST /docs (create), GET /docs (list), GET /docs/:id (get), PUT /docs/:id (update), DELETE /docs/:id (delete), GET /docs/:id/versions (version history), POST /docs/:id/restore (restore version), GET /docs/:id/comments (list comments), POST /docs/:id/comments (create comment), POST /comments/:id/reply (reply), POST /comments/:id/resolve (resolve), POST /docs/:id/export (export with format query param), GET /templates (list), POST /templates/:id/create (create from template). Use zod validation for all request bodies.",
+    "Create apps/quantdocs/backend/routes/ai.ts - Fastify plugin with routes: POST /ai/write-from-outline, POST /ai/expand-section, POST /ai/simplify, POST /ai/translate, POST /ai/grammar-check, POST /ai/table-from-text, POST /ai/diagram-from-text. Each validates input with zod and delegates to the respective AI service.",
+    "Create apps/quantdocs/backend/app.ts - buildApp function following quantmail pattern. Register docs routes at /api/v1/docs prefix and ai routes at /api/v1/ai prefix."
+  ],
+  "acceptance_criteria": [
+    "apps/quantdocs/package.json exists with correct name and workspace dependencies",
+    "TypeScript compiles without errors: tsc --noEmit -p apps/quantdocs/tsconfig.backend.json",
+    "QuantApp type in packages/common/src/types.ts includes 'quantdocs'",
+    "All 10 service files exist with properly typed classes and exported interfaces",
+    "Both route files exist with zod validation and proper endpoint definitions",
+    "app.ts correctly registers routes and exports buildApp"
+  ],
+  "verification": [
+    "Run: NODE_OPTIONS='' npx vitest run from workspace root targeting quantdocs tests (after FEAT-002 adds tests)"
+  ],
+  "blocked_reason": null,
+  "findings": "Used local PrismaClient interface definitions instead of importing from @prisma/client (which is not available as a generated type in this workspace, same pre-existing issue as quantchat). TypeScript compiles cleanly. Also had to add quantdocs entry to QUANT_APPS constant in packages/common/src/constants.ts to satisfy Record<QuantApp, ...> type constraint. NODE_OPTIONS must be cleared for all node/pnpm commands."
+}
