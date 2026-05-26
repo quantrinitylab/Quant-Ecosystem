@@ -69,6 +69,11 @@ export type {
   InterceptRule,
   InterceptResponse,
   RecordedExchange,
+  CoverageGateConfig,
+  CoverageGateResult,
+  PackageCoverageResult,
+  MutationGateConfig,
+  MutationGateResult,
 } from './types';
 
 // Core Modules
@@ -87,3 +92,7 @@ export { FixtureManager } from './core/fixture-manager';
 export { DatabaseSeeder } from './core/database-seeder';
 export { TimeController } from './core/time-controller';
 export { NetworkInterceptor } from './core/network-interceptor';
+
+// Quality Gates
+export { CoverageGate, runCoverageGate } from './coverage-gate';
+export { MutationGate, generateStrykerConfig, runMutationGate } from './mutation-gate';

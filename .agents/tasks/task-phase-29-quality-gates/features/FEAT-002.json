@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Create Playwright e2e test framework setup with playwright.config.ts and 30 user journey skeleton test definitions covering all 13 apps",
+  "status": "pending",
+  "steps": [
+    "Create playwright.config.ts at project root - Valid Playwright configuration with: baseURL from env (default http://localhost:3000), multiple projects (chromium, firefox, webkit), retries:2, workers from env, screenshot on failure, trace on first retry, timeout 30s, outputDir test-results/.",
+    "Create packages/testing/src/e2e/index.ts - Export all journey definitions and helpers.",
+    "Create packages/testing/src/e2e/journeys.ts - Define 30 user journey skeleton test definitions as typed objects (E2EScenario[] from existing types). Each journey has name, steps array (given/when/then), and tags. Cover: (1-3) QuantChat: send message, create group, file sharing. (4-6) QuantMail: compose email, folder management, search. (7-9) QuantAI: start chat, use tool, manage session. (10-12) QuantAds: create campaign, review analytics, manage budget. (13-15) QuantTube: upload video, browse feed, comment. (16-18) QuantNeon: create post, like/share, explore feed. (19-20) QuantSync: sync file, share folder. (21-22) QuantDocs: create document, collaborate. (23-24) QuantDrive: upload file, manage storage. (25-26) QuantMeet: start meeting, join meeting. (27-28) QuantCalendar: create event, manage schedule. (29) QuantEdits: create project. (30) QuantMax: multi-app workflow.",
+    "Create packages/testing/src/e2e/helpers.ts - Helper functions: createJourney(), buildSteps(), navigateTo(), clickElement(), typeText(), assertVisible(), assertText(). These wrap the E2EStep creation for cleaner journey definitions.",
+    "Create packages/testing/src/__tests__/e2e-journeys.test.ts - Tests that: (1) all 30 journeys are defined, (2) each journey has at least 3 steps, (3) each journey has valid step types (given/when/then), (4) no duplicate journey names, (5) all app tags are covered.",
+    "Update packages/testing/src/index.ts to export e2e module."
+  ],
+  "acceptance_criteria": [
+    "playwright.config.ts at root is valid Playwright configuration",
+    "30 user journey definitions exist with proper typing",
+    "Each journey has name, steps (given/when/then), and tags",
+    "All 13 apps have at least 1 journey covering them",
+    "E2E journey tests pass: NODE_OPTIONS='' npx vitest run packages/testing/src/__tests__/e2e-journeys.test.ts"
+  ],
+  "verification": [
+    "Run: NODE_OPTIONS='' npx vitest run packages/testing/src/__tests__/e2e-journeys.test.ts",
+    "Run: npx tsc --noEmit -p packages/testing/tsconfig.json"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

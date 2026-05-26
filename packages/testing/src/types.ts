@@ -564,3 +564,43 @@ export interface RecordedExchange {
   response: InterceptResponse;
   duration: number;
 }
+
+// === Coverage Gate Types ===
+
+export interface CoverageGateConfig {
+  threshold: number;
+  criticalPackages: string[];
+  coverageDir: string;
+}
+
+export interface CoverageGateResult {
+  pass: boolean;
+  results: PackageCoverageResult[];
+  summary: string;
+}
+
+export interface PackageCoverageResult {
+  packageName: string;
+  lineCoverage: number;
+  threshold: number;
+  pass: boolean;
+}
+
+// === Mutation Gate Types ===
+
+export interface MutationGateConfig {
+  threshold: number;
+  targetPackages: string[];
+  reporters: string[];
+  incremental: boolean;
+}
+
+export interface MutationGateResult {
+  pass: boolean;
+  mutationScore: number;
+  threshold: number;
+  killed: number;
+  survived: number;
+  noCoverage: number;
+  totalMutants: number;
+}

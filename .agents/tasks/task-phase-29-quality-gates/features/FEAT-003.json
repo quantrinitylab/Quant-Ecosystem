@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Create k6 load test scripts for chat fanout, feed ranking, and search scenarios plus security scanning configs (OWASP ZAP + Snyk)",
+  "status": "pending",
+  "steps": [
+    "Create packages/testing/src/load/index.ts - Export all load test configurations and scripts.",
+    "Create packages/testing/src/load/chat-fanout.ts - k6 load test script config for chat message fanout: (1) scenario definition with ramping VUs (0->50 over 30s, hold 50 for 2m, ramp down), (2) thresholds (p95 < 500ms, error rate < 1%), (3) test function that simulates sending messages to group chat and verifying delivery to all members.",
+    "Create packages/testing/src/load/feed-ranking.ts - k6 load test script config for feed ranking: (1) scenario with constant VUs (100 users for 3m), (2) thresholds (p95 < 1000ms, p99 < 2000ms, error rate < 0.5%), (3) test function that fetches personalized feed, scrolls through pages, interacts with posts.",
+    "Create packages/testing/src/load/search.ts - k6 load test script config for search: (1) scenario with ramping arrival rate (0->200 req/s over 1m, hold for 2m), (2) thresholds (p95 < 300ms, p99 < 800ms, error rate < 0.1%), (3) test function that performs full-text search, filters results, and paginate.",
+    "Create packages/testing/src/load/types.ts - TypeScript types for K6ScriptConfig, K6Scenario, K6Threshold, K6Stage, LoadTestDefinition.",
+    "Create k6/ directory at project root with: k6/chat-fanout.js (JavaScript k6 script using the config from packages/testing), k6/feed-ranking.js, k6/search.js. These are the actual k6-compatible scripts that reference the config.",
+    "Create packages/testing/src/security/index.ts - Export security scanning configurations.",
+    "Create packages/testing/src/security/owasp-zap.ts - OWASP ZAP configuration: target URLs for each app, active scan policies, spider config, alerting thresholds (no high-severity findings allowed), authentication config template.",
+    "Create packages/testing/src/security/snyk.ts - Snyk configuration: project manifest paths for all packages, severity threshold (high), auto-fix policy, ignore patterns, license compliance config.",
+    "Create packages/testing/src/security/types.ts - Types for ZAPConfig, ZAPScanPolicy, SnykConfig, SnykPolicy, SecurityScanResult.",
+    "Create packages/testing/src/__tests__/load-scripts.test.ts - Tests that: (1) all 3 load scripts have valid scenarios, (2) thresholds are properly defined, (3) chat fanout targets correct endpoints, (4) feed ranking uses correct VU count, (5) search uses arrival rate pattern.",
+    "Create packages/testing/src/__tests__/security-config.test.ts - Tests that: (1) ZAP config targets all apps, (2) Snyk config lists all package manifests, (3) severity thresholds are enforced, (4) configs are valid objects.",
+    "Update packages/testing/src/index.ts to export load and security modules."
+  ],
+  "acceptance_criteria": [
+    "k6/ directory has 3 JavaScript load test scripts",
+    "packages/testing/src/load/ has typed configs for chat-fanout, feed-ranking, search",
+    "Each load test has scenarios with stages/VUs and thresholds",
+    "packages/testing/src/security/ has OWASP ZAP and Snyk configurations",
+    "Security configs are comprehensive (target all apps, proper thresholds)",
+    "Load and security tests pass: NODE_OPTIONS='' npx vitest run packages/testing/src/__tests__/load-scripts.test.ts packages/testing/src/__tests__/security-config.test.ts"
+  ],
+  "verification": [
+    "Run: NODE_OPTIONS='' npx vitest run packages/testing/src/__tests__/load-scripts.test.ts",
+    "Run: NODE_OPTIONS='' npx vitest run packages/testing/src/__tests__/security-config.test.ts",
+    "Run: npx tsc --noEmit -p packages/testing/tsconfig.json"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

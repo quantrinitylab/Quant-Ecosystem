@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Create GitHub Actions quality-gates.yml workflow and update security-scan.yml with OWASP ZAP + Snyk integration",
+  "status": "pending",
+  "steps": [
+    "Create .github/workflows/quality-gates.yml - A comprehensive GitHub Actions workflow that: (1) triggers on push to main and PRs, (2) runs pnpm install, (3) runs unit tests with coverage (vitest run --coverage), (4) runs coverage gate check (node script that parses coverage JSON and enforces 80% on critical packages), (5) runs typecheck, (6) runs lint, (7) has a separate job for mutation testing (runs Stryker on auth/payments/security), (8) has a separate job for e2e tests (sets up Playwright, runs e2e suite), (9) has a separate job for load tests (runs k6 scripts), (10) uses matrix strategy where appropriate, (11) uploads coverage and test artifacts.",
+    "Update .github/workflows/security-scan.yml - Add Snyk scanning job alongside existing Trivy/CodeQL/ZAP: (1) new 'snyk' job that runs snyk test on the monorepo, (2) uploads Snyk results as SARIF, (3) uses Snyk token from secrets. Keep all existing jobs intact.",
+    "Create packages/testing/src/__tests__/quality-gates-workflow.test.ts - Tests that: (1) quality-gates.yml is valid YAML, (2) contains all required jobs (test, coverage-gate, mutation, e2e, load), (3) coverage gate enforces 80% threshold, (4) mutation job targets correct packages, (5) security-scan.yml contains snyk job."
+  ],
+  "acceptance_criteria": [
+    ".github/workflows/quality-gates.yml is valid GitHub Actions YAML",
+    "Workflow has jobs for: tests+coverage, coverage gate, mutation testing, e2e, load tests",
+    "Coverage gate job enforces 80% threshold on critical packages",
+    "Mutation job runs Stryker targeting auth/payments/security",
+    "security-scan.yml includes Snyk scanning alongside existing Trivy/CodeQL/ZAP",
+    "Workflow tests pass: NODE_OPTIONS='' npx vitest run packages/testing/src/__tests__/quality-gates-workflow.test.ts"
+  ],
+  "verification": [
+    "Run: NODE_OPTIONS='' npx vitest run packages/testing/src/__tests__/quality-gates-workflow.test.ts",
+    "Run: npx tsc --noEmit -p packages/testing/tsconfig.json"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

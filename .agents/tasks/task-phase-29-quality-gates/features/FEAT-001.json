@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Create coverage-gate.ts, mutation-gate.ts, Stryker config, and package.json for the testing package with quality gate enforcement logic",
+  "status": "in_progress",
+  "steps": [
+    "Create packages/testing/package.json with name @quant/testing, scripts (typecheck, test), devDependencies (vitest ^2, typescript ~5.5.0), and dependencies (zod ^3.24.2 for config validation). Include type:module.",
+    "Create packages/testing/tsconfig.json following the same pattern as packages/auth/tsconfig.json (strict, ESNext module, composite:true)",
+    "Create packages/testing/vitest.config.ts following the same pattern as packages/auth/vitest.config.ts",
+    "Create packages/testing/src/coverage-gate.ts - A CoverageGate class that: (1) defines critical packages list (auth, payments, security), (2) reads vitest coverage JSON output, (3) computes per-package line coverage, (4) enforces 80% line threshold on critical packages, (5) exports a runCoverageGate() function that returns pass/fail with detailed report. Use the existing CoverageThresholds type from ./types.",
+    "Create packages/testing/src/mutation-gate.ts - A MutationGate class that: (1) generates a Stryker mutation testing configuration targeting packages/auth/src, packages/payments/src, packages/security/src, (2) defines 60% mutation score threshold, (3) exports generateStrykerConfig() returning valid StrykerOptions object, (4) exports runMutationGate() that validates config and checks results against threshold.",
+    "Create stryker.conf.mjs at project root - Valid Stryker configuration for the monorepo: mutate patterns targeting auth/payments/security src files, vitest as test runner, incremental mode enabled, thresholds (high:80, low:60, break:60), JSON+HTML reporters.",
+    "Add types to packages/testing/src/types.ts for CoverageGateConfig, CoverageGateResult, MutationGateConfig, MutationGateResult. These should include packageName, threshold, actual coverage percentage, pass boolean.",
+    "Update packages/testing/src/index.ts to export the new CoverageGate and MutationGate classes.",
+    "Create packages/testing/src/__tests__/coverage-gate.test.ts - Tests that: (1) CoverageGate correctly identifies packages below 80% threshold, (2) CoverageGate passes when all critical packages meet threshold, (3) report includes per-package breakdown.",
+    "Create packages/testing/src/__tests__/mutation-gate.test.ts - Tests that: (1) generateStrykerConfig() produces valid config with correct mutate patterns, (2) MutationGate correctly validates against 60% threshold, (3) config targets only auth/payments/security packages."
+  ],
+  "acceptance_criteria": [
+    "packages/testing/package.json exists with correct structure",
+    "packages/testing/src/coverage-gate.ts compiles with strict TypeScript",
+    "packages/testing/src/mutation-gate.ts compiles with strict TypeScript",
+    "stryker.conf.mjs exists at root with valid Stryker configuration targeting auth/payments/security",
+    "Coverage gate enforces 80% line coverage on critical packages",
+    "Mutation gate enforces 60% mutation score threshold",
+    "Unit tests pass for both gates: NODE_OPTIONS='' npx vitest run packages/testing/src/__tests__/"
+  ],
+  "verification": [
+    "Run: NODE_OPTIONS='' npx vitest run packages/testing/src/__tests__/coverage-gate.test.ts",
+    "Run: NODE_OPTIONS='' npx vitest run packages/testing/src/__tests__/mutation-gate.test.ts",
+    "Run: npx tsc --noEmit -p packages/testing/tsconfig.json"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

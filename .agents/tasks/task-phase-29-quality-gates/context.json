@@ -1,0 +1,28 @@
+{
+  "project_type": "TypeScript monorepo (pnpm workspaces + Turborepo) with 13 apps and 37 packages",
+  "language": "TypeScript ~5.5.0",
+  "build_system": "pnpm@10.28.1 + Turborepo, strict TypeScript with noUnusedLocals/noUnusedParameters",
+  "test_framework": "Vitest ^2 with @vitest/coverage-v8, globals:true, node environment",
+  "build_command": "pnpm turbo typecheck",
+  "test_command": "NODE_OPTIONS=\"\" npx vitest run",
+  "verification_instructions": "1. Run NODE_OPTIONS=\"\" npx vitest run to confirm tests pass. 2. Run npx tsc --noEmit on new packages to verify TypeScript.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install --frozen-lockfile",
+  "environment_constraints": "COMMON_DEPENDENCIES network mode. Can install npm packages. No docker daemon expected for testing.",
+  "contribution_requirements": "TypeScript strict mode, ESM modules, Vitest for testing, pnpm workspaces",
+  "key_patterns": "Each package has package.json with scripts (typecheck, test), vitest.config.ts, tsconfig.json. Existing packages/testing has src/core/ modules and src/types.ts with comprehensive type exports from src/index.ts. Existing .github/workflows/security-scan.yml has Trivy+CodeQL+ZAP. Existing CI at ci.yml.",
+  "relevant_files": [
+    "packages/testing/src/index.ts",
+    "packages/testing/src/types.ts",
+    "packages/testing/src/core/coverage-reporter.ts",
+    "packages/testing/src/core/load-tester.ts",
+    "packages/testing/src/core/e2e-runner.ts",
+    ".github/workflows/ci.yml",
+    ".github/workflows/security-scan.yml",
+    "vitest.config.ts",
+    "tsconfig.json",
+    "package.json",
+    "pnpm-workspace.yaml"
+  ],
+  "directory_structure": "Root: apps/ (13 apps), packages/ (37 packages including testing, auth, payments, security), services/, .github/workflows/, infra/. packages/testing/src/core/ has existing test framework modules."
+}
