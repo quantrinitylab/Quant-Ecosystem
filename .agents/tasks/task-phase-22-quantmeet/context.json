@@ -1,0 +1,41 @@
+{
+  "project_type": "TypeScript monorepo - Fastify backend apps with shared packages",
+  "language": "TypeScript",
+  "build_system": "pnpm workspaces + turborepo. Apps at apps/*, packages at packages/*. Each app has package.json with workspace:* deps.",
+  "test_framework": "Vitest with vi.fn() mocks, describe/it/expect pattern, tests in backend/__tests__/ directory",
+  "build_command": "npx tsc --noEmit (per-app typecheck)",
+  "test_command": "NODE_OPTIONS=\"\" npx vitest run",
+  "verification_instructions": "1. Run NODE_OPTIONS=\"\" npx vitest run from apps/quantmeet to run all tests. 2. Run npx tsc --noEmit to verify TypeScript strict compliance.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install from root, then work within apps/quantmeet/",
+  "environment_constraints": "COMMON_DEPENDENCIES network mode - can install packages from registries. No Docker daemon available for testing.",
+  "contribution_requirements": "Conventional commits, TypeScript strict (no any), Zod validation on all inputs, every service gets .test.ts",
+  "key_patterns": {
+    "app_entry": "apps/*/backend/app.ts uses createApp() from @quant/server-core, registers route plugins with prefix",
+    "services": "Class-based services with constructor dependency injection (typically PrismaClient). Located in backend/services/",
+    "routes": "Fastify plugin functions in backend/routes/, use Zod schemas for validation, call service methods",
+    "tests": "Located in backend/__tests__/, mock dependencies with vi.fn(), test service methods directly",
+    "package_json": "workspace:* deps to internal packages, fastify ^5.3.3, zod ^3.25.23, vitest ^2",
+    "tsconfig": "Extends ../../tsconfig.json, includes backend/**/*.ts, references workspace packages",
+    "error_handling": "createAppError(message, statusCode, code) from @quant/server-core"
+  },
+  "relevant_files": [
+    "apps/quantchat/backend/app.ts",
+    "apps/quantchat/backend/__tests__/message.service.test.ts",
+    "apps/quantchat/package.json",
+    "apps/quantube/backend/app.ts",
+    "apps/quantube/backend/__tests__/video.service.test.ts",
+    "apps/quantube/backend/routes/videos.ts",
+    "apps/quantube/tsconfig.json",
+    "packages/ai/src/index.ts",
+    "packages/ai/src/types.ts",
+    "packages/ai/src/voice/speech-to-text.ts",
+    "packages/queue/src/index.ts",
+    "packages/queue/src/queue-manager.ts",
+    "packages/storage/src/index.ts",
+    "packages/storage/src/storage-client.ts",
+    "packages/server-core/src/app.ts",
+    "packages/server-core/src/index.ts"
+  ],
+  "directory_structure": "Root: apps/ (9 apps), packages/ (35 shared packages), services/, infra/. Each app: backend/ (app.ts, routes/, services/, __tests__/), package.json, tsconfig.json"
+}

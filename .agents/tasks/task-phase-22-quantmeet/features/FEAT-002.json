@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Create comprehensive test suites for all QuantMeet services. Each service gets a .test.ts file in backend/__tests__/ following the existing pattern from apps/quantchat and apps/quantube (vi.fn() mocks, describe/it/expect). Tests must exercise actual code paths and fail if service logic is reverted.",
+  "status": "completed",
+  "steps": [
+    "Create apps/quantmeet/backend/__tests__/room.service.test.ts - Test createRoom (valid input returns room with generated id, host as first participant), joinRoom (adds participant, throws if room not found, throws if room full), leaveRoom (removes participant, throws if not in room), listParticipants (returns current participants), closeRoom (throws if not found, marks room closed).",
+    "Create apps/quantmeet/backend/__tests__/sfu.service.test.ts - Test createTransport (returns transport info with id/iceParameters/dtlsParameters for send and recv directions), connectTransport (succeeds with valid id, throws for unknown transport), produce (creates producer with kind and rtpParameters, throws for invalid transport), consume (creates consumer from producer, throws for unknown producer), closeProducer/closeConsumer (removes from registry, throws for unknown ids).",
+    "Create apps/quantmeet/backend/__tests__/recording.service.test.ts - Mock @quant/storage StorageClient. Test startRecording (creates recording with RECORDING status, calls storage), stopRecording (updates status to COMPLETED, sets stoppedAt/duration), getRecording (returns recording, throws for not found), listRecordings (returns all recordings for room).",
+    "Create apps/quantmeet/backend/__tests__/transcript.service.test.ts - Mock @quant/ai SpeechToTextService. Test processAudioChunk (calls transcribe, stores segment, returns TranscriptSegment with text/confidence), getTranscript (returns all segments for room in order), clearTranscript (empties transcript for room).",
+    "Create apps/quantmeet/backend/__tests__/summary.service.test.ts - Mock @quant/ai inference. Test generateSummary (takes transcript segments, returns MeetingSummary with summary/keyPoints/decisions), generateFromRoomId (fetches transcript then generates summary, throws if no transcript).",
+    "Create apps/quantmeet/backend/__tests__/action-items.service.test.ts - Mock @quant/ai inference. Test extractActionItems (takes transcript segments, returns ActionItem[] with title/assignee/priority), extractFromRoomId (fetches transcript then extracts, throws if no transcript).",
+    "Create apps/quantmeet/backend/__tests__/breakout.service.test.ts - Test createBreakoutRoom (creates sub-room linked to parent, assigns initial participants), assignParticipant (adds participant to breakout room, throws if breakout not found), closeBreakoutRoom (marks closed, throws if already closed), listBreakoutRooms (returns all active breakouts for parent), returnToMainRoom (removes participant from breakout)."
+  ],
+  "acceptance_criteria": [
+    "All 7 test files exist in apps/quantmeet/backend/__tests__/",
+    "Running NODE_OPTIONS=\"\" npx vitest run from apps/quantmeet/ passes all tests",
+    "Each test exercises real service logic (not just mocking everything away)",
+    "Tests would fail if corresponding service methods were removed or had their logic changed",
+    "At least 3 test cases per service method (happy path, error cases, edge cases)"
+  ],
+  "verification": [
+    "Run NODE_OPTIONS=\"\" npx vitest run from apps/quantmeet/ and confirm all tests pass",
+    "Run npx tsc --noEmit from apps/quantmeet/ to confirm types are correct"
+  ],
+  "blocked_reason": null,
+  "findings": "All 102 tests pass across 7 test files. TypeScript strict mode required non-null assertions (!) on array index access. TS6305 errors about unbuilt project references are pre-existing (same as FEAT-001 finding). Prettier auto-formatted the test files via lint-staged hook."
+}

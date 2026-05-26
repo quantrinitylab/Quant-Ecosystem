@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "."
+  },
+  "include": ["backend/**/*.ts", "src/**/*.ts"],
+  "references": [
+    { "path": "../../packages/ai" },
+    { "path": "../../packages/queue" },
+    { "path": "../../packages/storage" },
+    { "path": "../../packages/auth" },
+    { "path": "../../packages/common" },
+    { "path": "../../packages/server-core" }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Create the QuantMeet app scaffold with package.json, tsconfig.json, and the Fastify backend entry point (app.ts) with WebSocket support. Create all backend services: room.service.ts, sfu.service.ts, recording.service.ts, transcript.service.ts, summary.service.ts, action-items.service.ts, and breakout.service.ts. Create routes: rooms.ts, recordings.ts, ws.ts. Create frontend type definitions for VideoTile, ParticipantGrid, ControlBar, ChatPanel, TranscriptPanel, BackgroundBlur.",
+  "status": "completed",
+  "steps": [
+    "Create apps/quantmeet/package.json following the pattern from apps/quantube/package.json. Include deps: @quant/ai workspace:*, @quant/queue workspace:*, @quant/storage workspace:*, @quant/auth workspace:*, @quant/common workspace:*, @quant/server-core workspace:*, fastify ^5.3.3, @fastify/websocket ^11.0.2, ioredis ^5.6.1, zod ^3.25.23. Scripts: dev, build, typecheck, test (vitest run).",
+    "Create apps/quantmeet/tsconfig.json extending ../../tsconfig.json with outDir ./dist, rootDir ., includes backend/**/*.ts and src/**/*.ts, references to used packages (ai, queue, storage, auth, common, server-core).",
+    "Create apps/quantmeet/backend/app.ts following the pattern from apps/quantube/backend/app.ts. Register @fastify/websocket, register routes for /rooms, /recordings, and /ws.",
+    "Create apps/quantmeet/backend/services/room.service.ts - Class RoomService with in-memory Map<string, Room> store. Methods: createRoom(input: CreateRoomInput): Room, joinRoom(roomId, participant): Room, leaveRoom(roomId, participantId): Room, getRoom(roomId): Room, listParticipants(roomId): Participant[], closeRoom(roomId): void. Use Zod schemas for input validation. Room interface: { id, name, hostId, participants: Participant[], createdAt, settings: RoomSettings }. Participant: { id, userId, displayName, joinedAt, role, audioEnabled, videoEnabled }.",
+    "Create apps/quantmeet/backend/services/sfu.service.ts - Class SFUService for WebRTC SFU media routing. Methods: createTransport(roomId, participantId, direction): TransportInfo, connectTransport(transportId, dtlsParameters): void, produce(transportId, kind, rtpParameters): ProducerInfo, consume(transportId, producerId, rtpCapabilities): ConsumerInfo, closeProducer(producerId): void, closeConsumer(consumerId): void. All with proper TypeScript interfaces.",
+    "Create apps/quantmeet/backend/services/recording.service.ts - Class RecordingService with @quant/storage dependency. Methods: startRecording(roomId, userId): Recording, stopRecording(recordingId): Recording, getRecording(recordingId): Recording, listRecordings(roomId): Recording[]. Recording interface: { id, roomId, userId, status, startedAt, stoppedAt, storageKey, duration, fileSize }.",
+    "Create apps/quantmeet/backend/services/transcript.service.ts - Class TranscriptService with @quant/ai dependency (SpeechToTextService). Methods: processAudioChunk(roomId, participantId, audioBuffer): TranscriptSegment, getTranscript(roomId): TranscriptSegment[], clearTranscript(roomId): void. TranscriptSegment: { id, roomId, participantId, text, timestamp, duration, confidence }.",
+    "Create apps/quantmeet/backend/services/summary.service.ts - Class SummaryService with @quant/ai dependency. Methods: generateSummary(transcript: TranscriptSegment[]): MeetingSummary, generateFromRoomId(roomId): MeetingSummary. MeetingSummary: { id, roomId, summary, keyPoints, decisions, generatedAt }.",
+    "Create apps/quantmeet/backend/services/action-items.service.ts - Class ActionItemsService with @quant/ai dependency. Methods: extractActionItems(transcript: TranscriptSegment[]): ActionItem[], extractFromRoomId(roomId): ActionItem[]. ActionItem: { id, title, description, assignee, dueDate, priority, status }.",
+    "Create apps/quantmeet/backend/services/breakout.service.ts - Class BreakoutService. Methods: createBreakoutRoom(parentRoomId, name, assignedParticipantIds): BreakoutRoom, assignParticipant(breakoutRoomId, participantId): BreakoutRoom, closeBreakoutRoom(breakoutRoomId): void, listBreakoutRooms(parentRoomId): BreakoutRoom[], returnToMainRoom(breakoutRoomId, participantId): void. BreakoutRoom: { id, parentRoomId, name, participants, createdAt, closedAt }.",
+    "Create apps/quantmeet/backend/routes/rooms.ts - Fastify plugin with: POST / (create room), POST /:id/join (join), POST /:id/leave (leave), GET /:id (get room), GET /:id/participants (list participants), DELETE /:id (close room). Use Zod for body/param validation.",
+    "Create apps/quantmeet/backend/routes/recordings.ts - Fastify plugin with: POST /:roomId/start (start recording), POST /:id/stop (stop recording), GET /:id (get recording), GET /room/:roomId (list recordings). Use Zod for validation.",
+    "Create apps/quantmeet/backend/routes/ws.ts - Fastify WebSocket plugin for signaling. Handle events: join-room, leave-room, offer, answer, ice-candidate, mute/unmute, start-screen-share, stop-screen-share. Route messages to room participants.",
+    "Create apps/quantmeet/src/types/components.ts - TypeScript interfaces for frontend component types: VideoTileProps, ParticipantGridProps, ControlBarProps, ChatPanelProps, TranscriptPanelProps, BackgroundBlurConfig. Include all needed sub-types (ChatMessage, TranscriptEntry, etc.).",
+    "Create apps/quantmeet/src/types/ai-features.ts - TypeScript interfaces for AI features: LiveTranscriptConfig, BackgroundBlurONNXConfig, MeetingSummaryResult, ActionItemResult, SmartMuteDetectionConfig, MeetingPrepConfig, MeetingPrepResult."
+  ],
+  "acceptance_criteria": [
+    "apps/quantmeet/package.json exists with correct deps and scripts",
+    "apps/quantmeet/tsconfig.json extends root and compiles without errors",
+    "apps/quantmeet/backend/app.ts exports buildApp() that creates Fastify app with WebSocket and registers all routes",
+    "RoomService supports create, join, leave, getRoom, listParticipants, closeRoom",
+    "SFUService handles createTransport, connectTransport, produce, consume, closeProducer, closeConsumer",
+    "RecordingService supports start, stop, get, list with @quant/storage integration",
+    "TranscriptService processes audio chunks and returns transcript segments",
+    "SummaryService generates meeting summaries from transcripts",
+    "ActionItemsService extracts todos with assignees from transcripts",
+    "BreakoutService creates sub-rooms, assigns participants, closes rooms",
+    "All routes have Zod validation",
+    "Frontend type definitions are complete TypeScript interfaces"
+  ],
+  "verification": [
+    "Run npx tsc --noEmit from apps/quantmeet/ to confirm TypeScript compiles cleanly"
+  ],
+  "blocked_reason": null,
+  "findings": "TS6305 errors about unbuilt project references are pre-existing in all apps (confirmed same pattern in quantube). These are not actual code errors. The commit-msg hook requires NODE_OPTIONS to be empty to run properly."
+}
