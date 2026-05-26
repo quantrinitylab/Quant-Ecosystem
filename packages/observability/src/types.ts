@@ -554,3 +554,130 @@ export interface CanaryWindow {
   baselineData: Record<string, number[]>;
   canaryData: Record<string, number[]>;
 }
+
+// --- Instrument Decorator Types ---
+
+export interface InstrumentOptions {
+  name?: string;
+  recordArgs?: boolean;
+}
+
+// --- OTel Setup Types ---
+
+export interface OTelConfig {
+  serviceName: string;
+  environment: string;
+  samplingRate?: number;
+  enableMetrics?: boolean;
+  enableLogs?: boolean;
+}
+
+// --- Service SLO Types ---
+
+export interface ServiceSLO {
+  serviceName: string;
+  availability: SLODefinition;
+  latencyP95: SLODefinition;
+  latencyP99: SLODefinition;
+}
+
+export interface SLOServiceConfig {
+  services: ServiceSLO[];
+}
+
+// --- Synthetic Monitor Types ---
+
+export interface ProbeConfig {
+  url: string;
+  interval: number;
+  timeout: number;
+  expectedStatus?: number;
+  headers?: Record<string, string>;
+}
+
+export interface ProbeResult {
+  name: string;
+  success: boolean;
+  latency: number;
+  statusCode: number;
+  timestamp: number;
+  error?: string;
+}
+
+export interface JourneyStep {
+  name: string;
+  execute: () => Promise<boolean>;
+  timeout?: number;
+}
+
+export interface JourneyResult {
+  name: string;
+  steps: Array<{ name: string; success: boolean; latency: number; error?: string }>;
+  totalLatency: number;
+  success: boolean;
+}
+
+// --- Dashboard Config Types ---
+
+export interface DashboardPanel {
+  title: string;
+  type: 'graph' | 'stat' | 'gauge' | 'table';
+  gridPos: { x: number; y: number; w: number; h: number };
+  targets: Array<{ expr: string; legendFormat?: string }>;
+}
+
+export interface DashboardConfig {
+  title: string;
+  uid: string;
+  panels: DashboardPanel[];
+  tags: string[];
+  editable: boolean;
+  refresh: string;
+}
+
+// --- PagerDuty Types ---
+
+export type PagerDutySeverity = 'critical' | 'error' | 'warning' | 'info';
+
+export interface PagerDutyIncident {
+  id: string;
+  severity: PagerDutySeverity;
+  title: string;
+  description: string;
+  service: string;
+  status: 'triggered' | 'acknowledged' | 'resolved';
+  createdAt: number;
+  updatedAt: number;
+  notes: string[];
+}
+
+export interface PagerDutyPayload {
+  routing_key: string;
+  event_action: 'trigger' | 'acknowledge' | 'resolve';
+  dedup_key: string;
+  payload: {
+    summary: string;
+    severity: PagerDutySeverity;
+    source: string;
+    component: string;
+    custom_details: Record<string, unknown>;
+  };
+}
+
+// --- Runbook Types ---
+
+export interface RunbookTemplate {
+  serviceName: string;
+  alertType: string;
+  content: string;
+}
+
+// --- Chaos Template Types ---
+
+export interface ChaosTemplate {
+  name: string;
+  type: FaultType;
+  defaultConfig: FaultConfig;
+  defaultDuration: number;
+  defaultBlastRadius: number;
+}

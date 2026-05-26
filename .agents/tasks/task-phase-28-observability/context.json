@@ -1,0 +1,30 @@
+{
+  "project_type": "TypeScript monorepo (pnpm workspaces + Turborepo)",
+  "language": "TypeScript",
+  "build_system": "pnpm@10.28.1 with turbo for task orchestration. Each package has its own package.json with scripts: typecheck, test, build.",
+  "test_framework": "Vitest ^2 with globals:true. Tests go in src/__tests__/*.test.ts. Import from vitest: describe, it, expect, beforeEach. Import source modules with .js extension.",
+  "build_command": "npx tsc --noEmit -p packages/observability/tsconfig.json",
+  "test_command": "NODE_OPTIONS=\"\" npx vitest run --project packages/observability",
+  "verification_instructions": "1. Run typecheck: npx tsc --noEmit -p packages/observability/tsconfig.json 2. Run tests: NODE_OPTIONS=\"\" npx vitest run packages/observability/src/__tests__/",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install in root directory. Node >=22 and pnpm@10.28.1 already available.",
+  "environment_constraints": "COMMON_DEPENDENCIES network mode - can install from npm registries. No Docker daemon needed for validation.",
+  "contribution_requirements": "TypeScript strict mode, ESNext modules with bundler resolution, composite project references. Tests use vitest with .js extensions on imports.",
+  "key_patterns": "Packages follow pattern: package.json (name: @quant/xxx), tsconfig.json (extends ../../tsconfig.json), src/index.ts barrel, src/types.ts for types, src/core/ for implementations, src/__tests__/ for tests. Classes with clear constructor/method pattern. No external OTel SDK dependency needed - implement concepts in-house matching existing patterns.",
+  "relevant_files": [
+    "packages/observability/src/index.ts",
+    "packages/observability/src/types.ts",
+    "packages/observability/src/core/distributed-tracer.ts",
+    "packages/observability/src/core/slo-tracker.ts",
+    "packages/observability/src/core/chaos-engineering.ts",
+    "packages/observability/src/core/metrics-collector.ts",
+    "packages/observability/src/core/structured-logger.ts",
+    "packages/observability/src/core/health-checker.ts",
+    "packages/cross-publish/package.json",
+    "packages/cross-publish/tsconfig.json",
+    "packages/ranking/package.json",
+    "packages/ranking/tsconfig.json",
+    "packages/ranking/src/__tests__/algorithm-registry.test.ts"
+  ],
+  "directory_structure": "packages/observability/src/ - main source, packages/observability/src/core/ - class implementations, packages/observability/src/__tests__/ - test files (to create)"
+}

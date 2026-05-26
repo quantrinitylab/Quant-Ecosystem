@@ -16,6 +16,16 @@ export { SLOTracker } from './core/slo-tracker';
 export { ChaosEngine } from './core/chaos-engineering';
 export { CanaryAnalyzer } from './core/canary-analyzer';
 
+export { instrument, configureInstrument } from './instrument';
+export { OTelSetup } from './otel-setup';
+export { ServiceSLODefinitions, parseSLOConfig, getServiceSLO } from './slo-definitions';
+export { BurnRateCalculator } from './slo-burn-rate';
+export { ChaosExperimentRunner } from './chaos-experiments';
+export { RunbookGenerator } from './runbook-generator';
+export { SyntheticMonitor } from './synthetic-monitor';
+export { DashboardConfigGenerator } from './dashboard-config';
+export { PagerDutyIntegration } from './pagerduty-integration';
+
 export type {
   TraceContext,
   Span,
@@ -90,4 +100,19 @@ export type {
   CanaryConfig,
   CanaryReport,
   CanaryWindow,
+  InstrumentOptions,
+  OTelConfig,
+  ServiceSLO,
+  SLOServiceConfig,
+  ProbeConfig,
+  ProbeResult,
+  JourneyStep,
+  JourneyResult,
+  DashboardPanel,
+  DashboardConfig,
+  PagerDutySeverity,
+  PagerDutyIncident,
+  PagerDutyPayload,
+  RunbookTemplate,
+  ChaosTemplate,
 } from './types';

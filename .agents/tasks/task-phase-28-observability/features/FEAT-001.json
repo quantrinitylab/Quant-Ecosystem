@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Set up package infrastructure for @quant/observability: create package.json, tsconfig.json, and install. Then add the new Phase 28 source modules (instrument.ts, otel-setup.ts, slo-definitions.ts, slo-burn-rate.ts, chaos-experiments.ts, runbook-generator.ts, synthetic-monitor.ts, dashboard-config.ts, pagerduty-integration.ts) to packages/observability/src/.",
+  "status": "in_progress",
+  "steps": [
+    "Create packages/observability/package.json with name @quant/observability, type module, main src/index.ts, scripts (typecheck: tsc --noEmit, test: vitest run, build: tsc). Dependencies: zod ^3.24.0. DevDependencies: @types/node ^22.0.0, typescript ~5.5.0, vitest ^2.",
+    "Create packages/observability/tsconfig.json extending ../../tsconfig.json with outDir ./dist, rootDir ./src, composite true, include src/**/*.",
+    "Run pnpm install from the workspace root to link the package.",
+    "Create packages/observability/src/instrument.ts - An @instrument() decorator factory that emits OTel-compatible spans. It should wrap any class method, create a span (using DistributedTracer) with the method name, record arguments as attributes, handle errors by setting span status to error, and end the span on completion. Support both sync and async methods. Export the decorator and a configureInstrument function that accepts a DistributedTracer instance.",
+    "Create packages/observability/src/otel-setup.ts - OpenTelemetry SDK setup module. Export an OTelSetup class that: initializes tracing (DistributedTracer), metrics (MetricsCollector), and logging (StructuredLogger); provides auto-instrumentation hooks for Fastify (request/response spans) and Prisma (query spans); has a setup() and shutdown() method. This uses the existing in-package classes, not external OTel SDKs.",
+    "Create packages/observability/src/slo-definitions.ts - Export a ServiceSLODefinitions class that provides per-service SLO configurations for services: quantmail, quantube, quantsync, quantgram, quantcast, quantdocs, quantdrive, quantforum, quantmarket. Each service gets availability (99.9%), latency p95 (<200ms), latency p99 (<500ms), and error budget configs. Include a parseSLOConfig function that validates configs using zod.",
+    "Create packages/observability/src/slo-burn-rate.ts - Export a BurnRateCalculator class implementing Sloth-style multi-window burn rate alerting. Implements fast window (5m/1h) and slow window (30m/6h) checks. Methods: addEvent(success, latency), calculateBurnRate(window), detectBudgetExhaustion(), getTimeToExhaustion(), getActiveAlerts(). Uses the SLOTracker internally.",
+    "Create packages/observability/src/chaos-experiments.ts - Export a ChaosExperimentRunner class that extends the existing ChaosEngine with Litmus-style experiment templates: networkDelay(targetService, delayMs, duration), podKill(targetService, gracePeriod), diskFill(targetService, fillPercentage), cpuStress(targetService, loadPercentage). Each method creates and optionally runs an experiment. Include a verifySteadyState method that checks hypotheses after experiment.",
+    "Create packages/observability/src/runbook-generator.ts - Export a RunbookGenerator class that auto-generates runbook markdown templates. Methods: generateRunbook(serviceName, alertType) returns markdown string, generateAllRunbooks(services) returns Map<string,string>. Templates cover: high error rate, high latency, budget exhaustion, pod crash loop, memory pressure. Each runbook includes: description, impact, detection, investigation steps, remediation, escalation.",
+    "Create packages/observability/src/synthetic-monitor.ts - Export a SyntheticMonitor class for health check probes. Methods: addProbe(name, url, interval, timeout), runProbe(name) performs HTTP-like health check simulation, runAllProbes() runs all probes, getProbeResults() returns results. Support user journey probes: defineJourney(name, steps[]) where each step is a function that returns pass/fail. Include latency tracking per probe.",
+    "Create packages/observability/src/dashboard-config.ts - Export a DashboardConfigGenerator class that generates Grafana-compatible dashboard JSON. Methods: generateServiceDashboard(serviceName) returns a JSON object with panels for: request rate, error rate, latency percentiles, SLO burn rate, error budget. generateOverviewDashboard(services[]) creates a multi-service overview. Output follows Grafana dashboard JSON structure with panels, targets, and gridPos.",
+    "Create packages/observability/src/pagerduty-integration.ts - Export a PagerDutyIntegration class for alert webhook handling. Methods: createIncident(severity, title, description, service), resolveIncident(incidentId), acknowledgeIncident(incidentId), addNote(incidentId, note). Maintains internal incident state. Supports routing rules (routeAlert(alert) determines which service to page). Includes webhook payload formatting matching PagerDuty Events API v2 format.",
+    "Update packages/observability/src/types.ts - Add new type definitions needed by the new modules: InstrumentOptions, OTelConfig, ServiceSLO, SLOServiceConfig, ProbeConfig, ProbeResult, JourneyStep, JourneyResult, DashboardPanel, DashboardConfig, PagerDutyIncident, PagerDutySeverity, PagerDutyPayload, RunbookTemplate, ChaosTemplate.",
+    "Update packages/observability/src/index.ts - Add barrel exports for all new modules and their types."
+  ],
+  "acceptance_criteria": [
+    "pnpm install succeeds with the new package.json",
+    "TypeScript compilation passes with strict mode (npx tsc --noEmit -p packages/observability/tsconfig.json)",
+    "All new modules export their primary classes/functions",
+    "index.ts barrel exports all new modules",
+    "types.ts includes all new type definitions"
+  ],
+  "verification": [
+    "Run: pnpm install (from workspace root)",
+    "Run: npx tsc --noEmit -p packages/observability/tsconfig.json"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add comprehensive tests for all new observability modules, plus infrastructure YAML SLO definitions and runbook documentation files.",
+  "status": "pending",
+  "steps": [
+    "Create packages/observability/src/__tests__/instrument.test.ts - Test the @instrument() decorator: verify it creates spans for sync methods, async methods, records error spans on thrown exceptions, handles method arguments as span attributes, respects decorator options (custom span name).",
+    "Create packages/observability/src/__tests__/otel-setup.test.ts - Test OTelSetup class: verify setup() initializes tracer/metrics/logger, Fastify auto-instrumentation hook creates request spans, Prisma hook creates query spans, shutdown() cleans up resources.",
+    "Create packages/observability/src/__tests__/slo-definitions.test.ts - Test ServiceSLODefinitions: verify all 9 services have SLO configs, parseSLOConfig validates correct configs, parseSLOConfig rejects invalid configs (target > 1, missing fields), each service has availability and latency SLOs.",
+    "Create packages/observability/src/__tests__/slo-burn-rate.test.ts - Test BurnRateCalculator: verify burn rate calculation with known event sequences, detectBudgetExhaustion returns true when budget is consumed, getTimeToExhaustion returns correct estimate, fast/slow window alerting triggers correctly.",
+    "Create packages/observability/src/__tests__/chaos-experiments.test.ts - Test ChaosExperimentRunner: verify networkDelay creates a latency experiment and inject causes delay, podKill creates a kill experiment, verifySteadyState validates hypotheses after experiment, timeout handling works when delay exceeds threshold.",
+    "Create packages/observability/src/__tests__/runbook-generator.test.ts - Test RunbookGenerator: verify generateRunbook produces markdown with required sections (Description, Impact, Detection, Investigation, Remediation, Escalation), generateAllRunbooks covers all services, different alert types produce different content.",
+    "Create packages/observability/src/__tests__/synthetic-monitor.test.ts - Test SyntheticMonitor: verify addProbe registers a probe, runProbe executes health check and returns result, defineJourney creates multi-step journey, journey reports pass/fail per step with latency.",
+    "Create packages/observability/src/__tests__/dashboard-config.test.ts - Test DashboardConfigGenerator: verify generateServiceDashboard returns valid Grafana JSON structure with panels, generateOverviewDashboard includes all services, panels have correct gridPos layout.",
+    "Create packages/observability/src/__tests__/pagerduty-integration.test.ts - Test PagerDutyIntegration: verify createIncident returns incident with correct severity, resolveIncident updates state, routeAlert directs to correct service, webhook payload matches PagerDuty Events API v2 format.",
+    "Create packages/observability/infra/slo/ directory with YAML SLO definition files: quantmail.yml, quantube.yml, quantsync.yml, quantgram.yml, quantcast.yml, quantdocs.yml, quantdrive.yml, quantforum.yml, quantmarket.yml. Each file defines availability_slo (target: 0.999), latency_p95_slo (target: 0.95, threshold_ms: 200), latency_p99_slo (target: 0.99, threshold_ms: 500), error_budget (window_days: 30).",
+    "Create packages/observability/docs/runbooks/ directory with runbook markdown files: high-error-rate.md, high-latency.md, budget-exhaustion.md, pod-crash-loop.md, memory-pressure.md. Each runbook follows the template structure: Title, Description, Severity, Impact, Detection, Investigation Steps, Remediation Steps, Escalation Path, Related Dashboards."
+  ],
+  "acceptance_criteria": [
+    "All test files pass: NODE_OPTIONS=\"\" npx vitest run packages/observability/src/__tests__/",
+    "@instrument() decorator creates valid OTel spans (test proves span is created and ended)",
+    "SLO definitions parse correctly for all 9 services (test validates each)",
+    "Burn rate calculator detects budget exhaustion correctly (test with 100% failure rate)",
+    "Chaos experiment: inject delay then verify timeout handling (test proves delay occurs)",
+    "Synthetic monitor: health check passes for simulated running service (test proves pass result)",
+    "infra/slo/ contains 9 YAML files with valid structure",
+    "docs/runbooks/ contains 5 runbook markdown files with required sections"
+  ],
+  "verification": [
+    "Run: NODE_OPTIONS=\"\" npx vitest run packages/observability/src/__tests__/",
+    "Run: npx tsc --noEmit -p packages/observability/tsconfig.json",
+    "Verify infra/slo/ YAML files exist: ls packages/observability/infra/slo/",
+    "Verify runbook docs exist: ls packages/observability/docs/runbooks/"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

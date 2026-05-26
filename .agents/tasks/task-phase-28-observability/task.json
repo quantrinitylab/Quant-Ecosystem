@@ -1,0 +1,7 @@
+{
+  "task_id": "task-phase-28-observability",
+  "task_description": "Phase 28: Observability (OTel everywhere + SLOs + Chaos + Runbooks) - Expand packages/observability with @instrument() decorator, OTel setup, SLO definitions per service, burn rate alerting, chaos experiments, runbook generator, synthetic monitoring, dashboard config generation, and PagerDuty integration. Add comprehensive tests, infra YAML SLO definitions, and runbook docs.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}
