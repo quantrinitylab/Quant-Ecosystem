@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Create PR, Issue, Review, and Branch Protection services in apps/quantmail/backend/services/ with full CRUD and merge operations",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create apps/quantmail/backend/services/pr.service.ts - PullRequestService class with: createPR(input), listPRs(repoId, filters), getPR(repoId, number), mergePR(repoId, number, strategy: squash|rebase|merge), closePR(repoId, number), getDiff(repoId, number). Use Zod schemas for inputs. Constructor takes PrismaClient.",
     "Create apps/quantmail/backend/services/review.service.ts - ReviewService class with: submitReview(prId, reviewerId, status, body), addComment(prId, authorId, filePath, line, body), requestChanges(prId, reviewerId, body), listReviews(prId). Constructor takes PrismaClient.",
@@ -21,5 +21,5 @@
     "NODE_OPTIONS='' npx vitest run from repo root passes with new test files included"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 47 new tests pass. NODE_OPTIONS must be cleared for commit hooks. Pre-existing shared-ui DOM failures (26 tests) remain but are unrelated. Commit body lines must be under 100 chars for commitlint."
 }
