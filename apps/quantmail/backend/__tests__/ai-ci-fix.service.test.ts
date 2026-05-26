@@ -21,7 +21,7 @@ describe('AICIFixService', () => {
       aiEngine.infer.mockResolvedValue({
         content: JSON.stringify({
           diagnosis: 'TypeScript compilation failed due to type mismatch',
-          rootCause: 'Function expects string but receives number at line 42',
+          rootCause: 'type mismatch: function expects string but receives number at line 42',
           suggestedFix: 'Change the argument type to string: `getValue(String(count))`',
           confidence: 0.9,
         }),
