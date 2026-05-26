@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { DeliveryQueue, DeliveryJobSchema } from './delivery-queue.js';
 
 describe('DeliveryQueue', () => {
@@ -65,5 +65,75 @@ describe('DeliveryQueue', () => {
     const pending = queue.getPendingJobs();
     expect(pending[0]!.attempt).toBe(1);
     expect(pending[0]!.activityId).toBe('act-retry');
+  });
+
+  it('failed job gets nextAttemptAfter timestamp set', () => {
+    const queue = new DeliveryQueue();
+    const now = Date.now();
+    vi.spyOn(Date, 'now').mockReturnValue(now);
+
+    queue.enqueue({
+      activityId: 'act-delay',
+      recipientInbox: 'https://remote.example/inbox',
+      payload: '{"type":"Create"}',
+      attempt: 0,
+      maxAttempts: 5,
+    });
+
+    queue.processNext(() => false);
+
+    const pending = queue.getPendingJobs();
+    expect(pending[0]!.nextAttemptAfter).toBe(now + 2000); // backoff(1) = 2000
+    vi.restoreAllMocks();
+  });
+
+  it('processNext skips jobs whose nextAttemptAfter is in the future', () => {
+    const queue = new DeliveryQueue();
+    const now = Date.now();
+
+    queue.enqueue({
+      activityId: 'act-future',
+      recipientInbox: 'https://remote.example/inbox',
+      payload: '{"type":"Create"}',
+      attempt: 1,
+      maxAttempts: 5,
+      nextAttemptAfter: now + 60000, // 60s in the future
+    });
+
+    const result = queue.processNext(() => true);
+    expect(result).toBeUndefined();
+    expect(queue.size()).toBe(1); // job stays in queue
+  });
+
+  it('processNext processes jobs whose nextAttemptAfter has passed', () => {
+    const queue = new DeliveryQueue();
+    const now = Date.now();
+
+    queue.enqueue({
+      activityId: 'act-past',
+      recipientInbox: 'https://remote.example/inbox',
+      payload: '{"type":"Create"}',
+      attempt: 1,
+      maxAttempts: 5,
+      nextAttemptAfter: now - 1000, // 1s in the past
+    });
+
+    const result = queue.processNext(() => true);
+    expect(result).toBeDefined();
+    expect(result!.activityId).toBe('act-past');
+    expect(queue.size()).toBe(0);
+  });
+
+  it('schema validates signedHeaders field', () => {
+    const parsed = DeliveryJobSchema.safeParse({
+      activityId: 'act-headers',
+      recipientInbox: 'https://remote.example/inbox',
+      payload: '{"type":"Create"}',
+      signedHeaders: { signature: 'sig-value', host: 'remote.example' },
+      attempt: 0,
+      maxAttempts: 5,
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data!.signedHeaders).toEqual({ signature: 'sig-value', host: 'remote.example' });
   });
 });

@@ -39,8 +39,9 @@ export class FederationModeration {
     return this.allowlist.has(domain) && !this.isBlocked(domain);
   }
 
-  checkActivity(activity: { actor: string }): boolean {
-    const domain = this.extractDomain(activity.actor);
+  checkActivity(activity: { actor: string | { id: string } }): boolean {
+    const actorUrl = typeof activity.actor === 'string' ? activity.actor : activity.actor.id;
+    const domain = this.extractDomain(actorUrl);
     return this.isAllowed(domain);
   }
 

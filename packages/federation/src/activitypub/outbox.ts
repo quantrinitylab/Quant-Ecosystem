@@ -17,28 +17,29 @@ export class OutboxPublisher {
   publish(activity: Activity, recipients: string[]): void {
     const payload = JSON.stringify(activity);
 
-    const headers: Record<string, string> = {
-      host: 'localhost',
-      date: new Date().toUTCString(),
-      'content-type': 'application/activity+json',
-    };
-
-    signRequest(
-      this.privateKey,
-      this.keyId,
-      'POST',
-      recipients[0] ?? 'https://localhost/inbox',
-      headers,
-      payload,
-    );
-
     this.activities.push(activity);
 
     for (const recipient of recipients) {
+      const headers: Record<string, string> = {
+        host: new URL(recipient).host,
+        date: new Date().toUTCString(),
+        'content-type': 'application/activity+json',
+      };
+
+      const signedHeaders = signRequest(
+        this.privateKey,
+        this.keyId,
+        'POST',
+        recipient,
+        headers,
+        payload,
+      );
+
       this.deliveryQueue.enqueue({
         activityId: activity.id ?? crypto.randomUUID(),
         recipientInbox: recipient,
         payload,
+        signedHeaders,
         attempt: 0,
         maxAttempts: 5,
       });

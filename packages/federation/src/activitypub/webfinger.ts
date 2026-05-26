@@ -14,7 +14,13 @@ export const WebFingerResponseSchema = z.object({
 export type WebFingerResponse = z.infer<typeof WebFingerResponseSchema>;
 
 export class WebFingerHandler {
-  handle(resource: string, domain: string): WebFingerResponse {
+  private actorExists?: (username: string) => boolean;
+
+  constructor(actorExists?: (username: string) => boolean) {
+    this.actorExists = actorExists;
+  }
+
+  handle(resource: string, domain: string): WebFingerResponse | undefined {
     const acctRegex = /^acct:([^@]+)@(.+)$/;
     const match = acctRegex.exec(resource);
 
@@ -29,6 +35,10 @@ export class WebFingerHandler {
       throw new Error(
         `Domain mismatch: resource domain ${resourceDomain} does not match ${domain}`,
       );
+    }
+
+    if (this.actorExists && !this.actorExists(username)) {
+      return undefined;
     }
 
     return {

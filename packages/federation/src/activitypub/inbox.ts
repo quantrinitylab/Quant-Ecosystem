@@ -16,6 +16,10 @@ export interface InboxResult {
   error?: string;
 }
 
+export interface InboxSignatureVerifier {
+  (headers: Record<string, string>, method: string, url: string, body?: string): boolean;
+}
+
 export class InboxProcessor {
   private followers: Map<string, Set<string>> = new Map();
   private likes: Map<string, string[]> = new Map();
@@ -23,12 +27,35 @@ export class InboxProcessor {
   private boosts: Map<string, string[]> = new Map();
   private tombstones: Set<string> = new Set();
   private moderation: FederationModeration;
+  private signatureVerifier?: InboxSignatureVerifier;
 
-  constructor(moderation?: FederationModeration) {
+  constructor(moderation?: FederationModeration, signatureVerifier?: InboxSignatureVerifier) {
     this.moderation = moderation ?? new FederationModeration();
+    this.signatureVerifier = signatureVerifier;
   }
 
-  process(activity: Activity, senderDomain: string): InboxResult {
+  process(
+    activity: Activity,
+    senderDomain: string,
+    requestContext?: {
+      headers: Record<string, string>;
+      method: string;
+      url: string;
+      body?: string;
+    },
+  ): InboxResult {
+    if (this.signatureVerifier && requestContext) {
+      const valid = this.signatureVerifier(
+        requestContext.headers,
+        requestContext.method,
+        requestContext.url,
+        requestContext.body,
+      );
+      if (!valid) {
+        return { accepted: false, error: 'Invalid signature' };
+      }
+    }
+
     if (!this.moderation.checkActivity(activity)) {
       return { accepted: false, error: `Blocked: ${senderDomain}` };
     }
@@ -69,6 +96,8 @@ export class InboxProcessor {
     return this.tombstones.has(objectId);
   }
 
+  // Intentional: auto-accept all Follow requests for protocol skeleton.
+  // Production use would need an approval hook (e.g., pending state + user consent).
   private handleFollow(activity: Activity): InboxResult {
     const target = typeof activity.object === 'string' ? activity.object : String(activity.object);
     const existingFollowers = this.followers.get(target) ?? new Set();

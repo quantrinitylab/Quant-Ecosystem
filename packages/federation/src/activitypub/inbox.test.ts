@@ -116,4 +116,49 @@ describe('InboxProcessor', () => {
     expect(result.accepted).toBe(false);
     expect(result.error).toContain('Blocked');
   });
+
+  it('rejects activity with invalid signature when verifier is configured', () => {
+    const verifier = () => false;
+    const processor = new InboxProcessor(undefined, verifier);
+
+    const result = processor.process(
+      {
+        type: 'Follow',
+        actor: 'https://remote.example/users/bob',
+        object: 'https://local.example/users/alice',
+      },
+      'remote.example',
+      {
+        headers: { signature: 'bad-sig' },
+        method: 'POST',
+        url: 'https://local.example/users/alice/inbox',
+        body: '{}',
+      },
+    );
+
+    expect(result.accepted).toBe(false);
+    expect(result.error).toBe('Invalid signature');
+  });
+
+  it('accepts activity with valid signature when verifier is configured', () => {
+    const verifier = () => true;
+    const processor = new InboxProcessor(undefined, verifier);
+
+    const result = processor.process(
+      {
+        type: 'Follow',
+        actor: 'https://remote.example/users/bob',
+        object: 'https://local.example/users/alice',
+      },
+      'remote.example',
+      {
+        headers: { signature: 'valid-sig' },
+        method: 'POST',
+        url: 'https://local.example/users/alice/inbox',
+        body: '{}',
+      },
+    );
+
+    expect(result.accepted).toBe(true);
+  });
 });

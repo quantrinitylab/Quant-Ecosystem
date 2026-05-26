@@ -37,4 +37,19 @@ describe('FederationModeration', () => {
     expect(mod.isAllowed('any.example')).toBe(true);
     expect(mod.checkActivity({ actor: 'https://any.example/users/someone' })).toBe(true);
   });
+
+  it('checkActivity handles object-typed actor', () => {
+    const mod = new FederationModeration();
+    mod.blockInstance('spam.example');
+
+    const blockedResult = mod.checkActivity({
+      actor: { id: 'https://spam.example/users/spammer' },
+    });
+    expect(blockedResult).toBe(false);
+
+    const allowedResult = mod.checkActivity({
+      actor: { id: 'https://good.example/users/friend' },
+    });
+    expect(allowedResult).toBe(true);
+  });
 });

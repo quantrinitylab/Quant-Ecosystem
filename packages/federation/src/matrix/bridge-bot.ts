@@ -20,6 +20,11 @@ export interface ForwardedMessage {
   timestamp: number;
 }
 
+export interface BridgeResult {
+  forwarded: boolean;
+  reason?: string;
+}
+
 export class MatrixBridgeBot {
   private roomMapper: RoomMapper;
   private forwardedMessages: ForwardedMessage[] = [];
@@ -49,7 +54,7 @@ export class MatrixBridgeBot {
     }
   }
 
-  onMatrixMessage(event: MatrixEvent): void {
+  onMatrixMessage(event: MatrixEvent): BridgeResult {
     const quantConv = this.roomMapper.getQuantConversation(event.roomId);
 
     if (quantConv) {
@@ -60,7 +65,10 @@ export class MatrixBridgeBot {
         content: event.content,
         timestamp: Date.now(),
       });
+      return { forwarded: true };
     }
+
+    return { forwarded: false, reason: `No mapping for room ${event.roomId}` };
   }
 
   getForwardedMessages(): ForwardedMessage[] {

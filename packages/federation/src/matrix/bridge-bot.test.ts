@@ -26,12 +26,13 @@ describe('MatrixBridgeBot', () => {
     mapper.createMapping('conv-2', '!room2:matrix.org', 'dm');
     const bot = new MatrixBridgeBot(mapper);
 
-    bot.onMatrixMessage({
+    const result = bot.onMatrixMessage({
       roomId: '!room2:matrix.org',
       sender: '@bob:matrix.org',
       content: 'Hello from Matrix!',
     });
 
+    expect(result.forwarded).toBe(true);
     const messages = bot.getForwardedMessages();
     expect(messages).toHaveLength(1);
     expect(messages[0]!.direction).toBe('matrix-to-quant');
@@ -55,5 +56,19 @@ describe('MatrixBridgeBot', () => {
 
     const mapper = bot.getRoomMapper();
     expect(mapper.getMatrixRoom('new-conv')).toBeDefined();
+  });
+
+  it('unmapped Matrix room returns dropped result', () => {
+    const bot = new MatrixBridgeBot();
+
+    const result = bot.onMatrixMessage({
+      roomId: '!unknown-room:matrix.org',
+      sender: '@eve:matrix.org',
+      content: 'Message to nowhere',
+    });
+
+    expect(result.forwarded).toBe(false);
+    expect(result.reason).toContain('!unknown-room:matrix.org');
+    expect(bot.getForwardedMessages()).toHaveLength(0);
   });
 });
