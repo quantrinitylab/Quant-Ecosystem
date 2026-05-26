@@ -1,0 +1,14 @@
+{
+  "task_id": "task-phase-15-ml-recommendations",
+  "task_description": "Phase 15: ML Recommendations - Create @quant/ml-runtime package with ONNX inference, feature store in ml-pipeline, full recommendation models (Two-Tower, collaborative, trending, MMoE, anti-rage, DPP diversity, on-device ranker), A/B testing framework, and Python training scripts.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "1369 tests pass (26 pre-existing shared-ui failures unrelated). All acceptance criteria verified. Semantic review APPROVED after v2 with only 2 non-blocking minor issues remaining."
+  }
+}

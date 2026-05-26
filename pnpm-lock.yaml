@@ -580,14 +580,14 @@ importers:
     dependencies:
       '@prisma/client':
         specifier: ^6.19.3
-        version: 6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.5.4))(typescript@5.5.4)
+        version: 6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)
     devDependencies:
       '@faker-js/faker':
         specifier: ^9.2.0
         version: 9.9.0
       prisma:
         specifier: ^6.19.3
-        version: 6.19.3(magicast@0.3.5)(typescript@5.5.4)
+        version: 6.19.3(magicast@0.3.5)(typescript@5.9.3)
       tsx:
         specifier: ^4.19.0
         version: 4.22.3
@@ -627,6 +627,38 @@ importers:
         version: 5.5.4
       vitest:
         specifier: ^2
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
+
+  packages/ml-pipeline:
+    dependencies:
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
+
+  packages/ml-runtime:
+    dependencies:
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: ^2.0.0
         version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
 
   packages/notifications:
@@ -743,6 +775,25 @@ importers:
       typescript:
         specifier: ^5.5.0
         version: 5.5.4
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
+
+  packages/recommendations:
+    dependencies:
+      '@quant/ml-runtime':
+        specifier: workspace:*
+        version: link:../ml-runtime
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
@@ -5037,6 +5088,11 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
   uc.micro@2.1.0:
     resolution: {integrity: sha512-ARDJmphmdvUk6Glw7y9DQ2bFkKBHwQHLi2lsaH6PPmz/Ka9sFOBsBluozhDltWmnv9u/cF6Rt87znRTPV+yp/A==}
 
@@ -6537,6 +6593,11 @@ snapshots:
     optionalDependencies:
       prisma: 6.19.3(magicast@0.3.5)(typescript@5.5.4)
       typescript: 5.5.4
+
+  '@prisma/client@6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)':
+    optionalDependencies:
+      prisma: 6.19.3(magicast@0.3.5)(typescript@5.9.3)
+      typescript: 5.9.3
 
   '@prisma/config@6.19.3(magicast@0.3.5)':
     dependencies:
@@ -9021,6 +9082,16 @@ snapshots:
       typescript: 5.5.4
     transitivePeerDependencies:
       - magicast
+    optional: true
+
+  prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3):
+    dependencies:
+      '@prisma/config': 6.19.3(magicast@0.3.5)
+      '@prisma/engines': 6.19.3
+    optionalDependencies:
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - magicast
 
   process-warning@4.0.1: {}
 
@@ -9575,6 +9646,8 @@ snapshots:
       - supports-color
 
   typescript@5.5.4: {}
+
+  typescript@5.9.3: {}
 
   uc.micro@2.1.0: {}
 

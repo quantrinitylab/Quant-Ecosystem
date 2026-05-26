@@ -1,0 +1,31 @@
+{
+  "project_type": "TypeScript monorepo with packages/, apps/, and services/ workspaces",
+  "language": "TypeScript (strict mode, ES2022 target, ESNext modules)",
+  "build_system": "pnpm@10.28.1 workspaces with turbo for orchestration. NODE_OPTIONS must be cleared to run pnpm/vitest.",
+  "test_framework": "Vitest ^2 with globals: true. Tests go in src/__tests__/*.test.ts. No snapshot files found.",
+  "build_command": "NODE_OPTIONS='' npx vitest run",
+  "test_command": "NODE_OPTIONS='' npx vitest run",
+  "verification_instructions": "Run NODE_OPTIONS='' npx vitest run from workspace root. All tests should pass.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "NODE_OPTIONS='' pnpm install to install deps. Branch feat/phase-15-ml-recommendations already checked out.",
+  "environment_constraints": "COMMON_DEPENDENCIES network mode - can install npm packages. NODE_OPTIONS must be empty string to avoid proxy-bootstrap.js error. No Docker daemon available for container builds.",
+  "contribution_requirements": "Conventional commits. TypeScript strict, no 'any'. Zod for schemas. Every service file gets a .test.ts file.",
+  "key_patterns": "Package structure: packages/<name>/package.json, src/index.ts (barrel), src/types.ts, src/core/*.ts for implementations. Tests in src/__tests__/*.test.ts. Package.json: private:true, type:module, main:src/index.ts, scripts: typecheck+test. vitest.config.ts at package level with globals:true, environment:node. tsconfig.json extends ../../tsconfig.json with outDir/rootDir. Dependencies use workspace:* for internal packages.",
+  "relevant_files": [
+    "packages/ml-pipeline/src/types.ts",
+    "packages/ml-pipeline/src/index.ts",
+    "packages/ml-pipeline/src/core/inference-engine.ts",
+    "packages/recommendations/src/types.ts",
+    "packages/recommendations/src/index.ts",
+    "packages/recommendations/src/core/trending-detector.ts",
+    "packages/recommendations/src/core/collaborative-filtering.ts",
+    "packages/auth/package.json",
+    "packages/auth/tsconfig.json",
+    "packages/auth/vitest.config.ts",
+    "packages/ai/package.json",
+    "pnpm-workspace.yaml",
+    "tsconfig.json",
+    "vitest.config.mts"
+  ],
+  "directory_structure": "Root: pnpm-workspace.yaml, tsconfig.json, vitest.config.mts, turbo.json. Packages include: ai, auth, common, database, data-pipeline, data-plane, developer-platform, ecosystem-bridge, gaming, i18n, media, ml-pipeline, moderation, notifications, observability, payments, performance, queue, realtime, recommendations, search, security, server, server-core, shared-ui, social-graph, storage, testing. New packages needed: ml-runtime. Existing: ml-pipeline (has core with 14 modules), recommendations (has core with 13 modules). scripts/ dir exists with test.js only."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Create Python training scripts in scripts/ml/ for Two-Tower and MMoE model training with ONNX export",
+  "status": "completed",
+  "steps": [
+    "Create scripts/ml/requirements.txt with dependencies: torch>=2.0.0, numpy>=1.24.0, onnx>=1.14.0, onnxruntime>=1.15.0, pandas>=2.0.0, scikit-learn>=1.3.0.",
+    "Create scripts/ml/train_two_tower.py - PyTorch training script for Two-Tower model: UserTower (nn.Module) and ItemTower (nn.Module) with embedding layers, trains on interaction data, exports to ONNX format. Includes data loading, training loop, evaluation, and ONNX export.",
+    "Create scripts/ml/train_mmoe.py - PyTorch training script for Multi-gate Mixture-of-Experts: shared experts, task-specific gating networks, multiple objective heads (engagement, retention, wellbeing). Training with multi-task loss balancing.",
+    "Create scripts/ml/export_to_onnx.py - Utility for converting PyTorch models to ONNX: loads checkpoint, traces model with dummy input, exports with opset version config, validates exported model, prints model info.",
+    "Create scripts/ml/README.md - Documentation: prerequisites, how to install requirements, how to train Two-Tower model, how to train MMoE model, how to export to ONNX, model architecture descriptions, expected input/output shapes.",
+    "Run NODE_OPTIONS='' npx vitest run to verify no regressions from adding scripts."
+  ],
+  "acceptance_criteria": [
+    "scripts/ml/requirements.txt lists all Python ML dependencies",
+    "scripts/ml/train_two_tower.py is a complete PyTorch training script with ONNX export",
+    "scripts/ml/train_mmoe.py implements multi-objective training",
+    "scripts/ml/export_to_onnx.py is a reusable model conversion utility",
+    "scripts/ml/README.md documents the full workflow",
+    "All existing TypeScript tests still pass"
+  ],
+  "verification": ["NODE_OPTIONS='' npx vitest run --reporter=verbose 2>&1 | tail -20"],
+  "blocked_reason": null,
+  "findings": "All 5 files created in scripts/ml/. Prettier reformatted README.md via lint-staged on commit. All 134 test files (1366 tests) pass. Pre-existing shared-ui failures (26 tests, document not defined) remain unchanged."
+}

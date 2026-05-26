@@ -2,6 +2,43 @@
 // ML Pipeline Package - Barrel Export
 // ============================================================================
 
+// Feature Store (new)
+export {
+  OnlineFeatureStore,
+  OfflineFeatureStore,
+  FeatureMaterializationPipeline,
+  UserFeatureSchema,
+  ItemFeatureSchema,
+  InteractionFeatureSchema,
+  getFeatureDefinition,
+  listFeatureDefinitions,
+  registerFeatureDefinition,
+  OnlineStoreConfigSchema,
+  OfflineStoreConfigSchema,
+  PipelineConfigSchema,
+} from './feature-store';
+
+export type {
+  RedisClient,
+  OnlineStoreConfig,
+  FeatureRecord,
+  InteractionRecord,
+  S3Client,
+  OfflineStoreConfig,
+  FeatureDataset,
+  DataQuery,
+  TrainingDataQuery,
+  TrainingDataResult,
+  UserFeatures,
+  ItemFeatures,
+  InteractionFeatures,
+  FeatureDefinition,
+  PipelineConfig,
+  RawEvent,
+  MaterializedFeature,
+  PipelineStats,
+} from './feature-store';
+
 export { FeatureStore } from './core/feature-store';
 export { ModelRegistry } from './core/model-registry';
 export { TrainingPipeline } from './core/training-pipeline';
