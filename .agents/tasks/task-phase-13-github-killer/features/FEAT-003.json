@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Create CI Runner service and AI DevTools services (code review, commit messages, PR descriptions, CI fix, code search, security scan)",
+  "status": "completed",
+  "steps": [
+    "Create services/ci-runner/package.json with name @quant/ci-runner, type: module, deps on @quant/queue, @quant/storage, @quant/common, zod, yaml. Scripts: typecheck, test (vitest run), build (tsc). Add vitest.config.ts and tsconfig.json.",
+    "Create services/ci-runner/src/main.ts - Worker entry point that pulls jobs from @quant/queue using createTypedWorker pattern.",
+    "Create services/ci-runner/src/parser.ts - CIConfigParser class: parseCIConfig(yamlContent: string) that parses .quant-ci.yml files. Define CIConfigSchema with Zod (stages, jobs with name/image/script/artifacts).",
+    "Create services/ci-runner/src/executor.ts - CIJobExecutor class: executeJob(job) that simulates container execution, returns exit code and output. Tracks status transitions (pending->running->success/failed).",
+    "Create services/ci-runner/src/log-streamer.ts - LogStreamer class: streamLogs(jobId, stdout, stderr) that captures and stores execution logs.",
+    "Create services/ci-runner/src/artifact-uploader.ts - ArtifactUploader class: uploadArtifacts(jobId, paths) that uploads build artifacts to @quant/storage.",
+    "Create services/ci-runner/src/__tests__/parser.test.ts, executor.test.ts, log-streamer.test.ts, artifact-uploader.test.ts with comprehensive test cases.",
+    "Create apps/quantmail/backend/services/ai-code-review.service.ts - AICodeReviewService: reviewDiff(diff, prId, userId) uses @quant/ai AIEngine to analyze diff and generate review comments with file/line references.",
+    "Create apps/quantmail/backend/services/ai-commit-message.service.ts - AICommitMessageService: generateMessage(stagedDiff, userId) produces valid conventional commit messages (type(scope): description).",
+    "Create apps/quantmail/backend/services/ai-pr-description.service.ts - AIPRDescriptionService: generateDescription(commits, diff, userId) produces structured PR description with summary, changes, testing notes.",
+    "Create apps/quantmail/backend/services/ai-ci-fix.service.ts - AICIFixService: suggestFix(logs, sourceCode, userId) reads CI failure logs and suggests code fixes.",
+    "Create apps/quantmail/backend/services/ai-code-search.service.ts - AICodeSearchService: semanticSearch(query, repoId, userId) performs semantic code search via embeddings.",
+    "Create apps/quantmail/backend/services/ai-security-scan.service.ts - AISecurityScanService: scanDiff(diff, userId) scans for secrets, SQL injection, XSS vulnerabilities in code changes.",
+    "Create test files: apps/quantmail/backend/__tests__/ai-code-review.service.test.ts, ai-commit-message.service.test.ts, ai-pr-description.service.test.ts, ai-ci-fix.service.test.ts, ai-code-search.service.test.ts, ai-security-scan.service.test.ts. Mock AIEngine.infer() and verify correct prompts/parsing."
+  ],
+  "acceptance_criteria": [
+    "CI parser correctly parses .quant-ci.yml configs with stages, jobs, scripts, and artifacts",
+    "CI executor simulates job execution with status transitions and output capture",
+    "AI code review generates meaningful comments from diffs with file/line references",
+    "AI commit message produces valid conventional commit format (type(scope): description)",
+    "AI security scan detects common vulnerability patterns (secrets, SQLi, XSS)",
+    "All test files pass with NODE_OPTIONS='' npx vitest run"
+  ],
+  "verification": [
+    "NODE_OPTIONS='' npx vitest run from repo root passes with new test files included"
+  ],
+  "blocked_reason": null,
+  "findings": "All 58 new tests pass (10 ci-runner + 48 AI DevTools). Pre-existing shared-ui DOM failures (27 tests) remain unrelated. Prettier reformatted on commit via lint-staged. NODE_OPTIONS must be cleared for pnpm install and commit hooks."
+}

@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Add Git Hosting Prisma models and the git-server service with Smart HTTP protocol, repo CRUD API, authentication, and hook services",
+  "status": "completed",
+  "steps": [
+    "Add Phase 13 models to packages/database/prisma/schema.prisma: Repository, Branch, PullRequest, Review, ReviewComment, Issue, BranchProtection, CIRun, CIJob with enums RepoVisibility, PRStatus, ReviewStatus, IssueStatus, MergeStrategy, CIStatus. Add relations to existing User model (repositories, pullRequests, reviews, reviewComments, issues). Follow the existing naming conventions (@@map for table names, @@index for indexes, @id @default(cuid()) for IDs).",
+    "Create services/git-server/package.json with name @quant/git-server, type: module, deps on fastify, zod, @quant/common, @quant/database, @quant/auth, @quant/queue. Scripts: typecheck, test (vitest run), build (tsc). Add vitest.config.ts and tsconfig.json following patterns from services/smtp-inbound.",
+    "Create services/git-server/src/main.ts - Fastify server entry point using @quant/server-core createApp() pattern.",
+    "Create services/git-server/src/services/auth.ts - HTTP Basic auth with personal access tokens. Class GitAuthService with validateToken(token: string) method.",
+    "Create services/git-server/src/services/repo-storage.ts - RepoStorageService class for bare git repo management on disk: initBareRepo(owner, name), getRepoPath(owner, name), deleteRepo(owner, name), repoExists(owner, name). Uses child_process to call git init --bare.",
+    "Create services/git-server/src/services/git-upload-pack.ts - GitUploadPackService: handles read-only clone/fetch operations. Methods: advertiseRefs(repoPath), execute(repoPath, input).",
+    "Create services/git-server/src/services/git-receive-pack.ts - GitReceivePackService: handles push operations. Methods: advertiseRefs(repoPath), execute(repoPath, input). Integrates with hooks service.",
+    "Create services/git-server/src/services/hooks.ts - GitHooksService: preReceive(repoId, refs) for branch protection enforcement, postReceive(repoId, refs) for triggering CI.",
+    "Create services/git-server/src/routes/git-http.ts - Fastify plugin for Git Smart HTTP protocol routes: GET /:owner/:repo/info/refs?service=git-upload-pack|git-receive-pack, POST /:owner/:repo/git-upload-pack, POST /:owner/:repo/git-receive-pack. Use correct Content-Type headers (application/x-git-upload-pack-advertisement, etc).",
+    "Create services/git-server/src/routes/api.ts - REST API for repository CRUD: POST /api/repos (create), GET /api/repos/:owner/:name, DELETE /api/repos/:owner/:name, PATCH /api/repos/:owner/:name. Zod validation on all inputs.",
+    "Create co-located test files: services/git-server/src/__tests__/auth.service.test.ts, repo-storage.service.test.ts, git-upload-pack.service.test.ts, git-receive-pack.service.test.ts, hooks.service.test.ts, api.routes.test.ts, git-http.routes.test.ts. Follow the mock pattern from apps/quantmail/backend/__tests__/."
+  ],
+  "acceptance_criteria": [
+    "Prisma schema validates (no syntax errors) with new Repository, Branch, PullRequest, Review, ReviewComment, Issue, BranchProtection, CIRun, CIJob models",
+    "git-server service has proper package.json with workspace deps",
+    "Git Smart HTTP routes handle info/refs, upload-pack, receive-pack with correct content types",
+    "RepoStorageService manages bare repos on disk with git init --bare",
+    "GitHooksService enforces branch protection on pre-receive",
+    "All test files pass with NODE_OPTIONS='' npx vitest run"
+  ],
+  "verification": [
+    "NODE_OPTIONS='' npx vitest run from repo root passes with new test files included"
+  ],
+  "blocked_reason": null,
+  "findings": "All 45 tests pass. Needed to add content type parsers for git protocol MIME types in Fastify POST routes. NODE_OPTIONS must be cleared for pnpm install and git commit-msg hook. Pre-existing shared-ui DOM test failures (26 tests) remain but are unrelated."
+}

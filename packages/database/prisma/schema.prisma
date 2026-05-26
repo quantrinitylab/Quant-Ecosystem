@@ -59,6 +59,13 @@ model User {
   datingProfile       DatingProfile?
   shortVideos         ShortVideo[]
 
+  // Git hosting relations
+  repositories        Repository[]
+  pullRequests        PullRequest[]
+  reviews             Review[]
+  reviewComments      ReviewComment[]
+  issues              Issue[]
+
   // Self-relations for followers
   following           UserRelationship[] @relation("UserFollowing")
   followers           UserRelationship[] @relation("UserFollower")
@@ -1087,4 +1094,233 @@ model EncryptionKey {
 
   @@index([userId])
   @@map("encryption_keys")
+}
+
+// ==================== GIT HOSTING (QuantMail GitHub Killer) ====================
+
+enum RepoVisibility {
+  PUBLIC
+  PRIVATE
+  INTERNAL
+}
+
+enum PRStatus {
+  OPEN
+  MERGED
+  CLOSED
+  DRAFT
+}
+
+enum ReviewStatus {
+  APPROVED
+  CHANGES_REQUESTED
+  COMMENTED
+  PENDING
+}
+
+enum IssueStatus {
+  OPEN
+  CLOSED
+}
+
+enum MergeStrategy {
+  MERGE
+  SQUASH
+  REBASE
+}
+
+enum CIStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+model Repository {
+  id             String         @id @default(cuid())
+  ownerId        String
+  name           String
+  description    String?
+  visibility     RepoVisibility @default(PUBLIC)
+  defaultBranch  String         @default("main")
+  storagePathUrl String?
+  starCount      Int            @default(0)
+  forkCount      Int            @default(0)
+  isArchived     Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?
+
+  owner              User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  branches           Branch[]
+  pullRequests       PullRequest[]
+  issues             Issue[]
+  branchProtections  BranchProtection[]
+  ciRuns             CIRun[]
+
+  @@unique([ownerId, name])
+  @@index([ownerId])
+  @@index([visibility])
+  @@index([createdAt])
+  @@map("repositories")
+}
+
+model Branch {
+  id          String   @id @default(cuid())
+  repoId      String
+  name        String
+  commitSha   String
+  isProtected Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  repository  Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@unique([repoId, name])
+  @@index([repoId])
+  @@map("branches")
+}
+
+model PullRequest {
+  id            String         @id @default(cuid())
+  repoId        String
+  number        Int
+  title         String
+  body          String?
+  authorId      String
+  status        PRStatus       @default(OPEN)
+  sourceBranch  String
+  targetBranch  String
+  mergeStrategy MergeStrategy?
+  mergedAt      DateTime?
+  closedAt      DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  repository     Repository      @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  author         User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reviews        Review[]
+  reviewComments ReviewComment[]
+
+  @@unique([repoId, number])
+  @@index([repoId])
+  @@index([authorId])
+  @@index([status])
+  @@map("pull_requests")
+}
+
+model Review {
+  id         String       @id @default(cuid())
+  prId       String
+  reviewerId String
+  status     ReviewStatus @default(PENDING)
+  body       String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  pullRequest PullRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+  reviewer    User        @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@index([prId])
+  @@index([reviewerId])
+  @@map("reviews")
+}
+
+model ReviewComment {
+  id        String   @id @default(cuid())
+  prId      String
+  authorId  String
+  filePath  String
+  line      Int
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pullRequest PullRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+  author      User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([prId])
+  @@index([authorId])
+  @@map("review_comments")
+}
+
+model Issue {
+  id        String      @id @default(cuid())
+  repoId    String
+  number    Int
+  title     String
+  body      String?
+  authorId  String
+  status    IssueStatus @default(OPEN)
+  labels    Json        @default("[]")
+  assignees Json        @default("[]")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  closedAt  DateTime?
+
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([repoId, number])
+  @@index([repoId])
+  @@index([authorId])
+  @@index([status])
+  @@map("issues")
+}
+
+model BranchProtection {
+  id                  String   @id @default(cuid())
+  repoId              String
+  branchPattern       String
+  requiredApprovals   Int      @default(1)
+  requireStatusChecks Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@index([repoId])
+  @@map("branch_protections")
+}
+
+model CIRun {
+  id          String    @id @default(cuid())
+  repoId      String
+  prId        String?
+  branch      String
+  commitSha   String
+  status      CIStatus  @default(PENDING)
+  triggeredBy String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  jobs       CIJob[]
+
+  @@index([repoId])
+  @@index([status])
+  @@index([commitSha])
+  @@map("ci_runs")
+}
+
+model CIJob {
+  id          String    @id @default(cuid())
+  runId       String
+  name        String
+  status      CIStatus  @default(PENDING)
+  logs        String?
+  artifacts   Json      @default("[]")
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  run CIRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([status])
+  @@map("ci_jobs")
 }

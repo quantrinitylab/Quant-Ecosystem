@@ -1,0 +1,14 @@
+{
+  "task_id": "task-phase-13-github-killer",
+  "task_description": "Phase 13: QuantMail GitHub Killer - Real Git Hosting + AI DevTools. Adds git hosting backend service with Smart HTTP protocol, Prisma models for repositories/PRs/issues/CI, PR/Issue/Review/BranchProtection services, CI runner service, AI DevTools (code review, commit messages, PR descriptions, CI fix, code search, security scan), and routes for all operations.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "100/101 test files pass (1068 tests). Only failure is pre-existing shared-ui DOM environment issue (26 tests). All Phase 13 tests pass: 45 git-server + 47 PR/issue/review + 58 CI/AI devtools + additional route and review-fix tests. Semantic review issues all addressed in fix commit."
+  }
+}

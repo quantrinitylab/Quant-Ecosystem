@@ -950,6 +950,65 @@ importers:
         specifier: ^2
         version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
 
+  services/ci-runner:
+    dependencies:
+      '@quant/common':
+        specifier: workspace:*
+        version: link:../../packages/common
+      '@quant/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
+      '@quant/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+      yaml:
+        specifier: ^2.4.0
+        version: 2.9.0
+      zod:
+        specifier: ^3.24.2
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: ^2
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
+
+  services/git-server:
+    dependencies:
+      '@quant/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@quant/common':
+        specifier: workspace:*
+        version: link:../../packages/common
+      '@quant/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@quant/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
+      fastify:
+        specifier: ^5.2.1
+        version: 5.8.5
+      zod:
+        specifier: ^3.24.2
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: ^2
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
+
   services/smtp-inbound:
     dependencies:
       '@quant/common':

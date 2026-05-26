@@ -6,6 +6,12 @@ import foldersRoutes from './routes/folders';
 import contactsRoutes from './routes/contacts';
 import aiRoutes from './routes/ai';
 import aiServicesRoutes from './routes/ai-services';
+import gitRoutes from './routes/git';
+import pullRequestRoutes from './routes/pull-requests';
+import reviewRoutes from './routes/reviews';
+import issueRoutes from './routes/issues';
+import ciRoutes from './routes/ci';
+import aiDevtoolsRoutes from './routes/ai-devtools';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -39,6 +45,12 @@ export async function buildApp(config?: AppConfig) {
   await app.register(contactsRoutes, { prefix: '/contacts' });
   await app.register(aiRoutes, { prefix: '/emails' });
   await app.register(aiServicesRoutes, { prefix: '/api/v1' });
+  await app.register(gitRoutes, { prefix: '/api/v1/git' });
+  await app.register(pullRequestRoutes, { prefix: '/api/v1/git' });
+  await app.register(reviewRoutes, { prefix: '/api/v1/git' });
+  await app.register(issueRoutes, { prefix: '/api/v1/git' });
+  await app.register(ciRoutes, { prefix: '/api/v1/git' });
+  await app.register(aiDevtoolsRoutes, { prefix: '/api/v1/devtools' });
 
   return app;
 }

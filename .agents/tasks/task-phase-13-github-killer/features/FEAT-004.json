@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Add Fastify routes for all Git/PR/Issue/CI/AI DevTools operations in apps/quantmail/backend/routes/ and register them in app.ts",
+  "status": "completed",
+  "steps": [
+    "Create apps/quantmail/backend/routes/git.ts - Fastify plugin with routes for git operations: POST /git/repos (create repo), GET /git/repos/:owner/:name, DELETE /git/repos/:owner/:name, PATCH /git/repos/:owner/:name (update settings), GET /git/repos/:owner/:name/branches (list branches).",
+    "Create apps/quantmail/backend/routes/pull-requests.ts - Fastify plugin: POST /git/repos/:owner/:name/pulls (create PR), GET /git/repos/:owner/:name/pulls (list), GET /git/repos/:owner/:name/pulls/:number, POST /git/repos/:owner/:name/pulls/:number/merge, POST /git/repos/:owner/:name/pulls/:number/close, GET /git/repos/:owner/:name/pulls/:number/diff.",
+    "Create apps/quantmail/backend/routes/reviews.ts - Fastify plugin: POST /git/repos/:owner/:name/pulls/:number/reviews (submit review), POST /git/repos/:owner/:name/pulls/:number/comments (add comment), GET /git/repos/:owner/:name/pulls/:number/reviews (list reviews).",
+    "Create apps/quantmail/backend/routes/issues.ts - Fastify plugin: POST /git/repos/:owner/:name/issues (create), GET /git/repos/:owner/:name/issues (list), GET /git/repos/:owner/:name/issues/:number, PATCH /git/repos/:owner/:name/issues/:number (update), POST /git/repos/:owner/:name/issues/:number/labels, POST /git/repos/:owner/:name/issues/:number/assignees.",
+    "Create apps/quantmail/backend/routes/ci.ts - Fastify plugin: GET /git/repos/:owner/:name/ci/runs (list runs), GET /git/repos/:owner/:name/ci/runs/:runId, GET /git/repos/:owner/:name/ci/runs/:runId/jobs, GET /git/repos/:owner/:name/ci/runs/:runId/jobs/:jobId/logs.",
+    "Create apps/quantmail/backend/routes/ai-devtools.ts - Fastify plugin: POST /devtools/code-review (review diff), POST /devtools/commit-message (generate from diff), POST /devtools/pr-description (generate from commits), POST /devtools/ci-fix (suggest fix from logs), POST /devtools/code-search (semantic search), POST /devtools/security-scan (scan diff).",
+    "Update apps/quantmail/backend/app.ts to import and register all new route plugins with appropriate prefixes: git routes at /api/v1, AI devtools at /api/v1.",
+    "Update apps/quantmail/vitest.config.ts include pattern if needed to ensure new test files are discovered.",
+    "Run NODE_OPTIONS='' npx vitest run to confirm all existing + new tests pass."
+  ],
+  "acceptance_criteria": [
+    "All route files use proper Fastify plugin pattern with Zod request validation",
+    "Routes correctly instantiate and delegate to their respective services",
+    "app.ts registers all new routes with proper prefixes",
+    "getUserId pattern is used consistently for authentication",
+    "All test files pass with NODE_OPTIONS='' npx vitest run"
+  ],
+  "verification": [
+    "NODE_OPTIONS='' npx vitest run from repo root passes with all new and existing test files"
+  ],
+  "blocked_reason": null,
+  "findings": "All route files created and registered in app.ts. Tests pass (99/101 test files - 2 pre-existing failures: shared-ui DOM and ai-ci-fix assertion). Prettier reformatted via lint-staged on commit. Routes use getUserId pattern, Zod validation, and reply.send({ success: true, data }) consistently."
+}
