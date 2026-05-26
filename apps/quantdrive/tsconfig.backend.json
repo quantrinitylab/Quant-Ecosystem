@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@quant/common": ["../../packages/common/src/index.ts"],
+      "@quant/common/*": ["../../packages/common/src/*"],
+      "@quant/auth": ["../../packages/auth/src/index.ts"],
+      "@quant/auth/*": ["../../packages/auth/src/*"],
+      "@quant/database": ["../../packages/database/src/index.ts"],
+      "@quant/database/*": ["../../packages/database/src/*"],
+      "@quant/realtime": ["../../packages/realtime/src/index.ts"],
+      "@quant/realtime/*": ["../../packages/realtime/src/*"],
+      "@quant/server-core": ["../../packages/server-core/src/index.ts"],
+      "@quant/server-core/*": ["../../packages/server-core/src/*"],
+      "@quant/ai": ["../../packages/ai/src/index.ts"],
+      "@quant/ai/*": ["../../packages/ai/src/*"],
+      "@quant/shared-ui": ["../../packages/shared-ui/src/index.ts"],
+      "@quant/shared-ui/*": ["../../packages/shared-ui/src/*"]
+    }
+  },
+  "include": ["backend/**/*.ts"],
+  "exclude": ["node_modules"]
+}

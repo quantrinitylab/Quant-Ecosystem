@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "jsx": "react-jsx"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "backend/**/*.ts"],
+  "references": [
+    { "path": "../../packages/auth" },
+    { "path": "../../packages/ai" },
+    { "path": "../../packages/common" },
+    { "path": "../../packages/database" },
+    { "path": "../../packages/realtime" },
+    { "path": "../../packages/server-core" },
+    { "path": "../../packages/shared-ui" }
+  ]
+}

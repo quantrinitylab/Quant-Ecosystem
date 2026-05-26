@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Create the apps/quantdrive scaffolding (package.json, tsconfig files, vitest config, app.ts) and implement all core backend services: file.service.ts (CRUD with E2E encryption via AES-256-GCM), folder.service.ts (folder tree management with nested paths), share.service.ts (share file/folder with key exchange), version.service.ts (30-day version history), trash.service.ts (30-day soft delete with permanent purge), and storage-quota.service.ts (tier enforcement: 15GB free, 100GB/$1.99, 2TB/$9.99).",
+  "status": "in_progress",
+  "steps": [
+    "Create apps/quantdrive/package.json following the pattern from apps/quantdocs/package.json - name @quant/quantdrive, deps on @quant/auth, @quant/ai, @quant/common, @quant/database, @quant/realtime, @quant/server-core, @quant/shared-ui, fastify, ioredis, zod, uuid. Add devDeps: @types/uuid, vitest.",
+    "Create apps/quantdrive/tsconfig.json extending ../../tsconfig.json with include backend/**/*.ts and references to packages (auth, ai, common, database, realtime, server-core, shared-ui).",
+    "Create apps/quantdrive/tsconfig.backend.json following apps/quantdocs/tsconfig.backend.json pattern with paths to workspace packages.",
+    "Create apps/quantdrive/vitest.config.ts with test globals:true, environment:node, include backend/__tests__/**/*.test.ts.",
+    "Create apps/quantdrive/backend/app.ts following the pattern from apps/quantdocs/backend/app.ts - register routes for files, folders, sharing, ai with /api/v1/ prefixes. Port 3050, jwtIssuer quantdrive.",
+    "Create apps/quantdrive/backend/services/file.service.ts - FileService class with constructor DI for prisma-like interface. Methods: uploadFile (encrypt content with AES-256-GCM, store encrypted blob + IV + authTag), downloadFile (decrypt and return plaintext), getFileMetadata, updateFile, deleteFile (soft delete). Use crypto.randomBytes for key generation, crypto.createCipheriv/createDecipheriv for AES-256-GCM encryption. The service should handle encryption key per file (stored encrypted with user's master key).",
+    "Create apps/quantdrive/backend/services/folder.service.ts - FolderService class with CRUD for folder tree. Methods: createFolder (with optional parentId for nesting), getFolder, listFolders (user's folders), moveFolder, deleteFolder (cascade or error if has children), getFolderPath (returns breadcrumb array).",
+    "Create apps/quantdrive/backend/services/share.service.ts - ShareService class. Methods: shareFile (creates share record with encrypted file key for recipient using recipient's public key), shareFolder (shares all files in folder), acceptShare (recipient decrypts file key with their private key), revokeShare, listShares. Key exchange: encrypt file's AES key with recipient's public key.",
+    "Create apps/quantdrive/backend/services/version.service.ts - VersionService class. Methods: createVersion (auto-called on file update), listVersions (all versions of a file), getVersion, restoreVersion, purgeExpiredVersions (delete versions older than 30 days). Each version stores a full encrypted snapshot.",
+    "Create apps/quantdrive/backend/services/trash.service.ts - TrashService class. Methods: moveToTrash (set deletedAt timestamp), restoreFromTrash, listTrash (all trashed files for user), emptyTrash (permanent delete), purgeExpired (auto-delete after 30 days). Soft delete sets deletedAt, permanent delete removes encrypted blob.",
+    "Create apps/quantdrive/backend/services/storage-quota.service.ts - StorageQuotaService class. Methods: getUsage (calculate total bytes for user), checkQuota (throws if upload would exceed limit), getStorageTier, upgradeTier. Tiers: FREE=15GB, STANDARD=100GB (199 cents/mo), PREMIUM=2TB (999 cents/mo)."
+  ],
+  "acceptance_criteria": [
+    "apps/quantdrive/package.json exists with correct workspace deps",
+    "TypeScript compiles without errors (tsconfig strict)",
+    "FileService encrypt/decrypt round-trip produces identical content",
+    "ShareService key exchange allows recipient to decrypt shared file",
+    "StorageQuotaService rejects uploads exceeding tier limit",
+    "VersionService stores and retrieves previous versions",
+    "TrashService 30-day retention logic works (purgeExpired removes old items)",
+    "FolderService handles nested folder creation and path resolution"
+  ],
+  "verification": [
+    "Run `NODE_OPTIONS='' npx vitest run` from apps/quantdrive directory and confirm all tests pass",
+    "Run `npx tsc --noEmit -p apps/quantdrive/tsconfig.backend.json` from repo root to verify TypeScript compiles"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

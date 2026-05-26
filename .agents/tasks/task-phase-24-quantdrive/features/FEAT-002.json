@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement all AI-powered services for QuantDrive: ai-organize.service.ts (auto-sort uploads into folders by AI classification), ai-duplicate.service.ts (pHash-based duplicate detection), ai-search-content.service.ts (OCR + full-text content search), ai-summarize-file.service.ts (file preview/summary without opening), ai-extract-data.service.ts (receipt/invoice to structured data extraction). Also implement the route files: files.ts, folders.ts, sharing.ts, ai.ts.",
+  "status": "pending",
+  "steps": [
+    "Create apps/quantdrive/backend/services/ai-organize.service.ts - AIOrganizeService class with AIEngine DI. Method: categorizeFile(filename, mimeType, content, userId) returns suggested folder path. Uses AI to classify files into categories (Documents, Images, Videos, Music, Archives, Receipts, Code, etc.). Method: autoOrganize(fileId, userId) moves file to suggested folder.",
+    "Create apps/quantdrive/backend/services/ai-duplicate.service.ts - AIDuplicateService class. Method: computeHash(content: Buffer) returns a perceptual hash string. Method: findDuplicates(userId) scans user's files and returns groups of similar files (similarity > 0.9). Method: compareTwoFiles(fileIdA, fileIdB) returns similarity score 0-1. Uses chunked comparison for large files.",
+    "Create apps/quantdrive/backend/services/ai-search-content.service.ts - AISearchContentService class with AIEngine DI. Method: indexFile(fileId, content, mimeType, userId) extracts text (OCR simulation for images, text extraction for docs). Method: searchContent(query, userId) searches across indexed file content. Returns matched files with relevance scores and snippets.",
+    "Create apps/quantdrive/backend/services/ai-summarize-file.service.ts - AISummarizeFileService class with AIEngine DI. Method: summarizeFile(fileId, content, mimeType, userId) returns a brief summary, key points, and file type-specific metadata. Handles different file types: text docs, spreadsheets, images (description), code files.",
+    "Create apps/quantdrive/backend/services/ai-extract-data.service.ts - AIExtractDataService class with AIEngine DI. Method: extractFromReceipt(content, userId) returns structured data: {vendor, date, total, currency, items[], taxAmount}. Method: extractFromInvoice(content, userId) returns {invoiceNumber, vendor, dueDate, lineItems[], total, currency}.",
+    "Create apps/quantdrive/backend/routes/files.ts - Fastify plugin with routes: POST /files (upload with encryption), GET /files/:id (download with decryption), GET /files/:id/metadata, PUT /files/:id, DELETE /files/:id. Zod validation for all inputs. Auth required.",
+    "Create apps/quantdrive/backend/routes/folders.ts - Fastify plugin with routes: POST /folders, GET /folders, GET /folders/:id, PUT /folders/:id, DELETE /folders/:id, GET /folders/:id/contents. Auth required.",
+    "Create apps/quantdrive/backend/routes/sharing.ts - Fastify plugin with routes: POST /shares (share file/folder), GET /shares (list shares), DELETE /shares/:id (revoke), POST /shares/:id/accept. Auth required.",
+    "Create apps/quantdrive/backend/routes/ai.ts - Fastify plugin with routes: POST /ai/organize/:fileId, POST /ai/duplicates (find duplicates), POST /ai/search (content search), POST /ai/summarize/:fileId, POST /ai/extract/:fileId. Auth required."
+  ],
+  "acceptance_criteria": [
+    "AIOrganizeService categorizes test files into correct folders (e.g., .pdf to Documents, .jpg to Images, receipt.pdf to Receipts)",
+    "AIDuplicateService detects files with identical/similar content",
+    "AISearchContentService indexes and searches file content with relevant results",
+    "AISummarizeFileService produces meaningful summaries for different file types",
+    "AIExtractDataService extracts structured receipt/invoice data",
+    "All route files compile and register correctly with Fastify",
+    "All routes have proper zod validation and auth checks"
+  ],
+  "verification": [
+    "Run `NODE_OPTIONS='' npx vitest run` from apps/quantdrive directory and confirm all tests pass",
+    "Run `npx tsc --noEmit -p apps/quantdrive/tsconfig.backend.json` from repo root to verify TypeScript compiles"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

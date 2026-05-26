@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Create comprehensive test suite for all QuantDrive services. Each service needs a dedicated .test.ts file in backend/__tests__/ following the mock-based DI pattern used in the rest of the ecosystem (createMockPrisma factory, vi.fn() mocks, describe/it blocks). Tests must exercise real code paths and verify E2E encryption round-trips, quota enforcement, version history, trash retention, AI categorization, and sharing key exchange.",
+  "status": "pending",
+  "steps": [
+    "Create apps/quantdrive/backend/__tests__/file.service.test.ts - Test upload/download encryption round-trip (content identical after encrypt then decrypt), metadata CRUD, soft delete, file not found errors, unauthorized access. Verify that encrypted content differs from plaintext.",
+    "Create apps/quantdrive/backend/__tests__/folder.service.test.ts - Test create folder, nested folder creation, list folders, move folder, delete folder (empty and non-empty), get folder path breadcrumb.",
+    "Create apps/quantdrive/backend/__tests__/share.service.test.ts - Test share file (key exchange), share folder, accept share (both users can access), revoke share, list shares, share with non-existent user error.",
+    "Create apps/quantdrive/backend/__tests__/version.service.test.ts - Test create version on update, list versions, restore previous version, purge expired versions (>30 days removed).",
+    "Create apps/quantdrive/backend/__tests__/trash.service.test.ts - Test move to trash, restore from trash, list trash, empty trash (permanent delete), purge expired (>30 days auto-removed).",
+    "Create apps/quantdrive/backend/__tests__/storage-quota.service.test.ts - Test getUsage, checkQuota passes for under-limit, checkQuota throws for over-limit, tier enforcement (free=15GB, standard=100GB, premium=2TB), upgradeTier.",
+    "Create apps/quantdrive/backend/__tests__/ai-organize.service.test.ts - Test file categorization: .pdf -> Documents, .jpg -> Images, receipt.pdf -> Receipts, .ts -> Code. Test autoOrganize moves file.",
+    "Create apps/quantdrive/backend/__tests__/ai-duplicate.service.test.ts - Test computeHash produces consistent hashes, findDuplicates groups similar files, compareTwoFiles returns high score for identical content and low score for different content.",
+    "Create apps/quantdrive/backend/__tests__/ai-search-content.service.test.ts - Test indexFile stores searchable content, searchContent returns matching files with snippets, empty query returns nothing.",
+    "Create apps/quantdrive/backend/__tests__/ai-summarize-file.service.test.ts - Test summarization returns title, summary, and key points. Different file types produce appropriate summaries.",
+    "Create apps/quantdrive/backend/__tests__/ai-extract-data.service.test.ts - Test receipt extraction returns vendor/date/total/items. Test invoice extraction returns invoiceNumber/vendor/dueDate/lineItems.",
+    "Run pnpm install from workspace root to ensure the new package is recognized, then run the full test suite to verify everything passes."
+  ],
+  "acceptance_criteria": [
+    "All 11 test files exist and pass when running `NODE_OPTIONS='' npx vitest run`",
+    "File service tests verify encrypt/decrypt round-trip produces identical content",
+    "Share service tests verify both users can access after key exchange",
+    "Storage quota tests verify exceeding quota produces an error",
+    "AI organize tests verify correct categorization of test files",
+    "AI duplicate tests verify similar file detection",
+    "Version history tests verify previous versions are retrievable",
+    "Trash tests verify 30-day retention then permanent delete",
+    "TypeScript strict mode passes with no errors"
+  ],
+  "verification": [
+    "Run `NODE_OPTIONS='' npx vitest run` from apps/quantdrive directory and confirm all tests pass",
+    "Run `npx tsc --noEmit -p apps/quantdrive/tsconfig.backend.json` from repo root to verify TypeScript compiles"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

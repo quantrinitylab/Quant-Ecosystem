@@ -1,0 +1,7 @@
+{
+  "task_id": "task-phase-24-quantdrive",
+  "task_description": "Phase 24: QuantDrive - Google Drive Killer with E2E encryption. Create apps/quantdrive/ with file CRUD (encrypted), folder tree management, sharing with key exchange, 30-day version history, 30-day soft-delete trash, storage quota tiers (15GB free, 100GB/$1.99, 2TB/$9.99), and AI-powered features (auto-organize, duplicate detection, content search, file summarization, data extraction from receipts/invoices).",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

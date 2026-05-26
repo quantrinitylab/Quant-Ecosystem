@@ -1,0 +1,27 @@
+{
+  "project_type": "TypeScript monorepo - pnpm workspace with multiple apps (Fastify backends) and shared packages",
+  "language": "TypeScript",
+  "build_system": "pnpm@10.28.1 with turbo for orchestration. Each app has its own package.json, vitest.config.ts, tsconfig.json, and tsconfig.backend.json",
+  "test_framework": "Vitest ^2 with globals:true, tests in backend/__tests__/*.test.ts, mock-based DI testing pattern",
+  "build_command": "pnpm --filter @quant/quantdrive run typecheck",
+  "test_command": "NODE_OPTIONS=\"\" npx vitest run --project apps/quantdrive",
+  "verification_instructions": "1. Run `NODE_OPTIONS=\"\" npx vitest run` from the apps/quantdrive directory. 2. Run typecheck with `pnpm --filter @quant/quantdrive run typecheck`.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install from root to install all workspace deps",
+  "environment_constraints": "COMMON_DEPENDENCIES network mode - can install packages from registries. Node >=22.0.0. TypeScript ~5.5.0.",
+  "contribution_requirements": "TypeScript strict mode enabled. Services use DI with interfaces for database clients. Tests use vi.fn() mocks. Zod for validation. Fastify for routes. All imports use @quant/* workspace packages for shared functionality.",
+  "key_patterns": "1. Services: class-based with constructor DI (PrismaClient interface defined inline), createAppError for errors. 2. Routes: Fastify plugin pattern with zod validation, auth via request.auth.userId. 3. Tests: createMockPrisma() factory, describe/it/expect/beforeEach/vi from vitest. 4. App: createApp from @quant/server-core, register routes with prefix. 5. AI services: inject AIEngine from @quant/ai, call ai.infer() with structured prompts. 6. Package.json: workspace:* deps, scripts: test/typecheck/dev.",
+  "relevant_files": [
+    "apps/quantdocs/backend/services/doc.service.ts",
+    "apps/quantdocs/backend/__tests__/doc.service.test.ts",
+    "apps/quantdocs/backend/routes/docs.ts",
+    "apps/quantdocs/backend/app.ts",
+    "apps/quantdocs/package.json",
+    "apps/quantdocs/vitest.config.ts",
+    "apps/quantdocs/tsconfig.json",
+    "apps/quantdocs/tsconfig.backend.json",
+    "apps/quantmail/backend/services/pgp-encryption.service.ts",
+    "apps/quantmail/backend/services/folder.service.ts"
+  ],
+  "directory_structure": "Root: apps/ (quantdocs, quantmail, quantchat, quantsync, quantedits, etc.), packages/ (common, auth, ai, server-core, database, storage, etc.), services/. Each app: backend/ (app.ts, routes/, services/, __tests__/), package.json, vitest.config.ts, tsconfig.json, tsconfig.backend.json."
+}

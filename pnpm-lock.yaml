@@ -252,6 +252,49 @@ importers:
         specifier: ^2
         version: 2.1.9(@types/node@25.9.1)(jsdom@25.0.1)
 
+  apps/quantdrive:
+    dependencies:
+      '@quant/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@quant/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@quant/common':
+        specifier: workspace:*
+        version: link:../../packages/common
+      '@quant/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@quant/realtime':
+        specifier: workspace:*
+        version: link:../../packages/realtime
+      '@quant/server-core':
+        specifier: workspace:*
+        version: link:../../packages/server-core
+      '@quant/shared-ui':
+        specifier: workspace:*
+        version: link:../../packages/shared-ui
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      ioredis:
+        specifier: ^5.6.1
+        version: 5.10.1
+      uuid:
+        specifier: ^9.0.0
+        version: 9.0.1
+      zod:
+        specifier: ^3.25.23
+        version: 3.25.76
+    devDependencies:
+      '@types/uuid':
+        specifier: ^9
+        version: 9.0.8
+      vitest:
+        specifier: ^2
+        version: 2.1.9(@types/node@25.9.1)(jsdom@25.0.1)
+
   apps/quantedits:
     dependencies:
       '@quant/ai':
