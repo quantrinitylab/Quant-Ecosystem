@@ -1,0 +1,14 @@
+{
+  "task_id": "task-phase-27-ranking-choice",
+  "task_description": "Phase 27 - Algorithmic Choice + Anti-Rage Ranking: Create packages/ranking with user-choosable feed ranking system including chrono/AI/community rankers, WASM plugin system, anti-rage integration from Phase 15, A/B testing, and REST routes",
+  "status": "completed",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "typecheck passes with zero errors, all 54 tests pass across 11 test files, tests are meaningful and exercise real logic paths"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Create packages/ranking package with core ranking system: algorithm registry, chrono/AI/community rankers, plugin system, user preference service, anti-rage integration, feed service, A/B test integration, routes, and comprehensive tests",
+  "status": "in_progress",
+  "steps": [
+    "Create packages/ranking/package.json following the @quant/recommendations pattern: name @quant/ranking, type module, main/types pointing to src/index.ts, scripts for typecheck/test/build, dependencies on zod ^3.24.0 and @quant/recommendations workspace:*. DevDeps: @types/node ^22, typescript ~5.5.0, vitest ^2.",
+    "Create packages/ranking/tsconfig.json extending ../../tsconfig.json with outDir ./dist, rootDir ./src, composite true.",
+    "Create src/types.ts with shared types: FeedItem (id, content, authorId, timestamp, metadata, engagement metrics), RankedItem (extends FeedItem + score + algorithmUsed), AlgorithmType enum (chrono, ai, community, custom), UserAlgorithmPreference (userId, algorithm, feedId, customPluginId?), PluginManifest (id, name, wasmUrl, version, author), ABTestBucket, FeedRequest, FeedResponse.",
+    "Create src/algorithm-registry.ts: AlgorithmRegistry class that registers RankingAlgorithm implementations by AlgorithmType. Each algorithm implements interface RankingAlgorithm { name: AlgorithmType; rank(items: FeedItem[], userId: string): RankedItem[] }. Registry provides get/list/register methods.",
+    "Create src/chrono-ranker.ts: ChronoRanker implements RankingAlgorithm. Ranks items purely by timestamp descending. Simple but important baseline.",
+    "Create src/ai-ranker.ts: AIRanker implements RankingAlgorithm. Uses a scoring function that considers user engagement history, content features, and diversity. Simulates ML scoring by computing feature-based relevance scores.",
+    "Create src/community-ranker.ts: CommunityRanker implements RankingAlgorithm. Ranks by community votes weighted by author reputation score. Computes composite score from upvotes, shares, reply quality, and author trust level.",
+    "Create src/plugin-system.ts: PluginSystem class that manages WASM-based custom ranking plugins. Interface PluginSandbox with loadPlugin(manifest: PluginManifest), executeRanking(items: FeedItem[]): RankedItem[], unloadPlugin(). The sandbox enforces memory limits and timeouts. For now, simulate WASM execution with a configurable ranking function.",
+    "Create src/user-preference.service.ts: UserPreferenceService class. Stores user algorithm preferences per feed. Methods: setPreference(userId, feedId, algorithm, customPluginId?), getPreference(userId, feedId): UserAlgorithmPreference, getDefaultAlgorithm(): AlgorithmType.",
+    "Create src/anti-rage-integration.ts: AntiRageFilter class that wraps @quant/recommendations AntiRageScorer. Method applyFilter(items: RankedItem[]): RankedItem[] that scores each item and applies penalty/boost regardless of which ranking algorithm was used. Converts between FeedItem content fields and ContentItem interface.",
+    "Create src/feed-service.ts: FeedService class that orchestrates the full pipeline: 1) fetch candidate items, 2) look up user's chosen algorithm, 3) apply that algorithm's ranking, 4) apply anti-rage filter to results, 5) return final ranked feed. Constructor takes AlgorithmRegistry, UserPreferenceService, AntiRageFilter, and a candidate provider function.",
+    "Create src/ab-test-integration.ts: ABTestIntegration class that uses @quant/recommendations ExperimentService. Creates ranking experiments (default vs custom algorithms), assigns users to buckets, logs exposures, and provides methods to compute experiment results. Integrates with FeedService to optionally override the user's chosen algorithm for experiment purposes.",
+    "Create src/routes/feed.ts: Fastify plugin with GET /feed (fetches feed using user's chosen algorithm, supports pagination via query params) and PUT /feed/algorithm (switches user's algorithm, validates algorithm type with zod). Follow pattern from apps/quantads/backend/routes/campaigns.ts.",
+    "Create src/routes/plugins.ts: Fastify plugin with CRUD routes for custom ranking plugins: POST /plugins (create/upload), GET /plugins (list user's plugins), GET /plugins/:id (get one), PUT /plugins/:id (update), DELETE /plugins/:id (remove). Validates PluginManifest with zod.",
+    "Create src/index.ts barrel export file exporting all public classes, interfaces, types, and route registration functions.",
+    "Create src/__tests__/algorithm-registry.test.ts: Tests registry CRUD, registering multiple algorithms, retrieving by type, listing all.",
+    "Create src/__tests__/chrono-ranker.test.ts: Tests that items are sorted by timestamp desc, handles empty arrays, handles items with same timestamp.",
+    "Create src/__tests__/ai-ranker.test.ts: Tests that scoring produces different order than chrono, validates personalization affects ranking, handles edge cases.",
+    "Create src/__tests__/community-ranker.test.ts: Tests reputation-weighted scoring, validates that higher community engagement scores higher.",
+    "Create src/__tests__/plugin-system.test.ts: Tests plugin loading/unloading, execution with mock WASM function, timeout enforcement, memory limit simulation.",
+    "Create src/__tests__/user-preference.test.ts: Tests set/get preferences, default algorithm fallback, per-feed preferences.",
+    "Create src/__tests__/anti-rage-integration.test.ts: Tests that anti-rage filter reduces scores of rage-bait items while preserving order of quality content, works with all algorithm outputs.",
+    "Create src/__tests__/feed-service.test.ts: Tests full pipeline flow - candidate fetch, algorithm application, anti-rage filtering. Tests switching algorithms changes output order. Tests that anti-rage applies regardless of algorithm choice.",
+    "Create src/__tests__/ab-test-integration.test.ts: Tests experiment bucket assignment, exposure logging, algorithm override for experiments, result computation.",
+    "Create src/__tests__/routes-feed.test.ts: Tests GET /feed returns ranked items, PUT /feed/algorithm switches algorithm and validates input.",
+    "Create src/__tests__/routes-plugins.test.ts: Tests CRUD operations for plugins, validates manifest schema."
+  ],
+  "acceptance_criteria": [
+    "pnpm install succeeds at workspace root with new @quant/ranking package",
+    "pnpm --filter=@quant/ranking typecheck passes with zero errors under strict mode",
+    "NODE_OPTIONS='' npx vitest run packages/ranking passes all tests",
+    "User can switch between chrono/AI/community ranking via UserPreferenceService",
+    "Anti-rage scoring applies in FeedService regardless of chosen algorithm",
+    "Plugin system can load and execute a custom ranking function",
+    "Feed service returns correctly ordered items per the chosen algorithm",
+    "A/B test framework assigns users deterministically to experiment buckets",
+    "Routes validate input with zod and follow Fastify plugin pattern"
+  ],
+  "verification": [
+    "Run: pnpm install (in workspace root)",
+    "Run: pnpm --filter=@quant/ranking typecheck",
+    "Run: NODE_OPTIONS='' npx vitest run packages/ranking"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

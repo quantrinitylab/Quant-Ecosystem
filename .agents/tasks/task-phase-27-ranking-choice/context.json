@@ -1,0 +1,29 @@
+{
+  "project_type": "TypeScript monorepo - Quant Ecosystem multi-app platform",
+  "language": "TypeScript",
+  "build_system": "pnpm workspaces + Turbo for task orchestration. Packages live in packages/, apps in apps/, services in services/",
+  "test_framework": "Vitest ^2 with globals:true, coverage via @vitest/coverage-v8. Tests placed in src/__tests__/ as .test.ts files",
+  "build_command": "pnpm typecheck --filter=@quant/ranking",
+  "test_command": "NODE_OPTIONS=\"\" npx vitest run --project=packages/ranking",
+  "verification_instructions": "1) Run pnpm install in workspace root. 2) Run typecheck. 3) Run vitest for the new package.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install at workspace root. No additional setup needed for library packages.",
+  "environment_constraints": "COMMON_DEPENDENCIES network mode - can install from npm. Node >=22, TypeScript ~5.5.0, pnpm@10.28.1.",
+  "contribution_requirements": "Strict TypeScript, ESM modules (type: module), follow existing package patterns (package.json scripts: typecheck, test, build), use zod for validation, export from barrel index.ts",
+  "key_patterns": "Each package has package.json with main/types pointing to src/index.ts, a tsconfig.json extending root, and src/__tests__/ for tests. Route files use Fastify plugin pattern with zod schema validation. Services are class-based. The existing @quant/recommendations package has AntiRageScorer in src/ranking/anti-rage.ts and ExperimentService in src/experiment/experiment-service.ts that this package integrates with.",
+  "relevant_files": [
+    "packages/recommendations/src/ranking/anti-rage.ts",
+    "packages/recommendations/src/experiment/experiment-service.ts",
+    "packages/recommendations/src/pipeline.ts",
+    "packages/recommendations/package.json",
+    "packages/recommendations/tsconfig.json",
+    "packages/recommendations/src/__tests__/anti-rage.test.ts",
+    "packages/recommendations/src/__tests__/experiment-service.test.ts",
+    "apps/quantads/backend/routes/campaigns.ts",
+    "packages/social-graph/package.json",
+    "tsconfig.json",
+    "vitest.config.ts",
+    "pnpm-workspace.yaml"
+  ],
+  "directory_structure": "Root: package.json, pnpm-workspace.yaml, tsconfig.json, turbo.json, vitest.config.ts. packages/ contains 35+ library packages. apps/ has application backends with routes/. services/ has standalone services."
+}
