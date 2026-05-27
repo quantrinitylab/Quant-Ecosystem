@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Real hybrid search: BM25 (Meilisearch) + Vector (Qdrant) + Cohere Reranker pipeline. Upgrade the existing search package to be production-ready. Add vector embedding on UGC creation. Add 'Why am I seeing this?' explainability to every search/feed result.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Enhance packages/search/src/services/hybrid-search.ts: the existing implementation already does BM25+vector fusion. Add reranker integration - after fusion, pass top-50 to CohereReranker, return reranked top-N. Add an explain() method that returns top-3 ranking signals for any result (e.g., 'matched keyword X', 'similar to items you liked', 'trending in your network').",
     "Create packages/search/src/services/embedding-indexer.ts: UGCEmbeddingIndexer class. On content creation, generates embedding (via EmbeddingService from @quant/ml-pipeline) and upserts to Qdrant via VectorClient. Supports batch indexing for backfill. Handles both new content and content updates.",
@@ -27,5 +27,5 @@
     "cd /projects/sandbox/Quant-Ecosystem && pnpm test --filter=@quant/search"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 214 tests pass (16 new search-explainer + 9 pipeline + 7 embedding-indexer + existing). Typecheck passes. Did not add @quant/ml-pipeline dependency since we defined our own EmbeddingProvider interface via DI pattern (consistent with project conventions). Prettier reformatted some files via lint-staged."
 }
