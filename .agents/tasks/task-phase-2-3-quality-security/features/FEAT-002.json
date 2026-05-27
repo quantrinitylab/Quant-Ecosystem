@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "fix",
   "description": "Phase 3: Fix all 15 high audit vulnerabilities and harden security. Upgrade next.js from 14.2.x to >=15.5.16, upgrade fastify in packages/ranking from ^4.28.0 to ^5.2.1 (to match the rest of the monorepo), upgrade nodemailer in services/smtp-inbound from ^6.9.0 to ^8.0.0, and replace @parse/node-apn in packages/notifications with a modern alternative (e.g., apns2 or @parse/node-apn@7+ if available without node-forge). Also remove the hardcoded production fallback secrets from packages/server/src/middleware/auth.ts, add production config validation to packages/server-core, fix QuantMeet WebSocket auth TODO, and update CI to fail on audit high (remove continue-on-error).",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1 - Upgrade Next.js: In apps/quantai/package.json, apps/quantchat/package.json, apps/quantmail/package.json, change \"next\": \"^14.2.0\" to \"next\": \"^15.5.16\". Also update react to ^19 and react-dom to ^19 (Next.js 15 requires React 19). Update @types/react to ^19 and @types/react-dom to ^19 if present. Run pnpm install to update the lockfile.",
     "Step 2 - Upgrade Fastify in ranking: In packages/ranking/package.json, change devDependencies fastify from \"^4.28.0\" to \"^5.2.1\". Run pnpm install.",
@@ -35,5 +35,5 @@
     "pnpm lint exits 0"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Next.js 15 upgrade required several compatibility fixes: (1) app/ directories moved under src/ to match Next.js 15 validator expectations when src/ exists, (2) React 19 removes global JSX namespace requiring global.d.ts re-export, (3) dynamic heading tags needed narrower type assertions, (4) async params in App Router pages, (5) stricter type narrowing caught dead code in ARFilters.tsx. nodemailer v8 still requires @types/nodemailer (v8.0.0). quantmail settings.tsx had a pre-existing type error (missing NotificationPreferences fields) that was fixed. Prettier formatted files on commit via lint-staged."
 }
