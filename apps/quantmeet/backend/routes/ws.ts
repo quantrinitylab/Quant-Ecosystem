@@ -2,7 +2,24 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { WebSocket } from '@fastify/websocket';
 import * as jose from 'jose';
 
-const JWT_SECRET = process.env.JWT_SECRET || '';
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    if (!secret || secret.length < 32) {
+      throw new Error('JWT_SECRET must be set to a value of at least 32 characters in production');
+    }
+    return secret;
+  }
+  if (!secret) {
+    console.warn(
+      '[SECURITY] JWT_SECRET not set - using dev-only fallback. NEVER use in production.',
+    );
+    return 'dev-only-insecure-jwt-secret-not-for-production-use-000';
+  }
+  return secret;
+}
+
+const JWT_SECRET = getJwtSecret();
 const JWT_ISSUER = process.env.JWT_ISSUER || 'quant-ecosystem';
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE || 'quant-apps';
 

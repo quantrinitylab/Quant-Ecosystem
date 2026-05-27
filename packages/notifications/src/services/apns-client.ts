@@ -32,15 +32,23 @@ export interface ApnsSendResult {
   failed: Array<{ device: string; response?: { reason: string } }>;
 }
 
+/** Maximum token age before regeneration (50 minutes; Apple allows up to 60) */
+const TOKEN_CACHE_DURATION_MS = 50 * 60 * 1000;
+
 /**
  * Lightweight APNs provider using HTTP/2 and token-based (JWT) auth.
  * This is a minimal implementation for sending push notifications
  * without depending on node-forge or other vulnerable packages.
+ *
+ * NOTE: The token key MUST be an EC P-256 private key in PEM format.
+ * Using any other key type will produce invalid signatures.
  */
 export class ApnsProvider {
   private options: ApnsProviderOptions;
   private session: http2.ClientHttp2Session | null = null;
   private host: string;
+  private cachedToken: string | null = null;
+  private tokenExpiry: number = 0;
 
   constructor(options: ApnsProviderOptions) {
     this.options = options;
@@ -50,24 +58,37 @@ export class ApnsProvider {
   }
 
   /**
-   * Generate a short-lived JWT for APNs token-based authentication
+   * Generate a short-lived JWT for APNs token-based authentication.
+   * Tokens are cached and reused for up to 50 minutes.
+   * Uses ieee-p1363 signature encoding as required by Apple's ES256 verification.
    */
   private generateAuthToken(): string {
+    const now = Date.now();
+    if (this.cachedToken && now < this.tokenExpiry) {
+      return this.cachedToken;
+    }
+
     const header = Buffer.from(
       JSON.stringify({ alg: 'ES256', kid: this.options.token.keyId }),
     ).toString('base64url');
 
-    const now = Math.floor(Date.now() / 1000);
-    const claims = Buffer.from(
-      JSON.stringify({ iss: this.options.token.teamId, iat: now }),
-    ).toString('base64url');
+    const iat = Math.floor(now / 1000);
+    const claims = Buffer.from(JSON.stringify({ iss: this.options.token.teamId, iat })).toString(
+      'base64url',
+    );
 
     const signingInput = `${header}.${claims}`;
     const sign = jwt.createSign('SHA256');
     sign.update(signingInput);
-    const signature = sign.sign(this.options.token.key, 'base64url');
+    const signature = sign.sign(
+      { key: this.options.token.key, dsaEncoding: 'ieee-p1363' },
+      'base64url',
+    );
 
-    return `${signingInput}.${signature}`;
+    const token = `${signingInput}.${signature}`;
+    this.cachedToken = token;
+    this.tokenExpiry = now + TOKEN_CACHE_DURATION_MS;
+    return token;
   }
 
   /**
