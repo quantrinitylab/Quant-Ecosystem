@@ -3,6 +3,7 @@ import type { AppConfig } from '@quant/server-core';
 import campaignsRoutes from './routes/campaigns';
 import servingRoutes from './routes/serving';
 import analyticsRoutes from './routes/analytics';
+import privacyAdsRoutes from './routes/privacy-ads';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -33,6 +34,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(campaignsRoutes, { prefix: '/campaigns' });
   await app.register(servingRoutes, { prefix: '/serving' });
   await app.register(analyticsRoutes, { prefix: '/analytics' });
+  await app.register(privacyAdsRoutes, { prefix: '/privacy-ads' });
 
   return app;
 }

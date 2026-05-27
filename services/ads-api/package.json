@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@quant/health-server": "workspace:*",
-    "@quant/common": "workspace:*"
+    "@quant/common": "workspace:*",
+    "@quant/privacy-ads": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

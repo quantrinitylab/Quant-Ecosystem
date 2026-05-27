@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Integration: Wire privacy-ads into ads backend, update ads-api service, update status/gate tracking, and run full pipeline validation",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "1. Update `apps/quantads/backend/app.ts` to register a new privacy-ads route prefix. Create `apps/quantads/backend/routes/privacy-ads.ts` with endpoints: POST /privacy-ads/candidates (returns 50 candidates for on-device ranking), POST /privacy-ads/feedback (receives aggregate clicked/dismissed), GET /privacy-ads/disclosure/:adId (returns why-this-ad info).",
     "2. Create `apps/quantads/backend/services/privacy-ad-serving.service.ts` - uses @quant/privacy-ads contextual targeting and privacy enforcer to serve candidates. Never includes user profile in response payload. Validates all responses through PrivacyEnforcerService.",

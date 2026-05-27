@@ -93,6 +93,9 @@ importers:
       '@quant/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@quant/privacy-ads':
+        specifier: workspace:*
+        version: link:../../packages/privacy-ads
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
@@ -1695,6 +1698,9 @@ importers:
       '@quant/health-server':
         specifier: workspace:*
         version: link:../../packages/health-server
+      '@quant/privacy-ads':
+        specifier: workspace:*
+        version: link:../../packages/privacy-ads
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
