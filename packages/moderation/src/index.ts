@@ -39,3 +39,14 @@ export { AdPolicyEnforcementService } from './services/ad-policy-enforcement';
 export { BotDetectionService } from './services/bot-detection';
 export { ContentLabelService } from './services/content-labels';
 export { SafetyAuditLogService } from './services/safety-audit-log';
+export {
+  KeyframeExtractor,
+  MockFrameExtractorBackend,
+  FfmpegFrameExtractorBackend,
+} from './services/keyframe-extractor';
+export {
+  AudioTranscriber,
+  OpenAIWhisperProvider,
+  MockWhisperProvider,
+} from './services/audio-transcriber';
+export { LiveModerator } from './services/live-moderator';

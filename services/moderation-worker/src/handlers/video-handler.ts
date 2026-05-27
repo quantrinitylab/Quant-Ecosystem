@@ -1,6 +1,6 @@
 // ============================================================================
 // Moderation Worker - Video Handler
-// Samples frames from video and classifies each via ImageClassifier
+// Extracts keyframes via KeyframeExtractor and classifies each via ImageClassifier
 // ============================================================================
 
 import type {
@@ -8,38 +8,45 @@ import type {
   PolicyEngine,
   ModerationResult,
   CategoryScore,
+  KeyframeExtractor,
 } from '@quant/moderation';
 import type { ModerationJob } from '@quant/queue';
 import type { ActionExecutor } from '../action-executor';
 
 export interface VideoHandlerDeps {
   imageClassifier: ImageClassifier;
+  keyframeExtractor: KeyframeExtractor;
   policyEngine: PolicyEngine;
   actionExecutor: ActionExecutor;
-  frameSamplerRate?: number;
 }
 
 export class VideoModerationHandler {
   private readonly imageClassifier: ImageClassifier;
+  private readonly keyframeExtractor: KeyframeExtractor;
   private readonly policyEngine: PolicyEngine;
   private readonly actionExecutor: ActionExecutor;
-  private readonly frameSamplerRate: number;
 
   constructor(deps: VideoHandlerDeps) {
     this.imageClassifier = deps.imageClassifier;
+    this.keyframeExtractor = deps.keyframeExtractor;
     this.policyEngine = deps.policyEngine;
     this.actionExecutor = deps.actionExecutor;
-    this.frameSamplerRate = deps.frameSamplerRate ?? 5;
   }
 
   async handle(job: ModerationJob): Promise<ModerationResult> {
-    // Simulate frame extraction: generate N frame URLs from video URL
-    const frameUrls = this.extractFrames(job.content, this.frameSamplerRate);
+    // Extract duration from job metadata (default 60s if not provided)
+    const duration = (job as unknown as { duration?: number }).duration ?? 60;
 
-    // Classify each frame
+    // Extract keyframes using the real extractor (tiered intervals)
+    const keyframes = await this.keyframeExtractor.extract(job.content, duration);
+
+    // Classify each extracted frame
     const frameResults: ModerationResult[] = [];
-    for (const frameUrl of frameUrls) {
-      const result = await this.imageClassifier.classify({ url: frameUrl }, job.contentId);
+    for (const frame of keyframes) {
+      const input = frame.buffer
+        ? { base64: frame.buffer.toString('base64') }
+        : { url: frame.framePath ?? job.content };
+      const result = await this.imageClassifier.classify(input, job.contentId);
       frameResults.push(result);
     }
 
@@ -62,14 +69,6 @@ export class VideoModerationHandler {
       ...aggregated,
       action: policyDecision.action,
     };
-  }
-
-  private extractFrames(videoUrl: string, count: number): string[] {
-    const frames: string[] = [];
-    for (let i = 0; i < count; i++) {
-      frames.push(`${videoUrl}#frame=${i}`);
-    }
-    return frames;
   }
 
   private aggregateResults(results: ModerationResult[], contentId: string): ModerationResult {

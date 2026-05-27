@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { VideoModerationHandler } from './video-handler';
 import type { ModerationResult, PolicyDecision } from '@quant/moderation';
+import { KeyframeExtractor, MockFrameExtractorBackend } from '@quant/moderation';
 import type { ModerationJob } from '@quant/queue';
 
 function createMockFrameResult(overrides: Partial<ModerationResult> = {}): ModerationResult {
@@ -71,13 +72,17 @@ describe('VideoModerationHandler', () => {
       imageClassifier: imageClassifier as unknown as ConstructorParameters<
         typeof VideoModerationHandler
       >[0]['imageClassifier'],
+      keyframeExtractor: new KeyframeExtractor(new MockFrameExtractorBackend(), {
+        earlyIntervalSeconds: 12,
+        lateIntervalSeconds: 60,
+        earlyPhaseDuration: 60,
+      }),
       policyEngine: policyEngine as unknown as ConstructorParameters<
         typeof VideoModerationHandler
       >[0]['policyEngine'],
       actionExecutor: actionExecutor as unknown as ConstructorParameters<
         typeof VideoModerationHandler
       >[0]['actionExecutor'],
-      frameSamplerRate: 5,
     });
 
     const job: ModerationJob = {
@@ -116,13 +121,17 @@ describe('VideoModerationHandler', () => {
       imageClassifier: imageClassifier as unknown as ConstructorParameters<
         typeof VideoModerationHandler
       >[0]['imageClassifier'],
+      keyframeExtractor: new KeyframeExtractor(new MockFrameExtractorBackend(), {
+        earlyIntervalSeconds: 20,
+        lateIntervalSeconds: 60,
+        earlyPhaseDuration: 60,
+      }),
       policyEngine: policyEngine as unknown as ConstructorParameters<
         typeof VideoModerationHandler
       >[0]['policyEngine'],
       actionExecutor: actionExecutor as unknown as ConstructorParameters<
         typeof VideoModerationHandler
       >[0]['actionExecutor'],
-      frameSamplerRate: 3,
     });
 
     const job: ModerationJob = {

@@ -599,3 +599,73 @@ export interface SafetyAuditEntry {
   metadata: Record<string, unknown>;
   timestamp: number;
 }
+
+// ============================================================================
+// Video & Live Stream Moderation Types (Phase 20)
+// ============================================================================
+
+/** Result of a keyframe extraction operation */
+export interface KeyframeResult {
+  timestamp: number;
+  framePath?: string;
+  buffer?: Buffer;
+}
+
+/** A single segment within a transcription result */
+export interface TranscriptionSegment {
+  start: number;
+  end: number;
+  text: string;
+  confidence: number;
+}
+
+/** Result from audio transcription */
+export interface TranscriptionResult {
+  text: string;
+  segments: TranscriptionSegment[];
+  duration: number;
+  language?: string;
+}
+
+/** Events emitted by the LiveModerator */
+export type LiveModerationEventType = 'flag' | 'disconnect' | 'ban';
+
+/** Event payload emitted by the LiveModerator */
+export interface LiveModerationEvent {
+  type: LiveModerationEventType;
+  sessionId: string;
+  userId: string;
+  reason: string;
+  timestamp: number;
+  violationCount: number;
+}
+
+/** Session state tracked by the LiveModerator */
+export interface LiveModerationSession {
+  sessionId: string;
+  userId: string;
+  startedAt: number;
+  violationCount: number;
+  lastFlagAt?: number;
+  disconnected: boolean;
+  banned: boolean;
+}
+
+/** Configuration for stream moderation */
+export interface StreamModerationConfig {
+  frameSampleIntervalMs: number;
+  violationThresholdForDisconnect: number;
+  violationThresholdForBan: number;
+  banDurationMs: number;
+  profanityKeywords: string[];
+}
+
+/** Interface for Whisper-compatible transcription providers */
+export interface WhisperProvider {
+  transcribe(audio: Buffer | string): Promise<TranscriptionResult>;
+}
+
+/** Interface for frame extraction backends (DI pattern) */
+export interface FrameExtractorBackend {
+  extractFrames(input: string | Buffer, timestamps: number[]): Promise<KeyframeResult[]>;
+}

@@ -12,7 +12,14 @@ import type {
   ModerationAPIClient,
   ImageModerationAPIClient,
 } from '@quant/moderation';
-import { TextClassifier, ImageClassifier, PerceptualHasher, PolicyEngine } from '@quant/moderation';
+import {
+  TextClassifier,
+  ImageClassifier,
+  PerceptualHasher,
+  PolicyEngine,
+  KeyframeExtractor,
+  MockFrameExtractorBackend,
+} from '@quant/moderation';
 import { ModerationJobSchema, type ModerationJob } from '@quant/queue';
 
 import { TextModerationHandler } from './handlers/text-handler';
@@ -193,6 +200,7 @@ export function createHandlerDeps(): ModerationHandlerDeps {
 
   const videoHandler = new VideoModerationHandler({
     imageClassifier,
+    keyframeExtractor: new KeyframeExtractor(new MockFrameExtractorBackend()),
     policyEngine,
     actionExecutor,
   });

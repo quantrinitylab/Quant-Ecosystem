@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Video and live-stream moderation: keyframe extraction pipeline with real ffmpeg integration, two-tier image classification (edge fast + deep async), audio transcription via Whisper, and live moderation sampler for QuantMeet/QuantMax with auto-disconnect. Implements the Phase 20 requirements for video moderation (keyframe every 1s for first 30s, then every 5s) and live video moderation (sampled frames every 2s + keyword detection, auto-disconnect + temp ban).",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "1. Create packages/moderation/src/services/keyframe-extractor.ts: KeyframeExtractor class using fluent-ffmpeg that extracts frames from video files at configurable intervals. Default: every 1s for first 30s, then every 5s. Returns array of {timestamp, framePath} or Buffer[]. Supports both file path and stream input.",
     "2. Create packages/moderation/src/services/audio-transcriber.ts: AudioTranscriber class with WhisperProvider interface. WhisperAPIProvider that calls OpenAI Whisper API (or self-hosted endpoint). Returns TranscriptionResult with {text, segments: {start, end, text, confidence}[]}. Supports chunked transcription for long audio.",
