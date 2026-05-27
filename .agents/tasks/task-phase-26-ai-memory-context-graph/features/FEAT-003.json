@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Phase 26 hard-gate validation tests: memory schema covers 8 categories, inspector shows every memory, export/import roundtrip byte-exact, prompt-injection red-team test (memory writes require explicit user signal).",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Step 1: Create packages/ai-memory/src/__tests__/phase26-gates.test.ts with comprehensive gate tests: (a) schema test - all 8 categories are valid in the zod schema, (b) export->import roundtrip test - export to JSON, import, compare every field byte-exact, (c) anti-creep/red-team test - attempt to create memory without explicit signal (simulate prompt-injection scenario where content contains injection attempts) - must fail, (d) candidate flow - pattern-detected memory stays pending until user approves via digest, (e) access scopes - memory with restricted scope is not returned when queried by unauthorized app, (f) TTL test - memory with past expiresAt is not returned.",
     "Step 2: Create packages/identity-permissions/src/__tests__/phase26-gates.test.ts with context graph gate tests: (a) all required node types can be created (person/conversation/document/project/event mapped to ResourceType), (b) all required edge types work (mentioned-in, attended, edited, shared-with), (c) search grounding - agent can traverse graph to find related context.",

@@ -24,7 +24,7 @@ export class MemoryExporter {
 
     switch (format) {
       case 'json':
-        return JSON.stringify(exportData, Object.keys(exportData).sort(), 2);
+        return this.deterministicStringify(exportData);
       case 'markdown':
         return this.toMarkdown(exportData);
       case 'csv':
