@@ -2,7 +2,7 @@
   "id": "FEAT-005",
   "type": "feat",
   "description": "Add killer micro-features to quantmail (email app) and quantsync (social feed). For quantmail: smart inbox categories, email snooze, undo send timer, email templates, signature builder. For quantsync: infinite scroll feed manager, post scheduling, analytics dashboard service, content suggestions engine, bookmark collections.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create apps/quantmail/src/services/smart-inbox.service.ts - SmartInboxService with categorize(email) using rules-based categorization into Primary, Social, Promotions, Updates, Forums. Support custom rules",
     "Create apps/quantmail/src/services/email-snooze.service.ts - EmailSnoozeService with snooze(emailId, until), unsnooze(emailId), getScheduled(). Support relative times (later today, tomorrow, next week)",
