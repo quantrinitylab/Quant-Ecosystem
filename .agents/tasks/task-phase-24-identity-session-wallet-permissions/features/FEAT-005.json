@@ -2,7 +2,7 @@
   "id": "FEAT-005",
   "type": "feat",
   "description": "End-to-End Integration Tests + Gate Verification - Create integration test suite that exercises all Phase 24 hard gates: one user account across all 13 apps without re-auth, passkey enrollment + login E2E, permission check <5ms p99, and account deletion purge within 14 days. Also verify full project typecheck, test, build, and lint pass.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "1. Create packages/auth/src/__tests__/phase24-integration.test.ts: Integration test that: (a) Creates a user via QuantMail OAuth provider, (b) Generates auth tokens, (c) Validates the token is accepted by all 13 registered app clients, (d) Verifies single session works cross-app without re-authentication, (e) Tests passkey enrollment flow end-to-end with mocked authenticator, (f) Tests passkey authentication flow with the enrolled credential.",
     "2. Create packages/identity-permissions/src/__tests__/phase24-gates.test.ts: Performance gate tests that: (a) Run can() 1000 times and assert p99 < 5ms, (b) Test permission check across all resource types and roles, (c) Verify consent withdrawal has immediate effect (subsequent hasConsent returns false).",
