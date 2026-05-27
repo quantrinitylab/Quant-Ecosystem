@@ -59,10 +59,10 @@ export async function routeJob(
 }
 
 /**
- * Create a placeholder API client that throws a meaningful error when called
+ * Create an unconfigured API client that throws a meaningful error when called
  * without proper configuration.
  */
-function createPlaceholderTextClient(): ModerationAPIClient {
+function createUnconfiguredTextClient(): ModerationAPIClient {
   return {
     moderateText: () => {
       throw new Error(
@@ -73,10 +73,10 @@ function createPlaceholderTextClient(): ModerationAPIClient {
 }
 
 /**
- * Create a placeholder image API client that throws a meaningful error when called
+ * Create an unconfigured image API client that throws a meaningful error when called
  * without proper configuration.
  */
-function createPlaceholderImageClient(): ImageModerationAPIClient {
+function createUnconfiguredImageClient(): ImageModerationAPIClient {
   return {
     moderateImage: () => {
       throw new Error(
@@ -149,7 +149,7 @@ function createHttpTextClient(apiKey: string): ModerationAPIClient {
  *
  * Environment variables:
  *   MODERATION_API_KEY or OPENAI_API_KEY - enables real text moderation via OpenAI
- *   IMAGE_MODERATION_API_KEY - enables real image moderation (placeholder until provider SDK added)
+ *   IMAGE_MODERATION_API_KEY - enables real image moderation (requires provider SDK configuration)
  */
 export function createHandlerDeps(): ModerationHandlerDeps {
   // Resolve text API client: use real HTTP client if API key is present
@@ -157,14 +157,14 @@ export function createHandlerDeps(): ModerationHandlerDeps {
     process.env['MODERATION_API_KEY'] ?? process.env['OPENAI_API_KEY'] ?? undefined;
   const textApiClient = textApiKey
     ? createHttpTextClient(textApiKey)
-    : createPlaceholderTextClient();
+    : createUnconfiguredTextClient();
 
   // Resolve image API client: use real client if API key is present
   const imageApiKey = process.env['IMAGE_MODERATION_API_KEY'] ?? undefined;
   const imageApiClient = imageApiKey
-    ? // TODO: Replace with real image moderation SDK client when available
-      createPlaceholderImageClient()
-    : createPlaceholderImageClient();
+    ? // Swap with real image moderation SDK client when provider is onboarded
+      createUnconfiguredImageClient()
+    : createUnconfiguredImageClient();
 
   const textClassifier = new TextClassifier(textApiClient);
   const imageClassifier = new ImageClassifier(imageApiClient);

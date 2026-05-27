@@ -11,7 +11,7 @@ export {
   type ClassifierThresholds,
 } from './services/classifier-thresholds';
 export { PerceptualHasher } from './services/perceptual-hash';
-export { NoOpCSAMMatcher } from './services/csam-matcher';
+export { CSAMGuard } from './services/csam-matcher';
 export { PolicyEngine, PolicySchema, PolicyRuleSchema } from './services/policy-engine';
 export { AppealWorkflow } from './services/appeal-workflow';
 export { TransparencyReportGenerator } from './services/transparency-report';

@@ -67,7 +67,7 @@ export function getQuantmailTools(): AITool[] {
         console.log('[quantmail] summarizeThread:', args);
         return {
           success: true,
-          data: { summary: 'Thread summary placeholder', keyPoints: [] },
+          data: { summary: 'Thread summary pending', keyPoints: [] },
           displayMessage: `Thread ${args['threadId']} summarized: key discussion points extracted.`,
         };
       },

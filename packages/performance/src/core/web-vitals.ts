@@ -4,7 +4,12 @@
 // alerting thresholds, attribution analysis
 // ============================================================================
 
-import type { WebVitalsMetrics, PercentileResult, VitalsThreshold, VitalsAttribution } from '../types';
+import type {
+  WebVitalsMetrics,
+  PercentileResult,
+  VitalsThreshold,
+  VitalsAttribution,
+} from '../types';
 
 /** Metric entry with attribution */
 interface MetricEntry {
@@ -140,7 +145,7 @@ export class WebVitalsCollector {
     const count = values.length;
 
     // Calculate percentiles using linear interpolation
-    const p50 = this.calculatePercentile(values, 0.50);
+    const p50 = this.calculatePercentile(values, 0.5);
     const p75 = this.calculatePercentile(values, 0.75);
     const p95 = this.calculatePercentile(values, 0.95);
     const p99 = this.calculatePercentile(values, 0.99);
@@ -157,7 +162,10 @@ export class WebVitalsCollector {
   /**
    * Get percentiles filtered by URL.
    */
-  getPercentilesForUrl(metric: 'fcp' | 'lcp' | 'fid' | 'cls' | 'ttfb', url: string): PercentileResult {
+  getPercentilesForUrl(
+    metric: 'fcp' | 'lcp' | 'fid' | 'cls' | 'ttfb',
+    url: string,
+  ): PercentileResult {
     const entries = this.getEntriesForMetric(metric).filter((e) => e.url === url);
     if (entries.length === 0) {
       return { p50: 0, p75: 0, p95: 0, p99: 0, min: 0, max: 0, mean: 0, count: 0 };
@@ -165,12 +173,12 @@ export class WebVitalsCollector {
 
     const values = entries.map((e) => e.value).sort((a, b) => a - b);
     return {
-      p50: this.calculatePercentile(values, 0.50),
+      p50: this.calculatePercentile(values, 0.5),
       p75: this.calculatePercentile(values, 0.75),
       p95: this.calculatePercentile(values, 0.95),
       p99: this.calculatePercentile(values, 0.99),
-      min: values[0],
-      max: values[values.length - 1],
+      min: values[0]!,
+      max: values[values.length - 1]!,
       mean: values.reduce((s, v) => s + v, 0) / values.length,
       count: values.length,
     };
@@ -241,7 +249,13 @@ export class WebVitalsCollector {
     const details = new Map<string, string>();
     let allPass = true;
 
-    const metrics: Array<'fcp' | 'lcp' | 'fid' | 'cls' | 'ttfb'> = ['fcp', 'lcp', 'fid', 'cls', 'ttfb'];
+    const metrics: Array<'fcp' | 'lcp' | 'fid' | 'cls' | 'ttfb'> = [
+      'fcp',
+      'lcp',
+      'fid',
+      'cls',
+      'ttfb',
+    ];
 
     for (const metric of metrics) {
       const percentiles = this.getPercentiles(metric);
@@ -304,7 +318,7 @@ export class WebVitalsCollector {
   private calculatePercentile(sortedValues: number[], percentile: number): number {
     const n = sortedValues.length;
     if (n === 0) return 0;
-    if (n === 1) return sortedValues[0];
+    if (n === 1) return sortedValues[0]!;
 
     // Use linear interpolation between data points
     const rank = percentile * (n - 1);
@@ -312,11 +326,13 @@ export class WebVitalsCollector {
     const upperIndex = Math.ceil(rank);
     const fraction = rank - lowerIndex;
 
-    if (upperIndex >= n) return sortedValues[n - 1];
-    if (lowerIndex === upperIndex) return sortedValues[lowerIndex];
+    if (upperIndex >= n) return sortedValues[n - 1]!;
+    if (lowerIndex === upperIndex) return sortedValues[lowerIndex]!;
 
     // Linear interpolation between the two surrounding values
-    return sortedValues[lowerIndex] + fraction * (sortedValues[upperIndex] - sortedValues[lowerIndex]);
+    return (
+      sortedValues[lowerIndex]! + fraction * (sortedValues[upperIndex]! - sortedValues[lowerIndex]!)
+    );
   }
 
   /** Record a metric entry */
@@ -326,7 +342,7 @@ export class WebVitalsCollector {
     url: string,
     deviceType: string,
     timestamp: number,
-    attribution?: { element?: string; source?: string }
+    attribution?: { element?: string; source?: string },
   ): void {
     entries.push({ value, timestamp, url, deviceType, attribution });
 
@@ -354,7 +370,7 @@ export class WebVitalsCollector {
     value: number,
     threshold: number,
     severity: 'warning' | 'critical',
-    url: string
+    url: string,
   ): void {
     this.alerts.push({ metric, value, threshold, severity, timestamp: Date.now(), url });
     if (this.alerts.length > this.maxAlerts) {
@@ -365,19 +381,25 @@ export class WebVitalsCollector {
   /** Get entries array for a metric name */
   private getEntriesForMetric(metric: 'fcp' | 'lcp' | 'fid' | 'cls' | 'ttfb'): MetricEntry[] {
     switch (metric) {
-      case 'fcp': return this.fcpEntries;
-      case 'lcp': return this.lcpEntries;
-      case 'fid': return this.fidEntries;
-      case 'cls': return this.clsEntries;
-      case 'ttfb': return this.ttfbEntries;
+      case 'fcp':
+        return this.fcpEntries;
+      case 'lcp':
+        return this.lcpEntries;
+      case 'fid':
+        return this.fidEntries;
+      case 'cls':
+        return this.clsEntries;
+      case 'ttfb':
+        return this.ttfbEntries;
     }
   }
 
   /** Generate optimization suggestion based on metric and source */
-  private generateSuggestion(metric: string, source: string, avgValue: number): string {
+  private generateSuggestion(metric: string, source: string, _avgValue: number): string {
     const suggestions: Record<string, Record<string, string>> = {
       lcp: {
-        image: 'Optimize images: use WebP/AVIF format, add srcset for responsive images, preload hero image',
+        image:
+          'Optimize images: use WebP/AVIF format, add srcset for responsive images, preload hero image',
         text: 'Ensure critical text is rendered without blocking resources. Use font-display: swap',
         video: 'Use poster image for video elements, lazy load below-fold videos',
         unknown: 'Identify and preload the LCP element, reduce server response time',
@@ -405,6 +427,10 @@ export class WebVitalsCollector {
       },
     };
 
-    return suggestions[metric]?.[source] ?? suggestions[metric]?.['unknown'] ?? 'Investigate and optimize the identified source';
+    return (
+      suggestions[metric]?.[source] ??
+      suggestions[metric]?.['unknown'] ??
+      'Investigate and optimize the identified source'
+    );
   }
 }

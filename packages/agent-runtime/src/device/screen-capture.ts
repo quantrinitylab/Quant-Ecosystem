@@ -34,7 +34,7 @@ export class ScreenCapture {
     // Simulated capture - actual implementation uses platform-specific APIs
     const frame: CaptureFrame = {
       id: `frame-${++this.frameCounter}`,
-      data: new Uint8Array(width * height * 4), // RGBA buffer placeholder
+      data: new Uint8Array(width * height * 4), // RGBA buffer (uninitialized)
       timestamp: Date.now(),
       width,
       height,

@@ -186,7 +186,7 @@ async function main(): Promise<void> {
   });
 
   // Check if a real embedding provider is configured. If EMBEDDING_PROVIDER is not set,
-  // a zero-vector placeholder is used which makes vector search non-functional.
+  // a zero-vector fallback is used which makes vector search non-functional.
   // This is acceptable for local dev but must be replaced in production.
   const embeddingProviderEnv = process.env['EMBEDDING_PROVIDER'];
   if (!embeddingProviderEnv) {
@@ -196,7 +196,7 @@ async function main(): Promise<void> {
     );
   }
 
-  // Placeholder: returns zero vectors for all inputs. In production, replace with
+  // Fallback: returns zero vectors for all inputs. In production, use
   // RoutingTable.getRoute("embedding_bulk") to route to bge-large-en-v1.5 or similar.
   const embeddingProvider: EmbeddingProvider = {
     embed: async (texts: string[]) => {

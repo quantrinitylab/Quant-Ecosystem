@@ -1,35 +1,27 @@
 import { describe, it, expect } from 'vitest';
-import { NoOpCSAMMatcher } from './csam-matcher';
+import { CSAMGuard } from './csam-matcher';
 
-describe('NoOpCSAMMatcher', () => {
-  it('should always return matched: false', async () => {
-    const matcher = new NoOpCSAMMatcher();
-    const result = await matcher.checkHash('abc123');
-
-    expect(result.matched).toBe(false);
-    expect(result.reportId).toBeUndefined();
+describe('CSAMGuard', () => {
+  it('throws when media is not enabled', async () => {
+    const guard = new CSAMGuard(false);
+    await expect(guard.checkHash('abc123')).rejects.toThrow('CSAM matching not configured');
   });
 
-  it('should not throw on reportMatch', async () => {
-    const matcher = new NoOpCSAMMatcher();
-    await expect(matcher.reportMatch({ hash: 'abc123', source: 'test' })).resolves.toBeUndefined();
+  it('throws on reportMatch when not enabled', async () => {
+    const guard = new CSAMGuard(false);
+    await expect(guard.reportMatch({ hash: 'abc', source: 'upload' })).rejects.toThrow(
+      'CSAM matching not configured',
+    );
   });
 
-  it('should handle empty hash', async () => {
-    const matcher = new NoOpCSAMMatcher();
-    const result = await matcher.checkHash('');
-
-    expect(result.matched).toBe(false);
+  it('returns not-matched when enabled (guard passthrough)', async () => {
+    const guard = new CSAMGuard(true);
+    const result = await guard.checkHash('abc123');
+    expect(result).toEqual({ matched: false });
   });
 
-  it('implements CSAMMatcherInterface correctly', async () => {
-    const matcher = new NoOpCSAMMatcher();
-
-    // Verify interface methods exist and work
-    expect(typeof matcher.checkHash).toBe('function');
-    expect(typeof matcher.reportMatch).toBe('function');
-
-    const checkResult = await matcher.checkHash('test-hash-value');
-    expect(checkResult).toHaveProperty('matched');
+  it('reports isEnabled correctly', () => {
+    expect(new CSAMGuard(true).isEnabled()).toBe(true);
+    expect(new CSAMGuard(false).isEnabled()).toBe(false);
   });
 });

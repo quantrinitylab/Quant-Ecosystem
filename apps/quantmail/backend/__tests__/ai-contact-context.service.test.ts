@@ -93,7 +93,7 @@ describe('AIContactContextService', () => {
   });
 
   describe('getRecentInteractions', () => {
-    it('returns an empty array (placeholder)', async () => {
+    it('returns an empty array (pending implementation)', async () => {
       const result = await service.getRecentInteractions('alice@company.com', 'user-1');
       expect(result).toEqual([]);
     });

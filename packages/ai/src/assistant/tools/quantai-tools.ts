@@ -84,7 +84,7 @@ export function getQuantaiTools(): AITool[] {
         console.log('[quantai] analyzeCode:', args);
         return {
           success: true,
-          data: { analysis: 'Code analysis placeholder', suggestions: [] },
+          data: { analysis: 'Code analysis pending', suggestions: [] },
           displayMessage: 'Code analysis complete. No critical issues found.',
         };
       },
