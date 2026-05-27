@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Phase 9 Part 2: Add core data models, service logic, and tests for QuantDrive (file CRUD, folders, sharing, versioning, trash, storage quota), QuantCalendar (events, recurring events, availability, booking links), and QuantMeet (rooms, participants, transcript, summary, action items). These apps already have backend structures. Fill in missing core service methods and add tests to meet launch gates.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "In apps/quantdrive/backend/services/file.service.ts: ensure uploadFile, downloadFile, getFile, listFiles, moveFile, copyFile, deleteFile exist with proper typing.",
     "In apps/quantdrive/backend/services/folder.service.ts: ensure createFolder, getFolder, listFolders, renameFolder, moveFolder, deleteFolder exist.",
@@ -28,5 +28,5 @@
   ],
   "verification": ["pnpm typecheck", "pnpm test", "pnpm build", "pnpm lint"],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All methods from the launch gate requirements were already partially implemented. Added: getFile, listFiles, moveFile, copyFile (file.service), getShares, getSharedWithMe (share.service), deleteVersion (version.service), getQuotaLimit (storage-quota.service), listEventsInRange (event.service), createRecurring, expandOccurrences, updateSingle, updateAll (recurring.service), findFreeSlots, checkConflicts (availability.service), listBookings (booking-link.service), listRooms, endMeeting (room.service), startTranscription, addSegment, getFullTranscript (transcript.service), getSummary (summary.service), getActionItems, completeActionItem (action-items.service). The RecurringService was refactored to optionally accept a PrismaClient constructor param for new persistence methods while maintaining backward compat with no-arg construction for pure computation tests."
 }
