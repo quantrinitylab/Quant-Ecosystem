@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-003",
+  "type": "chore",
+  "description": "Phase 17 - Launch Readiness Gate: Run all hard gates, verify Docker/Helm/Terraform, check for production fallback secrets, verify WebSocket auth, verify critical flow test coverage, README setup, demo mode, error/metrics/logging. Update all state files with final launch readiness report.",
+  "status": "pending",
+  "steps": [
+    "Run all 6 quality gates and capture output: pnpm install --frozen-lockfile, pnpm typecheck, pnpm build, pnpm test, pnpm lint, pnpm audit --audit-level=high",
+    "Validate Dockerfiles: check that at least the key services (identity, chat-api, mail-api, ai-api) have valid Dockerfiles that would build (inspect structure, confirm FROM/COPY/CMD patterns are correct)",
+    "Validate Helm chart: run 'helm template' on infra/helm/quant-platform/ or validate the YAML structure manually if helm CLI is not available",
+    "Check for production fallback secrets: grep for hardcoded secrets, default passwords, or fallback JWT secrets in server code (packages/server/src/, services/)",
+    "Verify WebSocket auth is implemented (check services/ws-gateway/ or packages/realtime/ for JWT auth on WS connections)",
+    "Verify critical flows have test coverage: check that chat, mail, AI assistant, auth, agent-runtime, search, notifications all have meaningful tests",
+    "Verify README setup instructions work: check README.md has accurate setup steps",
+    "Verify demo mode exists: check packages/onboarding/src/demo-mode.ts exists and is functional",
+    "Verify error/metrics/logging exists: check packages/observability/ for logging, metrics, error tracking",
+    "Update .agents/state/quant-autonomous-status.json with phase-16 and phase-17 completed, all gates passing",
+    "Update .agents/state/quant-phase-log.md with Phase 16 and Phase 17 entries including command output evidence",
+    "Update .agents/state/quant-launch-gates.md with comprehensive launch readiness report covering all hard gates"
+  ],
+  "acceptance_criteria": [
+    "All 6 pnpm quality gates pass (install, typecheck, build, test, lint, audit)",
+    "Dockerfiles for production services exist and have valid structure",
+    "Helm chart templates are valid YAML",
+    "No production fallback secrets found in server code",
+    "WebSocket auth is confirmed implemented",
+    "Critical flows have test coverage documented",
+    "State files updated with final launch status",
+    "Clear launch readiness report produced"
+  ],
+  "verification": [
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm install --frozen-lockfile",
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm typecheck",
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm build",
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm test",
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm lint",
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm audit --audit-level=high"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

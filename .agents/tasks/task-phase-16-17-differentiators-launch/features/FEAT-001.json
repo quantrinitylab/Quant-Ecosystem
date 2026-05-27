@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Phase 16 - World-Class Differentiators: Implement 4 demo-ready differentiator packages - Universal Timeline, AI Daily Brief, Cross-App Command Palette, and User-Owned AI Memory. Each is a new package under packages/ with full types, service classes, and tests.",
+  "status": "in_progress",
+  "steps": [
+    "Create packages/universal-timeline/ package with: package.json (@quant/universal-timeline, deps: @quant/common, zod), tsconfig.json (extends root, refs common), src/types.ts (TimelineEvent, TimelineFilter, TimelineSource types), src/timeline-service.ts (UniversalTimelineService class that aggregates events from multiple apps, supports filters by app/person/project/type/time, pagination, realtime subscription), src/timeline-aggregator.ts (merges and deduplicates events from multiple sources), src/index.ts (barrel exports), src/__tests__/timeline.test.ts (test publish, filter, pagination, subscription)",
+    "Create packages/ai-daily-brief/ package with: package.json (@quant/ai-daily-brief, deps: @quant/common, @quant/ai, zod), tsconfig.json (extends root, refs common and ai), src/types.ts (DailyBrief, BriefSection, Priority, Anomaly types), src/brief-generator.ts (DailyBriefGenerator class that gathers deadlines, unread important messages, meetings, tasks, anomalies and produces a structured brief), src/priority-scorer.ts (scores items by urgency/importance), src/anomaly-detector.ts (detects unusual patterns like missed deadlines, unusual message volume), src/index.ts (barrel exports), src/__tests__/daily-brief.test.ts (test brief generation, priority scoring, anomaly detection)",
+    "Create packages/command-palette/ package with: package.json (@quant/command-palette, deps: @quant/common, @quant/ai, zod), tsconfig.json (extends root, refs common and ai), src/types.ts (Command, CommandCategory, CommandResult, CommandContext types), src/command-registry.ts (CommandRegistry class - registers commands from all apps with categories: schedule, send, share, summarize, find, create, review), src/command-executor.ts (CommandExecutor class - executes commands with permission checks and audit logging), src/fuzzy-matcher.ts (FuzzyMatcher class - ranks commands by relevance to typed input), src/index.ts (barrel exports), src/__tests__/command-palette.test.ts (test registration, fuzzy matching, execution, permission enforcement)",
+    "Create packages/ai-memory/ package with: package.json (@quant/ai-memory, deps: @quant/common, zod), tsconfig.json (extends root, refs common), src/types.ts (MemoryEntry, MemoryCategory, MemoryAccess, ExportFormat types), src/memory-store.ts (AIMemoryStore class - CRUD for user-owned memory entries with categories, search, and access control), src/memory-explainer.ts (MemoryExplainer class - explains why each memory exists and how it was derived), src/memory-export.ts (MemoryExporter class - export/import memory in portable formats JSON/Markdown), src/index.ts (barrel exports), src/__tests__/ai-memory.test.ts (test store CRUD, search, explain, export/import, deletion)",
+    "Ensure all 4 packages are discoverable by pnpm-workspace.yaml (they are under packages/* glob already)",
+    "Run pnpm install to register new packages, then run pnpm typecheck, pnpm build, pnpm test, and pnpm lint to verify all gates pass"
+  ],
+  "acceptance_criteria": [
+    "packages/universal-timeline/ exists with complete implementation and passing tests",
+    "packages/ai-daily-brief/ exists with complete implementation and passing tests",
+    "packages/command-palette/ exists with complete implementation and passing tests",
+    "packages/ai-memory/ exists with complete implementation and passing tests",
+    "pnpm typecheck passes with the new packages included",
+    "pnpm build passes producing dist/ for each new package",
+    "pnpm test passes including all new test suites",
+    "pnpm lint passes for all new packages",
+    "Each package has at least 5 meaningful tests that exercise real logic"
+  ],
+  "verification": [
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm install",
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm typecheck",
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm build",
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm test",
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm lint"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

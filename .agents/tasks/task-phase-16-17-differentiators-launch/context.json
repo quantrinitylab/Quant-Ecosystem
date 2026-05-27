@@ -1,0 +1,33 @@
+{
+  "project_type": "TypeScript monorepo - AI-native multi-app ecosystem platform",
+  "language": "TypeScript",
+  "build_system": "pnpm + Turbo. turbo.json defines tasks: lint (no deps), typecheck (depends on ^build), test (depends on ^build), build (depends on ^build, outputs dist/**). New packages need tsconfig.json extending root, package.json with scripts: build (tsc), typecheck (tsc --noEmit), test (vitest run), lint (eslint .)",
+  "test_framework": "Vitest with vi.mock for mocking. Tests in src/__tests__/ directory. Import from vitest: describe, it, expect, vi, beforeEach",
+  "build_command": "pnpm build",
+  "test_command": "pnpm test",
+  "verification_instructions": "1. pnpm install --frozen-lockfile, 2. pnpm typecheck, 3. pnpm build, 4. pnpm test, 5. pnpm lint, 6. pnpm audit --audit-level=high",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install --frozen-lockfile",
+  "environment_constraints": "OPEN_INTERNET mode - full network access. Node.js 22 with pnpm available. Strict TS: noUnusedLocals, noUnusedParameters, noUncheckedIndexedAccess, noImplicitOverride.",
+  "contribution_requirements": "All code must pass typecheck, build, test, lint. No any types. Use Zod for validation. Follow existing package patterns. New packages go under packages/ and must be added to pnpm-workspace.yaml (already uses packages/* glob). Tests must be meaningful.",
+  "key_patterns": "Packages export from src/index.ts. Types in src/types.ts. Tests in src/__tests__/. package.json uses workspace:* for internal deps. tsconfig.json extends ../../tsconfig.json with composite:true, outDir:./dist, rootDir:./src. ESM module type.",
+  "relevant_files": [
+    "packages/ai/src/assistant/assistant.ts",
+    "packages/ai/src/assistant/tool-registry.ts",
+    "packages/ai/src/assistant/intent-router.ts",
+    "packages/ai/src/assistant/types.ts",
+    "packages/ai/src/__tests__/assistant.test.ts",
+    "packages/common/src/activity-feed.ts",
+    "packages/common/src/types.ts",
+    "packages/common/src/constants.ts",
+    "packages/search/src/cross-app-search.ts",
+    "packages/agent-runtime/src/index.ts",
+    "packages/onboarding/src/index.ts",
+    "packages/realtime/src/index.ts",
+    "turbo.json",
+    "tsconfig.json",
+    "package.json",
+    "pnpm-workspace.yaml"
+  ],
+  "directory_structure": "apps/ (13 Next.js apps), packages/ (41 shared packages), services/ (17 backend services), infra/ (helm, terraform, docker-compose). Key packages: @quant/ai (AI engine, assistant, tools), @quant/common (shared types, activity feed), @quant/search (cross-app search), @quant/agent-runtime (agent execution), @quant/realtime (websocket/events)."
+}
