@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Phase 16 continued - Contextual Sidekick: Implement the 5th differentiator as a new package. This is an AI panel that changes tools based on the current app context and selected resource.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create packages/contextual-sidekick/ package with: package.json (@quant/contextual-sidekick, deps: @quant/common, @quant/ai, zod), tsconfig.json (extends root, refs common and ai), src/types.ts (SidekickPanel, SidekickTool, SidekickContext, AppContextMapping types), src/sidekick-engine.ts (SidekickEngine class - determines which tools/actions are relevant for the current app context and selected resource), src/context-detector.ts (ContextDetector class - detects what the user is working on and suggests relevant actions), src/tool-adapter.ts (ToolAdapter class - adapts the same tool for different app contexts), src/index.ts (barrel exports), src/__tests__/sidekick.test.ts (test context detection, tool selection, panel generation for different app contexts)",
     "Run pnpm install to register new package, then run pnpm typecheck, pnpm build, pnpm test, and pnpm lint"
@@ -21,5 +21,5 @@
     "cd /projects/sandbox/Quant-Ecosystem && pnpm lint"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All gates pass (typecheck, build, test with 14/14 tests, lint). Used @quant/common as workspace dep only (no @quant/ai import per instructions). Prettier reformatted files on commit via lint-staged hook."
 }
