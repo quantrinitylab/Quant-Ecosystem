@@ -109,7 +109,7 @@ export function useReels(): [ReelsState, ReelsActions] {
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to load reels');
       }
-      return (response.data as any)?.reels ?? [];
+      return response.data?.reels ?? [];
     },
   });
 

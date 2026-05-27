@@ -40,8 +40,8 @@ class QuantMaxApiClient {
   }
 
   // Feed
-  async getForYouFeed(limit?: number): Promise<ApiResponse<ShortVideo[]>> {
-    return this.request('GET', `/feed/for-you?limit=${limit || 20}`);
+  async getForYouFeed(limit?: number, offset?: number): Promise<ApiResponse<ShortVideo[]>> {
+    return this.request('GET', `/feed/for-you?limit=${limit || 20}&offset=${offset || 0}`);
   }
   async getTrending(): Promise<ApiResponse<ShortVideo[]>> {
     return this.request('GET', '/feed/trending');

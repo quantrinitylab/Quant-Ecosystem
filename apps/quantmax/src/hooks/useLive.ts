@@ -31,6 +31,7 @@ interface LiveChat {
 
 interface UseLiveReturn {
   stream: LiveEvent | null;
+  streams: LiveEvent[];
   viewers: { userId: string; name: string }[];
   chat: LiveChat[];
   recentGifts: { id: string; fromUserName: string; giftType: string; diamonds: number }[];
@@ -142,13 +143,23 @@ export function useLive(_userId: string): UseLiveReturn {
     // Handled by API in production
   }, []);
 
+  const streams: LiveEvent[] = liveStreamsQuery.data ?? [];
+
   return {
     stream,
-    viewers: [],
+    streams,
+    viewers: streams.map((s) => ({ userId: s.hostId, name: s.host?.displayName ?? s.hostId })),
     chat,
     recentGifts: [],
     settings,
-    topGifters: [],
+    topGifters: streams
+      .sort((a, b) => b.viewerCount - a.viewerCount)
+      .slice(0, 10)
+      .map((s) => ({
+        userId: s.hostId,
+        name: s.host?.displayName ?? s.hostId,
+        diamonds: s.viewerCount,
+      })),
     isStreaming: stream?.isLive ?? false,
     isLoading: liveStreamsQuery.isLoading,
     startStream,

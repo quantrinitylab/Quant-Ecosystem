@@ -6,7 +6,7 @@
 // Powered by React Query + apiClient
 // ============================================================================
 
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '../services/api-client';
 import type { ShortVideo } from '../types';
@@ -55,7 +55,7 @@ export function useFeed(): UseFeedReturn {
   const feedQuery = useInfiniteQuery({
     queryKey: ['max-feed'],
     queryFn: async ({ pageParam = 0 }) => {
-      const response = await apiClient.getForYouFeed(20);
+      const response = await apiClient.getForYouFeed(20, pageParam * 20);
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to load feed');
       }
@@ -194,13 +194,15 @@ export function useFeed(): UseFeedReturn {
   }, [engagementData]);
 
   // Auto-load more when approaching end
-  if (
-    currentIndex >= allVideos.length - 3 &&
-    feedQuery.hasNextPage &&
-    !feedQuery.isFetchingNextPage
-  ) {
-    feedQuery.fetchNextPage();
-  }
+  useEffect(() => {
+    if (
+      currentIndex >= allVideos.length - 3 &&
+      feedQuery.hasNextPage &&
+      !feedQuery.isFetchingNextPage
+    ) {
+      feedQuery.fetchNextPage();
+    }
+  }, [currentIndex, allVideos.length, feedQuery.hasNextPage, feedQuery.isFetchingNextPage]);
 
   const state: FeedState = {
     videos: allVideos,
