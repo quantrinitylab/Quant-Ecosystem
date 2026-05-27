@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "fix",
   "description": "Phase 1A: Fix the project reference / build ordering issue that causes TS6305 errors across all dependent packages. Add build scripts to leaf packages that lack them (common, auth, ai, realtime, shared-ui, etc.), add 'prisma generate' as a prerequisite for database typecheck, and update turbo.json so typecheck depends on ^build (already set up for ^typecheck but packages don't produce dist/ output). This unblocks typecheck for all packages that currently fail with 'Output file has not been built from source file'.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Add 'build': 'tsc' script to packages that have typecheck but no build script AND are referenced by other packages via tsconfig references: common, auth, ai, realtime, shared-ui, agent-runtime, api-client, federation, ml-pipeline, ml-runtime, moderation, ranking, recommendations, security, server-core, sync-engine, testing. (Some of these already have build scripts - only add where missing.)",
     "For packages/database/package.json: keep the existing prisma generate build script. Add a 'prebuild' or modify the typecheck script to run prisma generate first, OR add a 'generate' script and make typecheck depend on it. The simplest fix: change typecheck to 'prisma generate && tsc --noEmit'.",
@@ -22,5 +22,5 @@
     "Run 'pnpm --filter @quant/server-core run typecheck' and confirm no TS6305 errors"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "turbo typecheck with ^build dependency works correctly - zero TS6305 errors. @quant/common builds cleanly producing dist/. @quant/auth and @quant/server-core typecheck pass through turbo. Database typecheck runs prisma generate successfully but has pre-existing local TS errors (TS2344, TS6133 in test files). lint-staged pre-commit hook ran prettier on all committed files. Packages that have their own TS errors (ai, realtime, etc.) will fail their own build but that does not block downstream packages from building their own clean dependencies."
 }
