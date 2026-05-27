@@ -9,7 +9,6 @@ import type {
   SubscriptionStatus,
   BillingInterval,
   CurrencyCode,
-  Invoice,
 } from '../types';
 
 interface SubscriptionServiceConfig {
@@ -75,7 +74,7 @@ export class SubscriptionService {
     const trialDays = params.trialDays ?? plan.trialDays ?? this.config.defaultTrialDays;
     const now = Date.now();
     const periodDuration = this.getIntervalMs(plan.interval, plan.intervalCount);
-    const trialEnd = trialDays > 0 ? now + (trialDays * 86400000) : undefined;
+    const trialEnd = trialDays > 0 ? now + trialDays * 86400000 : undefined;
 
     const subscription: Subscription = {
       id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -83,7 +82,7 @@ export class SubscriptionService {
       planId: params.planId,
       status: trialDays > 0 ? 'trialing' : 'active',
       currentPeriodStart: now,
-      currentPeriodEnd: trialEnd || (now + periodDuration),
+      currentPeriodEnd: trialEnd || now + periodDuration,
       trialStart: trialDays > 0 ? now : undefined,
       trialEnd,
       cancelAtPeriodEnd: false,
@@ -100,7 +99,10 @@ export class SubscriptionService {
   }
 
   /** Upgrade a subscription to a higher plan */
-  async upgrade(subscriptionId: string, newPlanId: string): Promise<{ subscription: Subscription; prorationAmount: number }> {
+  async upgrade(
+    subscriptionId: string,
+    newPlanId: string,
+  ): Promise<{ subscription: Subscription; prorationAmount: number }> {
     const subscription = this.getSubscriptionOrThrow(subscriptionId);
     const currentPlan = this.plans.get(subscription.planId);
     const newPlan = this.plans.get(newPlanId);
@@ -125,7 +127,10 @@ export class SubscriptionService {
   }
 
   /** Downgrade a subscription to a lower plan */
-  async downgrade(subscriptionId: string, newPlanId: string): Promise<{ subscription: Subscription; creditAmount: number }> {
+  async downgrade(
+    subscriptionId: string,
+    newPlanId: string,
+  ): Promise<{ subscription: Subscription; creditAmount: number }> {
     const subscription = this.getSubscriptionOrThrow(subscriptionId);
     const currentPlan = this.plans.get(subscription.planId);
     const newPlan = this.plans.get(newPlanId);
@@ -210,14 +215,16 @@ export class SubscriptionService {
     const now = Date.now();
     subscription.status = 'trialing';
     subscription.trialStart = now;
-    subscription.trialEnd = now + (trialDays * 86400000);
+    subscription.trialEnd = now + trialDays * 86400000;
     subscription.currentPeriodEnd = subscription.trialEnd;
     subscription.updatedAt = now;
     return subscription;
   }
 
   /** Check current subscription status with period validation */
-  async checkStatus(subscriptionId: string): Promise<{ status: SubscriptionStatus; daysRemaining: number; isInGracePeriod: boolean }> {
+  async checkStatus(
+    subscriptionId: string,
+  ): Promise<{ status: SubscriptionStatus; daysRemaining: number; isInGracePeriod: boolean }> {
     const subscription = this.getSubscriptionOrThrow(subscriptionId);
     const now = Date.now();
     const msRemaining = subscription.currentPeriodEnd - now;
@@ -237,10 +244,12 @@ export class SubscriptionService {
   }
 
   /** Get usage for a subscription */
-  async getUsage(subscriptionId: string): Promise<{ feature: string; used: number; limit: number; percentage: number }[]> {
+  async getUsage(
+    subscriptionId: string,
+  ): Promise<{ feature: string; used: number; limit: number; percentage: number }[]> {
     this.getSubscriptionOrThrow(subscriptionId);
     const records = this.usageRecords.get(subscriptionId) || [];
-    return records.map(r => ({
+    return records.map((r) => ({
       ...r,
       percentage: r.limit > 0 ? Math.round((r.used / r.limit) * 100) : 0,
     }));
@@ -270,11 +279,15 @@ export class SubscriptionService {
   }
 
   /** Calculate proration for a plan change */
-  calculateProration(subscription: Subscription, fromPlan: SubscriptionPlan, toPlan: SubscriptionPlan): number {
+  calculateProration(
+    subscription: Subscription,
+    fromPlan: SubscriptionPlan,
+    toPlan: SubscriptionPlan,
+  ): number {
     const now = Date.now();
     const periodTotal = subscription.currentPeriodEnd - subscription.currentPeriodStart;
     const periodUsed = now - subscription.currentPeriodStart;
-    const remainingRatio = Math.max(0, 1 - (periodUsed / periodTotal));
+    const remainingRatio = Math.max(0, 1 - periodUsed / periodTotal);
 
     const currentRemaining = fromPlan.amount * remainingRatio * subscription.quantity;
     const newRemaining = toPlan.amount * remainingRatio * subscription.quantity;
@@ -283,7 +296,12 @@ export class SubscriptionService {
   }
 
   /** Get upcoming invoice preview */
-  async getUpcomingInvoice(subscriptionId: string): Promise<{ amount: number; currency: CurrencyCode; dueDate: number; lineItems: { description: string; amount: number }[] }> {
+  async getUpcomingInvoice(subscriptionId: string): Promise<{
+    amount: number;
+    currency: CurrencyCode;
+    dueDate: number;
+    lineItems: { description: string; amount: number }[];
+  }> {
     const subscription = this.getSubscriptionOrThrow(subscriptionId);
     const plan = this.plans.get(subscription.planId)!;
     const amount = plan.amount * subscription.quantity;
@@ -292,10 +310,12 @@ export class SubscriptionService {
       amount,
       currency: plan.currency,
       dueDate: subscription.currentPeriodEnd,
-      lineItems: [{
-        description: `${plan.name} x ${subscription.quantity}`,
-        amount,
-      }],
+      lineItems: [
+        {
+          description: `${plan.name} x ${subscription.quantity}`,
+          amount,
+        },
+      ],
     };
   }
 
@@ -303,7 +323,7 @@ export class SubscriptionService {
   async recordUsage(subscriptionId: string, feature: string, quantity: number): Promise<void> {
     this.getSubscriptionOrThrow(subscriptionId);
     const records = this.usageRecords.get(subscriptionId) || [];
-    const existing = records.find(r => r.feature === feature);
+    const existing = records.find((r) => r.feature === feature);
     if (existing) {
       existing.used += quantity;
     } else {
@@ -335,7 +355,7 @@ export class SubscriptionService {
   private checkPlanChangeLimit(subscriptionId: string): void {
     const changes = this.planChanges.get(subscriptionId) || [];
     const monthAgo = Date.now() - 2592000000;
-    const recentChanges = changes.filter(c => c.changedAt > monthAgo);
+    const recentChanges = changes.filter((c) => c.changedAt > monthAgo);
     if (recentChanges.length >= this.config.maxPlanChangesPerMonth) {
       throw new Error('Maximum plan changes per month exceeded');
     }

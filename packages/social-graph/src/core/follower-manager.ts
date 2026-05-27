@@ -11,7 +11,6 @@ import {
   GraphEvent,
   GraphEventType,
   PaginatedResult,
-  GraphNode,
   NetworkGrowthMetrics,
   FriendSuggestion,
   BatchResult,
@@ -220,7 +219,11 @@ export class FollowerManager {
   }
 
   /** Paginate a list of items */
-  private paginate(items: string[], cursor?: string, pageSize: number = 20): PaginatedResult<string> {
+  private paginate(
+    items: string[],
+    cursor?: string,
+    pageSize: number = 20,
+  ): PaginatedResult<string> {
     let startIndex = 0;
 
     if (cursor) {
@@ -232,7 +235,7 @@ export class FollowerManager {
 
     const pageItems = items.slice(startIndex, startIndex + pageSize);
     const hasMore = startIndex + pageSize < items.length;
-    const nextCursor = pageItems.length > 0 ? pageItems[pageItems.length - 1] : null;
+    const nextCursor = pageItems.length > 0 ? pageItems[pageItems.length - 1]! : null;
 
     return {
       items: pageItems,
@@ -382,7 +385,7 @@ export class FollowerManager {
   /** Get events for a specific node */
   getNodeEvents(nodeId: string, limit: number = 50): GraphEvent[] {
     return this.eventLog
-      .filter(e => e.sourceNode === nodeId || e.targetNode === nodeId)
+      .filter((e) => e.sourceNode === nodeId || e.targetNode === nodeId)
       .slice(-limit);
   }
 

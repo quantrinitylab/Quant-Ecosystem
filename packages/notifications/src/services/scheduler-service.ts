@@ -3,11 +3,7 @@
 // Cron-like scheduling with timezone support and recurrence
 // ============================================================================
 
-import type {
-  ScheduledNotification,
-  NotificationPayload,
-  RecurrenceRule,
-} from '../types';
+import type { ScheduledNotification, NotificationPayload, RecurrenceRule } from '../types';
 
 /** Scheduler configuration */
 interface SchedulerConfig {
@@ -58,7 +54,7 @@ export class SchedulerService {
       timezone?: string;
       recurrence?: RecurrenceRule;
       maxRetries?: number;
-    } = {}
+    } = {},
   ): ScheduledNotification {
     const userId = payload.recipientId;
     const timezone = options.timezone || 'UTC';
@@ -152,7 +148,10 @@ export class SchedulerService {
   /**
    * Get all scheduled notifications for a user
    */
-  public getScheduled(userId: string, options: { status?: string; limit?: number } = {}): ScheduledNotification[] {
+  public getScheduled(
+    userId: string,
+    options: { status?: string; limit?: number } = {},
+  ): ScheduledNotification[] {
     const userSet = this.userSchedules.get(userId);
     if (!userSet) return [];
 
@@ -206,7 +205,7 @@ export class SchedulerService {
         } else {
           scheduled.status = 'scheduled';
           // Exponential backoff
-          scheduled.scheduledFor = now + (1000 * Math.pow(2, scheduled.retryCount));
+          scheduled.scheduledFor = now + 1000 * Math.pow(2, scheduled.retryCount);
         }
       }
     }
@@ -257,7 +256,7 @@ export class SchedulerService {
    */
   public getUpcoming(hoursAhead: number = 24): ScheduledNotification[] {
     const now = Date.now();
-    const cutoff = now + (hoursAhead * 3600000);
+    const cutoff = now + hoursAhead * 3600000;
     const upcoming: ScheduledNotification[] = [];
 
     for (const [, scheduled] of this.scheduled) {
@@ -287,9 +286,15 @@ export class SchedulerService {
 
     for (const [, scheduled] of this.scheduled) {
       switch (scheduled.status) {
-        case 'scheduled': pending++; break;
-        case 'failed': failed++; break;
-        case 'cancelled': cancelled++; break;
+        case 'scheduled':
+          pending++;
+          break;
+        case 'failed':
+          failed++;
+          break;
+        case 'cancelled':
+          cancelled++;
+          break;
       }
     }
 
@@ -360,7 +365,7 @@ export class SchedulerService {
         return null;
 
       case 'daily':
-        return currentTime + (86400000 * interval);
+        return currentTime + 86400000 * interval;
 
       case 'weekly': {
         if (rule.daysOfWeek && rule.daysOfWeek.length > 0) {
@@ -371,14 +376,14 @@ export class SchedulerService {
           // Find next day in the list
           for (const day of sortedDays) {
             if (day > currentDay) {
-              return currentTime + ((day - currentDay) * 86400000);
+              return currentTime + (day - currentDay) * 86400000;
             }
           }
           // Wrap to next week
-          const daysUntilNext = 7 - currentDay + sortedDays[0];
-          return currentTime + (daysUntilNext * 86400000);
+          const daysUntilNext = 7 - currentDay + sortedDays[0]!;
+          return currentTime + daysUntilNext * 86400000;
         }
-        return currentTime + (604800000 * interval);
+        return currentTime + 604800000 * interval;
       }
 
       case 'monthly': {
@@ -391,7 +396,7 @@ export class SchedulerService {
       }
 
       case 'custom':
-        return currentTime + (86400000 * interval);
+        return currentTime + 86400000 * interval;
 
       default:
         return null;
@@ -409,13 +414,20 @@ export class SchedulerService {
 
   private initTimezones(): void {
     const offsets: Record<string, number> = {
-      'UTC': 0, 'GMT': 0,
-      'US/Eastern': -18000000, 'US/Central': -21600000,
-      'US/Mountain': -25200000, 'US/Pacific': -28800000,
-      'Europe/London': 0, 'Europe/Paris': 3600000,
-      'Europe/Berlin': 3600000, 'Asia/Tokyo': 32400000,
-      'Asia/Shanghai': 28800000, 'Asia/Kolkata': 19800000,
-      'Australia/Sydney': 39600000, 'Pacific/Auckland': 43200000,
+      UTC: 0,
+      GMT: 0,
+      'US/Eastern': -18000000,
+      'US/Central': -21600000,
+      'US/Mountain': -25200000,
+      'US/Pacific': -28800000,
+      'Europe/London': 0,
+      'Europe/Paris': 3600000,
+      'Europe/Berlin': 3600000,
+      'Asia/Tokyo': 32400000,
+      'Asia/Shanghai': 28800000,
+      'Asia/Kolkata': 19800000,
+      'Australia/Sydney': 39600000,
+      'Pacific/Auckland': 43200000,
     };
 
     for (const [tz, offset] of Object.entries(offsets)) {

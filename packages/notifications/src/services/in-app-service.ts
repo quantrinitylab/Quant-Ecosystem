@@ -67,7 +67,7 @@ export class InAppNotificationService {
       deepLink?: DeepLinkAction;
       groupId?: string;
       expiresAt?: number;
-    } = {}
+    } = {},
   ): InAppNotification {
     const now = Date.now();
 
@@ -151,7 +151,10 @@ export class InAppNotificationService {
   /**
    * Get unread notifications for a user
    */
-  public getUnread(userId: string, options: { limit?: number; type?: NotificationType; priority?: NotificationPriority } = {}): InAppNotification[] {
+  public getUnread(
+    userId: string,
+    options: { limit?: number; type?: NotificationType; priority?: NotificationPriority } = {},
+  ): InAppNotification[] {
     const userNotifs = this.userNotifications.get(userId);
     if (!userNotifs) return [];
 
@@ -173,7 +176,12 @@ export class InAppNotificationService {
 
     // Sort by priority then by date
     results.sort((a, b) => {
-      const priorityOrder: Record<NotificationPriority, number> = { critical: 0, high: 1, normal: 2, low: 3 };
+      const priorityOrder: Record<NotificationPriority, number> = {
+        critical: 0,
+        high: 1,
+        normal: 2,
+        low: 3,
+      };
       const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
       if (priorityDiff !== 0) return priorityDiff;
       return b.createdAt - a.createdAt;
@@ -191,7 +199,12 @@ export class InAppNotificationService {
    */
   public getHistory(
     userId: string,
-    options: { limit?: number; offset?: number; includeRead?: boolean; includeDismissed?: boolean } = {}
+    options: {
+      limit?: number;
+      offset?: number;
+      includeRead?: boolean;
+      includeDismissed?: boolean;
+    } = {},
   ): { notifications: InAppNotification[]; total: number; hasMore: boolean } {
     const userNotifs = this.userNotifications.get(userId);
     if (!userNotifs) return { notifications: [], total: 0, hasMore: false };
@@ -254,7 +267,7 @@ export class InAppNotificationService {
     for (const [type, notifications] of typeGroups) {
       if (notifications.length === 0) continue;
 
-      const latestNotif = notifications[0];
+      const latestNotif = notifications[0]!;
       const shouldCollapse = notifications.length >= this.config.groupingThreshold;
 
       groups.push({
@@ -275,7 +288,11 @@ export class InAppNotificationService {
   /**
    * Get notification count for a user
    */
-  public getCount(userId: string): { total: number; unread: number; byType: Record<string, number> } {
+  public getCount(userId: string): {
+    total: number;
+    unread: number;
+    byType: Record<string, number>;
+  } {
     const userNotifs = this.userNotifications.get(userId);
     if (!userNotifs) return { total: 0, unread: 0, byType: {} };
 

@@ -11,8 +11,6 @@ import type {
   ChannelPreferences,
   TypePreference,
   QuietHoursConfig,
-  DigestConfig,
-  DigestFrequency,
 } from '../types';
 
 /** Default channel preferences */
@@ -74,7 +72,7 @@ export class PreferenceService {
       channels?: Partial<ChannelPreferences>;
       typePreferences?: Array<{ type: NotificationType; preference: Partial<TypePreference> }>;
       quietHours?: Partial<QuietHoursConfig>;
-    }
+    },
   ): NotificationPreferences {
     const prefs = this.getPreferences(userId);
     const now = Date.now();
@@ -119,7 +117,11 @@ export class PreferenceService {
   /**
    * Get which channels should be used for a specific event type
    */
-  public getChannelsForEvent(userId: string, eventType: NotificationType, priority: NotificationPriority): DeliveryChannel[] {
+  public getChannelsForEvent(
+    userId: string,
+    eventType: NotificationType,
+    priority: NotificationPriority,
+  ): DeliveryChannel[] {
     const prefs = this.getPreferences(userId);
 
     if (!prefs.globalEnabled) return [];
@@ -139,7 +141,7 @@ export class PreferenceService {
       if (!typePref.enabled) return [];
       if (typePref.muted && typePref.muteUntil && typePref.muteUntil > Date.now()) return [];
       if (typePref.channels.length > 0) {
-        return typePref.channels.filter(ch => this.isChannelEnabled(prefs, ch));
+        return typePref.channels.filter((ch) => this.isChannelEnabled(prefs, ch));
       }
     }
 
@@ -167,7 +169,11 @@ export class PreferenceService {
   /**
    * Determine if a notification should be delivered
    */
-  public shouldNotify(userId: string, eventType: NotificationType, priority: NotificationPriority): boolean {
+  public shouldNotify(
+    userId: string,
+    eventType: NotificationType,
+    priority: NotificationPriority,
+  ): boolean {
     const prefs = this.getPreferences(userId);
 
     // Global kill switch
@@ -202,10 +208,7 @@ export class PreferenceService {
   /**
    * Set quiet hours for a user
    */
-  public setQuietHours(
-    userId: string,
-    config: Partial<QuietHoursConfig>
-  ): QuietHoursConfig {
+  public setQuietHours(userId: string, config: Partial<QuietHoursConfig>): QuietHoursConfig {
     const prefs = this.getPreferences(userId);
     prefs.quietHours = { ...prefs.quietHours, ...config };
     prefs.updatedAt = Date.now();
@@ -358,12 +361,18 @@ export class PreferenceService {
 
   private isChannelEnabled(prefs: NotificationPreferences, channel: DeliveryChannel): boolean {
     switch (channel) {
-      case 'push': return prefs.channels.push.enabled;
-      case 'in_app': return prefs.channels.in_app.enabled;
-      case 'email': return prefs.channels.email.enabled;
-      case 'sms': return prefs.channels.sms.enabled;
-      case 'webhook': return prefs.channels.webhook.enabled;
-      default: return false;
+      case 'push':
+        return prefs.channels.push.enabled;
+      case 'in_app':
+        return prefs.channels.in_app.enabled;
+      case 'email':
+        return prefs.channels.email.enabled;
+      case 'sms':
+        return prefs.channels.sms.enabled;
+      case 'webhook':
+        return prefs.channels.webhook.enabled;
+      default:
+        return false;
     }
   }
 

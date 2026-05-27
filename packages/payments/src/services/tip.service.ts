@@ -10,7 +10,6 @@ import type { TipRecord } from '../types';
 export const PRESET_TIP_AMOUNTS = [1, 2, 5, 10, 20, 50] as const;
 
 const TIP_CREATOR_SHARE = 0.95;
-const TIP_PLATFORM_SHARE = 0.05;
 
 export const SendTipSchema = z.object({
   fromUserId: z.string().min(1),

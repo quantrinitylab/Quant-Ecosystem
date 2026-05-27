@@ -6,7 +6,7 @@
 // ============================================================================
 
 import { GraphStore } from './graph-store';
-import { PathResult, FriendSuggestion, MutualConnectionsResult, TraversalOptions } from '../types';
+import { PathResult, FriendSuggestion, MutualConnectionsResult } from '../types';
 
 // ---------------------------------------------------------------------------
 // Path Finder Implementation
@@ -134,7 +134,7 @@ export class PathFinder {
                 backwardVisited,
                 neighbor,
                 source,
-                target
+                target,
               );
               return {
                 path,
@@ -170,7 +170,7 @@ export class PathFinder {
                 backwardVisited,
                 neighbor,
                 source,
-                target
+                target,
               );
               return {
                 path,
@@ -261,14 +261,15 @@ export class PathFinder {
   getFriendSuggestions(nodeId: string, limit: number = 20): FriendSuggestion[] {
     if (!this.store.hasNode(nodeId)) return [];
 
-    const directConnections = new Set(
-      this.store.getOutNeighbors(nodeId, { excludeBlocked: true })
-    );
+    const directConnections = new Set(this.store.getOutNeighbors(nodeId, { excludeBlocked: true }));
     const inConnections = this.store.getInNeighbors(nodeId, { excludeBlocked: true });
     for (const n of inConnections) directConnections.add(n);
 
     // Score map for 2nd degree connections
-    const suggestionScores = new Map<string, { mutualCount: number; totalWeight: number; sources: string[] }>();
+    const suggestionScores = new Map<
+      string,
+      { mutualCount: number; totalWeight: number; sources: string[] }
+    >();
 
     for (const friend of directConnections) {
       const friendNeighbors = this.store.getOutNeighbors(friend, { excludeBlocked: true });
@@ -392,8 +393,8 @@ export class PathFinder {
     forwardVisited: Map<string, string | null>,
     backwardVisited: Map<string, string | null>,
     meetingPoint: string,
-    source: string,
-    target: string
+    _source: string,
+    _target: string,
   ): string[] {
     // Build forward path (source -> meeting point)
     const forwardPath: string[] = [];
@@ -421,7 +422,7 @@ export class PathFinder {
     maxDepth: number,
     path: string[],
     visited: Set<string>,
-    results: PathResult[]
+    results: PathResult[],
   ): void {
     if (current === target) {
       results.push({
@@ -454,7 +455,7 @@ export class PathFinder {
   private calculateSuggestionScore(
     mutualCount: number,
     totalWeight: number,
-    candidateId: string
+    candidateId: string,
   ): number {
     // Weighted formula: mutual connections are primary signal
     const mutualScore = Math.min(mutualCount / 10, 1.0) * 60;

@@ -184,14 +184,12 @@ export class InfluenceScorer {
     const totalNodes = this.store.getNodeCount();
 
     // Follower weight: ratio of followers to total graph size (log scaled)
-    const followerWeight = totalNodes > 1
-      ? Math.min(Math.log2(inDegree + 1) / Math.log2(totalNodes), 1.0)
-      : 0;
+    const followerWeight =
+      totalNodes > 1 ? Math.min(Math.log2(inDegree + 1) / Math.log2(totalNodes), 1.0) : 0;
 
     // Engagement weight: ratio of out-degree (activity) scaled
-    const engagementWeight = totalNodes > 1
-      ? Math.min(Math.log2(outDegree + 1) / Math.log2(totalNodes), 1.0)
-      : 0;
+    const engagementWeight =
+      totalNodes > 1 ? Math.min(Math.log2(outDegree + 1) / Math.log2(totalNodes), 1.0) : 0;
 
     // Content quality: based on average edge weight of incoming edges
     let totalInWeight = 0;
@@ -200,9 +198,8 @@ export class InfluenceScorer {
       const edge = this.store.getEdge(neighbor, nodeId);
       totalInWeight += edge?.weight || 0;
     }
-    const contentQuality = inNeighbors.length > 0
-      ? Math.min(totalInWeight / inNeighbors.length, 1.0)
-      : 0;
+    const contentQuality =
+      inNeighbors.length > 0 ? Math.min(totalInWeight / inNeighbors.length, 1.0) : 0;
 
     // Network centrality: PageRank score normalized
     const pageRankScore = this.ranks.get(nodeId) || 0;
@@ -216,9 +213,8 @@ export class InfluenceScorer {
         bidirectionalCount++;
       }
     }
-    const activityConsistency = inNeighbors.length > 0
-      ? bidirectionalCount / inNeighbors.length
-      : 0;
+    const activityConsistency =
+      inNeighbors.length > 0 ? bidirectionalCount / inNeighbors.length : 0;
 
     return {
       followerWeight,
@@ -232,11 +228,11 @@ export class InfluenceScorer {
   /** Compute composite score from components */
   private computeCompositeScore(components: InfluenceComponents): number {
     const weights = {
-      followerWeight: 0.30,
-      engagementWeight: 0.20,
-      contentQuality: 0.20,
-      networkCentrality: 0.20,
-      activityConsistency: 0.10,
+      followerWeight: 0.3,
+      engagementWeight: 0.2,
+      contentQuality: 0.2,
+      networkCentrality: 0.2,
+      activityConsistency: 0.1,
     };
 
     const score =
@@ -263,7 +259,9 @@ export class InfluenceScorer {
     const results: InfluenceScore[] = [];
 
     for (let i = 0; i < Math.min(n, allScores.length); i++) {
-      const [nodeId] = allScores[i];
+      const entry = allScores[i];
+      if (!entry) continue;
+      const [nodeId] = entry;
       const score = this.computeInfluenceScore(nodeId);
       if (score) results.push(score);
     }
@@ -334,19 +332,21 @@ export class InfluenceScorer {
     for (const [nodeId, history] of this.growthHistory) {
       if (history.length < 2) continue;
 
-      const current = history[history.length - 1];
-      const previous = history[history.length - 2];
+      const current = history[history.length - 1]!;
+      const previous = history[history.length - 2]!;
 
       // Calculate growth rate
-      const growthRate = previous.followers > 0
-        ? (current.followers - previous.followers) / previous.followers
-        : current.followers > 0 ? 1.0 : 0;
+      const growthRate =
+        previous.followers > 0
+          ? (current.followers - previous.followers) / previous.followers
+          : current.followers > 0
+            ? 1.0
+            : 0;
 
       // Calculate engagement spike (acceleration in connections)
       const avgVelocity = history.reduce((sum, h) => sum + h.velocity, 0) / history.length;
-      const engagementSpike = avgVelocity > 0
-        ? current.velocity / avgVelocity
-        : current.velocity > 0 ? 2.0 : 0;
+      const engagementSpike =
+        avgVelocity > 0 ? current.velocity / avgVelocity : current.velocity > 0 ? 2.0 : 0;
 
       // Minimum threshold for trending
       if (growthRate < 0.05 && engagementSpike < 1.5) continue;
@@ -371,16 +371,16 @@ export class InfluenceScorer {
 
   /** Find when the growth trend started */
   private findTrendStart(history: NetworkGrowthMetrics[]): number {
-    if (history.length < 3) return history[0]?.date || Date.now();
+    if (history.length < 3) return history[0]?.date ?? Date.now();
 
     // Walk backward to find when velocity became consistently positive
     for (let i = history.length - 2; i >= 0; i--) {
-      if (history[i].velocity <= 0) {
-        return history[i + 1]?.date || history[i].date;
+      if (history[i]!.velocity <= 0) {
+        return history[i + 1]?.date ?? history[i]!.date;
       }
     }
 
-    return history[0].date;
+    return history[0]!.date;
   }
 
   // -------------------------------------------------------------------------
@@ -396,7 +396,7 @@ export class InfluenceScorer {
   getCurrentVelocity(nodeId: string): number {
     const history = this.growthHistory.get(nodeId);
     if (!history || history.length === 0) return 0;
-    return history[history.length - 1].velocity;
+    return history[history.length - 1]!.velocity;
   }
 
   /** Get iteration count from last PageRank computation */
@@ -427,8 +427,10 @@ export class InfluenceScorer {
   updateConfig(config: Partial<PageRankConfig>): void {
     if (config.dampingFactor !== undefined) this.config.dampingFactor = config.dampingFactor;
     if (config.maxIterations !== undefined) this.config.maxIterations = config.maxIterations;
-    if (config.convergenceThreshold !== undefined) this.config.convergenceThreshold = config.convergenceThreshold;
-    if (config.personalizationVector !== undefined) this.config.personalizationVector = config.personalizationVector;
+    if (config.convergenceThreshold !== undefined)
+      this.config.convergenceThreshold = config.convergenceThreshold;
+    if (config.personalizationVector !== undefined)
+      this.config.personalizationVector = config.personalizationVector;
     this.clearCache();
   }
 }

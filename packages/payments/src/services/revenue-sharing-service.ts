@@ -3,12 +3,7 @@
 // Creator revenue splits with minimum payout thresholds
 // ============================================================================
 
-import type {
-  RevenueShare,
-  Payout,
-  PayoutStatus,
-  CurrencyCode,
-} from '../types';
+import type { RevenueShare, Payout, CurrencyCode } from '../types';
 
 interface RevenueShareConfig {
   defaultPlatformShare: number;
@@ -61,12 +56,15 @@ export class RevenueSharing {
   }
 
   /** Set up revenue sharing for a creator */
-  async setShareRatio(creatorId: string, options?: {
-    platformSharePercent?: number;
-    creatorSharePercent?: number;
-    minimumPayout?: number;
-    payoutSchedule?: 'weekly' | 'biweekly' | 'monthly';
-  }): Promise<RevenueShare> {
+  async setShareRatio(
+    creatorId: string,
+    options?: {
+      platformSharePercent?: number;
+      creatorSharePercent?: number;
+      minimumPayout?: number;
+      payoutSchedule?: 'weekly' | 'biweekly' | 'monthly';
+    },
+  ): Promise<RevenueShare> {
     const platformShare = options?.platformSharePercent ?? this.config.defaultPlatformShare;
     const creatorShare = options?.creatorSharePercent ?? this.config.defaultCreatorShare;
 
@@ -110,7 +108,12 @@ export class RevenueSharing {
   }
 
   /** Record revenue and calculate split */
-  async recordRevenue(creatorId: string, amount: number, source: string, sourceId: string): Promise<EarningRecord> {
+  async recordRevenue(
+    creatorId: string,
+    amount: number,
+    source: string,
+    sourceId: string,
+  ): Promise<EarningRecord> {
     const share = this.getShareOrThrow(creatorId);
     if (!share.active) throw new Error('Revenue sharing is not active for this creator');
     if (amount <= 0) throw new Error('Revenue amount must be positive');
@@ -140,7 +143,9 @@ export class RevenueSharing {
   }
 
   /** Calculate payout amount for a creator */
-  async calculatePayout(creatorId: string): Promise<{ eligible: boolean; amount: number; minimumPayout: number; pendingAmount: number }> {
+  async calculatePayout(
+    creatorId: string,
+  ): Promise<{ eligible: boolean; amount: number; minimumPayout: number; pendingAmount: number }> {
     const share = this.getShareOrThrow(creatorId);
     const available = share.pendingPayout - share.heldAmount;
     const eligible = available >= share.minimumPayout;
@@ -199,7 +204,10 @@ export class RevenueSharing {
   }
 
   /** Get creator earnings breakdown */
-  async getCreatorEarnings(creatorId: string, options?: { startDate?: number; endDate?: number; source?: string }): Promise<{
+  async getCreatorEarnings(
+    creatorId: string,
+    options?: { startDate?: number; endDate?: number; source?: string },
+  ): Promise<{
     totalEarned: number;
     totalPaid: number;
     pending: number;
@@ -209,9 +217,9 @@ export class RevenueSharing {
     const share = this.getShareOrThrow(creatorId);
     let records = this.earnings.get(creatorId) || [];
 
-    if (options?.startDate) records = records.filter(r => r.createdAt >= options.startDate!);
-    if (options?.endDate) records = records.filter(r => r.createdAt <= options.endDate!);
-    if (options?.source) records = records.filter(r => r.source === options.source);
+    if (options?.startDate) records = records.filter((r) => r.createdAt >= options.startDate!);
+    if (options?.endDate) records = records.filter((r) => r.createdAt <= options.endDate!);
+    if (options?.source) records = records.filter((r) => r.source === options.source);
 
     return {
       totalEarned: share.totalEarned,
@@ -256,7 +264,10 @@ export class RevenueSharing {
   }
 
   /** Generate revenue report for a period */
-  async generateReport(startDate: number, endDate: number): Promise<{
+  async generateReport(
+    startDate: number,
+    endDate: number,
+  ): Promise<{
     totalRevenue: number;
     platformEarnings: number;
     creatorEarnings: number;
@@ -286,7 +297,11 @@ export class RevenueSharing {
 
     for (const [, payouts] of this.payouts) {
       for (const payout of payouts) {
-        if (payout.processedAt && payout.processedAt >= startDate && payout.processedAt <= endDate) {
+        if (
+          payout.processedAt &&
+          payout.processedAt >= startDate &&
+          payout.processedAt <= endDate
+        ) {
           totalPayouts += payout.amount;
         }
       }

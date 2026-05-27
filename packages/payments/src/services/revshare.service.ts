@@ -20,9 +20,7 @@ export const RecordTipSchema = z.object({
 
 /** Revenue share split ratios */
 const AD_REVENUE_CREATOR_SHARE = 0.9;
-const AD_REVENUE_PLATFORM_SHARE = 0.1;
 const TIP_CREATOR_SHARE = 0.95;
-const TIP_PLATFORM_SHARE = 0.05;
 
 /**
  * RevShareService - Creator economy revenue share engine

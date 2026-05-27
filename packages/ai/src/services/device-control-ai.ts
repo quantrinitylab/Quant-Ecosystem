@@ -38,7 +38,7 @@ export class DeviceControlAIService {
   async parseCommand(
     naturalLanguage: string,
     availableDevices: { id: string; type: string; name: string; room?: string }[],
-    userId: string
+    userId: string,
   ): Promise<DeviceControlCommand[]> {
     const deviceList = availableDevices
       .map((d) => `${d.name} (${d.type}, ${d.room || 'unknown room'})`)
@@ -46,7 +46,8 @@ export class DeviceControlAIService {
 
     const request: AIInferenceRequest = {
       prompt: `Parse this command for smart home devices: "${naturalLanguage}"\n\nAvailable devices: ${deviceList}`,
-      systemPrompt: 'Extract device actions from natural language. Identify target devices, actions, and parameters. Handle multi-device commands.',
+      systemPrompt:
+        'Extract device actions from natural language. Identify target devices, actions, and parameters. Handle multi-device commands.',
       userId,
       app: 'quantai',
       feature: 'device_control',
@@ -105,11 +106,12 @@ export class DeviceControlAIService {
     name: string,
     description: string,
     userId: string,
-    availableDevices: { id: string; type: string; name: string; room?: string }[]
+    availableDevices: { id: string; type: string; name: string; room?: string }[],
   ): Promise<{ name: string; commands: DeviceControlCommand[] }> {
     const request: AIInferenceRequest = {
       prompt: `Create a smart home scene called "${name}": ${description}\n\nDevices: ${availableDevices.map((d) => `${d.name} (${d.type})`).join(', ')}`,
-      systemPrompt: 'Create a scene with appropriate settings for each device. Consider ambiance, energy efficiency, and comfort.',
+      systemPrompt:
+        'Create a scene with appropriate settings for each device. Consider ambiance, energy efficiency, and comfort.',
       userId,
       app: 'quantai',
       feature: 'scene_creation',
@@ -127,8 +129,13 @@ export class DeviceControlAIService {
    * Get proactive suggestions based on context
    */
   async getProactiveSuggestions(
-    context: { timeOfDay: string; weather?: string; userActivity?: string; recentCommands: string[] },
-    userId: string
+    context: {
+      timeOfDay: string;
+      weather?: string;
+      userActivity?: string;
+      recentCommands: string[];
+    },
+    userId: string,
   ): Promise<{ suggestion: string; commands: DeviceControlCommand[] }[]> {
     const suggestions: { suggestion: string; commands: DeviceControlCommand[] }[] = [];
 
@@ -136,42 +143,48 @@ export class DeviceControlAIService {
     if (context.timeOfDay === 'evening') {
       suggestions.push({
         suggestion: 'Set up evening ambiance - dim lights and adjust thermostat',
-        commands: [{
-          deviceId: 'auto',
-          deviceType: 'light',
-          action: 'dim',
-          parameters: { brightness: 40 },
-          userId,
-          confirmationRequired: false,
-        }],
+        commands: [
+          {
+            deviceId: 'auto',
+            deviceType: 'light',
+            action: 'dim',
+            parameters: { brightness: 40 },
+            userId,
+            confirmationRequired: false,
+          },
+        ],
       });
     }
 
     if (context.timeOfDay === 'night') {
       suggestions.push({
         suggestion: 'Prepare for bedtime - turn off main lights, lock doors',
-        commands: [{
-          deviceId: 'auto',
-          deviceType: 'light',
-          action: 'off',
-          parameters: {},
-          userId,
-          confirmationRequired: true,
-        }],
+        commands: [
+          {
+            deviceId: 'auto',
+            deviceType: 'light',
+            action: 'off',
+            parameters: {},
+            userId,
+            confirmationRequired: true,
+          },
+        ],
       });
     }
 
     if (context.weather === 'hot') {
       suggestions.push({
         suggestion: 'It is warm outside - lower the thermostat',
-        commands: [{
-          deviceId: 'auto',
-          deviceType: 'thermostat',
-          action: 'set_temperature',
-          parameters: { temperature: 22, unit: 'celsius' },
-          userId,
-          confirmationRequired: false,
-        }],
+        commands: [
+          {
+            deviceId: 'auto',
+            deviceType: 'thermostat',
+            action: 'set_temperature',
+            parameters: { temperature: 22, unit: 'celsius' },
+            userId,
+            confirmationRequired: false,
+          },
+        ],
       });
     }
 
@@ -183,7 +196,11 @@ export class DeviceControlAIService {
    */
   private validateCommandSafety(command: DeviceControlCommand): { safe: boolean; reason?: string } {
     // Security-critical devices require confirmation
-    if (command.deviceType === 'lock' && command.action === 'unlock' && !command.confirmationRequired) {
+    if (
+      command.deviceType === 'lock' &&
+      command.action === 'unlock' &&
+      !command.confirmationRequired
+    ) {
       return { safe: false, reason: 'Unlocking doors requires explicit confirmation' };
     }
 
@@ -209,7 +226,7 @@ export class DeviceControlAIService {
   private extractCommands(
     response: string,
     devices: { id: string; type: string; name: string; room?: string }[],
-    userId: string
+    userId: string,
   ): DeviceControlCommand[] {
     // Parse AI response to extract device commands
     const commands: DeviceControlCommand[] = [];
@@ -235,9 +252,10 @@ export class DeviceControlAIService {
 
     // If no specific device matched, create a generic command
     if (commands.length === 0 && devices.length > 0) {
+      const firstDevice = devices[0]!;
       commands.push({
-        deviceId: devices[0].id,
-        deviceType: devices[0].type,
+        deviceId: firstDevice.id,
+        deviceType: firstDevice.type,
         action: 'toggle',
         parameters: {},
         userId,
@@ -251,10 +269,12 @@ export class DeviceControlAIService {
   /**
    * Infer action from AI response based on device type
    */
-  private inferAction(response: string, deviceType: string): string {
+  private inferAction(response: string, _deviceType: string): string {
     const lower = response.toLowerCase();
-    if (lower.includes('turn off') || lower.includes('disable') || lower.includes('stop')) return 'off';
-    if (lower.includes('turn on') || lower.includes('enable') || lower.includes('start')) return 'on';
+    if (lower.includes('turn off') || lower.includes('disable') || lower.includes('stop'))
+      return 'off';
+    if (lower.includes('turn on') || lower.includes('enable') || lower.includes('start'))
+      return 'on';
     if (lower.includes('dim') || lower.includes('lower')) return 'dim';
     if (lower.includes('brighten') || lower.includes('increase')) return 'brighten';
     if (lower.includes('lock')) return 'lock';

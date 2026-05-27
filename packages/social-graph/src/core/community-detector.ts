@@ -31,7 +31,7 @@ export class CommunityDetector {
   constructor(
     store: GraphStore,
     config?: Partial<CommunityDetectionConfig>,
-    strengthConfig?: Partial<StrengthConfig>
+    strengthConfig?: Partial<StrengthConfig>,
   ) {
     this.store = store;
     this.config = {
@@ -43,9 +43,9 @@ export class CommunityDetector {
     this.strengthConfig = {
       frequencyWeight: strengthConfig?.frequencyWeight || 0.35,
       recencyWeight: strengthConfig?.recencyWeight || 0.25,
-      typeWeight: strengthConfig?.typeWeight || 0.20,
-      mutualityWeight: strengthConfig?.mutualityWeight || 0.10,
-      durationWeight: strengthConfig?.durationWeight || 0.10,
+      typeWeight: strengthConfig?.typeWeight || 0.2,
+      mutualityWeight: strengthConfig?.mutualityWeight || 0.1,
+      durationWeight: strengthConfig?.durationWeight || 0.1,
       recencyDecayFactor: strengthConfig?.recencyDecayFactor || 0.01,
     };
   }
@@ -131,7 +131,7 @@ export class CommunityDetector {
     this.nodeCommunityMap.clear();
     const results: Community[] = [];
 
-    for (const [label, members] of communityMembers) {
+    for (const [, members] of communityMembers) {
       if (members.length < this.config.minCommunitySize) continue;
 
       const communityId = `community_${++this.communityIdCounter}`;
@@ -222,17 +222,20 @@ export class CommunityDetector {
   private buildCircle(
     type: SocialCircleType,
     members: string[],
-    allStrengths: Array<{ id: string; strength: RelationshipStrength }>
+    allStrengths: Array<{ id: string; strength: RelationshipStrength }>,
   ): SocialCircle {
     const memberSet = new Set(members);
-    const relevantStrengths = allStrengths.filter(s => memberSet.has(s.id));
-    const avgStrength = relevantStrengths.length > 0
-      ? relevantStrengths.reduce((sum, s) => sum + s.strength.score, 0) / relevantStrengths.length
-      : 0;
+    const relevantStrengths = allStrengths.filter((s) => memberSet.has(s.id));
+    const avgStrength =
+      relevantStrengths.length > 0
+        ? relevantStrengths.reduce((sum, s) => sum + s.strength.score, 0) / relevantStrengths.length
+        : 0;
 
-    const avgFrequency = relevantStrengths.length > 0
-      ? relevantStrengths.reduce((sum, s) => sum + s.strength.factors.frequency, 0) / relevantStrengths.length
-      : 0;
+    const avgFrequency =
+      relevantStrengths.length > 0
+        ? relevantStrengths.reduce((sum, s) => sum + s.strength.factors.frequency, 0) /
+          relevantStrengths.length
+        : 0;
 
     return {
       type,
@@ -266,26 +269,25 @@ export class CommunityDetector {
 
   /** Compute individual strength factors */
   private computeStrengthFactors(
-    sourceId: string,
-    targetId: string,
+    _sourceId: string,
+    _targetId: string,
     edge: ReturnType<GraphStore['getEdge']>,
-    reverseEdge: ReturnType<GraphStore['getEdge']>
+    reverseEdge: ReturnType<GraphStore['getEdge']>,
   ): StrengthFactors {
     const now = Date.now();
 
     // Frequency: normalized interaction count
-    const interactionCount = (edge?.metadata.interactionCount || 0) +
-      (reverseEdge?.metadata.interactionCount || 0);
+    const interactionCount =
+      (edge?.metadata.interactionCount || 0) + (reverseEdge?.metadata.interactionCount || 0);
     const frequency = Math.min(interactionCount / 100, 1.0);
 
     // Recency: exponential decay based on last interaction time
     const lastInteraction = Math.max(
       edge?.metadata.lastInteraction || 0,
-      reverseEdge?.metadata.lastInteraction || 0
+      reverseEdge?.metadata.lastInteraction || 0,
     );
-    const daysSinceInteraction = lastInteraction > 0
-      ? (now - lastInteraction) / (1000 * 60 * 60 * 24)
-      : 365;
+    const daysSinceInteraction =
+      lastInteraction > 0 ? (now - lastInteraction) / (1000 * 60 * 60 * 24) : 365;
     const recency = Math.exp(-this.strengthConfig.recencyDecayFactor * daysSinceInteraction);
 
     // Type: value based on edge type (friend > follow > restrict)
@@ -296,12 +298,12 @@ export class CommunityDetector {
       mute: 0.1,
       block: 0.0,
     };
-    const edgeTypeValue = edge ? (typeValues[edge.type] || 0.5) : 0;
-    const reverseTypeValue = reverseEdge ? (typeValues[reverseEdge.type] || 0.5) : 0;
+    const edgeTypeValue = edge ? typeValues[edge.type] || 0.5 : 0;
+    const reverseTypeValue = reverseEdge ? typeValues[reverseEdge.type] || 0.5 : 0;
     const type = Math.max(edgeTypeValue, reverseTypeValue);
 
     // Mutuality: whether the connection is bidirectional
-    const mutuality = (edge && reverseEdge) ? 1.0 : 0.3;
+    const mutuality = edge && reverseEdge ? 1.0 : 0.3;
 
     // Duration: how long the connection has existed
     const connectionAge = edge
@@ -455,7 +457,9 @@ export class CommunityDetector {
 
     for (let i = array.length - 1; i > 0; i--) {
       const j = Math.floor(random() * (i + 1));
-      [array[i], array[j]] = [array[j], array[i]];
+      const temp = array[i]!;
+      array[i] = array[j]!;
+      array[j] = temp;
     }
     return array;
   }

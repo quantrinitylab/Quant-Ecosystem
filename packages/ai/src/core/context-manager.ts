@@ -48,7 +48,7 @@ export class ContextManager {
   async enrichPrompt(
     userId: string,
     prompt: string,
-    additionalContext: ConversationMessage[] = []
+    additionalContext: ConversationMessage[] = [],
   ): Promise<string> {
     const parts: string[] = [];
 
@@ -96,12 +96,16 @@ export class ContextManager {
   /**
    * Add a user-assistant exchange to conversation history
    */
-  async addToHistory(userId: string, userMessage: string, assistantResponse: string): Promise<void> {
+  async addToHistory(
+    userId: string,
+    userMessage: string,
+    assistantResponse: string,
+  ): Promise<void> {
     const history = this.conversationHistory.get(userId) || [];
 
     history.push(
       { role: 'user', content: userMessage, timestamp: Date.now() },
-      { role: 'assistant', content: assistantResponse, timestamp: Date.now() }
+      { role: 'assistant', content: assistantResponse, timestamp: Date.now() },
     );
 
     // Trim history if too long
@@ -120,7 +124,12 @@ export class ContextManager {
   /**
    * Store a memory entry for a user
    */
-  async addMemory(userId: string, key: string, value: string, importance: number = 0.5): Promise<void> {
+  async addMemory(
+    userId: string,
+    key: string,
+    value: string,
+    importance: number = 0.5,
+  ): Promise<void> {
     const memories = this.longTermMemory.get(userId) || [];
 
     // Check for duplicate keys and update
@@ -129,7 +138,7 @@ export class ContextManager {
       memories[existingIndex] = {
         key,
         value,
-        importance: Math.max(memories[existingIndex].importance, importance),
+        importance: Math.max(memories[existingIndex]!.importance, importance),
         timestamp: Date.now(),
       };
     } else {
@@ -167,7 +176,7 @@ export class ContextManager {
       }
       const relevance = overlap / Math.max(promptWords.size, 1);
       const recency = 1 - (Date.now() - memory.timestamp) / (7 * 24 * 60 * 60 * 1000); // Decay over a week
-      const score = (relevance * 0.6 + Math.max(0, recency) * 0.2 + memory.importance * 0.2);
+      const score = relevance * 0.6 + Math.max(0, recency) * 0.2 + memory.importance * 0.2;
       return { memory, score };
     });
 
@@ -248,7 +257,11 @@ export class ContextManager {
   /**
    * Extract important information from exchanges and store as memories
    */
-  private async extractMemories(userId: string, userMessage: string, assistantResponse: string): Promise<void> {
+  private async extractMemories(
+    userId: string,
+    userMessage: string,
+    _assistantResponse: string,
+  ): Promise<void> {
     // Simple heuristic: look for informational patterns
     const patterns = [
       { regex: /my name is (\w+)/i, key: 'user_name' },

@@ -29,11 +29,12 @@ export class ChatAIService {
   async generateSmartReplies(
     message: string,
     conversationContext: string[],
-    userId: string
+    userId: string,
   ): Promise<SmartReply[]> {
     const request: AIInferenceRequest = {
       prompt: `Generate 3 short reply suggestions for this message: "${message}"\n\nContext: ${conversationContext.slice(-3).join(' | ')}`,
-      systemPrompt: 'Generate brief, natural reply suggestions. Return exactly 3 options with different tones.',
+      systemPrompt:
+        'Generate brief, natural reply suggestions. Return exactly 3 options with different tones.',
       userId,
       app: 'quantchat',
       feature: 'smart_replies',
@@ -51,7 +52,8 @@ export class ChatAIService {
   async moderateMessage(content: string, userId: string): Promise<ModerationResult> {
     const request: AIInferenceRequest = {
       prompt: `Analyze this message for safety and appropriateness: "${content}"`,
-      systemPrompt: 'You are a content moderation system. Analyze for: harassment, hate speech, explicit content, spam, threats, and self-harm.',
+      systemPrompt:
+        'You are a content moderation system. Analyze for: harassment, hate speech, explicit content, spam, threats, and self-harm.',
       userId,
       app: 'quantchat',
       feature: 'content_moderation',
@@ -68,11 +70,9 @@ export class ChatAIService {
    */
   async summarizeConversation(
     messages: { sender: string; content: string }[],
-    userId: string
+    userId: string,
   ): Promise<string> {
-    const transcript = messages
-      .map((m) => `${m.sender}: ${m.content}`)
-      .join('\n');
+    const transcript = messages.map((m) => `${m.sender}: ${m.content}`).join('\n');
 
     const request: AIInferenceRequest = {
       prompt: `Summarize this conversation:\n${transcript}`,
@@ -91,11 +91,7 @@ export class ChatAIService {
   /**
    * Translate a message
    */
-  async translateMessage(
-    content: string,
-    targetLanguage: string,
-    userId: string
-  ): Promise<string> {
+  async translateMessage(content: string, targetLanguage: string, userId: string): Promise<string> {
     const request: AIInferenceRequest = {
       prompt: `Translate to ${targetLanguage}: "${content}"`,
       systemPrompt: 'Provide only the translation, preserving tone and emoji.',
@@ -113,10 +109,14 @@ export class ChatAIService {
   /**
    * Detect spam messages
    */
-  async detectSpam(content: string, userId: string): Promise<{ isSpam: boolean; confidence: number }> {
+  async detectSpam(
+    content: string,
+    userId: string,
+  ): Promise<{ isSpam: boolean; confidence: number }> {
     const request: AIInferenceRequest = {
       prompt: `Is this message spam? "${content}"`,
-      systemPrompt: 'Classify as spam or not spam. Consider promotional content, phishing, and bulk messaging patterns.',
+      systemPrompt:
+        'Classify as spam or not spam. Consider promotional content, phishing, and bulk messaging patterns.',
       userId,
       app: 'quantchat',
       feature: 'spam_detection',
@@ -132,7 +132,10 @@ export class ChatAIService {
   /**
    * Analyze message tone/sentiment
    */
-  async analyzeTone(content: string, userId: string): Promise<{
+  async analyzeTone(
+    content: string,
+    userId: string,
+  ): Promise<{
     sentiment: 'positive' | 'negative' | 'neutral';
     emotions: string[];
     confidence: number;
@@ -147,7 +150,7 @@ export class ChatAIService {
       maxTokens: 100,
     };
 
-    const response = await this.engine.infer(request);
+    await this.engine.infer(request);
     return {
       sentiment: 'neutral',
       emotions: ['conversational'],
@@ -157,7 +160,11 @@ export class ChatAIService {
 
   private parseSmartReplies(content: string): SmartReply[] {
     const lines = content.split('\n').filter((l) => l.trim());
-    const tones: Array<'casual' | 'professional' | 'friendly' | 'brief'> = ['casual', 'friendly', 'brief'];
+    const tones: Array<'casual' | 'professional' | 'friendly' | 'brief'> = [
+      'casual',
+      'friendly',
+      'brief',
+    ];
     return lines.slice(0, 3).map((text, i) => ({
       text: text.replace(/^\d+[\.\)]\s*/, '').trim(),
       confidence: 0.85 - i * 0.1,

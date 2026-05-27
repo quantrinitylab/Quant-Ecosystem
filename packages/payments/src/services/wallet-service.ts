@@ -3,12 +3,7 @@
 // Digital wallet with transaction limits, freezing, and audit trail
 // ============================================================================
 
-import type {
-  Wallet,
-  WalletTransaction,
-  WalletTransactionType,
-  CurrencyCode,
-} from '../types';
+import type { Wallet, WalletTransaction, WalletTransactionType, CurrencyCode } from '../types';
 
 interface WalletServiceConfig {
   defaultDailyLimit: number;
@@ -74,7 +69,9 @@ export class WalletService {
   }
 
   /** Get wallet balance */
-  async getBalance(userId: string): Promise<{ balance: number; currency: CurrencyCode; frozen: boolean; available: number }> {
+  async getBalance(
+    userId: string,
+  ): Promise<{ balance: number; currency: CurrencyCode; frozen: boolean; available: number }> {
     const wallet = this.getWalletOrThrow(userId);
     const dailyRemaining = this.getDailyRemaining(wallet);
 
@@ -87,7 +84,12 @@ export class WalletService {
   }
 
   /** Credit funds to wallet */
-  async credit(userId: string, amount: number, description: string, referenceId?: string): Promise<WalletTransaction> {
+  async credit(
+    userId: string,
+    amount: number,
+    description: string,
+    referenceId?: string,
+  ): Promise<WalletTransaction> {
     if (amount <= 0) throw new Error('Credit amount must be positive');
 
     const wallet = this.getWalletOrThrow(userId);
@@ -97,12 +99,24 @@ export class WalletService {
     wallet.totalCredits += amount;
     wallet.updatedAt = Date.now();
 
-    const txn = this.createTransaction(wallet, 'credit', amount, balanceBefore, description, referenceId);
+    const txn = this.createTransaction(
+      wallet,
+      'credit',
+      amount,
+      balanceBefore,
+      description,
+      referenceId,
+    );
     return txn;
   }
 
   /** Debit funds from wallet */
-  async debit(userId: string, amount: number, description: string, referenceId?: string): Promise<WalletTransaction> {
+  async debit(
+    userId: string,
+    amount: number,
+    description: string,
+    referenceId?: string,
+  ): Promise<WalletTransaction> {
     if (amount <= 0) throw new Error('Debit amount must be positive');
 
     const wallet = this.getWalletOrThrow(userId);
@@ -114,12 +128,24 @@ export class WalletService {
     wallet.updatedAt = Date.now();
 
     this.updateUsage(wallet, amount);
-    const txn = this.createTransaction(wallet, 'debit', amount, balanceBefore, description, referenceId);
+    const txn = this.createTransaction(
+      wallet,
+      'debit',
+      amount,
+      balanceBefore,
+      description,
+      referenceId,
+    );
     return txn;
   }
 
   /** Transfer funds between wallets */
-  async transfer(fromUserId: string, toUserId: string, amount: number, description?: string): Promise<{ fromTxn: WalletTransaction; toTxn: WalletTransaction }> {
+  async transfer(
+    fromUserId: string,
+    toUserId: string,
+    amount: number,
+    description?: string,
+  ): Promise<{ fromTxn: WalletTransaction; toTxn: WalletTransaction }> {
     if (amount < this.config.minTransferAmount) {
       throw new Error(`Minimum transfer amount is ${this.config.minTransferAmount}`);
     }
@@ -146,34 +172,49 @@ export class WalletService {
 
     this.updateUsage(fromWallet, amount);
 
-    const fromTxn = this.createTransaction(fromWallet, 'transfer_out', amount, fromBalanceBefore, desc);
+    const fromTxn = this.createTransaction(
+      fromWallet,
+      'transfer_out',
+      amount,
+      fromBalanceBefore,
+      desc,
+    );
     fromTxn.counterpartyWalletId = toWallet.id;
 
-    const toTxn = this.createTransaction(toWallet, 'transfer_in', amount, toBalanceBefore, `Transfer from ${fromUserId}`);
+    const toTxn = this.createTransaction(
+      toWallet,
+      'transfer_in',
+      amount,
+      toBalanceBefore,
+      `Transfer from ${fromUserId}`,
+    );
     toTxn.counterpartyWalletId = fromWallet.id;
 
     return { fromTxn, toTxn };
   }
 
   /** Get transaction history for a wallet */
-  async getTransactionHistory(userId: string, options?: {
-    limit?: number;
-    offset?: number;
-    type?: WalletTransactionType;
-    startDate?: number;
-    endDate?: number;
-  }): Promise<{ transactions: WalletTransaction[]; total: number }> {
+  async getTransactionHistory(
+    userId: string,
+    options?: {
+      limit?: number;
+      offset?: number;
+      type?: WalletTransactionType;
+      startDate?: number;
+      endDate?: number;
+    },
+  ): Promise<{ transactions: WalletTransaction[]; total: number }> {
     const wallet = this.getWalletOrThrow(userId);
     let txns = this.transactions.get(wallet.id) || [];
 
     if (options?.type) {
-      txns = txns.filter(t => t.type === options.type);
+      txns = txns.filter((t) => t.type === options.type);
     }
     if (options?.startDate) {
-      txns = txns.filter(t => t.createdAt >= options.startDate!);
+      txns = txns.filter((t) => t.createdAt >= options.startDate!);
     }
     if (options?.endDate) {
-      txns = txns.filter(t => t.createdAt <= options.endDate!);
+      txns = txns.filter((t) => t.createdAt <= options.endDate!);
     }
 
     const total = txns.length;
@@ -211,7 +252,10 @@ export class WalletService {
   }
 
   /** Set wallet limits */
-  async setLimits(userId: string, limits: { daily?: number; monthly?: number; transaction?: number }): Promise<Wallet> {
+  async setLimits(
+    userId: string,
+    limits: { daily?: number; monthly?: number; transaction?: number },
+  ): Promise<Wallet> {
     const wallet = this.getWalletOrThrow(userId);
     if (limits.daily !== undefined) wallet.dailyLimit = limits.daily;
     if (limits.monthly !== undefined) wallet.monthlyLimit = limits.monthly;
@@ -221,22 +265,44 @@ export class WalletService {
   }
 
   /** Check if a debit amount would exceed limits */
-  async checkLimit(userId: string, amount: number): Promise<{ allowed: boolean; reason?: string; dailyRemaining: number; monthlyRemaining: number }> {
+  async checkLimit(
+    userId: string,
+    amount: number,
+  ): Promise<{
+    allowed: boolean;
+    reason?: string;
+    dailyRemaining: number;
+    monthlyRemaining: number;
+  }> {
     const wallet = this.getWalletOrThrow(userId);
     const dailyRemaining = this.getDailyRemaining(wallet);
     const monthlyRemaining = this.getMonthlyRemaining(wallet);
 
-    if (wallet.frozen) return { allowed: false, reason: 'Wallet is frozen', dailyRemaining, monthlyRemaining };
-    if (amount > wallet.balance) return { allowed: false, reason: 'Insufficient balance', dailyRemaining, monthlyRemaining };
-    if (amount > wallet.transactionLimit) return { allowed: false, reason: 'Exceeds transaction limit', dailyRemaining, monthlyRemaining };
-    if (amount > dailyRemaining) return { allowed: false, reason: 'Exceeds daily limit', dailyRemaining, monthlyRemaining };
-    if (amount > monthlyRemaining) return { allowed: false, reason: 'Exceeds monthly limit', dailyRemaining, monthlyRemaining };
+    if (wallet.frozen)
+      return { allowed: false, reason: 'Wallet is frozen', dailyRemaining, monthlyRemaining };
+    if (amount > wallet.balance)
+      return { allowed: false, reason: 'Insufficient balance', dailyRemaining, monthlyRemaining };
+    if (amount > wallet.transactionLimit)
+      return {
+        allowed: false,
+        reason: 'Exceeds transaction limit',
+        dailyRemaining,
+        monthlyRemaining,
+      };
+    if (amount > dailyRemaining)
+      return { allowed: false, reason: 'Exceeds daily limit', dailyRemaining, monthlyRemaining };
+    if (amount > monthlyRemaining)
+      return { allowed: false, reason: 'Exceeds monthly limit', dailyRemaining, monthlyRemaining };
 
     return { allowed: true, dailyRemaining, monthlyRemaining };
   }
 
   /** Get monthly statement */
-  async getStatement(userId: string, month: number, year: number): Promise<{
+  async getStatement(
+    userId: string,
+    month: number,
+    year: number,
+  ): Promise<{
     openingBalance: number;
     closingBalance: number;
     totalCredits: number;
@@ -250,7 +316,8 @@ export class WalletService {
     const startOfMonth = new Date(year, month - 1, 1).getTime();
     const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999).getTime();
 
-    const monthTxns = txns.filter(t => t.createdAt >= startOfMonth && t.createdAt <= endOfMonth)
+    const monthTxns = txns
+      .filter((t) => t.createdAt >= startOfMonth && t.createdAt <= endOfMonth)
       .sort((a, b) => a.createdAt - b.createdAt);
 
     let totalCredits = 0;
@@ -263,8 +330,9 @@ export class WalletService {
       }
     }
 
-    const openingBalance = monthTxns.length > 0 ? monthTxns[0].balanceBefore : wallet.balance;
-    const closingBalance = monthTxns.length > 0 ? monthTxns[monthTxns.length - 1].balanceAfter : wallet.balance;
+    const openingBalance = monthTxns.length > 0 ? monthTxns[0]!.balanceBefore : wallet.balance;
+    const closingBalance =
+      monthTxns.length > 0 ? monthTxns[monthTxns.length - 1]!.balanceAfter : wallet.balance;
 
     return {
       openingBalance,
@@ -287,16 +355,26 @@ export class WalletService {
   private validateDebit(wallet: Wallet, amount: number): void {
     if (wallet.frozen) throw new Error('Wallet is frozen - debits are blocked');
     if (amount > wallet.balance) throw new Error('Insufficient balance');
-    if (amount > wallet.transactionLimit) throw new Error(`Amount ${amount} exceeds transaction limit ${wallet.transactionLimit}`);
+    if (amount > wallet.transactionLimit)
+      throw new Error(`Amount ${amount} exceeds transaction limit ${wallet.transactionLimit}`);
 
     const dailyRemaining = this.getDailyRemaining(wallet);
-    if (amount > dailyRemaining) throw new Error(`Amount ${amount} exceeds daily remaining limit ${dailyRemaining}`);
+    if (amount > dailyRemaining)
+      throw new Error(`Amount ${amount} exceeds daily remaining limit ${dailyRemaining}`);
 
     const monthlyRemaining = this.getMonthlyRemaining(wallet);
-    if (amount > monthlyRemaining) throw new Error(`Amount ${amount} exceeds monthly remaining limit ${monthlyRemaining}`);
+    if (amount > monthlyRemaining)
+      throw new Error(`Amount ${amount} exceeds monthly remaining limit ${monthlyRemaining}`);
   }
 
-  private createTransaction(wallet: Wallet, type: WalletTransactionType, amount: number, balanceBefore: number, description: string, referenceId?: string): WalletTransaction {
+  private createTransaction(
+    wallet: Wallet,
+    type: WalletTransactionType,
+    amount: number,
+    balanceBefore: number,
+    description: string,
+    referenceId?: string,
+  ): WalletTransaction {
     const txn: WalletTransaction = {
       id: `wtxn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       walletId: wallet.id,
@@ -317,7 +395,7 @@ export class WalletService {
   }
 
   private updateUsage(wallet: Wallet, amount: number): void {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split('T')[0]!;
     const monthKey = today.substring(0, 7);
 
     const daily = this.dailyUsage.get(wallet.id);
@@ -338,14 +416,14 @@ export class WalletService {
   private getDailyRemaining(wallet: Wallet): number {
     const today = new Date().toISOString().split('T')[0];
     const usage = this.dailyUsage.get(wallet.id);
-    const used = (usage && usage.date === today) ? usage.amount : 0;
+    const used = usage && usage.date === today ? usage.amount : 0;
     return Math.max(0, wallet.dailyLimit - used);
   }
 
   private getMonthlyRemaining(wallet: Wallet): number {
     const monthKey = new Date().toISOString().substring(0, 7);
     const usage = this.monthlyUsage.get(wallet.id);
-    const used = (usage && usage.month === monthKey) ? usage.amount : 0;
+    const used = usage && usage.month === monthKey ? usage.amount : 0;
     return Math.max(0, wallet.monthlyLimit - used);
   }
 }

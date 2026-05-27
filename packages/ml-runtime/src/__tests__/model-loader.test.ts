@@ -175,8 +175,8 @@ describe('ModelLoader', () => {
 
       const models = loader.listModels();
       expect(models).toHaveLength(2);
-      expect(models[0].name).toBe('model1');
-      expect(models[1].name).toBe('model2');
+      expect(models[0]!.name).toBe('model1');
+      expect(models[1]!.name).toBe('model2');
     });
   });
 });

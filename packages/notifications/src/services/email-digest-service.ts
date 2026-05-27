@@ -48,25 +48,23 @@ export class EmailDigestService {
       enabledTypes?: NotificationType[];
       preferredTime?: string;
       timezone?: string;
-    } = {}
+    } = {},
   ): DigestConfig {
     const existing = this.configs.get(userId);
-    const now = Date.now();
 
     const config: DigestConfig = {
       id: existing?.id || this.generateId('digest_config'),
       userId,
       frequency: options.frequency || existing?.frequency || 'daily',
-      enabledTypes: options.enabledTypes || existing?.enabledTypes || [
-        'message', 'mention', 'comment', 'like', 'follow', 'system',
-      ],
+      enabledTypes: options.enabledTypes ||
+        existing?.enabledTypes || ['message', 'mention', 'comment', 'like', 'follow', 'system'],
       preferredTime: options.preferredTime || existing?.preferredTime || '09:00',
       timezone: options.timezone || existing?.timezone || 'UTC',
       lastSentAt: existing?.lastSentAt,
       nextScheduledAt: this.calculateNextSendTime(
         options.frequency || existing?.frequency || 'daily',
         options.preferredTime || existing?.preferredTime || '09:00',
-        options.timezone || existing?.timezone || 'UTC'
+        options.timezone || existing?.timezone || 'UTC',
       ),
       isActive: true,
     };
@@ -152,7 +150,7 @@ export class EmailDigestService {
     config.nextScheduledAt = this.calculateNextSendTime(
       config.frequency,
       config.preferredTime,
-      config.timezone
+      config.timezone,
     );
 
     // Store in sent history
@@ -164,7 +162,10 @@ export class EmailDigestService {
     // Clean up included items from queue
     const queue = this.queues.get(userId);
     if (queue) {
-      this.queues.set(userId, queue.filter(item => !item.included));
+      this.queues.set(
+        userId,
+        queue.filter((item) => !item.included),
+      );
     }
 
     return digest;
@@ -200,7 +201,7 @@ export class EmailDigestService {
       };
     }
 
-    const unincluded = queue.filter(item => !item.included);
+    const unincluded = queue.filter((item) => !item.included);
     const types: Record<string, number> = {};
     let oldest: number | null = null;
     let newest: number | null = null;
@@ -246,7 +247,7 @@ export class EmailDigestService {
     config.nextScheduledAt = this.calculateNextSendTime(
       frequency,
       config.preferredTime,
-      config.timezone
+      config.timezone,
     );
 
     return config;
@@ -264,7 +265,7 @@ export class EmailDigestService {
       if (config.frequency === 'never' || config.frequency === 'realtime') continue;
       if (config.nextScheduledAt && config.nextScheduledAt <= now) {
         const queue = this.queues.get(userId);
-        if (queue && queue.some(item => !item.included)) {
+        if (queue && queue.some((item) => !item.included)) {
           dueUsers.push(userId);
         }
       }
@@ -319,7 +320,12 @@ export class EmailDigestService {
     let totalQueued = 0;
     let totalSent = 0;
     const frequencyBreakdown: Record<DigestFrequency, number> = {
-      realtime: 0, hourly: 0, daily: 0, weekly: 0, monthly: 0, never: 0,
+      realtime: 0,
+      hourly: 0,
+      daily: 0,
+      weekly: 0,
+      monthly: 0,
+      never: 0,
     };
 
     for (const [, config] of this.configs) {
@@ -328,7 +334,7 @@ export class EmailDigestService {
     }
 
     for (const [, queue] of this.queues) {
-      totalQueued += queue.filter(i => !i.included).length;
+      totalQueued += queue.filter((i) => !i.included).length;
     }
 
     for (const [, digests] of this.sentDigests) {
@@ -361,7 +367,7 @@ export class EmailDigestService {
       return (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3);
     });
 
-    const highlights = sorted.slice(0, 3).map(n => n.title);
+    const highlights = sorted.slice(0, 3).map((n) => n.title);
 
     return {
       totalNotifications: notifications.length,
@@ -371,7 +377,11 @@ export class EmailDigestService {
     };
   }
 
-  private calculateNextSendTime(frequency: DigestFrequency, preferredTime: string, timezone: string): number {
+  private calculateNextSendTime(
+    frequency: DigestFrequency,
+    preferredTime: string,
+    _timezone: string,
+  ): number {
     const now = Date.now();
     const frequencyMs = this.getFrequencyMs(frequency);
 
@@ -392,13 +402,18 @@ export class EmailDigestService {
 
   private getFrequencyMs(frequency: DigestFrequency): number {
     switch (frequency) {
-      case 'hourly': return 3600000;
-      case 'daily': return 86400000;
-      case 'weekly': return 604800000;
-      case 'monthly': return 2592000000;
+      case 'hourly':
+        return 3600000;
+      case 'daily':
+        return 86400000;
+      case 'weekly':
+        return 604800000;
+      case 'monthly':
+        return 2592000000;
       case 'realtime':
       case 'never':
-      default: return 0;
+      default:
+        return 0;
     }
   }
 

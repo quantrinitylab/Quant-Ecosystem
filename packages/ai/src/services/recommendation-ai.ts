@@ -2,12 +2,7 @@
 // AI Services - Recommendation AI
 // ============================================================================
 
-import type {
-  AIInferenceRequest,
-  RecommendationRequest,
-  RecommendationResult,
-  RecommendedItem,
-} from '../types';
+import type { RecommendationRequest, RecommendationResult, RecommendedItem } from '../types';
 import { AIEngine } from '../core/engine';
 
 /**
@@ -22,12 +17,10 @@ import { AIEngine } from '../core/engine';
  * - People to follow suggestions
  */
 export class RecommendationAIService {
-  private engine: AIEngine;
   private userEmbeddings: Map<string, number[]> = new Map();
-  private itemEmbeddings: Map<string, number[]> = new Map();
 
-  constructor(engine: AIEngine) {
-    this.engine = engine;
+  constructor(_engine: AIEngine) {
+    // Engine reserved for future ML inference integration
   }
 
   /**
@@ -43,9 +36,7 @@ export class RecommendationAIService {
     const candidates = await this.scoreCandidates(request, userProfile);
 
     // Filter excluded items
-    const filtered = candidates.filter(
-      (item) => !request.excludeIds?.includes(item.id)
-    );
+    const filtered = candidates.filter((item) => !request.excludeIds?.includes(item.id));
 
     // Apply diversity sampling
     const diverse = this.applyDiversity(filtered, request.limit);
@@ -64,7 +55,7 @@ export class RecommendationAIService {
     userId: string,
     viewedPostIds: string[],
     interests: string[],
-    limit: number = 20
+    limit: number = 20,
   ): Promise<RecommendedItem[]> {
     const result = await this.getRecommendations({
       userId,
@@ -87,7 +78,7 @@ export class RecommendationAIService {
     userId: string,
     currentVideoId: string,
     watchHistory: string[],
-    limit: number = 10
+    limit: number = 10,
   ): Promise<RecommendedItem[]> {
     const result = await this.getRecommendations({
       userId,
@@ -110,7 +101,7 @@ export class RecommendationAIService {
     userId: string,
     listeningHistory: string[],
     mood?: string,
-    limit: number = 20
+    limit: number = 20,
   ): Promise<RecommendedItem[]> {
     const result = await this.getRecommendations({
       userId,
@@ -132,7 +123,7 @@ export class RecommendationAIService {
     userId: string,
     preferences: string[],
     previousSwipes: { liked: string[]; disliked: string[] },
-    limit: number = 10
+    limit: number = 10,
   ): Promise<RecommendedItem[]> {
     const result = await this.getRecommendations({
       userId,
@@ -154,7 +145,7 @@ export class RecommendationAIService {
     userId: string,
     following: string[],
     interests: string[],
-    limit: number = 10
+    limit: number = 10,
   ): Promise<RecommendedItem[]> {
     const result = await this.getRecommendations({
       userId,
@@ -190,7 +181,7 @@ export class RecommendationAIService {
     }
 
     for (let i = 0; i < dimensions; i++) {
-      seed = ((seed * 1103515245 + 12345) & 0x7fffffff);
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
       embedding.push((seed / 0x7fffffff) * 2 - 1);
     }
 
@@ -207,7 +198,7 @@ export class RecommendationAIService {
    */
   private async scoreCandidates(
     request: RecommendationRequest,
-    userProfile: number[]
+    _userProfile: number[],
   ): Promise<RecommendedItem[]> {
     // Generate candidate items with scores
     const candidates: RecommendedItem[] = [];
@@ -265,17 +256,37 @@ export class RecommendationAIService {
   /**
    * Generate a human-readable recommendation reason
    */
-  private generateReason(type: string, preferences: string[]): string {
+  private generateReason(type: string, _preferences: string[]): string {
     const reasons: Record<string, string[]> = {
-      content: ['Based on your interests', 'Popular in your network', 'Trending now', 'Similar to posts you liked'],
-      videos: ['Because you watched similar', 'Popular in this category', 'Trending today', 'From creators you follow'],
-      music: ['Based on listening history', 'Similar artists you enjoy', 'Matches your mood', 'Popular in your genre'],
-      users: ['Common interests', 'Mutual connections', 'Active in your communities', 'Similar profile'],
+      content: [
+        'Based on your interests',
+        'Popular in your network',
+        'Trending now',
+        'Similar to posts you liked',
+      ],
+      videos: [
+        'Because you watched similar',
+        'Popular in this category',
+        'Trending today',
+        'From creators you follow',
+      ],
+      music: [
+        'Based on listening history',
+        'Similar artists you enjoy',
+        'Matches your mood',
+        'Popular in your genre',
+      ],
+      users: [
+        'Common interests',
+        'Mutual connections',
+        'Active in your communities',
+        'Similar profile',
+      ],
       products: ['Based on browsing history', 'Frequently bought together', 'Trending in category'],
     };
 
-    const typeReasons = reasons[type] || reasons['content'];
-    return typeReasons[Math.floor(Math.random() * typeReasons.length)];
+    const typeReasons = reasons[type] ?? reasons['content'] ?? [];
+    return typeReasons[Math.floor(Math.random() * typeReasons.length)] ?? 'Recommended for you';
   }
 
   /**

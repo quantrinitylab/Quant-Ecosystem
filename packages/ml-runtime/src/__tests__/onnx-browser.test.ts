@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { OnnxBrowserRuntime } from '../onnx-browser';
-import type { BrowserCapabilities } from '../onnx-browser';
-import type { OnnxBackend, OnnxSession, OnnxTensor } from '../onnx-server';
+import type { OnnxBackend, OnnxSession } from '../onnx-server';
 
 function createMockSession(overrides?: Partial<OnnxSession>): OnnxSession {
   return {

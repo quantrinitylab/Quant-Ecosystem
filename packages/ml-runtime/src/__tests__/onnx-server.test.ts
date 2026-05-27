@@ -4,7 +4,7 @@ import type { OnnxBackend, OnnxSession, OnnxTensor } from '../onnx-server';
 
 function createMockSession(overrides?: Partial<OnnxSession>): OnnxSession {
   return {
-    run: vi.fn(async (feeds: Record<string, OnnxTensor>) => {
+    run: vi.fn(async (_feeds: Record<string, OnnxTensor>) => {
       const output: Record<string, OnnxTensor> = {
         predictions: {
           data: new Float32Array([0.8, 0.2]),
@@ -88,8 +88,8 @@ describe('OnnxServerRuntime', () => {
       const result = await runtime.run(inputs);
 
       expect(result.outputs.predictions).toBeInstanceOf(Float32Array);
-      expect(result.outputs.predictions[0]).toBeCloseTo(0.8);
-      expect(result.outputs.predictions[1]).toBeCloseTo(0.2);
+      expect(result.outputs.predictions![0]).toBeCloseTo(0.8);
+      expect(result.outputs.predictions![1]).toBeCloseTo(0.2);
       expect(result.modelName).toBe('model.onnx');
       expect(result.latencyMs).toBeGreaterThanOrEqual(0);
     });

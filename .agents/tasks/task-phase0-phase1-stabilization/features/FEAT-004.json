@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "fix",
   "description": "Phase 1C: Fix TypeScript errors in the 6 packages with fewer than 25 errors each: @quant/ai (14 errors), @quant/ml-runtime (9 errors), @quant/notifications (6 errors), @quant/payments (9 errors), @quant/social-graph (24 errors), @quant/server-core (2 errors - TS6305 cascade, should be fixed by FEAT-002). These are mostly 'possibly undefined', unused variables/imports, and type narrowing issues.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Fix @quant/ai (14 errors): In src/core/context-manager.ts - add nullish checks for array indexing (noUncheckedIndexedAccess), remove unused 'assistantResponse' variable. In src/services/chat-ai.ts - remove unused 'response'. In src/services/device-control-ai.ts - add nullish checks, remove unused 'deviceType'. In src/services/recommendation-ai.ts - remove unused imports (AIInferenceRequest), remove unused variables (engine, itemEmbeddings, userProfile, preferences), add nullish checks for 'typeReasons'.",
     "Fix @quant/ml-runtime (9 errors): In src/onnx-browser.ts - fix 'BrowserExecutionProvider not assignable to ExecutionProvider' by using a type assertion or extending the type. In src/__tests__/*.test.ts - prefix unused variables with _, add nullish checks for test assertions.",

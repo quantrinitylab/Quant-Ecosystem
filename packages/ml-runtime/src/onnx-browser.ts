@@ -3,7 +3,13 @@
 // ============================================================================
 
 import { z } from 'zod';
-import type { OnnxBackend, OnnxSession, OnnxTensor, SessionOptions } from './onnx-server';
+import type {
+  OnnxBackend,
+  OnnxSession,
+  OnnxTensor,
+  SessionOptions,
+  ExecutionProvider,
+} from './onnx-server';
 
 export type BrowserExecutionProvider = 'webgpu' | 'wasm' | 'cpu' | 'webgl';
 
@@ -96,7 +102,7 @@ export class OnnxBrowserRuntime {
     this.activeProvider = this.selectProvider();
 
     const options: SessionOptions = {
-      executionProviders: [this.activeProvider],
+      executionProviders: [this.activeProvider as ExecutionProvider],
       graphOptimizationLevel: 'all',
     };
 
@@ -113,7 +119,7 @@ export class OnnxBrowserRuntime {
     this.activeProvider = this.selectProvider();
 
     const options: SessionOptions = {
-      executionProviders: [this.activeProvider],
+      executionProviders: [this.activeProvider as ExecutionProvider],
       graphOptimizationLevel: 'all',
     };
 
