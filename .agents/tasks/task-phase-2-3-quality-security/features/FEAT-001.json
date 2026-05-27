@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Phase 2: Make pnpm lint run real ESLint checks across all workspace packages. Currently, turbo lint runs 0 tasks because no package defines a lint script. Fix this by: (1) expanding root eslint.config.mjs to cover all packages/apps/services TypeScript sources, and (2) adding a lint script to every package.json that has a typecheck or build script. Also add pnpm validate and pnpm validate:fast scripts to the root package.json.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1: Update eslint.config.mjs to lint ALL workspace TypeScript files (packages/*/src/**/*.ts, apps/*/src/**/*.ts, apps/*/backend/**/*.ts, services/*/src/**/*.ts) with recommended rules. Keep the existing ignores for node_modules, dist, build, coverage, .turbo. Use reasonable rules: @typescript-eslint/no-unused-vars as warn, @typescript-eslint/no-explicit-any as warn. Do NOT add rules that would fail the existing codebase - the goal is meaningful linting that passes.",
+    "Step 2: Add a 'lint' script to every workspace package.json that currently has a 'typecheck' or 'build' script. The script should be: \"lint\": \"eslint src/ --max-warnings 0\" (or the appropriate source directory for that package, e.g., 'backend/' for apps with backend dirs). For packages that have both src/ and backend/ (like quantmeet, quantai), lint both. Add eslint as a devDependency where not already present.",
+    "Step 3: Run pnpm lint and fix any errors that appear. Since we're using warn-level rules, there should be no errors initially. If there are errors (e.g., from the recommended config), either fix them or adjust the eslint config rules so lint passes while still being meaningful.",
+    "Step 4: Add to root package.json scripts: \"validate\": \"pnpm install --frozen-lockfile && pnpm typecheck && pnpm test && pnpm build && pnpm lint && pnpm audit --audit-level=high\" and \"validate:fast\": \"turbo typecheck test lint --filter=...[HEAD~1]\"",
+    "Step 5: Verify pnpm lint now runs real tasks (not 0) and passes cleanly. Verify pnpm typecheck, pnpm build, pnpm test still pass."
+  ],
+  "acceptance_criteria": [
+    "pnpm lint runs lint tasks in multiple workspace packages (not 0 tasks)",
+    "pnpm lint passes (exit code 0) with real eslint checks",
+    "pnpm typecheck still passes",
+    "pnpm build still passes",
+    "pnpm test still passes",
+    "Root package.json has validate and validate:fast scripts"
+  ],
+  "verification": [
+    "pnpm lint 2>&1 | grep -E 'Tasks:' to confirm non-zero tasks",
+    "pnpm lint exits 0",
+    "pnpm typecheck exits 0",
+    "pnpm build exits 0",
+    "pnpm test exits 0"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

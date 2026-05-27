@@ -11,7 +11,8 @@
     "build:backend": "tsc --noEmit -p tsconfig.backend.json",
     "start": "next start",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.backend.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@quant/auth": "workspace:*",

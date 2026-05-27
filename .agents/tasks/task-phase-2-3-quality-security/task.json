@@ -1,0 +1,7 @@
+{
+  "task_id": "task-phase-2-3-quality-security",
+  "task_description": "Execute Phase 2 (Test, Lint, and Quality Gate Repair) and Phase 3 (Security Hardening) of the Quant Ecosystem autonomous plan. Make pnpm lint run real checks, fix all 15 high audit vulnerabilities, remove production fallback secrets, fix WebSocket auth, and update state files.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}

@@ -1,0 +1,39 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Phase 3: Fix all 15 high audit vulnerabilities and harden security. Upgrade next.js from 14.2.x to >=15.5.16, upgrade fastify in packages/ranking from ^4.28.0 to ^5.2.1 (to match the rest of the monorepo), upgrade nodemailer in services/smtp-inbound from ^6.9.0 to ^8.0.0, and replace @parse/node-apn in packages/notifications with a modern alternative (e.g., apns2 or @parse/node-apn@7+ if available without node-forge). Also remove the hardcoded production fallback secrets from packages/server/src/middleware/auth.ts, add production config validation to packages/server-core, fix QuantMeet WebSocket auth TODO, and update CI to fail on audit high (remove continue-on-error).",
+  "status": "pending",
+  "steps": [
+    "Step 1 - Upgrade Next.js: In apps/quantai/package.json, apps/quantchat/package.json, apps/quantmail/package.json, change \"next\": \"^14.2.0\" to \"next\": \"^15.5.16\". Also update react to ^19 and react-dom to ^19 (Next.js 15 requires React 19). Update @types/react to ^19 and @types/react-dom to ^19 if present. Run pnpm install to update the lockfile.",
+    "Step 2 - Upgrade Fastify in ranking: In packages/ranking/package.json, change devDependencies fastify from \"^4.28.0\" to \"^5.2.1\". Run pnpm install.",
+    "Step 3 - Upgrade nodemailer: In services/smtp-inbound/package.json, change \"nodemailer\": \"^6.9.0\" to \"nodemailer\": \"^8.0.0\". Update @types/nodemailer if needed (or remove if nodemailer@8 has built-in types). Run pnpm install.",
+    "Step 4 - Fix node-forge vulnerability: In packages/notifications/package.json, replace \"@parse/node-apn\": \"^6.0.0\" with a pnpm override or upgrade. Check if @parse/node-apn has a newer version without node-forge. If not, add a pnpm.overrides in root package.json to force node-forge to a safe version, or replace @parse/node-apn with an alternative APN library that does not depend on node-forge (like 'apns2' which uses HTTP/2 natively). If no clean fix exists, document the risk acceptance.",
+    "Step 5 - Remove production fallback secrets: In packages/server/src/middleware/auth.ts, remove the hardcoded fallback strings 'quant-ecosystem-secret-key-2024' and 'quant-ecosystem-refresh-secret-2024'. Instead, throw an error if JWT_SECRET or JWT_REFRESH_SECRET environment variables are not set in production. In development/test mode, allow a clearly-marked dev-only fallback that logs a warning.",
+    "Step 6 - Add production config validation to server-core: In packages/server-core/src/app.ts, add validation that requires jwtSecret to be at least 32 characters in production mode. If jwtSecret is empty or too short when env=production, throw a clear error message preventing startup.",
+    "Step 7 - Fix QuantMeet WebSocket auth: In apps/quantmeet/backend/routes/ws.ts, implement JWT authentication on the WebSocket connection. Extract token from query parameter (url?token=xxx) using the request object from the Fastify websocket handler. Use jose to verify the JWT. Close the socket with 4001 code if auth fails. Use the same jwtSecret/issuer/audience pattern as server-core.",
+    "Step 8 - Update CI: In .github/workflows/ci.yml, remove 'continue-on-error: true' from the pnpm audit step so CI fails on high vulnerabilities.",
+    "Step 9 - Run pnpm install to regenerate lockfile, then run pnpm audit --audit-level=high to verify 0 high vulnerabilities. Run pnpm typecheck, pnpm build, pnpm test, pnpm lint to ensure nothing broke."
+  ],
+  "acceptance_criteria": [
+    "pnpm audit --audit-level=high reports 0 high vulnerabilities (or remaining are documented with risk acceptance)",
+    "No hardcoded production fallback secrets remain in packages/server/src/middleware/auth.ts",
+    "Production startup fails if JWT secrets are missing or weak",
+    "QuantMeet WebSocket connections require valid JWT",
+    "CI audit step no longer has continue-on-error: true",
+    "pnpm typecheck still passes",
+    "pnpm build still passes",
+    "pnpm test still passes",
+    "pnpm lint still passes"
+  ],
+  "verification": [
+    "pnpm audit --audit-level=high exits 0 (or clearly documented remaining items)",
+    "grep for 'quant-ecosystem-secret-key-2024' in the codebase returns 0 results",
+    "grep for 'continue-on-error: true' in .github/workflows/ci.yml returns 0 results for the audit step",
+    "pnpm typecheck exits 0",
+    "pnpm build exits 0",
+    "pnpm test exits 0",
+    "pnpm lint exits 0"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -6,7 +6,8 @@
   "main": "backend/app.ts",
   "scripts": {
     "dev": "node --loader ts-node/esm backend/app.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@quant/auth": "workspace:*",

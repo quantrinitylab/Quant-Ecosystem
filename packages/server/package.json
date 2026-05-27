@@ -7,5 +7,8 @@
   "dependencies": {
     "@quant/auth": "workspace:*",
     "@quant/common": "workspace:*"
+  },
+  "scripts": {
+    "lint": "eslint ."
   }
 }
