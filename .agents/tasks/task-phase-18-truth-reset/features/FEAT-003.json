@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-003",
+  "type": "docs",
+  "description": "Mark all mock-data pages with FIXME comments, create the mock-debt tracking CSV, update README.md to reflect reality (13 apps not 9, remove claims about fake features), create ARCHITECTURE.md documenting the monolith-per-app architecture decision.",
+  "status": "pending",
+  "steps": [
+    "Add '// FIXME(phase-23): replace mock with real API' comment at the top of every page file that uses mock/hardcoded data. Files to mark: apps/quantai/src/app/page.tsx, apps/quantchat/src/app/chat/[id]/page.tsx, apps/quantchat/src/app/page.tsx, apps/quantmail/src/app/page.tsx, apps/quantedits/src/pages/assets.tsx, apps/quantedits/src/pages/editor.tsx, apps/quantedits/src/pages/index.tsx, apps/quantedits/src/pages/projects.tsx, apps/quantedits/src/pages/templates.tsx, apps/quantmax/src/pages/challenges.tsx, apps/quantmax/src/pages/create.tsx, apps/quantmax/src/pages/group-rooms.tsx, apps/quantmax/src/pages/index.tsx, apps/quantmax/src/pages/live.tsx, apps/quantmax/src/pages/matches.tsx, apps/quantmax/src/pages/matching.tsx, apps/quantmax/src/pages/nearby.tsx, apps/quantneon/src/pages/camera.tsx, apps/quantneon/src/pages/create.tsx, apps/quantneon/src/pages/explore.tsx, apps/quantneon/src/pages/index.tsx, apps/quantneon/src/pages/post/[id].tsx, apps/quantneon/src/pages/profile/[id].tsx, apps/quantneon/src/pages/reels.tsx, apps/quantneon/src/pages/stories.tsx, apps/quantube/src/pages/index.tsx, apps/quantube/src/pages/watch/[id].tsx",
+    "Create .agents/state/mock-debt.csv with columns: app, file_path, mock_type (hardcoded_array|generated_array|mock_function), target_phase (phase-23), description",
+    "Update README.md: Change '9-app interconnected platform' to '13-app interconnected platform'. Remove or qualify feature claims that reference fake implementations. Update architecture diagram to include all 13 apps (add quantcalendar, quantdocs, quantdrive, quantmeet). Update the 'Tech Stack' section to mention pnpm (not npm workspaces). Add honest status section noting which features are scaffolded vs implemented.",
+    "Create ARCHITECTURE.md at repo root documenting the architecture decision: MONOLITH-PER-APP. Each app contains its own backend in apps/X/backend/. The services/ directory contains shared infrastructure workers (moderation-worker, search-indexer, ci-runner, ws-gateway, smtp-inbound, cdc-relay, git-server) and will NOT contain per-app API services. The 10 stub services (ads-api, ai-api, chat-api, edits-api, identity, mail-api, max-api, neon-api, sync-api, tube-api) are to be deleted in a future PR once their logic is confirmed to live in apps/*/backend/. Document rationale: simpler deployment, co-located frontend+backend, shared packages for cross-cutting concerns.",
+    "Run pnpm typecheck, pnpm test, pnpm build, pnpm lint to confirm nothing broke"
+  ],
+  "acceptance_criteria": [
+    "Every mock-data page has the FIXME(phase-23) comment at the top",
+    ".agents/state/mock-debt.csv exists with all mock pages tracked",
+    "README.md accurately states 13 apps and does not overclaim features",
+    "ARCHITECTURE.md exists at repo root with the monolith-per-app decision documented",
+    "pnpm typecheck, pnpm test, pnpm build, pnpm lint all pass"
+  ],
+  "verification": [
+    "grep -r 'FIXME(phase-23)' apps/ --include='*.tsx' | wc -l",
+    "test -f .agents/state/mock-debt.csv && wc -l .agents/state/mock-debt.csv",
+    "test -f ARCHITECTURE.md && echo 'PASS'",
+    "grep '13-app' README.md",
+    "pnpm typecheck",
+    "pnpm test",
+    "pnpm build",
+    "pnpm lint"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

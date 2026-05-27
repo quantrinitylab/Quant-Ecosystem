@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Produce the Phase 18 Truth Audit document at .agents/state/phase-18-truth-audit.md. This is a comprehensive audit of the entire codebase classifying every stub/fake file, cataloging empty packages, auditing frontend mock usage, checking dependency hygiene, and summarizing schema coverage. The audit document drives all subsequent Phase 18 work.",
+  "status": "in_progress",
+  "steps": [
+    "Create .agents/state/phase-18-truth-audit.md with Sections 1.1-1.5",
+    "Section 1.1 - Stub Inventory: Examine each file listed in the Phase 18 prompt and classify as REAL, NAIVE, FAKE, or STUB. Based on codebase exploration findings: (a) csam-matcher.ts = FAKE (NoOp, always returns not-matched), (b) perceptual-hash.ts = NAIVE (correct algorithm shape with DCT simulation, not production-grade), (c) text-classifier.ts = REAL (delegates to external ML API via interface), (d) image-classifier.ts = REAL (delegates to external ML API), (e) bot-detection.ts = NAIVE (heuristic scoring, correct shape, no ML), (f) sfu.service.ts = FAKE (random ICE candidates, in-memory, no real WebRTC), (g) recording.service.ts = NAIVE (correct shape, uses StorageClient, but in-memory state), (h) breakout.service.ts = NAIVE (in-memory rooms, correct logic), (i) All 12 agent pilots = NAIVE (rule-based logic, no LLM calls, correct agent framework), (j) sandbox.ts = NAIVE (simple sandbox mode toggle with log), (k) neural-cf.ts = NAIVE (real backprop implementation, pure JS, won't scale), (l) two-tower.ts = NAIVE (pure JS linear forward, random weights), (m) mmoe.ts = likely NAIVE, (n) ml-pipeline/src/core/*.ts = NAIVE (in-memory implementations), (o) ml-runtime/src/*.ts = NAIVE (interfaces defined, no real ONNX connection), (p) inverted-index.ts = NAIVE (full JS BM25 implementation, replaced in prod by Meilisearch), (q) federation/matrix/*.ts = NAIVE (bridge-bot/room-mapper with in-memory forwarding), (r) All 10 services/*/main.ts = STUB (health-only, no domain logic), (s) ci-runner/src/*.ts = NAIVE (real BullMQ worker with executor/parser), (t) moderation-worker/src/main.ts = NAIVE (real BullMQ consumer structure but placeholder API clients), (u) search-indexer/src/*.ts = NAIVE (real Kafka consumer structure but notes vector search non-functional), (v) apps/*/page.tsx: quantai, quantchat, quantmail have mock data; quantedits (5 pages), quantmax (8 pages), quantneon (8 pages), quantube (3 pages) use mocks",
+    "Section 1.2 - Empty Package Inventory: List 8 packages without package.json. Decision: DELETE admin, analytics, data-pipeline, developer-platform, ecosystem-bridge, gaming. DELETE i18n (recreate in Phase 26). KEEP performance (has real implementations, just needs package.json).",
+    "Section 1.3 - Frontend Reality Check: Audit each app counting total pages, mock-data pages, real-API pages, static pages",
+    "Section 1.4 - Dependency Hygiene: Run pnpm audit --audit-level=moderate and pnpm outdated, paste results",
+    "Section 1.5 - Schema-to-code Coverage: Analyze Prisma models, create .agents/state/schema-coverage.csv"
+  ],
+  "acceptance_criteria": [
+    ".agents/state/phase-18-truth-audit.md exists with all 5 sections populated",
+    ".agents/state/schema-coverage.csv exists with Prisma model coverage data",
+    "Every file from the Phase 18 audit list is classified with REAL/NAIVE/FAKE/STUB",
+    "Empty package decisions are documented"
+  ],
+  "verification": [
+    "test -f .agents/state/phase-18-truth-audit.md && echo 'PASS: audit exists'",
+    "test -f .agents/state/schema-coverage.csv && echo 'PASS: schema coverage exists'",
+    "grep -c 'REAL\\|NAIVE\\|FAKE\\|STUB' .agents/state/phase-18-truth-audit.md | grep -v '^0$'"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

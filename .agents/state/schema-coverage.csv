@@ -1,0 +1,16 @@
+schema_file,model,repository,consumed_by_app,consumed_by_service,has_tests,coverage_status
+users.ts,UserSchema,user.repository.ts,none,none,yes,PARTIAL - repo exists but no app/service consumer
+users.ts,UserPreferences,user.repository.ts,none,none,yes,PARTIAL
+emails.ts,EmailSchema,email.repository.ts,quantmail,none,yes,GOOD - full path from schema to app
+emails.ts,EmailAttachment,email.repository.ts,quantmail,none,yes,GOOD
+messages.ts,ConversationSchema,message.repository.ts,quantchat,none,yes,GOOD - full path from schema to app
+messages.ts,MessageSchema,message.repository.ts,quantchat,none,yes,GOOD
+posts.ts,PostSchema,post.repository.ts,quantsync,none,yes,GOOD - full path from schema to app
+posts.ts,LinkPreview,post.repository.ts,quantsync,none,yes,GOOD
+media.ts,VideoSchema,media.repository.ts,quantube,none,yes,GOOD - full path from schema to app
+ads.ts,CampaignSchema,none,quantads,none,no,PARTIAL - no dedicated repository
+ads.ts,TargetingConfig,none,quantads,none,no,PARTIAL
+ai-sessions.ts,AISessionSchema,ai-session.repository.ts,none,none,yes,PARTIAL - repo exists but quantai uses mocks
+ai-sessions.ts,AIMessageSchema,ai-session.repository.ts,none,none,yes,PARTIAL
+notifications.ts,NotificationSchema,notification.repository.ts,none,none,yes,PARTIAL - repo exists but no consumer
+profiles.ts,DatingProfileSchema,none,none,none,no,GAP - no repository and no consumer

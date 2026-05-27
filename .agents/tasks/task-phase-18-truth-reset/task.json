@@ -1,0 +1,7 @@
+{
+  "task_id": "task-phase-18-truth-reset",
+  "task_description": "Phase 18 - Truth Reset & Stub Elimination. Produce the truth audit, delete empty packages and fake stubs, reduce NoOp/placeholder count to <=5, mark mock pages with FIXME, update README, create ARCHITECTURE.md with monolith-per-app decision.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
