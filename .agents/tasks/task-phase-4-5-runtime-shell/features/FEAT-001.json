@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Phase 4 - Runtime Integration and Local Developer Experience: Add dev scripts, .env files, health endpoints for non-HTTP services, service discovery, seed data with demo users, and developer tooling scripts (doctor, env:check, db:reset, smoke)",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Add root dev scripts to package.json: 'dev:core' (runs core infra services - quantmail, quantchat, quantai backends), 'dev:apps' (runs all app frontends via turbo), 'dev:all' (runs everything). These use turbo filters. Also add 'dev:infra' script that prints docker compose instructions.",
     "2. Create root .env.local.example with all env vars needed across the ecosystem (DATABASE_URL, REDIS_URL, S3_*, SMTP_*, MEILISEARCH_*, NATS_URL, KAFKA_BROKERS, JWT_SECRET, OPENAI_API_KEY etc). Add .env.example to each app that lacks one (quantai, quantchat, quantcalendar, quantdocs, quantdrive, quantedits, quantmax, quantmeet, quantneon, quantsync, quantube).",
@@ -29,5 +29,5 @@
   ],
   "verification": ["pnpm typecheck", "pnpm build", "pnpm test", "pnpm lint"],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All quality gates pass: 71 typecheck, 50 build, 74 test, 60 lint. Stub services needed --passWithNoTests flag since they have no test files. The .gitignore needed .env.local.example exception added. Commitlint requires lowercase subject."
 }
