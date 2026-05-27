@@ -9,6 +9,6 @@
     "tests": "pass",
     "test_quality": "pass",
     "docker_build": "skipped",
-    "summary": "All 19 turbo tasks pass (typecheck, test, build, lint) across @quant/ai-memory (43 tests), @quant/identity-permissions (173 tests), @quant/quantai (149 tests). Total: 365 tests passing. Build outputs successfully for all packages including Next.js build for quantai."
+    "summary": "All 17 turbo tasks pass (typecheck, test, build, lint) across @quant/ai-memory (43 tests), @quant/identity-permissions (173 tests), @quant/quantai (155 tests). Total: 371 tests passing. Semantic review APPROVED on v3 pass."
   }
 }
