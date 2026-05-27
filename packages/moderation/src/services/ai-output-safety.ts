@@ -28,6 +28,10 @@ const DEFAULT_CONFIG: AIOutputSafetyConfig = {
  *
  * Checks AI-generated content for PII leakage, prohibited topics,
  * confidence thresholds, and ensures proper AI-generated labeling.
+ *
+ * **PII detection limitations:** Only SSN, credit card number, and email patterns
+ * are currently checked. Phone numbers, passport numbers, and other PII types
+ * are known gaps to be addressed in future iterations.
  */
 export class AIOutputSafetyService {
   private config: AIOutputSafetyConfig;

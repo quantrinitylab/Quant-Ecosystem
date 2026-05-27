@@ -66,7 +66,8 @@ export class AgentSpendingLimitService {
   }
 
   /**
-   * Check if an agent can spend a given amount
+   * Check if an agent can spend a given amount.
+   * @deprecated Prefer {@link attemptSpend} for concurrent environments, as it atomically checks and records in a single call.
    */
   checkSpend(
     agentId: string,
@@ -118,7 +119,8 @@ export class AgentSpendingLimitService {
   }
 
   /**
-   * Record a spend for an agent, updating counters
+   * Record a spend for an agent, updating counters.
+   * @deprecated Prefer {@link attemptSpend} for concurrent environments, as it atomically checks and records in a single call.
    */
   recordSpend(agentId: string, amount: number, description: string): void {
     RecordAgentSpendSchema.parse({ agentId, amount, description });
@@ -132,6 +134,66 @@ export class AgentSpendingLimitService {
     budget.hourlySpent += amount;
     budget.dailySpent += amount;
     budget.monthlySpent += amount;
+  }
+
+  /**
+   * Atomically check limits and record spend in a single call.
+   * Eliminates the TOCTOU gap between separate checkSpend/recordSpend calls.
+   * Recommended over checkSpend+recordSpend for concurrent environments.
+   */
+  attemptSpend(
+    agentId: string,
+    amount: number,
+    description: string,
+  ): { success: boolean; reason?: string; requiresApproval: boolean } {
+    RecordAgentSpendSchema.parse({ agentId, amount, description });
+
+    const budget = this.budgets.get(agentId);
+
+    if (!budget) {
+      return { success: false, reason: 'No budget configured for agent', requiresApproval: false };
+    }
+
+    if (amount > budget.perTransactionLimit) {
+      return {
+        success: false,
+        reason: `Amount ${amount} exceeds per-transaction limit of ${budget.perTransactionLimit}`,
+        requiresApproval: false,
+      };
+    }
+
+    if (budget.hourlySpent + amount > budget.hourlyLimit) {
+      return {
+        success: false,
+        reason: `Would exceed hourly limit of ${budget.hourlyLimit}`,
+        requiresApproval: false,
+      };
+    }
+
+    if (budget.dailySpent + amount > budget.dailyLimit) {
+      return {
+        success: false,
+        reason: `Would exceed daily limit of ${budget.dailyLimit}`,
+        requiresApproval: false,
+      };
+    }
+
+    if (budget.monthlySpent + amount > budget.monthlyLimit) {
+      return {
+        success: false,
+        reason: `Would exceed monthly limit of ${budget.monthlyLimit}`,
+        requiresApproval: false,
+      };
+    }
+
+    const requiresApproval = amount > budget.requiresApprovalAbove;
+
+    // Atomically record the spend
+    budget.hourlySpent += amount;
+    budget.dailySpent += amount;
+    budget.monthlySpent += amount;
+
+    return { success: true, requiresApproval };
   }
 
   /**

@@ -333,5 +333,38 @@ describe('AdBillingService', () => {
       const stats = service.getCampaignStats(campaign.id);
       expect(stats.status).toBe('exhausted');
     });
+
+    it('should not reactivate campaigns where remaining budget cannot serve one event at cheapest rate', () => {
+      // Campaign with cpm=10 -> cost per impression = $0.01, cpc=$0.5, cpa=$10
+      // Cheapest rate is $0.01 (cpm/1000)
+      // Set budget so that after spending, remaining < $0.01
+      const campaign = service.createCampaign({
+        advertiserId: 'adv_1',
+        name: 'Almost Empty',
+        budget: 0.015, // Total budget
+        dailyBudget: 0.01, // Daily budget triggers exhaustion first
+        cpm: 10, // $0.01 per impression
+        cpc: 0.5,
+        cpa: 10,
+      });
+
+      // First impression costs $0.01, succeeds (dailySpent=0.01, spent=0.01)
+      const r1 = service.recordImpression(campaign.id);
+      expect(r1).not.toBeNull();
+
+      // Second impression would exceed daily budget, exhausts
+      const r2 = service.recordImpression(campaign.id);
+      expect(r2).toBeNull();
+
+      const statsExhausted = service.getCampaignStats(campaign.id);
+      expect(statsExhausted.status).toBe('exhausted');
+      // Remaining: 0.015 - 0.01 = 0.005, cheapest rate = 0.01
+      // 0.005 < 0.01, so should NOT reactivate
+
+      service.resetDailySpend();
+
+      const statsAfterReset = service.getCampaignStats(campaign.id);
+      expect(statsAfterReset.status).toBe('exhausted');
+    });
   });
 });

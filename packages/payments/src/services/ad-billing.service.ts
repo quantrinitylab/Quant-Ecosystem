@@ -213,9 +213,25 @@ export class AdBillingService {
     for (const campaign of this.campaigns.values()) {
       campaign.dailySpent = 0;
       if (campaign.status === 'exhausted' && campaign.spent < campaign.budget) {
-        campaign.status = 'active';
+        // Check that remaining budget can serve at least one event at the cheapest rate
+        const remaining = campaign.budget - campaign.spent;
+        const cheapestRate = this.getCheapestRate(campaign);
+        if (cheapestRate > 0 && remaining >= cheapestRate) {
+          campaign.status = 'active';
+        }
+        // If cheapestRate is 0 (all rates are zero) or remaining < cheapestRate, stay exhausted
       }
     }
+  }
+
+  private getCheapestRate(campaign: AdCampaign): number {
+    const rates: number[] = [];
+    if (campaign.cpm > 0) rates.push(campaign.cpm / 1000);
+    if (campaign.cpc > 0) rates.push(campaign.cpc);
+    if (campaign.cpa > 0) rates.push(campaign.cpa);
+
+    if (rates.length === 0) return 0;
+    return Math.min(...rates);
   }
 
   private canSpend(campaign: AdCampaign, cost: number): boolean {

@@ -301,6 +301,150 @@ describe('AgentSpendingLimitService', () => {
     });
   });
 
+  describe('attemptSpend', () => {
+    it('should atomically check and record spend within limits', () => {
+      service.createBudget({
+        agentId: 'agent_1',
+        userId: 'user_1',
+        perTransactionLimit: 50,
+        hourlyLimit: 200,
+        dailyLimit: 500,
+        monthlyLimit: 5000,
+        requiresApprovalAbove: 25,
+      });
+
+      const result = service.attemptSpend('agent_1', 10, 'Purchase item');
+      expect(result.success).toBe(true);
+      expect(result.requiresApproval).toBe(false);
+
+      // Verify spend was recorded: 10 already spent + 45 = 55 is fine for hourly (200),
+      // but let's verify by attempting something that would exceed it
+      // Spend more to approach the hourly limit
+      service.attemptSpend('agent_1', 50, 'Big purchase');
+      service.attemptSpend('agent_1', 50, 'Another big purchase');
+      service.attemptSpend('agent_1', 50, 'Yet another');
+
+      // Now 10+50+50+50 = 160 spent hourly. 50 more would be 210 > 200
+      const check = service.checkSpend('agent_1', 50);
+      expect(check.allowed).toBe(false);
+      expect(check.reason).toContain('hourly limit');
+    });
+
+    it('should indicate approval required for amount above threshold', () => {
+      service.createBudget({
+        agentId: 'agent_1',
+        userId: 'user_1',
+        perTransactionLimit: 50,
+        hourlyLimit: 200,
+        dailyLimit: 500,
+        monthlyLimit: 5000,
+        requiresApprovalAbove: 25,
+      });
+
+      const result = service.attemptSpend('agent_1', 30, 'Expensive item');
+      expect(result.success).toBe(true);
+      expect(result.requiresApproval).toBe(true);
+    });
+
+    it('should deny and not record when per-transaction limit exceeded', () => {
+      service.createBudget({
+        agentId: 'agent_1',
+        userId: 'user_1',
+        perTransactionLimit: 50,
+        hourlyLimit: 200,
+        dailyLimit: 500,
+        monthlyLimit: 5000,
+        requiresApprovalAbove: 25,
+      });
+
+      const result = service.attemptSpend('agent_1', 60, 'Too expensive');
+      expect(result.success).toBe(false);
+      expect(result.reason).toContain('per-transaction limit');
+
+      // Verify nothing was recorded
+      const check = service.checkSpend('agent_1', 10);
+      expect(check.allowed).toBe(true);
+    });
+
+    it('should deny when hourly limit would be exceeded', () => {
+      service.createBudget({
+        agentId: 'agent_1',
+        userId: 'user_1',
+        perTransactionLimit: 50,
+        hourlyLimit: 100,
+        dailyLimit: 500,
+        monthlyLimit: 5000,
+        requiresApprovalAbove: 100,
+      });
+
+      service.attemptSpend('agent_1', 40, 'Spend 1');
+      service.attemptSpend('agent_1', 40, 'Spend 2');
+
+      const result = service.attemptSpend('agent_1', 30, 'Spend 3');
+      expect(result.success).toBe(false);
+      expect(result.reason).toContain('hourly limit');
+    });
+
+    it('should deny when daily limit would be exceeded', () => {
+      service.createBudget({
+        agentId: 'agent_1',
+        userId: 'user_1',
+        perTransactionLimit: 50,
+        hourlyLimit: 1000,
+        dailyLimit: 100,
+        monthlyLimit: 5000,
+        requiresApprovalAbove: 100,
+      });
+
+      service.attemptSpend('agent_1', 50, 'Spend 1');
+      service.attemptSpend('agent_1', 40, 'Spend 2');
+
+      const result = service.attemptSpend('agent_1', 20, 'Spend 3');
+      expect(result.success).toBe(false);
+      expect(result.reason).toContain('daily limit');
+    });
+
+    it('should deny when monthly limit would be exceeded', () => {
+      service.createBudget({
+        agentId: 'agent_1',
+        userId: 'user_1',
+        perTransactionLimit: 50,
+        hourlyLimit: 1000,
+        dailyLimit: 1000,
+        monthlyLimit: 100,
+        requiresApprovalAbove: 100,
+      });
+
+      service.attemptSpend('agent_1', 50, 'Spend 1');
+      service.attemptSpend('agent_1', 40, 'Spend 2');
+
+      const result = service.attemptSpend('agent_1', 20, 'Spend 3');
+      expect(result.success).toBe(false);
+      expect(result.reason).toContain('monthly limit');
+    });
+
+    it('should deny for unknown agent', () => {
+      const result = service.attemptSpend('unknown', 10, 'Test');
+      expect(result.success).toBe(false);
+      expect(result.reason).toContain('No budget configured');
+    });
+
+    it('should reject invalid params', () => {
+      service.createBudget({
+        agentId: 'agent_1',
+        userId: 'user_1',
+        perTransactionLimit: 50,
+        hourlyLimit: 200,
+        dailyLimit: 500,
+        monthlyLimit: 5000,
+        requiresApprovalAbove: 25,
+      });
+
+      expect(() => service.attemptSpend('agent_1', -5, 'Bad')).toThrow();
+      expect(() => service.attemptSpend('agent_1', 10, '')).toThrow();
+    });
+  });
+
   describe('counter resets', () => {
     it('should reset hourly counters', () => {
       service.createBudget({

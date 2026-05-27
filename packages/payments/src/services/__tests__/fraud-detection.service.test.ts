@@ -267,6 +267,48 @@ describe('FraudDetectionService', () => {
     });
   });
 
+  describe('auto-record on checkTransaction', () => {
+    it('should automatically record the transaction after checking', () => {
+      service.checkTransaction({
+        transactionId: 'txn_1',
+        userId: 'user_1',
+        amount: 50,
+        currency: 'USD',
+        deviceFingerprint: 'fp_auto',
+        country: 'US',
+      });
+
+      const profile = service.getUserRiskProfile('user_1');
+      expect(profile.totalTransactions).toBe(1);
+      expect(profile.averageAmount).toBe(50);
+      expect(profile.knownDevices).toBe(1);
+      expect(profile.knownCountries).toBe(1);
+    });
+  });
+
+  describe('history eviction', () => {
+    it('should evict oldest entries when maxHistoryPerUser is exceeded', () => {
+      const smallService = new FraudDetectionService({
+        velocityWindowMs: 60_000,
+        maxTransactionsInWindow: 5,
+        amountAnomalyMultiplier: 3,
+        riskThresholds: { flag: 50, block: 75 },
+        maxHistoryPerUser: 5,
+      });
+
+      // Record 7 transactions (exceeds limit of 5)
+      for (let i = 0; i < 7; i++) {
+        smallService.recordTransaction({ userId: 'user_1', amount: 10 + i });
+      }
+
+      const profile = smallService.getUserRiskProfile('user_1');
+      // Only the last 5 should remain
+      expect(profile.totalTransactions).toBe(5);
+      // Average of last 5: (12+13+14+15+16)/5 = 14
+      expect(profile.averageAmount).toBe(14);
+    });
+  });
+
   describe('getUserRiskProfile', () => {
     it('should return empty profile for unknown user', () => {
       const profile = service.getUserRiskProfile('unknown');

@@ -30,6 +30,8 @@ interface FraudDetectionConfig {
   maxTransactionsInWindow: number;
   amountAnomalyMultiplier: number;
   riskThresholds: { flag: number; block: number };
+  /** Maximum number of transaction history entries to retain per user. Oldest entries are evicted when exceeded. Default: 1000. */
+  maxHistoryPerUser?: number;
 }
 
 /**
@@ -41,13 +43,13 @@ interface FraudDetectionConfig {
  * and device fingerprint tracking.
  */
 export class FraudDetectionService {
-  private readonly config: FraudDetectionConfig;
-  private readonly transactionHistory: TransactionRecord[] = [];
+  private readonly config: FraudDetectionConfig & { maxHistoryPerUser: number };
+  private readonly transactionHistory: Map<string, TransactionRecord[]> = new Map();
   private readonly userDevices: Map<string, Set<string>> = new Map();
   private readonly userCountries: Map<string, Set<string>> = new Map();
 
   constructor(config: FraudDetectionConfig) {
-    this.config = config;
+    this.config = { ...config, maxHistoryPerUser: config.maxHistoryPerUser ?? 1000 };
   }
 
   /**
@@ -106,6 +108,15 @@ export class FraudDetectionService {
     const riskLevel = this.computeRiskLevel(riskScore);
     const action = this.computeAction(riskScore);
 
+    // Auto-record the transaction so the fraud model stays up to date
+    this.recordTransaction({
+      userId: validated.userId,
+      amount: validated.amount,
+      deviceFingerprint: validated.deviceFingerprint,
+      ipAddress: validated.ipAddress,
+      country: validated.country,
+    });
+
     return {
       transactionId: validated.transactionId,
       riskLevel,
@@ -135,7 +146,17 @@ export class FraudDetectionService {
       timestamp: Date.now(),
     };
 
-    this.transactionHistory.push(record);
+    // Per-user history with eviction
+    if (!this.transactionHistory.has(params.userId)) {
+      this.transactionHistory.set(params.userId, []);
+    }
+    const userHistory = this.transactionHistory.get(params.userId)!;
+    userHistory.push(record);
+
+    // Evict oldest entries when exceeding maxHistoryPerUser
+    if (userHistory.length > this.config.maxHistoryPerUser) {
+      userHistory.splice(0, userHistory.length - this.config.maxHistoryPerUser);
+    }
 
     // Track devices
     if (params.deviceFingerprint) {
@@ -164,7 +185,7 @@ export class FraudDetectionService {
     knownCountries: number;
     recentTransactions: number;
   } {
-    const userTransactions = this.transactionHistory.filter((t) => t.userId === userId);
+    const userTransactions = this.transactionHistory.get(userId) ?? [];
     const now = Date.now();
     const recentTransactions = userTransactions.filter(
       (t) => now - t.timestamp <= this.config.velocityWindowMs,
@@ -184,9 +205,8 @@ export class FraudDetectionService {
 
   private checkVelocity(userId: string, now: number): FraudSignal | null {
     const windowStart = now - this.config.velocityWindowMs;
-    const recentCount = this.transactionHistory.filter(
-      (t) => t.userId === userId && t.timestamp >= windowStart,
-    ).length;
+    const userHistory = this.transactionHistory.get(userId) ?? [];
+    const recentCount = userHistory.filter((t) => t.timestamp >= windowStart).length;
 
     if (recentCount >= this.config.maxTransactionsInWindow) {
       return {
@@ -201,7 +221,7 @@ export class FraudDetectionService {
   }
 
   private checkAmountAnomaly(userId: string, amount: number, now: number): FraudSignal | null {
-    const userTransactions = this.transactionHistory.filter((t) => t.userId === userId);
+    const userTransactions = this.transactionHistory.get(userId) ?? [];
 
     if (userTransactions.length < 3) {
       return null; // Not enough history to detect anomaly
