@@ -8,6 +8,7 @@ import type {
   TextModerationResponse,
   ModerationResult,
   CategoryScore,
+  ModerationScoreCard,
 } from '../types';
 import {
   determineAction,
@@ -25,6 +26,7 @@ import {
 export class TextClassifier {
   private readonly client: ModerationAPIClient;
   private readonly thresholds: ClassifierThresholds;
+  private lastResponse: TextModerationResponse | null = null;
 
   constructor(client: ModerationAPIClient, thresholds?: Partial<ClassifierThresholds>) {
     this.client = client;
@@ -34,6 +36,7 @@ export class TextClassifier {
   /** Classify text content using ML API */
   async classify(text: string, contentId?: string): Promise<ModerationResult> {
     const response = await this.client.moderateText(text);
+    this.lastResponse = response;
     const categories = this.mapResponseToCategories(response);
     const overallScore = Math.max(...categories.map((c) => c.score), 0);
     const action = determineAction(categories, this.thresholds);
@@ -50,6 +53,39 @@ export class TextClassifier {
       flags: categories.filter((c) => c.detected).map((c) => c.category),
       metadata: { textLength: text.length, classifier: 'ml-api' },
       createdAt: Date.now(),
+    };
+  }
+
+  /**
+   * Map the last API response to a full ModerationScoreCard with all 7 categories.
+   * Call after classify() to get the expanded score card.
+   * Falls back to derived scores when the API response is missing categories.
+   */
+  mapToScoreCard(response?: TextModerationResponse): ModerationScoreCard {
+    const r = response ?? this.lastResponse;
+    if (!r) {
+      return {
+        toxicity: 0,
+        hate: 0,
+        harassment: 0,
+        sexualMinor: 0,
+        violenceExplicit: 0,
+        selfHarm: 0,
+        spam: 0,
+      };
+    }
+
+    // Toxicity is derived as the max of hate + harassment scores
+    const toxicity = Math.max(r.hate.score, r.harassment.score, r.violence.score);
+
+    return {
+      toxicity,
+      hate: r.hate.score,
+      harassment: r.harassment.score,
+      sexualMinor: r.sexualMinors?.score ?? r.sexual.score * 0.5,
+      violenceExplicit: r.threatOfViolence?.score ?? r.violence.score,
+      selfHarm: r.selfHarm.score,
+      spam: r.spam?.score ?? 0,
     };
   }
 

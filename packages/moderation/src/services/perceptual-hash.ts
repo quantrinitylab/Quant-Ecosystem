@@ -8,6 +8,7 @@
  *
  * Provides:
  * - DCT-based perceptual hash (pHash) for images
+ * - Async sharp-based perceptual hash for production use
  * - SimHash for text content
  * - Hamming distance comparison for both
  * - Near-duplicate detection with configurable thresholds
@@ -19,6 +20,7 @@ export class PerceptualHasher {
   /**
    * Compute a 64-bit perceptual hash from an image buffer.
    * Simulates a DCT-based pHash algorithm by processing raw pixel data.
+   * This is the synchronous fallback; prefer computeImageHashAsync for production.
    */
   computeImageHash(buffer: Buffer): string {
     // Simulate reducing image to 8x8 grayscale then computing DCT
@@ -51,6 +53,68 @@ export class PerceptualHasher {
 
     // Convert binary string to hex
     return this.binaryToHex(hash);
+  }
+
+  /**
+   * Compute a 64-bit perceptual hash from an image buffer using sharp.
+   * Resizes image to 32x32 grayscale, computes DCT, derives hash from frequency domain.
+   * Falls back to the synchronous DCT method if sharp is unavailable.
+   */
+  async computeImageHashAsync(buffer: Buffer): Promise<string> {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const sharpModule = await import('sharp');
+      const sharpFn = (sharpModule.default ?? sharpModule) as (input: Buffer) => {
+        resize(
+          w: number,
+          h: number,
+        ): {
+          grayscale(): {
+            raw(): {
+              toBuffer(opts: { resolveWithObject: boolean }): Promise<{ data: Buffer }>;
+            };
+          };
+        };
+      };
+
+      const { data } = await sharpFn(buffer)
+        .resize(32, 32)
+        .grayscale()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+      // Compute DCT on the first 64 pixels (8x8 top-left block)
+      const pixels: number[] = [];
+      for (let i = 0; i < Math.min(data.length, 64); i++) {
+        pixels.push(data[i] ?? 0);
+      }
+
+      // Pad to 64 if needed
+      while (pixels.length < 64) {
+        pixels.push(0);
+      }
+
+      const dctValues = this.computeDCT(pixels, 8);
+
+      // Compute median of DCT values (excluding DC component)
+      const dctSubset = dctValues.slice(1);
+      const sorted = [...dctSubset].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+
+      // Generate hash: 1 if above median, 0 if below
+      let hash = '';
+      for (const val of dctSubset) {
+        hash += val > median ? '1' : '0';
+      }
+
+      // Pad or trim to 64 bits
+      hash = hash.substring(0, PerceptualHasher.HASH_SIZE).padEnd(PerceptualHasher.HASH_SIZE, '0');
+
+      return this.binaryToHex(hash);
+    } catch {
+      // Fall back to synchronous DCT-based method
+      return this.computeImageHash(buffer);
+    }
   }
 
   /**

@@ -280,6 +280,20 @@ export interface TextModerationResponse {
   selfHarm: TextModerationCategoryResult;
   sexual: TextModerationCategoryResult;
   violence: TextModerationCategoryResult;
+  sexualMinors?: TextModerationCategoryResult;
+  threatOfViolence?: TextModerationCategoryResult;
+  spam?: TextModerationCategoryResult;
+}
+
+/** Full moderation score card with all 7 required categories (Phase 20) */
+export interface ModerationScoreCard {
+  toxicity: number;
+  hate: number;
+  harassment: number;
+  sexualMinor: number;
+  violenceExplicit: number;
+  selfHarm: number;
+  spam: number;
 }
 
 /** API client interface for text moderation */

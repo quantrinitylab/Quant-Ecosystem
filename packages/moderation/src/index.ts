@@ -11,6 +11,9 @@ export {
   type ClassifierThresholds,
 } from './services/classifier-thresholds';
 export { PerceptualHasher } from './services/perceptual-hash';
+export { BloomFilter } from './services/bloom-filter';
+export { HashRegistry } from './services/hash-registry';
+export type { HashCheckResult, HashRegistryStats } from './services/hash-registry';
 export { CSAMGuard, CSAMGuardLegacy, CSAMMatchService } from './services/csam-matcher';
 export {
   PhotoDNAProvider,

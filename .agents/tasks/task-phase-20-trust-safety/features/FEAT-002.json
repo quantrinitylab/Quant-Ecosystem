@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Real perceptual hashing with sharp+imghash integration, cross-app bloom filter, and enhanced text classifier with toxic-bert scoring. Replace the naive DCT simulation in PerceptualHasher with real pHash via sharp (resize to 8x8 grayscale then DCT). Add a BloomFilter class for cross-app known-bad hash lookup. Enhance TextClassifier to output expanded category scores (toxicity, hate, harassment, sexual-minor, violence-explicit, self-harm, spam) matching the Phase 20 requirement.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "1. Add sharp and imghash as dependencies to packages/moderation/package.json (sharp for image processing, imghash for pHash computation)",
     "2. Rewrite packages/moderation/src/services/perceptual-hash.ts: (a) keep the existing PerceptualHasher class API (computeImageHash, compareImageHashes, isNearDuplicate, computeSimHash) but replace internals with real sharp-based implementation. computeImageHash uses sharp to resize to 32x32 grayscale, compute mean, generate binary hash. (b) Add async version computeImageHashAsync for the sharp pipeline. (c) Keep synchronous fallback using existing DCT for environments without sharp.",

@@ -33,7 +33,8 @@
       "@prisma/engines",
       "argon2",
       "esbuild",
-      "prisma"
+      "prisma",
+      "sharp"
     ]
   },
   "devDependencies": {
