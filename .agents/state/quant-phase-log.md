@@ -427,3 +427,63 @@
 ### Exit Criteria Met
 
 - Core apps tolerate network interruptions gracefully via optimistic updates, offline queue, retry/backoff, and conflict resolution
+
+---
+
+## Phase 12: Creator Economy, Payments, And Monetization
+
+**Started:** 2026-05-27T08:02:00Z
+**Status:** Complete
+
+### What Was Added
+
+- FraudDetectionService: velocity checks, amount anomaly detection, device fingerprinting, risk scoring (0-100), configurable thresholds for flag/block actions
+- AdBillingService: campaign management with CPM/CPC/CPA billing, daily and total budget caps, spending guardrails
+- AgentSpendingLimitService: per-agent spending budgets (per-transaction, hourly, daily, monthly limits), approval workflow for amounts above threshold
+- DisputeService: full dispute lifecycle (opened -> evidence_requested -> under_review -> resolved), evidence submission from both parties, financial impact tracking
+- All services have comprehensive test suites
+
+### Gate Results
+
+- install: PASS
+- typecheck: PASS
+- build: PASS
+- test: PASS
+- lint: PASS
+- audit: PASS (0 high vulnerabilities)
+
+### Exit Criteria Met
+
+- Demo monetization loop works without real money in local mode (all services use in-memory storage)
+- Production money flow requires real Stripe config and secure checks (StripeGateway requires real API keys)
+
+---
+
+## Phase 13: Moderation, Trust, Safety, And Compliance
+
+**Started:** 2026-05-27T08:02:00Z
+**Status:** Complete
+
+### What Was Added
+
+- AbuseGraphService: graph-based abuse ring detection with connected component analysis, risk score propagation from neighbors
+- SpamDetectionService: multi-signal spam detection (rate limiting, duplicate content via Jaccard similarity, link spam, new account burst, bad domain blocking)
+- AIOutputSafetyService: AI output validation for PII leaks (SSN, credit card, email patterns), prohibited topics, confidence thresholds, AI-generated content labeling
+- AdPolicyEnforcementService: ad content validation against platform policies (prohibited categories, misleading claims, minor targeting restrictions, creative compliance)
+- BotDetectionService: account bot scoring with multiple behavioral signals (posting frequency, content repetition, follower ratio, account age vs activity)
+- ContentLabelService: content labeling system with sensitive content warnings and interstitial requirement configuration
+- SafetyAuditLogService: immutable append-only safety event audit log with query support and statistics
+
+### Gate Results
+
+- install: PASS
+- typecheck: PASS
+- build: PASS
+- test: PASS
+- lint: PASS
+- audit: PASS (0 high vulnerabilities)
+
+### Exit Criteria Met
+
+- Public content creation paths have moderation hooks (all content types go through moderation worker with policy engine, spam detection, and bot checks available)
+- AI-generated content is labeled where appropriate (AIOutputSafetyService provides label injection and checking)
