@@ -1,0 +1,23 @@
+{
+  "id": "FEAT-006",
+  "type": "fix",
+  "description": "Phase 1E: Fix TypeScript errors in the 2 largest packages: @quant/ml-pipeline (265 errors) and @quant/recommendations (245 errors). These are the most error-heavy packages with the same patterns but at scale. Many errors are in test files.",
+  "status": "pending",
+  "steps": [
+    "Fix @quant/ml-pipeline (265 errors): Run typecheck and categorize errors by file. Main source files with errors: src/core/anomaly-detector.ts, src/core/automl-pipeline.ts, and likely many others. Strategy: (1) For production code: add nullish coalescing (?? defaultValue), optional chaining (?.), and type guards before array/map access. (2) For test files: use non-null assertion (!) where test setup guarantees values exist. (3) Remove unused imports/variables by prefixing with _ or removing entirely.",
+    "Fix @quant/recommendations (245 errors): Same strategy as ml-pipeline. Run typecheck to identify all affected files, then systematically fix each file's errors.",
+    "For both packages: if error count is overwhelming, consider adding a separate tsconfig.test.json that excludes test files from the main typecheck, and a separate test-typecheck script. This keeps production code strict while allowing tests to be fixed in a follow-up. However, prefer fixing all errors if feasible.",
+    "Verify: run typecheck for both packages and confirm zero errors."
+  ],
+  "acceptance_criteria": [
+    "'pnpm --filter @quant/ml-pipeline run typecheck' passes",
+    "'pnpm --filter @quant/recommendations run typecheck' passes",
+    "No weakening of TypeScript strictness settings",
+    "No mass 'as any' - use proper type narrowing patterns"
+  ],
+  "verification": [
+    "Run 'pnpm --filter @quant/ml-pipeline --filter @quant/recommendations run typecheck' and confirm both pass"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

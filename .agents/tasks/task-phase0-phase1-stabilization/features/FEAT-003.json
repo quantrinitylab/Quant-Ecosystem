@@ -1,0 +1,19 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Phase 1B: Fix TypeScript errors in packages/database. After Prisma generate, only test file errors remain (unused parameters in test callbacks and a ConstructorParameters type issue). Fix these without weakening strictness.",
+  "status": "pending",
+  "steps": [
+    "In packages/database/src/__tests__/repositories.test.ts: prefix unused parameters with underscore (e.g., 'opts' -> '_opts', 'tx' -> '_tx') to satisfy noUnusedLocals/noUnusedParameters.",
+    "In packages/database/src/__tests__/repositories.test.ts line 83: fix the 'typeof PrismaClient does not satisfy (...args: any) => any' error. This is likely a ConstructorParameters<typeof PrismaClient> usage that needs to use InstanceType or a different approach. Inspect the code and fix the type constraint.",
+    "Verify: run 'pnpm --filter @quant/database run typecheck' and confirm zero errors."
+  ],
+  "acceptance_criteria": [
+    "'pnpm --filter @quant/database run typecheck' passes with zero errors",
+    "No 'as any' casts added",
+    "Test functionality preserved"
+  ],
+  "verification": ["Run 'pnpm --filter @quant/database run typecheck' and confirm exit code 0"],
+  "blocked_reason": null,
+  "findings": ""
+}

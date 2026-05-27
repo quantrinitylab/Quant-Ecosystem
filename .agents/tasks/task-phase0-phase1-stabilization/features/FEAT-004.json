@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-004",
+  "type": "fix",
+  "description": "Phase 1C: Fix TypeScript errors in the 6 packages with fewer than 25 errors each: @quant/ai (14 errors), @quant/ml-runtime (9 errors), @quant/notifications (6 errors), @quant/payments (9 errors), @quant/social-graph (24 errors), @quant/server-core (2 errors - TS6305 cascade, should be fixed by FEAT-002). These are mostly 'possibly undefined', unused variables/imports, and type narrowing issues.",
+  "status": "pending",
+  "steps": [
+    "Fix @quant/ai (14 errors): In src/core/context-manager.ts - add nullish checks for array indexing (noUncheckedIndexedAccess), remove unused 'assistantResponse' variable. In src/services/chat-ai.ts - remove unused 'response'. In src/services/device-control-ai.ts - add nullish checks, remove unused 'deviceType'. In src/services/recommendation-ai.ts - remove unused imports (AIInferenceRequest), remove unused variables (engine, itemEmbeddings, userProfile, preferences), add nullish checks for 'typeReasons'.",
+    "Fix @quant/ml-runtime (9 errors): In src/onnx-browser.ts - fix 'BrowserExecutionProvider not assignable to ExecutionProvider' by using a type assertion or extending the type. In src/__tests__/*.test.ts - prefix unused variables with _, add nullish checks for test assertions.",
+    "Fix @quant/notifications (6 errors): In src/services/email-digest-service.ts - remove unused 'now' and 'timezone' variables. In src/services/in-app-service.ts - add nullish check for 'latestNotif'. In src/services/preference-service.ts - remove unused type imports. In src/services/scheduler-service.ts - add nullish check.",
+    "Fix @quant/payments (9 errors): Run 'pnpm --filter @quant/payments run typecheck 2>&1 | grep error' to identify specific errors, then fix with nullish checks, unused variable removal, and proper type narrowing.",
+    "Fix @quant/social-graph (24 errors): In src/core/community-detector.ts - remove unused 'label', 'sourceId', 'targetId' variables, add nullish coalescing for possibly-undefined string assignments. In src/core/follower-manager.ts - remove unused 'GraphNode' import, fix 'string | null | undefined' -> 'string | null' with nullish coalescing. In src/core/influence-scorer.ts - add extensive nullish checks for array indexing and Map.get() results. In src/core/path-finder.ts - remove unused 'TraversalOptions' import and unused 'source'/'target' variables.",
+    "Verify @quant/server-core passes after FEAT-002 (should have zero own errors once auth dist exists)."
+  ],
+  "acceptance_criteria": [
+    "'pnpm --filter @quant/ai run typecheck' passes",
+    "'pnpm --filter @quant/ml-runtime run typecheck' passes",
+    "'pnpm --filter @quant/notifications run typecheck' passes",
+    "'pnpm --filter @quant/payments run typecheck' passes",
+    "'pnpm --filter @quant/social-graph run typecheck' passes",
+    "'pnpm --filter @quant/server-core run typecheck' passes",
+    "No 'as any' casts added - use proper type guards and nullish checks"
+  ],
+  "verification": [
+    "Run 'pnpm --filter @quant/ai --filter @quant/ml-runtime --filter @quant/notifications --filter @quant/payments --filter @quant/social-graph --filter @quant/server-core run typecheck' and confirm all pass"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

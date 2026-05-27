@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-007",
+  "type": "fix",
+  "description": "Phase 1F: Fix build failures. After typecheck passes, ensure 'pnpm build' passes for all packages that have a build script. Currently build fails on @quant/social-graph and @quant/search (which cascade to downstream packages). These build scripts use 'tsc' (not --noEmit) so they produce dist/ output. The same TS errors from typecheck apply plus test files get compiled.",
+  "status": "pending",
+  "steps": [
+    "After FEAT-002 through FEAT-006 are complete, run 'pnpm build' to see remaining failures.",
+    "For packages that build with 'tsc' but include test files in compilation: either exclude test files from the build tsconfig (add 'exclude': ['src/**/*.test.ts', 'src/__tests__/**'] to their tsconfig.json), or fix any remaining test file errors.",
+    "For @quant/database: verify its build script (prisma generate) still works. It should not need tsc since it just generates the Prisma client.",
+    "For the 8 packages with no scripts at all (admin, analytics, data-pipeline, developer-platform, ecosystem-bridge, gaming, i18n, performance): leave them as-is. They have no build/typecheck scripts so turbo skips them. They likely contain just source files without proper tsconfig.",
+    "Run 'pnpm build' and verify all packages with build scripts succeed.",
+    "Run 'pnpm typecheck' one final time to confirm full monorepo typecheck passes."
+  ],
+  "acceptance_criteria": [
+    "'pnpm build' passes with zero failures",
+    "'pnpm typecheck' passes with zero failures",
+    "No test files are included in production build output (dist/)"
+  ],
+  "verification": [
+    "Run 'pnpm build' and confirm exit code 0 with all tasks successful",
+    "Run 'pnpm typecheck' and confirm exit code 0 with all tasks successful",
+    "Run 'pnpm install --frozen-lockfile' to confirm no lockfile changes"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Phase 0: Create state files documenting the real current state of the repo, fix scripts/test.js ESM issue, and establish the baseline truth reset. Create .agents/state/ directory with quant-autonomous-status.json, quant-risk-register.md, quant-architecture-map.md, quant-launch-gates.md, and quant-phase-log.md documenting actual gate results.",
+  "status": "in_progress",
+  "steps": [
+    "Create .agents/state/ directory",
+    "Create .agents/state/quant-autonomous-status.json with real gate results: install=pass, typecheck=fail, test=fail, build=fail, audit_high=fail (15 high vulns), lint=fail (zero tasks run). Document current_phase as 'phase-0'.",
+    "Create .agents/state/quant-architecture-map.md listing all 13 apps, 17 services, 37 packages with their actual scripts (build, typecheck, test). Document the dependency chain: common -> auth -> server-core, common -> database, etc. Note which packages have NO scripts at all (admin, analytics, data-pipeline, developer-platform, ecosystem-bridge, gaming, i18n, performance).",
+    "Create .agents/state/quant-risk-register.md documenting: (1) Prisma client must be generated before database typecheck, (2) composite project references require built dist/ from referenced packages for typecheck, (3) 15 high security vulnerabilities in next.js, (4) scripts/test.js uses CommonJS require in ESM package, (5) pnpm lint runs zero tasks, (6) ~896 TypeScript errors across 14 packages after building common.",
+    "Create .agents/state/quant-launch-gates.md with the gate definitions and current status.",
+    "Create .agents/state/quant-phase-log.md with initial Phase 0 entry documenting all command outputs.",
+    "Fix scripts/test.js: rename to scripts/test.cjs OR convert to ESM (use import instead of require). The file uses fs and path with CommonJS require() but the root package.json has type:module."
+  ],
+  "acceptance_criteria": [
+    "All .agents/state/ files exist with accurate content reflecting actual test results",
+    "scripts/test.js (or .cjs) runs without the 'require is not defined in ES module scope' error",
+    "No false 'production ready' or 'complete' claims in state files"
+  ],
+  "verification": [
+    "node scripts/test.cjs (or node scripts/test.js if converted to ESM) runs without error",
+    "ls .agents/state/ shows all 5 state files"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

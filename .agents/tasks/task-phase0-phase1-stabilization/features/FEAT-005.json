@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-005",
+  "type": "fix",
+  "description": "Phase 1D: Fix TypeScript errors in the 4 packages with 25-77 errors: @quant/testing (51 errors), @quant/observability (62 errors), @quant/search (77 errors), @quant/media (48 errors), @quant/security (49 errors). These have the same pattern: noUncheckedIndexedAccess causing 'possibly undefined', unused variables/imports, and occasional type mismatches.",
+  "status": "pending",
+  "steps": [
+    "Fix @quant/testing (51 errors): Run typecheck to get error list. Main files: src/core/api-mocker.ts, src/core/coverage-reporter.ts, src/core/database-seeder.ts, src/core/e2e-runner.ts, src/core/fixture-manager.ts, src/core/load-tester.ts. Patterns: add nullish checks for array/map access, remove unused variables, fix type narrowing for undefined values. Use non-null assertion only where the logic guarantees non-null (e.g., after length check).",
+    "Fix @quant/observability (62 errors): Run typecheck to get error list. Main files: src/core/bulkhead.ts, src/core/canary-analyzer.ts, src/core/chaos-engineering.ts, src/core/distributed-tracer.ts, and likely others. Same patterns as above. For the canary-analyzer, many errors are around array indexing and optional chaining.",
+    "Fix @quant/search (77 errors): Run typecheck to get error list. Main files: src/services/reranker.ts, src/services/vector-client.ts, and test files. Many errors are in test files accessing array results without null checks. Add non-null assertions in test files where the test setup guarantees values exist, add proper guards in production code.",
+    "Fix @quant/media (48 errors): Run typecheck to get error list. Fix similar patterns.",
+    "Fix @quant/security (49 errors): Run typecheck to get error list. Fix similar patterns."
+  ],
+  "acceptance_criteria": [
+    "'pnpm --filter @quant/testing run typecheck' passes",
+    "'pnpm --filter @quant/observability run typecheck' passes",
+    "'pnpm --filter @quant/search run typecheck' passes",
+    "'pnpm --filter @quant/media run typecheck' passes",
+    "'pnpm --filter @quant/security run typecheck' passes",
+    "No 'as any' casts - use explicit guards, non-null assertions only where logic guarantees non-null, and proper type narrowing"
+  ],
+  "verification": [
+    "Run 'pnpm --filter @quant/testing --filter @quant/observability --filter @quant/search --filter @quant/media --filter @quant/security run typecheck' and confirm all pass"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

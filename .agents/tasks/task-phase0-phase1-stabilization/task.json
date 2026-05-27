@@ -1,0 +1,15 @@
+{
+  "task_id": "task-phase0-phase1-stabilization",
+  "task_description": "Execute Phase 0 (truth reset and state documentation) and Phase 1 (build and type safety stabilization) from the KIRO_AUTONOMOUS_NEXT_PHASES_PROMPT.md. Goal: pnpm typecheck and pnpm build pass, state files accurately document reality.",
+  "status": "in_progress",
+  "feature_order": [
+    "FEAT-001",
+    "FEAT-002",
+    "FEAT-003",
+    "FEAT-004",
+    "FEAT-005",
+    "FEAT-006",
+    "FEAT-007"
+  ],
+  "blocked_reason": null
+}
