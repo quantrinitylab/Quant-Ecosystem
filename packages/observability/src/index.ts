@@ -25,6 +25,11 @@ export { RunbookGenerator } from './runbook-generator';
 export { SyntheticMonitor, HttpClientFn } from './synthetic-monitor';
 export { DashboardConfigGenerator } from './dashboard-config';
 export { PagerDutyIntegration } from './pagerduty-integration';
+export { BrowserRUM } from './browser-rum';
+export { PIIScrubber } from './pii-scrubber';
+export { AlertRuleGenerator } from './alert-rules';
+export { DisasterRecovery } from './disaster-recovery';
+export { GameDayRunner } from './game-day';
 
 export type {
   TraceContext,
@@ -115,4 +120,24 @@ export type {
   PagerDutyPayload,
   RunbookTemplate,
   ChaosTemplate,
+  WebVitalMetric,
+  UserJourneyStep,
+  UserJourneyRecord,
+  RUMError,
+  InteractionMeasurement,
+  RUMConfig,
+  PIIPattern,
+  RedactionStats,
+  AlertRule,
+  AlertRuleGroup,
+  SLOAlertConfig,
+  BackupSchedule,
+  BackupVerification,
+  DrillScenario,
+  DrillResult,
+  RTOEstimate,
+  GameDayPlan,
+  GameDayScenario,
+  GameDayResult,
+  Postmortem,
 } from './types';

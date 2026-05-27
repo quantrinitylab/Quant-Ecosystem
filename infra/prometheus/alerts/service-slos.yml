@@ -1,0 +1,265 @@
+groups:
+  - name: quant-service-slos
+    rules:
+      # Per-service availability SLO alerts
+      - alert: QuantMailAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantmail",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantmail"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantmail
+          slo_type: availability
+        annotations:
+          summary: "QuantMail availability SLO violation"
+          description: "QuantMail error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+      - alert: QuantChatAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantchat",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantchat"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantchat
+          slo_type: availability
+        annotations:
+          summary: "QuantChat availability SLO violation"
+          description: "QuantChat error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+      - alert: QuantAIAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantai",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantai"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantai
+          slo_type: availability
+        annotations:
+          summary: "QuantAI availability SLO violation"
+          description: "QuantAI error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+      - alert: QuantSyncAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantsync",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantsync"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantsync
+          slo_type: availability
+        annotations:
+          summary: "QuantSync availability SLO violation"
+          description: "QuantSync error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+      - alert: QuantDocsAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantdocs",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantdocs"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantdocs
+          slo_type: availability
+        annotations:
+          summary: "QuantDocs availability SLO violation"
+          description: "QuantDocs error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+      - alert: QuantDriveAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantdrive",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantdrive"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantdrive
+          slo_type: availability
+        annotations:
+          summary: "QuantDrive availability SLO violation"
+          description: "QuantDrive error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+      - alert: QuantubeAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantube",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantube"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantube
+          slo_type: availability
+        annotations:
+          summary: "Quantube availability SLO violation"
+          description: "Quantube error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+      - alert: QuantCalendarAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantcalendar",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantcalendar"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantcalendar
+          slo_type: availability
+        annotations:
+          summary: "QuantCalendar availability SLO violation"
+          description: "QuantCalendar error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+      - alert: QuantMeetAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantmeet",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantmeet"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantmeet
+          slo_type: availability
+        annotations:
+          summary: "QuantMeet availability SLO violation"
+          description: "QuantMeet error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+      - alert: QuantNeonAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantneon",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantneon"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantneon
+          slo_type: availability
+        annotations:
+          summary: "QuantNeon availability SLO violation"
+          description: "QuantNeon error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+      - alert: QuantMaxAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantmax",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantmax"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantmax
+          slo_type: availability
+        annotations:
+          summary: "QuantMax availability SLO violation"
+          description: "QuantMax error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+      - alert: QuantEditsAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantedits",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantedits"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantedits
+          slo_type: availability
+        annotations:
+          summary: "QuantEdits availability SLO violation"
+          description: "QuantEdits error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+      - alert: QuantAdsAvailabilitySLO
+        expr: |
+          (
+            sum(rate(http_requests_total{service="quantads",status_code=~"5.."}[1h]))
+            / sum(rate(http_requests_total{service="quantads"}[1h]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          service: quantads
+          slo_type: availability
+        annotations:
+          summary: "QuantAds availability SLO violation"
+          description: "QuantAds error rate exceeds 0.1% threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
+
+  - name: quant-service-latency-slos
+    rules:
+      - alert: QuantMailLatencySLO
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="quantmail"}[5m])) by (le)) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: quantmail
+          slo_type: latency
+        annotations:
+          summary: "QuantMail p95 latency SLO violation"
+          description: "QuantMail p95 latency exceeds 500ms threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-latency"
+
+      - alert: QuantChatLatencySLO
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="quantchat"}[5m])) by (le)) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          service: quantchat
+          slo_type: latency
+        annotations:
+          summary: "QuantChat p95 latency SLO violation"
+          description: "QuantChat p95 latency exceeds 200ms threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-latency"
+
+      - alert: QuantMeetLatencySLO
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="quantmeet"}[5m])) by (le)) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          service: quantmeet
+          slo_type: latency
+        annotations:
+          summary: "QuantMeet p95 latency SLO violation"
+          description: "QuantMeet p95 latency exceeds 200ms threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-latency"
+
+      - alert: QuantSyncLatencySLO
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="quantsync"}[5m])) by (le)) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+          service: quantsync
+          slo_type: latency
+        annotations:
+          summary: "QuantSync p95 latency SLO violation"
+          description: "QuantSync p95 latency exceeds 300ms threshold."
+          runbook_url: "https://docs.quant.internal/runbooks/high-latency"

@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Phase 33: Observability, SRE, Chaos - Add browser RUM, structured log PII scrubber, comprehensive Grafana dashboards (RED+USE), alert runbook templates, disaster recovery procedures, and game day scenarios to @quant/observability and infra/.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "1. Add packages/observability/src/browser-rum.ts: Implement BrowserRUM class with collectWebVitals(metrics), trackUserJourney(steps), reportError(error, context), measureInteraction(name, duration). Track CLS, FID, LCP, TTFB, INP with automatic reporting to OTel endpoint.",
     "2. Add packages/observability/src/pii-scrubber.ts: Implement PIIScrubber class that detects and redacts PII from log entries. Patterns: email, phone, SSN, credit card, IP addresses, JWT tokens. Methods: scrub(logEntry), addPattern(name, regex, replacement), getRedactionStats().",

@@ -681,3 +681,178 @@ export interface ChaosTemplate {
   defaultDuration: number;
   defaultBlastRadius: number;
 }
+
+// --- Browser RUM Types ---
+
+export interface WebVitalMetric {
+  name: 'CLS' | 'FID' | 'LCP' | 'TTFB' | 'INP';
+  value: number;
+  rating: 'good' | 'needs-improvement' | 'poor';
+  timestamp: number;
+}
+
+export interface UserJourneyStep {
+  name: string;
+  startTime: number;
+  endTime: number;
+  success: boolean;
+  metadata?: Record<string, string>;
+}
+
+export interface UserJourneyRecord {
+  id: string;
+  name: string;
+  steps: UserJourneyStep[];
+  totalDuration: number;
+  success: boolean;
+  timestamp: number;
+}
+
+export interface RUMError {
+  message: string;
+  stack?: string;
+  context: Record<string, unknown>;
+  timestamp: number;
+  url?: string;
+  userAgent?: string;
+}
+
+export interface InteractionMeasurement {
+  name: string;
+  duration: number;
+  timestamp: number;
+}
+
+export interface RUMConfig {
+  endpoint: string;
+  batchSize: number;
+  flushInterval: number;
+  sampleRate: number;
+}
+
+// --- PII Scrubber Types ---
+
+export interface PIIPattern {
+  name: string;
+  regex: RegExp;
+  replacement: string;
+}
+
+export interface RedactionStats {
+  [patternName: string]: number;
+}
+
+// --- Alert Rule Generator Types ---
+
+export interface AlertRule {
+  name: string;
+  expr: string;
+  forDuration: string;
+  severity: 'critical' | 'warning' | 'info';
+  description: string;
+  runbook_url: string;
+  labels: Record<string, string>;
+  annotations: Record<string, string>;
+}
+
+export interface AlertRuleGroup {
+  name: string;
+  rules: AlertRule[];
+}
+
+export interface SLOAlertConfig {
+  target: number;
+  metric: string;
+  window: string;
+  burnRateThresholds: Array<{
+    severity: 'critical' | 'warning' | 'info';
+    burnRate: number;
+    shortWindow: string;
+    longWindow: string;
+  }>;
+}
+
+// --- Disaster Recovery Types ---
+
+export interface BackupSchedule {
+  id: string;
+  service: string;
+  rpo: number;
+  frequency: string;
+  retentionDays: number;
+  type: 'full' | 'incremental' | 'differential';
+  createdAt: number;
+}
+
+export interface BackupVerification {
+  backupId: string;
+  verified: boolean;
+  integrityHash: string;
+  sizeBytes: number;
+  verifiedAt: number;
+  issues: string[];
+}
+
+export interface DrillScenario {
+  name: string;
+  type: 'failover' | 'restore' | 'switchover' | 'data-loss';
+  targetService: string;
+  description: string;
+}
+
+export interface DrillResult {
+  scenario: DrillScenario;
+  success: boolean;
+  actualRTO: number;
+  targetRTO: number;
+  steps: Array<{ name: string; duration: number; success: boolean }>;
+  issues: string[];
+  timestamp: number;
+}
+
+export interface RTOEstimate {
+  service: string;
+  estimatedRTO: number;
+  factors: Array<{ name: string; duration: number }>;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+// --- Game Day Types ---
+
+export interface GameDayPlan {
+  id: string;
+  name: string;
+  scenarios: GameDayScenario[];
+  team: string[];
+  scheduledAt: number;
+  status: 'planned' | 'in_progress' | 'completed';
+}
+
+export interface GameDayScenario {
+  name: string;
+  description: string;
+  targetService: string;
+  faultType: FaultType;
+  duration: number;
+  expectedImpact: string;
+}
+
+export interface GameDayResult {
+  scenarioName: string;
+  success: boolean;
+  startTime: number;
+  endTime: number;
+  observations: string[];
+  metrics: Record<string, number>;
+}
+
+export interface Postmortem {
+  title: string;
+  date: number;
+  duration: number;
+  impact: string;
+  timeline: Array<{ time: number; event: string }>;
+  rootCause: string;
+  actionItems: Array<{ description: string; owner: string; dueDate: number }>;
+  lessonsLearned: string[];
+}
