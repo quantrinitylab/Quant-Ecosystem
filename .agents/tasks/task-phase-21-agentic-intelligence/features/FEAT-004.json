@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Refactor remaining pilots (SocialPilot, ContentPilot, SchedulePilot, ShoppingPilot, TravelPilot, LearningPilot) to extend IntelligentAgent. Implement agent handoff capability where one agent can invoke another via tool registry.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Refactor packages/agent-runtime/src/agents/social-pilot.ts to extend IntelligentAgent. Register tools: 'social.compose_post', 'social.schedule_post', 'social.analyze_engagement'. Use AI for content generation instead of templates.",
     "Refactor packages/agent-runtime/src/agents/content-pilot.ts to extend IntelligentAgent. Register tools: 'content.draft', 'content.edit', 'content.seo_optimize'. Use AI for content creation.",
@@ -25,5 +25,5 @@
     "pnpm turbo test --filter=@quant/agent-runtime"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 369 tests pass (41 test files). Typecheck and lint clean. All 6 remaining pilots refactored to extend IntelligentAgent with AI-driven logic. Agent handoff meta-tool registered in base class, available to all agents. Pre-commit prettier reformatted files. Commit message kept under 100 chars."
 }
