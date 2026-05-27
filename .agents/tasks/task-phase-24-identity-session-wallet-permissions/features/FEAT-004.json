@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Cross-App SSO Integration + Sign-in-with-Quant SDK - Wire the unified identity into all 13 apps by creating a shared SSO middleware, updating common types with QuantMeet app, and providing the Sign-in-with-Quant SDK package for external developers.",
+  "status": "pending",
+  "steps": [
+    "1. Update packages/common/src/types.ts: Add 'quantmeet' to the QuantApp union type (currently missing). Add PermissionScope entries for payments: 'wallet:read', 'wallet:write', 'subscription:manage'. Add UserPreferences type with travelMode, vacationResponder, consentPreferences fields.",
+    "2. Create packages/auth/src/middleware/sso-middleware.ts: Implement SSOMiddleware class with: validateCrossAppToken(token, targetApp), refreshCrossAppSession(sessionId, targetApp), propagateLogout(userId) -> notifies all apps. This ensures one sign-in works across all 13 apps without re-auth.",
+    "3. Create packages/auth/src/services/sign-in-with-quant-sdk.ts: Implement SignInWithQuantSDK class that provides: generateAuthUrl(clientId, redirectUri, scopes), handleCallback(code, clientId, clientSecret), getUserProfile(accessToken), refreshToken(refreshToken, clientId). This is the developer-facing SDK for external sites to integrate 'Sign in with Quant'.",
+    "4. Update packages/auth/src/index.ts: Export SSOMiddleware and SignInWithQuantSDK.",
+    "5. Create packages/auth/src/__tests__/sso-middleware.test.ts: Test cross-app token validation, session propagation, logout propagation across apps.",
+    "6. Create packages/auth/src/__tests__/sign-in-with-quant-sdk.test.ts: Test auth URL generation, callback handling, profile retrieval, token refresh.",
+    "7. Verify: pnpm typecheck --filter=@quant/auth --filter=@quant/common && pnpm test --filter=@quant/auth"
+  ],
+  "acceptance_criteria": [
+    "SSO middleware validates tokens across all 13 apps without re-authentication",
+    "Sign-in-with-Quant SDK generates proper OAuth2 auth URLs with PKCE",
+    "Cross-app logout propagation works (propagateLogout notifies all sessions)",
+    "quantmeet is added to QuantApp type union in @quant/common",
+    "New permission scopes for wallet and subscription are available",
+    "All tests pass: pnpm test --filter=@quant/auth",
+    "Typecheck passes for both packages: pnpm typecheck --filter=@quant/auth --filter=@quant/common"
+  ],
+  "verification": [
+    "pnpm typecheck --filter=@quant/auth --filter=@quant/common",
+    "pnpm test --filter=@quant/auth"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

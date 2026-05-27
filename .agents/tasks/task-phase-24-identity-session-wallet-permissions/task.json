@@ -1,0 +1,7 @@
+{
+  "task_id": "task-phase-24-identity-session-wallet-permissions",
+  "task_description": "Phase 24: One Identity, One Session, One Wallet, One Permission Model. A user signs in once, every app trusts that session, every cross-app permission is explicit. Covers: unified ABAC+RBAC permission engine, WebAuthn/passkey, TOTP 2FA, phone auth, federated identity, multi-device sessions, unified wallet with Stripe/Razorpay/UPI, Quant Pro subscription with IAP, consent ledger, travel mode, account lifecycle (export/deletion), and Sign-in-with-Quant SDK.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
+  "blocked_reason": null
+}

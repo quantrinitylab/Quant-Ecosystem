@@ -20,7 +20,92 @@ export type ResourceType =
   | 'campaign'
   | 'task'
   | 'payment'
-  | 'code-artifact';
+  | 'code-artifact'
+  | 'user-profile'
+  | 'subscription'
+  | 'wallet'
+  | 'ad'
+  | 'calendar-event';
+
+// ============================================================================
+// Platform-wide ABAC + RBAC Types
+// ============================================================================
+
+/** Platform-level roles (distinct from workspace roles) */
+export type PlatformRole = 'USER' | 'ADMIN' | 'MODERATOR' | 'CREATOR' | 'ADVERTISER' | 'AGENT';
+
+/** Permission actions for the unified permission model */
+export type PermissionAction = 'read' | 'write' | 'delete' | 'share' | 'monetize' | 'agent-act';
+
+/** Attribute-Based Access Control context for permission evaluation */
+export interface ABACContext {
+  /** Current time as ISO string or timestamp */
+  time?: string | number;
+  /** User location (country code or region) */
+  location?: string;
+  /** Device type or identifier */
+  device?: string;
+  /** User trust score (0-100) */
+  trustScore?: number;
+  /** IP address of the request */
+  ipAddress?: string;
+}
+
+/** Permission policy rule combining RBAC and ABAC */
+export interface PermissionPolicy {
+  /** Roles this policy applies to */
+  roles: PlatformRole[];
+  /** Actions allowed by this policy */
+  actions: PermissionAction[];
+  /** Resource types this policy covers */
+  resourceTypes: ResourceType[];
+  /** Optional ABAC conditions that must be satisfied */
+  conditions?: ABACCondition[];
+}
+
+/** ABAC condition for fine-grained access control */
+export interface ABACCondition {
+  /** The attribute to evaluate */
+  attribute: keyof ABACContext;
+  /** Comparison operator */
+  operator: 'eq' | 'neq' | 'gt' | 'lt' | 'gte' | 'lte' | 'in' | 'notIn';
+  /** Value to compare against */
+  value: unknown;
+}
+
+/** Typed permission contract for a resource type */
+export interface ResourcePermissionContract {
+  /** The resource type this contract covers */
+  resourceType: ResourceType;
+  /** Mapping of actions to the roles allowed to perform them */
+  allowedActions: Record<PermissionAction, PlatformRole[]>;
+}
+
+/** User identity for permission checks */
+export interface PermissionSubject {
+  /** User identifier */
+  userId: string;
+  /** Platform roles assigned to the user */
+  roles: PlatformRole[];
+}
+
+/** Consent ledger entry for tracking consent grants and withdrawals */
+export interface ConsentLedgerEntry {
+  /** Unique identifier for this consent entry */
+  id: string;
+  /** User who granted or received the consent */
+  userId: string;
+  /** The scope/permission being consented to */
+  scope: string;
+  /** The application/agent that requested consent */
+  source: string;
+  /** Timestamp when consent was granted */
+  grantedAt: number;
+  /** Optional expiry timestamp */
+  expiry?: number;
+  /** Timestamp when consent was withdrawn (undefined if still active) */
+  withdrawnAt?: number;
+}
 
 /** Workspace role membership for a user */
 export interface RoleMembership {

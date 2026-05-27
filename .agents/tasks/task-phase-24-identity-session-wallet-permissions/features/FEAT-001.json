@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Unified Permission Model - Implement the complete ABAC+RBAC permission system in packages/identity-permissions/ with the can() function, expanded roles, typed resource contracts, scopes, and ABAC context rules. This replaces the existing workspace-only RBAC with a platform-wide permission model.",
+  "status": "in_progress",
+  "steps": [
+    "1. Update packages/identity-permissions/src/types.ts: Add new types - PlatformRole (USER, ADMIN, MODERATOR, CREATOR, ADVERTISER, AGENT), PermissionAction (read, write, delete, share, monetize, agent-act), ABACContext (time, location, device, trustScore, ipAddress), PermissionPolicy, ResourcePermissionContract, ConsentLedgerEntry (timestamp, source, scope, expiry, withdrawnAt).",
+    "2. Create packages/identity-permissions/src/core/permission-engine.ts: Implement the main can(user, action, resource, context) function. It should: (a) check role-based permissions from a policy matrix, (b) evaluate ABAC rules (time windows, device trust, location restrictions, trust score thresholds), (c) return boolean with <5ms p99 target (no async, pure computation). Include a PermissionEngine class that holds policies and exposes can().",
+    "3. Create packages/identity-permissions/src/core/resource-contracts.ts: Define typed permission contracts for every Prisma model domain - email, message, post, video, file, doc, meeting, campaign, payment, user-profile, subscription, wallet, ad, calendar-event, code-artifact. Each contract maps actions to required roles.",
+    "4. Update packages/identity-permissions/src/core/consent-manager.ts: Extend to support a full consent ledger - add ConsentLedgerEntry tracking with timestamp, source (which app requested), scope, expiry, and withdrawal. Add methods: grantConsent(), withdrawConsent() (immediate effect), getConsentHistory(), getActiveConsentsForUser(), isConsentValid(). Keep backward compat with existing methods.",
+    "5. Update packages/identity-permissions/src/index.ts: Export PermissionEngine, ResourceContracts, and extended ConsentManager. Keep all existing exports intact.",
+    "6. Create packages/identity-permissions/src/__tests__/permission-engine.test.ts: Test can() for all roles x actions, ABAC time rules, device trust rules, trust score thresholds. Verify <5ms execution with performance.now() assertions.",
+    "7. Create packages/identity-permissions/src/__tests__/resource-contracts.test.ts: Test that each resource type has a valid contract, and that role escalation is properly blocked.",
+    "8. Update packages/identity-permissions/src/__tests__/consent-manager.test.ts: Add tests for new ledger functionality - grant, withdraw with immediate effect, expiry, history retrieval.",
+    "9. Verify: pnpm typecheck --filter=@quant/identity-permissions && pnpm test --filter=@quant/identity-permissions"
+  ],
+  "acceptance_criteria": [
+    "can(user, action, resource, context) function exists and is exported from @quant/identity-permissions",
+    "All 6 roles (USER, ADMIN, MODERATOR, CREATOR, ADVERTISER, AGENT) are defined and have distinct permission sets",
+    "All 6 scopes (read, write, delete, share, monetize, agent-act) work correctly",
+    "ABAC rules (time, location, device, trustScore) correctly restrict or allow access",
+    "Permission check completes in <5ms (verified by test assertions using performance.now())",
+    "Consent ledger tracks grants with timestamp, source, scope, expiry",
+    "withdrawConsent() immediately invalidates the consent",
+    "All tests pass: pnpm test --filter=@quant/identity-permissions",
+    "Typecheck passes: pnpm typecheck --filter=@quant/identity-permissions"
+  ],
+  "verification": [
+    "pnpm typecheck --filter=@quant/identity-permissions",
+    "pnpm test --filter=@quant/identity-permissions"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

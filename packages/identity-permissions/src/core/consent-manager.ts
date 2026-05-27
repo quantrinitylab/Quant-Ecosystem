@@ -6,7 +6,7 @@
 // Database-backed storage and eviction policies will be added when persistence integration
 // is implemented.
 
-import type { ConsentPrompt, ConsentResponse, ResourceType } from '../types.js';
+import type { ConsentPrompt, ConsentResponse, ConsentLedgerEntry, ResourceType } from '../types.js';
 
 interface DataUsageEntry {
   agentId: string;
@@ -19,6 +19,7 @@ export class ConsentManager {
   private prompts: Map<string, ConsentPrompt> = new Map();
   private responses: Map<string, ConsentResponse> = new Map();
   private dataUsageLog: Map<string, DataUsageEntry[]> = new Map();
+  private consentLedger: Map<string, ConsentLedgerEntry[]> = new Map();
 
   requestConsent(
     userId: string,
@@ -119,5 +120,71 @@ export class ConsentManager {
       results.push({ promptId, prompt, usage });
     }
     return results;
+  }
+
+  // ==========================================================================
+  // Consent Ledger - Full consent lifecycle tracking
+  // ==========================================================================
+
+  /** Grant consent and record in the ledger */
+  grantConsent(userId: string, scope: string, source: string, expiry?: number): string {
+    const id = `ledger-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const entry: ConsentLedgerEntry = {
+      id,
+      userId,
+      scope,
+      source,
+      grantedAt: Date.now(),
+      expiry,
+      withdrawnAt: undefined,
+    };
+
+    const entries = this.consentLedger.get(userId) ?? [];
+    entries.push(entry);
+    this.consentLedger.set(userId, entries);
+    return id;
+  }
+
+  /** Withdraw consent immediately - marks as withdrawn */
+  withdrawConsent(consentId: string): boolean {
+    for (const entries of this.consentLedger.values()) {
+      const entry = entries.find((e) => e.id === consentId);
+      if (entry) {
+        if (entry.withdrawnAt !== undefined) return false;
+        entry.withdrawnAt = Date.now();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Get full consent history for a user */
+  getConsentHistory(userId: string): ConsentLedgerEntry[] {
+    return this.consentLedger.get(userId) ?? [];
+  }
+
+  /** Get all active (non-withdrawn, non-expired) consents for a user */
+  getActiveConsentsForUser(userId: string): ConsentLedgerEntry[] {
+    const entries = this.consentLedger.get(userId) ?? [];
+    const now = Date.now();
+    return entries.filter((entry) => {
+      if (entry.withdrawnAt !== undefined) return false;
+      if (entry.expiry !== undefined && entry.expiry <= now) return false;
+      return true;
+    });
+  }
+
+  /** Check if a specific consent entry is still valid (not withdrawn, not expired) */
+  isConsentValid(consentId: string): boolean {
+    const now = Date.now();
+    for (const entries of this.consentLedger.values()) {
+      const entry = entries.find((e) => e.id === consentId);
+      if (entry) {
+        if (entry.withdrawnAt !== undefined) return false;
+        if (entry.expiry !== undefined && entry.expiry <= now) return false;
+        return true;
+      }
+    }
+    return false;
   }
 }

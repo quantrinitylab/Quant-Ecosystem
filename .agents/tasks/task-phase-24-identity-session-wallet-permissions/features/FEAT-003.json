@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "One Wallet + One Subscription (Quant Pro) - Extend packages/payments/ with: unified wallet visible in AppShell user menu (add-money via Stripe/Razorpay/UPI, spend: tips/boosts/AI/courses, cashout via Stripe Connect + Razorpay Payouts), GST/VAT/sales-tax handling, and Quant Pro single subscription across all apps with Stripe Subscription + Apple/Google IAP server-side receipt validation.",
+  "status": "pending",
+  "steps": [
+    "1. Update packages/payments/src/types.ts: Add types - RazorpayPayment, UPIPayment, AddMoneySource ('stripe' | 'razorpay' | 'upi'), SpendCategory ('tip' | 'boost_ad' | 'ai_usage' | 'course_unlock' | 'premium_content'), QuantProPlan (free, pro_monthly, pro_yearly), IAPReceipt (platform: 'apple' | 'google', receiptData, transactionId, productId), IAPValidationResult, TaxBreakdown (subtotal, taxType, taxRate, taxAmount, total), IndianTaxInfo (gstin, state, hsnCode).",
+    "2. Create packages/payments/src/services/razorpay-gateway.service.ts: Implement RazorpayGateway with: createOrder(amount, currency), verifyPayment(orderId, paymentId, signature), createPayout(accountId, amount), getPaymentStatus(paymentId). Uses razorpay npm package types but works with in-memory simulation for testing.",
+    "3. Create packages/payments/src/services/upi-payment.service.ts: Implement UPIPaymentService with: generatePaymentLink(amount, upiId), verifyPayment(transactionRef), getPaymentStatus(ref). Simulated for testing.",
+    "4. Create packages/payments/src/services/unified-wallet.service.ts: Implement UnifiedWalletService extending WalletService with: addMoney(userId, amount, source: AddMoneySource, paymentRef), spend(userId, amount, category: SpendCategory, targetId), getWalletSummary(userId) returning balance + recent transactions + pending cashouts. This is the single wallet visible in AppShell.",
+    "5. Create packages/payments/src/services/quant-pro.service.ts: Implement QuantProService with: subscribe(userId, plan: QuantProPlan, paymentMethod), cancelSubscription(userId), getSubscriptionStatus(userId), isProFeatureEnabled(userId, feature), validateIAPReceipt(receipt: IAPReceipt) -> IAPValidationResult (server-side Apple/Google validation logic), syncIAPSubscription(userId, receipt). Register Quant Pro plans (free, pro_monthly at $9.99, pro_yearly at $99.99).",
+    "6. Update packages/payments/src/services/tax-service.ts: Extend with: calculateGST(amount, state, hsnCode), calculateVAT(amount, countryCode), calculateSalesTax(amount, state, zipCode), getFullTaxBreakdown(amount, userLocation, productType) -> TaxBreakdown. Add Indian GST slabs (0%, 5%, 12%, 18%, 28%), EU VAT rates by country, US state sales tax.",
+    "7. Update packages/payments/src/index.ts: Export all new services - RazorpayGateway, UPIPaymentService, UnifiedWalletService, QuantProService, and extended types.",
+    "8. Create packages/payments/src/services/__tests__/razorpay-gateway.service.test.ts: Test order creation, payment verification, payout creation.",
+    "9. Create packages/payments/src/services/__tests__/upi-payment.service.test.ts: Test payment link generation, verification.",
+    "10. Create packages/payments/src/services/__tests__/unified-wallet.service.test.ts: Test add money from different sources, spend across categories, wallet summary.",
+    "11. Create packages/payments/src/services/__tests__/quant-pro.service.test.ts: Test subscription lifecycle, IAP receipt validation (Apple + Google), feature gating based on plan.",
+    "12. Create packages/payments/src/services/__tests__/tax-service-extended.test.ts: Test GST calculation for different slabs, VAT for EU countries, US sales tax.",
+    "13. Verify: pnpm typecheck --filter=@quant/payments && pnpm test --filter=@quant/payments"
+  ],
+  "acceptance_criteria": [
+    "UnifiedWalletService provides add-money via Stripe, Razorpay, and UPI sources",
+    "Spend categories cover tip, boost_ad, ai_usage, course_unlock, premium_content",
+    "RazorpayGateway supports order creation and payout (India market)",
+    "UPIPaymentService generates payment links and verifies transactions",
+    "QuantProService manages a single subscription across all apps with free/pro_monthly/pro_yearly tiers",
+    "IAP receipt validation works for both Apple and Google platforms",
+    "TaxService handles GST (India), VAT (EU), and sales tax (US) calculations",
+    "Cashout works via both Stripe Connect and Razorpay Payouts",
+    "All tests pass: pnpm test --filter=@quant/payments",
+    "Typecheck passes: pnpm typecheck --filter=@quant/payments"
+  ],
+  "verification": ["pnpm typecheck --filter=@quant/payments", "pnpm test --filter=@quant/payments"],
+  "blocked_reason": null,
+  "findings": ""
+}

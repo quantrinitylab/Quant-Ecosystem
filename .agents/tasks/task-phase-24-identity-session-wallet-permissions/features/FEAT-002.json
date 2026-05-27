@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Complete Auth Enhancement - WebAuthn passkey enrollment/login E2E, TOTP 2FA with recovery codes + printable backup codes, phone auth hardening, federated identity (Sign in with Quant SDK for third-party developers with OAuth2 client registration), travel mode toggle, and all 13 apps registered in QuantMail OAuth provider.",
+  "status": "pending",
+  "steps": [
+    "1. Update packages/auth/src/types.ts: Add types - RecoveryCode (code, usedAt?), TwoFactorMethod ('totp' | 'webauthn' | 'phone' | 'backup_code'), FederatedClient (for third-party OAuth2 registration - clientId, clientSecret, name, logo, website, redirectUris, allowedScopes, createdBy, createdAt), TravelModeConfig (enabled, restrictedRegions[], allowedDeviceIds[]), AccountDeletionRequest (userId, requestedAt, scheduledPurgeAt, status).",
+    "2. Update packages/auth/src/crypto/totp.ts: Add method generatePrintableBackupCodes() that returns 10 formatted codes (XXX-XXX format), and verifyBackupCode(code, storedCodes) that marks used codes.",
+    "3. Update packages/auth/src/services/webauthn-service.ts: Add method listCredentials(userId) for managing enrolled passkeys, removeCredential(userId, credentialId), and renameCredential(userId, credentialId, name). Add a credentialStore Map to track credentials per user for E2E testing.",
+    "4. Update packages/auth/src/providers/quantmail-provider.ts: Add missing apps to the registered ecosystem clients - quantdocs, quantdrive, quantcalendar, quantmeet (currently only 8 are registered, need all 13 including quantmeet). Add registerThirdPartyClient() for federated identity, listThirdPartyClients(userId), revokeThirdPartyClient(clientId).",
+    "5. Create packages/auth/src/services/federated-identity-service.ts: Implement FederatedIdentityService with: registerClient(owner, config), generateClientCredentials(), validateClientRedirectUri(), getClientInfo(clientId), listUserClients(userId), revokeClient(clientId). This powers the 'Sign in with Quant' button for external sites.",
+    "6. Create packages/auth/src/services/travel-mode-service.ts: Implement TravelModeService with: enableTravelMode(userId, config), disableTravelMode(userId), getTravelModeStatus(userId), isAccessAllowed(userId, requestContext). Travel mode restricts access to only trusted devices and blocks sensitive operations from new locations.",
+    "7. Create packages/auth/src/services/account-lifecycle-service.ts: Implement AccountLifecycleService with: requestDeletion(userId) -> 14 day grace period, cancelDeletion(userId), getAccountDeletionStatus(userId), exportAccountData(userId) -> returns structured data for GDPR/DPDP ZIP, purgeAccount(userId) -> full removal across all stores, vacationResponder (get/set/clear propagated across apps).",
+    "8. Update packages/auth/src/services/session-service.ts: Add getDeviceList(userId) returning friendly device names, revokeByDeviceId(userId, deviceId), isDeviceTrusted(userId, deviceId), markDeviceTrusted(userId, deviceId).",
+    "9. Update packages/auth/src/index.ts: Export all new services - FederatedIdentityService, TravelModeService, AccountLifecycleService, and updated types.",
+    "10. Create packages/auth/src/__tests__/federated-identity.test.ts: Test client registration, credential generation, redirect URI validation, client revocation.",
+    "11. Create packages/auth/src/__tests__/travel-mode.test.ts: Test enable/disable, access restriction from untrusted device/location.",
+    "12. Create packages/auth/src/__tests__/account-lifecycle.test.ts: Test deletion request + grace period, cancellation, export data structure, purge, vacation responder.",
+    "13. Create packages/auth/src/__tests__/webauthn-e2e.test.ts: Test full passkey enrollment -> authentication flow (mock simplewebauthn responses), credential listing, removal.",
+    "14. Verify: pnpm typecheck --filter=@quant/auth && pnpm test --filter=@quant/auth"
+  ],
+  "acceptance_criteria": [
+    "All 13 apps (quantchat, quantmail, quantsync, quantads, quantube, quantneon, quantedits, quantmax, quantai, quantdocs, quantdrive, quantcalendar, quantmeet) are registered as OAuth clients in QuantMailProvider",
+    "Passkey enrollment + authentication E2E test passes with mocked WebAuthn responses",
+    "TOTP backup codes are generated in printable XXX-XXX format (10 codes)",
+    "FederatedIdentityService allows third-party client registration (Sign in with Quant SDK)",
+    "TravelModeService restricts access based on device trust and location",
+    "AccountLifecycleService supports 14-day grace deletion, export, and purge",
+    "Session service provides device list with friendly names and per-device revoke",
+    "All tests pass: pnpm test --filter=@quant/auth",
+    "Typecheck passes: pnpm typecheck --filter=@quant/auth"
+  ],
+  "verification": ["pnpm typecheck --filter=@quant/auth", "pnpm test --filter=@quant/auth"],
+  "blocked_reason": null,
+  "findings": ""
+}
