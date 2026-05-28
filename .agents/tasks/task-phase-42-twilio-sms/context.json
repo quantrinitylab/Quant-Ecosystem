@@ -1,0 +1,30 @@
+{
+  "project_type": "TypeScript monorepo - device-control package for Quant AI assistant",
+  "language": "TypeScript",
+  "build_system": "pnpm workspaces, tsc for compilation",
+  "test_framework": "vitest with vi mocks, tests in src/__tests__/",
+  "build_command": "pnpm --filter @quant/device-control run typecheck",
+  "test_command": "pnpm --filter @quant/device-control run test",
+  "verification_instructions": "Run typecheck and vitest for the device-control package",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install from repo root",
+  "environment_constraints": "OPEN_INTERNET - full access. Node 22, pnpm available.",
+  "contribution_requirements": "500 LOC max per PR, single commit message: feat(device-control): add Twilio SMS provider with message store and agent",
+  "key_patterns": "Dual-mode providers (real Twilio when creds present, mock when absent), CapabilityProvider<T> interface pattern, CallSessionManager for state tracking, CallAgent for intent dispatch, PermissionManager with tier-based access control (sms = tier 3), vitest with mock objects",
+  "relevant_files": [
+    "packages/device-control/src/capabilities/sms.ts",
+    "packages/device-control/src/capabilities/contacts.ts",
+    "packages/device-control/src/capabilities/types.ts",
+    "packages/device-control/src/providers/types.ts",
+    "packages/device-control/src/providers/twilio-phone-provider.ts",
+    "packages/device-control/src/providers/call-session.ts",
+    "packages/device-control/src/providers/index.ts",
+    "packages/device-control/src/agents/call-agent.ts",
+    "packages/device-control/src/permissions/permission-manager.ts",
+    "packages/device-control/src/permissions/permission-types.ts",
+    "packages/device-control/src/index.ts",
+    "packages/device-control/src/__tests__/twilio-phone-provider.test.ts",
+    "packages/device-control/src/__tests__/call-agent.test.ts"
+  ],
+  "directory_structure": "packages/device-control/src/ contains: capabilities/ (interfaces), providers/ (implementations + types), agents/ (intent dispatchers), permissions/ (permission-manager, tier maps), audit/ (action-audit), registry.ts, __tests__/ (vitest tests)"
+}

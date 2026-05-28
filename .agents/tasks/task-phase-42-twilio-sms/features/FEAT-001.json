@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Implement Twilio SMS provider with message store, webhook handler, and message agent - full SMS send/receive capability",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Add SMS types to packages/device-control/src/providers/types.ts: Add MessageStatus type ('queued' | 'sent' | 'delivered' | 'failed' | 'received'), SMSMessage interface (id, from, to, body, timestamp, status, direction), SMSWebhookPayload interface (MessageSid, From, To, Body, MessageStatus for status callbacks, AccountSid), MessageThread interface (contactNumber, messages), MessageAgentIntent interface (action: 'send' | 'read' | 'reply', target?, body?, contactName?).",
+    "Step 2 - Create packages/device-control/src/providers/message-store.ts: In-memory message store class. Methods: store(msg: SMSMessage), get(id: string), list(filter?: {from?, to?, since?, status?}), getThread(contactNumber: string): MessageThread, updateStatus(id: string, status: MessageStatus), search(query: string) that matches body content. Store messages in a Map<string, SMSMessage>. Follow the CallSessionManager pattern for state management.",
+    "Step 3 - Create packages/device-control/src/providers/sms-webhook-handler.ts: SMSWebhookHandler class. Constructor takes config (authToken, webhookUrl). Methods: handleInbound(payload: SMSWebhookPayload, signature: string, url: string): validates signature then stores incoming message and notifies callbacks. handleStatusUpdate(payload: SMSWebhookPayload, signature: string, url: string): validates signature then updates message status. validateSignature(signature, url, params) uses twilio.validateRequest utility. onIncoming(cb): registers callback, returns unsubscribe function. Takes a MessageStore reference for persisting messages.",
+    "Step 4 - Create packages/device-control/src/providers/twilio-sms-provider.ts: TwilioSMSProvider implements SMSCapability. Same dual-mode pattern as TwilioPhoneProvider. Constructor takes optional TwilioConfig + optional TwilioSMSClientLike interface (messages.create). sendSMS(to, body) creates message via client in live mode or returns mock SID. readSMS(id) delegates to internal MessageStore.get(). onIncomingSMS(cb) delegates to webhook handler. Uses MessageStore internally. initialize() creates real Twilio client if creds present. dispose() cleans up.",
+    "Step 5 - Create packages/device-control/src/agents/message-agent.ts: MessageAgent class following CallAgent pattern. Constructor takes: smsProvider (SMSCapability), permissionManager (PermissionManager), contactsResolver? (optional function (name: string) => Promise<string | null> to resolve contact names to phone numbers). handleIntent(intent: MessageAgentIntent): for 'send' action resolves contact name if needed and calls sendSMS; for 'read' calls readSMS or lists messages; for 'reply' finds last received message from store and sends reply. Permission check: tier 3 for sms capability, deny if permission state is 'denied'.",
+    "Step 6 - Update packages/device-control/src/providers/index.ts: Export MessageStore, SMSWebhookHandler, TwilioSMSProvider, and the new types.",
+    "Step 7 - Update packages/device-control/src/index.ts: Export MessageAgent and MessageAgentConfig, MessageAgentResult types.",
+    "Step 8 - Create packages/device-control/src/__tests__/twilio-sms-provider.test.ts: Test mock mode (sendSMS returns mock SID, readSMS returns stored msg, onIncomingSMS fires callback). Test live mode with mock client (sendSMS calls client.messages.create with correct params).",
+    "Step 9 - Create packages/device-control/src/__tests__/message-store.test.ts: Test store/get/list, search by body, getThread groups by contact, updateStatus changes message state, list with filter options.",
+    "Step 10 - Create packages/device-control/src/__tests__/sms-webhook-handler.test.ts: Test handleInbound stores message and fires callbacks, handleStatusUpdate updates status, validateSignature rejects invalid signatures (mock the twilio validateRequest util).",
+    "Step 11 - Create packages/device-control/src/__tests__/message-agent.test.ts: Test send intent resolves contact and sends SMS, read intent returns messages, reply intent finds last received and replies, permission denied blocks all actions, missing target returns error."
+  ],
+  "acceptance_criteria": [
+    "Running `pnpm --filter @quant/device-control run typecheck` passes with no errors",
+    "Running `pnpm --filter @quant/device-control run test` passes all tests including the 4 new test files",
+    "TwilioSMSProvider works in mock mode without credentials",
+    "TwilioSMSProvider works in live mode with injected mock client",
+    "MessageStore supports CRUD, thread grouping, search, and status updates",
+    "SMSWebhookHandler validates signatures and routes incoming messages",
+    "MessageAgent dispatches send/read/reply intents with permission checks",
+    "Total new code is under 500 lines"
+  ],
+  "verification": [
+    "pnpm --filter @quant/device-control run typecheck",
+    "pnpm --filter @quant/device-control run test"
+  ],
+  "blocked_reason": null,
+  "findings": "All 87 tests pass (26 new tests across 4 test files). Typecheck clean. Prettier auto-formatted on commit via lint-staged. Total new code under 500 LOC constraint (implementation files are concise)."
+}

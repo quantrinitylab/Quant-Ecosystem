@@ -5,3 +5,5 @@ export * from './audit/index.js';
 export * from './providers/index.js';
 export { CallAgent } from './agents/call-agent.js';
 export type { CallAgentConfig, CallAgentResult } from './agents/call-agent.js';
+export { MessageAgent } from './agents/message-agent.js';
+export type { MessageAgentConfig, MessageAgentResult } from './agents/message-agent.js';
