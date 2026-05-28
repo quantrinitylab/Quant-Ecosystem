@@ -1,0 +1,33 @@
+{
+  "project_type": "Monorepo with 16 Next.js/non-Next.js apps and shared packages",
+  "language": "TypeScript",
+  "build_system": "pnpm workspaces + turbo",
+  "test_framework": "vitest",
+  "build_command": "pnpm build",
+  "test_command": "pnpm test",
+  "verification_instructions": "Run pnpm typecheck && pnpm build to verify all 109 typecheck and 87 build targets pass",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install (already done)",
+  "environment_constraints": "No running backends. API routes act as proxy stubs. Non-Next.js apps (quantsync, quantads, quantneon, quantube, quantmax, quantedits) use tsc --noEmit for build, so no Next.js API routes there.",
+  "contribution_requirements": "No @ts-ignore or @ts-expect-error. typecheck and build must remain green.",
+  "key_patterns": "Next.js App Router apps (quantcalendar, quantdocs, quantdrive, quantmeet, quantai, quantmail, quantchat) have src/app/ directories. API routes go in src/app/api/. Non-Next.js apps have apiClient services that point to backend URLs directly. Some hooks in non-Next.js apps (quantsync, quantads) call /api/* relative paths via direct fetch().",
+  "relevant_files": [
+    "apps/quantcalendar/src/hooks/useEvents.ts",
+    "apps/quantcalendar/src/hooks/useCalendars.ts",
+    "apps/quantdocs/src/hooks/useDocuments.ts",
+    "apps/quantdocs/src/hooks/useDocument.ts",
+    "apps/quantdrive/src/hooks/useFiles.ts",
+    "apps/quantdrive/src/hooks/useStorageQuota.ts",
+    "apps/quantmeet/src/hooks/useMeeting.ts",
+    "apps/quantmeet/src/hooks/useParticipants.ts",
+    "apps/quantai/src/services/api-client.ts",
+    "apps/quantmail/src/hooks/useDrive.ts",
+    "apps/quantchat/src/hooks/useChat.ts",
+    "apps/quantchat/src/hooks/useStories.ts",
+    "apps/quantsync/src/pages/index.tsx",
+    "apps/quantsync/src/hooks/useFeed.ts",
+    "apps/quantsync/src/hooks/useCommunity.ts",
+    "apps/quantsync/src/hooks/useSpaces.ts"
+  ],
+  "directory_structure": "apps/ contains 16 apps. 7 use Next.js App Router (have 'next build' script, src/app/ dir): quantcalendar, quantdocs, quantdrive, quantmeet, quantai, quantmail, quantchat. 6 use tsc --noEmit build (src/pages/ dir, no Next.js): quantneon, quantube, quantmax, quantedits, quantsync, quantads. packages/ contains shared libs (auth, ai, common, database, realtime, server-core, shared-ui). services/ exists too."
+}

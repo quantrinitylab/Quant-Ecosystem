@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Create the @quant/brand package with complete brand system: colors, typography, motion tokens, per-app configs, SVG logos, per-app icons, and CSS variable generation",
+  "status": "in_progress",
+  "steps": [
+    "Create packages/brand/package.json following the pattern in packages/notifications/package.json: name @quant/brand, private, type:module, main/types pointing to src/index.ts, scripts for build(tsc), typecheck(tsc --noEmit), test(vitest run), lint(eslint .). No external dependencies needed.",
+    "Create packages/brand/tsconfig.json following the pattern in packages/notifications/tsconfig.json: target ES2022, module ESNext, moduleResolution bundler, composite true, outDir dist, rootDir src, strict, declaration, declarationMap.",
+    "Create packages/brand/src/colors.ts exporting brand palette: primary indigo (#4F46E5 family with 50-950 shades), accent amber (#F59E0B family with 50-950 shades), neutral slate grays, semantic colors (error red, warning amber, success green, info blue). Include dark mode surface color #0F0F14 with subtle blue tint.",
+    "Create packages/brand/src/typography.ts exporting font stacks (display: Inter/system-ui, body: Inter/system-ui, mono: JetBrains Mono/Fira Code), type scale (xs through 6xl with line-heights), font weights, and a note about Indic script support (Noto Sans Devanagari fallback).",
+    "Create packages/brand/src/motion.ts exporting spring physics constants (damping, stiffness, mass for different use cases: gentle, snappy, bouncy), easing curves (ease-out, ease-in-out, spring-based cubic-beziers), and duration tokens (instant, fast, normal, slow, glacial).",
+    "Create packages/brand/src/apps.ts exporting per-app brand config objects with: id, name, color (hex), hue, description, and icon reference. Apps: quantmail(blue #3B82F6), quantchat(green #10B981), quantai(purple #8B5CF6), quantcalendar(orange #F97316), quantdocs(teal #14B8A6), quantdrive(indigo #6366F1), quantmeet(red #EF4444), quantneon(pink #EC4899), quantsync(cyan #06B6D4), quantube(red-orange #F43F5E), quantmax(amber #F59E0B), quantedits(violet #7C3AED), quantads(emerald #10B981), marketing(slate #64748B).",
+    "Create packages/brand/src/logos/quant-wordmark.ts exporting SVG string for Quant wordmark - clean geometric sans-serif with the Q having a distinctive tail. Export light and dark variants as string constants.",
+    "Create packages/brand/src/logos/quant-symbol.ts exporting SVG string for Quant symbol/monogram - a stylized Q mark that works at small sizes (16x16 favicon up to 512x512). Export light and dark variants.",
+    "Create packages/brand/src/icons/index.ts that re-exports all per-app icon SVG strings.",
+    "Create packages/brand/src/icons/ files for each app (quantmail.ts, quantchat.ts, quantai.ts, quantcalendar.ts, quantdocs.ts, quantdrive.ts, quantmeet.ts, quantneon.ts, quantsync.ts, quantube.ts, quantmax.ts, quantedits.ts, quantads.ts, marketing.ts). Each exports an SVG string for a cohesive icon using the app's brand color - simple geometric shapes (envelope for mail, chat bubble for chat, brain/circuit for AI, calendar grid for calendar, document for docs, folder/cloud for drive, video camera for meet, lightning bolt for neon, sync arrows for sync, play button for tube, rocket for max, pen/scissors for edits, megaphone for ads, bar chart for marketing).",
+    "Create packages/brand/src/tokens.ts exporting CSS custom property mappings: a function generateBrandCSS() that returns a complete CSS string with :root variables for all brand colors, typography, and motion tokens. Also export generateAppCSS(appId) that returns app-specific accent color variables.",
+    "Create packages/brand/src/index.ts that re-exports everything: colors, typography, motion, apps, logos (wordmark, symbol), icons, and tokens (generateBrandCSS, generateAppCSS).",
+    "Add @quant/brand path alias to root tsconfig.json paths and references arrays.",
+    "Run pnpm install to link the new package, then run pnpm typecheck --filter=@quant/brand to verify the package compiles cleanly."
+  ],
+  "acceptance_criteria": [
+    "packages/brand/src/index.ts exports all brand modules",
+    "pnpm typecheck --filter=@quant/brand passes with no errors",
+    "pnpm build --filter=@quant/brand produces dist/ output",
+    "All SVG strings are valid (well-formed XML with proper viewBox attributes)",
+    "Color palette includes all 14 app colors plus brand primary/accent/semantic",
+    "Typography exports font stacks, scale, and weights",
+    "Motion exports spring constants and easing curves",
+    "CSS token generation produces valid CSS custom properties"
+  ],
+  "verification": ["pnpm typecheck --filter=@quant/brand", "pnpm build --filter=@quant/brand"],
+  "blocked_reason": null,
+  "findings": ""
+}

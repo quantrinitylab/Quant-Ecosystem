@@ -1,0 +1,14 @@
+{
+  "task_id": "task-phase-66-wire-api-routes",
+  "task_description": "Phase 66: Wire every remaining mock + connect every flow. Create Next.js API route handlers for all 7 Next.js apps to proxy to their Fastify backends. Fix dead-end UI elements in quantsync.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "typecheck 109/109 pass, build 87/87 pass. 51 API route files created across 7 Next.js apps. Dead handlers fixed in quantsync. Post-review fixes: quantchat port collision (3001->3108), DELETE share handler body forwarding, download route binary streaming."
+  }
+}

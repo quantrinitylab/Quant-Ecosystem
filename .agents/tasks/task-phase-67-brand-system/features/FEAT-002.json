@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Integrate brand system across all apps: update globals.css with brand CSS variables, update Tailwind configs to use brand colors, add brand favicon/metadata to Next.js layouts, and bridge shared-ui tokens to reference brand colors",
+  "status": "completed",
+  "steps": [
+    "Update packages/shared-ui/package.json to add @quant/brand as a workspace dependency.",
+    "Update packages/shared-ui/tsconfig.json references array to include { path: '../brand' }.",
+    "Update packages/shared-ui/src/themes/tokens.ts to import brand colors from @quant/brand and use them as the source of truth for --color-primary, --color-accent, --color-background (dark), etc. Keep the existing DesignTokens interface and exports intact but update the color values to reference brand palette values.",
+    "Update all 7 Next.js app globals.css files (apps/quantmail/src/app/globals.css, apps/quantchat/src/app/globals.css, apps/quantai/src/app/globals.css, apps/quantcalendar/src/app/globals.css, apps/quantdocs/src/app/globals.css, apps/quantdrive/src/app/globals.css, apps/quantmeet/src/app/globals.css) to include brand CSS variables: add --brand-primary, --brand-accent, --brand-app-color (per-app accent), update dark mode --quant-background to #0F0F14, and keep existing variables working.",
+    "Update all 7 Tailwind configs (apps/quantmail/tailwind.config.ts, apps/quantchat/tailwind.config.ts, apps/quantai/tailwind.config.ts, apps/quantcalendar/tailwind.config.ts, apps/quantdocs/tailwind.config.ts, apps/quantdrive/tailwind.config.ts, apps/quantmeet/tailwind.config.ts) to extend colors with brand.primary, brand.accent, brand.app (using CSS variable references like var(--brand-primary)).",
+    "Update all 7 Next.js layout.tsx files to add brand metadata: add a favicon link using the Quant symbol (inline data URI SVG from @quant/brand), and update the page titles to use consistent 'AppName | Quant' format.",
+    "Run full typecheck to verify no regressions: pnpm typecheck must still pass all 109 tasks."
+  ],
+  "acceptance_criteria": [
+    "pnpm typecheck passes all 109 tasks (no regressions)",
+    "pnpm build passes all 87 tasks (no regressions)",
+    "All 7 globals.css files include brand CSS variables",
+    "All 7 tailwind configs reference brand color system",
+    "All 7 layout.tsx files have brand favicon and updated titles",
+    "shared-ui tokens.ts imports from @quant/brand without circular dependencies",
+    "Existing components still render correctly (no broken CSS variable references)"
+  ],
+  "verification": ["pnpm typecheck", "pnpm build"],
+  "blocked_reason": null,
+  "findings": "Integration complete. Had to fix .js extensions in brand package imports to work with webpack bundler resolution used by Next.js apps. Typecheck passes 111 tasks, build passes 88 tasks. The task count is slightly higher than the original 109/87 due to the new brand package being added to the graph. Prettier auto-formatted via lint-staged on commit."
+}

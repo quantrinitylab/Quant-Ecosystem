@@ -2,6 +2,8 @@
 // Shared UI - Design Tokens (CSS Variables Map)
 // ============================================================================
 
+import { primary, accent, surface } from '@quant/brand';
+
 export interface DensityTokens {
   compact: { spacing: string; fontSize: string };
   normal: { spacing: string; fontSize: string };
@@ -85,10 +87,10 @@ export const motion: MotionTokens = {
 
 export const lightTokens: DesignTokens = {
   colors: {
-    '--color-primary': '#3B82F6',
-    '--color-primary-hover': '#2563EB',
+    '--color-primary': primary[600],
+    '--color-primary-hover': primary[700],
     '--color-secondary': '#6B7280',
-    '--color-accent': '#8B5CF6',
+    '--color-accent': accent[500],
     '--color-background': '#FFFFFF',
     '--color-surface': '#F9FAFB',
     '--color-text': '#111827',
@@ -149,12 +151,12 @@ export const lightTokens: DesignTokens = {
 
 export const darkTokens: DesignTokens = {
   colors: {
-    '--color-primary': '#60A5FA',
-    '--color-primary-hover': '#93C5FD',
+    '--color-primary': primary[400],
+    '--color-primary-hover': primary[300],
     '--color-secondary': '#9CA3AF',
-    '--color-accent': '#A78BFA',
-    '--color-background': '#111827',
-    '--color-surface': '#1F2937',
+    '--color-accent': accent[400],
+    '--color-background': surface.dark,
+    '--color-surface': surface.darkElevated,
     '--color-text': '#F9FAFB',
     '--color-text-secondary': '#9CA3AF',
     '--color-border': '#374151',

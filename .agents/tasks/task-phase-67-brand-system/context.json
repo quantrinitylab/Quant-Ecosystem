@@ -1,0 +1,27 @@
+{
+  "project_type": "pnpm monorepo with Turborepo - 16 apps (7 Next.js, 9 backend/hybrid) + 60+ packages",
+  "language": "TypeScript",
+  "build_system": "pnpm 10.28.1 + turbo. typecheck depends on ^build. 109 typecheck tasks, 87 build tasks.",
+  "test_framework": "vitest with run mode",
+  "build_command": "pnpm build",
+  "test_command": "pnpm typecheck",
+  "verification_instructions": "Run pnpm typecheck (must pass 109/109) then pnpm build (must pass 87/87)",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install (already installed)",
+  "environment_constraints": "No docker daemon. Use host-based validation only. pnpm/turbo available.",
+  "contribution_requirements": "Packages export from src/index.ts, use composite tsconfig, build with tsc",
+  "key_patterns": "Packages: private, type:module, main:src/index.ts, types:src/index.ts, scripts: build(tsc), typecheck(tsc --noEmit), test(vitest run). tsconfigs extend root or define own settings with composite:true. Apps with Next.js have src/app/globals.css and src/app/layout.tsx. Tailwind configs reference shared-ui content paths. globals.css defines :root and .dark CSS vars. Root tsconfig has path aliases for @quant/* packages.",
+  "relevant_files": [
+    "packages/shared-ui/src/themes/tokens.ts",
+    "packages/shared-ui/src/themes/index.ts",
+    "packages/notifications/package.json (pattern for new package)",
+    "packages/notifications/tsconfig.json (pattern for new tsconfig)",
+    "apps/quantmail/tailwind.config.ts",
+    "apps/quantmail/src/app/globals.css",
+    "apps/quantmail/src/app/layout.tsx",
+    "apps/quantchat/src/app/layout.tsx",
+    "tsconfig.json (root - needs @quant/brand path alias)",
+    "pnpm-workspace.yaml"
+  ],
+  "directory_structure": "apps/: 16 apps (quantmail, quantchat, quantai, quantcalendar, quantdocs, quantdrive, quantmeet, quantads, quantedits, quantmax, quantneon, quantsync, quantube, marketing, quant-mobile, status). packages/: 60+ shared packages. 7 Next.js apps have tailwind+globals.css+layout.tsx. Others are backend-only."
+}

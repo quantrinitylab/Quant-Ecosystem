@@ -1,0 +1,23 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Fix brand system issues from semantic review: color collision, dark-mode token drift, add tests, per-app favicon colors",
+  "status": "completed",
+  "steps": [
+    "Fix quantads color collision in packages/brand/src/apps.ts - change from #10B981 to #059669 (emerald-600)",
+    "Fix dark-mode token drift in packages/shared-ui/src/themes/tokens.ts - use brand primary[400] and accent[400]",
+    "Create packages/brand/src/__tests__/brand.test.ts with comprehensive tests",
+    "Update all 7 layout.tsx favicon fills to use per-app colors"
+  ],
+  "acceptance_criteria": [
+    "quantads has a distinct color from quantchat",
+    "darkTokens uses brand primary[400] (#818CF8) and accent[400] (#FBBF24)",
+    "Brand tests pass with vitest",
+    "Each app has a distinct favicon color matching its brand color",
+    "pnpm typecheck passes",
+    "pnpm build passes"
+  ],
+  "verification": ["pnpm typecheck", "pnpm build", "pnpm test --filter=@quant/brand"],
+  "blocked_reason": null,
+  "findings": "All 4 review issues resolved. Typecheck 111/111, build 88/88, tests 12/12. Prettier auto-formatted via lint-staged on commit."
+}

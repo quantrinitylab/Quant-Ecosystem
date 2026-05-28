@@ -1117,6 +1117,15 @@ importers:
         specifier: ^2
         version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
 
+  packages/brand:
+    devDependencies:
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: ^2
+        version: 2.1.9(@types/node@25.9.1)(jsdom@25.0.1)
+
   packages/browser-agent:
     devDependencies:
       '@types/node':
@@ -2002,6 +2011,9 @@ importers:
 
   packages/shared-ui:
     dependencies:
+      '@quant/brand':
+        specifier: workspace:*
+        version: link:../brand
       '@quant/common':
         specifier: workspace:*
         version: link:../common

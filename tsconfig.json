@@ -52,7 +52,9 @@
       "@quant/cross-publish": ["packages/cross-publish/src/index.ts"],
       "@quant/cross-publish/*": ["packages/cross-publish/src/*"],
       "@quant/identity-permissions": ["packages/identity-permissions/src/index.ts"],
-      "@quant/identity-permissions/*": ["packages/identity-permissions/src/*"]
+      "@quant/identity-permissions/*": ["packages/identity-permissions/src/*"],
+      "@quant/brand": ["packages/brand/src/index.ts"],
+      "@quant/brand/*": ["packages/brand/src/*"]
     }
   },
   "references": [
@@ -70,7 +72,8 @@
     { "path": "packages/storage" },
     { "path": "packages/agent-runtime" },
     { "path": "packages/cross-publish" },
-    { "path": "packages/identity-permissions" }
+    { "path": "packages/identity-permissions" },
+    { "path": "packages/brand" }
   ],
   "exclude": ["node_modules", "dist", "build"]
 }

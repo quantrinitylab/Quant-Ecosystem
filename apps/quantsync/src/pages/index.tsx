@@ -168,6 +168,19 @@ const FeedPage: React.FC = () => {
     await fetch(`/api/posts/${postId}/repost`, { method: 'POST' });
   }, []);
 
+  const handleReply = useCallback((postId: string) => {
+    window.location.href = `/post/${postId}`;
+  }, []);
+
+  const handleShare = useCallback(async (postId: string) => {
+    const url = `${window.location.origin}/post/${postId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // Fallback: do nothing, clipboard API may not be available
+    }
+  }, []);
+
   const handleBookmark = useCallback(async (postId: string) => {
     setPosts((prev) =>
       prev.map((p) => {
@@ -359,7 +372,7 @@ const FeedPage: React.FC = () => {
                 )}
                 <div className="flex items-center justify-between mt-2 max-w-md">
                   <button
-                    onClick={() => {}}
+                    onClick={() => handleReply(post.id)}
                     className="flex items-center gap-1 text-gray-500 hover:text-blue-500 group"
                   >
                     <span className="p-2 rounded-full group-hover:bg-blue-50">💬</span>
@@ -389,7 +402,10 @@ const FeedPage: React.FC = () => {
                       {post.isBookmarked ? '🔖' : '📑'}
                     </span>
                   </button>
-                  <button className="flex items-center gap-1 text-gray-500 hover:text-blue-500 group">
+                  <button
+                    onClick={() => handleShare(post.id)}
+                    className="flex items-center gap-1 text-gray-500 hover:text-blue-500 group"
+                  >
                     <span className="p-2 rounded-full group-hover:bg-blue-50">↗️</span>
                   </button>
                 </div>

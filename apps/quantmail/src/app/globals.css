@@ -3,21 +3,29 @@
 @tailwind utilities;
 
 :root {
-  --quant-primary: #3b82f6;
+  /* Brand System */
+  --brand-primary: #4F46E5;
+  --brand-primary-hover: #4338CA;
+  --brand-accent: #F59E0B;
+  --brand-accent-hover: #D97706;
+  --brand-app-color: #3B82F6;
+
+  /* Existing (now powered by brand) */
+  --quant-primary: var(--brand-primary);
   --quant-secondary: #8b5cf6;
   --quant-background: #ffffff;
   --quant-foreground: #0f172a;
   --quant-muted: #f1f5f9;
   --quant-muted-foreground: #64748b;
   --quant-border: #e2e8f0;
-  --quant-ring: #3b82f6;
+  --quant-ring: var(--brand-primary);
   --quant-radius: 0.5rem;
 }
 
 .dark {
-  --quant-background: #0f172a;
+  --quant-background: #0F0F14;
   --quant-foreground: #f8fafc;
-  --quant-muted: #1e293b;
+  --quant-muted: #16161D;
   --quant-muted-foreground: #94a3b8;
   --quant-border: #334155;
 }

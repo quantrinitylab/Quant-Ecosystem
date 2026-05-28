@@ -6,8 +6,11 @@ import { QueryProvider } from '../providers/query-provider';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'QuantMeet',
+  title: 'QuantMeet | Quant',
   description: 'Video conferencing with AI-powered collaboration',
+  icons: {
+    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="%23EF4444"/><text x="16" y="22" font-size="18" font-weight="bold" text-anchor="middle" fill="white">Q</text></svg>',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,0 +1,23 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Fix dead-end UI elements and empty event handlers in quantsync index.tsx. The comment reply button has onClick={() => {}} which does nothing. Wire it to a proper action. Audit the page for any other dead handlers.",
+  "status": "completed",
+  "steps": [
+    "In apps/quantsync/src/pages/index.tsx, the comment reply button (the one with emoji 'chat bubble') has onClick={() => {}}, which is an empty handler. Wire it to a real action - navigate to a post thread or open a reply dialog. Since there is no router, a reasonable approach is to call a handleReply(postId) function that sets state to show a reply input or calls window.location to navigate to /post/{id}.",
+    "Audit the same file for any href='#' patterns. If found, replace with proper navigation (e.g., post links should go to /post/{id}).",
+    "Check that all remaining onClick handlers in the file call actual functions (handleLike, handleRepost, handleBookmark all exist and do real work).",
+    "Run pnpm typecheck to verify changes compile.",
+    "Run pnpm build to verify build still passes."
+  ],
+  "acceptance_criteria": [
+    "No onClick={() => {}} empty handlers remain in apps/quantsync/src/pages/index.tsx",
+    "No href='#' dead links remain in apps/quantsync/src/pages/index.tsx",
+    "The reply button calls a real function that either navigates or updates state",
+    "pnpm typecheck passes",
+    "pnpm build passes"
+  ],
+  "verification": ["pnpm typecheck", "pnpm build"],
+  "blocked_reason": null,
+  "findings": "No href='#' dead links were found in the file. The reply button was wired to handleReply (navigates to /post/{id}) and the share button was wired to handleShare (copies post URL to clipboard). Both typecheck and build pass cleanly."
+}
