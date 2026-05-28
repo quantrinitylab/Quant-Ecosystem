@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Add wake word detection types, privacy types, wake word detector, porcupine provider, audio buffer log, privacy lamp controller, and privacy audit system to @quant/quant-live with full test coverage",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "1. Add new types to packages/quant-live/src/types.ts: WakeWordConfig (wakePhrase, sensitivity, engineType, fallbackToPushToTalk), WakeWordEvent (type: 'detected'|'timeout'|'error', timestamp, confidence, phrase), AudioBufferEntry (id, data: Float32Array, timestamp, duration, starred), PrivacyLampState ('dormant'|'wake-listening'|'active-listening'|'recording'), PrivacyInputSource (type: 'mic'|'camera'|'screen'|'wake-word', active, startedAt), PrivacyAuditEvent (id, type: 'mic_activated'|'mic_deactivated'|'audio_sent_to_server'|'frame_captured'|'frame_sent_to_server'|'buffer_cleared'|'forget_requested', timestamp, metadata)",
     "2. Create packages/quant-live/src/wake-word/wake-word-detector.ts: WakeWordDetector class with start/stop lifecycle, configurable wake phrases (default 'Hey Quant'), confidence threshold filtering, event emission on detection (onDetected callback), fallback to push-to-talk when no engine available, uses the provider pattern like ASRProvider",
@@ -29,5 +29,5 @@
     "pnpm --filter @quant/quant-live run test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Node.js 22 and pnpm 9 needed to be installed via mise. Pre-commit hook runs prettier via lint-staged. All 160 tests pass, typecheck clean."
 }

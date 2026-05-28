@@ -1,7 +1,14 @@
 {
   "task_id": "task-phase-41-wake-word-privacy-lamp",
   "task_description": "Implement wake word detection (Hey Quant) with on-device processing, privacy lamp controller, audio buffer log with forget/star, and privacy audit system for the @quant/quant-live package",
-  "status": "in_progress",
+  "status": "completed",
   "feature_order": ["FEAT-001"],
-  "blocked_reason": null
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "Typecheck passes with 0 errors. All 160 tests pass across 23 test files (29 new tests in 4 new test files). Tests exercise real detection logic, ring buffer behavior, state transitions, and immutability constraints."
+  }
 }
