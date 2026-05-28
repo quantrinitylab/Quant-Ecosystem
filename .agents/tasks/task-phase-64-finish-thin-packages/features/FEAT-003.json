@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Deepen dev-platform (developer-platform), launch-beta, and launch-public packages from skeletons to full implementations with comprehensive tests (15+, 15+, 15+ tests respectively).",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "DEV-PLATFORM (packages/dev-platform/src/ - package name @quant/developer-platform) - Expand from 3 tests to 15+:",
     "1. Extend types.ts: Add OAuthClient, DeveloperApp, UsageAnalytics, SDKDownload, KeyRotation types.",
