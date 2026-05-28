@@ -1,0 +1,14 @@
+{
+  "task_id": "task-phase-42-voice-grammar",
+  "task_description": "Phase 42 FEAT-005: Implement voice command grammar, custom shortcuts (verbal macros), alias registry, intent parser, and command executor in the device-control package. Supports English + Hindi/Hinglish commands, user-defined aliases, multi-step shortcut sequences.",
+  "status": "completed",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "Typecheck passes cleanly. All 136 tests pass (21 test files, 28 new tests in 5 new test files). Source code: 363 LOC in voice/, test code: 270 LOC. Two review passes completed - all issues resolved. Pre-compiled regex in both alias registry and grammar, tier-based confirmation with configurable bypass, proper error messaging for unsupported capabilities."
+  }
+}

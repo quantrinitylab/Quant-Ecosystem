@@ -1,0 +1,26 @@
+{
+  "project_type": "TypeScript monorepo (pnpm workspaces) - Quant Ecosystem with device-control package",
+  "language": "TypeScript",
+  "build_system": "pnpm with tsc, vitest for testing",
+  "test_framework": "vitest with describe/it/expect pattern, mock functions inline",
+  "build_command": "pnpm --filter @quant/device-control run build",
+  "test_command": "pnpm --filter @quant/device-control run test",
+  "verification_instructions": "1. Run typecheck: pnpm --filter @quant/device-control run typecheck. 2. Run tests: pnpm --filter @quant/device-control run test",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install in root",
+  "environment_constraints": "OPEN_INTERNET - full network access. Node 22 with pnpm.",
+  "contribution_requirements": "Max 500 LOC per PR. All gates must pass (typecheck + tests).",
+  "key_patterns": "- Capabilities defined in src/capabilities/ with types.ts defining DeviceCapability union type. - Agents in src/agents/ take config objects and handle intents. - Tests in src/__tests__/ use vitest with inline mocks (no external mock files). - Providers types in src/providers/types.ts define intent shapes. - PermissionManager handles capability access control. - Module pattern: each domain directory has an index.ts barrel export.",
+  "relevant_files": [
+    "packages/device-control/src/capabilities/types.ts",
+    "packages/device-control/src/providers/types.ts",
+    "packages/device-control/src/registry.ts",
+    "packages/device-control/src/agents/call-agent.ts",
+    "packages/device-control/src/__tests__/call-agent.test.ts",
+    "packages/device-control/src/permissions/permission-manager.ts",
+    "packages/device-control/src/index.ts",
+    "packages/voice-input/src/types.ts",
+    "packages/voice-input/src/voice-engine.ts"
+  ],
+  "directory_structure": "packages/device-control/src/ contains: agents/ (call-agent, message-agent), capabilities/ (phone, sms, location, etc + types), contacts/ (store, resolver, sync), permissions/ (manager, types), providers/ (twilio, native + types), audit/ (action audit), __tests__/ (vitest test files)"
+}

@@ -1,0 +1,27 @@
+{
+  "project_type": "TypeScript monorepo - device-control package for Capacitor mobile app",
+  "language": "TypeScript (ES2022, ESM)",
+  "build_system": "pnpm + turbo, per-package tsc builds",
+  "test_framework": "vitest with inline mocks, describe/it/expect pattern",
+  "build_command": "cd packages/device-control && npx tsc --noEmit",
+  "test_command": "cd packages/device-control && npx vitest run",
+  "verification_instructions": "1. Run typecheck: cd packages/device-control && npx tsc --noEmit. 2. Run tests: cd packages/device-control && npx vitest run. 3. Both must pass with zero errors.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install in the workspace root",
+  "environment_constraints": "OPEN_INTERNET - full network access. Node 22, pnpm available.",
+  "contribution_requirements": "Commit message format: feat(device-control): ... . Max 500 LOC per PR. All typecheck and tests must pass.",
+  "key_patterns": "1. All imports use .js extension (ESM). 2. Providers implement CapabilityProvider interface from capabilities/types.ts. 3. Tests use vitest describe/it/expect with vi.fn() mocks. 4. Agents take a config object with provider + permissionManager. 5. Types/interfaces in separate files from implementations. 6. Index files re-export public API.",
+  "relevant_files": [
+    "packages/device-control/src/capabilities/contacts.ts",
+    "packages/device-control/src/capabilities/types.ts",
+    "packages/device-control/src/registry.ts",
+    "packages/device-control/src/agents/message-agent.ts",
+    "packages/device-control/src/providers/types.ts",
+    "packages/device-control/src/permissions/permission-manager.ts",
+    "packages/device-control/src/index.ts",
+    "packages/device-control/src/__tests__/call-agent.test.ts",
+    "packages/device-control/src/__tests__/twilio-sms-provider.test.ts",
+    "packages/device-control/package.json"
+  ],
+  "directory_structure": "packages/device-control/src/ contains: capabilities/ (interfaces), providers/ (implementations), agents/ (intent handlers), permissions/ (permission manager), audit/ (action audit), __tests__/ (all test files), index.ts (public exports), registry.ts (capability registry)"
+}

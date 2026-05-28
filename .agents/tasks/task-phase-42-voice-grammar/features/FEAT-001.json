@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Implement the voice command grammar system with types, alias registry, shortcut store, command grammar, intent parser, command executor, tests, and barrel exports. All new files go in packages/device-control/src/voice/ with tests in src/__tests__/. Total must be under 500 LOC of new code.",
+  "status": "completed",
+  "steps": [
+    "Create packages/device-control/src/voice/types.ts defining: DeviceIntent (capability from DeviceCapability union + 'alarm' | 'iot', action string, params Record<string, unknown>), GrammarPattern (id, type: 'exact'|'regex'|'keyword'|'ai-classified', pattern: string|RegExp, capability, action, extract: function), UserAlias (trigger, value, category), CustomShortcut (trigger, actions: DeviceIntent[], description?, enabled, stopOnFailure), and ExecutionResult (success, results array, error?).",
+    "Create packages/device-control/src/voice/alias-registry.ts: AliasRegistry class with add(trigger, value, category), remove(trigger), resolve(text) that substitutes all known aliases in text, getAll(), clear(). Simple Map-based storage.",
+    "Create packages/device-control/src/voice/shortcut-store.ts: ShortcutStore class with create(shortcut), get(trigger), update(trigger, partial), delete(trigger), list(), has(trigger). Map-based storage keyed by normalized trigger string.",
+    "Create packages/device-control/src/voice/command-grammar.ts: CommandGrammar class with built-in patterns array (15-20 patterns covering call, text, alarm, navigate, toggle, open, play, stop, search, remind, email, check, set, turn on/off, show). Method match(text) iterates patterns ordered by specificity and returns first DeviceIntent match. Include 3-4 Hindi/Hinglish patterns (call kar, message bhej, ghar le chal, alarm laga).",
+    "Create packages/device-control/src/voice/intent-parser.ts: IntentParser class that takes AliasRegistry, ShortcutStore, CommandGrammar in constructor. Method parse(rawText): 1) applies alias substitution, 2) checks shortcut store, 3) tries grammar match, 4) returns { type: 'unrecognized' } fallback. Returns { type: 'shortcut'|'grammar'|'unrecognized', intent?: DeviceIntent, shortcut?: CustomShortcut }.",
+    "Create packages/device-control/src/voice/command-executor.ts: CommandExecutor class that takes a CapabilityRegistry. Method execute(intent: DeviceIntent) dispatches to the registry. Method executeSequence(intents: DeviceIntent[], opts: { stopOnFailure: boolean }) runs multi-step. Method executeShortcut(shortcut: CustomShortcut). Tier 3+ actions return { requiresConfirmation: true } unless confirmed flag is passed.",
+    "Create packages/device-control/src/voice/index.ts barrel export for all voice module public types and classes.",
+    "Update packages/device-control/src/index.ts to add: export * from './voice/index.js';",
+    "Create packages/device-control/src/__tests__/command-grammar.test.ts: test pattern matching for English commands (call, text, alarm, navigate, toggle), Hindi patterns, case insensitivity, unrecognized input returns null.",
+    "Create packages/device-control/src/__tests__/shortcut-store.test.ts: test CRUD operations, list, has, normalized trigger matching.",
+    "Create packages/device-control/src/__tests__/intent-parser.test.ts: test full pipeline - alias substitution, shortcut priority over grammar, grammar matching, fallback to unrecognized.",
+    "Create packages/device-control/src/__tests__/alias-registry.test.ts: test add/remove/resolve/clear, multiple aliases in one text.",
+    "Create packages/device-control/src/__tests__/command-executor.test.ts: test single execution, multi-step sequence, stopOnFailure behavior, tier 3 confirmation requirement."
+  ],
+  "acceptance_criteria": [
+    "Running `pnpm --filter @quant/device-control run typecheck` passes with no errors",
+    "Running `pnpm --filter @quant/device-control run test` passes all tests including new voice module tests",
+    "IntentParser correctly resolves aliases before matching",
+    "Custom shortcuts take priority over grammar patterns",
+    "Hindi/Hinglish patterns match correctly",
+    "CommandExecutor handles multi-step sequences with stopOnFailure",
+    "Total new code is under 500 LOC"
+  ],
+  "verification": [
+    "pnpm --filter @quant/device-control run typecheck",
+    "pnpm --filter @quant/device-control run test"
+  ],
+  "blocked_reason": null,
+  "findings": "Hindi patterns must be ordered before generic English patterns to avoid false matches. Pre-commit hook enforces 100-char line limit on commit message bodies. Prettier ran via lint-staged but no formatting changes needed. V2 review fixes applied: pre-compiled regex at module level via compiledPatterns array, error message changed to distinguish unsupported capabilities from misconfigured providers, executeShortcut now accepts optional confirmed parameter."
+}

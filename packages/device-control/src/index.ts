@@ -7,3 +7,5 @@ export { CallAgent } from './agents/call-agent.js';
 export type { CallAgentConfig, CallAgentResult } from './agents/call-agent.js';
 export { MessageAgent } from './agents/message-agent.js';
 export type { MessageAgentConfig, MessageAgentResult } from './agents/message-agent.js';
+export * from './contacts/index.js';
+export * from './voice/index.js';

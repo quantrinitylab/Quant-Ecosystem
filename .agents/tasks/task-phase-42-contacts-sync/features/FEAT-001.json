@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Implement unified contact model, in-memory contact store, Capacitor bridge, CardDAV sync, and contact resolver with full test coverage for the device-control contacts subsystem.",
+  "status": "completed",
+  "steps": [
+    "Create packages/device-control/src/contacts/contact-types.ts with: UnifiedContact (id, firstName, lastName, displayName, phones[], emails[], addresses[], birthday, notes, avatar, groups[], favorite, lastContacted, nicknames[], relationships[]), ContactPhone (number, type: mobile|home|work, label), ContactEmail (address, type, label), ContactAddress (street, city, state, zip, country, type), ContactGroup (id, name, members[]), ContactRelationship (type: family|friend|colleague|other, label)",
+    "Create packages/device-control/src/contacts/contact-store.ts with: ContactStore class - in-memory Map<string, UnifiedContact> storage, addContact/getContact/updateContact/deleteContact CRUD, searchByName (case-insensitive substring + fuzzy startsWith matching), searchByPhone (exact digits match), searchByEmail (case-insensitive), resolveNameToPhone (returns best phone match for a name query), mergeDuplicates (contacts with same normalized phone number get merged into one), getRecentlyContacted (sorted by lastContacted), getFavorites, getByGroup",
+    "Create packages/device-control/src/contacts/capacitor-bridge.ts with: CapacitorContactsBridge class - defines a CapacitorContactsPlugin interface matching @capacitor-community/contacts API shape (getContacts, createContact, deleteContact), importFromDevice() converts Capacitor contacts to UnifiedContact[], exportToDevice(contacts) converts UnifiedContact[] back, syncBidirectional(store) does full sync with device as source of truth for personal contacts, constructor accepts optional plugin instance (for DI/testing) and falls back to a no-op stub when Capacitor is unavailable (web mode)",
+    "Create packages/device-control/src/contacts/carddav-sync.ts with: CardDAVSync class - defines a CardDAVClient interface (fetchContacts, pushContact, deleteContact), parseVCard(vcardString) parses vCard 3.0/4.0 text into UnifiedContact (handles FN, N, TEL, EMAIL, ADR, BDAY, NOTE, NICKNAME fields), toVCard(contact) serializes UnifiedContact to vCard 4.0 string, syncFromServer(store) fetches remote and merges into store, pushToServer(store) pushes local changes, resolveConflict (newer lastContacted wins, with option for user override callback)",
+    "Create packages/device-control/src/contacts/contact-resolver.ts with: ContactResolver class - constructor takes ContactStore, resolve(query) returns best match or disambiguation options, fuzzy matching: Levenshtein distance (simple implementation) + startsWith + nickname matching, relationship tag resolution ('mom' checks relationships for family + label 'mom'/'mother'), recency bias (if multiple matches, prefer lastContacted within 7 days), disambiguate() returns { ambiguous: true, options: UnifiedContact[] } when multiple equal matches",
+    "Create packages/device-control/src/contacts/index.ts that re-exports all public types and classes from the contacts module",
+    "Update packages/device-control/src/index.ts to add: export * from './contacts/index.js'",
+    "Create packages/device-control/src/__tests__/contact-store.test.ts - test CRUD operations, searchByName (exact, partial, case-insensitive), searchByPhone, resolveNameToPhone, mergeDuplicates (two contacts with same phone become one preserving all data), getRecentlyContacted ordering",
+    "Create packages/device-control/src/__tests__/capacitor-bridge.test.ts - test importFromDevice with mock plugin, exportToDevice conversion, syncBidirectional merging, web fallback mode (no plugin = empty results)",
+    "Create packages/device-control/src/__tests__/carddav-sync.test.ts - test parseVCard for vCard 3.0 and 4.0 formats, toVCard round-trip, syncFromServer with mock client, pushToServer, conflict resolution (newer wins)",
+    "Create packages/device-control/src/__tests__/contact-resolver.test.ts - test exact name match, fuzzy match (typo tolerance), nickname resolution, relationship tag ('mom' -> mother's phone), recency bias, disambiguation when multiple matches"
+  ],
+  "acceptance_criteria": [
+    "Running `npx tsc --noEmit` in packages/device-control passes with zero type errors",
+    "Running `npx vitest run` in packages/device-control passes all existing tests plus new contact tests",
+    "ContactStore supports add, get, update, delete, searchByName, searchByPhone, resolveNameToPhone, mergeDuplicates, getRecentlyContacted",
+    "CapacitorContactsBridge gracefully falls back to empty results when no Capacitor plugin available",
+    "CardDAV parseVCard correctly handles FN, N, TEL, EMAIL, ADR, BDAY, NOTE fields from vCard 3.0/4.0",
+    "ContactResolver resolves names including fuzzy match, nicknames, relationship tags, and provides disambiguation",
+    "Total new code across all files is under 500 lines"
+  ],
+  "verification": [
+    "cd /projects/sandbox/Quant-Ecosystem/packages/device-control && npx tsc --noEmit",
+    "cd /projects/sandbox/Quant-Ecosystem/packages/device-control && npx vitest run"
+  ],
+  "blocked_reason": null,
+  "findings": "Prettier reformatted files during lint-staged. Commit message max length enforced at 100 chars. All 108 tests pass (21 new contact tests + 87 existing). TypeScript strict mode required non-null assertions on array accesses. v2 review fixes applied: TEL URI prefix stripping, proportional Levenshtein threshold, phone/address merge in mergeDuplicates, array union in syncBidirectional. Total source LOC: 455 (under 500)."
+}
