@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { LivePipeline } from '../core/pipeline.js';
 import { LatencyTracker } from '../core/latency-tracker.js';
-import type { ASRProvider, ASRResult, AudioChunk, LiveSession } from '../types.js';
+import type { ASRProvider, ASRResult, AudioChunk, LiveSession, TTSProvider } from '../types.js';
 
 function createMockSession(): LiveSession {
   return {
@@ -194,5 +194,64 @@ describe('LivePipeline', () => {
     expect(metrics).toBeDefined();
     // Only 1 measurement even though 5 chunks were fed
     expect(metrics!.samples).toBe(1);
+  });
+
+  it('synthesizeResponse tracks TTS latency and emits audio chunks', async () => {
+    const tracker = new LatencyTracker();
+    const pipeline = new LivePipeline(tracker);
+    const provider = createMockProvider();
+    pipeline.start(createMockSession(), provider);
+
+    const chunks: AudioChunk[] = [
+      { data: new Float32Array([0.1]), sampleRate: 16000, channels: 1, timestamp: 0, duration: 20 },
+      {
+        data: new Float32Array([0.2]),
+        sampleRate: 16000,
+        channels: 1,
+        timestamp: 20,
+        duration: 20,
+      },
+      {
+        data: new Float32Array([0.3]),
+        sampleRate: 16000,
+        channels: 1,
+        timestamp: 40,
+        duration: 20,
+      },
+    ];
+
+    const mockTTSProvider: TTSProvider = {
+      isStreaming: true,
+      synthesize: vi.fn().mockReturnValue(
+        (async function* () {
+          for (const chunk of chunks) {
+            yield chunk;
+          }
+        })(),
+      ),
+      stop: vi.fn(),
+    };
+
+    pipeline.setTTSProvider(mockTTSProvider);
+
+    const receivedChunks: AudioChunk[] = [];
+    pipeline.onAudioOut((chunk) => receivedChunks.push(chunk));
+
+    await pipeline.synthesizeResponse('Hello world');
+
+    // All chunks were emitted
+    expect(receivedChunks).toHaveLength(3);
+    expect(receivedChunks[0]).toBe(chunks[0]);
+    expect(receivedChunks[1]).toBe(chunks[1]);
+    expect(receivedChunks[2]).toBe(chunks[2]);
+
+    // TTS latency was tracked (endMeasure called exactly once)
+    const metrics = tracker.getMetrics('tts');
+    expect(metrics).toBeDefined();
+    expect(metrics!.samples).toBe(1);
+    expect(metrics!.lastValue).toBeGreaterThanOrEqual(0);
+
+    // Pipeline is no longer speaking
+    expect(pipeline.isSpeaking()).toBe(false);
   });
 });

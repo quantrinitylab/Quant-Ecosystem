@@ -1,0 +1,14 @@
+{
+  "task_id": "task-phase-41-quant-live-tts",
+  "task_description": "Phase 41 FEAT-002: Add streaming TTS module with ElevenLabs and Kokoro providers, prefetch buffer for sub-300ms latency, adaptive VAD with noise floor calibration, and pipeline integration with interruption handling.",
+  "status": "completed",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "typecheck clean, 89 tests passing across 11 files (641ms). Tests cover TTS factory creation, ElevenLabs mock/WS modes, Kokoro mock/HTTP modes, prefetch buffer behavior, adaptive VAD calibration, and pipeline integration."
+  }
+}

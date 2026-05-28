@@ -94,3 +94,32 @@ export interface LatencyMetrics {
   samples: number;
   lastValue: number;
 }
+
+// TTS options
+export interface TTSOptions {
+  voice?: string;
+  speed?: number;
+  language?: string;
+  format?: 'pcm' | 'mp3' | 'opus';
+}
+
+// TTS event types
+export interface TTSEvent {
+  type: 'start' | 'chunk' | 'end' | 'error';
+  timestamp: number;
+  data?: unknown;
+}
+
+// TTS provider interface
+export interface TTSProvider {
+  readonly isStreaming: boolean;
+  synthesize(text: string, options?: TTSOptions): AsyncIterable<AudioChunk>;
+  stop(): void;
+}
+
+// Adaptive VAD configuration
+export interface AdaptiveVADConfig extends VADConfig {
+  calibrationDurationMs: number;
+  adaptiveThreshold: number;
+  noiseFloorSmoothing: number;
+}

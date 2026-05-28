@@ -1,0 +1,30 @@
+{
+  "project_type": "TypeScript monorepo package (packages/quant-live) - real-time voice pipeline",
+  "language": "TypeScript",
+  "build_system": "pnpm workspace, tsc for type-checking, vitest for tests. Package is @quant/quant-live.",
+  "test_framework": "vitest with globals:true. Tests in src/__tests__/*.test.ts. Use vi.fn(), vi.useFakeTimers(), vi.stubGlobal() for mocking.",
+  "build_command": "pnpm --filter @quant/quant-live run typecheck",
+  "test_command": "pnpm --filter @quant/quant-live run test",
+  "verification_instructions": "1. Run typecheck: pnpm --filter @quant/quant-live run typecheck. 2. Run tests: pnpm --filter @quant/quant-live run test. Both must pass with zero errors.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install in workspace root (already done on this branch)",
+  "environment_constraints": "OPEN_INTERNET mode. Node 22 + pnpm available. No real API keys for ElevenLabs/Kokoro - tests must be fully mocked.",
+  "contribution_requirements": "Max 500 LOC per PR (excl generated). New branch feat/phase-41-quant-live-tts from current HEAD. Single commit: feat(quant-live): add streaming TTS with ElevenLabs, Kokoro, prefetch buffer",
+  "key_patterns": "ASR providers implement ASRProvider interface with start/stop/feedAudio/onResult/onError. Factory pattern in streaming-asr.ts. VoiceActivityDetector uses RMS energy + threshold + event callbacks. LivePipeline orchestrates ASR and tracks latency per segment. TurnManager handles speaker states + interruption. All imports use .js extension suffixes. Types defined in types.ts and re-exported from index.ts. Tests use createMockProvider/createMockSession helper patterns.",
+  "relevant_files": [
+    "packages/quant-live/src/types.ts",
+    "packages/quant-live/src/index.ts",
+    "packages/quant-live/src/core/pipeline.ts",
+    "packages/quant-live/src/core/latency-tracker.ts",
+    "packages/quant-live/src/asr/vad.ts",
+    "packages/quant-live/src/asr/streaming-asr.ts",
+    "packages/quant-live/src/asr/whisper-provider.ts",
+    "packages/quant-live/src/conversation/turn-manager.ts",
+    "packages/quant-live/src/__tests__/pipeline.test.ts",
+    "packages/quant-live/src/__tests__/vad.test.ts",
+    "packages/quant-live/src/__tests__/streaming-asr.test.ts",
+    "packages/quant-live/tsconfig.json",
+    "packages/quant-live/package.json"
+  ],
+  "directory_structure": "packages/quant-live/src/ has: types.ts (shared types), index.ts (barrel exports), core/ (pipeline, session-manager, latency-tracker), asr/ (VAD, whisper providers, factory), conversation/ (turn-manager, transcript), __tests__/ (vitest test files)"
+}

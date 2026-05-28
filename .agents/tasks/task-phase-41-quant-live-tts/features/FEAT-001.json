@@ -1,0 +1,45 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Create a new git branch feat/phase-41-quant-live-tts from current HEAD, add TTS types to types.ts, create the TTS module (provider interface, ElevenLabs provider, Kokoro provider, factory, prefetch buffer), create adaptive VAD, integrate TTS into pipeline with interruption support, update index.ts exports, and add comprehensive tests.",
+  "status": "completed",
+  "steps": [
+    "Create and checkout new branch feat/phase-41-quant-live-tts from current HEAD (feat/phase-41-quant-live-asr)",
+    "Add TTS-related types to packages/quant-live/src/types.ts: TTSProvider interface (synthesize returning AsyncIterable<AudioChunk>, stop(), readonly isStreaming), TTSOptions interface (voice?, speed?, language?, format?: 'pcm'|'mp3'|'opus'), TTSEvent type (type: 'start'|'chunk'|'end'|'error', timestamp, data?), AdaptiveVADConfig interface (extends VADConfig with calibrationDurationMs, adaptiveThreshold, noiseFloorSmoothing)",
+    "Create packages/quant-live/src/tts/tts-provider.ts - base abstract/interface file that re-exports the TTSProvider interface from types and provides a BaseTTSProvider abstract class with common logic (event emission, isStreaming tracking)",
+    "Create packages/quant-live/src/tts/elevenlabs-provider.ts - ElevenLabs streaming TTS: uses WebSocket API (wss://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream-input) for low-latency streaming. Accepts config with apiKey, voiceId, modelId. Implements synthesize() as async generator yielding AudioChunk. Falls back to a mock that yields silence chunks when no API key. Supports stop() to close WS connection.",
+    "Create packages/quant-live/src/tts/kokoro-provider.ts - Self-hosted Kokoro TTS: HTTP streaming from configurable server URL (POST /api/tts with JSON body). Reads response as ReadableStream, yields AudioChunk as data arrives. Falls back to mock when no server URL. Supports Hindi+English language selection.",
+    "Create packages/quant-live/src/tts/tts-factory.ts - Factory following the ASRProviderFactory pattern: TTSProviderFactory.create(type: 'elevenlabs'|'kokoro', config) returns TTSProvider. Type alias TTSProviderType.",
+    "Create packages/quant-live/src/tts/prefetch-buffer.ts - PrefetchBuffer class: accepts an AsyncIterable<AudioChunk> source, buffers initial chunks (configurable bufferSize, default 3), yields buffered then live chunks. Has cancel() method that sets cancelled flag and discards remaining buffer. Has isBuffering/isCancelled getters. Implements [Symbol.asyncIterator] so it can be used as AsyncIterable<AudioChunk>.",
+    "Create packages/quant-live/src/asr/adaptive-vad.ts - AdaptiveVAD extends VoiceActivityDetector: calibrates noise floor from first N ms of audio (default 500ms), dynamically adjusts threshold = noiseFloor * multiplier (default 3x), has whisper mode that lowers output volume detection. Exposes getNoiseFloor() and isCalibrating() methods.",
+    "Update packages/quant-live/src/core/pipeline.ts - Add TTS integration: new method synthesizeResponse(text: string) that creates TTS stream via provider, pipes through prefetch buffer, tracks TTS latency (startMeasure/endMeasure on 'tts' stage), yields chunks to audioOut callbacks. Add handleInterruption() method that calls prefetchBuffer.cancel() and ttsProvider.stop(). Wire VAD speech-start events to trigger interruption when state is 'speaking'.",
+    "Update packages/quant-live/src/index.ts - Add exports for all new modules: TTSProvider/TTSOptions/TTSEvent/AdaptiveVADConfig types, TTSProviderFactory, ElevenLabsTTSProvider, KokoroTTSProvider, PrefetchBuffer, AdaptiveVAD.",
+    "Create packages/quant-live/src/__tests__/tts-provider.test.ts - Test TTSProviderFactory creation for both types, test unknown type throws. Test mock fallback behavior when no credentials.",
+    "Create packages/quant-live/src/__tests__/elevenlabs-provider.test.ts - Mock WebSocket: test synthesize yields chunks, test stop closes connection, test fallback mock mode when no API key, test error handling.",
+    "Create packages/quant-live/src/__tests__/kokoro-provider.test.ts - Mock fetch with ReadableStream response: test synthesize yields chunks from stream, test stop aborts request, test fallback mock mode when no server URL.",
+    "Create packages/quant-live/src/__tests__/prefetch-buffer.test.ts - Test buffering behavior (yields buffered chunks first then live), test cancel discards remaining, test empty source, test partial buffer when source has fewer chunks than bufferSize.",
+    "Create packages/quant-live/src/__tests__/adaptive-vad.test.ts - Test calibration phase (first 500ms sets noise floor), test threshold adjustment after calibration, test speech detection with adaptive threshold, test whisper mode.",
+    "Run pnpm --filter @quant/quant-live run typecheck and pnpm --filter @quant/quant-live run test to verify everything passes.",
+    "Stage all changes and commit with message: feat(quant-live): add streaming TTS with ElevenLabs, Kokoro, prefetch buffer"
+  ],
+  "acceptance_criteria": [
+    "Branch feat/phase-41-quant-live-tts exists and is checked out",
+    "TTSProvider interface, TTSOptions, TTSEvent, AdaptiveVADConfig types are defined in types.ts",
+    "ElevenLabsTTSProvider implements TTSProvider with async generator synthesize() and graceful fallback",
+    "KokoroTTSProvider implements TTSProvider with HTTP streaming and graceful fallback",
+    "TTSProviderFactory creates providers by type string",
+    "PrefetchBuffer buffers initial chunks and supports cancellation",
+    "AdaptiveVAD calibrates noise floor and adjusts threshold dynamically",
+    "Pipeline integrates TTS with latency tracking and interruption handling",
+    "All new modules are exported from index.ts",
+    "All tests pass: pnpm --filter @quant/quant-live run test",
+    "Type checking passes: pnpm --filter @quant/quant-live run typecheck",
+    "Single commit on feat/phase-41-quant-live-tts branch with correct message"
+  ],
+  "verification": [
+    "pnpm --filter @quant/quant-live run typecheck",
+    "pnpm --filter @quant/quant-live run test"
+  ],
+  "blocked_reason": null,
+  "findings": "All 89 tests pass. Typecheck clean. Prettier formatted code via lint-staged pre-commit hook. Branch feat/phase-41-quant-live-tts created from feat/phase-41-quant-live-asr HEAD. Total new production LOC ~250 (well under 500 limit)."
+}
