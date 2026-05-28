@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { sanitizeCodeHighlight } from '@quant/shared-ui';
 
 interface Pipeline {
   id: string;
@@ -94,7 +95,7 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
       if (filterStatus !== 'all') params.set('status', filterStatus);
       if (filterBranch) params.set('branch', filterBranch);
       const response = await fetch(`/api/ci-cd/pipelines?${params}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (!response.ok) throw new Error('Failed to fetch pipelines');
       const data = await response.json();
@@ -109,11 +110,14 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
   const fetchYamlConfig = useCallback(async () => {
     try {
       const response = await fetch('/api/ci-cd/config', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (response.ok) {
         const data = await response.json();
-        setYamlContent(data.content || '# Pipeline configuration\nstages:\n  - build\n  - test\n  - deploy\n\nbuild:\n  stage: build\n  script:\n    - npm install\n    - npm run build\n  artifacts:\n    paths:\n      - dist/\n\ntest:\n  stage: test\n  script:\n    - npm run test\n  coverage: /Coverage: (\\d+\\.\\d+)%/\n\ndeploy_staging:\n  stage: deploy\n  script:\n    - npm run deploy:staging\n  environment:\n    name: staging\n  only:\n    - develop\n\ndeploy_production:\n  stage: deploy\n  script:\n    - npm run deploy:production\n  environment:\n    name: production\n  only:\n    - main\n  when: manual');
+        setYamlContent(
+          data.content ||
+            '# Pipeline configuration\nstages:\n  - build\n  - test\n  - deploy\n\nbuild:\n  stage: build\n  script:\n    - npm install\n    - npm run build\n  artifacts:\n    paths:\n      - dist/\n\ntest:\n  stage: test\n  script:\n    - npm run test\n  coverage: /Coverage: (\\d+\\.\\d+)%/\n\ndeploy_staging:\n  stage: deploy\n  script:\n    - npm run deploy:staging\n  environment:\n    name: staging\n  only:\n    - develop\n\ndeploy_production:\n  stage: deploy\n  script:\n    - npm run deploy:production\n  environment:\n    name: production\n  only:\n    - main\n  when: manual',
+        );
       }
     } catch (err) {
       console.error('Failed to fetch YAML:', err);
@@ -123,7 +127,7 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
   const fetchEnvVars = useCallback(async () => {
     try {
       const response = await fetch('/api/ci-cd/env-vars', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -134,7 +138,9 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
     }
   }, []);
 
-  useEffect(() => { fetchPipelines(); }, [fetchPipelines]);
+  useEffect(() => {
+    fetchPipelines();
+  }, [fetchPipelines]);
   useEffect(() => {
     if (activeView === 'yaml') fetchYamlConfig();
     if (activeView === 'env') fetchEnvVars();
@@ -151,12 +157,15 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
     try {
       const response = await fetch('/api/ci-cd/pipelines/trigger', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-        body: JSON.stringify({ branch })
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ branch }),
       });
       if (!response.ok) throw new Error('Failed to trigger pipeline');
       const newPipeline = await response.json();
-      setPipelines(prev => [newPipeline, ...prev]);
+      setPipelines((prev) => [newPipeline, ...prev]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to trigger pipeline');
     } finally {
@@ -169,8 +178,11 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
     try {
       const response = await fetch('/api/ci-cd/config', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-        body: JSON.stringify({ content: yamlContent })
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ content: yamlContent }),
       });
       if (!response.ok) throw new Error('Failed to save configuration');
       setYamlEditing(false);
@@ -186,12 +198,20 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
     try {
       const response = await fetch('/api/ci-cd/env-vars', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-        body: JSON.stringify({ key: newEnvKey, value: newEnvValue, isSecret: newEnvSecret, environment: newEnvEnvironment })
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          key: newEnvKey,
+          value: newEnvValue,
+          isSecret: newEnvSecret,
+          environment: newEnvEnvironment,
+        }),
       });
       if (response.ok) {
         const newVar = await response.json();
-        setEnvVars(prev => [...prev, newVar]);
+        setEnvVars((prev) => [...prev, newVar]);
         setNewEnvKey('');
         setNewEnvValue('');
         setNewEnvSecret(false);
@@ -205,9 +225,9 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
     try {
       await fetch(`/api/ci-cd/env-vars/${encodeURIComponent(key)}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      setEnvVars(prev => prev.filter(v => v.key !== key));
+      setEnvVars((prev) => prev.filter((v) => v.key !== key));
     } catch (err) {
       console.error('Failed to delete env var:', err);
     }
@@ -217,9 +237,11 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
     try {
       await fetch(`/api/ci-cd/pipelines/${pipelineId}/cancel`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      setPipelines(prev => prev.map(p => p.id === pipelineId ? { ...p, status: 'cancelled' as const } : p));
+      setPipelines((prev) =>
+        prev.map((p) => (p.id === pipelineId ? { ...p, status: 'cancelled' as const } : p)),
+      );
     } catch (err) {
       console.error('Failed to cancel pipeline:', err);
     }
@@ -229,11 +251,11 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
     try {
       const response = await fetch(`/api/ci-cd/pipelines/${pipelineId}/retry`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (response.ok) {
         const retried = await response.json();
-        setPipelines(prev => [retried, ...prev]);
+        setPipelines((prev) => [retried, ...prev]);
       }
     } catch (err) {
       console.error('Failed to retry pipeline:', err);
@@ -274,18 +296,47 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
       <header className="pipelines-header">
         <h1>CI/CD Pipelines</h1>
         <div className="header-actions">
-          <button onClick={() => handleTriggerPipeline('main')} disabled={triggering} className="trigger-btn">
+          <button
+            onClick={() => handleTriggerPipeline('main')}
+            disabled={triggering}
+            className="trigger-btn"
+          >
             {triggering ? 'Triggering...' : 'Run Pipeline'}
           </button>
         </div>
       </header>
 
       <nav className="pipeline-views">
-        <button onClick={() => setActiveView('list')} className={activeView === 'list' ? 'active' : ''}>Pipelines</button>
-        <button onClick={() => setActiveView('yaml')} className={activeView === 'yaml' ? 'active' : ''}>Configuration</button>
-        <button onClick={() => setActiveView('dag')} className={activeView === 'dag' ? 'active' : ''}>Workflow DAG</button>
-        <button onClick={() => setActiveView('logs')} className={activeView === 'logs' ? 'active' : ''}>Build Logs</button>
-        <button onClick={() => setActiveView('env')} className={activeView === 'env' ? 'active' : ''}>Environment</button>
+        <button
+          onClick={() => setActiveView('list')}
+          className={activeView === 'list' ? 'active' : ''}
+        >
+          Pipelines
+        </button>
+        <button
+          onClick={() => setActiveView('yaml')}
+          className={activeView === 'yaml' ? 'active' : ''}
+        >
+          Configuration
+        </button>
+        <button
+          onClick={() => setActiveView('dag')}
+          className={activeView === 'dag' ? 'active' : ''}
+        >
+          Workflow DAG
+        </button>
+        <button
+          onClick={() => setActiveView('logs')}
+          className={activeView === 'logs' ? 'active' : ''}
+        >
+          Build Logs
+        </button>
+        <button
+          onClick={() => setActiveView('env')}
+          className={activeView === 'env' ? 'active' : ''}
+        >
+          Environment
+        </button>
       </nav>
 
       {activeView === 'list' && (
@@ -298,39 +349,88 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
               <option value="running">Running</option>
               <option value="pending">Pending</option>
             </select>
-            <input type="text" placeholder="Filter by branch..." value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} />
+            <input
+              type="text"
+              placeholder="Filter by branch..."
+              value={filterBranch}
+              onChange={(e) => setFilterBranch(e.target.value)}
+            />
           </div>
           {loading ? (
-            <div className="loading-state">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="pipeline-skeleton"></div>)}</div>
+            <div className="loading-state">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="pipeline-skeleton"></div>
+              ))}
+            </div>
           ) : filteredPipelines.length === 0 ? (
-            <div className="empty-state"><h3>No pipelines found</h3><p>Run your first pipeline to see results here.</p></div>
+            <div className="empty-state">
+              <h3>No pipelines found</h3>
+              <p>Run your first pipeline to see results here.</p>
+            </div>
           ) : (
             <div className="pipeline-items">
-              {filteredPipelines.map(pipeline => (
-                <div key={pipeline.id} className="pipeline-item" onClick={() => { setSelectedPipeline(pipeline); setActiveView('dag'); }}>
-                  <div className="pipeline-status" style={{ color: STATUS_COLORS[pipeline.status] }}>
+              {filteredPipelines.map((pipeline) => (
+                <div
+                  key={pipeline.id}
+                  className="pipeline-item"
+                  onClick={() => {
+                    setSelectedPipeline(pipeline);
+                    setActiveView('dag');
+                  }}
+                >
+                  <div
+                    className="pipeline-status"
+                    style={{ color: STATUS_COLORS[pipeline.status] }}
+                  >
                     <span className="status-icon">{STATUS_ICONS[pipeline.status]}</span>
                   </div>
                   <div className="pipeline-info">
                     <div className="pipeline-name">{pipeline.name}</div>
                     <div className="pipeline-meta">
                       <span className="pipeline-branch">{pipeline.branch}</span>
-                      <span className="pipeline-commit" title={pipeline.commit.message}>{pipeline.commit.sha.slice(0, 7)}</span>
+                      <span className="pipeline-commit" title={pipeline.commit.message}>
+                        {pipeline.commit.sha.slice(0, 7)}
+                      </span>
                       <span className="pipeline-trigger">by {pipeline.triggeredBy}</span>
                     </div>
                   </div>
                   <div className="pipeline-stages-mini">
-                    {pipeline.stages.map(stage => (
-                      <span key={stage.id} className="stage-dot" style={{ backgroundColor: STATUS_COLORS[stage.status] }} title={`${stage.name}: ${stage.status}`}></span>
+                    {pipeline.stages.map((stage) => (
+                      <span
+                        key={stage.id}
+                        className="stage-dot"
+                        style={{ backgroundColor: STATUS_COLORS[stage.status] }}
+                        title={`${stage.name}: ${stage.status}`}
+                      ></span>
                     ))}
                   </div>
                   <div className="pipeline-timing">
                     <span className="pipeline-duration">{formatDuration(pipeline.duration)}</span>
-                    <span className="pipeline-date">{new Date(pipeline.startedAt).toLocaleDateString()}</span>
+                    <span className="pipeline-date">
+                      {new Date(pipeline.startedAt).toLocaleDateString()}
+                    </span>
                   </div>
                   <div className="pipeline-actions">
-                    {pipeline.status === 'running' && <button onClick={(e) => { e.stopPropagation(); handleCancelPipeline(pipeline.id); }}>Cancel</button>}
-                    {pipeline.status === 'failed' && <button onClick={(e) => { e.stopPropagation(); handleRetryPipeline(pipeline.id); }}>Retry</button>}
+                    {pipeline.status === 'running' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCancelPipeline(pipeline.id);
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                    {pipeline.status === 'failed' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRetryPipeline(pipeline.id);
+                        }}
+                      >
+                        Retry
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -345,7 +445,9 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
             <span className="yaml-filename">.quantmail-ci.yml</span>
             {yamlEditing ? (
               <>
-                <button onClick={handleSaveYaml} disabled={yamlSaving}>{yamlSaving ? 'Saving...' : 'Save'}</button>
+                <button onClick={handleSaveYaml} disabled={yamlSaving}>
+                  {yamlSaving ? 'Saving...' : 'Save'}
+                </button>
                 <button onClick={() => setYamlEditing(false)}>Cancel</button>
               </>
             ) : (
@@ -354,12 +456,23 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
           </div>
           <div className="yaml-editor">
             <div className="line-numbers">
-              {yamlContent.split('\n').map((_, i) => <div key={i} className="line-num">{i + 1}</div>)}
+              {yamlContent.split('\n').map((_, i) => (
+                <div key={i} className="line-num">
+                  {i + 1}
+                </div>
+              ))}
             </div>
             {yamlEditing ? (
-              <textarea className="yaml-textarea" value={yamlContent} onChange={(e) => setYamlContent(e.target.value)} spellCheck={false} />
+              <textarea
+                className="yaml-textarea"
+                value={yamlContent}
+                onChange={(e) => setYamlContent(e.target.value)}
+                spellCheck={false}
+              />
             ) : (
-              <pre className="yaml-display"><code>{yamlContent}</code></pre>
+              <pre className="yaml-display">
+                <code>{yamlContent}</code>
+              </pre>
             )}
           </div>
         </div>
@@ -371,16 +484,33 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
           <div className="dag-graph">
             {selectedPipeline.stages.map((stage, idx) => (
               <div key={stage.id} className="dag-stage">
-                {idx > 0 && <div className="dag-connector"><div className="connector-line"></div><div className="connector-arrow">&#x2192;</div></div>}
+                {idx > 0 && (
+                  <div className="dag-connector">
+                    <div className="connector-line"></div>
+                    <div className="connector-arrow">&#x2192;</div>
+                  </div>
+                )}
                 <div className="dag-node" style={{ borderColor: STATUS_COLORS[stage.status] }}>
-                  <div className="node-header" style={{ backgroundColor: STATUS_COLORS[stage.status] }}>
+                  <div
+                    className="node-header"
+                    style={{ backgroundColor: STATUS_COLORS[stage.status] }}
+                  >
                     <span className="node-status">{STATUS_ICONS[stage.status]}</span>
                     <span className="node-name">{stage.name}</span>
                   </div>
                   <div className="node-jobs">
-                    {stage.jobs.map(job => (
-                      <div key={job.id} className="node-job" onClick={() => { setSelectedJob(job); setActiveView('logs'); }}>
-                        <span style={{ color: STATUS_COLORS[job.status] }}>{STATUS_ICONS[job.status]}</span>
+                    {stage.jobs.map((job) => (
+                      <div
+                        key={job.id}
+                        className="node-job"
+                        onClick={() => {
+                          setSelectedJob(job);
+                          setActiveView('logs');
+                        }}
+                      >
+                        <span style={{ color: STATUS_COLORS[job.status] }}>
+                          {STATUS_ICONS[job.status]}
+                        </span>
                         <span>{job.name}</span>
                         <span className="job-duration">{formatDuration(job.duration)}</span>
                       </div>
@@ -398,12 +528,20 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
         <div className="logs-view">
           <div className="logs-sidebar">
             <h3>Jobs</h3>
-            {selectedPipeline?.stages.flatMap(s => s.jobs).map(job => (
-              <button key={job.id} onClick={() => setSelectedJob(job)} className={`job-select ${selectedJob?.id === job.id ? 'active' : ''}`}>
-                <span style={{ color: STATUS_COLORS[job.status] }}>{STATUS_ICONS[job.status]}</span>
-                {job.name}
-              </button>
-            ))}
+            {selectedPipeline?.stages
+              .flatMap((s) => s.jobs)
+              .map((job) => (
+                <button
+                  key={job.id}
+                  onClick={() => setSelectedJob(job)}
+                  className={`job-select ${selectedJob?.id === job.id ? 'active' : ''}`}
+                >
+                  <span style={{ color: STATUS_COLORS[job.status] }}>
+                    {STATUS_ICONS[job.status]}
+                  </span>
+                  {job.name}
+                </button>
+              ))}
           </div>
           <div className="logs-content" ref={logContainerRef}>
             {selectedJob ? (
@@ -417,13 +555,20 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
                   {selectedJob.logs.map((line, i) => (
                     <div key={i} className="log-line">
                       <span className="log-line-num">{i + 1}</span>
-                      <span className="log-line-content" dangerouslySetInnerHTML={{ __html: renderAnsiLog(line) }}></span>
+                      <span
+                        className="log-line-content"
+                        dangerouslySetInnerHTML={{
+                          __html: sanitizeCodeHighlight(renderAnsiLog(line)),
+                        }}
+                      ></span>
                     </div>
                   ))}
                 </pre>
               </>
             ) : (
-              <div className="empty-state"><p>Select a job to view its logs.</p></div>
+              <div className="empty-state">
+                <p>Select a job to view its logs.</p>
+              </div>
             )}
           </div>
         </div>
@@ -433,27 +578,63 @@ export const PipelinesPage: React.FC<PipelinesPageProps> = ({ repoId }) => {
         <div className="env-vars-view">
           <h2>Environment Variables</h2>
           <div className="add-env-form">
-            <input type="text" placeholder="KEY" value={newEnvKey} onChange={(e) => setNewEnvKey(e.target.value.toUpperCase())} />
-            <input type={newEnvSecret ? 'password' : 'text'} placeholder="Value" value={newEnvValue} onChange={(e) => setNewEnvValue(e.target.value)} />
-            <select value={newEnvEnvironment} onChange={(e) => setNewEnvEnvironment(e.target.value)}>
+            <input
+              type="text"
+              placeholder="KEY"
+              value={newEnvKey}
+              onChange={(e) => setNewEnvKey(e.target.value.toUpperCase())}
+            />
+            <input
+              type={newEnvSecret ? 'password' : 'text'}
+              placeholder="Value"
+              value={newEnvValue}
+              onChange={(e) => setNewEnvValue(e.target.value)}
+            />
+            <select
+              value={newEnvEnvironment}
+              onChange={(e) => setNewEnvEnvironment(e.target.value)}
+            >
               <option value="production">Production</option>
               <option value="staging">Staging</option>
               <option value="development">Development</option>
               <option value="all">All</option>
             </select>
-            <label className="secret-toggle"><input type="checkbox" checked={newEnvSecret} onChange={(e) => setNewEnvSecret(e.target.checked)} /> Secret</label>
-            <button onClick={handleAddEnvVar} disabled={!newEnvKey.trim()}>Add</button>
+            <label className="secret-toggle">
+              <input
+                type="checkbox"
+                checked={newEnvSecret}
+                onChange={(e) => setNewEnvSecret(e.target.checked)}
+              />{' '}
+              Secret
+            </label>
+            <button onClick={handleAddEnvVar} disabled={!newEnvKey.trim()}>
+              Add
+            </button>
           </div>
           <table className="env-table">
-            <thead><tr><th>Key</th><th>Value</th><th>Environment</th><th>Type</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Value</th>
+                <th>Environment</th>
+                <th>Type</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
             <tbody>
-              {envVars.map(v => (
+              {envVars.map((v) => (
                 <tr key={v.key}>
-                  <td className="env-key"><code>{v.key}</code></td>
+                  <td className="env-key">
+                    <code>{v.key}</code>
+                  </td>
                   <td className="env-value">{v.isSecret ? '********' : v.value}</td>
                   <td>{v.environment}</td>
                   <td>{v.isSecret ? 'Secret' : 'Variable'}</td>
-                  <td><button onClick={() => handleDeleteEnvVar(v.key)} className="delete-btn">Delete</button></td>
+                  <td>
+                    <button onClick={() => handleDeleteEnvVar(v.key)} className="delete-btn">
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

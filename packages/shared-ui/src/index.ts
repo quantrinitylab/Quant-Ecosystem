@@ -308,6 +308,9 @@ export type {
   ScaleOnHoverProps,
 } from './components/Motion';
 
+// Sanitization utilities
+export { sanitizeHtmlContent, sanitizeCodeHighlight } from './utils/sanitize';
+
 // QuantLive components
 export {
   QuantLive,

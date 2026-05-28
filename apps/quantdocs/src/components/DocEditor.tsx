@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
+import { sanitizeHtmlContent } from '@quant/shared-ui';
 
 interface DocEditorProps {
   initialContent?: string;
@@ -28,7 +29,7 @@ export function DocEditor({ initialContent = '', onChange }: DocEditorProps) {
         aria-multiline="true"
         aria-label="Document editor"
         data-placeholder="Start typing..."
-        dangerouslySetInnerHTML={{ __html: initialContent }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtmlContent(initialContent) }}
       />
       <style jsx>{`
         [data-placeholder]:empty::before {

@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState } from 'react';
+import { sanitizeHtmlContent } from '@quant/shared-ui';
 import type { Email, EmailThread as EmailThreadType, EmailAddress } from '../types';
 
 export interface EmailThreadProps {
@@ -20,9 +21,22 @@ export interface EmailThreadProps {
 }
 
 export function EmailThread(props: EmailThreadProps): React.ReactElement {
-  const { thread, onReply, onForward, onArchive, onDelete, onToggleStar, onAddLabel, onAISummarize, onAISuggestReplies, onBack } = props;
+  const {
+    thread,
+    onReply,
+    onForward,
+    onArchive,
+    onDelete,
+    onToggleStar,
+    onAddLabel,
+    onAISummarize,
+    onAISuggestReplies,
+    onBack,
+  } = props;
 
-  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set([thread.messages[thread.messages.length - 1]?.id]));
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(
+    new Set([thread.messages[thread.messages.length - 1]?.id]),
+  );
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyBody, setReplyBody] = useState('');
   const [replyAll, setReplyAll] = useState(false);
@@ -78,22 +92,39 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
   };
 
   const formatDate = (date: Date): string => {
-    return new Date(date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(date).toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   return (
     <div className="email-thread">
       {/* Thread Header */}
       <div className="thread-header">
-        <button className="btn btn-sm btn-icon" onClick={onBack}>Back</button>
+        <button className="btn btn-sm btn-icon" onClick={onBack}>
+          Back
+        </button>
         <h2 className="thread-subject">{thread.subject}</h2>
         <div className="thread-meta">
           <span>{thread.messageCount} messages</span>
           <span>{thread.participants.length} participants</span>
         </div>
         <div className="thread-actions">
-          <button className="btn btn-sm btn-outline" onClick={() => onArchive(thread.messages[0]?.id)}>Archive</button>
-          <button className="btn btn-sm btn-outline" onClick={() => onDelete(thread.messages[0]?.id)}>Delete</button>
+          <button
+            className="btn btn-sm btn-outline"
+            onClick={() => onArchive(thread.messages[0]?.id)}
+          >
+            Archive
+          </button>
+          <button
+            className="btn btn-sm btn-outline"
+            onClick={() => onDelete(thread.messages[0]?.id)}
+          >
+            Delete
+          </button>
         </div>
       </div>
 
@@ -102,7 +133,9 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
         <div className="ai-summary-banner">
           <span className="ai-badge">AI Summary</span>
           <p>{summary}</p>
-          <button className="btn-link btn-sm" onClick={() => setSummary(null)}>Dismiss</button>
+          <button className="btn-link btn-sm" onClick={() => setSummary(null)}>
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -124,7 +157,13 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                   <span className="sender-email">&lt;{email.from.email}&gt;</span>
                 </div>
                 <div className="message-date">{formatDate(email.receivedAt)}</div>
-                <button className={`star-btn ${email.isStarred ? 'starred' : ''}`} onClick={(e) => { e.stopPropagation(); onToggleStar(email.id); }}>
+                <button
+                  className={`star-btn ${email.isStarred ? 'starred' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleStar(email.id);
+                  }}
+                >
                   {email.isStarred ? '\u2605' : '\u2606'}
                 </button>
               </div>
@@ -134,9 +173,18 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                 <div className="message-body">
                   <div className="message-recipients">
                     <span>To: {email.to.map((r) => r.name || r.email).join(', ')}</span>
-                    {email.cc.length > 0 && <span>Cc: {email.cc.map((r) => r.email).join(', ')}</span>}
+                    {email.cc.length > 0 && (
+                      <span>Cc: {email.cc.map((r) => r.email).join(', ')}</span>
+                    )}
                   </div>
-                  <div className="message-content" dangerouslySetInnerHTML={{ __html: email.bodyHtml || email.bodyText.replace(/\n/g, '<br>') }} />
+                  <div
+                    className="message-content"
+                    dangerouslySetInnerHTML={{
+                      __html: sanitizeHtmlContent(
+                        email.bodyHtml || email.bodyText.replace(/\n/g, '<br>'),
+                      ),
+                    }}
+                  />
 
                   {/* Attachments */}
                   {email.attachments.length > 0 && (
@@ -146,7 +194,9 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                         <div key={att.id} className="attachment-item">
                           <span className="attachment-icon">📎</span>
                           <span className="attachment-name">{att.filename}</span>
-                          <span className="attachment-size">({Math.round(att.size / 1024)} KB)</span>
+                          <span className="attachment-size">
+                            ({Math.round(att.size / 1024)} KB)
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -154,11 +204,42 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
 
                   {/* Message Actions */}
                   <div className="message-actions">
-                    <button className="btn btn-sm btn-outline" onClick={() => { setReplyingTo(email.id); setReplyAll(false); }}>Reply</button>
-                    <button className="btn btn-sm btn-outline" onClick={() => { setReplyingTo(email.id); setReplyAll(true); }}>Reply All</button>
-                    <button className="btn btn-sm btn-outline" onClick={() => setForwardingId(email.id)}>Forward</button>
-                    <button className="btn btn-sm btn-outline" onClick={() => handleSummarize(email.id)}>AI Summarize</button>
-                    <button className="btn btn-sm btn-outline" onClick={() => handleSuggestReplies(email.id)}>AI Suggest Reply</button>
+                    <button
+                      className="btn btn-sm btn-outline"
+                      onClick={() => {
+                        setReplyingTo(email.id);
+                        setReplyAll(false);
+                      }}
+                    >
+                      Reply
+                    </button>
+                    <button
+                      className="btn btn-sm btn-outline"
+                      onClick={() => {
+                        setReplyingTo(email.id);
+                        setReplyAll(true);
+                      }}
+                    >
+                      Reply All
+                    </button>
+                    <button
+                      className="btn btn-sm btn-outline"
+                      onClick={() => setForwardingId(email.id)}
+                    >
+                      Forward
+                    </button>
+                    <button
+                      className="btn btn-sm btn-outline"
+                      onClick={() => handleSummarize(email.id)}
+                    >
+                      AI Summarize
+                    </button>
+                    <button
+                      className="btn btn-sm btn-outline"
+                      onClick={() => handleSuggestReplies(email.id)}
+                    >
+                      AI Suggest Reply
+                    </button>
                   </div>
 
                   {/* Reply Suggestions */}
@@ -166,7 +247,11 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                     <div className="reply-suggestions">
                       <h5>Suggested Replies:</h5>
                       {replySuggestions.map((suggestion, i) => (
-                        <button key={i} className="suggestion-btn" onClick={() => useSuggestion(suggestion, email.id)}>
+                        <button
+                          key={i}
+                          className="suggestion-btn"
+                          onClick={() => useSuggestion(suggestion, email.id)}
+                        >
                           {suggestion}
                         </button>
                       ))}
@@ -185,11 +270,29 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                       />
                       <div className="reply-form-actions">
                         <label className="checkbox-label">
-                          <input type="checkbox" checked={replyAll} onChange={(e) => setReplyAll(e.target.checked)} />
+                          <input
+                            type="checkbox"
+                            checked={replyAll}
+                            onChange={(e) => setReplyAll(e.target.checked)}
+                          />
                           Reply All
                         </label>
-                        <button className="btn btn-sm btn-outline" onClick={() => { setReplyingTo(null); setReplyBody(''); }}>Cancel</button>
-                        <button className="btn btn-sm btn-primary" onClick={handleReply} disabled={!replyBody.trim()}>Send Reply</button>
+                        <button
+                          className="btn btn-sm btn-outline"
+                          onClick={() => {
+                            setReplyingTo(null);
+                            setReplyBody('');
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={handleReply}
+                          disabled={!replyBody.trim()}
+                        >
+                          Send Reply
+                        </button>
                       </div>
                     </div>
                   )}
@@ -199,15 +302,38 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                     <div className="forward-form">
                       <div className="form-group">
                         <label>Forward to:</label>
-                        <input type="text" value={forwardTo} onChange={(e) => setForwardTo(e.target.value)} placeholder="email@example.com" />
+                        <input
+                          type="text"
+                          value={forwardTo}
+                          onChange={(e) => setForwardTo(e.target.value)}
+                          placeholder="email@example.com"
+                        />
                       </div>
                       <div className="form-group">
                         <label>Additional message:</label>
-                        <textarea value={forwardMessage} onChange={(e) => setForwardMessage(e.target.value)} rows={3} />
+                        <textarea
+                          value={forwardMessage}
+                          onChange={(e) => setForwardMessage(e.target.value)}
+                          rows={3}
+                        />
                       </div>
                       <div className="forward-form-actions">
-                        <button className="btn btn-sm btn-outline" onClick={() => { setForwardingId(null); setForwardTo(''); }}>Cancel</button>
-                        <button className="btn btn-sm btn-primary" onClick={handleForward} disabled={!forwardTo.trim()}>Forward</button>
+                        <button
+                          className="btn btn-sm btn-outline"
+                          onClick={() => {
+                            setForwardingId(null);
+                            setForwardTo('');
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className="btn btn-sm btn-primary"
+                          onClick={handleForward}
+                          disabled={!forwardTo.trim()}
+                        >
+                          Forward
+                        </button>
                       </div>
                     </div>
                   )}
@@ -215,9 +341,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
               )}
 
               {/* Collapsed preview */}
-              {!isExpanded && (
-                <p className="message-snippet">{email.snippet}</p>
-              )}
+              {!isExpanded && <p className="message-snippet">{email.snippet}</p>}
             </div>
           );
         })}

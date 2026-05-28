@@ -5,6 +5,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { sanitizeCodeHighlight } from '@quant/shared-ui';
 
 interface CodeSuggestion {
   id: string;
@@ -28,21 +29,170 @@ interface LanguageOption {
 }
 
 const LANGUAGES: LanguageOption[] = [
-  { id: 'javascript', name: 'JavaScript', extension: '.js', placeholder: '// Write JavaScript code here\nfunction hello() {\n  console.log("Hello, World!");\n}\n\nhello();' },
-  { id: 'python', name: 'Python', extension: '.py', placeholder: '# Write Python code here\ndef hello():\n    print("Hello, World!")\n\nhello()' },
-  { id: 'typescript', name: 'TypeScript', extension: '.ts', placeholder: '// Write TypeScript code here\ninterface User {\n  name: string;\n  age: number;\n}\n\nfunction greet(user: User): string {\n  return `Hello, ${user.name}!`;\n}' },
-  { id: 'go', name: 'Go', extension: '.go', placeholder: '// Write Go code here\npackage main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, World!")\n}' },
-  { id: 'rust', name: 'Rust', extension: '.rs', placeholder: '// Write Rust code here\nfn main() {\n    println!("Hello, World!");\n}' },
-  { id: 'java', name: 'Java', extension: '.java', placeholder: '// Write Java code here\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}' },
+  {
+    id: 'javascript',
+    name: 'JavaScript',
+    extension: '.js',
+    placeholder:
+      '// Write JavaScript code here\nfunction hello() {\n  console.log("Hello, World!");\n}\n\nhello();',
+  },
+  {
+    id: 'python',
+    name: 'Python',
+    extension: '.py',
+    placeholder: '# Write Python code here\ndef hello():\n    print("Hello, World!")\n\nhello()',
+  },
+  {
+    id: 'typescript',
+    name: 'TypeScript',
+    extension: '.ts',
+    placeholder:
+      '// Write TypeScript code here\ninterface User {\n  name: string;\n  age: number;\n}\n\nfunction greet(user: User): string {\n  return `Hello, ${user.name}!`;\n}',
+  },
+  {
+    id: 'go',
+    name: 'Go',
+    extension: '.go',
+    placeholder:
+      '// Write Go code here\npackage main\n\nimport "fmt"\n\nfunc main() {\n    fmt.Println("Hello, World!")\n}',
+  },
+  {
+    id: 'rust',
+    name: 'Rust',
+    extension: '.rs',
+    placeholder: '// Write Rust code here\nfn main() {\n    println!("Hello, World!");\n}',
+  },
+  {
+    id: 'java',
+    name: 'Java',
+    extension: '.java',
+    placeholder:
+      '// Write Java code here\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, World!");\n    }\n}',
+  },
 ];
 
 const KEYWORD_CLASSES: Record<string, string[]> = {
-  javascript: ['function', 'const', 'let', 'var', 'return', 'if', 'else', 'for', 'while', 'class', 'import', 'export', 'async', 'await', 'new', 'this', 'try', 'catch'],
-  python: ['def', 'class', 'return', 'if', 'elif', 'else', 'for', 'while', 'import', 'from', 'try', 'except', 'with', 'as', 'lambda', 'yield', 'async', 'await'],
-  typescript: ['function', 'const', 'let', 'var', 'return', 'if', 'else', 'for', 'while', 'class', 'import', 'export', 'interface', 'type', 'enum', 'async', 'await', 'new'],
-  go: ['func', 'package', 'import', 'return', 'if', 'else', 'for', 'range', 'struct', 'interface', 'var', 'const', 'type', 'defer', 'go', 'chan', 'select', 'switch'],
-  rust: ['fn', 'let', 'mut', 'return', 'if', 'else', 'for', 'while', 'loop', 'struct', 'impl', 'enum', 'use', 'pub', 'mod', 'trait', 'match', 'async', 'await'],
-  java: ['public', 'private', 'protected', 'class', 'interface', 'return', 'if', 'else', 'for', 'while', 'new', 'import', 'package', 'void', 'static', 'final', 'try', 'catch'],
+  javascript: [
+    'function',
+    'const',
+    'let',
+    'var',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'class',
+    'import',
+    'export',
+    'async',
+    'await',
+    'new',
+    'this',
+    'try',
+    'catch',
+  ],
+  python: [
+    'def',
+    'class',
+    'return',
+    'if',
+    'elif',
+    'else',
+    'for',
+    'while',
+    'import',
+    'from',
+    'try',
+    'except',
+    'with',
+    'as',
+    'lambda',
+    'yield',
+    'async',
+    'await',
+  ],
+  typescript: [
+    'function',
+    'const',
+    'let',
+    'var',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'class',
+    'import',
+    'export',
+    'interface',
+    'type',
+    'enum',
+    'async',
+    'await',
+    'new',
+  ],
+  go: [
+    'func',
+    'package',
+    'import',
+    'return',
+    'if',
+    'else',
+    'for',
+    'range',
+    'struct',
+    'interface',
+    'var',
+    'const',
+    'type',
+    'defer',
+    'go',
+    'chan',
+    'select',
+    'switch',
+  ],
+  rust: [
+    'fn',
+    'let',
+    'mut',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'loop',
+    'struct',
+    'impl',
+    'enum',
+    'use',
+    'pub',
+    'mod',
+    'trait',
+    'match',
+    'async',
+    'await',
+  ],
+  java: [
+    'public',
+    'private',
+    'protected',
+    'class',
+    'interface',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'new',
+    'import',
+    'package',
+    'void',
+    'static',
+    'final',
+    'try',
+    'catch',
+  ],
 };
 
 export default function CodePage(): JSX.Element {
@@ -64,7 +214,7 @@ export default function CodePage(): JSX.Element {
   const lineCountRef = useRef<HTMLDivElement>(null);
 
   const currentLanguage = useMemo(() => {
-    return LANGUAGES.find(l => l.id === language) || LANGUAGES[0];
+    return LANGUAGES.find((l) => l.id === language) || LANGUAGES[0];
   }, [language]);
 
   const lineNumbers = useMemo(() => {
@@ -75,9 +225,9 @@ export default function CodePage(): JSX.Element {
   const highlightedCode = useMemo(() => {
     const keywords = KEYWORD_CLASSES[language] || [];
     const lines = code.split('\n');
-    return lines.map(line => {
+    return lines.map((line) => {
       let highlighted = line;
-      keywords.forEach(kw => {
+      keywords.forEach((kw) => {
         const regex = new RegExp(`\\b${kw}\\b`, 'g');
         highlighted = highlighted.replace(regex, `<span class="keyword">${kw}</span>`);
       });
@@ -94,7 +244,7 @@ export default function CodePage(): JSX.Element {
       if (lastWord.length >= 2) {
         const keywords = KEYWORD_CLASSES[language] || [];
         const matches = keywords
-          .filter(kw => kw.startsWith(lastWord.toLowerCase()))
+          .filter((kw) => kw.startsWith(lastWord.toLowerCase()))
           .map((kw, i) => ({
             id: `s${i}`,
             text: kw,
@@ -111,7 +261,7 @@ export default function CodePage(): JSX.Element {
 
   const handleLanguageChange = useCallback((newLang: string) => {
     setLanguage(newLang);
-    const langOption = LANGUAGES.find(l => l.id === newLang);
+    const langOption = LANGUAGES.find((l) => l.id === newLang);
     if (langOption) setCode(langOption.placeholder);
     setOutput('');
   }, []);
@@ -151,51 +301,66 @@ export default function CodePage(): JSX.Element {
   const handleExplain = useCallback(() => {
     setMode('explain');
     const explanation = `Here is an explanation of your code:\n\n1. The code defines a main function/entry point\n2. It initializes variables and processes data\n3. The output is printed/returned to the console\n\nKey concepts used:\n- Variable declarations\n- String manipulation\n- Function definitions\n- Control flow`;
-    setAiMessages(prev => [...prev, {
-      id: `m${Date.now()}`,
-      role: 'assistant',
-      content: explanation,
-      timestamp: new Date().toISOString(),
-    }]);
+    setAiMessages((prev) => [
+      ...prev,
+      {
+        id: `m${Date.now()}`,
+        role: 'assistant',
+        content: explanation,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   }, []);
 
   const handleDebug = useCallback(() => {
     setMode('debug');
     const debugInfo = `Analyzing your code for potential issues...\n\nFound 0 errors and 2 suggestions:\n\n1. Consider adding error handling for edge cases\n2. The function could benefit from input validation\n\nNo runtime errors detected. Code appears syntactically correct for ${currentLanguage.name}.`;
-    setAiMessages(prev => [...prev, {
-      id: `m${Date.now()}`,
-      role: 'assistant',
-      content: debugInfo,
-      timestamp: new Date().toISOString(),
-    }]);
+    setAiMessages((prev) => [
+      ...prev,
+      {
+        id: `m${Date.now()}`,
+        role: 'assistant',
+        content: debugInfo,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   }, [currentLanguage]);
 
   const handleAiSend = useCallback(() => {
     if (!aiInput.trim()) return;
-    setAiMessages(prev => [...prev, {
-      id: `m${Date.now()}`,
-      role: 'user',
-      content: aiInput,
-      timestamp: new Date().toISOString(),
-    }]);
+    setAiMessages((prev) => [
+      ...prev,
+      {
+        id: `m${Date.now()}`,
+        role: 'user',
+        content: aiInput,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
     const response = `I can help with that. Based on your ${currentLanguage.name} code, here is my suggestion:\n\nYou could optimize the code by using built-in methods and reducing the number of iterations. Consider using a more functional approach for better readability.`;
     setTimeout(() => {
-      setAiMessages(prev => [...prev, {
-        id: `m${Date.now()}`,
-        role: 'assistant',
-        content: response,
-        timestamp: new Date().toISOString(),
-      }]);
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          id: `m${Date.now()}`,
+          role: 'assistant',
+          content: response,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
     }, 800);
     setAiInput('');
   }, [aiInput, currentLanguage]);
 
-  const handleSuggestionClick = useCallback((suggestion: CodeSuggestion) => {
-    const words = code.split(/\s/);
-    words[words.length - 1] = suggestion.text;
-    setCode(words.join(' '));
-    setShowSuggestions(false);
-  }, [code]);
+  const handleSuggestionClick = useCallback(
+    (suggestion: CodeSuggestion) => {
+      const words = code.split(/\s/);
+      words[words.length - 1] = suggestion.text;
+      setCode(words.join(' '));
+      setShowSuggestions(false);
+    },
+    [code],
+  );
 
   const handleCodeChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setCode(e.target.value);
@@ -217,17 +382,25 @@ export default function CodePage(): JSX.Element {
     <div className="code-page">
       <header className="code-header">
         <div className="language-selector">
-          <select value={language} onChange={e => handleLanguageChange(e.target.value)}>
-            {LANGUAGES.map(lang => (
-              <option key={lang.id} value={lang.id}>{lang.name}</option>
+          <select value={language} onChange={(e) => handleLanguageChange(e.target.value)}>
+            {LANGUAGES.map((lang) => (
+              <option key={lang.id} value={lang.id}>
+                {lang.name}
+              </option>
             ))}
           </select>
         </div>
         <div className="mode-buttons">
-          <button className={`btn-mode ${mode === 'edit' ? 'active' : ''}`} onClick={() => setMode('edit')}>
+          <button
+            className={`btn-mode ${mode === 'edit' ? 'active' : ''}`}
+            onClick={() => setMode('edit')}
+          >
             Edit
           </button>
-          <button className={`btn-mode ${mode === 'generate' ? 'active' : ''}`} onClick={() => setMode('generate')}>
+          <button
+            className={`btn-mode ${mode === 'generate' ? 'active' : ''}`}
+            onClick={() => setMode('generate')}
+          >
             Generate
           </button>
           <button className="btn-explain" onClick={handleExplain}>
@@ -254,7 +427,7 @@ export default function CodePage(): JSX.Element {
             <div className="generate-input">
               <textarea
                 value={generatePrompt}
-                onChange={e => setGeneratePrompt(e.target.value)}
+                onChange={(e) => setGeneratePrompt(e.target.value)}
                 placeholder="Describe what code you want to generate..."
                 className="generate-textarea"
                 rows={3}
@@ -271,7 +444,7 @@ export default function CodePage(): JSX.Element {
 
           <div className="editor-container">
             <div className="line-numbers" ref={lineCountRef}>
-              {lineNumbers.map(num => (
+              {lineNumbers.map((num) => (
                 <div key={num} className={`line-num ${num === cursorLine ? 'active' : ''}`}>
                   {num}
                 </div>
@@ -280,7 +453,11 @@ export default function CodePage(): JSX.Element {
             <div className="code-editor-wrapper">
               <div className="syntax-highlight" aria-hidden="true">
                 {highlightedCode.map((line, i) => (
-                  <div key={i} className="code-line" dangerouslySetInnerHTML={{ __html: line || ' ' }} />
+                  <div
+                    key={i}
+                    className="code-line"
+                    dangerouslySetInnerHTML={{ __html: sanitizeCodeHighlight(line || ' ') }}
+                  />
                 ))}
               </div>
               <textarea
@@ -294,14 +471,18 @@ export default function CodePage(): JSX.Element {
               />
               {showSuggestions && aiSuggestions.length > 0 && (
                 <div className="autocomplete-dropdown">
-                  {aiSuggestions.map(suggestion => (
+                  {aiSuggestions.map((suggestion) => (
                     <div
                       key={suggestion.id}
                       className="suggestion-item"
                       onClick={() => handleSuggestionClick(suggestion)}
                     >
                       <span className={`suggestion-type ${suggestion.type}`}>
-                        {suggestion.type === 'keyword' ? 'K' : suggestion.type === 'function' ? 'F' : 'V'}
+                        {suggestion.type === 'keyword'
+                          ? 'K'
+                          : suggestion.type === 'function'
+                            ? 'F'
+                            : 'V'}
                       </span>
                       <span className="suggestion-text">{suggestion.text}</span>
                       <span className="suggestion-desc">{suggestion.description}</span>
@@ -318,7 +499,9 @@ export default function CodePage(): JSX.Element {
               {output && <button onClick={() => setOutput('')}>Clear</button>}
             </div>
             <pre className="console-output">
-              {isRunning ? 'Running...\n' : output || 'No output yet. Click Run to execute your code.'}
+              {isRunning
+                ? 'Running...\n'
+                : output || 'No output yet. Click Run to execute your code.'}
             </pre>
           </div>
         </div>
@@ -334,7 +517,7 @@ export default function CodePage(): JSX.Element {
                 <p>Ask questions about your code, request explanations, or get debugging help.</p>
               </div>
             ) : (
-              aiMessages.map(msg => (
+              aiMessages.map((msg) => (
                 <div key={msg.id} className={`ai-msg ${msg.role}`}>
                   <div className="ai-msg-content">{msg.content}</div>
                 </div>
@@ -345,8 +528,10 @@ export default function CodePage(): JSX.Element {
             <input
               type="text"
               value={aiInput}
-              onChange={e => setAiInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleAiSend(); }}
+              onChange={(e) => setAiInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAiSend();
+              }}
               placeholder="Ask about your code..."
               className="ai-text-input"
             />

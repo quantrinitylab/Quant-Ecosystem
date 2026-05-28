@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { sanitizeHtmlContent } from '@quant/shared-ui';
 
 interface EmailAddress {
   name?: string;
@@ -72,7 +73,7 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
     setError(null);
     try {
       const response = await fetch(`/api/emails/threads/${threadId}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (!response.ok) throw new Error('Failed to fetch thread');
       const data = await response.json();
@@ -83,7 +84,7 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
       }
       await fetch(`/api/emails/threads/${threadId}/read`, {
         method: 'PUT',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load thread');
@@ -92,7 +93,9 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
     }
   }, [threadId]);
 
-  useEffect(() => { fetchThread(); }, [fetchThread]);
+  useEffect(() => {
+    fetchThread();
+  }, [fetchThread]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -101,7 +104,7 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
   }, [thread]);
 
   const toggleMessage = useCallback((messageId: string) => {
-    setExpandedMessages(prev => {
+    setExpandedMessages((prev) => {
       const next = new Set(prev);
       if (next.has(messageId)) next.delete(messageId);
       else next.add(messageId);
@@ -110,7 +113,7 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
   }, []);
 
   const toggleQuoted = useCallback((messageId: string) => {
-    setShowQuoted(prev => {
+    setShowQuoted((prev) => {
       const next = new Set(prev);
       if (next.has(messageId)) next.delete(messageId);
       else next.add(messageId);
@@ -118,24 +121,33 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
     });
   }, []);
 
-  const handleReply = useCallback((message: ThreadMessage, mode: 'reply' | 'reply-all' | 'forward') => {
-    setReplyMode(mode);
-    if (mode === 'reply') {
-      setReplyTo([message.from.email]);
-      setReplyCc([]);
-    } else if (mode === 'reply-all') {
-      setReplyTo([message.from.email, ...message.to.map(t => t.email)]);
-      setReplyCc(message.cc.map(c => c.email));
-    } else {
-      setReplyTo([]);
-      setReplyCc([]);
-    }
-    setReplyBody('');
-  }, []);
+  const handleReply = useCallback(
+    (message: ThreadMessage, mode: 'reply' | 'reply-all' | 'forward') => {
+      setReplyMode(mode);
+      if (mode === 'reply') {
+        setReplyTo([message.from.email]);
+        setReplyCc([]);
+      } else if (mode === 'reply-all') {
+        setReplyTo([message.from.email, ...message.to.map((t) => t.email)]);
+        setReplyCc(message.cc.map((c) => c.email));
+      } else {
+        setReplyTo([]);
+        setReplyCc([]);
+      }
+      setReplyBody('');
+    },
+    [],
+  );
 
   const handleSendReply = useCallback(async () => {
     if (!thread) return;
-    const recipients = replyMode === 'forward' ? forwardTo.split(',').map(e => e.trim()).filter(Boolean) : replyTo;
+    const recipients =
+      replyMode === 'forward'
+        ? forwardTo
+            .split(',')
+            .map((e) => e.trim())
+            .filter(Boolean)
+        : replyTo;
     if (recipients.length === 0 || !replyBody.trim()) return;
     setSending(true);
     try {
@@ -147,16 +159,19 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
         cc: replyCc,
         subject: replyMode === 'forward' ? `Fwd: ${thread.subject}` : `Re: ${thread.subject}`,
         body: replyBody,
-        isForward: replyMode === 'forward'
+        isForward: replyMode === 'forward',
       };
       const response = await fetch('/api/emails/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-        body: JSON.stringify(payload)
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error('Failed to send reply');
       const sentMessage = await response.json();
-      setThread(prev => prev ? { ...prev, messages: [...prev.messages, sentMessage] } : prev);
+      setThread((prev) => (prev ? { ...prev, messages: [...prev.messages, sentMessage] } : prev));
       setReplyMode('none');
       setReplyBody('');
       setReplyTo([]);
@@ -174,7 +189,7 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
     try {
       await fetch(`/api/emails/threads/${threadId}/star`, {
         method: 'PUT',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
     } catch (err) {
       console.error('Failed to star thread:', err);
@@ -186,9 +201,9 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
     try {
       await fetch(`/api/emails/threads/${threadId}/archive`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      setThread(prev => prev ? { ...prev, isArchived: true } : prev);
+      setThread((prev) => (prev ? { ...prev, isArchived: true } : prev));
     } catch (err) {
       console.error('Failed to archive:', err);
     }
@@ -199,9 +214,9 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
     try {
       await fetch(`/api/emails/threads/${threadId}/mute`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
-      setThread(prev => prev ? { ...prev, isMuted: !prev.isMuted } : prev);
+      setThread((prev) => (prev ? { ...prev, isMuted: !prev.isMuted } : prev));
     } catch (err) {
       console.error('Failed to mute:', err);
     }
@@ -212,7 +227,13 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
     if (isToday) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -226,7 +247,10 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
     let splitIndex = -1;
     for (const marker of quoteMarkers) {
       const idx = body.lastIndexOf(marker);
-      if (idx > body.length * 0.3) { splitIndex = idx; break; }
+      if (idx > body.length * 0.3) {
+        splitIndex = idx;
+        break;
+      }
     }
     if (splitIndex > 0) {
       return { main: body.slice(0, splitIndex).trim(), quoted: body.slice(splitIndex).trim() };
@@ -265,12 +289,22 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
         <div className="thread-meta">
           <span className="message-count">{thread.messages.length} messages</span>
           <span className="participants-count">{thread.participants.length} participants</span>
-          {thread.labels.map(l => <span key={l} className="thread-label">{l}</span>)}
+          {thread.labels.map((l) => (
+            <span key={l} className="thread-label">
+              {l}
+            </span>
+          ))}
         </div>
         <div className="thread-actions">
-          <button onClick={handleStarThread} title="Star">&#9733;</button>
-          <button onClick={handleArchiveThread} title="Archive">&#x1F4E6;</button>
-          <button onClick={handleMuteThread} title={thread.isMuted ? 'Unmute' : 'Mute'}>{thread.isMuted ? '&#x1F514;' : '&#x1F515;'}</button>
+          <button onClick={handleStarThread} title="Star">
+            &#9733;
+          </button>
+          <button onClick={handleArchiveThread} title="Archive">
+            &#x1F4E6;
+          </button>
+          <button onClick={handleMuteThread} title={thread.isMuted ? 'Unmute' : 'Mute'}>
+            {thread.isMuted ? '&#x1F514;' : '&#x1F515;'}
+          </button>
         </div>
       </header>
 
@@ -281,42 +315,71 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
           const { main, quoted } = extractQuotedText(message.body);
 
           return (
-            <div key={message.id} className={`thread-message ${isExpanded ? 'expanded' : 'collapsed'}`}>
+            <div
+              key={message.id}
+              className={`thread-message ${isExpanded ? 'expanded' : 'collapsed'}`}
+            >
               <div className="message-header" onClick={() => toggleMessage(message.id)}>
                 <div className="sender-info">
                   <div className="sender-avatar">
-                    {message.from.avatarUrl ? <img src={message.from.avatarUrl} alt="" /> : <span>{(message.from.name || message.from.email).charAt(0).toUpperCase()}</span>}
+                    {message.from.avatarUrl ? (
+                      <img src={message.from.avatarUrl} alt="" />
+                    ) : (
+                      <span>
+                        {(message.from.name || message.from.email).charAt(0).toUpperCase()}
+                      </span>
+                    )}
                   </div>
                   <div className="sender-details">
                     <span className="sender-name">{message.from.name || message.from.email}</span>
-                    {isExpanded && <span className="sender-email">&lt;{message.from.email}&gt;</span>}
+                    {isExpanded && (
+                      <span className="sender-email">&lt;{message.from.email}&gt;</span>
+                    )}
                   </div>
                 </div>
                 <div className="message-time">{formatDate(message.receivedAt)}</div>
-                {!isExpanded && <div className="message-snippet">{message.body.slice(0, 100)}...</div>}
+                {!isExpanded && (
+                  <div className="message-snippet">{message.body.slice(0, 100)}...</div>
+                )}
               </div>
 
               {isExpanded && (
                 <div className="message-content">
                   {message.to.length > 0 && (
                     <div className="recipients-line">
-                      <span className="label">To:</span> {message.to.map(t => t.name || t.email).join(', ')}
-                      {message.cc.length > 0 && <><span className="label"> Cc:</span> {message.cc.map(c => c.name || c.email).join(', ')}</>}
+                      <span className="label">To:</span>{' '}
+                      {message.to.map((t) => t.name || t.email).join(', ')}
+                      {message.cc.length > 0 && (
+                        <>
+                          <span className="label"> Cc:</span>{' '}
+                          {message.cc.map((c) => c.name || c.email).join(', ')}
+                        </>
+                      )}
                     </div>
                   )}
 
                   <div className="message-body">
                     {message.htmlBody ? (
-                      <div dangerouslySetInnerHTML={{ __html: message.htmlBody }} className="html-body" />
+                      <div
+                        dangerouslySetInnerHTML={{ __html: sanitizeHtmlContent(message.htmlBody) }}
+                        className="html-body"
+                      />
                     ) : (
                       <div className="text-body">
                         <p>{main}</p>
                         {quoted && (
                           <div className="quoted-section">
-                            <button onClick={() => toggleQuoted(message.id)} className="toggle-quoted">
-                              {showQuoted.has(message.id) ? 'Hide quoted text' : '... Show quoted text'}
+                            <button
+                              onClick={() => toggleQuoted(message.id)}
+                              className="toggle-quoted"
+                            >
+                              {showQuoted.has(message.id)
+                                ? 'Hide quoted text'
+                                : '... Show quoted text'}
                             </button>
-                            {showQuoted.has(message.id) && <blockquote className="quoted-text">{quoted}</blockquote>}
+                            {showQuoted.has(message.id) && (
+                              <blockquote className="quoted-text">{quoted}</blockquote>
+                            )}
                           </div>
                         )}
                       </div>
@@ -327,16 +390,31 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
                     <div className="message-attachments">
                       <h4>Attachments ({message.attachments.length})</h4>
                       <div className="attachment-grid">
-                        {message.attachments.map(att => (
-                          <div key={att.id} className="attachment-card" onClick={() => setSelectedAttachment(att)}>
+                        {message.attachments.map((att) => (
+                          <div
+                            key={att.id}
+                            className="attachment-card"
+                            onClick={() => setSelectedAttachment(att)}
+                          >
                             <div className="attachment-icon">
-                              {att.mimeType.startsWith('image/') ? '&#x1F5BC;' : att.mimeType.includes('pdf') ? '&#x1F4C4;' : '&#x1F4CE;'}
+                              {att.mimeType.startsWith('image/')
+                                ? '&#x1F5BC;'
+                                : att.mimeType.includes('pdf')
+                                  ? '&#x1F4C4;'
+                                  : '&#x1F4CE;'}
                             </div>
                             <div className="attachment-details">
                               <span className="attachment-name">{att.filename}</span>
                               <span className="attachment-size">{formatFileSize(att.size)}</span>
                             </div>
-                            <a href={att.url} download className="download-btn" onClick={(e) => e.stopPropagation()}>&#x2B07;</a>
+                            <a
+                              href={att.url}
+                              download
+                              className="download-btn"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              &#x2B07;
+                            </a>
                           </div>
                         ))}
                       </div>
@@ -344,9 +422,18 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
                   )}
 
                   <div className="message-actions">
-                    <button onClick={() => handleReply(message, 'reply')} className="reply-btn">&#x21A9; Reply</button>
-                    <button onClick={() => handleReply(message, 'reply-all')} className="reply-all-btn">&#x21A9;&#x21A9; Reply All</button>
-                    <button onClick={() => handleReply(message, 'forward')} className="forward-btn">&#x21AA; Forward</button>
+                    <button onClick={() => handleReply(message, 'reply')} className="reply-btn">
+                      &#x21A9; Reply
+                    </button>
+                    <button
+                      onClick={() => handleReply(message, 'reply-all')}
+                      className="reply-all-btn"
+                    >
+                      &#x21A9;&#x21A9; Reply All
+                    </button>
+                    <button onClick={() => handleReply(message, 'forward')} className="forward-btn">
+                      &#x21AA; Forward
+                    </button>
                   </div>
                 </div>
               )}
@@ -359,26 +446,58 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
       {replyMode !== 'none' && (
         <div className="reply-composer">
           <div className="reply-header">
-            <h3>{replyMode === 'forward' ? 'Forward' : replyMode === 'reply-all' ? 'Reply All' : 'Reply'}</h3>
-            <button onClick={() => setReplyMode('none')} className="close-reply">&#x2715;</button>
+            <h3>
+              {replyMode === 'forward'
+                ? 'Forward'
+                : replyMode === 'reply-all'
+                  ? 'Reply All'
+                  : 'Reply'}
+            </h3>
+            <button onClick={() => setReplyMode('none')} className="close-reply">
+              &#x2715;
+            </button>
           </div>
           {replyMode === 'forward' ? (
             <div className="reply-recipients">
               <label>To:</label>
-              <input type="text" value={forwardTo} onChange={(e) => setForwardTo(e.target.value)} placeholder="recipient@example.com" />
+              <input
+                type="text"
+                value={forwardTo}
+                onChange={(e) => setForwardTo(e.target.value)}
+                placeholder="recipient@example.com"
+              />
             </div>
           ) : (
             <div className="reply-recipients">
-              <div><label>To:</label> <span>{replyTo.join(', ')}</span></div>
-              {replyCc.length > 0 && <div><label>Cc:</label> <span>{replyCc.join(', ')}</span></div>}
+              <div>
+                <label>To:</label> <span>{replyTo.join(', ')}</span>
+              </div>
+              {replyCc.length > 0 && (
+                <div>
+                  <label>Cc:</label> <span>{replyCc.join(', ')}</span>
+                </div>
+              )}
             </div>
           )}
-          <textarea className="reply-textarea" value={replyBody} onChange={(e) => setReplyBody(e.target.value)} placeholder="Write your reply..." rows={6} autoFocus />
+          <textarea
+            className="reply-textarea"
+            value={replyBody}
+            onChange={(e) => setReplyBody(e.target.value)}
+            placeholder="Write your reply..."
+            rows={6}
+            autoFocus
+          />
           <div className="reply-actions">
-            <button onClick={handleSendReply} disabled={sending || !replyBody.trim()} className="send-reply-btn">
+            <button
+              onClick={handleSendReply}
+              disabled={sending || !replyBody.trim()}
+              className="send-reply-btn"
+            >
               {sending ? 'Sending...' : 'Send'}
             </button>
-            <button onClick={() => setReplyMode('none')} className="discard-reply">Discard</button>
+            <button onClick={() => setReplyMode('none')} className="discard-reply">
+              Discard
+            </button>
           </div>
         </div>
       )}
@@ -388,12 +507,20 @@ export const ThreadPage: React.FC<ThreadPageProps> = ({ threadId }) => {
           <div className="preview-content" onClick={(e) => e.stopPropagation()}>
             <h3>{selectedAttachment.filename}</h3>
             {selectedAttachment.mimeType.startsWith('image/') ? (
-              <img src={selectedAttachment.url} alt={selectedAttachment.filename} className="preview-image" />
+              <img
+                src={selectedAttachment.url}
+                alt={selectedAttachment.filename}
+                className="preview-image"
+              />
             ) : (
-              <div className="no-preview"><p>Preview not available for this file type.</p></div>
+              <div className="no-preview">
+                <p>Preview not available for this file type.</p>
+              </div>
             )}
             <div className="preview-actions">
-              <a href={selectedAttachment.url} download className="download-full-btn">Download ({formatFileSize(selectedAttachment.size)})</a>
+              <a href={selectedAttachment.url} download className="download-full-btn">
+                Download ({formatFileSize(selectedAttachment.size)})
+              </a>
               <button onClick={() => setSelectedAttachment(null)}>Close</button>
             </div>
           </div>

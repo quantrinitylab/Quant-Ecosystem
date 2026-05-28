@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { sanitizeCodeHighlight } from '@quant/shared-ui';
 
 interface EditorError {
   line: number;
@@ -33,12 +34,148 @@ interface CodeEditorProps {
 }
 
 const LANGUAGE_KEYWORDS: Record<string, string[]> = {
-  javascript: ['function', 'const', 'let', 'var', 'return', 'if', 'else', 'for', 'while', 'class', 'import', 'export', 'async', 'await', 'try', 'catch', 'throw', 'new', 'this', 'typeof', 'instanceof'],
-  typescript: ['function', 'const', 'let', 'var', 'return', 'if', 'else', 'for', 'while', 'class', 'import', 'export', 'async', 'await', 'interface', 'type', 'enum', 'implements', 'extends', 'abstract', 'readonly'],
-  python: ['def', 'class', 'return', 'if', 'elif', 'else', 'for', 'while', 'import', 'from', 'try', 'except', 'raise', 'with', 'as', 'lambda', 'yield', 'async', 'await', 'pass', 'None', 'True', 'False'],
-  go: ['func', 'package', 'import', 'return', 'if', 'else', 'for', 'range', 'struct', 'interface', 'var', 'const', 'type', 'defer', 'go', 'chan', 'select', 'switch', 'case', 'map', 'make'],
-  rust: ['fn', 'let', 'mut', 'return', 'if', 'else', 'for', 'while', 'loop', 'struct', 'impl', 'enum', 'use', 'pub', 'mod', 'trait', 'match', 'async', 'await', 'self', 'Self', 'where'],
-  java: ['public', 'private', 'protected', 'class', 'interface', 'extends', 'implements', 'return', 'if', 'else', 'for', 'while', 'new', 'import', 'package', 'void', 'static', 'final', 'abstract', 'try', 'catch', 'throw'],
+  javascript: [
+    'function',
+    'const',
+    'let',
+    'var',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'class',
+    'import',
+    'export',
+    'async',
+    'await',
+    'try',
+    'catch',
+    'throw',
+    'new',
+    'this',
+    'typeof',
+    'instanceof',
+  ],
+  typescript: [
+    'function',
+    'const',
+    'let',
+    'var',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'class',
+    'import',
+    'export',
+    'async',
+    'await',
+    'interface',
+    'type',
+    'enum',
+    'implements',
+    'extends',
+    'abstract',
+    'readonly',
+  ],
+  python: [
+    'def',
+    'class',
+    'return',
+    'if',
+    'elif',
+    'else',
+    'for',
+    'while',
+    'import',
+    'from',
+    'try',
+    'except',
+    'raise',
+    'with',
+    'as',
+    'lambda',
+    'yield',
+    'async',
+    'await',
+    'pass',
+    'None',
+    'True',
+    'False',
+  ],
+  go: [
+    'func',
+    'package',
+    'import',
+    'return',
+    'if',
+    'else',
+    'for',
+    'range',
+    'struct',
+    'interface',
+    'var',
+    'const',
+    'type',
+    'defer',
+    'go',
+    'chan',
+    'select',
+    'switch',
+    'case',
+    'map',
+    'make',
+  ],
+  rust: [
+    'fn',
+    'let',
+    'mut',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'loop',
+    'struct',
+    'impl',
+    'enum',
+    'use',
+    'pub',
+    'mod',
+    'trait',
+    'match',
+    'async',
+    'await',
+    'self',
+    'Self',
+    'where',
+  ],
+  java: [
+    'public',
+    'private',
+    'protected',
+    'class',
+    'interface',
+    'extends',
+    'implements',
+    'return',
+    'if',
+    'else',
+    'for',
+    'while',
+    'new',
+    'import',
+    'package',
+    'void',
+    'static',
+    'final',
+    'abstract',
+    'try',
+    'catch',
+    'throw',
+  ],
 };
 
 export default function CodeEditor({
@@ -65,81 +202,102 @@ export default function CodeEditor({
 
   const errorsByLine = useMemo(() => {
     const map: Record<number, EditorError[]> = {};
-    errors.forEach(err => {
+    errors.forEach((err) => {
       if (!map[err.line]) map[err.line] = [];
       map[err.line].push(err);
     });
     return map;
   }, [errors]);
 
-  const highlightLine = useCallback((line: string): string => {
-    const keywords = LANGUAGE_KEYWORDS[language] || [];
-    let result = line;
-    result = result.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    keywords.forEach(kw => {
-      const regex = new RegExp(`\\b(${kw})\\b`, 'g');
-      result = result.replace(regex, '<span class="kw">$1</span>');
-    });
-    result = result.replace(/(\/\/.*$)/g, '<span class="comment">$1</span>');
-    result = result.replace(/(#.*$)/g, '<span class="comment">$1</span>');
-    result = result.replace(/(&quot;|"|'|`)([^"'`]*?)(\1)/g, '<span class="str">$1$2$3</span>');
-    result = result.replace(/\b(\d+\.?\d*)\b/g, '<span class="num">$1</span>');
-    return result;
-  }, [language]);
+  const highlightLine = useCallback(
+    (line: string): string => {
+      const keywords = LANGUAGE_KEYWORDS[language] || [];
+      let result = line;
+      result = result.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      keywords.forEach((kw) => {
+        const regex = new RegExp(`\\b(${kw})\\b`, 'g');
+        result = result.replace(regex, '<span class="kw">$1</span>');
+      });
+      result = result.replace(/(\/\/.*$)/g, '<span class="comment">$1</span>');
+      result = result.replace(/(#.*$)/g, '<span class="comment">$1</span>');
+      result = result.replace(/(&quot;|"|'|`)([^"'`]*?)(\1)/g, '<span class="str">$1$2$3</span>');
+      result = result.replace(/\b(\d+\.?\d*)\b/g, '<span class="num">$1</span>');
+      return result;
+    },
+    [language],
+  );
 
-  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    if (readOnly) return;
-    onChange(e.target.value);
-    const pos = e.target.selectionStart;
-    const textBefore = e.target.value.substring(0, pos);
-    const linesBefore = textBefore.split('\n');
-    setCursorLine(linesBefore.length);
-    setCursorCol(linesBefore[linesBefore.length - 1].length + 1);
-  }, [readOnly, onChange]);
+  const handleTextChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      if (readOnly) return;
+      onChange(e.target.value);
+      const pos = e.target.selectionStart;
+      const textBefore = e.target.value.substring(0, pos);
+      const linesBefore = textBefore.split('\n');
+      setCursorLine(linesBefore.length);
+      setCursorCol(linesBefore[linesBefore.length - 1].length + 1);
+    },
+    [readOnly, onChange],
+  );
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      if (!readOnly && textareaRef.current) {
-        const start = textareaRef.current.selectionStart;
-        const end = textareaRef.current.selectionEnd;
-        const newCode = code.substring(0, start) + '  ' + code.substring(end);
-        onChange(newCode);
-        setTimeout(() => {
-          if (textareaRef.current) {
-            textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 2;
-          }
-        }, 0);
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        if (!readOnly && textareaRef.current) {
+          const start = textareaRef.current.selectionStart;
+          const end = textareaRef.current.selectionEnd;
+          const newCode = code.substring(0, start) + '  ' + code.substring(end);
+          onChange(newCode);
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 2;
+            }
+          }, 0);
+        }
       }
-    }
-    if (showSuggestions && suggestions.length > 0) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedSuggestion(prev => (prev + 1) % suggestions.length);
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedSuggestion(prev => (prev - 1 + suggestions.length) % suggestions.length);
-      } else if (e.key === 'Enter' && e.ctrlKey) {
-        e.preventDefault();
-        onSuggestionAccept?.(suggestions[selectedSuggestion]);
-        setShowSuggestions(false);
-      } else if (e.key === 'Escape') {
-        setShowSuggestions(false);
+      if (showSuggestions && suggestions.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSelectedSuggestion((prev) => (prev + 1) % suggestions.length);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSelectedSuggestion((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+        } else if (e.key === 'Enter' && e.ctrlKey) {
+          e.preventDefault();
+          onSuggestionAccept?.(suggestions[selectedSuggestion]);
+          setShowSuggestions(false);
+        } else if (e.key === 'Escape') {
+          setShowSuggestions(false);
+        }
       }
-    }
-    if (e.key === ' ' && e.ctrlKey) {
-      setShowSuggestions(true);
-      setSelectedSuggestion(0);
-    }
-  }, [code, readOnly, onChange, showSuggestions, suggestions, selectedSuggestion, onSuggestionAccept]);
+      if (e.key === ' ' && e.ctrlKey) {
+        setShowSuggestions(true);
+        setSelectedSuggestion(0);
+      }
+    },
+    [
+      code,
+      readOnly,
+      onChange,
+      showSuggestions,
+      suggestions,
+      selectedSuggestion,
+      onSuggestionAccept,
+    ],
+  );
 
   return (
     <div className={`code-editor-component theme-${theme}`}>
       <div className="editor-toolbar">
         <span className="language-label">{language}</span>
-        <span className="cursor-position">Ln {cursorLine}, Col {cursorCol}</span>
+        <span className="cursor-position">
+          Ln {cursorLine}, Col {cursorCol}
+        </span>
         {errors.length > 0 && (
-          <span className="error-count">{errors.length} error{errors.length > 1 ? 's' : ''}</span>
+          <span className="error-count">
+            {errors.length} error{errors.length > 1 ? 's' : ''}
+          </span>
         )}
         {onRun && (
           <button className="btn-run" onClick={onRun}>
@@ -169,7 +327,9 @@ export default function CodeEditor({
               <div
                 key={i}
                 className={`syntax-line ${cursorLine === i + 1 ? 'active-line' : ''} ${errorsByLine[i + 1] ? 'error-line' : ''}`}
-                dangerouslySetInnerHTML={{ __html: highlightLine(line) || ' ' }}
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeCodeHighlight(highlightLine(line) || ' '),
+                }}
               />
             ))}
           </div>
@@ -194,7 +354,10 @@ export default function CodeEditor({
             <div
               key={sug.id}
               className={`suggestion-item ${i === selectedSuggestion ? 'selected' : ''}`}
-              onClick={() => { onSuggestionAccept?.(sug); setShowSuggestions(false); }}
+              onClick={() => {
+                onSuggestionAccept?.(sug);
+                setShowSuggestions(false);
+              }}
             >
               <span className={`sug-type ${sug.type}`}>
                 {sug.type === 'completion' ? 'C' : sug.type === 'fix' ? 'F' : 'R'}
@@ -212,7 +375,9 @@ export default function CodeEditor({
           {errors.map((err, i) => (
             <div key={i} className={`error-item ${err.severity}`}>
               <span className="error-severity">{err.severity}</span>
-              <span className="error-location">Ln {err.line}:{err.column}</span>
+              <span className="error-location">
+                Ln {err.line}:{err.column}
+              </span>
               <span className="error-message">{err.message}</span>
             </div>
           ))}

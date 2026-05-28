@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Add isomorphic-dompurify for real HTML sanitization and fix all 7 dangerouslySetInnerHTML XSS vectors. The existing sanitizeHtml in @quant/common/src/utils.ts only entity-escapes HTML (destroys all markup). We need a proper DOMPurify-based sanitizer that allows safe HTML tags while stripping dangerous content like <script>, event handlers, etc.",
+  "status": "in_progress",
+  "steps": [
+    "Install isomorphic-dompurify and @types/dompurify in packages/shared-ui (since that's where the React components consuming this live): cd /projects/sandbox/Quant-Ecosystem && pnpm add isomorphic-dompurify --filter @quant/shared-ui && pnpm add -D @types/dompurify --filter @quant/shared-ui",
+    "Create a new utility file packages/shared-ui/src/utils/sanitize.ts that exports: (1) sanitizeHtmlContent(html: string): string - uses DOMPurify.sanitize() for rendering user content safely (email, docs), (2) sanitizeCodeHighlight(html: string): string - a lighter version that only allows <span> with class attributes (for syntax highlighting output). Export these from packages/shared-ui/src/index.ts.",
+    "Update apps/quantdocs/src/components/DocEditor.tsx line 31: wrap initialContent with sanitizeHtmlContent before passing to dangerouslySetInnerHTML. Import from @quant/shared-ui.",
+    "Update apps/quantmail/src/components/EmailThread.tsx line 139: wrap (email.bodyHtml || email.bodyText.replace(...)) with sanitizeHtmlContent. Import from @quant/shared-ui.",
+    "Update apps/quantmail/src/components/RichTextEditor.tsx line 233: wrap initialContent with sanitizeHtmlContent in the readOnly branch. Import from @quant/shared-ui.",
+    "Update apps/quantmail/src/pages/thread/[id].tsx line 310: wrap message.htmlBody with sanitizeHtmlContent. Import from @quant/shared-ui.",
+    "Update apps/quantmail/src/pages/pipelines.tsx line 420: wrap renderAnsiLog(line) with sanitizeCodeHighlight. Import from @quant/shared-ui.",
+    "Update apps/quantai/src/components/CodeEditor.tsx line 172: wrap highlightLine(line) with sanitizeCodeHighlight. Import from @quant/shared-ui.",
+    "Update apps/quantai/src/pages/code.tsx line 283: wrap the line variable with sanitizeCodeHighlight. Import from @quant/shared-ui.",
+    "Ensure @quant/shared-ui is already in the dependencies of quantai, quantdocs, and quantmail apps (it should be since they use shared-ui components). If not, add it.",
+    "Run pnpm typecheck to confirm types pass, then pnpm build and pnpm test."
+  ],
+  "acceptance_criteria": [
+    "All 7 dangerouslySetInnerHTML usages pass their input through a DOMPurify-based sanitizer",
+    "pnpm typecheck passes (111/111)",
+    "pnpm build passes (88/88)",
+    "pnpm test passes (114/114)",
+    "No @ts-ignore or @ts-expect-error added"
+  ],
+  "verification": ["pnpm typecheck", "pnpm build", "pnpm test"],
+  "blocked_reason": null,
+  "findings": ""
+}
