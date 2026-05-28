@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Create packages/quant-automate - a production-quality cross-app automation engine that supersedes packages/cross-app-workflows. Supports schedule/event/webhook/manual/AI-condition triggers, step execution via quant-tools ToolRegistry, conditional branching, input mapping with template references, retry policies with exponential backoff, durable state management, and natural language automation builder.",
+  "status": "in_progress",
+  "steps": [
+    "Create packages/quant-automate/package.json with name @quant/quant-automate, type: module, main/types: src/index.ts, scripts (build: tsc, typecheck: tsc --noEmit, test: vitest run, lint: eslint .), dependency on zod ^3.23.0, devDeps: @types/node ^22.0.0, typescript ~5.5.0, vitest ^2.0.0",
+    "Create packages/quant-automate/tsconfig.json extending ../../tsconfig.json with composite: true, outDir: ./dist, rootDir: ./src, include src/**/*",
+    "Create packages/quant-automate/vitest.config.ts with globals: true following the quant-tools pattern",
+    "Create src/types.ts with all interfaces: Automation, AutomationTrigger (schedule/event/webhook/manual/ai_condition), AutomationStep, StepCondition, InputMapping, RetryPolicy, CronSchedule, RunResult, StepRunResult, AutomationState (for durable execution), and AutomationEngine interface",
+    "Create src/triggers.ts with TriggerEvaluator class that can evaluate each trigger type (cron matching, event matching with filters, webhook path matching, AI condition evaluation stub). Include shouldFire(trigger, context) method.",
+    "Create src/executor.ts with StepExecutor class that: resolves input mappings (template syntax like {{step1.output.fileId}}), evaluates step conditions, executes tools via a ToolRegistry-compatible interface, handles retries with exponential backoff per RetryPolicy, collects StepRunResults",
+    "Create src/scheduler.ts with CronScheduler class that parses cron expressions (basic 5-field), calculates next run time, and manages scheduled automation entries",
+    "Create src/state.ts with DurableStateManager class that persists automation execution state (in-memory with interface for external storage), supports checkpoint/resume after crash, tracks step progress",
+    "Create src/nl-builder.ts with NLAutomationBuilder class that parses natural language descriptions into Automation configs using keyword extraction and pattern matching (e.g., 'every Monday send email summary' -> schedule trigger + mail tool step)",
+    "Create src/engine.ts with AutomationEngineImpl class implementing AutomationEngine interface: create/execute/pause/resume/getHistory. Orchestrates TriggerEvaluator, StepExecutor, CronScheduler, and DurableStateManager.",
+    "Create src/index.ts exporting all types and classes",
+    "Create src/__tests__/engine.test.ts with 8+ tests covering: create automation, execute simple automation, execute multi-step automation, pause/resume, error handling, history retrieval, automation with conditions, automation status transitions",
+    "Create src/__tests__/triggers.test.ts with 7+ tests covering: schedule trigger cron matching, event trigger with filter, webhook trigger path matching, manual trigger always fires, AI condition trigger evaluation, invalid cron expression, timezone handling",
+    "Create src/__tests__/executor.test.ts with 7+ tests covering: simple step execution, input mapping resolution with template syntax, step condition evaluation (skip when false), retry on failure with backoff, max retries exceeded, multi-step sequential execution, error propagation with onError modes (fail/skip/retry)",
+    "Create src/__tests__/nl-builder.test.ts with 6+ tests covering: parse schedule-based automation, parse event-based automation, parse multi-step automation, handle ambiguous input, return draft status for unparseable input, parse webhook automation"
+  ],
+  "acceptance_criteria": [
+    "pnpm typecheck --filter=@quant/quant-automate passes with zero errors",
+    "pnpm build --filter=@quant/quant-automate produces dist/ output",
+    "pnpm test --filter=@quant/quant-automate passes with 25+ tests",
+    "No @ts-ignore in any source file",
+    "All imports use .js extension",
+    "Types are comprehensive covering all trigger types, step execution, retry, and state management",
+    "StepExecutor resolves {{stepId.output.field}} template syntax in input mappings",
+    "Engine supports create/execute/pause/resume/getHistory lifecycle"
+  ],
+  "verification": [
+    "pnpm typecheck --filter=@quant/quant-automate",
+    "pnpm build --filter=@quant/quant-automate",
+    "pnpm test --filter=@quant/quant-automate"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
