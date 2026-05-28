@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Add latency budget definition module and budget assertion helpers, then create latency budget integration test, memory stability test, cost budget test, and CI budget check script for Phase 41 hard gates.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create packages/quant-live/src/budget/latency-budget.ts with: (1) LATENCY_BUDGETS constant defining broadband and mobile_4g profiles with numeric ms thresholds for asr_partial (200/400), llm_first_token (350/700), tts_first_audio (500/1000), total_first_response (500/1000). (2) Export types LatencyProfile ('broadband' | 'mobile_4g'), BudgetStage, BudgetResult. (3) Function checkBudget(metrics: Record<BudgetStage, number>, profile: LatencyProfile) => { passed: boolean; violations: { stage: string; budget: number; actual: number; overBy: number }[] }.",
     "Create packages/quant-live/src/budget/budget-assertions.ts with: (1) assertBudget(metrics, profile, tolerance?: number) that throws with a clear message if any stage exceeds budget * (1 + tolerance). Default tolerance 0.10 (10%). (2) formatViolation helper that produces CI-friendly error messages showing stage, expected, actual, overage. (3) BudgetReport type and generateReport function that returns structured JSON output.",
@@ -30,5 +30,5 @@
     "pnpm --filter @quant/quant-live run typecheck (no type errors)"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 196 tests pass (179 existing + 17 new). Typecheck passes. LOC total is 450 (within 500 limit). Prettier ran via lint-staged pre-commit hook without issues."
 }
