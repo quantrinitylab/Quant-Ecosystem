@@ -10,7 +10,7 @@ export class HealthStore {
   getMetrics(type: MetricType, startDate: number, endDate: number): HealthMetric[] {
     const result: HealthMetric[] = [];
     for (const m of this.metrics.values()) {
-      if (m.type === type && m.timestamp >= startDate && m.timestamp <= endDate) {
+      if (m.type === type && m.timestamp >= startDate && m.timestamp < endDate) {
         result.push(m);
       }
     }

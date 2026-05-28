@@ -23,7 +23,11 @@ export class HealthSafety {
 
   detectCrisis(text: string): CrisisSignal {
     const lower = text.toLowerCase();
-    const found = HealthSafety.CRISIS_KEYWORDS.filter((kw) => lower.includes(kw));
+    const found = HealthSafety.CRISIS_KEYWORDS.filter((kw) => {
+      // Use word-boundary matching to reduce false positives on partial matches
+      const pattern = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+      return pattern.test(lower);
+    });
     if (found.length > 0) {
       return {
         detected: true,

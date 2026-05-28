@@ -13,16 +13,25 @@ export class DailySummaryGenerator {
     const minHr = hrValues.length ? Math.min(...hrValues) : 0;
     const maxHr = hrValues.length ? Math.max(...hrValues) : 0;
 
+    const sleepHours = this.store.getDailyAggregate(MetricType.sleep, date);
+    // Derive sleep quality from hours: 0 if no data, otherwise scale based on 8h target (capped at 100)
+    const sleepQuality = sleepHours > 0 ? Math.min(Math.round((sleepHours / 8) * 100), 100) : 0;
+
+    const calories = this.store.getDailyAggregate(MetricType.calories, date);
+
     return {
       date,
       steps: this.store.getDailyAggregate(MetricType.steps, date),
-      sleepHours: this.store.getDailyAggregate(MetricType.sleep, date),
-      sleepQuality: 75,
+      sleepHours,
+      sleepQuality,
       avgHeartRate: Math.round(avgHr),
       minHeartRate: minHr,
       maxHeartRate: maxHr,
-      activeMinutes: Math.round(this.store.getDailyAggregate(MetricType.calories, date) / 5),
-      caloriesBurned: this.store.getDailyAggregate(MetricType.calories, date),
+      // activeMinutes derived as calories / 5 assumes ~5 kcal burned per active minute.
+      // This is a rough placeholder estimate; a production implementation should use
+      // actual activity duration data from workout sessions.
+      activeMinutes: Math.round(calories / 5),
+      caloriesBurned: calories,
       goalCompletion: 0,
     };
   }

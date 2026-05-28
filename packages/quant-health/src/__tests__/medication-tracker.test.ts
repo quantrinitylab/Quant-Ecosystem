@@ -40,10 +40,12 @@ describe('MedicationTracker', () => {
 
   it('should record dose and track adherence', () => {
     tracker.addMedication(makeMed({ id: 'med-1' }));
-    const result = tracker.recordDose('med-1', Date.now());
+    const doseTime = Date.now();
+    const result = tracker.recordDose('med-1', doseTime);
     expect(result).toBe(true);
 
-    const adherence = tracker.getAdherence('med-1');
+    // Pass currentTime explicitly for deterministic testing
+    const adherence = tracker.getAdherence('med-1', doseTime + 86400000);
     expect(adherence).toBeGreaterThan(0);
   });
 

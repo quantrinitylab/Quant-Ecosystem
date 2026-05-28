@@ -61,6 +61,8 @@ describe('DailySummaryGenerator', () => {
     expect(summary.maxHeartRate).toBe(90);
     expect(summary.caloriesBurned).toBe(300);
     expect(summary.sleepHours).toBe(7);
+    // sleepQuality derived from hours: round((7/8)*100) = 88
+    expect(summary.sleepQuality).toBe(88);
   });
 
   it('should compare to goals and return percentage', () => {

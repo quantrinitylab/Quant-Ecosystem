@@ -35,17 +35,23 @@ export class MedicationTracker {
     return true;
   }
 
-  getAdherence(medId: string): number {
+  getAdherence(medId: string, currentTime = Date.now()): number {
     const med = this.medications.get(medId);
     if (!med) return 0;
     const record = this.doses.get(medId);
     if (!record || record.length === 0) return 0;
     const expectedPerDay = med.frequency === 'twice_daily' ? 2 : 1;
-    const days = Math.max(1, Math.ceil((Date.now() - record[0]!) / 86400000));
+    const days = Math.max(1, Math.ceil((currentTime - record[0]!) / 86400000));
     const expected = days * expectedPerDay;
     return Math.min(Math.round((record.length / expected) * 100), 100);
   }
 
+  /**
+   * Placeholder interaction check for MVP demo purposes.
+   * Uses naive substring matching on only three hardcoded pairs.
+   * A production implementation would use structured medication identifiers
+   * (e.g., RxNorm codes) and a comprehensive interaction database.
+   */
   checkInteractions(medNames: string[]): string[] {
     const warnings: string[] = [];
     const lower = medNames.map((n) => n.toLowerCase());
