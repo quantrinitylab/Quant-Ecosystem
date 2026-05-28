@@ -254,3 +254,57 @@ export interface PrivacyAuditEvent {
   timestamp: number;
   metadata?: Record<string, unknown>;
 }
+
+// Artifact types
+export type ArtifactType =
+  | 'email'
+  | 'document'
+  | 'call'
+  | 'meeting'
+  | 'file'
+  | 'message'
+  | 'calendar-event';
+
+export interface SessionArtifact {
+  type: ArtifactType;
+  title: string;
+  description: string;
+  resourceId: string;
+  appName: string;
+  createdAt: number;
+  sessionId: string;
+}
+
+export interface SessionStoreEntry {
+  id: string;
+  state: LiveSessionState;
+  createdAt: number;
+  endedAt?: number;
+  duration?: number;
+  transcript: TranscriptSegment[];
+  artifacts: SessionArtifact[];
+  userId: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SessionSearchResult {
+  entry: SessionStoreEntry;
+  matchingSnippets: string[];
+  score: number;
+}
+
+export type SessionAuditEventType =
+  | 'session_started'
+  | 'session_ended'
+  | 'tool_executed'
+  | 'artifact_created'
+  | 'session_resumed'
+  | 'transcript_searched';
+
+export interface SessionAuditEntry {
+  id: string;
+  sessionId: string;
+  type: SessionAuditEventType;
+  timestamp: number;
+  metadata?: Record<string, unknown>;
+}

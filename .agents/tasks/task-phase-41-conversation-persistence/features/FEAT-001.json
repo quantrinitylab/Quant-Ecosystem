@@ -1,0 +1,45 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Add conversation persistence types, session store interface, in-memory implementation, artifact linker, session search, session resume, audit trail, and comprehensive tests. All new files go in packages/quant-live/src/persistence/ directory.",
+  "status": "completed",
+  "steps": [
+    "Create a new git branch `feat/phase-41-conversation-persistence` from current HEAD (feat/phase-41-wake-word)",
+    "Add new types to packages/quant-live/src/types.ts: ArtifactType (union of string literals: 'email' | 'document' | 'call' | 'meeting' | 'file' | 'message' | 'calendar-event'), SessionArtifact (type, title, description, resourceId, appName, createdAt, sessionId), SessionStoreEntry (id, state: LiveSessionState, createdAt, endedAt?, duration?, transcript: TranscriptSegment[], artifacts: SessionArtifact[], userId, metadata?), SessionSearchResult (entry: SessionStoreEntry, matchingSnippets: string[], score: number), SessionAuditEventType (string union: 'session_started' | 'session_ended' | 'tool_executed' | 'artifact_created' | 'session_resumed' | 'transcript_searched'), SessionAuditEntry (id, sessionId, type: SessionAuditEventType, timestamp, metadata?)",
+    "Create packages/quant-live/src/persistence/session-store.ts: Define SessionStore interface with async methods: create(entry: Omit<SessionStoreEntry, 'id'>): Promise<SessionStoreEntry>, get(id: string): Promise<SessionStoreEntry | undefined>, list(userId: string, opts?: { limit?: number; offset?: number; state?: LiveSessionState }): Promise<{ entries: SessionStoreEntry[]; total: number }>, update(id: string, patch: Partial<SessionStoreEntry>): Promise<SessionStoreEntry>, delete(id: string): Promise<void>",
+    "Create packages/quant-live/src/persistence/memory-store.ts: Implement InMemorySessionStore class implementing SessionStore. Use a Map for storage, auto-generate IDs like 'ls-{counter}', support pagination (limit/offset) and state filtering in list(). Include a simple full-text search method: search(userId: string, query: string): Promise<SessionStoreEntry[]> that does case-insensitive matching across transcript text.",
+    "Create packages/quant-live/src/persistence/artifact-linker.ts: ArtifactLinker class with constructor(store: SessionStore). Methods: link(sessionId: string, artifact: Omit<SessionArtifact, 'sessionId'>): Promise<SessionArtifact> (adds artifact to session's artifacts array via store.update), getBySession(sessionId: string): Promise<SessionArtifact[]> (loads session, returns artifacts), getByType(sessionId: string, type: ArtifactType): Promise<SessionArtifact[]>.",
+    "Create packages/quant-live/src/persistence/session-search.ts: SessionSearch class with constructor(store: SessionStore). Methods: search(userId: string, opts: { query?: string; dateFrom?: number; dateTo?: number; artifactType?: ArtifactType; minDuration?: number }): Promise<SessionSearchResult[]>. Implements ranked results: searches transcripts for text matches, filters by date range and artifact type, calculates a relevance score based on match count, returns results sorted by score descending with matching transcript snippets.",
+    "Create packages/quant-live/src/persistence/session-resume.ts: SessionResume class with constructor(store: SessionStore, opts?: { maxSegments?: number }). Methods: loadContext(sessionId: string): Promise<{ transcript: TranscriptSegment[]; artifacts: SessionArtifact[]; metadata: Record<string, unknown> }> (loads session, returns last N transcript segments and all artifacts), buildConversationHistory(sessionId: string): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> (converts transcript segments into conversation format for LLM context).",
+    "Create packages/quant-live/src/persistence/session-audit.ts: SessionAudit class (similar pattern to PrivacyAudit). Constructor takes optional sessionId. Methods: record(type: SessionAuditEventType, sessionId: string, metadata?: Record<string, unknown>): void (creates frozen SessionAuditEntry), query(filter: { sessionId?: string; type?: SessionAuditEventType; since?: number; until?: number }): SessionAuditEntry[], getBySession(sessionId: string): SessionAuditEntry[], exportJSON(): string, getCount(): number.",
+    "Create packages/quant-live/src/persistence/index.ts: Re-export all classes and the SessionStore interface from the persistence directory.",
+    "Update packages/quant-live/src/index.ts: Add exports for all persistence module classes and types (SessionStore interface, InMemorySessionStore, ArtifactLinker, SessionSearch, SessionResume, SessionAudit, and all new types from types.ts).",
+    "Create packages/quant-live/src/__tests__/session-store.test.ts: Test InMemorySessionStore CRUD operations, pagination (limit/offset), state filtering, full-text search. Follow existing test patterns (describe/it/expect).",
+    "Create packages/quant-live/src/__tests__/artifact-linker.test.ts: Test link creation, retrieval by session, retrieval by type, handling of non-existent sessions.",
+    "Create packages/quant-live/src/__tests__/session-search.test.ts: Test text search with ranking, date range filtering, artifact type filtering, empty results.",
+    "Create packages/quant-live/src/__tests__/session-resume.test.ts: Test context loading with maxSegments limit, conversation history building, handling of empty sessions.",
+    "Run `npx tsc --noEmit` in packages/quant-live to verify types compile.",
+    "Run `npx vitest run` in packages/quant-live to verify all tests pass.",
+    "Commit with message: feat(quant-live): add conversation persistence, artifacts, and session search"
+  ],
+  "acceptance_criteria": [
+    "All new types are defined in packages/quant-live/src/types.ts",
+    "SessionStore interface exists with async CRUD + pagination",
+    "InMemorySessionStore implements SessionStore with full-text search",
+    "ArtifactLinker links artifacts to sessions via the store",
+    "SessionSearch returns ranked results with snippets",
+    "SessionResume loads context with configurable segment limit",
+    "SessionAudit records frozen events with query/export capability",
+    "All classes exported from packages/quant-live/src/index.ts",
+    "npx tsc --noEmit passes with no errors",
+    "npx vitest run passes with all tests green",
+    "Total new code is <=500 LOC"
+  ],
+  "verification": [
+    "Run `cd packages/quant-live && npx tsc --noEmit` - must exit 0",
+    "Run `cd packages/quant-live && npx vitest run` - must show all tests passing",
+    "Run `wc -l packages/quant-live/src/persistence/*.ts packages/quant-live/src/__tests__/session-store.test.ts packages/quant-live/src/__tests__/artifact-linker.test.ts packages/quant-live/src/__tests__/session-search.test.ts packages/quant-live/src/__tests__/session-resume.test.ts` to confirm <=500 LOC total new code"
+  ],
+  "blocked_reason": null,
+  "findings": "All implementation completed within 399 LOC (under 500 limit). Prettier reformatted on commit via lint-staged. All 179 tests pass, tsc --noEmit clean."
+}

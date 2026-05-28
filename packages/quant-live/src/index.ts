@@ -34,6 +34,12 @@ export type {
   PrivacyInputSource,
   PrivacyAuditEventType,
   PrivacyAuditEvent,
+  ArtifactType,
+  SessionArtifact,
+  SessionStoreEntry,
+  SessionSearchResult,
+  SessionAuditEventType,
+  SessionAuditEntry,
 } from './types.js';
 
 // Core
@@ -89,3 +95,11 @@ export { PorcupineProvider, EnergyBasedFallback } from './wake-word/porcupine-pr
 export { AudioBufferLog } from './privacy/audio-buffer-log.js';
 export { PrivacyLampController } from './privacy/privacy-lamp.js';
 export { PrivacyAudit } from './privacy/privacy-audit.js';
+
+// Persistence
+export type { SessionStore } from './persistence/session-store.js';
+export { InMemorySessionStore } from './persistence/memory-store.js';
+export { ArtifactLinker } from './persistence/artifact-linker.js';
+export { SessionSearch } from './persistence/session-search.js';
+export { SessionResume } from './persistence/session-resume.js';
+export { SessionAudit } from './persistence/session-audit.js';
