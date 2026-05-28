@@ -1,0 +1,14 @@
+{
+  "task_id": "task-phase-41-multimodal-capture",
+  "task_description": "Implement camera and screen capture with multimodal AI grounding for Phase 41 Quant Live. Adds frame capture from camera/screen, multimodal grounding (image + text to LLM), context retrieval across Quant apps, and pipeline integration.",
+  "status": "completed",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "All 131 tests pass (107 existing + 24 new). TypeScript typecheck clean. Review feedback addressed: FPS cap on ScreenCapture, autoStart removed, onError callbacks added, callback unsubscribe functions, latestFrame nulled on stop."
+  }
+}

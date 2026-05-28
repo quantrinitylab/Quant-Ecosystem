@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Implement camera capture, screen capture, multimodal grounding, context retrieval modules with pipeline integration and full test coverage",
+  "status": "completed",
+  "steps": [
+    "1. Add new types to packages/quant-live/src/types.ts: CaptureFrame (base64 image data + timestamp + source), CameraConfig (fps, resolution, autoStart), ScreenCaptureConfig (fps, captureType), GroundingRequest (frames + query + context + mode), GroundingResult (text + sources + confidence), ContextSource (app + type + snippet + timestamp)",
+    "2. Create packages/quant-live/src/capture/camera-capture.ts: CameraCapture class with start()/stop() lifecycle, configurable FPS (1fps default, max 5fps), frame callback system, privacy lamp callback, getUserMedia + canvas frame extraction (platform-abstracted). Uses setInterval for frame sampling. Outputs base64 JPEG. No-op fallback when camera unavailable.",
+    "3. Create packages/quant-live/src/capture/screen-capture.ts: ScreenCapture class with start()/stop() lifecycle, configurable FPS (0.5fps default), getDisplayMedia for web, privacy indicator callback, same CaptureFrame output format. Similar pattern to CameraCapture.",
+    "4. Create packages/quant-live/src/grounding/multimodal-grounding.ts: MultimodalGrounding class that takes CaptureFrame(s) + user query + LiveConversationContext, formats as multimodal LLM request (image content blocks + text prompt), streams response via provided LiveLLMProvider. Supports modes: 'identify' (what's this?), 'assist' (help with screen), 'retrieve' (find past context). Falls back to text-only when no frames available.",
+    "5. Create packages/quant-live/src/grounding/context-retriever.ts: ContextRetriever class that takes a natural language query, extracts entity references (names, time references), returns ContextSource[] with relevant snippets. Uses a pluggable search function (for integration with @quant/agent-runtime cross-app search). Mock implementation for standalone use.",
+    "6. Update packages/quant-live/src/core/pipeline.ts: Add attachCamera(camera: CameraCapture) and attachScreenCapture(screen: ScreenCapture) methods. Add getLatestFrame() helper. Update processLLMResponse to optionally include visual context. Track grounding latency via the existing LatencyTracker (add 'grounding' as a PipelineStage).",
+    "7. Update packages/quant-live/src/types.ts: Add 'grounding' to PipelineStage union type.",
+    "8. Update packages/quant-live/src/index.ts: Export all new classes and types (CameraCapture, ScreenCapture, MultimodalGrounding, ContextRetriever, and all new type interfaces).",
+    "9. Create packages/quant-live/src/__tests__/camera-capture.test.ts: Test start/stop lifecycle, frame callback invocation, FPS limiting (frames not emitted faster than configured), privacy lamp callback, no-op when getUserMedia fails. Mock navigator.mediaDevices.getUserMedia, HTMLVideoElement, HTMLCanvasElement, canvas.toDataURL.",
+    "10. Create packages/quant-live/src/__tests__/screen-capture.test.ts: Test start/stop lifecycle, frame callback, FPS limiting, privacy callback. Mock navigator.mediaDevices.getDisplayMedia.",
+    "11. Create packages/quant-live/src/__tests__/multimodal-grounding.test.ts: Test request formatting (frames included as image content), response streaming, fallback to text-only when no frames, mode detection (identify/assist/retrieve).",
+    "12. Create packages/quant-live/src/__tests__/context-retriever.test.ts: Test query parsing, search function invocation, result formatting, empty results handling."
+  ],
+  "acceptance_criteria": [
+    "Running `pnpm --filter @quant/quant-live test` passes all tests including the 4 new test files",
+    "Running `pnpm --filter @quant/quant-live typecheck` succeeds with no errors",
+    "CameraCapture emits CaptureFrame objects at the configured FPS rate via callbacks",
+    "ScreenCapture emits CaptureFrame objects at the configured FPS rate via callbacks",
+    "MultimodalGrounding formats frames + text into a multimodal LLM request and streams responses",
+    "ContextRetriever queries a pluggable search function and returns formatted ContextSource results",
+    "Pipeline has attachCamera() and attachScreenCapture() methods that wire up to frame capture",
+    "Total new code is <=500 LOC across all files"
+  ],
+  "verification": [
+    "pnpm --filter @quant/quant-live test",
+    "pnpm --filter @quant/quant-live typecheck"
+  ],
+  "blocked_reason": null,
+  "findings": "All 124 tests pass (107 existing + 17 new). Typecheck clean. Prettier lint-staged reformatted some files on commit. Total new file LOC: 486."
+}

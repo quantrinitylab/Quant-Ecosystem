@@ -20,6 +20,12 @@ export type {
   LLMStreamChunk,
   LiveConversationContext,
   LiveLLMProvider,
+  CaptureFrame,
+  CameraConfig,
+  ScreenCaptureConfig,
+  GroundingRequest,
+  GroundingResult,
+  ContextSource,
 } from './types.js';
 
 // Core
@@ -57,3 +63,12 @@ export { QuantAIProvider } from './llm/quant-ai-provider.js';
 export { ToolBridge } from './llm/tool-bridge.js';
 export type { ToolExecutionResult } from './llm/tool-bridge.js';
 export { splitSentences } from './llm/sentence-splitter.js';
+
+// Capture
+export { CameraCapture } from './capture/camera-capture.js';
+export { ScreenCapture } from './capture/screen-capture.js';
+
+// Grounding
+export { MultimodalGrounding } from './grounding/multimodal-grounding.js';
+export { ContextRetriever } from './grounding/context-retriever.js';
+export type { SearchFunction } from './grounding/context-retriever.js';

@@ -2,6 +2,7 @@ import type {
   ASRProvider,
   ASRResult,
   AudioChunk,
+  CaptureFrame,
   LiveConversationContext,
   LiveLLMProvider,
   LiveSession,
@@ -13,6 +14,8 @@ import { LatencyTracker } from './latency-tracker.js';
 import { PrefetchBuffer } from '../tts/prefetch-buffer.js';
 import { splitSentences } from '../llm/sentence-splitter.js';
 import type { ToolBridge } from '../llm/tool-bridge.js';
+import type { CameraCapture } from '../capture/camera-capture.js';
+import type { ScreenCapture } from '../capture/screen-capture.js';
 
 type TranscriptCallback = (segments: TranscriptSegment[]) => void;
 type ResponseCallback = (text: string) => void;
@@ -40,6 +43,7 @@ export class LivePipeline {
   private speaking = false;
   private prefetchBuffer: PrefetchBuffer | null = null;
   readonly latencyTracker: LatencyTracker;
+  private latestFrame: CaptureFrame | null = null;
 
   constructor(latencyTracker?: LatencyTracker) {
     this.latencyTracker = latencyTracker ?? new LatencyTracker();
@@ -64,10 +68,27 @@ export class LivePipeline {
     this.running = false;
     this.asrProvider = null;
     this.segmentMeasureActive = false;
+    this.latestFrame = null;
   }
 
   setTTSProvider(provider: TTSProvider): void {
     this.ttsProvider = provider;
+  }
+
+  attachCamera(camera: CameraCapture): void {
+    camera.onFrame((frame) => {
+      this.latestFrame = frame;
+    });
+  }
+
+  attachScreenCapture(screen: ScreenCapture): void {
+    screen.onFrame((frame) => {
+      this.latestFrame = frame;
+    });
+  }
+
+  getLatestFrame(): CaptureFrame | null {
+    return this.latestFrame;
   }
 
   async synthesizeResponse(text: string): Promise<void> {
