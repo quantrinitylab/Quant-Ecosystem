@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Implement phone-free mode types, mode controller, emergency access, UI state, session logger, barrel exports, and comprehensive tests in packages/device-control/src/phone-free/",
+  "status": "completed",
+  "steps": [
+    "Create packages/device-control/src/phone-free/types.ts with: PhoneFreeConfig (timeout, emergencyContacts, panicPhrase), PhoneFreeState (enabled, activatedAt, config, sessionId), EmergencyContact (id, name, phone, relationship), PhoneFreeSession (id, startTime, endTime, endReason), UIVisibility (visibleElements, hiddenElements, voiceAccessible), BiometricAuthProvider interface (authenticate(): Promise<boolean>)",
+    "Create packages/device-control/src/phone-free/mode-controller.ts: PhoneFreeModeController class with enable(biometric)/disable(biometric) methods that require biometric confirmation, getState(), setTimeout for auto-disable (distraction detox), event emitter pattern (on/off/emit) for 'enabled'/'disabled'/'timeout' events. Emergency access must NEVER be disabled regardless of mode state.",
+    "Create packages/device-control/src/phone-free/emergency-access.ts: EmergencyAccessManager class that is always-available (cannot be disabled), holds configurable emergency contacts list, exposes callEmergency(contactId?), handles panic phrase 'Quant, emergency' by returning configured emergency number, provides crashDetected() integration point for accelerometer spikes. This module structurally guarantees emergency is never hidden.",
+    "Create packages/device-control/src/phone-free/ui-state.ts: PhoneFreeUIState class that computes visibility based on mode state. When enabled: visible = [quantLiveOrb, emergencyButton, clock, battery], hidden = [appDrawer, notifications, settings], voiceAccessible = [all capabilities]. When disabled: all visible. Expose getVisibility(): UIVisibility method.",
+    "Create packages/device-control/src/phone-free/session-logger.ts: PhoneFreeSessionLogger class that tracks sessions (start/end/reason), stores in-memory array, provides getStats(period: 'week'|'month') returning totalTime/sessionCount/averageDuration, listSessions() method.",
+    "Create packages/device-control/src/phone-free/index.ts barrel export for all public classes and types",
+    "Update packages/device-control/src/index.ts to add: export * from './phone-free/index.js';",
+    "Create packages/device-control/src/__tests__/mode-controller.test.ts testing: enable/disable requires biometric (success and failure), state management, auto-timeout, event emission",
+    "Create packages/device-control/src/__tests__/emergency-access.test.ts testing: always available, callEmergency with/without contactId, panic phrase recognition, crashDetected behavior, cannot be disabled",
+    "Create packages/device-control/src/__tests__/ui-state.test.ts testing: visibility when enabled vs disabled, voiceAccessible always contains all capabilities",
+    "Create packages/device-control/src/__tests__/session-logger.test.ts testing: session tracking (start/end), stats calculation, listSessions"
+  ],
+  "acceptance_criteria": [
+    "pnpm --filter @quant/device-control typecheck passes with no errors",
+    "pnpm --filter @quant/device-control test passes all tests including new phone-free tests",
+    "Emergency access cannot be disabled even when phone-free mode is active (tested)",
+    "Biometric is required for both enable and disable (tested)",
+    "Auto-timeout fires and disables mode after configured duration (tested)",
+    "Session logger correctly tracks start/end/reason and computes stats (tested)",
+    "UI state correctly reports visibility for enabled/disabled states (tested)",
+    "Total new code is <=500 LOC"
+  ],
+  "verification": [
+    "pnpm --filter @quant/device-control typecheck",
+    "pnpm --filter @quant/device-control test"
+  ],
+  "blocked_reason": null,
+  "findings": "All 160 tests pass (25 test files). Typecheck clean. Prettier lint-staged hook ran and reformatted files on commit. Non-null assertions (!) needed for array index access due to strict mode in tsconfig. 543 insertions total (includes task metadata files)."
+}

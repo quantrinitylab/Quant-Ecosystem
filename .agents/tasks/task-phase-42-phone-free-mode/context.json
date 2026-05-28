@@ -1,0 +1,25 @@
+{
+  "project_type": "TypeScript monorepo (pnpm workspaces + turbo)",
+  "language": "TypeScript",
+  "build_system": "pnpm + turbo; per-package scripts: tsc for build, vitest for test",
+  "test_framework": "vitest with describe/it/expect, mock providers for testing",
+  "build_command": "pnpm --filter @quant/device-control typecheck",
+  "test_command": "pnpm --filter @quant/device-control test",
+  "verification_instructions": "1. Run typecheck: pnpm --filter @quant/device-control typecheck. 2. Run tests: pnpm --filter @quant/device-control test. 3. Ensure no new TS errors.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install (already done)",
+  "environment_constraints": "OPEN_INTERNET - no restrictions. Node.js v22, pnpm available.",
+  "contribution_requirements": "<=500 LOC per PR, conventional commits, all gates pass, emergency access NEVER disabled (Section 0 safety rule)",
+  "key_patterns": "Each feature module in src/<module>/ with types.ts, index.ts exports. Tests in src/__tests__/<name>.test.ts. Capability providers implement CapabilityProvider interface. Voice intents use DeviceIntent type. Contacts use UnifiedContact type. Exports aggregated in src/index.ts.",
+  "relevant_files": [
+    "packages/device-control/src/index.ts",
+    "packages/device-control/src/capabilities/types.ts",
+    "packages/device-control/src/voice/types.ts",
+    "packages/device-control/src/contacts/contact-types.ts",
+    "packages/device-control/src/__tests__/call-agent.test.ts",
+    "packages/device-control/src/__tests__/command-grammar.test.ts",
+    "packages/device-control/src/audit/action-audit.js",
+    "packages/device-control/package.json"
+  ],
+  "directory_structure": "packages/device-control/src/ contains: agents/, audit/, capabilities/, contacts/, permissions/, providers/, voice/, __tests__/, index.ts, registry.ts. New phone-free module will live in src/phone-free/"
+}
