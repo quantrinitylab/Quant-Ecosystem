@@ -83,7 +83,7 @@ export interface TurnState {
 }
 
 // Pipeline stages
-export type PipelineStage = 'asr' | 'llm' | 'tts' | 'playback';
+export type PipelineStage = 'asr' | 'llm' | 'tts' | 'playback' | 'grounding';
 
 // Latency metrics per stage
 export interface LatencyMetrics {
@@ -153,4 +153,47 @@ export interface LiveConversationContext {
 export interface LiveLLMProvider {
   streamResponse(context: LiveConversationContext): AsyncIterable<LLMStreamChunk>;
   abort(): void;
+}
+
+// Capture frame from camera or screen
+export interface CaptureFrame {
+  data: string; // base64-encoded image
+  timestamp: number;
+  source: 'camera' | 'screen';
+}
+
+// Camera configuration
+export interface CameraConfig {
+  fps?: number;
+  resolution?: { width: number; height: number };
+  autoStart?: boolean;
+}
+
+// Screen capture configuration
+export interface ScreenCaptureConfig {
+  fps?: number;
+  captureType?: 'screen' | 'window' | 'tab';
+}
+
+// Grounding request
+export interface GroundingRequest {
+  frames: CaptureFrame[];
+  query: string;
+  context?: LiveConversationContext;
+  mode: 'identify' | 'assist' | 'retrieve';
+}
+
+// Grounding result
+export interface GroundingResult {
+  text: string;
+  sources: ContextSource[];
+  confidence: number;
+}
+
+// Context source from cross-app search
+export interface ContextSource {
+  app: string;
+  type: string;
+  snippet: string;
+  timestamp: number;
 }

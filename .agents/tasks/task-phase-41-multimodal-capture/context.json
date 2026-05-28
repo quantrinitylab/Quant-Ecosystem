@@ -1,0 +1,27 @@
+{
+  "project_type": "TypeScript monorepo - quant-live package for real-time voice AI pipeline",
+  "language": "TypeScript",
+  "build_system": "pnpm workspace with tsc (composite project references)",
+  "test_framework": "vitest with globals:true, describe/it/expect/vi from vitest",
+  "build_command": "pnpm --filter @quant/quant-live build",
+  "test_command": "pnpm --filter @quant/quant-live test",
+  "verification_instructions": "1. Run pnpm --filter @quant/quant-live test (all tests pass). 2. Run pnpm --filter @quant/quant-live typecheck (no TS errors).",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "Already set up - pnpm store and node_modules present, tests green (107 tests passing)",
+  "environment_constraints": "OPEN_INTERNET mode. Node v22, pnpm available. No real browser APIs - all tests must mock getUserMedia/getDisplayMedia/canvas.",
+  "contribution_requirements": "<=500 LOC per PR. All gates must pass (typecheck + test). Commit message format: feat(quant-live): add camera/screen capture with multimodal grounding",
+  "key_patterns": "Each subsystem has its own directory under src/ (asr/, tts/, llm/, conversation/, core/). Types are centralized in src/types.ts. Tests live in src/__tests__/. Provider pattern: interface in types.ts, implementation in directory. Pipeline (core/pipeline.ts) orchestrates providers. Exports go through src/index.ts. Files use .js extension in imports (ESM). Tests use vi.fn() for mocks, create mock factory functions at top of test files.",
+  "relevant_files": [
+    "packages/quant-live/src/types.ts",
+    "packages/quant-live/src/core/pipeline.ts",
+    "packages/quant-live/src/index.ts",
+    "packages/quant-live/src/__tests__/pipeline.test.ts",
+    "packages/quant-live/src/__tests__/tool-bridge.test.ts",
+    "packages/quant-live/src/llm/streaming-llm.ts",
+    "packages/quant-live/src/llm/quant-ai-provider.ts",
+    "packages/quant-live/vitest.config.ts",
+    "packages/quant-live/package.json",
+    "packages/quant-live/tsconfig.json"
+  ],
+  "directory_structure": "packages/quant-live/src/ contains: core/ (pipeline, session-manager, latency-tracker), asr/ (whisper, vad, adaptive-vad, streaming-asr), tts/ (elevenlabs, kokoro, factory, prefetch-buffer), llm/ (streaming-llm, quant-ai-provider, tool-bridge, sentence-splitter), conversation/ (turn-manager, transcript), __tests__/ (15 test files), types.ts, index.ts"
+}
