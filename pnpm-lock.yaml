@@ -1491,6 +1491,18 @@ importers:
         specifier: ^2
         version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
 
+  packages/quant-notebook:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: ^2
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
+
   packages/queue:
     dependencies:
       '@quant/common':
