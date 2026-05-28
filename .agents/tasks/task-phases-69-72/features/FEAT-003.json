@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Phase 71 - QuantAI Codex & Cross-App Automation: Create packages/quant-codex (project scaffolding, multi-agent build orchestration, deploy pipeline, voice command interface) and packages/quant-automate (trigger system with cron, event-driven actions, durable execution, NL automation builder).",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Step 1 - Create packages/quant-codex/package.json: Name @quant/quant-codex, deps on @quant/common workspace:*, @quant/agent-swarm workspace:*. Include typecheck/test/build/lint scripts. Create tsconfig.json.",
     "Step 2 - Create src/types.ts with: ProjectTemplate (id, name, type: game|app|tool|agent|lens, files, dependencies, scripts), CodexProject (id, name, template, status, branches, agents, artifacts, logs), BuildStep, DeployTarget, AgentTask, CodexCommand, ScaffoldResult, BuildResult, DeployResult interfaces.",
