@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Build QuantDocs frontend - complete Next.js app with document browser, rich text editor placeholder, presence indicators, comments panel, version history, sharing dialog, AI sidebar",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Update apps/quantdocs/package.json: add next, react, react-dom, @tanstack/react-query to dependencies. Add @types/react, @types/react-dom, autoprefixer, postcss, tailwindcss to devDependencies. Update scripts to: dev='next dev --port 3005', build='next build', start='next start', typecheck='tsc --noEmit && tsc --noEmit -p tsconfig.backend.json'",
     "Replace apps/quantdocs/tsconfig.json with Next.js-compatible config (copy pattern from apps/quantmail/tsconfig.json, paths for @quant/shared-ui and @quant/common)",
@@ -37,5 +37,5 @@
   ],
   "verification": ["pnpm typecheck 2>&1 | tail -5", "pnpm build 2>&1 | tail -5"],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "Badge variant must be one of: default, primary, success, warning, danger, info (no 'secondary'). styled-jsx works in Next.js app. React.use(params) pattern works for Next.js 15 dynamic route params with Promise<{id: string}> typing. Build produces standalone output successfully."
 }
