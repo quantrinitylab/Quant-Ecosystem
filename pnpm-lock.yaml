@@ -972,6 +972,18 @@ importers:
         specifier: ^22.0.0
         version: 22.19.19
 
+  packages/bharat-ai:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: ^2
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)
+
   packages/browser-agent:
     devDependencies:
       '@types/node':
