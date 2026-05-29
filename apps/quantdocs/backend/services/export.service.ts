@@ -22,11 +22,16 @@ export class ExportService {
     content = content.replace(/<code[^>]*>(.*?)<\/code>/gi, '`$1`');
     content = content.replace(/<br\s*\/?>/gi, '\n');
     content = content.replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n');
-    content = content.replace(/<[^>]+>/g, '');
+    // Decode HTML entities BEFORE stripping tags so that encoded tags
+    // (e.g. &lt;script&gt;) are revealed and then removed.
     content = content.replace(/&amp;/g, '&');
     content = content.replace(/&lt;/g, '<');
     content = content.replace(/&gt;/g, '>');
     content = content.replace(/&quot;/g, '"');
+    // Strip tags in a loop to handle any nested or reconstructed tags
+    while (/<[^>]+>/.test(content)) {
+      content = content.replace(/<[^>]+>/g, '');
+    }
 
     lines.push(content.trim());
     return lines.join('\n');
@@ -165,14 +170,17 @@ ${this.escapeLatex(plainContent)}
   }
 
   private stripHtml(html: string): string {
-    return html
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
-      .replace(/<[^>]+>/g, '')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, '&')
-      .trim();
+    let content = html.replace(/<br\s*\/?>/gi, '\n').replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n');
+    // Decode HTML entities BEFORE stripping tags so that encoded tags
+    // (e.g. &lt;script&gt;) are revealed and then removed.
+    content = content.replace(/&amp;/g, '&');
+    content = content.replace(/&lt;/g, '<');
+    content = content.replace(/&gt;/g, '>');
+    content = content.replace(/&quot;/g, '"');
+    // Strip tags in a loop to handle any nested or reconstructed tags
+    while (/<[^>]+>/.test(content)) {
+      content = content.replace(/<[^>]+>/g, '');
+    }
+    return content.trim();
   }
 }
