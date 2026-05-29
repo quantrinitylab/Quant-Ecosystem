@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, Badge, Avatar, LoadingState, ErrorState } from '@quant/shared-ui';
 import { quantAdsAPI } from '../../services/api-client';
@@ -60,6 +61,7 @@ function CampaignCard({
 
 export default function CampaignsPage() {
   const queryClient = useQueryClient();
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   const {
     data: campaigns,
@@ -85,7 +87,11 @@ export default function CampaignsPage() {
       return response.data;
     },
     onSuccess: () => {
+      setMutationError(null);
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+    },
+    onError: (err: Error) => {
+      setMutationError(err.message || 'Failed to update campaign status');
     },
   });
 
@@ -96,7 +102,11 @@ export default function CampaignsPage() {
       return response.data;
     },
     onSuccess: () => {
+      setMutationError(null);
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+    },
+    onError: (err: Error) => {
+      setMutationError(err.message || 'Failed to delete campaign');
     },
   });
 
@@ -116,6 +126,12 @@ export default function CampaignsPage() {
           Create Campaign
         </Button>
       </div>
+
+      {mutationError && (
+        <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-red-500 text-sm">
+          {mutationError}
+        </div>
+      )}
 
       {isLoading && <LoadingState text="Loading campaigns..." />}
 

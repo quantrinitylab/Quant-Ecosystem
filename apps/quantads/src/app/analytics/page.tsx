@@ -26,6 +26,12 @@ function MetricCard({ label, value, subtext }: { label: string; value: string; s
   );
 }
 
+function getDateRangeStart(range: DateRange): number {
+  const now = Date.now();
+  const days = parseInt(range, 10);
+  return now - days * 24 * 60 * 60 * 1000;
+}
+
 export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState<DateRange>('7d');
 
@@ -42,7 +48,9 @@ export default function AnalyticsPage() {
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to load analytics');
       }
-      return response.data || [];
+      const all = response.data || [];
+      const rangeStart = getDateRangeStart(dateRange);
+      return all.filter((c) => new Date(c.createdAt).getTime() >= rangeStart);
     },
   });
 
