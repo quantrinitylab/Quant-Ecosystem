@@ -63,7 +63,7 @@ export class TriggerSystem {
   checkAICondition(condition: string, context: Record<string, unknown>): boolean {
     // Evaluate simple conditions against context
     // Supports patterns like "key > value", "key == value", "key contains value"
-    const parts = condition.match(/^(\w+)\s*(==|!=|>|<|contains)\s*(.+)$/);
+    const parts = condition.match(/^(\w+)\s*(==|!=|>|<|contains)\s*(\S.*)$/);
     if (!parts) return false;
 
     const [, key, operator, valueStr] = parts;
