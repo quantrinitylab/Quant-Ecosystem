@@ -1,0 +1,7 @@
+{
+  "task_id": "task-phase-86-flagship-flows",
+  "task_description": "Phase 86: Complete the headline user flows that are currently dead stubs in otherwise-complete apps. quantmail compose Send/Save buttons have no onClick and inputs are unbound (the full useEmail.sendEmail hook is unused); quantdrive Upload + Share are dead stubs (handleUpload = `void files`); quantmeet has NO video at all (no livekit-client/getUserMedia; VideoTile shows initials, PreJoinLobby shows literal 'Camera preview' text); quantai conversation history is ephemeral (never loaded/persisted) and quantchat uses 3 conflicting backend targets with a getConversations call that has no route. (NOTE: quantai SSE streaming was already added by Kiro in PR #109 — do NOT redo it; focus on conversation persistence + quantchat unification.)",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}

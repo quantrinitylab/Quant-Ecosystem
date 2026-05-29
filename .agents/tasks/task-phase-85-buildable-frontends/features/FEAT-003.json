@@ -1,0 +1,21 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Replace MOCK_* component data in the migrated apps with live data from the wired API (FEAT-002). The audit found components hardwired to MOCK constants ignoring the backend (e.g. quantneon BroadcastChannel.tsx, CollabInvite.tsx, guides.tsx). This partially overlaps Phase 87 (mock-debt.csv) but covers the orphaned-app components specifically.",
+  "status": "pending",
+  "steps": [
+    "Grep each migrated app for MOCK_, generateMock, hardcoded fixture arrays (cross-ref .agents/state/mock-debt.csv rows for quantube/quantneon/quantmax/quantedits).",
+    "For each, replace the fixture with a React Query hook hitting the proxied API; show loading/empty/error states via @quant/shared-ui (LoadingState, etc.).",
+    "Specifically fix quantneon: BroadcastChannel.tsx, CollabInvite.tsx, guides.tsx (and feed/reels/stories/explore) to read from backend instead of MOCK_*.",
+    "Keep a single seed/fixture path only behind an explicit demo mode (e.g. @quant/onboarding demo mode), not as the default render.",
+    "Run pnpm typecheck && pnpm build; manually verify a list view renders from API (or a test with a mocked fetch)."
+  ],
+  "acceptance_criteria": [
+    "No migrated-app component renders MOCK_* as its default data source",
+    "List/detail views fetch from the wired API with loading/empty/error states",
+    "Demo-mode fixtures (if any) are explicitly gated, not default",
+    "pnpm typecheck + build green"
+  ],
+  "verification": ["pnpm typecheck", "pnpm build", "pnpm test"],
+  "blocked_reason": null
+}

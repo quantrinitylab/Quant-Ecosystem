@@ -1,0 +1,21 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Add production Dockerfiles for every deployable that lacks one. Today only apps/quantmail, services/ws-gateway, and infra/docker/Dockerfile.secure exist. The other 12 app backends and 7 services have no container build. Use the existing quantmail + ws-gateway Dockerfiles as multi-stage pnpm+turbo templates (Node 22).",
+  "status": "pending",
+  "steps": [
+    "For each app with a Fastify backend (quantchat, quantai, quantcalendar, quantdocs, quantdrive, quantmeet, quantads, quantsync, quantube, quantneon, quantmax, quantedits), add apps/<app>/Dockerfile that: installs via pnpm with the workspace, builds the app + its deps with `turbo build --filter=<pkg>...`, prunes to a runtime image, and runs the backend entrypoint.",
+    "For Next.js apps, produce a standalone Next build (output: 'standalone') and a separate runtime stage for the frontend if served separately from the Fastify backend.",
+    "For each service (cdc-relay, ci-runner, git-server, matchmaking, moderation-worker, search-indexer, smtp-inbound), add services/<svc>/Dockerfile following the ws-gateway pattern; CMD runs the service's main/start (depends on Phase 83 FEAT-005 entrypoints for smtp-inbound + ci-runner).",
+    "Add .dockerignore entries (node_modules, .turbo, .next, dist test artifacts) per image to keep builds small.",
+    "Verify each image builds: `docker build -f apps/<app>/Dockerfile .` (and services). Capture image sizes."
+  ],
+  "acceptance_criteria": [
+    "Every app backend and every service has a Dockerfile that builds successfully",
+    "Next.js apps build in standalone mode",
+    "Images use Node 22 multi-stage builds and prune dev deps",
+    "docker build succeeds locally for each new image"
+  ],
+  "verification": ["docker build per app/service", "pnpm build"],
+  "blocked_reason": null
+}

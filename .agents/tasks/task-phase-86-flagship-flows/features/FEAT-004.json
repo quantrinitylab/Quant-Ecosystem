@@ -1,0 +1,22 @@
+{
+  "id": "FEAT-004",
+  "type": "fix",
+  "description": "Fix quantai conversation persistence and quantchat backend fragmentation. quantai conversations are ephemeral client state (lost on refresh; never loaded). quantchat uses three conflicting backend targets across hooks (apiClient -> chat.quant.app, stories -> relative /api, useChat -> ws://localhost:3001), getConversations() has no matching backend route, and the BottomNav onChange is a no-op. NOTE: do NOT redo quantai SSE streaming or quantchat auth-token centralization — already done in Kiro PR #109.",
+  "status": "pending",
+  "steps": [
+    "quantai: load conversation history on mount from the backend (GET /sessions or /assistant/conversations per the corrected port+path from Phase 83 FEAT-003) and persist new turns; render history from server state so refresh keeps the thread.",
+    "quantchat: unify all backend targets to env-driven values (QUANTCHAT_BACKEND_URL + NEXT_PUBLIC_WS_URL from PR #109); remove the hardcoded chat.quant.app and ws://localhost:3001.",
+    "quantchat: add the missing backend route for getConversations (GET /conversations) and point the hook at it via the proxy; ensure it returns the user's conversations.",
+    "quantchat: wire BottomNav onChange to actually navigate (next/navigation router.push) instead of the no-op.",
+    "Add tests: quantai loads conversations on mount; quantchat getConversations hits the (now-existing) route; nav changes route.",
+    "Run pnpm --filter @quant/quantai --filter @quant/quantchat typecheck test build."
+  ],
+  "acceptance_criteria": [
+    "quantai conversation history survives refresh (loaded + persisted via backend)",
+    "quantchat uses a single env-driven backend/WS target (no hardcoded hosts)",
+    "getConversations has a backing route and returns data; BottomNav navigates",
+    "Tests pass; typecheck/build green"
+  ],
+  "verification": ["pnpm --filter @quant/quantai --filter @quant/quantchat test", "pnpm typecheck", "pnpm build"],
+  "blocked_reason": null
+}

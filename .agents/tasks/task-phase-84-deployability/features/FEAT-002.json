@@ -1,0 +1,21 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Extend the Helm chart so all apps and services are deployable workloads. Today infra/helm/quant-platform/values.yaml only defines ws-gateway and triton-inference-server, and ingress.yaml only routes to ws-gateway.",
+  "status": "pending",
+  "steps": [
+    "Add a workloads/services map entry in infra/helm/quant-platform/values.yaml for each app backend and each service (image, port, env, replicas, resources, health probes using @quant/health-server endpoints).",
+    "Parameterize templates (deployment.yaml, service.yaml) to iterate over the workloads map instead of hardcoding ws-gateway.",
+    "Extend ingress.yaml to route each Next.js app frontend + its /api to the right backend service (host/path rules per app).",
+    "Wire env/secrets: DATABASE_URL, REDIS_URL, JWT_SECRET/JWT_AUDIENCE, S3, NATS, KAFKA_BROKERS, LIVEKIT_* via Helm values + k8s Secrets (reference, do not commit secrets).",
+    "Validate: `helm template infra/helm/quant-platform` renders for all workloads with no errors; `helm lint` passes."
+  ],
+  "acceptance_criteria": [
+    "values.yaml lists every app backend + service as a workload with probes and resources",
+    "Deployment/Service templates render all workloads (not just ws-gateway)",
+    "Ingress routes every app frontend + API",
+    "helm lint + helm template succeed with zero errors"
+  ],
+  "verification": ["helm lint infra/helm/quant-platform", "helm template infra/helm/quant-platform"],
+  "blocked_reason": null
+}

@@ -1,0 +1,22 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Migrate each of the 6 orphaned-frontend apps (quantube, quantneon, quantmax, quantads, quantedits; quantsync if not already done by PR #109) to the Next.js App Router so they actually build and run. Each currently has src/pages/* importing next/router with no next dependency.",
+  "status": "pending",
+  "steps": [
+    "For each app, add to package.json: next@15.5, react@19, react-dom@19, @tanstack/react-query, framer-motion; set scripts dev=`next dev -p <frontend-port>`, build=`next build`, start=`next start`. Add next.config + tsconfig paths as in the working apps.",
+    "Create src/app/layout.tsx wrapping children with ThemeProvider (@quant/brand) + a QueryClientProvider + CommandPalette (Cmd+K) from @quant/command-palette, matching apps/quantmail/src/app/layout.tsx.",
+    "Convert each src/pages/<x>.tsx into src/app/<route>/page.tsx (index->/, [id]->/[id]). Replace `useRouter` from next/router with next/navigation (useRouter/useParams/useSearchParams). Move _app/_document concerns into layout.tsx.",
+    "Rename the old src/pages/ to src/legacy-pages/ during transition (do not delete until parity verified), as done for QuantSync in PR #109.",
+    "Per app, map: quantube (index feed, watch/[id]), quantneon (feed,reels,stories,explore,camera,post/[id],profile/[id]), quantmax (feed,matching,live,challenges,nearby,matches,create,group-rooms), quantads (campaigns,serving,auction), quantedits (projects,editor,templates,assets,index). Recreate each as an App Router route.",
+    "Run `pnpm --filter <app> build` (next build) for each migrated app; then pnpm typecheck && pnpm build."
+  ],
+  "acceptance_criteria": [
+    "Each of the 6 apps has a next dependency, src/app/ structure, and build=`next build`",
+    "`next build` succeeds for every migrated app (no more tsc --noEmit-only frontends)",
+    "All pages reachable as App Router routes; next/navigation used (no next/router)",
+    "pnpm typecheck + build green"
+  ],
+  "verification": ["pnpm --filter <app> build", "pnpm typecheck", "pnpm build"],
+  "blocked_reason": null
+}

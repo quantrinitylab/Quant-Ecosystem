@@ -1,0 +1,23 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Wire quantmail compose. apps/quantmail/src/app/compose/page.tsx is a pure static stub: Send and Save Draft buttons have no onClick, the to/subject/body inputs have no state binding, and the existing useEmail.sendEmail hook is never called.",
+  "status": "pending",
+  "steps": [
+    "Add controlled state for to, cc, bcc, subject, body (and attachments) in compose/page.tsx (useState or a form lib).",
+    "Bind each input/textarea value + onChange to that state.",
+    "Wire the Send button onClick to useEmail().sendEmail({ to, subject, body, ... }) with loading + error handling and a success redirect/toast; disable while sending.",
+    "Wire Save Draft to the draft API (useEmail saveDraft or POST /api/.../drafts); persist and confirm.",
+    "Add validation (non-empty recipient, valid email format) and surface errors inline.",
+    "Add a vitest test that fills the form, clicks Send, and asserts sendEmail is called with the entered values; clicking Save Draft calls the draft endpoint.",
+    "Run pnpm --filter @quant/quantmail typecheck test build."
+  ],
+  "acceptance_criteria": [
+    "Compose inputs are controlled and bound to state",
+    "Send triggers useEmail.sendEmail with the form values; Save Draft persists a draft",
+    "Validation + loading + error states present",
+    "Test proves Send/Save call the right APIs; typecheck/test/build green"
+  ],
+  "verification": ["pnpm --filter @quant/quantmail test", "pnpm typecheck", "pnpm build"],
+  "blocked_reason": null
+}

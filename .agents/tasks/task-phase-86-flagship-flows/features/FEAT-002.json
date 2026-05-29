@@ -1,0 +1,21 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Wire quantdrive upload and share. UploadArea.tsx handleUpload is a dead stub (`void files;` with a 'handled via API' comment), the file <input> has no onChange, and ShareDialog.tsx handleShare only clears the input. The backend /api/drive/upload + sharing routes already exist; only file listing works today.",
+  "status": "pending",
+  "steps": [
+    "UploadArea.tsx: add onChange to the file <input> and a drop handler; implement handleUpload to POST the File(s) as multipart/form-data to /api/drive/upload (or the useFiles upload mutation), with progress, then refresh the file list (invalidate the files query).",
+    "ShareDialog.tsx: implement handleShare to call the share endpoint (POST /api/drive/files/[fileId]/share) with the entered email/permission, show success/error, and reflect the new share in UI.",
+    "Handle errors (size/type limits, 401) and loading states; disable buttons while in-flight.",
+    "Add tests: selecting a file triggers the upload mutation with the file; submitting ShareDialog calls the share endpoint with the entered values.",
+    "Run pnpm --filter @quant/quantdrive typecheck test build."
+  ],
+  "acceptance_criteria": [
+    "File input onChange + handleUpload actually upload via the API and refresh the list",
+    "ShareDialog creates a real share via the API",
+    "Loading/error states present",
+    "Tests prove upload + share call the right endpoints; typecheck/test/build green"
+  ],
+  "verification": ["pnpm --filter @quant/quantdrive test", "pnpm typecheck", "pnpm build"],
+  "blocked_reason": null
+}

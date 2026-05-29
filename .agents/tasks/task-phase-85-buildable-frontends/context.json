@@ -1,0 +1,25 @@
+{
+  "project_type": "Monorepo; 7 apps already on Next.js App Router, 6 on dead React pages/",
+  "language": "TypeScript",
+  "build_system": "pnpm workspaces + turbo",
+  "test_framework": "vitest",
+  "build_command": "pnpm build",
+  "test_command": "pnpm test",
+  "verification_instructions": "Each migrated app must `next build` successfully and run via `next dev`. typecheck + build stay green.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install. Reference the working Next App Router apps (quantmail, quantchat, quantai) and PR #109's QuantSync migration.",
+  "environment_constraints": "Use Next.js 15.5 + React 19 to match the rest of the repo. Reuse @quant/shared-ui components and @quant/brand. Keep the Fastify backend per app; frontend talks to it via src/app/api proxy + env *_BACKEND_URL (Phase 83 FEAT-003).",
+  "key_patterns": "App Router migration pattern (per PR #109 QuantSync): add next + react + @tanstack/react-query + framer-motion deps; create src/app/layout.tsx with ThemeProvider + CommandPalette (Cmd+K); convert each src/pages/*.tsx into src/app/<route>/page.tsx; rename old src/pages/ to src/legacy-pages/ during transition; set build script to `next build`, dev to `next dev`.",
+  "relevant_files": [
+    "apps/quantube/src/pages/",
+    "apps/quantneon/src/pages/",
+    "apps/quantmax/src/pages/",
+    "apps/quantads/src/pages/",
+    "apps/quantedits/src/pages/",
+    "apps/quantsync/src/legacy-pages/",
+    "apps/quantmail/src/app/layout.tsx",
+    "apps/quantchat/src/app/layout.tsx",
+    ".agents/state/mock-debt.csv"
+  ],
+  "directory_structure": "Each of the 6 apps has a real Fastify backend (apps/<app>/backend) and a dead React frontend (apps/<app>/src/pages). Target: src/app/ App Router. mock-debt.csv enumerates the mock screens per app."
+}

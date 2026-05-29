@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Give quantmeet a real WebRTC client. The backend uses livekit-server-sdk, but the frontend has NO livekit-client / getUserMedia / RTCPeerConnection: VideoTile.tsx renders avatar initials, PreJoinLobby.tsx renders the literal text 'Camera preview', handleJoin just flips local state, chat is local-only, and /api/meetings/recent 404s. This is the largest flagship gap.",
+  "status": "pending",
+  "steps": [
+    "Add livekit-client to apps/quantmeet. Add a backend route that mints a LiveKit access token (using livekit-server-sdk + LIVEKIT_API_KEY/SECRET) for a given room+identity; expose via /api/meetings/[id]/token.",
+    "PreJoinLobby.tsx: request getUserMedia({video,audio}), render the real local MediaStream in a <video> element, add device pickers + mute/camera toggles; replace the 'Camera preview' placeholder.",
+    "On join: connect livekit-client Room to LIVEKIT_WS_URL with the minted token; publish local tracks; subscribe to remote participants.",
+    "VideoTile.tsx: attach the participant's video/audio MediaStreamTrack to a <video>/<audio> element (fallback to initials only when camera off).",
+    "Wire participant list, active-speaker, mute state from Room events; make chat use the real data channel or the realtime backend instead of local setChatMessages.",
+    "Add the missing /api/meetings/recent route (backend) so the home screen stops 404ing.",
+    "Add tests for the token endpoint and a component test that VideoTile attaches a provided MediaStream. Run pnpm --filter @quant/quantmeet typecheck test build."
+  ],
+  "acceptance_criteria": [
+    "PreJoinLobby shows a real camera preview via getUserMedia",
+    "Joining connects a livekit-client Room with a server-minted token; remote video/audio render in VideoTile",
+    "Mute/camera/participant state driven by Room events; chat uses real transport",
+    "/api/meetings/recent route exists (no 404)",
+    "Token endpoint + VideoTile tests pass; typecheck/build green"
+  ],
+  "verification": ["pnpm --filter @quant/quantmeet test", "pnpm typecheck", "pnpm build"],
+  "blocked_reason": null
+}

@@ -1,0 +1,21 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Expand CI/CD to build and deploy all apps + services. Today .github/workflows/ci.yml's docker matrix = [ws-gateway], and deploy-production.yml / deploy-staging.yml hardcode SERVICES=\"ws-gateway\".",
+  "status": "pending",
+  "steps": [
+    "Update .github/workflows/ci.yml: replace the single-entry docker matrix with the full list of app backends + services (matrix.image), building each new Dockerfile. Keep the existing OOM mitigation (--concurrency=3, NODE_OPTIONS heap) for Next builds.",
+    "Update deploy-staging.yml and deploy-production.yml: replace SERVICES=\"ws-gateway\" with the full workload list (or derive from a single source, e.g. a workloads.json read by both CI and Helm).",
+    "Add image build+push (GHCR) per workload, tagged by commit SHA; gate deploy on the existing quality-gates + zero-defect-gates passing.",
+    "Wire `helm template` / `helm lint` and `terraform plan` (infra/terraform) into a CI check (currently unvalidated per risk-register R-105).",
+    "Verify the workflows parse (actionlint) and the matrix expands to all workloads."
+  ],
+  "acceptance_criteria": [
+    "CI docker matrix builds every app backend + service image",
+    "Deploy workflows reference the full workload list (no hardcoded ws-gateway-only)",
+    "helm template/lint + terraform plan run in CI",
+    "Workflows lint clean (actionlint)"
+  ],
+  "verification": ["actionlint", "helm template infra/helm/quant-platform"],
+  "blocked_reason": null
+}

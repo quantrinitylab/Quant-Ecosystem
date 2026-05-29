@@ -1,0 +1,27 @@
+{
+  "project_type": "Monorepo; flagship Next.js apps with rich backends but stubbed headline UI flows",
+  "language": "TypeScript",
+  "build_system": "pnpm workspaces + turbo",
+  "test_framework": "vitest",
+  "build_command": "pnpm build",
+  "test_command": "pnpm test",
+  "verification_instructions": "Each fixed flow must work end-to-end against the backend (depends on Phase 83 prisma/auth/ports). Add a test per flow (action triggers the right API call).",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "pnpm install. Requires Phase 83 (prisma injection, auth, ports) merged first.",
+  "environment_constraints": "Do not duplicate Kiro PR #109 (it added real SSE streaming to quantai and centralized quantchat auth token + NEXT_PUBLIC_WS_URL). Build on top of it.",
+  "key_patterns": "Hooks already exist but are unused by the UI: apps/quantmail/src/hooks/useEmail.ts has sendEmail; the compose page must call it. quantdrive has /api/drive/upload routes but UploadArea.handleUpload is a no-op. quantmeet needs a real WebRTC client (livekit-client) wired to the livekit-server-sdk backend.",
+  "relevant_files": [
+    "apps/quantmail/src/app/compose/page.tsx",
+    "apps/quantmail/src/hooks/useEmail.ts",
+    "apps/quantdrive/src/components/UploadArea.tsx",
+    "apps/quantdrive/src/components/ShareDialog.tsx",
+    "apps/quantmeet/src/components/VideoTile.tsx",
+    "apps/quantmeet/src/components/PreJoinLobby.tsx",
+    "apps/quantmeet/src/hooks/useMeeting.ts",
+    "apps/quantmeet/backend/routes",
+    "apps/quantai/src/services/api-client.ts",
+    "apps/quantchat/src/hooks/useChat.ts",
+    "apps/quantchat/src/lib/auth.ts"
+  ],
+  "directory_structure": "Next App Router apps with backend/ Fastify servers. quantmeet backend uses livekit-server-sdk but the frontend lacks a WebRTC client."
+}

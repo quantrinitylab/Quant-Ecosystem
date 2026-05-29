@@ -1,0 +1,21 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Add application containers to docker-compose for local end-to-end runs. Today docker-compose.dev.yml / docker-compose.test.yml define only backing infra (postgres/pgvector, redis, minio, mailhog, meilisearch, nats, redpanda, qdrant, triton, livekit) with ZERO app/service containers, so the system can't be exercised end-to-end locally.",
+  "status": "pending",
+  "steps": [
+    "Create docker-compose.apps.yml (or extend dev compose with an `apps` profile) defining a container per app backend + key services, built from their Phase 84 Dockerfiles, depends_on the infra services, with env wired to the compose network (DATABASE_URL=postgres://...@postgres:5432, REDIS_URL=redis://redis:6379, etc.).",
+    "Map the canonical ports (from Phase 83 FEAT-003 / service-discovery) so frontend proxies reach backends inside the network.",
+    "Add a `make up` / pnpm script (e.g. dev:full) that brings up infra + apps and runs the Prisma baseline migration (Phase 83 FEAT-004) before app start.",
+    "Add a tiny e2e smoke (extend scripts/smoke.ts) that hits one endpoint per app through the compose network and asserts 200/expected.",
+    "Verify `docker compose -f docker-compose.dev.yml -f docker-compose.apps.yml up` boots the stack and the smoke passes."
+  ],
+  "acceptance_criteria": [
+    "Compose defines app/service containers (not just infra)",
+    "Ports align with service-discovery; frontends reach backends in-network",
+    "A migration step runs before apps start",
+    "smoke.ts passes against the composed stack"
+  ],
+  "verification": ["docker compose up (dev+apps)", "pnpm smoke"],
+  "blocked_reason": null
+}

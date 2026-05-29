@@ -1,0 +1,7 @@
+{
+  "task_id": "task-phase-85-buildable-frontends",
+  "task_description": "Phase 85: Make the 6 orphaned frontends buildable and runnable. quantube, quantneon, quantmax, quantsync, quantads, quantedits ship Next-style React pages/ (importing next/router, _app.tsx, [id].tsx) but have NO next/vite dependency, no bundler, no router mount, and no HTML entry; their `build` is `tsc --noEmit` and `dev` runs only the backend. Their entire UI is dead source. Migrate each to the Next.js App Router (matching the 7 working apps and Kiro's QuantSync migration in PR #109), then wire their API base + replace MOCK_* data. NOTE: QuantSync is already being migrated in PR #109 — coordinate/skip if merged.",
+  "status": "pending",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
