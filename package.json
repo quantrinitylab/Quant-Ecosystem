@@ -13,6 +13,8 @@
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "build": "turbo build",
+    "build:ci": "turbo build --concurrency=3",
+    "build:cold": "rm -rf .turbo node_modules/.cache && turbo build --concurrency=3",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "validate": "pnpm install --frozen-lockfile && pnpm typecheck && pnpm test && pnpm build && pnpm lint",
