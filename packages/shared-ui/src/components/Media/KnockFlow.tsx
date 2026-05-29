@@ -1,8 +1,11 @@
+'use client';
+
 // ============================================================================
 // Shared UI - KnockFlow Component
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import { Room, RoomEvent } from 'livekit-client';
 
 export interface KnockRequest {
@@ -30,6 +33,7 @@ export const KnockFlow: React.FC<KnockFlowProps> = ({
   onDeny,
   className = '',
 }) => {
+  const prefersReducedMotion = useReducedMotion();
   const [knockRequests, setKnockRequests] = useState<KnockRequest[]>([]);
   const [knockStatus, setKnockStatus] = useState<'idle' | 'waiting' | 'admitted' | 'denied'>(
     'idle',
@@ -128,7 +132,9 @@ export const KnockFlow: React.FC<KnockFlowProps> = ({
         )}
         {knockStatus === 'waiting' && (
           <div>
-            <div className="animate-pulse text-gray-600">Waiting for host to admit you...</div>
+            <div className={`${prefersReducedMotion ? '' : 'animate-pulse '}text-gray-600`}>
+              Waiting for host to admit you...
+            </div>
           </div>
         )}
         {knockStatus === 'admitted' && (

@@ -1,8 +1,11 @@
+'use client';
+
 // ============================================================================
 // Shared UI - Loader Component
 // ============================================================================
 
 import React from 'react';
+import { useReducedMotion } from 'framer-motion';
 
 export interface LoaderProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
@@ -21,6 +24,8 @@ export const Loader: React.FC<LoaderProps> = ({
   text,
   className = '',
 }) => {
+  const prefersReducedMotion = useReducedMotion();
+
   const sizeValues: Record<string, string> = {
     sm: 'w-4 h-4',
     md: 'w-8 h-8',
@@ -38,7 +43,9 @@ export const Loader: React.FC<LoaderProps> = ({
     switch (variant) {
       case 'spinner':
         return (
-          <div className={`${sizeValues[size]} border-4 border-gray-200 ${colorValues[color]} border-t-current rounded-full animate-spin`} />
+          <div
+            className={`${sizeValues[size]} border-4 border-gray-200 ${colorValues[color]} border-t-current rounded-full${prefersReducedMotion ? '' : ' animate-spin'}`}
+          />
         );
       case 'dots':
         return (
@@ -46,22 +53,30 @@ export const Loader: React.FC<LoaderProps> = ({
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className={`${size === 'sm' ? 'w-1.5 h-1.5' : 'w-2.5 h-2.5'} bg-current rounded-full animate-bounce`}
-                style={{ animationDelay: `${i * 150}ms` }}
+                className={`${size === 'sm' ? 'w-1.5 h-1.5' : 'w-2.5 h-2.5'} bg-current rounded-full${prefersReducedMotion ? '' : ' animate-bounce'}`}
+                style={prefersReducedMotion ? undefined : { animationDelay: `${i * 150}ms` }}
               />
             ))}
           </div>
         );
       case 'pulse':
         return (
-          <div className={`${sizeValues[size]} bg-current rounded-full animate-pulse opacity-75`} />
+          <div
+            className={`${sizeValues[size]} bg-current rounded-full${prefersReducedMotion ? '' : ' animate-pulse'} opacity-75`}
+          />
         );
       case 'skeleton':
         return (
           <div className="space-y-3 w-full">
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-full" />
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2" />
+            <div
+              className={`h-4 bg-gray-200 rounded${prefersReducedMotion ? '' : ' animate-pulse'} w-3/4`}
+            />
+            <div
+              className={`h-4 bg-gray-200 rounded${prefersReducedMotion ? '' : ' animate-pulse'} w-full`}
+            />
+            <div
+              className={`h-4 bg-gray-200 rounded${prefersReducedMotion ? '' : ' animate-pulse'} w-1/2`}
+            />
           </div>
         );
       default:
@@ -70,7 +85,11 @@ export const Loader: React.FC<LoaderProps> = ({
   };
 
   const content = (
-    <div className={`flex flex-col items-center justify-center gap-3 ${className}`} role="status" aria-label="Loading">
+    <div
+      className={`flex flex-col items-center justify-center gap-3 ${className}`}
+      role="status"
+      aria-label="Loading"
+    >
       {renderLoader()}
       {text && <p className="text-sm text-gray-600">{text}</p>}
     </div>

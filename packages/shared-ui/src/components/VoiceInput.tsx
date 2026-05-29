@@ -1,8 +1,11 @@
+'use client';
+
 // ============================================================================
 // Shared UI - VoiceInput Component
 // ============================================================================
 
 import React, { useCallback } from 'react';
+import { useReducedMotion } from 'framer-motion';
 
 export interface VoiceInputProps {
   onTranscript?: (text: string) => void;
@@ -22,6 +25,8 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
   className = '',
   'aria-label': ariaLabel,
 }) => {
+  const prefersReducedMotion = useReducedMotion();
+
   const handleClick = useCallback(() => {
     if (disabled) return;
     if (isRecording) {
@@ -70,7 +75,7 @@ export const VoiceInput: React.FC<VoiceInputProps> = ({
           {[...Array(5)].map((_, i) => (
             <span
               key={i}
-              className="w-1 bg-red-500 rounded-full animate-pulse"
+              className={`w-1 bg-red-500 rounded-full${prefersReducedMotion ? '' : ' animate-pulse'}`}
               style={{
                 height: `${12 + Math.random() * 12}px`,
                 animationDelay: `${i * 0.1}s`,

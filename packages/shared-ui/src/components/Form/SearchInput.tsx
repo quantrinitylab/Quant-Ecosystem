@@ -1,8 +1,11 @@
+'use client';
+
 // ============================================================================
 // Shared UI - SearchInput Component
 // ============================================================================
 
 import React, { useCallback, useEffect, useRef } from 'react';
+import { useReducedMotion } from 'framer-motion';
 
 export interface SearchInputProps {
   value?: string;
@@ -25,6 +28,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
   className = '',
   'aria-label': ariaLabel = 'Search',
 }) => {
+  const prefersReducedMotion = useReducedMotion();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleChange = useCallback(
@@ -73,7 +77,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
       />
       {loading && (
         <span
-          className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"
+          className={`absolute right-3 top-1/2 -translate-y-1/2${prefersReducedMotion ? '' : ' animate-spin'} h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full`}
           aria-label="Loading search results"
         />
       )}

@@ -1,8 +1,11 @@
+'use client';
+
 // ============================================================================
 // Shared UI - Media Player Components
 // ============================================================================
 
 import React, { useState, useRef, useCallback } from 'react';
+import { useReducedMotion } from 'framer-motion';
 
 // ===== Video Player =====
 export interface VideoPlayerProps {
@@ -76,7 +79,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   };
 
   return (
-    <div className={`relative group bg-black rounded-lg overflow-hidden ${className}`} style={{ width, height }}>
+    <div
+      className={`relative group bg-black rounded-lg overflow-hidden ${className}`}
+      style={{ width, height }}
+    >
       <video
         ref={videoRef}
         src={src}
@@ -93,7 +99,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
       {controls && (
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="flex items-center gap-2">
-            <button onClick={togglePlay} className="text-white hover:text-blue-400 transition-colors">
+            <button
+              onClick={togglePlay}
+              className="text-white hover:text-blue-400 transition-colors"
+            >
               {isPlaying ? '||' : '\u25B6'}
             </button>
             <input
@@ -104,7 +113,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
               onChange={(e) => seek(Number(e.target.value))}
               className="flex-1 h-1 bg-gray-600 rounded-full appearance-none cursor-pointer"
             />
-            <span className="text-white text-xs">{formatTime(currentTime)} / {formatTime(duration)}</span>
+            <span className="text-white text-xs">
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
             <input
               type="range"
               min={0}
@@ -189,12 +200,18 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         <div className="flex items-center gap-2 mt-1">
           <span className="text-xs text-gray-400">{formatTime(currentTime)}</span>
           <div className="flex-1 h-1 bg-gray-300 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${(currentTime / (duration || 1)) * 100}%` }} />
+            <div
+              className="h-full bg-blue-500 rounded-full"
+              style={{ width: `${(currentTime / (duration || 1)) * 100}%` }}
+            />
           </div>
           <span className="text-xs text-gray-400">{formatTime(duration)}</span>
         </div>
       </div>
-      <button onClick={togglePlay} className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors">
+      <button
+        onClick={togglePlay}
+        className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors"
+      >
         {isPlaying ? '||' : '\u25B6'}
       </button>
     </div>
@@ -226,13 +243,26 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   const [isZoomed, setIsZoomed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   return (
     <div className={`relative overflow-hidden ${className}`} style={{ width, height }}>
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 animate-pulse">
-          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        <div
+          className={`absolute inset-0 flex items-center justify-center bg-gray-100${prefersReducedMotion ? '' : ' animate-pulse'}`}
+        >
+          <svg
+            className="w-8 h-8 text-gray-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
           </svg>
         </div>
       )}
@@ -246,8 +276,15 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
           alt={alt}
           className={`w-full h-full object-contain transition-transform duration-300 ${zoomable ? 'cursor-zoom-in' : ''} ${isZoomed ? 'scale-150 cursor-zoom-out' : ''}`}
           onClick={zoomable ? () => setIsZoomed(!isZoomed) : undefined}
-          onLoad={() => { setIsLoading(false); onLoad?.(); }}
-          onError={() => { setIsLoading(false); setHasError(true); onError?.(); }}
+          onLoad={() => {
+            setIsLoading(false);
+            onLoad?.();
+          }}
+          onError={() => {
+            setIsLoading(false);
+            setHasError(true);
+            onError?.();
+          }}
         />
       )}
     </div>

@@ -1,8 +1,11 @@
+'use client';
+
 // ============================================================================
 // Shared UI - AgentMiniWidget Component
 // ============================================================================
 
 import React from 'react';
+import { useReducedMotion } from 'framer-motion';
 
 export interface AgentMiniWidgetProps {
   runningCount: number;
@@ -15,6 +18,8 @@ export const AgentMiniWidget: React.FC<AgentMiniWidgetProps> = ({
   hasApprovalsPending,
   onClick,
 }) => {
+  const prefersReducedMotion = useReducedMotion();
+
   return (
     <button
       onClick={onClick}
@@ -25,7 +30,7 @@ export const AgentMiniWidget: React.FC<AgentMiniWidgetProps> = ({
       <span className="text-xs text-gray-500">agents</span>
       {hasApprovalsPending && (
         <span
-          className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"
+          className={`w-2.5 h-2.5 rounded-full bg-red-500${prefersReducedMotion ? '' : ' animate-pulse'}`}
           aria-label="Approvals pending"
         />
       )}

@@ -1,8 +1,11 @@
+'use client';
+
 // ============================================================================
 // Shared UI - Skeleton Component
 // ============================================================================
 
 import React from 'react';
+import { useReducedMotion } from 'framer-motion';
 
 export interface SkeletonProps {
   variant?: 'text' | 'circle' | 'rect';
@@ -21,13 +24,15 @@ export const Skeleton: React.FC<SkeletonProps> = ({
   className = '',
   'aria-label': ariaLabel = 'Loading content',
 }) => {
+  const prefersReducedMotion = useReducedMotion();
+
   const variantStyles: Record<string, string> = {
     text: 'h-4 rounded',
     circle: 'rounded-full',
     rect: 'rounded-lg',
   };
 
-  const animateStyles = animate ? 'animate-pulse' : '';
+  const animateStyles = animate && !prefersReducedMotion ? 'animate-pulse' : '';
 
   const style: React.CSSProperties = {};
   if (width) style.width = width;

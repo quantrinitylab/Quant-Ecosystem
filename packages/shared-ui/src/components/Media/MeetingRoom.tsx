@@ -1,8 +1,11 @@
+'use client';
+
 // ============================================================================
 // Shared UI - MeetingRoom Component
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useReducedMotion } from 'framer-motion';
 import { Room, RoomEvent, RemoteParticipant, ConnectionState } from 'livekit-client';
 
 export interface MeetingRoomProps {
@@ -28,6 +31,7 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
   onDisconnect,
   className = '',
 }) => {
+  const prefersReducedMotion = useReducedMotion();
   const [room] = useState(() => new Room());
   const [connectionState, setConnectionState] = useState<ConnectionState>(
     ConnectionState.Disconnected,
@@ -119,7 +123,9 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
     return (
       <div className={`flex items-center justify-center p-8 ${className}`}>
         <div className="text-center">
-          <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto" />
+          <div
+            className={`w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto${prefersReducedMotion ? '' : ' animate-spin'}`}
+          />
           <p className="text-gray-600 mt-4">Connecting to {roomName}...</p>
         </div>
       </div>

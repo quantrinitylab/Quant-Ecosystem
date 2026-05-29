@@ -1,8 +1,11 @@
+'use client';
+
 // ============================================================================
 // Shared UI - AI Chat Component
 // ============================================================================
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useReducedMotion } from 'framer-motion';
 
 export interface AIChatMessage {
   id: string;
@@ -33,6 +36,7 @@ export const AIChat: React.FC<AIChatProps> = ({
 }) => {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -60,13 +64,22 @@ export const AIChat: React.FC<AIChatProps> = ({
           </div>
         )}
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-900 shadow-sm'}`}>
+          <div
+            key={msg.id}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className={`max-w-[80%] rounded-2xl px-4 py-3 ${msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-900 shadow-sm'}`}
+            >
               <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
               {msg.isStreaming && (
-                <span className="inline-block w-2 h-4 bg-current animate-pulse ml-1" />
+                <span
+                  className={`inline-block w-2 h-4 bg-current${prefersReducedMotion ? '' : ' animate-pulse'} ml-1`}
+                />
               )}
-              <span className={`block text-xs mt-1 ${msg.role === 'user' ? 'text-blue-200' : 'text-gray-400'}`}>
+              <span
+                className={`block text-xs mt-1 ${msg.role === 'user' ? 'text-blue-200' : 'text-gray-400'}`}
+              >
                 {msg.timestamp}
               </span>
             </div>
@@ -76,9 +89,18 @@ export const AIChat: React.FC<AIChatProps> = ({
           <div className="flex justify-start">
             <div className="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm">
               <div className="flex gap-1">
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span
+                  className={`w-2 h-2 bg-gray-400 rounded-full${prefersReducedMotion ? '' : ' animate-bounce'}`}
+                  style={prefersReducedMotion ? undefined : { animationDelay: '0ms' }}
+                />
+                <span
+                  className={`w-2 h-2 bg-gray-400 rounded-full${prefersReducedMotion ? '' : ' animate-bounce'}`}
+                  style={prefersReducedMotion ? undefined : { animationDelay: '150ms' }}
+                />
+                <span
+                  className={`w-2 h-2 bg-gray-400 rounded-full${prefersReducedMotion ? '' : ' animate-bounce'}`}
+                  style={prefersReducedMotion ? undefined : { animationDelay: '300ms' }}
+                />
               </div>
             </div>
           </div>
@@ -92,7 +114,12 @@ export const AIChat: React.FC<AIChatProps> = ({
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e); } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
+              }
+            }}
             placeholder={placeholder}
             disabled={isLoading}
             rows={1}
@@ -104,7 +131,12 @@ export const AIChat: React.FC<AIChatProps> = ({
             className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+              />
             </svg>
           </button>
         </div>
