@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { logger } from '@quant/common';
+import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
 
 interface AvatarConfig {
   faceShape: string;
@@ -139,7 +140,7 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
     setLoading(true);
     try {
       const response = await fetch('/api/bitmoji/current', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       if (response.ok) {
         const data = await response.json();
@@ -208,8 +209,7 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
       const response = await fetch('/api/bitmoji/save', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          ...getAuthHeadersWithContent(),
         },
         body: JSON.stringify({ config }),
       });

@@ -4,6 +4,7 @@
 // ============================================================================
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { logger } from '@quant/common';
+import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
 
 interface Story {
   id: string;
@@ -68,7 +69,7 @@ export function useStories(): UseStoriesReturn {
     setError(null);
     try {
       const response = await fetch('/api/stories/feed', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       if (!response.ok) throw new Error('Failed to fetch stories');
       const data = await response.json();
@@ -99,7 +100,7 @@ export function useStories(): UseStoriesReturn {
     try {
       await fetch(`/api/stories/${storyId}/view`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       setStoryGroups((prev) =>
         prev.map((g) => ({
@@ -120,8 +121,7 @@ export function useStories(): UseStoriesReturn {
         const response = await fetch('/api/stories', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            ...getAuthHeadersWithContent(),
           },
           body: JSON.stringify(data),
         });
@@ -139,8 +139,7 @@ export function useStories(): UseStoriesReturn {
       await fetch(`/api/stories/${storyId}/reply`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          ...getAuthHeadersWithContent(),
         },
         body: JSON.stringify({ message }),
       });
@@ -152,7 +151,7 @@ export function useStories(): UseStoriesReturn {
   const getViewers = useCallback(async (storyId: string) => {
     try {
       const response = await fetch(`/api/stories/${storyId}/viewers`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       if (response.ok) {
         const data = await response.json();
@@ -168,7 +167,7 @@ export function useStories(): UseStoriesReturn {
     try {
       await fetch(`/api/stories/${storyId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       setStoryGroups((prev) =>
         prev

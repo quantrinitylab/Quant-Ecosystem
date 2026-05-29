@@ -4,6 +4,7 @@
 // ============================================================================
 import React, { useState, useEffect, useCallback } from 'react';
 import { logger } from '@quant/common';
+import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
 
 interface EncryptionStatus {
   isEncrypted: boolean;
@@ -40,7 +41,7 @@ export const E2EEncryption: React.FC<E2EEncryptionProps> = ({
     setLoading(true);
     try {
       const response = await fetch(`/api/encryption/status/${conversationId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       if (response.ok) {
         const data = await response.json();
@@ -64,8 +65,7 @@ export const E2EEncryption: React.FC<E2EEncryptionProps> = ({
       const response = await fetch(`/api/encryption/verify/${conversationId}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          ...getAuthHeadersWithContent(),
         },
         body: JSON.stringify({ code: verificationCode, peerId }),
       });

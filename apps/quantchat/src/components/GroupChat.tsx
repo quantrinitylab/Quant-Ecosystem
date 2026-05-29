@@ -4,6 +4,7 @@
 // ============================================================================
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { logger } from '@quant/common';
+import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
 
 interface GroupMember {
   id: string;
@@ -69,7 +70,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
     setError(null);
     try {
       const response = await fetch(`/api/groups/${groupId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       if (!response.ok) throw new Error('Failed to load group');
       const data = await response.json();
@@ -96,8 +97,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
         await fetch(`/api/groups/${groupId}/members`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            ...getAuthHeadersWithContent(),
           },
           body: JSON.stringify({ userId }),
         });
@@ -115,7 +115,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
       try {
         await fetch(`/api/groups/${groupId}/members/${userId}`, {
           method: 'DELETE',
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { ...getAuthHeaders() },
         });
         setMembers((prev) => prev.filter((m) => m.id !== userId));
       } catch (err) {
@@ -131,8 +131,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
         await fetch(`/api/groups/${groupId}/members/${userId}/role`, {
           method: 'PUT',
           headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            ...getAuthHeadersWithContent(),
           },
           body: JSON.stringify({ role }),
         });
@@ -152,8 +151,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
       const response = await fetch(`/api/groups/${groupId}/polls`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          ...getAuthHeadersWithContent(),
         },
         body: JSON.stringify({
           question: pollQuestion,
@@ -179,8 +177,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
         await fetch(`/api/groups/${groupId}/polls/${pollId}/vote`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
+            ...getAuthHeadersWithContent(),
           },
           body: JSON.stringify({ optionId }),
         });
@@ -211,7 +208,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
       try {
         await fetch(`/api/groups/${groupId}/pinned/${messageId}`, {
           method: 'DELETE',
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+          headers: { ...getAuthHeaders() },
         });
         setPinnedMessages((prev) => prev.filter((m) => m.id !== messageId));
       } catch (err) {
@@ -240,8 +237,7 @@ export const GroupChat: React.FC<GroupChatProps> = ({ groupId, currentUserId, is
       await fetch(`/api/groups/${groupId}/settings`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          ...getAuthHeadersWithContent(),
         },
         body: JSON.stringify({ name: groupName, description: groupDescription }),
       });

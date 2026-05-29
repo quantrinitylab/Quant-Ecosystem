@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { logger } from '@quant/common';
+import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
 
 interface Memory {
   id: string;
@@ -57,7 +58,7 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({ userId }) => {
       if (dateFilter.start) params.set('start', dateFilter.start);
       if (dateFilter.end) params.set('end', dateFilter.end);
       const response = await fetch(`/api/memories?${params}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       if (!response.ok) throw new Error('Failed to fetch memories');
       const data = await response.json();
@@ -104,8 +105,7 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({ userId }) => {
       await fetch('/api/memories/batch/delete', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          ...getAuthHeadersWithContent(),
         },
         body: JSON.stringify({ ids }),
       });
@@ -121,8 +121,7 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({ userId }) => {
       const response = await fetch('/api/memories/export', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          ...getAuthHeadersWithContent(),
         },
         body: JSON.stringify({ ids }),
       });
@@ -144,7 +143,7 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({ userId }) => {
     try {
       await fetch(`/api/memories/${id}/star`, {
         method: 'PUT',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
     } catch {
       /* optimistic */
@@ -157,8 +156,7 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({ userId }) => {
       const response = await fetch('/api/memories/auto-story', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          ...getAuthHeadersWithContent(),
         },
         body: JSON.stringify({ date: autoStoryDate }),
       });

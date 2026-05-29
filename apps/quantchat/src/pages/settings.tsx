@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { logger } from '@quant/common';
+import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
 
 interface PrivacySettings {
   whoCanMessage: 'everyone' | 'friends' | 'nobody';
@@ -160,7 +161,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
     setLoading(true);
     try {
       const response = await fetch('/api/settings', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       if (!response.ok) throw new Error('Failed to load settings');
       const data = await response.json();
@@ -186,8 +187,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
       await fetch('/api/settings', {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          ...getAuthHeadersWithContent(),
         },
         body: JSON.stringify({ privacy, notifications, theme: selectedTheme, language }),
       });
@@ -202,7 +202,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
     try {
       await fetch(`/api/settings/blocked/${userId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       setBlockedUsers((prev) => prev.filter((u) => u.id !== userId));
     } catch (err) {
@@ -219,7 +219,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
       }, 500);
       const response = await fetch('/api/settings/export', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       clearInterval(interval);
       if (response.ok) {
@@ -243,7 +243,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
     try {
       await fetch('/api/settings/account', {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete failed');

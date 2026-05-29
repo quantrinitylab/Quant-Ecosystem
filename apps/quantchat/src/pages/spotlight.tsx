@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
 
 interface SpotlightVideo {
   id: string;
@@ -55,7 +56,7 @@ export const SpotlightPage: React.FC<SpotlightPageProps> = ({ userId }) => {
     setError(null);
     try {
       const response = await fetch('/api/spotlight/feed?limit=20', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       if (!response.ok) throw new Error('Failed to load spotlight');
       const data = await response.json();
@@ -117,7 +118,7 @@ export const SpotlightPage: React.FC<SpotlightPageProps> = ({ userId }) => {
     try {
       await fetch(`/api/spotlight/${currentVideo.id}/like`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
     } catch {
       /* optimistic */
@@ -132,7 +133,7 @@ export const SpotlightPage: React.FC<SpotlightPageProps> = ({ userId }) => {
     try {
       await fetch(`/api/spotlight/${currentVideo.id}/bookmark`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
     } catch {
       /* optimistic */
@@ -151,7 +152,7 @@ export const SpotlightPage: React.FC<SpotlightPageProps> = ({ userId }) => {
     try {
       await fetch(`/api/users/${currentVideo.creator.id}/follow`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
     } catch {
       /* optimistic */
@@ -175,7 +176,7 @@ export const SpotlightPage: React.FC<SpotlightPageProps> = ({ userId }) => {
     setLoadingComments(true);
     try {
       const response = await fetch(`/api/spotlight/${currentVideo.id}/comments`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { ...getAuthHeaders() },
       });
       if (response.ok) {
         const data = await response.json();
@@ -194,8 +195,7 @@ export const SpotlightPage: React.FC<SpotlightPageProps> = ({ userId }) => {
       const response = await fetch(`/api/spotlight/${currentVideo.id}/comments`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          ...getAuthHeadersWithContent(),
         },
         body: JSON.stringify({ text: newComment }),
       });
