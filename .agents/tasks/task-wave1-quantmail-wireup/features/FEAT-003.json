@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Migrate the rich Pages Router screens into the App Router with proper styling via @quant/shared-ui, wired data through apiClient/hooks, and shared types from src/types. This covers inbox, thread, compose (with real EmailComposer), calendar, contacts, repos, pipelines, and security screens. Remove the src/pages/ directory when complete.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Rewrite apps/quantmail/src/app/page.tsx (inbox): Keep the existing AppShell shell but enrich it with the rich features from src/pages/inbox.tsx - category tabs (primary/social/promotions/updates/forums) with unread counts, batch select with toolbar (archive/delete/mark-read), star toggle, search with real onChange handler calling apiClient.searchEmails. Email row click navigates to /thread/[threadId]. Use types from src/types (not local redefinitions). Keep all @quant/shared-ui components. Add empty/error/loading states.",
     "Rewrite apps/quantmail/src/app/thread/[id]/page.tsx: Build a full thread view inspired by src/pages/thread/[id].tsx logic. Show collapsible messages, participants, attachments, reply/forward buttons that actually work (reply opens inline composer or navigates to /compose?replyTo=id). Star/archive/label actions call apiClient methods. Use @quant/shared-ui Card, Avatar, Badge, Button. Import types from src/types.",
@@ -39,5 +39,5 @@
     "grep -rn 'action: () => {}' apps/quantmail/src/ returns 0 results"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 14 steps completed. Avatar component uses 'name' prop instead of 'fallback'. Input component type does not support 'datetime-local' so native HTML input used for date fields. apiClient.createEvent has a type intersection issue (Date & string) requiring a cast. All typecheck and tests pass (246 tests). Prettier reformatted files on commit."
 }
