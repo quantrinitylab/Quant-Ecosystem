@@ -54,7 +54,7 @@ export class IntentRouter {
         if (schema.type === 'string') {
           // Look for email-like patterns
           if (key.includes('email') || key.includes('to') || key.includes('recipient')) {
-            const emailMatch = input.match(/[\w.-]+@[\w.-]+\.\w+/);
+            const emailMatch = input.match(/[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?@[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}/);
             if (emailMatch) {
               extractedParams[key] = emailMatch[0];
               confidence += 0.05;
