@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Phase 81: Create @quant/teams package for workspace/teams edition - org accounts, SSO/SCIM, admin console, shared workspaces, team agents, compliance, per-seat pricing.",
+  "status": "in_progress",
+  "steps": [
+    "Create packages/teams/ with package.json (name: @quant/teams, deps: zod, pino, @quant/common workspace:*), tsconfig.json extending ../../tsconfig.json",
+    "Create src/types.ts with types: Organization (id, name, domain, plan, seatCount, maxSeats, ssoEnabled, scimEnabled, createdAt), OrgMember (id, orgId, userId, role: 'owner'|'admin'|'member'|'guest', joinedAt, seatType), SSOConfig (id, orgId, provider: 'saml'|'oidc', entityId, metadataUrl, certificate, mappings), SCIMConfig (id, orgId, endpoint, token, syncEnabled, lastSync), AdminPolicy (id, orgId, name, rules[], scope, enforcement), SharedWorkspace (id, orgId, name, members[], permissions, resources[], createdAt), TeamAgent (id, orgId, name, capabilities[], assignedTo[], policy), SeatLicense (orgId, tier: 'basic'|'standard'|'enterprise', pricePerSeat, totalSeats, usedSeats), ComplianceRule (id, orgId, type: 'retention'|'dlp'|'audit'|'geo-restriction', config, enabled), AuditEntry (id, orgId, actorId, action, resource, timestamp, metadata)",
+    "Create src/orgs/org-service.ts with OrgService class: create(name, domain, plan), get(orgId), update(orgId, updates), delete(orgId), addMember(orgId, userId, role), removeMember(orgId, userId), listMembers(orgId), setMemberRole(orgId, userId, role). Organization CRUD and membership.",
+    "Create src/sso/sso-service.ts with SSOService class: configureSAML(orgId, config), configureOIDC(orgId, config), validateAssertion(orgId, assertion), getConfig(orgId), disable(orgId), testConnection(orgId). SSO integration interface.",
+    "Create src/sso/scim-service.ts with SCIMService class: configure(orgId, config), syncUsers(orgId), provisionUser(orgId, userData), deprovisionUser(orgId, userId), updateUser(orgId, userId, attrs), getSync Status(orgId). SCIM user provisioning.",
+    "Create src/admin/admin-console.ts with AdminConsoleService class: getPolicies(orgId), createPolicy(orgId, policy), updatePolicy(policyId, updates), getAuditLog(orgId, filters), getUsageStats(orgId), getSecurityOverview(orgId). Admin console data service.",
+    "Create src/admin/compliance-service.ts with ComplianceService class: addRule(orgId, rule), removeRule(orgId, ruleId), evaluate(orgId, action, context), getViolations(orgId, period), setRetentionPolicy(orgId, config). Compliance enforcement.",
+    "Create src/workspaces/shared-workspace-service.ts with SharedWorkspaceService class: create(orgId, name, members), addResource(workspaceId, resource), removeResource(workspaceId, resourceId), setPermissions(workspaceId, permissions), getMembers(workspaceId), listForOrg(orgId). Shared workspaces for teams.",
+    "Create src/agents/team-agent-service.ts with TeamAgentService class: create(orgId, name, capabilities), assign(agentId, userIds[]), setPolicy(agentId, policy), getForOrg(orgId), execute(agentId, task), getHistory(agentId). Team-level AI agents.",
+    "Create src/licensing/seat-service.ts with SeatService class: allocate(orgId, tier, seats), getUsage(orgId), addSeats(orgId, count), removeSeats(orgId, count), calculatePrice(orgId), getBilling(orgId). Per-seat licensing/pricing.",
+    "Create src/index.ts barrel exporting all services, types, and schemas",
+    "Create src/__tests__/org-service.test.ts testing create, addMember, removeMember, role management",
+    "Create src/__tests__/sso-service.test.ts testing configureSAML, validateAssertion, testConnection",
+    "Create src/__tests__/admin-console.test.ts testing getPolicies, createPolicy, getAuditLog",
+    "Create src/__tests__/shared-workspace.test.ts testing create, addResource, setPermissions",
+    "Create src/__tests__/seat-service.test.ts testing allocate, addSeats, calculatePrice, usage tracking"
+  ],
+  "acceptance_criteria": [
+    "pnpm typecheck --filter=@quant/teams passes with no errors",
+    "pnpm test --filter=@quant/teams passes all tests (minimum 20 test cases across 5 test files)",
+    "Package exports OrgService, SSOService, SCIMService, AdminConsoleService, ComplianceService, SharedWorkspaceService, TeamAgentService, SeatService",
+    "Seat licensing correctly calculates pricing based on tier and seat count"
+  ],
+  "verification": [
+    "source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm typecheck --filter=@quant/teams",
+    "source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm test --filter=@quant/teams"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
