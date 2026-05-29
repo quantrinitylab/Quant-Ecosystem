@@ -1,267 +1,172 @@
-// ============================================================================
-// QuantChat - StoryViewer Component
-// Full-screen story viewer with progress bars, navigation, and replies
-// ============================================================================
+'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import type { Story, StoryReply } from '../types';
+import { useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface Story {
+  id: string;
+  authorName: string;
+  type: 'photo' | 'video' | 'text';
+  mediaUrl?: string;
+  text?: string;
+  duration: number;
+  createdAt: string;
+}
 
 interface StoryViewerProps {
   stories: Story[];
-  initialIndex?: number;
+  currentIndex: number;
+  isOpen: boolean;
   onClose: () => void;
-  onReply: (storyId: string, content: string) => void;
-  onScreenshot: (storyId: string) => void;
-  currentUserId: string;
+  onNext: () => void;
+  onPrev: () => void;
+  autoAdvance?: boolean;
 }
 
-export const StoryViewer: React.FC<StoryViewerProps> = ({
-  stories, initialIndex = 0, onClose, onReply, onScreenshot, currentUserId,
-}) => {
-  const [currentIndex, setCurrentIndex] = useState(initialIndex);
-  const [progress, setProgress] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const [showReply, setShowReply] = useState(false);
-  const [replyText, setReplyText] = useState('');
-  const progressRef = useRef<NodeJS.Timeout | null>(null);
-  const story = stories[currentIndex];
+export function StoryViewer({
+  stories,
+  currentIndex,
+  isOpen,
+  onClose,
+  onNext,
+  onPrev,
+  autoAdvance = true,
+}: StoryViewerProps) {
+  const currentStory = stories[currentIndex];
+
+  // Use refs for callbacks to avoid stale closure in the auto-advance timer
+  const onNextRef = useRef(onNext);
+  const onCloseRef = useRef(onClose);
+  const onPrevRef = useRef(onPrev);
+  onNextRef.current = onNext;
+  onCloseRef.current = onClose;
+  onPrevRef.current = onPrev;
 
   useEffect(() => {
-    startProgress();
-    return () => stopProgress();
-  }, [currentIndex]);
+    if (!autoAdvance || !currentStory || !isOpen) return;
 
-  useEffect(() => {
-    if (paused) {
-      stopProgress();
-    } else {
-      startProgress();
-    }
-  }, [paused]);
-
-  const startProgress = () => {
-    stopProgress();
-    const duration = (story?.duration || 5) * 1000;
-    const interval = 50;
-    let elapsed = progress * duration;
-
-    progressRef.current = setInterval(() => {
-      elapsed += interval;
-      const newProgress = elapsed / duration;
-
-      if (newProgress >= 1) {
-        goNext();
-        return;
+    const timer = setTimeout(() => {
+      if (currentIndex < stories.length - 1) {
+        onNextRef.current();
+      } else {
+        onCloseRef.current();
       }
-      setProgress(newProgress);
-    }, interval);
-  };
+    }, currentStory.duration * 1000);
 
-  const stopProgress = () => {
-    if (progressRef.current) {
-      clearInterval(progressRef.current);
-      progressRef.current = null;
-    }
-  };
+    return () => clearTimeout(timer);
+  }, [currentIndex, currentStory, autoAdvance, isOpen, stories.length]);
 
-  const goNext = () => {
-    stopProgress();
-    if (currentIndex < stories.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-      setProgress(0);
-    } else {
-      onClose();
-    }
-  };
-
-  const goPrev = () => {
-    stopProgress();
-    if (currentIndex > 0) {
-      setCurrentIndex(currentIndex - 1);
-      setProgress(0);
-    } else {
-      setProgress(0);
-      startProgress();
-    }
-  };
-
-  const handleTap = (e: React.MouseEvent) => {
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
+  const handleTap = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const width = rect.width;
+    const midpoint = rect.width / 2;
 
-    if (x < width * 0.3) {
-      goPrev();
-    } else if (x > width * 0.7) {
-      goNext();
+    if (x < midpoint) {
+      onPrevRef.current();
     } else {
-      setPaused(!paused);
+      onNextRef.current();
     }
-  };
+  }, []);
 
-  const handleReply = () => {
-    if (replyText.trim()) {
-      onReply(story.id, replyText);
-      setReplyText('');
-      setShowReply(false);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowRight') goNext();
-    if (e.key === 'ArrowLeft') goPrev();
-    if (e.key === 'Escape') onClose();
-    if (e.key === ' ') setPaused(!paused);
-  };
-
-  if (!story) return null;
-
-  const isOwnStory = story.userId === currentUserId;
+  if (!currentStory) return null;
 
   return (
-    <div className="story-viewer" onKeyDown={handleKeyDown} tabIndex={0}>
-      {/* Progress bars */}
-      <div className="progress-bars">
-        {stories.map((_, idx) => (
-          <div key={idx} className="progress-bar-container">
-            <div
-              className="progress-bar-fill"
-              style={{
-                width: idx < currentIndex ? '100%' : idx === currentIndex ? `${progress * 100}%` : '0%',
-              }}
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* Header */}
-      <div className="viewer-header">
-        <div className="story-author-info">
-          <div className="author-avatar">
-            {story.userId.charAt(0).toUpperCase()}
-          </div>
-          <div className="author-details">
-            <span className="author-name">{story.userId}</span>
-            <span className="story-time">{formatStoryAge(new Date(story.createdAt))}</span>
-          </div>
-        </div>
-        <div className="viewer-actions">
-          {paused && <span className="paused-indicator">PAUSED</span>}
-          <button className="close-btn" onClick={onClose}>✕</button>
-        </div>
-      </div>
-
-      {/* Story content */}
-      <div className="story-content" onClick={handleTap}>
-        {story.type === 'photo' && (
-          <img src={story.mediaUrl} alt="Story" className="story-image" />
-        )}
-        {story.type === 'video' && (
-          <video
-            src={story.mediaUrl}
-            autoPlay
-            muted={false}
-            playsInline
-            className="story-video"
-            onEnded={goNext}
-          />
-        )}
-        {story.type === 'text' && (
-          <div
-            className="story-text-content"
-            style={story.textStyle ? {
-              fontFamily: story.textStyle.fontFamily,
-              fontSize: `${story.textStyle.fontSize}px`,
-              color: story.textStyle.color,
-              backgroundColor: story.textStyle.backgroundColor,
-              textAlign: story.textStyle.alignment,
-            } : undefined}
-          >
-            {story.text}
-          </div>
-        )}
-
-        {/* Stickers */}
-        {story.stickers.map(sticker => (
-          <div
-            key={sticker.id}
-            className="story-sticker"
-            style={{
-              left: `${sticker.position.x}%`,
-              top: `${sticker.position.y}%`,
-              transform: `scale(${sticker.scale}) rotate(${sticker.rotation}deg)`,
-            }}
-          >
-            {sticker.content}
-          </div>
-        ))}
-
-        {/* Music badge */}
-        {story.music && (
-          <div className="music-badge">
-            🎵 {story.music.title} - {story.music.artist}
-          </div>
-        )}
-
-        {/* Location badge */}
-        {story.location && (
-          <div className="location-badge">
-            📍 {story.location.city || 'Unknown'}
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="viewer-footer">
-        {isOwnStory ? (
-          <div className="story-stats">
-            <span className="view-count">👁️ {story.viewCount}</span>
-            <span className="reply-count">💬 {story.replies.length}</span>
-          </div>
-        ) : (
-          <div className="reply-section">
-            {showReply ? (
-              <div className="reply-input-container">
-                <input
-                  type="text"
-                  placeholder="Reply..."
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleReply()}
-                  onFocus={() => setPaused(true)}
-                  onBlur={() => setPaused(false)}
-                  autoFocus
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 bg-black flex flex-col"
+        >
+          {/* Progress bars */}
+          <div className="flex gap-1 p-3 pt-4">
+            {stories.map((_, idx) => (
+              <div key={idx} className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    idx < currentIndex
+                      ? 'bg-white w-full'
+                      : idx === currentIndex
+                        ? 'bg-white animate-[progress_linear]'
+                        : 'bg-transparent w-0'
+                  }`}
+                  style={
+                    idx === currentIndex
+                      ? {
+                          width: '100%',
+                          animation: `progress ${currentStory.duration}s linear forwards`,
+                        }
+                      : idx < currentIndex
+                        ? { width: '100%' }
+                        : { width: '0%' }
+                  }
                 />
-                <button onClick={handleReply}>Send</button>
               </div>
-            ) : (
-              <button className="reply-trigger" onClick={() => { setShowReply(true); setPaused(true); }}>
-                Send message...
-              </button>
-            )}
-            <div className="quick-emojis">
-              {['🔥', '😍', '😂', '😮'].map(emoji => (
-                <button key={emoji} onClick={() => onReply(story.id, emoji)}>
-                  {emoji}
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
-        )}
-      </div>
 
-      {/* Navigation zones (visual indicators) */}
-      <div className="nav-zone left" />
-      <div className="nav-zone right" />
-    </div>
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-2">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white text-xs font-bold">
+                {currentStory.authorName.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-white text-sm font-medium">{currentStory.authorName}</p>
+                <p className="text-white/60 text-xs">
+                  {new Date(currentStory.createdAt).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-white text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10"
+              aria-label="Close"
+            >
+              &#10005;
+            </button>
+          </div>
+
+          {/* Story content */}
+          <div
+            className="flex-1 flex items-center justify-center cursor-pointer"
+            onClick={handleTap}
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentStory.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="w-full h-full flex items-center justify-center"
+              >
+                {currentStory.type === 'text' ? (
+                  <div className="px-8 text-center">
+                    <p className="text-white text-2xl font-medium">{currentStory.text}</p>
+                  </div>
+                ) : currentStory.mediaUrl ? (
+                  <img
+                    src={currentStory.mediaUrl}
+                    alt="Story"
+                    className="max-w-full max-h-full object-contain"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-b from-emerald-600 to-indigo-800 flex items-center justify-center">
+                    <p className="text-white/60 text-lg">Story content</p>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
-};
-
-function formatStoryAge(date: Date): string {
-  const hours = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60));
-  if (hours < 1) return 'Just now';
-  if (hours === 1) return '1h ago';
-  return `${hours}h ago`;
 }
 
 export default StoryViewer;

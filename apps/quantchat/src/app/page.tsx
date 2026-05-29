@@ -1,18 +1,13 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { AppShell, TopBar, BottomNav, ChatList } from '@quant/shared-ui';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
-import type { NavItem } from '@quant/shared-ui';
 import { useConversations } from '../hooks/useConversations';
-
-const navItems: NavItem[] = [
-  { id: 'chats', label: 'Chats', icon: <span>&#128172;</span> },
-  { id: 'stories', label: 'Stories', icon: <span>&#9711;</span> },
-  { id: 'discover', label: 'Discover', icon: <span>&#128270;</span> },
-  { id: 'profile', label: 'Profile', icon: <span>&#128100;</span> },
-];
+import { navItems, routes } from '../lib/navigation';
 
 export default function ChatListPage() {
+  const router = useRouter();
   const { data, isLoading, error, refetch } = useConversations();
 
   if (isLoading) return <LoadingState variant="skeleton" text="Loading conversations..." />;
@@ -21,7 +16,19 @@ export default function ChatListPage() {
   const conversations = data ?? [];
 
   if (conversations.length === 0)
-    return <EmptyState title="No conversations" description="Start a new chat to get connected" />;
+    return (
+      <AppShell topBar={<TopBar title="QuantChat" />}>
+        <EmptyState title="No conversations" description="Start a new chat to get connected" />
+        <BottomNav
+          items={navItems}
+          activeId="chats"
+          onChange={(id) => {
+            const route = routes[id];
+            if (route) router.push(route);
+          }}
+        />
+      </AppShell>
+    );
 
   const chatItems = conversations.map((conv) => ({
     id: conv.id,
@@ -37,11 +44,18 @@ export default function ChatListPage() {
         <ChatList
           items={chatItems}
           onSelect={(id) => {
-            window.location.href = `/chat/${id}`;
+            router.push(`/chat/${id}`);
           }}
         />
       </div>
-      <BottomNav items={navItems} activeId="chats" onChange={() => {}} />
+      <BottomNav
+        items={navItems}
+        activeId="chats"
+        onChange={(id) => {
+          const route = routes[id];
+          if (route) router.push(route);
+        }}
+      />
     </AppShell>
   );
 }

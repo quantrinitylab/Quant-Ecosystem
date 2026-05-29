@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ThemeProvider, CommandPaletteUI } from '@quant/shared-ui';
 import type { CommandPaletteItem } from '@quant/shared-ui';
+import { RealtimeProvider } from './realtime-provider';
 
 const commands: CommandPaletteItem[] = [
   { id: 'new-chat', label: 'New Chat', shortcut: 'N', action: () => {} },
@@ -26,12 +27,14 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider defaultTheme="system">
-      {children}
-      <CommandPaletteUI
-        isOpen={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        commands={commands}
-      />
+      <RealtimeProvider>
+        {children}
+        <CommandPaletteUI
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          commands={commands}
+        />
+      </RealtimeProvider>
     </ThemeProvider>
   );
 }

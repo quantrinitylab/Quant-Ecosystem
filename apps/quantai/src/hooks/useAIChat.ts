@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { getAuthToken } from '../lib/auth';
+import type { ToolCall } from '../types/tool-calls';
 
 interface ChatMessage {
   id: string;
@@ -16,6 +17,8 @@ interface ChatMessage {
   latencyMs?: number;
   isStreaming?: boolean;
   attachments?: string[];
+  toolCalls?: ToolCall[];
+  reasoning?: string;
 }
 
 interface ChatConversation {
@@ -148,6 +151,23 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     [activeConversationId],
   );
 
+  const updateLastAssistantToolCalls = useCallback(
+    (toolCalls: ToolCall[]) => {
+      setConversations((prev) =>
+        prev.map((conv) => {
+          if (conv.id !== activeConversationId) return conv;
+          const msgs = [...conv.messages];
+          const lastIdx = msgs.length - 1;
+          if (lastIdx >= 0 && msgs[lastIdx].role === 'assistant') {
+            msgs[lastIdx] = { ...msgs[lastIdx], toolCalls: [...toolCalls] };
+          }
+          return { ...conv, messages: msgs };
+        }),
+      );
+    },
+    [activeConversationId],
+  );
+
   const processSSEStream = useCallback(
     async (response: Response, signal: AbortSignal) => {
       const reader = response.body!.getReader();
@@ -155,6 +175,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       let buffer = '';
       let accumulated = '';
       let streamDone = false;
+      const toolCalls: ToolCall[] = [];
 
       try {
         while (true) {
@@ -175,6 +196,33 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
               }
               try {
                 const parsed = JSON.parse(data);
+
+                // Handle tool_call events
+                if (parsed.type === 'tool_call' || parsed.tool_calls) {
+                  const calls = parsed.tool_calls || [parsed];
+                  for (const tc of calls) {
+                    const existing = toolCalls.find((t) => t.id === tc.id);
+                    if (existing) {
+                      existing.status = tc.status || existing.status;
+                      existing.result = tc.result ?? existing.result;
+                      existing.duration = tc.duration ?? existing.duration;
+                      existing.error = tc.error ?? existing.error;
+                    } else {
+                      toolCalls.push({
+                        id: tc.id || `tc-${Date.now()}-${toolCalls.length}`,
+                        name: tc.name || 'unknown',
+                        status: tc.status || 'running',
+                        arguments: tc.arguments || {},
+                        result: tc.result,
+                        duration: tc.duration,
+                        error: tc.error,
+                      });
+                    }
+                  }
+                  updateLastAssistantToolCalls(toolCalls);
+                  continue;
+                }
+
                 const token = parsed.content || parsed.token || parsed.delta?.content || '';
                 if (token) {
                   accumulated += token;
@@ -191,9 +239,12 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       }
 
       updateLastAssistantMessage(accumulated || '', true);
+      if (toolCalls.length > 0) {
+        updateLastAssistantToolCalls(toolCalls);
+      }
       return accumulated;
     },
-    [updateLastAssistantMessage],
+    [updateLastAssistantMessage, updateLastAssistantToolCalls],
   );
 
   const processJSONResponse = useCallback(
@@ -251,6 +302,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           headers,
           body: JSON.stringify({
             message: content.trim(),
+            model: currentModel,
             conversationId: activeConversationId || undefined,
             attachments,
             stream: streamingEnabled,

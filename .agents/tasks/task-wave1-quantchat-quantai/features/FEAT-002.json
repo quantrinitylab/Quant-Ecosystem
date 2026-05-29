@@ -1,0 +1,38 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "QuantAI - Model Selector, Tool-Call Cards, Voice Toggle, Agentic Layer Foundation (Phase 66.7 + 70.2)",
+  "status": "completed",
+  "steps": [
+    "Step 1: Create apps/quantai/src/types/models.ts with model definitions: interface AIModel { id: string; name: string; provider: 'openai'|'anthropic'|'meta'|'google'; contextWindow: number; capabilities: string[]; icon: string; }. Export a AVAILABLE_MODELS constant array with GPT-4, GPT-4o, Claude 3.5 Sonnet, Claude 3 Opus, Llama 3 70B, Gemini Pro entries.",
+    "Step 2: Create apps/quantai/src/hooks/useModelSelector.ts that manages model state: currentModel, available models list, switch model function, persist selection to localStorage. Also create apps/quantai/src/hooks/useModels.ts that fetches /api/models and falls back to AVAILABLE_MODELS if backend unavailable.",
+    "Step 3: Create apps/quantai/src/components/ModelSelector.tsx - a real working dropdown/popover component showing model cards with name, provider badge, context window size, capabilities tags. Clicking a model calls switchModel. Show current model with provider icon in compact mode (for the top bar). Use framer-motion AnimatePresence for open/close animation.",
+    "Step 4: Create apps/quantai/src/types/tool-calls.ts with: interface ToolCall { id: string; name: string; status: 'pending'|'running'|'completed'|'failed'; arguments: Record<string,unknown>; result?: unknown; duration?: number; }. interface AgenticResponse { content: string; toolCalls: ToolCall[]; reasoning?: string; }.",
+    "Step 5: Create apps/quantai/src/components/ToolCallCard.tsx - inline card component that renders within chat messages. Shows tool name with icon, status badge (animated spinner for running, checkmark for completed, X for failed), collapsible arguments/result JSON viewer. Use brand colors for status states.",
+    "Step 6: Create apps/quantai/src/components/AgenticMessage.tsx - wraps assistant messages that contain tool calls. Renders the reasoning text (if present) in a collapsible 'thinking' section, then ToolCallCards inline, then the final response content. Uses framer-motion layout animations.",
+    "Step 7: Create apps/quantai/src/components/VoiceToggle.tsx - microphone button that toggles voice input mode. Shows a pulsing animation when active (recording state). For now, manages a boolean state (voiceActive) and shows visual feedback. Wire into the chat input area.",
+    "Step 8: Upgrade apps/quantai/src/app/page.tsx - Replace the static <select> with the real ModelSelector component. Update the AIChat message rendering to detect tool calls in assistant messages and render AgenticMessage instead of plain ChatBubble. Add VoiceToggle next to the chat input. Add a conversation sidebar showing chat history.",
+    "Step 9: Create apps/quantai/src/app/ask/page.tsx - 'Ask Quant' page that serves as the cross-app orchestration entry point. Simple UI with large input field, suggested questions grid (cards), and model indicator. This is the foundation for the cross-app AI layer.",
+    "Step 10: Update apps/quantai/src/hooks/useAIChat.ts to support tool-call parsing: when SSE stream includes tool_call events, parse them into ToolCall objects and attach to the assistant message. Add model parameter to the API request body so the backend knows which model to use.",
+    "Step 11: Add tests in apps/quantai/src/__tests__/model-selector.test.ts (test model switching persists to localStorage, test AVAILABLE_MODELS has required fields) and apps/quantai/src/__tests__/tool-call-card.test.tsx (test rendering different tool call statuses, test collapsible sections)."
+  ],
+  "acceptance_criteria": [
+    "ModelSelector dropdown shows all available models with provider badges",
+    "Switching model updates useAIChat's currentModel and persists to localStorage",
+    "ToolCallCard renders inline with status animations (spinner/check/X)",
+    "AgenticMessage shows reasoning + tool calls + final response",
+    "VoiceToggle button shows pulsing animation when active",
+    "Ask Quant page at /ask renders with input and suggestion cards",
+    "SSE stream tool_call events are parsed into ToolCall objects",
+    "Model ID is sent in API request body",
+    "All components use brand tokens and support dark mode",
+    "pnpm turbo typecheck --filter=@quant/quantai passes",
+    "pnpm turbo test --filter=@quant/quantai passes"
+  ],
+  "verification": [
+    "pnpm turbo typecheck --filter=@quant/quantai",
+    "pnpm turbo test --filter=@quant/quantai"
+  ],
+  "blocked_reason": null,
+  "findings": "lint-staged + prettier auto-formats on commit. The framer-motion layout prop causes a React SSR warning in tests but all tests pass. Vitest config needed to be created (was missing). React-dom/server renderToStaticMarkup pattern used for component tests without jsdom."
+}

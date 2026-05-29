@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "QuantChat - Real WebSocket wiring with @quant/realtime, Stories/Camera/Map screens, BottomNav routing, brand restyle (Phase 66.6)",
+  "status": "completed",
+  "steps": [
+    "Step 1: Create a RealtimeProvider in apps/quantchat/src/providers/realtime-provider.tsx that instantiates @quant/realtime WebSocketClient with config from env vars (NEXT_PUBLIC_WS_URL), token from getAuthToken(), and app='quantchat'. Expose connect/disconnect/subscribe/publish via context. Wire into AppProviders.",
+    "Step 2: Create apps/quantchat/src/hooks/useRealtimeChat.ts that wraps the RealtimeProvider context to subscribe to channel `chat:{conversationId}`, handle events: message:new (append to messages), typing:start/typing:stop (update typing users), message:read (update read receipts), presence:update (online indicators). Use the @quant/realtime event types (MessageNewEvent, MessageTypingEvent, MessageReadEvent).",
+    "Step 3: Upgrade apps/quantchat/src/app/chat/[id]/page.tsx to use the new useRealtimeChat hook alongside useMessages. Show TypingIndicator with actual typing user names. Show read receipt status on ChatBubble (use status prop). Add a presence indicator in the TopBar showing if the other user is online. Include loading/error/empty states.",
+    "Step 4: Wire BottomNav routing properly. Create route pages: apps/quantchat/src/app/stories/page.tsx (uses useStories hook, renders story circles + StoryViewer component), apps/quantchat/src/app/camera/page.tsx (camera placeholder with AR filter UI), apps/quantchat/src/app/map/page.tsx (SnapMap placeholder with friend locations). Update the main page.tsx BottomNav onChange to use Next.js router.push to navigate between /chats, /stories, /camera, /map, /profile.",
+    "Step 5: Create apps/quantchat/src/app/stories/page.tsx - full stories screen with story circles at top (horizontal scroll), tap to open StoryViewer (full screen overlay with progress bars, tap left/right to navigate, auto-advance). Create a StoryViewer component in apps/quantchat/src/components/StoryViewer.tsx using framer-motion for transitions.",
+    "Step 6: Create apps/quantchat/src/app/camera/page.tsx - camera capture screen with bottom shutter button, flip camera toggle, flash toggle, filter carousel at bottom. This is a placeholder UI (no actual camera API needed) but must look real with proper layout and brand styling.",
+    "Step 7: Create apps/quantchat/src/app/map/page.tsx - Snap Map style screen with a map placeholder div (gradient background simulating map), friend location avatars positioned absolutely, heat map areas. Toggle between 'Friends' and 'Explore' tabs.",
+    "Step 8: Brand restyle - Update apps/quantchat/tailwind.config.ts to extend colors with @quant/brand tokens (import colors from @quant/brand and map to tailwind theme). Update globals.css to use CSS custom properties from brand surface colors for light/dark mode. Apply green-accent theme consistent with QuantChat brand (emerald/green primary).",
+    "Step 9: Add tests in apps/quantchat/src/__tests__/realtime-chat.test.ts testing the useRealtimeChat hook (mock WebSocketClient, verify message append on message:new event, verify typing indicator updates). Add tests for story viewer navigation logic."
+  ],
+  "acceptance_criteria": [
+    "RealtimeProvider creates WebSocketClient from @quant/realtime and exposes subscribe/publish",
+    "Chat page shows real-time typing indicators via WebSocket events",
+    "BottomNav navigates between /, /stories, /camera, /map routes",
+    "Stories page renders story circles and StoryViewer overlay with progress bars",
+    "Camera page has shutter button, flip/flash toggles, filter carousel",
+    "Map page shows friend avatars on map placeholder with tabs",
+    "Brand tokens from @quant/brand applied in tailwind config",
+    "Dark mode works via CSS custom properties",
+    "All new pages have loading/error/empty states",
+    "pnpm turbo typecheck --filter=@quant/quantchat passes",
+    "pnpm turbo test --filter=@quant/quantchat passes"
+  ],
+  "verification": [
+    "pnpm turbo typecheck --filter=@quant/quantchat",
+    "pnpm turbo test --filter=@quant/quantchat"
+  ],
+  "blocked_reason": null,
+  "findings": "TopBar from @quant/shared-ui does not accept children prop; use rightActions prop instead. The .ts hooks cannot import directly from .tsx files without --jsx set, so separated the React context into realtime-context.ts (plain TS exports) and realtime-provider.tsx (JSX component). lint-staged + prettier auto-formats on commit."
+}

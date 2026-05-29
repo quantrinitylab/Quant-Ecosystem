@@ -11,15 +11,17 @@
   --brand-app-color: #10B981;
   --app-color: #10B981;
 
-  /* Existing (now powered by brand) */
-  --quant-primary: var(--brand-primary);
+  /* QuantChat brand tokens */
+  --quant-primary: #10B981;
   --quant-secondary: #8b5cf6;
-  --quant-background: #ffffff;
-  --quant-foreground: #0f172a;
+  --quant-surface: #FFFFFF;
+  --quant-text: #0F172A;
+  --quant-background: #F8FAFC;
+  --quant-foreground: #0F172A;
   --quant-muted: #f1f5f9;
   --quant-muted-foreground: #64748b;
-  --quant-border: #e2e8f0;
-  --quant-ring: var(--brand-primary);
+  --quant-border: #E2E8F0;
+  --quant-ring: var(--quant-primary);
   --quant-radius: 0.5rem;
   --quant-card: #ffffff;
   --quant-card-foreground: #0f172a;
@@ -32,8 +34,11 @@
 }
 
 .dark {
-  --quant-background: #0F0F14;
-  --quant-foreground: #f8fafc;
+  --quant-primary: #34D399;
+  --quant-surface: #0F0F14;
+  --quant-text: #F8FAFC;
+  --quant-background: #16161D;
+  --quant-foreground: #F8FAFC;
   --quant-muted: #16161D;
   --quant-muted-foreground: #94a3b8;
   --quant-border: #334155;
@@ -41,7 +46,7 @@
   --quant-card-foreground: #f8fafc;
   --quant-popover: #1a1a24;
   --quant-popover-foreground: #f8fafc;
-  --quant-ring: var(--brand-primary);
+  --quant-ring: var(--quant-primary);
   --quant-destructive: #dc2626;
   --quant-destructive-foreground: #ffffff;
   --quant-success: #16a34a;
