@@ -31,6 +31,7 @@ import { AnimatedSkeleton } from '../components/Motion/AnimatedSkeleton';
 import { SlidePanel } from '../components/Motion/SlidePanel';
 import { ScaleOnHover } from '../components/Motion/ScaleOnHover';
 import { MotionProvider, useMotionConfig } from '../components/Motion/MotionConfig';
+import { LoadingState } from '../components/States/LoadingState';
 
 describe('FadeIn', () => {
   it('renders children correctly', () => {
@@ -42,6 +43,13 @@ describe('FadeIn', () => {
     const { container } = render(<FadeIn className="test-class">Content</FadeIn>);
     const el = container.firstElementChild;
     expect(el?.className).toContain('test-class');
+  });
+
+  it('accepts animated={false} and renders static content', () => {
+    const { container } = render(<FadeIn animated={false}>Static</FadeIn>);
+    expect(screen.getByText('Static')).toBeDefined();
+    // When animated=false, renders a plain div (no motion)
+    expect(container.firstElementChild?.tagName).toBe('DIV');
   });
 });
 
@@ -56,12 +64,43 @@ describe('StaggerList', () => {
     expect(screen.getByText('Item 1')).toBeDefined();
     expect(screen.getByText('Item 2')).toBeDefined();
   });
+
+  it('with as="ul" does not produce nested li>li elements', () => {
+    const { container } = render(
+      <StaggerList as="ul">
+        <li>Item A</li>
+        <li>Item B</li>
+      </StaggerList>,
+    );
+    // Should not have li > li nesting
+    const nestedLi = container.querySelectorAll('li > li');
+    expect(nestedLi.length).toBe(0);
+    // Items should still be present
+    expect(screen.getByText('Item A')).toBeDefined();
+    expect(screen.getByText('Item B')).toBeDefined();
+  });
+
+  it('accepts animated={false} and renders static content', () => {
+    const { container } = render(
+      <StaggerList animated={false} as="ul">
+        <li>Static Item</li>
+      </StaggerList>,
+    );
+    expect(screen.getByText('Static Item')).toBeDefined();
+    expect(container.firstElementChild?.tagName).toBe('UL');
+  });
 });
 
 describe('PageTransition', () => {
   it('renders children correctly', () => {
     render(<PageTransition>Page Content</PageTransition>);
     expect(screen.getByText('Page Content')).toBeDefined();
+  });
+
+  it('accepts animated={false} and renders static content', () => {
+    const { container } = render(<PageTransition animated={false}>Static Page</PageTransition>);
+    expect(screen.getByText('Static Page')).toBeDefined();
+    expect(container.firstElementChild?.tagName).toBe('DIV');
   });
 });
 
@@ -77,11 +116,24 @@ describe('SpringButton', () => {
     fireEvent.click(screen.getByRole('button'));
     expect(handleClick).toHaveBeenCalledTimes(1);
   });
+
+  it('accepts animated={false} and renders a plain button', () => {
+    render(<SpringButton animated={false}>Plain</SpringButton>);
+    expect(screen.getByRole('button')).toBeDefined();
+    expect(screen.getByText('Plain')).toBeDefined();
+  });
 });
 
 describe('AnimatedSkeleton', () => {
   it('renders with correct aria attributes', () => {
     render(<AnimatedSkeleton />);
+    const skeleton = screen.getByRole('status');
+    expect(skeleton).toBeDefined();
+    expect(skeleton.getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('accepts animated={false} and renders static skeleton', () => {
+    render(<AnimatedSkeleton animated={false} />);
     const skeleton = screen.getByRole('status');
     expect(skeleton).toBeDefined();
     expect(skeleton.getAttribute('aria-busy')).toBe('true');
@@ -106,12 +158,27 @@ describe('SlidePanel', () => {
     );
     expect(screen.queryByText('Panel Content')).toBeNull();
   });
+
+  it('accepts animated={false} and renders static panel', () => {
+    render(
+      <SlidePanel isOpen={true} animated={false}>
+        <span>Static Panel</span>
+      </SlidePanel>,
+    );
+    expect(screen.getByText('Static Panel')).toBeDefined();
+  });
 });
 
 describe('ScaleOnHover', () => {
   it('renders children correctly', () => {
     render(<ScaleOnHover>Hover Me</ScaleOnHover>);
     expect(screen.getByText('Hover Me')).toBeDefined();
+  });
+
+  it('accepts animated={false} and renders static content', () => {
+    const { container } = render(<ScaleOnHover animated={false}>Static Hover</ScaleOnHover>);
+    expect(screen.getByText('Static Hover')).toBeDefined();
+    expect(container.firstElementChild?.tagName).toBe('DIV');
   });
 });
 
@@ -129,5 +196,28 @@ describe('MotionProvider + useMotionConfig', () => {
     );
     const el = screen.getByTestId('animate-value');
     expect(el.textContent).toBe('true');
+  });
+
+  it('returns shouldAnimate: true when no provider in tree', () => {
+    render(<TestConsumer />);
+    const el = screen.getByTestId('animate-value');
+    expect(el.textContent).toBe('true');
+  });
+});
+
+describe('LoadingState reduced-motion', () => {
+  it('skeleton variant has no animate-pulse class when shouldAnimate is false', () => {
+    // animated={false} forces shouldAnimate to false
+    const { container } = render(<LoadingState variant="skeleton" animated={false} />);
+    const pulseElements = container.querySelectorAll('.animate-pulse');
+    expect(pulseElements.length).toBe(0);
+  });
+
+  it('spinner variant shows static SVG when shouldAnimate is false', () => {
+    const { container } = render(<LoadingState variant="spinner" animated={false} />);
+    const svg = container.querySelector('svg');
+    expect(svg).toBeDefined();
+    // Should not have animate-spin class
+    expect(svg?.className).not.toContain('animate-spin');
   });
 });

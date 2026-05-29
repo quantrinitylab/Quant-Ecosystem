@@ -4,6 +4,11 @@
 // ============================================================================
 
 /**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Pure JS DCT-based pHash from raw buffer bytes, not a production perceptual hash library
+ * Production path: Use sharp + blockhash or dedicated pHash library (e.g. phash-image)
+ *
  * PerceptualHasher - Perceptual hashing for content deduplication
  *
  * Provides:

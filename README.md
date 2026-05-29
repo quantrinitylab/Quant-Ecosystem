@@ -1,12 +1,13 @@
 # Quant Ecosystem
 
-A 13-app interconnected platform built as a TypeScript monorepo. Each app integrates deeply with shared packages for authentication, AI, real-time communication, and UI components.
+A 16-app interconnected platform built as a TypeScript monorepo. Each app integrates deeply with shared packages for authentication, AI, real-time communication, and UI components.
 
 ## Architecture Overview
 
 ```
 quant-ecosystem/
-├── apps/                    # 13 Application frontends + backends
+├── apps/                    # 16 Application frontends + backends
+│   ├── marketing/          # Marketing and landing site
 │   ├── quantai/            # Central AI assistant hub
 │   ├── quantads/           # Advertising platform
 │   ├── quantcalendar/      # Calendar and scheduling
@@ -17,45 +18,50 @@ quant-ecosystem/
 │   ├── quantmail/          # Email + Central OAuth provider (Gmail+GitHub)
 │   ├── quantmax/           # Short video + dating + random chat (TikTok/Tinder/Omegle)
 │   ├── quantmeet/          # Video conferencing
+│   ├── quant-mobile/       # Cross-platform mobile app (Capacitor)
 │   ├── quantneon/          # Photo/video sharing (Instagram)
 │   ├── quantsync/          # Social feed (Twitter/Reddit)
-│   └── quantube/           # Video & music streaming (YouTube+Spotify)
-├── packages/               # Shared libraries (39 active)
+│   ├── quantube/           # Video & music streaming (YouTube+Spotify)
+│   └── status/             # Service status and uptime monitor
+├── packages/               # Shared libraries (78)
 │   ├── common/             # Types, constants, utilities, validators
 │   ├── database/           # Database schemas and models for all apps
 │   ├── auth/               # Authentication (QuantMail as OAuth provider)
 │   ├── ai/                 # Central AI engine with domain services
 │   ├── shared-ui/          # Reusable React UI components
 │   └── realtime/           # WebSocket infrastructure
-├── services/               # Infrastructure workers (17 services, 10 are stubs)
+├── services/               # Infrastructure services (8)
 └── scripts/                # Build and dev scripts
 ```
 
 ## Current Status
 
-- **13 apps total:** 9 with frontend pages, 4 backend-only (quantcalendar, quantdocs, quantdrive, quantmeet)
-- **Frontend pages:** ~41% use mock data (tracked in `.agents/state/mock-debt.csv`)
-- **Services:** 10 of 17 are health-only stubs pending architecture decision
-- **Packages:** 39 active (7 empty packages removed in Phase 18)
+- **16 apps total:** Full-stack applications with frontend and/or backend components
+- **78 packages:** Shared libraries covering AI, infrastructure, UI, platform features, and more
+- **8 services:** All with full package.json (cdc-relay, ci-runner, git-server, matchmaking, moderation-worker, search-indexer, smtp-inbound, ws-gateway)
+- **Frontend pages:** Some still use mock data (tracked in `.agents/state/mock-debt.csv`)
 - **All CI gates pass:** typecheck, test, build, lint, audit
 
 ## Apps
 
 | App               | Description        | Key Features                                                            |
 | ----------------- | ------------------ | ----------------------------------------------------------------------- |
+| **Marketing**     | Marketing site     | Landing pages, product showcases, pricing                               |
 | **QuantAI**       | AI Hub             | Conversational AI, device control, multi-model support                  |
 | **QuantAds**      | Ad platform        | Campaign management, targeting, analytics, creative tools               |
-| **QuantCalendar** | Calendar           | Scheduling, events, reminders (backend only)                            |
+| **QuantCalendar** | Calendar           | Scheduling, events, reminders                                           |
 | **QuantChat**     | Instant messaging  | Disappearing messages, stories, video calls, group chats, smart replies |
-| **QuantDocs**     | Documents          | Collaborative editing, templates (backend only)                         |
-| **QuantDrive**    | Cloud storage      | File storage, sharing, sync (backend only)                              |
+| **QuantDocs**     | Documents          | Collaborative editing, templates                                        |
+| **QuantDrive**    | Cloud storage      | File storage, sharing, sync                                             |
 | **QuantEdits**    | Editor             | Timeline-based video/photo editing, effects, exports                    |
 | **QuantMail**     | Email platform     | Full email client, central OAuth2 provider for ecosystem SSO            |
 | **QuantMax**      | Multi-mode         | Short videos (TikTok), random video chat (Omegle), dating (Tinder)      |
-| **QuantMeet**     | Video conferencing | Meetings, screen sharing, breakout rooms (backend only)                 |
+| **QuantMeet**     | Video conferencing | Meetings, screen sharing, breakout rooms                                |
+| **QuantMobile**   | Mobile app         | Cross-platform mobile app via Capacitor (iOS + Android)                 |
 | **QuantNeon**     | Photos             | Photo/video sharing, filters, stories, close friends                    |
 | **QuantSync**     | Social network     | Posts, threads, communities, polls, trending topics                     |
 | **QuantTube**     | Streaming          | Video/music upload, live streaming, channels, playlists                 |
+| **Status**        | Status page        | Service status, uptime monitoring, incident reporting                   |
 
 ## Shared Packages
 

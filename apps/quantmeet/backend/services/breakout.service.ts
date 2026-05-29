@@ -12,6 +12,12 @@ export interface BreakoutRoom {
   closedAt: Date | null;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: In-memory Map-based room management, delegates to LiveKit when gateway provided
+ * Production path: Persist rooms in database, integrate fully with LiveKit room API
+ */
 export class BreakoutService {
   private readonly breakoutRooms = new Map<string, BreakoutRoom>();
 

@@ -26,6 +26,12 @@ export interface FinanceInsight {
   recurringTotal: number;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Rule-based financial analysis
+ * Production path: Integrate LLM + financial data APIs
+ */
 export class FinancePilot extends IntelligentAgent {
   private lastInsight: FinanceInsight | null = null;
   private readonly optIn: boolean;

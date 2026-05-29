@@ -23,6 +23,12 @@ export interface ScheduleResult {
   conflicts: Array<{ event1: string; event2: string; reason: string }>;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Rule-based scheduling
+ * Production path: Integrate LLM + calendar APIs
+ */
 export class SchedulePilot extends IntelligentAgent {
   private calendar: CalendarEvent[] = [];
   private lastResult: ScheduleResult | null = null;

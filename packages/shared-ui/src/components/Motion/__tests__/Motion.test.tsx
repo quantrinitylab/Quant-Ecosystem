@@ -5,6 +5,20 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+
+vi.mock('framer-motion', () => ({
+  motion: {
+    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+    span: ({ children, ...props }: any) => <span {...props}>{children}</span>,
+    svg: ({ children, ...props }: any) => <svg {...props}>{children}</svg>,
+  },
+  AnimatePresence: ({ children }: any) => <>{children}</>,
+  useReducedMotion: () => false,
+  useMotionValue: (initial: number) => ({ get: () => initial, set: () => {} }),
+  useTransform: () => 0,
+}));
+
 import { AnimatedPage } from '../AnimatedPage';
 import { AnimatedList } from '../AnimatedList';
 import { SpringButton } from '../SpringButton';
@@ -27,6 +41,11 @@ describe('AnimatedPage', () => {
     const { container } = render(<AnimatedPage className="custom-class">Content</AnimatedPage>);
     const motionDiv = container.firstElementChild;
     expect(motionDiv?.className).toContain('custom-class');
+  });
+
+  it('accepts animated prop', () => {
+    render(<AnimatedPage animated={false}>Static Page</AnimatedPage>);
+    expect(screen.getByText('Static Page')).toBeDefined();
   });
 });
 
@@ -52,6 +71,15 @@ describe('AnimatedList', () => {
     );
     const motionDiv = container.firstElementChild;
     expect(motionDiv?.className).toContain('list-wrapper');
+  });
+
+  it('accepts animated prop', () => {
+    render(
+      <AnimatedList animated={false}>
+        <div>Static Item</div>
+      </AnimatedList>,
+    );
+    expect(screen.getByText('Static Item')).toBeDefined();
   });
 });
 
@@ -99,6 +127,15 @@ describe('BottomSheet', () => {
     expect(dialog.getAttribute('aria-label')).toBe('Settings sheet');
     expect(dialog.getAttribute('aria-modal')).toBe('true');
   });
+
+  it('accepts animated prop', () => {
+    render(
+      <BottomSheet open={true} onClose={() => {}} animated={false}>
+        Static Sheet
+      </BottomSheet>,
+    );
+    expect(screen.getByText('Static Sheet')).toBeDefined();
+  });
 });
 
 describe('SkeletonFade', () => {
@@ -121,6 +158,15 @@ describe('SkeletonFade', () => {
     expect(screen.getByText('Real content')).toBeDefined();
     expect(screen.queryByText('Loading...')).toBeNull();
   });
+
+  it('accepts animated prop', () => {
+    render(
+      <SkeletonFade loading={true} skeleton={<div>Skeleton</div>} animated={false}>
+        <div>Content</div>
+      </SkeletonFade>,
+    );
+    expect(screen.getByText('Skeleton')).toBeDefined();
+  });
 });
 
 describe('PullToRefresh', () => {
@@ -132,5 +178,15 @@ describe('PullToRefresh', () => {
       </PullToRefresh>,
     );
     expect(screen.getByText('Scrollable content')).toBeDefined();
+  });
+
+  it('accepts animated prop', () => {
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PullToRefresh onRefresh={onRefresh} animated={false}>
+        <div>Static content</div>
+      </PullToRefresh>,
+    );
+    expect(screen.getByText('Static content')).toBeDefined();
   });
 });

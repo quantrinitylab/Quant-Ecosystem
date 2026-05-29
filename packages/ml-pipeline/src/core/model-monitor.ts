@@ -24,6 +24,12 @@ interface AlertState {
   triggerCount: number;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Basic drift stats in JS
+ * Production path: Use Evidently AI or SageMaker Model Monitor
+ */
 export class ModelMonitor {
   private config: DriftDetectionConfig;
   private metrics: Map<string, MonitoredMetric> = new Map();

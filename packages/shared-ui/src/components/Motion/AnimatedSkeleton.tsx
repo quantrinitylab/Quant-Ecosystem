@@ -9,6 +9,7 @@ export interface AnimatedSkeletonProps {
   width?: string;
   height?: string;
   className?: string;
+  animated?: boolean;
 }
 
 const variantStyles: Record<string, React.CSSProperties> = {
@@ -22,10 +23,11 @@ export function AnimatedSkeleton({
   width,
   height,
   className,
+  animated = true,
 }: AnimatedSkeletonProps) {
   const { shouldAnimate: contextAnimate } = useMotionConfig();
   const prefersReducedMotion = useReducedMotion();
-  const shouldAnimate = contextAnimate && !prefersReducedMotion;
+  const shouldAnimate = animated && contextAnimate && !prefersReducedMotion;
   const baseStyle = variantStyles[variant];
 
   const style: React.CSSProperties = {

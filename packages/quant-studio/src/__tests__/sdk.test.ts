@@ -99,6 +99,15 @@ describe('QuantSDK', () => {
     expect(() => sdk.requestTip(5)).toThrow(PermissionDeniedError);
   });
 
+  it('should reject invalid tip amounts (zero, negative, non-finite)', () => {
+    const sdk = new QuantSDK(createContext([Permission.Payments]));
+    expect(() => sdk.requestTip(0)).toThrow(/positive, finite/);
+    expect(() => sdk.requestTip(-5)).toThrow(/positive, finite/);
+    expect(() => sdk.requestTip(Number.NaN)).toThrow(/positive, finite/);
+    expect(() => sdk.requestTip(Number.POSITIVE_INFINITY)).toThrow(/positive, finite/);
+    expect(sdk.getTipHistory()).toHaveLength(0);
+  });
+
   it('should reject putFile with path traversal (..)', () => {
     const sdk = new QuantSDK(createContext([Permission.Storage]));
     expect(() => sdk.putFile('../etc/passwd', 'hack')).toThrow('Path traversal');

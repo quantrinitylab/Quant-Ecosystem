@@ -13,6 +13,8 @@
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "build": "turbo build",
+    "build:ci": "turbo build --concurrency=3",
+    "build:cold": "rm -rf .turbo node_modules/.cache && turbo build --concurrency=3",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "validate": "pnpm install --frozen-lockfile && pnpm typecheck && pnpm test && pnpm build && pnpm lint",
@@ -27,7 +29,11 @@
     "db:reset": "tsx scripts/db-reset.ts",
     "smoke": "tsx scripts/smoke.ts",
     "test:e2e": "playwright test",
-    "test:e2e:ci": "playwright test --shard=$CI_SHARD"
+    "test:e2e:ci": "playwright test --shard=$CI_SHARD",
+    "test:a11y": "playwright test --project=chromium e2e/tests/a11y/",
+    "lint:strict": "turbo lint -- --max-warnings 0",
+    "validate:routes": "tsx scripts/validate-routes.ts",
+    "ci:gates": "turbo typecheck && turbo lint -- --max-warnings 0 && turbo test && turbo build"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -40,7 +46,11 @@
     ],
     "overrides": {
       "@types/react": "^19.0.0",
-      "@types/react-dom": "^19.0.0"
+      "@types/react-dom": "^19.0.0",
+      "esbuild": ">=0.25.0",
+      "vite": "^6.4.2",
+      "postcss": ">=8.5.10",
+      "uuid": ">=11.1.1"
     }
   },
   "devDependencies": {

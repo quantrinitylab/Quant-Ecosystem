@@ -10,6 +10,12 @@ import {
   SeasonalityResult,
 } from '../types';
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Moving average/exponential smoothing only
+ * Production path: Use Prophet, ARIMA, or neural forecasting
+ */
 export class TimeSeriesForecaster {
   private data: TimeSeriesPoint[] = [];
   private residuals: number[] = [];

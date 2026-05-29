@@ -15,6 +15,12 @@ interface ClassificationResult {
   features: { name: string; weight: number }[];
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Naive Bayes in pure JS
+ * Production path: Use trained ML model via inference service
+ */
 export class SpamClassifier {
   private classes: Map<string, ClassStats> = new Map();
   private vocabulary: Set<string> = new Set();

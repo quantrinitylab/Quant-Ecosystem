@@ -1,0 +1,68 @@
+name: Cold Build Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same branch/PR
+concurrency:
+  group: cold-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cold-build:
+    name: Cold build (no turbo cache)
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_OPTIONS: "--max-old-space-size=4096"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Ensure completely cold cache
+      - name: Clear turbo and build caches
+        run: rm -rf .turbo node_modules/.cache
+
+      - name: Run cold build
+        run: |
+          set -o pipefail
+          pnpm turbo build --concurrency=3 2>&1 | tee build-output.log
+
+      - name: Fail if turbo reports missing outputs
+        run: |
+          if grep -qi "no output files found" build-output.log; then
+            echo "::error::Turbo reported 'no output files found' - fix outputs in turbo.json"
+            grep -i "no output files found" build-output.log
+            exit 1
+          fi
+          echo "No 'no output files found' warnings detected"
+
+      # Clear cache again before typecheck
+      - name: Clear turbo cache for typecheck
+        run: rm -rf .turbo
+
+      - name: Run cold typecheck
+        run: |
+          set -o pipefail
+          pnpm turbo typecheck 2>&1 | tee typecheck-output.log
+
+      - name: Fail if typecheck reports missing outputs
+        run: |
+          if grep -qi "no output files found" typecheck-output.log; then
+            echo "::error::Turbo reported 'no output files found' during typecheck - fix outputs in turbo.json"
+            grep -i "no output files found" typecheck-output.log
+            exit 1
+          fi
+          echo "No 'no output files found' warnings detected in typecheck"

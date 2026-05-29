@@ -24,6 +24,12 @@ export interface EmailProcessingResult {
   flagged: string[];
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Rule-based email drafting
+ * Production path: Integrate LLM API
+ */
 export class EmailPilot extends IntelligentAgent {
   private processedEmails: EmailProcessingResult = { archived: [], drafts: [], flagged: [] };
 

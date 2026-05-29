@@ -26,6 +26,12 @@ interface LoadedModel {
   inferenceCount: number;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: JS-based inference without real runtime
+ * Production path: Use ONNX Runtime or TensorRT
+ */
 export class InferenceEngine {
   private models: Map<string, LoadedModel> = new Map();
   private cache: Map<string, CacheEntry> = new Map();

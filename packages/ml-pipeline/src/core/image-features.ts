@@ -15,6 +15,12 @@ interface FeatureMap {
   kernelName: string;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Basic pixel stats, no CNN feature extraction
+ * Production path: Use CLIP or ResNet via ONNX
+ */
 export class ImageFeatureExtractor {
   private kernels: Map<string, ConvKernel> = new Map();
   private featureCache: Map<string, number[]> = new Map();

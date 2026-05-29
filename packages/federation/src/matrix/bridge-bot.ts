@@ -25,6 +25,12 @@ export interface BridgeResult {
   reason?: string;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: In-memory message forwarding array, no real Matrix SDK integration
+ * Production path: Use matrix-js-sdk or matrix-bot-sdk for real Matrix protocol
+ */
 export class MatrixBridgeBot {
   private roomMapper: RoomMapper;
   private forwardedMessages: ForwardedMessage[] = [];

@@ -20,6 +20,12 @@ interface RegisteredModel {
   tags: Set<string>;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: In-memory model versioning
+ * Production path: Use MLflow or SageMaker Model Registry
+ */
 export class ModelRegistry {
   private models: Map<string, RegisteredModel> = new Map();
   private versionHistory: Map<string, string[]> = new Map();

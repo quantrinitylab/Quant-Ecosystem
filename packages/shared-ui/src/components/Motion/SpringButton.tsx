@@ -15,6 +15,7 @@ export interface SpringButtonProps {
   onBlur?: React.FocusEventHandler<HTMLButtonElement>;
   'aria-label'?: string;
   children: React.ReactNode;
+  animated?: boolean;
 }
 
 export function SpringButton({
@@ -27,10 +28,11 @@ export function SpringButton({
   onFocus,
   onBlur,
   'aria-label': ariaLabel,
+  animated = true,
 }: SpringButtonProps) {
   const { shouldAnimate: contextAnimate } = useMotionConfig();
   const prefersReducedMotion = useReducedMotion();
-  const shouldAnimate = contextAnimate && !prefersReducedMotion;
+  const shouldAnimate = animated && contextAnimate && !prefersReducedMotion;
 
   if (!shouldAnimate) {
     return (

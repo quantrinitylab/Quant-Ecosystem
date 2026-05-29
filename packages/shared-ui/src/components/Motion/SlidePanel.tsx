@@ -12,6 +12,7 @@ export interface SlidePanelProps {
   onClose?: () => void;
   children: React.ReactNode;
   className?: string;
+  animated?: boolean;
 }
 
 export function SlidePanel({
@@ -21,10 +22,11 @@ export function SlidePanel({
   onClose,
   children,
   className,
+  animated = true,
 }: SlidePanelProps) {
   const { shouldAnimate: contextAnimate } = useMotionConfig();
   const prefersReducedMotion = useReducedMotion();
-  const shouldAnimate = contextAnimate && !prefersReducedMotion;
+  const shouldAnimate = animated && contextAnimate && !prefersReducedMotion;
 
   const xOffset = side === 'right' ? '100%' : '-100%';
 

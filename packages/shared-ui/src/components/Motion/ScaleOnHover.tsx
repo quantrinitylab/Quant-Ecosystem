@@ -9,12 +9,18 @@ export interface ScaleOnHoverProps {
   scale?: number;
   className?: string;
   children: React.ReactNode;
+  animated?: boolean;
 }
 
-export function ScaleOnHover({ scale = 1.02, className, children }: ScaleOnHoverProps) {
+export function ScaleOnHover({
+  scale = 1.02,
+  className,
+  children,
+  animated = true,
+}: ScaleOnHoverProps) {
   const { shouldAnimate: contextAnimate } = useMotionConfig();
   const prefersReducedMotion = useReducedMotion();
-  const shouldAnimate = contextAnimate && !prefersReducedMotion;
+  const shouldAnimate = animated && contextAnimate && !prefersReducedMotion;
 
   if (!shouldAnimate) {
     return <div className={className}>{children}</div>;

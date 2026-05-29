@@ -18,6 +18,12 @@ interface ObjectiveConfig {
   towerFn?: (input: number[]) => number;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Multi-gate Mixture-of-Experts in pure JS with untrained expert functions
+ * Production path: Train MMoE model on engagement/retention data, serve via ML framework
+ */
 export class MMoERanker {
   private experts: Expert[] = [];
   private objectives: ObjectiveConfig[] = [];

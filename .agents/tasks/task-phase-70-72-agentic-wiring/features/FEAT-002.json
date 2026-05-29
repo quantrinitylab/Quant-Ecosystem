@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Phase 71 integration test: Prove voice-to-deploy E2E (CodexVoiceInterface) and NL-to-durable-automation E2E (quant-automate). Codex test: voice input parses to scaffold command, scaffold creates project, build orchestrator builds it, deploy pipeline deploys it (full pipeline). Automate test: NL description parsed to automation, trigger registered, durable executor starts/checkpoints/resumes mid-run.",
+  "status": "completed",
+  "steps": [
+    "Create file packages/quant-codex/src/__tests__/phase71-integration.test.ts",
+    "Import CodexVoiceInterface, ProjectScaffolder, BuildOrchestrator, DeployPipeline, ProjectStateManager from codex index",
+    "Test 1 - 'voice to scaffold to build to deploy E2E': parse 'build a game called SpaceRunner', verify command type is scaffold. Execute command - verify scaffold result success. Then parse 'build SpaceRunner', execute - verify BuildResult.success. Then parse 'deploy SpaceRunner to production', execute - verify DeployResult.success with url.",
+    "Test 2 - 'full project lifecycle via voice': start from parseCommand, go through scaffold -> build -> deploy -> status -> list, verify state transitions at each step",
+    "Create file packages/quant-automate/src/__tests__/phase71-integration.test.ts",
+    "Import NLAutomationBuilder, TriggerSystem, DurableExecutor, ActionExecutor, FlowController from automate index",
+    "Test 3 - 'NL to automation to scheduled trigger': parse 'every day at 9am, post a reel', verify automation has name, trigger with cron '0 9 * * *', action with toolId. Register trigger in TriggerSystem, evaluate against 9:00 time - verify match. Evaluate against 10:00 - verify no match.",
+    "Test 4 - 'durable execution with checkpoint and resume': create automation, start DurableExecutor.start(), checkpoint at step 0 with state, simulate interrupt, resume() - verify state restored at correct step. Checkpoint again at step 1, verify checkpoints array length is 2.",
+    "Test 5 - 'automation resumes after interrupt mid-run': start execution, checkpoint at step 2, clear state reference, call resume(), verify currentStep is 2 and resumable is true"
+  ],
+  "acceptance_criteria": [
+    "All tests pass in both packages: pnpm --filter @quant/quant-codex test AND pnpm --filter @quant/quant-automate test",
+    "Codex test proves voice -> scaffold -> build -> deploy pipeline completes successfully",
+    "Automate test proves NL -> automation -> trigger evaluation -> durable checkpoint/resume"
+  ],
+  "verification": [
+    "source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm --filter @quant/quant-codex typecheck && pnpm --filter @quant/quant-codex test",
+    "source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm --filter @quant/quant-automate typecheck && pnpm --filter @quant/quant-automate test"
+  ],
+  "blocked_reason": null,
+  "findings": "All tests pass. CodexVoiceInterface.execute() is async (returns Promise). The 'build a game called SpaceRunner' command matches the first scaffold pattern. DeployPipeline.run() uses the target arg directly in the URL. DurableExecutor checkpoint() updates currentStep to the provided stepIndex. Unused imports caused typecheck failures - TypeScript strict mode enforced."
+}

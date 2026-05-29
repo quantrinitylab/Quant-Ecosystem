@@ -2,6 +2,12 @@
 // ML Pipeline - Text Embedding Engine
 // ============================================================================
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: TF-IDF or random projections
+ * Production path: Use sentence-transformers or OpenAI embeddings API
+ */
 export class TextEmbeddingEngine {
   private vocabulary: Map<string, number> = new Map();
   private wordVectors: Map<string, number[]> = new Map();

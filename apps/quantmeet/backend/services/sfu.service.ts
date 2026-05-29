@@ -96,6 +96,12 @@ interface ConsumerRecord {
   rtpParameters: RtpParameters;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Generates random ICE candidates and simulated transport parameters, no real WebRTC SFU
+ * Production path: Integrate mediasoup or LiveKit SFU for real media relay
+ */
 export class SFUService {
   private readonly transports = new Map<string, TransportRecord>();
   private readonly producers = new Map<string, ProducerRecord>();

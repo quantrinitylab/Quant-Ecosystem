@@ -23,6 +23,12 @@ export interface ContentResult {
   estimatedReadTime: number;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Rule-based content generation
+ * Production path: Integrate LLM API
+ */
 export class ContentPilot extends IntelligentAgent {
   private lastResult: ContentResult | null = null;
 

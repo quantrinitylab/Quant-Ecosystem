@@ -1,10 +1,13 @@
+'use client';
+
 // ============================================================================
 // Shared UI - BottomSheet Component
 // ============================================================================
 
 import React, { useCallback } from 'react';
-import { AnimatePresence, motion, type PanInfo } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion, type PanInfo } from 'framer-motion';
 import { spring } from '@quant/brand';
+import { useMotionConfig } from './MotionConfig';
 
 export type SnapPoint = 0.25 | 0.5 | 0.9;
 
@@ -16,6 +19,7 @@ export interface BottomSheetProps {
   initialSnap?: SnapPoint;
   className?: string;
   'aria-label'?: string;
+  animated?: boolean;
 }
 
 export const BottomSheet: React.FC<BottomSheetProps> = ({
@@ -26,7 +30,12 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   initialSnap = 0.5,
   className = '',
   'aria-label': ariaLabel = 'Bottom sheet',
+  animated = true,
 }) => {
+  const { shouldAnimate: contextAnimate } = useMotionConfig();
+  const prefersReducedMotion = useReducedMotion();
+  const shouldAnimate = animated && contextAnimate && !prefersReducedMotion;
+
   const transition = {
     type: 'spring' as const,
     ...spring.gentle,
@@ -42,6 +51,27 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     },
     [onClose],
   );
+
+  if (!shouldAnimate) {
+    if (!open) return null;
+    return (
+      <>
+        <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} aria-hidden="true" />
+        <div
+          className={`fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-gray-900 rounded-t-2xl shadow-xl ${className}`}
+          style={{ height: sheetHeight }}
+          role="dialog"
+          aria-label={ariaLabel}
+          aria-modal="true"
+        >
+          <div className="flex justify-center pt-3 pb-2">
+            <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full" />
+          </div>
+          <div className="overflow-y-auto px-4 pb-4 h-full">{children}</div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <AnimatePresence>

@@ -25,13 +25,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm turbo lint
+      - run: pnpm lint:strict
 
       - run: pnpm turbo typecheck
 
       - run: pnpm turbo test
 
-      - run: pnpm turbo build
+      # Cap parallelism + raise heap: ~7 Next.js prod builds in parallel OOM'd the runner
+      # non-deterministically (a different app failed each run). See BUG-1.
+      - run: pnpm turbo build --concurrency=3
+        env:
+          NODE_OPTIONS: '--max-old-space-size=6144'
 
       - name: Run npm audit
         run: pnpm audit --audit-level=high

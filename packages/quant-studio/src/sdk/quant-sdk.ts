@@ -160,6 +160,9 @@ export class QuantSDK {
   // Tips module
   requestTip(amount: number): TipRecord {
     this.gate.enforce(Permission.Payments);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error('Tip amount must be a positive, finite number');
+    }
     const tip: TipRecord = {
       fromUserId: 'anonymous',
       amount,

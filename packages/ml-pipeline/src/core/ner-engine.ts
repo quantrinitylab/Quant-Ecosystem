@@ -16,6 +16,12 @@ interface PatternRule {
   confidence: number;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Regex/dictionary-based NER
+ * Production path: Use spaCy, Hugging Face NER, or ONNX model
+ */
 export class NEREngine {
   private gazetteers: Map<EntityType, Map<string, GazetteerEntry>> = new Map();
   private patterns: PatternRule[] = [];

@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Enhance the error-monitoring package with production initialization helper and add a unified zero-defect CI workflow that aggregates all hard gates into a single required status check.",
+  "status": "in_progress",
+  "steps": [
+    "Create packages/error-monitoring/src/init.ts - a convenience initialization module that exports an `initErrorMonitoring(config)` function. This function: (a) creates an ErrorCapture instance, (b) attaches either SentryTransport or GlitchTipTransport based on config.provider, (c) sets up global error handlers (process.on uncaughtException/unhandledRejection for Node, window.onerror/unhandledrejection for browser), (d) returns the configured instance. Config should include: dsn, environment, release, provider ('sentry' | 'glitchtip').",
+    "Add the export for initErrorMonitoring to packages/error-monitoring/src/index.ts",
+    "Create packages/error-monitoring/src/__tests__/init.test.ts - unit tests for the initialization function covering: sentry provider selection, glitchtip provider selection, missing dsn throws, default config values",
+    "Create .github/workflows/zero-defect-gates.yml - a unified CI workflow that runs on PR to main and defines the hard gates required for merge: (a) typecheck - pnpm turbo typecheck must pass, (b) lint-strict - pnpm turbo lint with zero warnings, (c) test - pnpm turbo test must pass, (d) a11y - playwright axe tests must pass, (e) security - trivy fs scan with HIGH/CRITICAL severity (fail on findings). Each job is non-negotiable (no continue-on-error). Add a final 'all-gates-pass' job that needs all previous jobs - this becomes the single required status check for branch protection.",
+    "Update the root package.json to add a 'ci:gates' script: 'pnpm turbo typecheck && pnpm turbo lint -- --max-warnings 0 && pnpm turbo test && pnpm turbo build' for local pre-push validation"
+  ],
+  "acceptance_criteria": [
+    "packages/error-monitoring/src/init.ts exports initErrorMonitoring function with proper types",
+    "packages/error-monitoring/src/__tests__/init.test.ts has unit tests that validate provider selection",
+    "packages/error-monitoring/src/index.ts re-exports initErrorMonitoring",
+    ".github/workflows/zero-defect-gates.yml exists with all hard gates and a final aggregating job",
+    "Root package.json has 'ci:gates' script",
+    "pnpm turbo typecheck passes",
+    "pnpm turbo test passes (new unit tests pass)"
+  ],
+  "verification": [
+    "Run `source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm install && pnpm turbo typecheck` and confirm exit 0",
+    "Run `source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm turbo test --filter=@quant/error-monitoring` and confirm new tests pass"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -35,6 +35,12 @@ export interface MeetingResult {
   followUps: ActionItem[];
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Rule-based meeting scheduling
+ * Production path: Integrate LLM + calendar APIs
+ */
 export class MeetingPilot extends IntelligentAgent {
   private lastResult: MeetingResult | null = null;
 

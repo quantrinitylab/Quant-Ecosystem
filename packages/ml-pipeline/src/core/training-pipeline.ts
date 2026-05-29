@@ -12,6 +12,12 @@ import {
   Checkpoint,
 } from '../types';
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Simulated training loop in JS
+ * Production path: Use PyTorch/TensorFlow with proper training infrastructure
+ */
 export class TrainingPipeline {
   private config: TrainingConfig;
   private weights: number[][] = [];

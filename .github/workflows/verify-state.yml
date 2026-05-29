@@ -1,0 +1,16 @@
+name: Verify State
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify-state:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify state files match live tree
+        run: bash scripts/verify-state.sh

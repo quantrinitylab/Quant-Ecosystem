@@ -16,6 +16,12 @@ export interface Recording {
   egressId: string | null;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: In-memory state tracking only, no real media capture or transcoding
+ * Production path: Use LiveKit Egress or mediasoup recording with FFmpeg pipeline
+ */
 export class RecordingService {
   private readonly recordings = new Map<string, Recording>();
 

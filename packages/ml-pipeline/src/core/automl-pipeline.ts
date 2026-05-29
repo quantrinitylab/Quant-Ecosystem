@@ -4,6 +4,12 @@
 
 import { HyperParameter, CrossValidationResult, AutoMLConfig, TrialResult } from '../types';
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Simulated AutoML pipeline in JS
+ * Production path: Use SageMaker AutoPilot or similar
+ */
 export class AutoMLPipeline {
   private config: AutoMLConfig;
   private trials: TrialResult[] = [];

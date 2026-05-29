@@ -11,6 +11,7 @@ export interface FadeInProps {
   duration?: number;
   className?: string;
   children: React.ReactNode;
+  animated?: boolean;
 }
 
 const directionOffsets: Record<string, { x?: number; y?: number }> = {
@@ -26,10 +27,11 @@ export function FadeIn({
   duration: durationOverride,
   className,
   children,
+  animated = true,
 }: FadeInProps) {
   const { shouldAnimate: contextAnimate } = useMotionConfig();
   const prefersReducedMotion = useReducedMotion();
-  const shouldAnimate = contextAnimate && !prefersReducedMotion;
+  const shouldAnimate = animated && contextAnimate && !prefersReducedMotion;
 
   const durationSec = durationOverride ?? duration.normal / 1000;
   const offset = direction ? directionOffsets[direction] : {};

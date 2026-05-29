@@ -8,12 +8,13 @@ import { useMotionConfig } from './MotionConfig';
 export interface PageTransitionProps {
   className?: string;
   children: React.ReactNode;
+  animated?: boolean;
 }
 
-export function PageTransition({ className, children }: PageTransitionProps) {
+export function PageTransition({ className, children, animated = true }: PageTransitionProps) {
   const { shouldAnimate: contextAnimate } = useMotionConfig();
   const prefersReducedMotion = useReducedMotion();
-  const shouldAnimate = contextAnimate && !prefersReducedMotion;
+  const shouldAnimate = animated && contextAnimate && !prefersReducedMotion;
 
   if (!shouldAnimate) {
     return <div className={className}>{children}</div>;

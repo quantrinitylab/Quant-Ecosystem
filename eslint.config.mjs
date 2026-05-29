@@ -49,7 +49,7 @@ export default tseslint.config(
       '**/*.spec.ts',
     ],
     rules: {
-      'no-console': 'warn',
+      'no-console': 'error',
       'no-eval': 'error',
       'no-implied-eval': 'error',
       'no-new-func': 'error',

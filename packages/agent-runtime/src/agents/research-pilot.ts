@@ -22,6 +22,12 @@ export interface ResearchResult {
   keyFindings: string[];
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Rule-based research assistance
+ * Production path: Integrate LLM + search/RAG pipeline
+ */
 export class ResearchPilot extends IntelligentAgent {
   private lastResult: ResearchResult | null = null;
 

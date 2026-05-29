@@ -6,6 +6,15 @@
 
 ### v2 (May 29, 2026): re-audited after phases 62-68 shipped — see PART A2 + BLOCK 0 + BLOCK 8
 
+> **Companion specs (read these — screen-by-screen verified audits):**
+> - `.agents/QUANTMAIL_WIREUP_AND_UNIFY.md` — QuantMail deep audit + fix plan (Phase 66.1)
+> - `.agents/ECOSYSTEM_FRONTEND_UNIFY_AND_AGENTIC.md` — all 13 apps: single-router/auth, missing
+>   `/api` routes, brand/restyle, real-time WS, real AI streaming, and the AI-agentic control layer
+>   (Phases 66.2–66.7 + 70.2). Backends are largely real; the frontends need wiring + brand + agentic.
+> - `.agents/MASTER_BUILD_ORDER_AND_UIUX_BAR.md` — **the execution bible**: exact sequenced order
+>   (Waves 0–4, one app per PR) + the per-screen premium UI/UX target for every screen of every app.
+>   Start here to know what to build next and how good each screen must be.
+
 > 21 phases (41-61) shipped breadth. Phases 62-68 then shipped real fixes (fake components killed, 4 frontends built, brand system, mocks wired). Now we close the declared-done-but-not debt (BLOCK 0), earn true depth, and build the agentic-internet moat (BLOCK 8).
 > Every existing screen becomes beautiful, smooth, vibey, bug-free. Every half-built package gets finished. Every missing frontend gets built. Then — and only then — the remaining big features and the agentic-internet layer.
 >
@@ -116,6 +125,19 @@ Code-level ~45-50% to Meta+Google. Production-real ~12-15%. **Breadth raced ahea
   - Enforce `dependsOn: ["^build"]` for `typecheck` on composite-reference packages, OR drop `composite` where unused.
   - Make `@quant/database` Prisma generate a real turbo task with declared outputs.
 - **Hard gate:** `pnpm build` and `pnpm typecheck` pass **3 cold runs in a row** (fresh `turbo` cache, `rm -rf node_modules/.cache .turbo`) with **zero** "no output files" warnings. THEN update status JSON.
+- **Progress (this branch, May 29):**
+  - ✅ `turbo.json` `build.outputs` now `["dist/**", ".next/**", "!.next/cache/**"]` (Next apps emit `.next`, not `dist`).
+  - ✅ Per-package `turbo.json` with `outputs: []` for builds that intentionally emit nothing (`packages/database` prisma-generate, `packages/governance`, `apps/marketing`, `apps/quant-mobile`, `apps/status`).
+  - ✅ Verified locally: **3 cold `pnpm build` runs = 94/94, ZERO "no output files" warnings**; cold `pnpm typecheck` = 117/117. The "no output files" warning class is now closed.
+  - ✅ `ci.yml` build step → `pnpm turbo build --concurrency=3` + `NODE_OPTIONS=--max-old-space-size=6144` to stop the parallel-Next OOM (the actual `ci (22)` flake). **Cannot repro the OOM locally** (local builds are deterministic), so this mitigation must be **confirmed on the GitHub runner** before flipping the status JSON.
+  - ⏳ Remaining for full BLOCK 0 close: confirm `ci (22)` is green over a few runs on real runners; composite project-reference race (TS6305) was not observed in cold typecheck (117/117) but keep `typecheck dependsOn ^build` in place.
+
+#### BUG-1b — `test-and-coverage` CI job (root `vitest run --coverage`) — root-caused + partially fixed May 29 🟠
+
+- **Symptom:** the `test-and-coverage` Quality-Gates job and the `ci (22)` job were red on PRs even for docs-only changes; locally `pnpm test` (turbo, per-package) passes **121/121** but `pnpm vitest run --coverage` (root, the exact CI command) failed.
+- **Root cause (verified):** the root `vitest.config.ts` had no `include`/`exclude` and no per-file environment, so (a) it globbed **`e2e/**/*.spec.ts` Playwright specs** → **36 failed suites** (they need the Playwright runner, not vitest); (b) it ran everything in the **node** environment, so DOM-dependent unit tests (e.g. `packages/shared-ui` `sanitize.ts` / DOMPurify) silently no-op'd → **5 real failures**. `turbo test` passed because each package uses its own scoped config with `environment: 'jsdom'`.
+- **Fixed (this branch):** root `vitest.config.ts` now sets `include` (packages/apps/services `*.{test,spec}.{ts,tsx}`), `exclude` (`e2e/**`, node_modules, dist, build), and `environmentMatchGlobs` (jsdom for shared-ui + `*.tsx`); coverage `exclude` now drops non-product code. Result: **712 test files / 7724 tests pass** under the exact CI command.
+- **RESIDUAL (real debt, NOT faked):** the job still exits non-zero because real product line coverage is **~30%** vs the config's **50%** global threshold. This is genuine **BUG-2** test debt, not a config artifact. To make the check green, **write tests** (BUG-2 / Phase 64.1) — do NOT lower the threshold to pass. Note the dedicated `coverage-gate` job separately enforces 80% on auth/payments/security.
 
 ### BUG-2 — Phase 64 packages deepened in LOC but NOT in tests 🟠
 
@@ -153,7 +175,7 @@ From the Phase 68 review (`.agents/tasks/task-phase-68-ui-ux-excellence/2025-01-
 
 ### BUG-6 — Core "REAL" surface is still NAIVE (the depth gap Part A.4 named) 🟡
 
-Re-confirmed from `phase-18-truth-audit.md` (still accurate for these): ML/recsys are pure-JS with random/untrained weights (neural-cf, two-tower, mmoe, ml-pipeline, ml-runtime); QuantMeet `sfu.service.ts` returns random ICE candidates (no real WebRTC/mediasoup wiring in the service path despite LiveKit being available); `csam-matcher.ts` is a no-op FAKE; the 12 agent pilots are rule-based (no LLM calls); search uses in-memory BM25 not the available Meilisearch.
+Re-confirmed from `phase-18-truth-audit.md` and re-verified May 29: ML/recsys are pure-JS with random/untrained weights (neural-cf, two-tower, mmoe, ml-pipeline, ml-runtime); **QuantMeet `sfu.service.ts` STILL returns `Math.random()` ICE ports/candidates** (~lines 133/143) — a FAKE SFU, AND there is now ALSO LiveKit in the backend that is unwired to the UI → **two video paths, one fake, one orphaned** (consolidate: drop the fake SFU, wire LiveKit end-to-end); `csam-matcher.ts` is a no-op FAKE; the 12 agent pilots are rule-based (no LLM calls); search uses in-memory BM25 not the available Meilisearch. Services: search-indexer (1487 LOC, 11 tests) and moderation-worker (779 LOC, 6 tests) are genuinely real; ws-gateway (79 LOC, **0 tests**) and several others are thin/under-tested. **`@simulated` annotation count across the repo = 0** — BUG-6 honest-labeling has not started.
 
 - **Scope:** This is the big lift already routed to **Phase 83 (Production Integrations)** + **Phase 64 deepening**. Do NOT silently ship these as "real." Each must either (a) wire to its real adapter (LiveKit/Triton/Qdrant/Meilisearch/PhotoDNA), or (b) be explicitly labeled `@naive`/`@simulated` in code + docs with a tracking issue. No more "REAL" claims on simulated code.
 - **Hard gate:** Every service in the May-28 stub/fake/naive inventory is either wired to a real backend with a non-mocked integration test, or annotated `@simulated` and excluded from "production-real %" accounting.

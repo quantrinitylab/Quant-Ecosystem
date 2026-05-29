@@ -22,6 +22,12 @@ export interface SocialResult {
   suggestions: string[];
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Rule-based social interactions
+ * Production path: Integrate LLM + social graph APIs
+ */
 export class SocialPilot extends IntelligentAgent {
   private lastResult: SocialResult | null = null;
 

@@ -2,111 +2,163 @@
 
 ## Overview
 
-- **13 apps** (frontend/backend applications)
-- **17 services** (microservices)
-- **37 packages** (shared libraries)
+- **16 apps** (frontend/backend applications)
+- **8 services** (microservices, all with full package.json)
+- **78 packages** (shared libraries)
 - **Build system:** pnpm 10.28.1 + Turborepo 2.9.14
 - **Language:** TypeScript (strict mode, ESNext modules)
 - **Node version:** 22
 
-## Apps (13)
+## Apps (16)
 
 | App           | Scripts                                                        |
 | ------------- | -------------------------------------------------------------- |
-| quantads      | build, dev, test, typecheck                                    |
-| quantai       | build, build:backend, dev, dev:backend, start, test, typecheck |
-| quantcalendar | test, typecheck                                                |
-| quantchat     | build, build:backend, dev, dev:backend, start, test, typecheck |
-| quantdocs     | test, typecheck                                                |
-| quantdrive    | test, typecheck                                                |
-| quantedits    | build, dev, test, typecheck                                    |
-| quantmail     | build, build:backend, dev, dev:backend, start, test, typecheck |
-| quantmax      | build, dev, test, typecheck                                    |
-| quantmeet     | build, dev, test, typecheck                                    |
-| quantneon     | build, dev, test, typecheck                                    |
-| quantsync     | build, dev, test, typecheck                                    |
-| quantube      | build, dev, test, typecheck                                    |
+| marketing     | typecheck, test, build, lint                                   |
+| quantads      | dev, build, typecheck, test, lint                              |
+| quantai       | dev, dev:backend, build, build:backend, start, typecheck, test, lint |
+| quantcalendar | dev, build, start, typecheck, test, lint                       |
+| quantchat     | dev, dev:backend, build, build:backend, start, typecheck, test, lint |
+| quantdocs     | dev, build, start, typecheck, test, lint                       |
+| quantdrive    | dev, build, start, typecheck, test, lint                       |
+| quantedits    | dev, test, lint                                                |
+| quantmail     | dev, dev:backend, build, build:backend, start, typecheck, test, lint |
+| quantmax      | dev, test, lint                                                |
+| quantmeet     | dev, build, start, typecheck, test, lint                       |
+| quant-mobile  | typecheck, test, build, lint                                   |
+| quantneon     | dev, test, lint                                                |
+| quantsync     | dev, build, typecheck, test, lint                              |
+| quantube      | dev, test, lint                                                |
+| status        | typecheck, test, build, lint                                   |
 
-## Services (17)
+## Services (8)
 
-| Service           | Scripts                     |
-| ----------------- | --------------------------- |
-| ads-api           | (no package.json)           |
-| ai-api            | (no package.json)           |
-| cdc-relay         | dev, start, test, typecheck |
-| chat-api          | (no package.json)           |
-| ci-runner         | build, test, typecheck      |
-| edits-api         | (no package.json)           |
-| git-server        | build, test, typecheck      |
-| identity          | (no package.json)           |
-| mail-api          | (no package.json)           |
-| max-api           | (no package.json)           |
-| moderation-worker | dev, start, test, typecheck |
-| neon-api          | (no package.json)           |
-| search-indexer    | dev, start, test, typecheck |
-| smtp-inbound      | build, test, typecheck      |
-| sync-api          | (no package.json)           |
-| tube-api          | (no package.json)           |
-| ws-gateway        | (no package.json)           |
+All services have full package.json with scripts.
 
-## Packages (37)
+| Service           | Scripts                             |
+| ----------------- | ----------------------------------- |
+| cdc-relay         | start, dev, typecheck, test, lint   |
+| ci-runner         | typecheck, test, build, lint        |
+| git-server        | typecheck, test, build, lint        |
+| matchmaking       | dev, typecheck, test, lint, build   |
+| moderation-worker | start, dev, typecheck, test, lint   |
+| search-indexer    | start, dev, typecheck, test, lint   |
+| smtp-inbound      | typecheck, test, build, lint        |
+| ws-gateway        | dev, typecheck, test, lint, build   |
 
-### Packages with build + typecheck + test
+## Packages (78)
 
-| Package       | Scripts                                                  |
-| ------------- | -------------------------------------------------------- |
-| cross-publish | build, test, typecheck                                   |
-| database      | build, db:generate, db:migrate, db:seed, test, typecheck |
-| data-plane    | build, test, typecheck                                   |
-| media         | build, test, typecheck                                   |
-| notifications | build, test, typecheck                                   |
-| observability | build, test, typecheck                                   |
-| payments      | build, test, typecheck                                   |
-| queue         | build, test, typecheck                                   |
-| search        | build, test, typecheck                                   |
-| social-graph  | build, test, typecheck                                   |
-| storage       | build, test, typecheck                                   |
+### Core Infrastructure
 
-### Packages with typecheck + test (no build)
+| Package            | Description                                    |
+| ------------------ | ---------------------------------------------- |
+| common             | Types, constants, utilities, validators        |
+| database           | Prisma schemas, models, migrations             |
+| auth               | OAuth2, JWT, session management                |
+| server             | Express server utilities                       |
+| server-core        | Core server framework and middleware           |
+| api-client         | Typed HTTP/REST client                         |
+| queue              | Message queue abstraction (Redis/SQS)          |
+| storage            | File storage abstraction (S3-compatible)       |
+| realtime           | WebSocket infrastructure                       |
+| encryption         | Crypto utilities, E2E encryption               |
+| health-server      | Health check endpoints for services            |
+| service-discovery  | Service registry and discovery                 |
 
-| Package         | Scripts         |
-| --------------- | --------------- |
-| agent-runtime   | test, typecheck |
-| ai              | test, typecheck |
-| api-client      | test, typecheck |
-| auth            | test, typecheck |
-| federation      | test, typecheck |
-| ml-pipeline     | test, typecheck |
-| ml-runtime      | test, typecheck |
-| moderation      | test, typecheck |
-| ranking         | test, typecheck |
-| realtime        | test, typecheck |
-| recommendations | test, typecheck |
-| security        | test, typecheck |
-| server-core     | test, typecheck |
-| shared-ui       | test, typecheck |
-| sync-engine     | test, typecheck |
-| testing         | test, typecheck |
+### AI and ML
 
-### Packages with typecheck only
+| Package            | Description                                    |
+| ------------------ | ---------------------------------------------- |
+| ai                 | Central AI engine, model routing               |
+| ai-daily-brief     | Daily summary/brief generation                 |
+| ai-memory          | Long-term AI memory and context                |
+| ai-organization    | AI-powered organization and categorization     |
+| agent-runtime      | AI agent execution runtime                     |
+| agent-swarm        | Multi-agent coordination                       |
+| browser-agent      | Browser automation AI agent                    |
+| code-agent         | Code generation/analysis AI agent              |
+| bharat-ai          | India-specific AI models and features          |
+| ml-pipeline        | ML training and inference pipeline             |
+| ml-runtime         | ML model serving runtime                       |
+| triton-client      | NVIDIA Triton inference client                 |
+| recommendations    | Recommendation engine                          |
+| ranking            | Content/search ranking algorithms              |
+| generative-media   | AI image/video/audio generation                |
+| user-owned-ai      | User-controlled personal AI                    |
 
-| Package | Scripts   |
-| ------- | --------- |
-| common  | typecheck |
+### Platform and Infrastructure
 
-### Packages with no scripts (empty or no package.json)
+| Package            | Description                                    |
+| ------------------ | ---------------------------------------------- |
+| data-plane         | Data routing and transformation                |
+| data-warehouse     | Analytics data warehouse integration           |
+| observability      | Logging, metrics, tracing                      |
+| error-monitoring   | Error tracking and alerting                    |
+| performance        | Performance monitoring and optimization        |
+| chaos-testing      | Chaos engineering test utilities               |
+| testing            | Shared test utilities and fixtures             |
+| security           | Security utilities, RBAC, audit logging        |
+| governance         | Policy engine and compliance                   |
+| privacy-ads        | Privacy-preserving advertising                 |
+| federation         | ActivityPub/federation protocol                |
+| identity-permissions | Fine-grained permissions system              |
+| local-first        | Offline-first/CRDT sync                        |
+| sync-engine        | Data synchronization engine                    |
+| dev-platform       | Developer platform/API portal                  |
 
-| Package            | Notes                |
-| ------------------ | -------------------- |
-| admin              | no package.json      |
-| analytics          | no package.json      |
-| data-pipeline      | no package.json      |
-| developer-platform | no package.json      |
-| ecosystem-bridge   | no package.json      |
-| gaming             | no package.json      |
-| i18n               | no package.json      |
-| performance        | no package.json      |
-| server             | empty scripts object |
+### App-Specific Packages
+
+| Package            | Description                                    |
+| ------------------ | ---------------------------------------------- |
+| media              | Media processing (transcode, thumbnails)       |
+| photos             | Photo processing and albums                    |
+| universal-capture  | Cross-platform media capture                   |
+| notifications      | Push/email/in-app notifications                |
+| payments           | Stripe/payment processing                      |
+| search             | Full-text and semantic search                  |
+| social-graph       | Social connections and graph queries           |
+| moderation         | Content moderation pipeline                    |
+| cross-publish      | Cross-app content publishing                   |
+| cross-app-workflows | Multi-app workflow orchestration              |
+| universal-timeline | Unified activity timeline                      |
+
+### UI and Frontend
+
+| Package            | Description                                    |
+| ------------------ | ---------------------------------------------- |
+| shared-ui          | Reusable React UI components                   |
+| command-palette    | Global command palette (Cmd+K)                 |
+| contextual-sidekick | AI-powered contextual assistant UI           |
+| spatial-ui         | Spatial/3D UI components                       |
+| brand              | Brand assets, colors, typography               |
+| onboarding         | Onboarding flows and wizards                   |
+| maps               | Map components and geolocation                 |
+| voice-input        | Voice input/transcription UI                   |
+
+### Platform Features
+
+| Package            | Description                                    |
+| ------------------ | ---------------------------------------------- |
+| co-presence        | Real-time presence and collaboration           |
+| quant-automate     | Workflow automation (IFTTT-like)                |
+| quant-codex        | Code collaboration platform                    |
+| quant-commerce     | E-commerce/marketplace                         |
+| quant-health       | Health and fitness tracking                    |
+| quant-live         | Live streaming infrastructure                  |
+| quant-notebook     | Notebook/wiki tool                             |
+| quant-orchestrator | Cross-service orchestration                    |
+| quant-tools        | Developer/power-user tools                     |
+| device-control     | IoT device management                          |
+| iot-control        | IoT protocol adapters                          |
+| robotics-bridge    | Robotics integration bridge                    |
+| voice-first-os     | Voice-first interface layer                    |
+| wellbeing          | Digital wellbeing and screen time              |
+
+### Launch and Operations
+
+| Package            | Description                                    |
+| ------------------ | ---------------------------------------------- |
+| launch-beta        | Beta program management                        |
+| launch-public      | Public launch utilities                        |
 
 ## Dependency Chain
 
@@ -115,24 +167,23 @@ Core dependency flow (based on tsconfig project references and package.json depe
 ```
 common -> auth -> server-core
 common -> database
-common -> ai -> agent-runtime
-common -> realtime
+common -> ai -> agent-runtime -> agent-swarm
+common -> realtime -> co-presence
 common -> shared-ui
+server-core -> health-server
+database -> data-warehouse
+ai -> ml-pipeline -> ml-runtime -> triton-client
 ```
 
 The `common` package is the foundation. Most other packages depend on it.
 
-`database` depends on `common` and requires Prisma client generation (`prisma generate`) before typecheck can work.
+`database` depends on `common` and requires Prisma client generation (`prisma generate`) before typecheck.
 
 ## Build Pipeline (turbo.json)
 
 - `typecheck`: depends on `^typecheck` (upstream packages must typecheck first)
 - `build`: depends on `^build` (upstream packages must build first), outputs `dist/**`
 - `test`: depends on `^build` (upstream packages must be built first)
+- `lint`: independent (no cross-package dependency)
 
-## Key Issues
-
-1. Packages with `composite: true` in tsconfig need `dist/` from referenced packages, but typecheck uses `--noEmit` creating a circular problem
-2. 8 packages have no package.json at all (likely placeholder/stub packages)
-3. 9 services have no package.json (likely placeholder/stub services)
-4. The `server` package has an empty scripts object
+Build order is automatically resolved by Turborepo based on the dependency graph. Parallel execution is used where possible.

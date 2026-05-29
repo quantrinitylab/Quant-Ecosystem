@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Phase 72 integration test: Prove phone-free agentic living by wiring voice-first-os to quant-tools. Test that PhoneFreeController + IntentRouter + ToolExecutor can handle a voice-only session executing tools across 5+ apps without screen. Add workspace dependency from voice-first-os to quant-tools, create a thin integration bridge (AgenticSession class) that connects voice commands to tool execution, and write integration tests proving the gate.",
+  "status": "completed",
+  "steps": [
+    "Add '@quant/quant-tools': 'workspace:*' to packages/voice-first-os/package.json devDependencies",
+    "Create file packages/voice-first-os/src/agentic-session.ts - a class AgenticSession that composes PhoneFreeController, IntentRouter (from quant-tools), and ToolExecutor (from quant-tools). Methods: startSession(), executeVoiceCommand(text: string) which routes intent, picks top match, executes tool, returns result. getSessionSummary() delegates to PhoneFreeController.",
+    "Export AgenticSession from packages/voice-first-os/src/index.ts",
+    "Create file packages/voice-first-os/src/__tests__/phase72-integration.test.ts",
+    "Test 1 - 'voice command routes to correct tool and executes across 5+ apps': create AgenticSession with allTools from quant-tools, register mock handlers for drive.search, quantmail.send, quantcalendar tools, quantchat.send, quantmeet tools. Execute 5 voice commands targeting different apps: 'search files in drive', 'send email to test@example.com', 'create calendar event', 'send chat message', 'join meeting'. Verify each returns success, verify session summary shows 5 appsUsed.",
+    "Test 2 - 'phone-free mode full session with no screen touch': activate phone-free mode, enable voice-only session, execute series of commands, verify all succeed, verify session duration > 0, verify commandsExecuted count matches, verify isActive() is true throughout",
+    "Test 3 - 'voice-only session: build game + set automation + send email + join meeting + control device': execute 5 diverse commands spanning codex-like (mapped to studio tool), automation (mapped to sync tool), mail, meet, and device tools. Verify all 5 succeed and 5 distinct appIds appear in results."
+  ],
+  "acceptance_criteria": [
+    "All tests pass: pnpm --filter @quant/voice-first-os test",
+    "AgenticSession class correctly wires PhoneFreeController + IntentRouter + ToolExecutor",
+    "Test proves 5+ distinct apps invoked in a single voice-only session",
+    "Test proves phone-free mode stays active throughout multi-command session",
+    "Package typechecks with the new quant-tools dependency"
+  ],
+  "verification": [
+    "source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm install",
+    "source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm --filter @quant/voice-first-os typecheck && pnpm --filter @quant/voice-first-os test"
+  ],
+  "blocked_reason": null,
+  "findings": "Tool IDs use dashes and dots not camelCase: 'quantcalendar.create-event' (not .create), 'device-control.control' (not .volume), 'quant-studio.deploy' (not .render). IntentRouter requires keywords in voice text that match tool name words, tags, or description words to score above 0.1 threshold. Adjusted test commands to include routing keywords (e.g. 'deploy app studio infrastructure' routes to quant-studio.deploy). All 3 tests pass proving 5+ apps in a single voice-only session."
+}

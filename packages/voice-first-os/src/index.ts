@@ -16,3 +16,4 @@ export { ElderMode } from './elder/elder-mode.js';
 export { WakeWordStateMachine } from './wake-word/wake-word-state-machine.js';
 export { PrivacyController } from './privacy/privacy-controller.js';
 export { PhoneFreeController } from './phone-free/phone-free-controller.js';
+export { AgenticSession } from './agentic-session.js';

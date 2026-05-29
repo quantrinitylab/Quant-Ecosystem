@@ -9,6 +9,12 @@ interface LSHTable {
   buckets: Map<string, string[]>;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: In-memory vector storage
+ * Production path: Use Pinecone, Qdrant, or pgvector
+ */
 export class EmbeddingStore {
   private vectors: Map<string, Embedding> = new Map();
   private dimension: number;

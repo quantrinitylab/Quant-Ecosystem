@@ -1,77 +1,78 @@
 # Quant Ecosystem Risk Register
 
-## CRITICAL
+> **Re-verified 2026-05-29** by running every gate (install / typecheck / test / build / lint / audit)
+> against the live tree. Previous CRITICAL items (typecheck errors, build failures, Prisma conflicts,
+> high audit vulnerabilities) were resolved in phases 18-61; entries below are the CURRENT open risks
+> plus RESOLVED history for traceability.
 
-### R-001: TypeScript typecheck broken (~896 errors)
+## CURRENT — OPEN
 
-- **Impact:** Blocks all development, CI cannot pass, type safety is not enforced
-- **Details:** ~896 TypeScript errors across 14 packages after building common:
-  - ml-pipeline: 265 errors
-  - recommendations: 245 errors
-  - search: 77 errors
-  - observability: 62 errors
-  - testing: 51 errors
-  - security: 49 errors
-  - media: 48 errors
-  - moderation: 25 errors
-  - social-graph: 24 errors
-  - ai: 14 errors
-  - ml-runtime: 9 errors
-  - payments: 9 errors
-  - database: 7 errors
-  - notifications: 6 errors
-- **Root causes:**
-  - TS6305: missing dist output from referenced projects (composite references)
-  - TS2532/TS18048: possibly undefined from noUncheckedIndexedAccess
-  - TS6133/TS6196: unused variables/imports
-- **Mitigation:** Fix in phases starting with packages that have fewest errors
+### R-101: Coverage debt — `test-and-coverage` CI job is red 🟠
 
-### R-002: Build pipeline broken
+- **Impact:** Quality-Gates `test-and-coverage` job fails; PRs cannot show a green coverage gate.
+- **Details:** `turbo test` passes 121/121, but the root `vitest run --coverage` measures real product
+  line/statement coverage at **~30%** vs the configured **50%** global threshold. This is genuine
+  missing-tests debt, **not** a config artifact.
+- **Mitigation:** Write meaningful tests (Phase 64.1 / BUG-2), starting with the deepened-but-1-test
+  packages and the coverage-gate-critical packages (auth, payments, security @ 80%). Do **not** lower
+  the threshold to force green.
 
-- **Impact:** Cannot produce deployable artifacts
-- **Details:** `pnpm build` fails because typecheck is a prerequisite for many build steps
-- **Mitigation:** Fix typecheck first, then build will likely pass
+### R-102: ci(22) parallel-build OOM mitigation unconfirmed on runner 🟡
 
-### R-003: Prisma client not wired into turbo pipeline
+- **Impact:** `ci (22)` build step historically failed non-deterministically (a different Next.js app
+  each run) from ~7 parallel Next.js prod builds OOM-ing the runner.
+- **Details:** PR #93 fixed `turbo.json` `outputs` (zero "no output files" warnings) and added
+  `--concurrency=3` + `NODE_OPTIONS=--max-old-space-size=6144`. Locally **3 cold builds = 94/94** and
+  cold typecheck = 117/117, but the OOM is runner-specific and the mitigation must be **confirmed green
+  on GitHub Actions** before this is closed.
+- **Mitigation:** Watch #93 CI; if still OOM, lower concurrency further / raise heap.
 
-- **Impact:** @quant/database typecheck always fails without manual `prisma generate`
-- **Details:** Prisma client must be generated before database package can typecheck, but this is not automated in turbo pipeline
-- **Mitigation:** Add `db:generate` as a prerequisite task in turbo.json or in the database build script
+### R-103: Moderate dependency vulnerabilities (BUG-5) 🟡
 
-### R-004: Composite project references vs --noEmit conflict
+- **Impact:** Hygiene; does not block CI (`pnpm audit --audit-level=high` exits 0).
+- **Details:** `pnpm audit` reports **7 moderate + 1 low**, no high/critical, all transitive.
+- **Mitigation:** Triage and upgrade/override; document any unavoidable waivers.
 
-- **Impact:** typecheck cannot complete for packages referencing other packages via project references
-- **Details:** tsconfig has `composite: true` which requires declaration output, but typecheck uses `--noEmit`. Referenced packages need their `dist/` built first.
-- **Mitigation:** Either remove composite or ensure build runs before typecheck for referenced packages
+### R-104: Simulated core mislabeled as real (BUG-6) 🟡
 
-## HIGH
+- **Impact:** Core ML/SFU/CSAM/agent-pilot paths are naive/simulated but described as production-real.
+- **Mitigation:** Honestly label simulated paths; gate "real" claims behind verification.
 
-### R-005: 15 high security vulnerabilities in next.js
+### R-105: E2E / staging / infra not validated 🟡
 
-- **Impact:** Security audit gate fails, potential production risk
-- **Details:** `pnpm audit` reports 15 high severity vulnerabilities in next.js dependency tree
-- **Mitigation:** Upgrade next.js to latest patched version
+- E2E tests are advisory-only (no live server wired); no staging environment provisioned;
+  Helm/Terraform not validated against a real cluster; Capacitor native builds need Xcode/Android Studio.
+- **Mitigation:** Provision a staging/preview cluster; wire E2E + `terraform plan`/`helm template` into CI.
 
-## MEDIUM
+### R-106: Some frontend pages still use mock data 🟡
 
-### R-006: Lint is non-functional
+- **Details:** Tracked in `.agents/state/mock-debt.csv`. These pages render but pull from static
+  fixtures rather than live APIs.
+- **Mitigation:** Wire remaining pages to real API endpoints per the mock-debt tracker.
 
-- **Impact:** No code quality enforcement, no consistent style
-- **Details:** `pnpm lint` runs zero tasks because no package defines a `lint` script
-- **Mitigation:** Add eslint configuration and lint scripts to packages
+### R-107: README app count discrepancy ℹ️
 
-## LOW
+- **Details:** README says "13 apps"; `apps/` contains **16** directories (some backend-only).
+- **Mitigation:** Reconcile the count and the frontend/backend split in README.
 
-### R-007: scripts/test.js uses CommonJS in ESM package (FIXED)
+## RESOLVED (kept for history)
 
-- **Impact:** Custom test runner cannot execute
-- **Details:** Root package.json has `"type": "module"` but scripts/test.js uses `require()`. Fixed by renaming to scripts/test.cjs.
-- **Mitigation:** Renamed to scripts/test.cjs
-
-## INFO
-
-### R-008: README claims 9 apps but there are 13
-
-- **Impact:** Documentation inaccuracy, confusion for new contributors
-- **Details:** README.md states the ecosystem has 9 apps, but `apps/` directory contains 13
-- **Mitigation:** Update README when stabilization is complete
+- **R-001 TypeScript typecheck broken (~896 errors)** — ✅ RESOLVED. `pnpm typecheck` = **117/117**.
+- **R-002 Build pipeline broken** — ✅ RESOLVED. `pnpm build` = **94/94** over 3 consecutive cold runs.
+- **R-003 Prisma client not wired into turbo** — ✅ RESOLVED. `@quant/database` has a package-level
+  `turbo.json` declaring prisma `inputs` + `outputs` (`../../node_modules/.prisma/client/**`).
+- **R-004 Composite project references vs --noEmit conflict** — ✅ Not reproduced; cold typecheck =
+  117/117. `typecheck dependsOn ^build` remains in turbo.json as a guard.
+- **R-005 "15 high security vulnerabilities in next.js"** — ✅ FALSE as stated. Audit shows **0 high**
+  (7 moderate + 1 low). See R-103.
+- **R-006 "Lint is non-functional (zero tasks)"** — ✅ FALSE. Lint runs across **150** packages; 0
+  errors (no-console warnings only).
+- **R-007 scripts/test.js CommonJS in ESM package** — ✅ FIXED (renamed to `scripts/test.cjs`).
+- **R-008 README claims 9 apps** — superseded by R-107.
+- **R-009 `@quant/ai` typecheck broken by ai SDK major mismatch** — ✅ FIXED 2026-05-29. `packages/ai`
+  declared `ai: ^6` while the `@ai-sdk/openai`/`@ai-sdk/anthropic` providers were v1.x and the code used
+  the v4 usage API (`promptTokens`/`completionTokens`, `LanguageModelV1`). Aligned `ai` to `^4.3.19`.
+- **R-010 `turbo test` broken — packages reported "no test files"** — ✅ FIXED 2026-05-29. The root
+  `vitest.config.ts` `include` used repo-root-anchored globs (`packages/**`), so per-package
+  `vitest run` (e.g. @quant/ai, which has 12 test files) found nothing. Switched to a cwd-relative
+  glob (`**/*.{test,spec}.{ts,tsx}`); e2e specs still dropped via `exclude`.

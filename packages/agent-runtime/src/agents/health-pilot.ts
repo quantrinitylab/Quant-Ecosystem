@@ -29,6 +29,12 @@ export interface HealthResult {
   trends: Array<{ metric: string; trend: 'up' | 'down' | 'stable' }>;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Rule-based health suggestions
+ * Production path: Integrate LLM + health APIs
+ */
 export class HealthPilot extends IntelligentAgent {
   private lastResult: HealthResult | null = null;
   private readonly optIn: boolean;

@@ -1,11 +1,13 @@
+'use client';
+
 // ============================================================================
 // Shared UI - AnimatedPage Component
 // ============================================================================
 
 import React from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { spring } from '@quant/brand';
-import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { useMotionConfig } from './MotionConfig';
 
 export type PageTransitionVariant = 'slide-left' | 'slide-right' | 'fade' | 'scale';
 
@@ -22,6 +24,7 @@ export interface AnimatedPageProps {
    * animations, place AnimatePresence in the layout above the route slot.
    */
   pageKey?: string;
+  animated?: boolean;
 }
 
 const variants = {
@@ -52,19 +55,22 @@ export const AnimatedPage: React.FC<AnimatedPageProps> = ({
   variant = 'fade',
   className = '',
   pageKey,
+  animated = true,
 }) => {
+  const { shouldAnimate: contextAnimate } = useMotionConfig();
   const prefersReducedMotion = useReducedMotion();
+  const shouldAnimate = animated && contextAnimate && !prefersReducedMotion;
 
-  const transition = prefersReducedMotion
+  const transition = !shouldAnimate
     ? { duration: 0 }
     : {
         type: 'spring' as const,
         ...spring.gentle,
       };
 
-  const initial = prefersReducedMotion ? { opacity: 1 } : variants[variant].initial;
-  const animate = prefersReducedMotion ? { opacity: 1 } : variants[variant].animate;
-  const exit = prefersReducedMotion ? { opacity: 1 } : variants[variant].exit;
+  const initial = !shouldAnimate ? { opacity: 1 } : variants[variant].initial;
+  const animate = !shouldAnimate ? { opacity: 1 } : variants[variant].animate;
+  const exit = !shouldAnimate ? { opacity: 1 } : variants[variant].exit;
 
   return (
     <AnimatePresence mode="wait">

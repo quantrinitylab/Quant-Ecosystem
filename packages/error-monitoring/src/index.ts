@@ -25,3 +25,6 @@ export type { GlitchTipTransportConfig } from './transports/glitchtip-transport'
 
 export { ConsoleTransport } from './transports/console-transport';
 export type { ConsoleTransportConfig } from './transports/console-transport';
+
+export { initErrorMonitoring } from './init';
+export type { InitErrorMonitoringConfig } from './init';

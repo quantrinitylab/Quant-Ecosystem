@@ -13,6 +13,12 @@ interface IndexedItem {
   embedding: number[];
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Pure JS forward pass with randomly initialized weights, no trained model
+ * Production path: Train two-tower model in PyTorch, serve via ONNX/Triton
+ */
 export class TwoTowerRetrieval {
   private readonly config: TwoTowerConfig;
   private userWeights: number[][];

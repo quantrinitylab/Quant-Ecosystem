@@ -112,6 +112,12 @@ const STOP_WORDS = new Set([
 ]);
 
 /**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: In-memory BM25 with JS tokenizer and stop-word list, not production search
+ * Production path: Use Meilisearch, Elasticsearch, or Typesense
+ */
+/**
  * InvertedIndex - Full-text search inverted index implementation
  *
  * Provides document indexing with tokenization, stop word removal,

@@ -12,6 +12,12 @@ interface StreamingState {
   threshold: number;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Pure JS isolation forest/z-score, no scikit-learn or ML framework
+ * Production path: Use Python ML pipeline or ONNX model
+ */
 export class AnomalyDetector {
   private config: AnomalyDetectorConfig;
   private forest: IsolationTree[] = [];

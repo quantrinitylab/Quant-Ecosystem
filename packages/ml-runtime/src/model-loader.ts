@@ -47,6 +47,12 @@ export interface CacheStats {
   newestModel: string | null;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Defines ONNX loading interfaces but JS fallback has no real ONNX runtime bindings
+ * Production path: Bind to onnxruntime-node native addon
+ */
 export class ModelLoader {
   private readonly config: ModelLoaderConfig;
   private readonly storage: StorageBackend;

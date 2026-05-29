@@ -36,6 +36,12 @@ export interface CodeSuggestion {
   reason: string;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Rule-based code review/generation with no LLM
+ * Production path: Integrate OpenAI/Anthropic API
+ */
 export class CodePilot extends IntelligentAgent {
   private lastReview: CodeReviewResult | null = null;
 

@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Enforce strict lint rules (no-console as error in prod code, lint --max-warnings 0), add route/link validation script, add console-error enforcement test infrastructure, and wire remaining hard gates into CI.",
+  "status": "in_progress",
+  "steps": [
+    "In eslint.config.mjs: Change 'no-console' from 'warn' to 'error' in the production files block (the one that ignores test files). This enforces zero console.log in production.",
+    "In the root package.json and turbo.json setup: ensure lint passes with --max-warnings 0. Update the CI workflow (.github/workflows/ci.yml) 'pnpm turbo lint' step to use: pnpm turbo lint -- --max-warnings 0 (or configure turbo to pass args). Actually the best approach is to add a root .eslintrc override or turbo task config. Check how turbo passes args - if not possible, add a 'lint:strict' script.",
+    "Create scripts/validate-routes.ts - a TSX-executable script that: (a) scans all apps/*/src/app/ directories for page.tsx files to build a route map, (b) scans all apps/*/backend/routes/ directories for API route files, (c) optionally checks cross-app-workflows package for referenced appIds, (d) outputs a summary of all discovered routes and flags any orphan or unreachable routes. This is a static analysis tool (no live server needed).",
+    "Create e2e/tests/console-errors/no-console-errors.spec.ts - a Playwright test that attaches a page.on('console') listener filtering for 'error' and 'warning' types, navigates to key pages, and asserts zero console errors/warnings occurred. Follow the pattern in e2e/tests/auth/login.spec.ts.",
+    "Add a 'validate:routes' script to root package.json that runs: tsx scripts/validate-routes.ts",
+    "Update .github/workflows/quality-gates.yml to add: (a) a 'lint-strict' job that runs lint with --max-warnings 0 as a hard gate, (b) a 'console-errors' job that runs the console error Playwright test, (c) a 'route-validation' job that runs the validate-routes script.",
+    "Add a 'validate:routes' script to root package.json"
+  ],
+  "acceptance_criteria": [
+    "eslint.config.mjs has no-console set to 'error' for production files (test files excluded)",
+    "scripts/validate-routes.ts exists and can be executed with tsx to scan and report routes",
+    "e2e/tests/console-errors/no-console-errors.spec.ts exists with page console listener assertions",
+    ".github/workflows/quality-gates.yml has lint-strict, console-errors, and route-validation jobs",
+    "pnpm turbo typecheck passes after all changes"
+  ],
+  "verification": [
+    "Run `source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm turbo typecheck` and confirm exit 0",
+    "Run `source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && npx tsx scripts/validate-routes.ts` and confirm it outputs route information without crashing"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

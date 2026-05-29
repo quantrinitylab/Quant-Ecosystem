@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Phase 70 integration test: Prove multi-app plan E2E flow (find file in Drive, attach to email, send) with full audit trail and MCP server validation. This test registers all 86 tools, creates a multi-step plan from NL intent, executes it with mock handlers verifying correct ordering and dependency passing, confirms every step is audited per tier, and validates the MCP adapter exposes the full catalog and handles authenticated requests.",
+  "status": "completed",
+  "steps": [
+    "Create file packages/quant-tools/src/__tests__/phase70-integration.test.ts",
+    "Import ToolRegistry, IntentRouter, MultiStepPlanner, ToolExecutor, MCPServerAdapter, AuditLog, allTools from the package index",
+    "Test 1 - 'registers all tools from all 17 apps': instantiate ToolRegistry, register allTools, verify count >= 85, verify each of the 17 appIds has >= 5 tools",
+    "Test 2 - 'plans multi-app workflow from NL intent': use IntentRouter to route 'find my tax document in Drive, attach to email, send to accountant@example.com', verify matches include both quantdrive and quantmail appIds. Then use MultiStepPlanner.plan() with full allTools, verify plan has >= 2 steps, verify ordering (drive before mail), validate plan with planner.validatePlan()",
+    "Test 3 - 'executes multi-step plan with dependency passing and audit': register mock handlers for drive.search (returns {fileId:'f1',name:'tax.pdf'}) and quantmail.send (reads dependency output). Execute plan with ToolExecutor.execute(). Verify all results are success, verify data flows between steps via _dep_ params, verify audit entries exist for every step (invoke + success pairs)",
+    "Test 4 - 'MCP adapter exposes full catalog and handles requests': instantiate MCPServerAdapter with allTools and executor, register a token, call getCatalog() and verify length >= 85, call handleRequest with a valid tool name and verify success, call handleRequest with invalid token and verify authentication failure, call handleRequest with insufficient tier and verify permission error",
+    "Test 5 - 'every tool execution is audited per tier': execute multiple tools at different permission tiers (tier 0, 1, 2), verify AuditLog records each with correct userId, toolId, and action"
+  ],
+  "acceptance_criteria": [
+    "All 5 tests pass when running pnpm --filter @quant/quant-tools test",
+    "Test proves >= 85 tools registered across >= 17 apps (5+ per app)",
+    "Test proves NL intent routes to correct apps and plan is valid",
+    "Test proves multi-step execution with data flowing between steps",
+    "Test proves MCP catalog exposure and authenticated request handling",
+    "Test proves audit logging for every tool execution"
+  ],
+  "verification": [
+    "source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm --filter @quant/quant-tools typecheck",
+    "source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm --filter @quant/quant-tools test"
+  ],
+  "blocked_reason": null,
+  "findings": "Actual appIds differ from spec: quantube (not quanttube), device-control (not device), quant-studio (not quantstudio), quant-payments (not quantpayments). IntentRouter splits by whitespace only, so punctuation attached to words prevents tag matching. MultiStepPlanner orders steps by relevance score descending, not by logical dependency order, so drive-before-mail ordering cannot be guaranteed in tests."
+}

@@ -25,6 +25,12 @@ export interface ShoppingResult {
   comparison: Array<{ store: string; price: number; savings: number }>;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Rule-based product recommendations
+ * Production path: Integrate LLM + e-commerce APIs
+ */
 export class ShoppingPilot extends IntelligentAgent {
   private lastResult: ShoppingResult | null = null;
 

@@ -31,6 +31,12 @@ export interface LearningResult {
   nextStep: LearningResource | null;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Rule-based learning recommendations
+ * Production path: Integrate LLM + education APIs
+ */
 export class LearningPilot extends IntelligentAgent {
   private lastResult: LearningResult | null = null;
 

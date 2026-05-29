@@ -1,0 +1,88 @@
+name: Zero-Defect Gates
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm turbo typecheck
+
+  lint-strict:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Lint strict (zero warnings)
+        run: pnpm lint:strict
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Run tests
+        run: pnpm turbo test
+
+  a11y:
+    runs-on: ubuntu-latest
+    # Soft gate until application server startup is configured in CI.
+    # Will hard-fail once webServer config is added to playwright.config.ts.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      - name: Run accessibility tests
+        # NOTE: Requires either a staging URL secret or a server startup step
+        # to be added before this gate can enforce results.
+        run: npx playwright test --project=chromium e2e/tests/a11y/
+        env:
+          BASE_URL: http://localhost:3000
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+  all-gates-pass:
+    needs: [typecheck, lint-strict, test, a11y, security]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "All zero-defect gates passed"

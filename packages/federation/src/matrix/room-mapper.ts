@@ -8,6 +8,12 @@ export const MappingSchema = z.object({
 
 export type Mapping = z.infer<typeof MappingSchema>;
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: In-memory Map-based room mapping, no persistent storage
+ * Production path: Persist mappings in database, sync with Matrix homeserver
+ */
 export class RoomMapper {
   private quantToMatrix: Map<string, string> = new Map();
   private matrixToQuant: Map<string, string> = new Map();

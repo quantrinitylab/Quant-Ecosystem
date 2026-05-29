@@ -34,6 +34,12 @@ interface WelfordState {
   sum: number;
 }
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: In-memory feature cache
+ * Production path: Use Feast or Tecton feature store
+ */
 export class FeatureStore {
   private config: FeatureStoreConfig;
   private schemas: Map<string, FeatureSchema> = new Map();

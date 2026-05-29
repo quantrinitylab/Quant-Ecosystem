@@ -4,6 +4,12 @@
 
 import { SentimentResult, SentimentLabel } from '../types';
 
+/**
+ * @simulated This implementation is a simulation/prototype.
+ * Classification: NAIVE
+ * Reason: Lexicon-based scoring
+ * Production path: Use transformer model (e.g. DistilBERT) via ONNX
+ */
 export class SentimentAnalyzer {
   private positiveLexicon: Map<string, number> = new Map();
   private negativeLexicon: Map<string, number> = new Map();
