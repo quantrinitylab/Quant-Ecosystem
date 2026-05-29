@@ -158,10 +158,10 @@ ${this.escapeLatex(plainContent)}
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
       .replace(/<[^>]+>/g, '')
-      .replace(/&amp;/g, '&')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
       .trim();
   }
 }
