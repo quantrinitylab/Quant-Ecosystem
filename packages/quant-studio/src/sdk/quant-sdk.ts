@@ -138,12 +138,23 @@ export class QuantSDK {
 
   putFile(path: string, content: string): void {
     this.gate.enforce(Permission.Storage);
+    this.validatePath(path);
     this.files.set(path, content);
   }
 
   getFile(path: string): string | undefined {
     this.gate.enforce(Permission.Storage);
+    this.validatePath(path);
     return this.files.get(path);
+  }
+
+  private validatePath(path: string): void {
+    if (path.startsWith('/')) {
+      throw new Error('Absolute paths are not allowed');
+    }
+    if (path.includes('..')) {
+      throw new Error('Path traversal is not allowed');
+    }
   }
 
   // Tips module

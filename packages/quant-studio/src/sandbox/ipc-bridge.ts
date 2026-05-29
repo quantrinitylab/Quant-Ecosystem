@@ -6,12 +6,17 @@ export interface IPCMessage {
 export type IPCHandler = (payload: unknown) => void;
 
 const MAX_MESSAGE_SIZE = 1024 * 1024; // 1MB
-const MAX_MESSAGES_PER_SECOND = 100;
+const MAX_MESSAGES_PER_WINDOW = 100;
 
 export class IPCBridge {
   private readonly handlers = new Map<string, IPCHandler[]>();
-  private messageTimestamps: number[] = [];
+  private windowCount = 0;
+  private windowStart: number;
   private destroyed = false;
+
+  constructor() {
+    this.windowStart = Date.now();
+  }
 
   send(channel: string, payload: unknown): void {
     if (this.destroyed) {
@@ -46,20 +51,23 @@ export class IPCBridge {
   destroy(): void {
     this.destroyed = true;
     this.handlers.clear();
-    this.messageTimestamps = [];
+    this.windowCount = 0;
   }
 
   private enforceRateLimit(): void {
     const now = Date.now();
-    this.messageTimestamps.push(now);
 
-    // Remove timestamps older than 1 second
-    const oneSecondAgo = now - 1000;
-    this.messageTimestamps = this.messageTimestamps.filter((t) => t > oneSecondAgo);
+    // Reset the window if more than 1 second has elapsed
+    if (now - this.windowStart >= 1000) {
+      this.windowStart = now;
+      this.windowCount = 0;
+    }
 
-    if (this.messageTimestamps.length > MAX_MESSAGES_PER_SECOND) {
+    this.windowCount++;
+
+    if (this.windowCount > MAX_MESSAGES_PER_WINDOW) {
       throw new Error(
-        `Rate limit exceeded: maximum ${MAX_MESSAGES_PER_SECOND} messages per second`,
+        `Rate limit exceeded: maximum ${MAX_MESSAGES_PER_WINDOW} messages per second`,
       );
     }
   }

@@ -59,6 +59,20 @@ describe('BuildPipeline', () => {
     expect(result.bundle!.manifest.name).toBe('my-game');
   });
 
+  it('should detect and include project type when dependencies are provided', () => {
+    const pipeline = new BuildPipeline();
+    const result = pipeline.build(validManifest(), undefined, { phaser: '3.60.0' });
+    expect(result.success).toBe(true);
+    expect(result.projectType).toBe('phaser');
+  });
+
+  it('should default to raw project type when no dependencies provided', () => {
+    const pipeline = new BuildPipeline();
+    const result = pipeline.build(validManifest());
+    expect(result.success).toBe(true);
+    expect(result.projectType).toBe('raw');
+  });
+
   it('should reject builds with invalid manifests', () => {
     const pipeline = new BuildPipeline();
     const manifest = { ...validManifest(), version: 'bad' };

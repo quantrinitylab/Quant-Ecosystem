@@ -98,4 +98,30 @@ describe('QuantSDK', () => {
     const sdk = new QuantSDK(createContext([]));
     expect(() => sdk.requestTip(5)).toThrow(PermissionDeniedError);
   });
+
+  it('should reject putFile with path traversal (..)', () => {
+    const sdk = new QuantSDK(createContext([Permission.Storage]));
+    expect(() => sdk.putFile('../etc/passwd', 'hack')).toThrow('Path traversal');
+  });
+
+  it('should reject putFile with absolute paths', () => {
+    const sdk = new QuantSDK(createContext([Permission.Storage]));
+    expect(() => sdk.putFile('/etc/passwd', 'hack')).toThrow('Absolute paths');
+  });
+
+  it('should reject getFile with path traversal (..)', () => {
+    const sdk = new QuantSDK(createContext([Permission.Storage]));
+    expect(() => sdk.getFile('../../secret')).toThrow('Path traversal');
+  });
+
+  it('should reject getFile with absolute paths', () => {
+    const sdk = new QuantSDK(createContext([Permission.Storage]));
+    expect(() => sdk.getFile('/root/secret')).toThrow('Absolute paths');
+  });
+
+  it('should allow valid relative paths in putFile/getFile', () => {
+    const sdk = new QuantSDK(createContext([Permission.Storage]));
+    sdk.putFile('data/file.txt', 'content');
+    expect(sdk.getFile('data/file.txt')).toBe('content');
+  });
 });

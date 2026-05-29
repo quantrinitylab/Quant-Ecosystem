@@ -12,6 +12,13 @@ describe('CSPBuilder', () => {
     expect(csp).not.toContain('connect-src');
   });
 
+  it('should not include unsafe-inline in style-src', () => {
+    const builder = new CSPBuilder([]);
+    const csp = builder.generate();
+    expect(csp).toContain("style-src 'self'");
+    expect(csp).not.toContain('unsafe-inline');
+  });
+
   it('should add connect-src when network permission is granted', () => {
     const builder = new CSPBuilder([Permission.Network]);
     const csp = builder.generate();

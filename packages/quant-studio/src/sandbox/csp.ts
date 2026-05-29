@@ -8,11 +8,7 @@ export class CSPBuilder {
   }
 
   generate(): string {
-    const directives: string[] = [
-      "default-src 'none'",
-      "script-src 'self'",
-      "style-src 'self' 'unsafe-inline'",
-    ];
+    const directives: string[] = ["default-src 'none'", "script-src 'self'", "style-src 'self'"];
 
     if (this.permissions.has(Permission.Network)) {
       directives.push("connect-src 'self' https:");

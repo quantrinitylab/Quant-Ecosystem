@@ -84,6 +84,22 @@ describe('RemixManager', () => {
     expect(remix.attributionChain).toContain('original-author');
   });
 
+  it('should grow the attribution chain on remix of remix', () => {
+    const manager = new RemixManager();
+    manager.fork('app-1', 'author-A', 'remixer-B');
+    const secondRemix = manager.fork('app-1', 'author-A', 'remixer-C');
+    expect(secondRemix.attributionChain).toContain('author-A');
+    expect(secondRemix.attributionChain).toContain('remixer-B');
+    expect(secondRemix.remixAuthor).toBe('remixer-C');
+  });
+
+  it('should return attribution by appId after fork', () => {
+    const manager = new RemixManager();
+    manager.fork('app-1', 'author-A', 'remixer-B');
+    const attribution = manager.getAttribution('app-1');
+    expect(attribution).toContain('author-A');
+  });
+
   it('should calculate earnings with 70/20/10 split', () => {
     const manager = new RemixManager();
     const earnings = manager.calculateEarnings(100);
@@ -107,5 +123,27 @@ describe('RemixManager', () => {
     expect(earnings.creatorAmount).toBe(100);
     expect(earnings.remixerChainAmount).toBe(60);
     expect(earnings.platformAmount).toBe(40);
+  });
+
+  it('should throw when earning split ratios do not sum to 1.0', () => {
+    const manager = new RemixManager();
+    expect(() =>
+      manager.calculateEarnings(100, {
+        creator: 0.8,
+        remixerChain: 0.3,
+        platform: 0.1,
+      }),
+    ).toThrow('must sum to 1.0');
+  });
+
+  it('should throw when earning split ratios sum to less than 1.0', () => {
+    const manager = new RemixManager();
+    expect(() =>
+      manager.calculateEarnings(100, {
+        creator: 0.2,
+        remixerChain: 0.1,
+        platform: 0.1,
+      }),
+    ).toThrow('must sum to 1.0');
   });
 });
