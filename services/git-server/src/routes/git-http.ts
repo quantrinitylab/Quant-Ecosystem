@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 import { GitUploadPackService } from '../services/git-upload-pack.js';
 import { GitReceivePackService } from '../services/git-receive-pack.js';
 import { GitHooksService } from '../services/hooks.js';
@@ -9,6 +10,12 @@ const UPLOAD_PACK_ADV_CONTENT_TYPE = 'application/x-git-upload-pack-advertisemen
 const RECEIVE_PACK_ADV_CONTENT_TYPE = 'application/x-git-receive-pack-advertisement';
 const UPLOAD_PACK_CONTENT_TYPE = 'application/x-git-upload-pack-result';
 const RECEIVE_PACK_CONTENT_TYPE = 'application/x-git-receive-pack-result';
+
+/** Rate limit: 100 requests per 15 minutes for general read operations */
+const GENERAL_RATE_LIMIT = { max: 100, timeWindow: '15 minutes' };
+
+/** Rate limit: 30 requests per 15 minutes for write operations */
+const WRITE_RATE_LIMIT = { max: 30, timeWindow: '15 minutes' };
 
 function extractToken(request: FastifyRequest): string | null {
   const authHeader = request.headers.authorization;
@@ -23,6 +30,12 @@ function extractToken(request: FastifyRequest): string | null {
 }
 
 export default async function gitHttpRoutes(fastify: FastifyInstance): Promise<void> {
+  // Register rate limiting for all git HTTP routes
+  await fastify.register(rateLimit, {
+    max: GENERAL_RATE_LIMIT.max,
+    timeWindow: GENERAL_RATE_LIMIT.timeWindow,
+  });
+
   const basePath = process.env['GIT_REPOS_PATH'] ?? '/tmp/git-repos';
   const repoStorage = new RepoStorageService(basePath);
   const uploadPack = new GitUploadPackService();
@@ -150,6 +163,14 @@ export default async function gitHttpRoutes(fastify: FastifyInstance): Promise<v
     Params: { owner: string; repo: string };
   }>(
     '/:owner/:repo/git-receive-pack',
+    {
+      config: {
+        rateLimit: {
+          max: WRITE_RATE_LIMIT.max,
+          timeWindow: WRITE_RATE_LIMIT.timeWindow,
+        },
+      },
+    },
     async (
       request: FastifyRequest<{
         Params: { owner: string; repo: string };
