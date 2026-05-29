@@ -29,9 +29,9 @@ const ACTION_PATTERNS: RegExp[] = [
 ];
 
 const PROJECT_PATTERNS: RegExp[] = [
-  /\babout\s+[Pp]roject\s+([A-Z][a-zA-Z0-9\s]+?)(?:\s+and|\s+or|\s*$)/,
-  /\b[Pp]roject\s+([A-Z][a-zA-Z0-9\s]+?)(?:\s+and|\s+or|\s*$)/,
-  /\brelated\s+to\s+([A-Z][a-zA-Z0-9\s]+?)(?:\s+and|\s+or|\s*$)/,
+  /\babout\s+[Pp]roject\s+([A-Z][a-zA-Z0-9]+(?:\s+[a-zA-Z0-9]+)*)(?:\s+and|\s+or|$)/,
+  /\b[Pp]roject\s+([A-Z][a-zA-Z0-9]+(?:\s+[a-zA-Z0-9]+)*)(?:\s+and|\s+or|$)/,
+  /\brelated\s+to\s+([A-Z][a-zA-Z0-9]+(?:\s+[a-zA-Z0-9]+)*)(?:\s+and|\s+or|$)/,
 ];
 
 const PERSON_PATTERNS: RegExp[] = [
@@ -42,9 +42,9 @@ const PERSON_PATTERNS: RegExp[] = [
 ];
 
 const TOPIC_PATTERNS: RegExp[] = [
-  /\babout\s+(.+?)(?:\s+from|\s+by|\s+since|\s+in\s|\s*$)/i,
-  /\bregarding\s+(.+?)(?:\s+from|\s+by|\s+since|\s+in\s|\s*$)/i,
-  /\brelated\s+to\s+(.+?)(?:\s+from|\s+by|\s+since|\s+in\s|\s*$)/i,
+  /\babout\s+(\S+(?:\s+\S+)*)(?:\s+from|\s+by|\s+since|\s+in\s|$)/i,
+  /\bregarding\s+(\S+(?:\s+\S+)*)(?:\s+from|\s+by|\s+since|\s+in\s|$)/i,
+  /\brelated\s+to\s+(\S+(?:\s+\S+)*)(?:\s+from|\s+by|\s+since|\s+in\s|$)/i,
 ];
 
 /**
@@ -94,6 +94,11 @@ export class NLQueryEnhancer {
   private extractEntities(query: string): ExtractedEntity[] {
     const entities: ExtractedEntity[] = [];
     const seen = new Set<string>();
+
+    // Guard against excessively long inputs to prevent regex performance issues
+    if (query.length > 1000) {
+      return entities;
+    }
 
     // Extract project names
     for (const pattern of PROJECT_PATTERNS) {
