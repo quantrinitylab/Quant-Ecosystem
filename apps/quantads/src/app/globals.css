@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brand System */
+  --brand-primary: #4F46E5;
+  --brand-primary-hover: #4338CA;
+  --brand-accent: #F59E0B;
+  --brand-accent-hover: #D97706;
+  --brand-app-color: #10B981;
+  --app-color: #10B981;
+
+  /* Existing (now powered by brand) */
+  --quant-primary: var(--brand-primary);
+  --quant-secondary: #8b5cf6;
+  --quant-background: #ffffff;
+  --quant-foreground: #0f172a;
+  --quant-muted: #f1f5f9;
+  --quant-muted-foreground: #64748b;
+  --quant-border: #e2e8f0;
+  --quant-ring: var(--brand-primary);
+  --quant-radius: 0.5rem;
+  --quant-card: #ffffff;
+  --quant-card-foreground: #0f172a;
+  --quant-popover: #ffffff;
+  --quant-popover-foreground: #0f172a;
+  --quant-destructive: #ef4444;
+  --quant-destructive-foreground: #ffffff;
+  --quant-success: #22c55e;
+  --quant-warning: #f59e0b;
+}
+
+.dark {
+  --quant-background: #0F0F14;
+  --quant-foreground: #f8fafc;
+  --quant-muted: #16161D;
+  --quant-muted-foreground: #94a3b8;
+  --quant-border: #334155;
+  --quant-card: #1a1a24;
+  --quant-card-foreground: #f8fafc;
+  --quant-popover: #1a1a24;
+  --quant-popover-foreground: #f8fafc;
+  --quant-ring: var(--brand-primary);
+  --quant-destructive: #dc2626;
+  --quant-destructive-foreground: #ffffff;
+  --quant-success: #16a34a;
+  --quant-warning: #d97706;
+}
+
+html {
+  transition: background-color 0.3s ease, color 0.2s ease;
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--quant-background)] text-[var(--quant-foreground)] antialiased;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Convert QuantAds from plain TS pages to Next.js App Router with shared-ui adoption, following the exact pattern established in QuantSync. This includes: adding Next.js dependencies, creating next.config.mjs, converting the frontend to use App Router (src/app/layout.tsx + page.tsx), wiring @quant/shared-ui components, adding TanStack React Query provider, ThemeProvider, CommandPaletteUI, and creating proper campaign management dashboard page.",
+  "status": "completed",
+  "steps": [
+    "Step 1: Update apps/quantads/package.json - Add Next.js 15, @tanstack/react-query, framer-motion, @quant/brand to dependencies. Add tailwindcss, postcss, autoprefixer, @types/node to devDependencies. Change scripts: dev -> 'next dev -p 3004', build -> 'next build', start -> 'next start -p 3004', typecheck stays 'tsc --noEmit', test stays 'vitest run'. Keep existing backend scripts as dev:backend.",
+    "Step 2: Create apps/quantads/next.config.mjs following the pattern from apps/quantsync/next.config.mjs. transpilePackages must include @quant/shared-ui, @quant/brand, @quant/common, @quant/auth, @quant/realtime, @quant/privacy-ads.",
+    "Step 3: Update apps/quantads/tsconfig.json to include 'src/app/**/*.ts', 'src/app/**/*.tsx' in the include array and add the @quant/brand and @quant/privacy-ads path references.",
+    "Step 4: Create apps/quantads/src/app/globals.css with Tailwind directives (@tailwind base/components/utilities) and Quant brand CSS variables (copy pattern from quantsync).",
+    "Step 5: Create apps/quantads/src/app/layout.tsx as a root layout with metadata (title: 'QuantAds | Quant', description), Inter font, html/body, wrapping children in QueryProvider and AppProviders.",
+    "Step 6: Create apps/quantads/src/providers/query-provider.tsx as a 'use client' component wrapping children in QueryClientProvider from @tanstack/react-query.",
+    "Step 7: Create apps/quantads/src/providers/app-providers.tsx as a 'use client' component using ThemeProvider + CommandPaletteUI from @quant/shared-ui. Include Cmd+K handler. Commands: New Campaign, Analytics, Audiences, Creatives, Billing.",
+    "Step 8: Create apps/quantads/src/app/page.tsx as the main dashboard page. Use 'use client' directive. Import and use Card, Button, LoadingState, ErrorState from @quant/shared-ui. Use useQuery from @tanstack/react-query to fetch campaign data via the existing api-client. Display metrics grid (spend, impressions, clicks, CTR, active campaigns) and recent campaigns list using CampaignCard-style rendering with Card components. Show proper loading/error/empty states.",
+    "Step 9: Create apps/quantads/src/app/campaigns/page.tsx - Campaign list page using shared-ui Card, Button, Badge, Avatar. Query campaigns from API, display in cards with status badges, actions (pause/edit/delete). Include 'Create Campaign' button linking to /campaigns/new.",
+    "Step 10: Create apps/quantads/src/app/analytics/page.tsx - Analytics overview using shared-ui components. Show key metrics, conversion funnel placeholder, and date range selector.",
+    "Step 11: Create apps/quantads/src/app/audiences/page.tsx - Audience management page with audience segments listed in Cards.",
+    "Step 12: Create apps/quantads/next-env.d.ts reference types file (copy from quantsync pattern).",
+    "Step 13: Create apps/quantads/postcss.config.js and apps/quantads/tailwind.config.ts following quantsync patterns.",
+    "Step 14: Run pnpm install to resolve the new dependencies, then verify with pnpm --filter @quant/quantads typecheck."
+  ],
+  "acceptance_criteria": [
+    "apps/quantads/src/app/layout.tsx exists and follows the QuantSync pattern with providers",
+    "apps/quantads/src/app/page.tsx uses @quant/shared-ui components (Card, Button, LoadingState, ErrorState)",
+    "apps/quantads/next.config.mjs exists with transpilePackages for workspace deps",
+    "apps/quantads/src/providers/app-providers.tsx uses ThemeProvider and CommandPaletteUI from @quant/shared-ui",
+    "At least 4 route pages exist under src/app/ (page.tsx, campaigns/page.tsx, analytics/page.tsx, audiences/page.tsx)",
+    "pnpm --filter @quant/quantads typecheck passes",
+    "pnpm --filter @quant/quantads test continues to pass (existing backend tests unaffected)"
+  ],
+  "verification": ["pnpm --filter @quant/quantads typecheck", "pnpm --filter @quant/quantads test"],
+  "blocked_reason": null,
+  "findings": "Typecheck passes clean. All 102 existing backend tests pass unmodified. Prettier auto-formatted files via lint-staged pre-commit hook. React upgraded from 18 to 19 to match QuantSync. The quantsync pattern has no postcss.config.js or tailwind.config.ts at app level (uses root-level config), but we added them explicitly per feature requirements."
+}
