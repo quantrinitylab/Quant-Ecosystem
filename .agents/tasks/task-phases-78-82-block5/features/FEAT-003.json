@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Phase 80: Create @quant/app-store package for in-ecosystem store - catalog, quality+trust ranking, review system, category taxonomy, and cross-app distribution.",
+  "status": "in_progress",
+  "steps": [
+    "Create packages/app-store/ with package.json (name: @quant/app-store, deps: zod, pino, @quant/common workspace:*), tsconfig.json extending ../../tsconfig.json",
+    "Create src/types.ts with types: AppListing (id, name, creatorId, description, version, category, subcategory, rating, reviewCount, trustScore, qualityScore, price, downloads, screenshots[], status), AppReview (id, appId, userId, rating 1-5, text, verifiedPurchase, helpful, createdAt), AppCategory (id, name, slug, parentId?, description, appCount), RankingFactors (qualityScore, trustScore, userRating, freshness, relevance), DistributionTarget (appId, contexts: string[], visibility, restrictions)",
+    "Create src/catalog/catalog-service.ts with CatalogService class: publish(listing), unpublish(appId), update(appId, updates), get(appId), search(query, filters), listByCategory(categoryId, sort, pagination), getCreatorApps(creatorId). Store catalog CRUD and search.",
+    "Create src/catalog/search-engine.ts with AppSearchEngine class: index(listing), remove(appId), search(query, filters, sort, limit), suggest(partialQuery). Full-text search with filters.",
+    "Create src/ranking/quality-ranker.ts with QualityRanker class: calculateScore(appId), rankResults(listings[], userContext), getFactors(appId), updateMetrics(appId, event). Quality+trust ranking (not engagement-maximizing).",
+    "Create src/ranking/trust-scorer.ts with TrustScorer class: calculate(creatorId, appId), factorVerification(creatorId), factorReviewAuthenticity(reviews[]), factorContentSafety(appId), getBreakdown(appId). Trust scoring with multiple factors.",
+    "Create src/reviews/review-service.ts with ReviewService class: submit(appId, userId, rating, text), update(reviewId, updates), delete(reviewId), getForApp(appId, sort, pagination), getByUser(userId), markHelpful(reviewId, userId), verifyPurchase(userId, appId). Full review system with verified purchases.",
+    "Create src/categories/category-service.ts with CategoryService class: create(category), getTree(), getChildren(parentId), assignApp(appId, categoryId), removeApp(appId, categoryId), getPopular(limit). Hierarchical category taxonomy.",
+    "Create src/distribution/distribution-service.ts with DistributionService class: distribute(appId, contexts[]), retract(appId, context), getTargets(appId), getAppsForContext(context), syncAvailability(appId). Cross-app distribution - same app in multiple contexts.",
+    "Create src/index.ts barrel exporting all services, types, and schemas",
+    "Create src/__tests__/catalog-service.test.ts testing publish, search, listByCategory, getCreatorApps",
+    "Create src/__tests__/quality-ranker.test.ts testing calculateScore, rankResults ordering (quality+trust > pure engagement)",
+    "Create src/__tests__/review-service.test.ts testing submit, verifiedPurchase flag, markHelpful, rating aggregation",
+    "Create src/__tests__/category-service.test.ts testing create, getTree hierarchy, assignApp",
+    "Create src/__tests__/distribution-service.test.ts testing distribute to multiple contexts, retract, getAppsForContext"
+  ],
+  "acceptance_criteria": [
+    "pnpm typecheck --filter=@quant/app-store passes with no errors",
+    "pnpm test --filter=@quant/app-store passes all tests (minimum 20 test cases across 5 test files)",
+    "Quality ranker prioritizes quality+trust over pure engagement metrics",
+    "Package exports CatalogService, AppSearchEngine, QualityRanker, TrustScorer, ReviewService, CategoryService, DistributionService"
+  ],
+  "verification": [
+    "source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm typecheck --filter=@quant/app-store",
+    "source /root/.nvm/nvm.sh && nvm use 22 && cd /projects/sandbox/Quant-Ecosystem && pnpm test --filter=@quant/app-store"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

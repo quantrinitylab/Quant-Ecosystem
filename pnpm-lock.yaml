@@ -1104,6 +1104,28 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.19.19)(jsdom@29.1.1)
 
+  packages/app-store:
+    dependencies:
+      '@quant/common':
+        specifier: workspace:*
+        version: link:../common
+      pino:
+        specifier: ^9.0.0
+        version: 9.14.0
+      zod:
+        specifier: ^3.23.0
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: ^2.0.0
+        version: 2.1.9(@types/node@22.19.19)(jsdom@29.1.1)
+
   packages/auth:
     dependencies:
       '@simplewebauthn/server':
