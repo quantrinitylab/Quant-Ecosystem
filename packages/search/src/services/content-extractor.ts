@@ -35,7 +35,7 @@ export class ContentExtractor {
         if (!segment) continue;
 
         // Extract text from Tj and TJ operators
-        const tjRegex = /\(([^)]*)\)\s*Tj/g;
+        const tjRegex = /\(([^()]*)\)\s*Tj/g;
         let tjMatch: RegExpExecArray | null;
         while ((tjMatch = tjRegex.exec(segment)) !== null) {
           if (tjMatch[1]) {
@@ -44,12 +44,12 @@ export class ContentExtractor {
         }
 
         // Extract text from TJ arrays
-        const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
+        const tjArrayRegex = /\[([^\[\]]*)\]\s*TJ/g;
         let tjArrayMatch: RegExpExecArray | null;
         while ((tjArrayMatch = tjArrayRegex.exec(segment)) !== null) {
           const arrayContent = tjArrayMatch[1];
           if (!arrayContent) continue;
-          const stringRegex = /\(([^)]*)\)/g;
+          const stringRegex = /\(([^()]*)\)/g;
           let strMatch: RegExpExecArray | null;
           while ((strMatch = stringRegex.exec(arrayContent)) !== null) {
             if (strMatch[1]) {
