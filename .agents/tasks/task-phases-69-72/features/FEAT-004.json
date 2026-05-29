@@ -1,0 +1,40 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Phase 72 - Phone-Free Agentic Living: Enhance quant-live integration to wire quant-tools/codex/automate into voice commands, enhance phone-free mode with proactive daily brief, create voice-tool bridge connecting voice commands to tool execution across 5+ apps.",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Create packages/quant-live/src/integrations/voice-tool-bridge.ts: VoiceToolBridge class that connects voice transcription output to quant-tools execution. Methods: handleVoiceCommand(transcript, context) that routes to appropriate tool, executeFromVoice(toolId, params) that runs a tool invocation triggered by voice, getVoiceConfirmation(tool, params) for tier 2+ tools. Wire to existing ToolBridge pattern in src/llm/tool-bridge.ts.",
+    "Step 2 - Create packages/quant-live/src/integrations/codex-voice-bridge.ts: CodexVoiceBridge class connecting voice to quant-codex. Methods: handleBuildCommand(transcript) parses 'build X' / 'scaffold Y' style commands, getProjectStatus() returns voice-friendly status, handleDeployCommand(transcript).",
+    "Step 3 - Create packages/quant-live/src/integrations/automate-voice-bridge.ts: AutomateVoiceBridge class connecting voice to quant-automate. Methods: handleAutomationCommand(transcript) parses 'every day do X' / 'when Y happens do Z', listAutomations() returns voice-friendly list, toggleAutomation(id, enabled).",
+    "Step 4 - Create packages/quant-live/src/integrations/device-voice-bridge.ts: DeviceVoiceBridge class connecting voice to device-control. Methods: handleDeviceCommand(transcript) parses 'turn on X' / 'set Y to Z', getDeviceStatus(deviceId), executeEmergency(type).",
+    "Step 5 - Create packages/quant-live/src/integrations/index.ts exporting all bridges.",
+    "Step 6 - Enhance packages/voice-first-os/src/phone-free/phone-free-controller.ts: Add methods for voiceOnlySession management. Add screenOffMode(), getProactiveBrief(), handleContinuity(deviceId) for device handoff, getContextualResponse(currentApp, query). Keep existing API intact, just extend.",
+    "Step 7 - Create packages/quant-live/src/daily-brief/voice-daily-brief.ts: VoiceDailyBrief class that aggregates data from multiple apps and delivers via voice. Methods: generate(userId) fetching from ai-daily-brief patterns, toVoiceScript(brief) converting sections to natural speech, prioritize(sections) ordering by urgency, suggestAutomations(patterns) recommending automations based on user patterns.",
+    "Step 8 - Create packages/quant-live/src/daily-brief/app-aggregator.ts: AppAggregator class with registerSource(appId, provider), fetchAll(userId), merge(items[]) methods. Aggregates notifications/events/tasks from mail, chat, calendar, drive, neon apps.",
+    "Step 9 - Update packages/quant-live/src/index.ts to export new integrations and daily-brief modules.",
+    "Step 10 - Create packages/quant-live/src/__tests__/voice-tool-bridge.test.ts with at least 8 tests: voice command to tool routing, permission checks, multi-app execution.",
+    "Step 11 - Create packages/quant-live/src/__tests__/voice-daily-brief.test.ts with at least 6 tests: brief generation, voice script conversion, priority ordering, automation suggestions.",
+    "Step 12 - Create packages/quant-live/src/__tests__/codex-voice-bridge.test.ts with at least 4 tests: build command parsing, status queries.",
+    "Step 13 - Create packages/quant-live/src/__tests__/automate-voice-bridge.test.ts with at least 4 tests: automation creation from voice, listing, toggling.",
+    "Step 14 - Update packages/voice-first-os/src/__tests__/voice-first-os.test.ts to add tests for enhanced phone-free mode (at least 4 new tests for the extended functionality)."
+  ],
+  "acceptance_criteria": [
+    "VoiceToolBridge routes voice commands to tool execution across 5+ app domains",
+    "CodexVoiceBridge handles build/scaffold/deploy voice commands",
+    "AutomateVoiceBridge creates automations from voice",
+    "DeviceVoiceBridge controls devices from voice",
+    "PhoneFreeController has enhanced voice-only session with brief and continuity",
+    "VoiceDailyBrief generates and speaks aggregated daily brief",
+    "AppAggregator collects from multiple app sources",
+    "At least 26 tests pass across new test files",
+    "pnpm typecheck passes",
+    "pnpm test passes"
+  ],
+  "verification": [
+    "pnpm typecheck - should pass with 0 errors",
+    "pnpm test - should pass including 26+ new tests in quant-live and voice-first-os"
+  ],
+  "blocked_reason": null,
+  "findings": "All 37 new tests pass (10 voice-tool-bridge, 11 voice-daily-brief+app-aggregator, 6 codex-voice-bridge, 6 automate-voice-bridge, 4 new phone-free-controller tests). Prettier reformatted files via lint-staged during commit. Both packages typecheck cleanly. Used _continuityDeviceId prefix and included field in getSessionSummary return to satisfy noUnusedLocals. Voice bridges are self-contained with simulated routing."
+}

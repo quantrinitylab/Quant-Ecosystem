@@ -116,3 +116,12 @@ export * from './load/index';
 
 // Security Scanning
 export * from './security/index';
+
+// Route Validation
+export { RouteValidator } from './core/route-validator';
+export type {
+  RouteDefinition,
+  RouteValidationResult,
+  RouteError,
+  RouteWarning,
+} from './core/route-validator';

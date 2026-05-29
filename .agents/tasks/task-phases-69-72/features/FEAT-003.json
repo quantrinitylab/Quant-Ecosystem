@@ -1,0 +1,49 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Phase 71 - QuantAI Codex & Cross-App Automation: Create packages/quant-codex (project scaffolding, multi-agent build orchestration, deploy pipeline, voice command interface) and packages/quant-automate (trigger system with cron, event-driven actions, durable execution, NL automation builder).",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Create packages/quant-codex/package.json: Name @quant/quant-codex, deps on @quant/common workspace:*, @quant/agent-swarm workspace:*. Include typecheck/test/build/lint scripts. Create tsconfig.json.",
+    "Step 2 - Create src/types.ts with: ProjectTemplate (id, name, type: game|app|tool|agent|lens, files, dependencies, scripts), CodexProject (id, name, template, status, branches, agents, artifacts, logs), BuildStep, DeployTarget, AgentTask, CodexCommand, ScaffoldResult, BuildResult, DeployResult interfaces.",
+    "Step 3 - Create src/scaffolder/project-scaffolder.ts: ProjectScaffolder class with scaffold(template, options) method that generates project file structures from templates. Has registerTemplate(template), listTemplates(), getTemplate(id) methods. Templates for game, app, tool, agent, lens project types.",
+    "Step 4 - Create src/scaffolder/templates.ts: Define 5 built-in templates (game-template with HTML5 canvas boilerplate, app-template with React SPA, tool-template with CLI structure, agent-template with agent-swarm integration, lens-template with AR/visual component). Each has files array, dependencies, and scripts.",
+    "Step 5 - Create src/orchestrator/build-orchestrator.ts: BuildOrchestrator class that decomposes a build task into sub-tasks, assigns them to virtual agents (leveraging agent-swarm patterns), tracks progress, handles failures with retry. Methods: decompose(project), assignAgents(tasks), build(project), getStatus(projectId).",
+    "Step 6 - Create src/orchestrator/deploy-pipeline.ts: DeployPipeline class with stages: validate, build, test, package, publish. Methods: run(project, target), getStage(projectId), rollback(projectId). Supports dry-run mode.",
+    "Step 7 - Create src/commands/voice-interface.ts: CodexVoiceInterface class that parses voice/text commands into codex actions. Methods: parseCommand(input) returning CodexCommand, execute(command, context), getSuggestions(partial). Supports 'build X', 'scaffold Y', 'deploy Z', 'status' commands.",
+    "Step 8 - Create src/state/project-state.ts: ProjectStateManager class with createProject(), updateStatus(), addLog(), getBranches(), getArtifacts() methods. Maintains in-memory project state with full history.",
+    "Step 9 - Create src/index.ts exporting all public APIs.",
+    "Step 10 - Create src/__tests__/codex.test.ts with at least 15 tests: scaffolding from templates, build orchestration, deploy pipeline stages, voice command parsing, project state management.",
+    "Step 11 - Create packages/quant-automate/package.json: Name @quant/quant-automate, deps on @quant/common workspace:*, @quant/quant-tools workspace:* (if quant-tools was built in FEAT-002). Include typecheck/test/build/lint scripts. Create tsconfig.json.",
+    "Step 12 - Create packages/quant-automate/src/types.ts with: Automation (id, name, triggers, actions, conditions, status, durableState), Trigger (type: schedule|event|webhook|manual|ai-condition, config), AutomationAction (toolId, params, retryPolicy), FlowControl (type: condition|branch|loop|retry, config), DurableState (checkpoints, currentStep, resumable), CronSchedule, EventTrigger, WebhookConfig, AutomationTemplate interfaces.",
+    "Step 13 - Create packages/quant-automate/src/triggers/trigger-system.ts: TriggerSystem class with registerTrigger(automation, trigger), evaluateCron(schedule), handleEvent(event), handleWebhook(request), checkAICondition(condition). Has internal scheduling for cron triggers using parsed cron expressions.",
+    "Step 14 - Create packages/quant-automate/src/triggers/cron-parser.ts: CronParser class that parses cron expressions (minute hour day month weekday) into next-execution timestamps. Methods: parse(expression), getNextRun(expression, after), isValid(expression), describe(expression) returning human-readable description.",
+    "Step 15 - Create packages/quant-automate/src/execution/action-executor.ts: ActionExecutor class that invokes quant-tools actions. Methods: execute(action, context), executeWithRetry(action, retryPolicy), getResult(executionId). Handles timeouts and error states.",
+    "Step 16 - Create packages/quant-automate/src/execution/flow-controller.ts: FlowController class implementing conditions (if/else), branches (parallel paths), loops (repeat N times or until condition), and retry with backoff. Methods: evaluateCondition(condition, data), executeLoop(steps, config), executeBranch(branches, data).",
+    "Step 17 - Create packages/quant-automate/src/execution/durable-executor.ts: DurableExecutor class with checkpoint(state), resume(automationId), getState(automationId) methods. Persists execution state to survive restarts. Uses in-memory store with serialization support.",
+    "Step 18 - Create packages/quant-automate/src/builder/nl-builder.ts: NLAutomationBuilder class that parses natural language automation descriptions into Automation objects. Methods: parse(description), suggest(partial), getTemplates(). Handles patterns like 'every day at 9am, post a reel' or 'when I get an email from X, forward to Y'.",
+    "Step 19 - Create packages/quant-automate/src/templates/automation-templates.ts: Define built-in automation templates: daily-reel (schedule + neon post), backup (schedule + drive sync), notification-routing (event + chat send), email-forward (event + mail send), meeting-prep (schedule + docs create + calendar check).",
+    "Step 20 - Create packages/quant-automate/src/index.ts exporting all public APIs.",
+    "Step 21 - Create packages/quant-automate/src/__tests__/automate.test.ts with at least 15 tests: cron parsing, trigger evaluation, action execution, flow control (conditions, loops, branches), durable state checkpoint/resume, NL parsing."
+  ],
+  "acceptance_criteria": [
+    "packages/quant-codex/ is a complete package with scaffolder, orchestrator, deploy pipeline, voice interface",
+    "ProjectScaffolder generates projects from 5 template types",
+    "BuildOrchestrator decomposes and assigns agent tasks",
+    "DeployPipeline runs through validate/build/test/package/publish stages",
+    "CodexVoiceInterface parses voice/text commands into codex actions",
+    "packages/quant-automate/ is a complete package with triggers, execution, durable state, NL builder",
+    "CronParser correctly parses cron expressions and calculates next runs",
+    "DurableExecutor checkpoints and resumes execution state",
+    "NLAutomationBuilder parses natural language into automation definitions",
+    "At least 30 tests pass across both packages",
+    "pnpm typecheck passes",
+    "pnpm test passes"
+  ],
+  "verification": [
+    "pnpm typecheck - should pass with 0 errors including quant-codex and quant-automate",
+    "pnpm test - should pass including 30+ new tests"
+  ],
+  "blocked_reason": null,
+  "findings": "All 47 tests pass (22 codex + 25 automate). Prettier reformatted files via lint-staged during commit. Full monorepo typecheck (116 tasks) and test (119 tasks) pass. Both packages are self-contained with no workspace dependencies on each other."
+}

@@ -1,101 +1,101 @@
-import { z } from 'zod';
+export type PermissionTier = 0 | 1 | 2 | 3; // 0=Auto, 1=Notify, 2=Confirm, 3=Admin
 
-export type PermissionTier = 1 | 2 | 3;
-
-export interface CostEstimate {
-  tokens?: number;
-  money?: { amount: number; currency: string };
-  timeMs?: number;
+export interface ToolInputSchema {
+  [key: string]: {
+    type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+    required: boolean;
+    description: string;
+    default?: unknown;
+  };
 }
 
-export interface ToolContext {
-  userId: string;
-  sessionId: string;
-  requestedBy: 'user' | 'ai' | 'automation';
-  confirmationCallback?: (message: string) => Promise<boolean>;
+export interface ToolOutputSchema {
+  type: string;
+  description: string;
+  fields?: Record<string, { type: string; description: string }>;
 }
 
 export interface UndoRecipe {
+  toolId: string;
+  params: Record<string, unknown>;
   description: string;
-  handler: (undoId: string, context: ToolContext) => Promise<void>;
+  ttlMs: number;
 }
 
-export interface QuantTool {
+export interface ToolDefinition {
   id: string;
-  app: string;
+  appId: string;
   name: string;
   description: string;
-  inputSchema: z.ZodSchema<unknown>;
-  outputSchema: z.ZodSchema<unknown>;
+  inputSchema: ToolInputSchema;
+  outputSchema: ToolOutputSchema;
   permissionTier: PermissionTier;
-  costEstimate?: CostEstimate;
-  undoRecipe?: UndoRecipe;
-  execute: (input: unknown, context: ToolContext) => Promise<ToolResult>;
+  costEstimate: 'free' | 'low' | 'medium' | 'high';
+  undoRecipe: UndoRecipe | null;
+  tags: string[];
+}
+
+export interface ToolExecutionContext {
+  userId: string;
+  sessionId: string;
+  permissions: PermissionTier;
+  dryRun: boolean;
+  metadata?: Record<string, string>;
 }
 
 export interface ToolResult {
   success: boolean;
-  data?: unknown;
+  data: unknown;
   error?: string;
-  undoId?: string;
-  auditId: string;
-  cost?: CostEstimate;
+  executionId: string;
+  toolId: string;
+  latencyMs: number;
+}
+
+export interface ToolPlanStep {
+  stepId: string;
+  toolId: string;
+  params: Record<string, unknown>;
+  dependsOn: string[];
+  outputKey: string;
+}
+
+export interface ToolPlan {
+  id: string;
+  steps: ToolPlanStep[];
+  estimatedCost: string;
+  requiredPermission: PermissionTier;
+  description: string;
+}
+
+export interface IntentMatch {
+  toolId: string;
+  confidence: number;
+  extractedParams: Record<string, unknown>;
+  appId: string;
 }
 
 export interface AuditEntry {
   id: string;
+  executionId: string;
   toolId: string;
   userId: string;
-  input: unknown;
-  output: unknown;
   timestamp: number;
-  cost?: CostEstimate;
-  undoStatus: 'available' | 'expired' | 'executed' | 'none';
+  action: 'invoke' | 'success' | 'failure' | 'undo';
+  details: Record<string, unknown>;
 }
 
-export const AuditEntrySchema = z.object({
-  id: z.string(),
-  toolId: z.string(),
-  userId: z.string(),
-  input: z.unknown(),
-  output: z.unknown(),
-  timestamp: z.number(),
-  cost: z
-    .object({
-      tokens: z.number().optional(),
-      money: z.object({ amount: z.number(), currency: z.string() }).optional(),
-      timeMs: z.number().optional(),
-    })
-    .optional(),
-  undoStatus: z.enum(['available', 'expired', 'executed', 'none']),
-});
-
-export interface ToolSearchResult {
-  tool: QuantTool;
-  score: number;
-}
-
-export interface ToolRegistry {
-  register(tool: QuantTool): void;
-  get(id: string): QuantTool | undefined;
-  listByApp(app: string): QuantTool[];
-  listAll(): QuantTool[];
-  search(query: string): ToolSearchResult[];
-  execute(toolId: string, input: unknown, context: ToolContext): Promise<ToolResult>;
-}
-
-export interface PlannedExecution {
-  toolId: string;
-  tool: QuantTool;
-  estimatedInput: Record<string, unknown>;
-  reason: string;
-}
-
-export interface UndoEntry {
-  undoId: string;
-  userId: string;
+export interface UndoAction {
+  executionId: string;
   recipe: UndoRecipe;
   createdAt: number;
   expiresAt: number;
   executed: boolean;
+}
+
+export interface MCPToolEntry {
+  name: string;
+  description: string;
+  inputSchema: ToolInputSchema;
+  permissionTier: PermissionTier;
 }

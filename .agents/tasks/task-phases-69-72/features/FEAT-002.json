@@ -1,0 +1,44 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Phase 70 - Universal Tool Layer: Create packages/quant-tools with typed tool registry, per-app tool definitions (17 apps x 5+ tools each), multi-tool planner, permission engine, MCP server adapter, intent router, undo registry, audit log.",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Create packages/quant-tools/package.json: Name @quant/quant-tools, workspace:* dep on @quant/common. Include typecheck/test/build/lint scripts. Create tsconfig.json following existing package pattern.",
+    "Step 2 - Create src/types.ts with comprehensive tool type definitions: ToolDefinition (id, appId, name, description, inputSchema with typed Record, outputSchema, permissionTier 0-3, costEstimate, undoRecipe, tags). PermissionTier enum (Auto=0, Notify=1, Confirm=2, Admin=3). ToolExecutionContext, ToolResult, ToolChain, ToolPlan, ToolPlanStep, IntentMatch, AuditEntry, UndoAction, MCPToolCatalog interfaces.",
+    "Step 3 - Create src/registry/tool-registry.ts: ToolRegistry class with register(tool), unregister(id), get(id), getByApp(appId), search(query), listAll(), validateInput(toolId, args), getPermissionTier(toolId) methods. Uses Map internally. Supports filtering by app, permission tier, tags.",
+    "Step 4 - Create src/tools/ directory with per-app tool definitions. Each file exports an array of ToolDefinition objects. Create: mail-tools.ts (send, search, archive, label, draft - 5 tools), chat-tools.ts (send, create-channel, react, pin, search - 5), calendar-tools.ts (create-event, reschedule, invite, cancel, list-today - 5), docs-tools.ts (create, edit, share, export, search - 5), drive-tools.ts (upload, download, share, organize, search - 5), meet-tools.ts (create, join, record, end, schedule - 5), neon-tools.ts (post, like, comment, repost, search - 5), sync-tools.ts (sync-contacts, sync-files, sync-settings, check-status, resolve-conflict - 5), tube-tools.ts (upload, publish, schedule, analytics, moderate - 5), max-tools.ts (start-session, end-session, generate, analyze, explain - 5), edits-tools.ts (create-project, render, add-track, export, apply-effect - 5), ads-tools.ts (create-campaign, set-budget, target-audience, pause, analytics - 5), maps-tools.ts (search, directions, share-location, save-place, distance - 5), photos-tools.ts (upload, organize, edit, share, search - 5), device-tools.ts (control, status, configure, schedule-action, emergency - 5), studio-tools.ts (create-app, publish, test, deploy, monitor - 5), payments-tools.ts (send, request, invoice, refund, balance - 5). Total: 85 typed tools.",
+    "Step 5 - Create src/planner/intent-router.ts: IntentRouter class with route(naturalLanguageInput) method that parses text to identify required tools and parameters. Uses keyword matching and pattern recognition. Returns IntentMatch[] with toolId, confidence, extractedParams.",
+    "Step 6 - Create src/planner/multi-step-planner.ts: MultiStepPlanner class with plan(intent, context) method that decomposes complex intents into ordered ToolPlanStep[]. Handles data dependencies between steps (output of step N feeds into step N+1). Has validatePlan() and estimateCost() methods.",
+    "Step 7 - Create src/executor/tool-executor.ts: ToolExecutor class with execute(plan, context) method. Runs steps sequentially, passes state between them. Handles errors with retry logic. Records execution audit trail. Supports dry-run mode.",
+    "Step 8 - Create src/permissions/permission-engine.ts: PermissionEngine class with evaluate(toolId, user, context) method returning {allowed, reason, confirmationRequired}. Implements tier-based logic: tier 0=auto-execute, tier 1=notify user, tier 2=require confirmation, tier 3=require admin approval. Has costPreview(plan) method.",
+    "Step 9 - Create src/undo/undo-registry.ts: UndoRegistry class with recordAction(executionId, undoRecipe), canUndo(executionId), executeUndo(executionId) methods. Stores undo recipes with TTL. Supports chained undo for multi-step executions.",
+    "Step 10 - Create src/audit/audit-log.ts: AuditLog class with log(entry), query(filters), getByExecution(id), getByUser(userId), getByTool(toolId) methods. Records all tool invocations with timestamps, results, permissions checked.",
+    "Step 11 - Create src/mcp/mcp-server.ts: MCPServerAdapter class that exposes quant-tools via MCP protocol. Has getCatalog() returning tool listing, handleRequest(toolName, args) method, authenticate(token) method.",
+    "Step 12 - Create src/index.ts exporting all public APIs from registry, planner, executor, permissions, undo, audit, mcp, and tool definitions.",
+    "Step 13 - Create src/__tests__/tool-registry.test.ts with at least 10 tests: register/unregister, get by app, search, validate input, permission tier checks.",
+    "Step 14 - Create src/__tests__/planner.test.ts with at least 8 tests: intent routing, multi-step planning, data dependency resolution, cost estimation.",
+    "Step 15 - Create src/__tests__/executor.test.ts with at least 8 tests: sequential execution, error handling, dry-run, audit trail creation.",
+    "Step 16 - Create src/__tests__/permissions.test.ts with at least 6 tests: tier evaluation, confirmation flow, cost preview."
+  ],
+  "acceptance_criteria": [
+    "packages/quant-tools/ is a complete package with 85+ typed tool definitions across 17 app-specific files",
+    "ToolRegistry registers and queries tools correctly",
+    "IntentRouter parses natural language to tool matches",
+    "MultiStepPlanner creates executable plans from complex intents",
+    "ToolExecutor runs plans with state passing between steps",
+    "PermissionEngine enforces tier-based access control",
+    "UndoRegistry stores and executes undo recipes",
+    "AuditLog records all executions",
+    "MCPServerAdapter exposes tools for external clients",
+    "At least 32 tests pass across all test files",
+    "pnpm typecheck passes",
+    "pnpm test passes"
+  ],
+  "verification": [
+    "pnpm typecheck - should pass with 0 errors including new quant-tools package",
+    "pnpm test - should pass including 32+ new tests in quant-tools"
+  ],
+  "blocked_reason": null,
+  "findings": "All 47 tests pass (16 registry, 14 planner, 9 executor, 8 permissions). Prettier reformatted files via lint-staged during commit. Full monorepo typecheck (114 tasks) passes. Package has 85 tools across 17 app-specific files."
+}

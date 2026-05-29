@@ -35,4 +35,24 @@ export default tseslint.config(
       'prefer-const': 'off',
     },
   },
+  {
+    files: [
+      'packages/*/src/**/*.ts',
+      'apps/*/src/**/*.ts',
+      'apps/*/backend/**/*.ts',
+      'services/*/src/**/*.ts',
+    ],
+    ignores: [
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/__tests__/**',
+      '**/*.spec.ts',
+    ],
+    rules: {
+      'no-console': 'warn',
+      'no-eval': 'error',
+      'no-implied-eval': 'error',
+      'no-new-func': 'error',
+    },
+  },
 );

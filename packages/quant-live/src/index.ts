@@ -114,3 +114,19 @@ export type {
   BudgetViolation,
 } from './budget/latency-budget.js';
 export type { BudgetReport } from './budget/budget-assertions.js';
+
+// Integrations
+export { VoiceToolBridge } from './integrations/voice-tool-bridge.js';
+export type { VoiceToolBridgeConfig, VoiceToolResult } from './integrations/voice-tool-bridge.js';
+export { CodexVoiceBridge } from './integrations/codex-voice-bridge.js';
+export type { CodexVoiceResult } from './integrations/codex-voice-bridge.js';
+export { AutomateVoiceBridge } from './integrations/automate-voice-bridge.js';
+export type { AutomateVoiceResult } from './integrations/automate-voice-bridge.js';
+export { DeviceVoiceBridge } from './integrations/device-voice-bridge.js';
+export type { DeviceVoiceResult } from './integrations/device-voice-bridge.js';
+
+// Daily Brief
+export { VoiceDailyBrief } from './daily-brief/voice-daily-brief.js';
+export type { VoiceBrief, VoiceBriefSection } from './daily-brief/voice-daily-brief.js';
+export { AppAggregator } from './daily-brief/app-aggregator.js';
+export type { AggregatorSource, AggregatedItem } from './daily-brief/app-aggregator.js';

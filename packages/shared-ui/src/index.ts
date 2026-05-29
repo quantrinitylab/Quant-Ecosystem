@@ -284,7 +284,7 @@ export type {
   AIPreferencesStepProps,
 } from './components/Onboarding';
 
-// Motion / Animation primitives
+// Motion / Animation primitives (union of phase-67/68 motion systems)
 export {
   MotionProvider,
   useMotionConfig,
@@ -295,6 +295,11 @@ export {
   AnimatedSkeleton,
   SlidePanel,
   ScaleOnHover,
+  AnimatedPage,
+  AnimatedList,
+  BottomSheet,
+  SkeletonFade,
+  PullToRefresh,
 } from './components/Motion';
 export type {
   MotionProviderProps,
@@ -306,7 +311,48 @@ export type {
   AnimatedSkeletonProps,
   SlidePanelProps,
   ScaleOnHoverProps,
+  AnimatedPageProps,
+  PageTransitionVariant,
+  AnimatedListProps,
+  BottomSheetProps,
+  SnapPoint,
+  SkeletonFadeProps,
+  PullToRefreshProps,
 } from './components/Motion';
+
+// Responsive components
+export { ResponsiveShell } from './components/Responsive';
+export type { ResponsiveShellProps } from './components/Responsive';
+
+// Motion/Responsive hooks
+export { useReducedMotion } from './hooks/useReducedMotion';
+export { useBreakpoint } from './hooks/useBreakpoint';
+export type { BreakpointName } from './hooks/useBreakpoint';
+export { useOrientation } from './hooks/useOrientation';
+export type { Orientation } from './hooks/useOrientation';
+
+// CommandPaletteUI component
+export { CommandPaletteUI } from './components/CommandPaletteUI';
+export type { CommandPaletteUIProps, CommandPaletteItem } from './components/CommandPaletteUI';
+
+// ThemeProvider component
+export { ThemeProvider, useThemeMode } from './components/ThemeProvider';
+export type {
+  ThemeProviderProps,
+  ThemeModeValue,
+  ThemeContextValue,
+} from './components/ThemeProvider';
+
+// EmptyStateIllustration component
+export { EmptyStateIllustration } from './components/EmptyStateIllustration';
+export type {
+  EmptyStateIllustrationProps,
+  EmptyStateVariant,
+} from './components/EmptyStateIllustration';
+
+// useOptimisticAction hook
+export { useOptimisticAction } from './hooks/useOptimisticAction';
+export type { UseOptimisticActionReturn } from './hooks/useOptimisticAction';
 
 // Sanitization utilities
 export { sanitizeHtmlContent, sanitizeCodeHighlight } from './utils/sanitize';

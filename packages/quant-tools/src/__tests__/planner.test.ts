@@ -1,170 +1,147 @@
-import { describe, it, expect, vi } from 'vitest';
-import { z } from 'zod';
-import { ToolPlanner } from '../planner.js';
-import { ToolRegistryImpl } from '../registry.js';
-import type { QuantTool, ToolContext } from '../types.js';
+import { describe, it, expect } from 'vitest';
+import { IntentRouter } from '../planner/intent-router.js';
+import { MultiStepPlanner } from '../planner/multi-step-planner.js';
+import { allTools } from '../tools/index.js';
+import type { ToolPlan, ToolPlanStep } from '../types.js';
 
-function createMockTool(overrides: Partial<QuantTool> = {}): QuantTool {
-  return {
-    id: 'test.tool',
-    app: 'TestApp',
-    name: 'test_tool',
-    description: 'A generic tool',
-    inputSchema: z.object({}),
-    outputSchema: z.object({}),
-    permissionTier: 1,
-    execute: vi.fn().mockResolvedValue({
-      success: true,
-      data: { result: 'ok' },
-      auditId: 'audit_001',
-    }),
-    ...overrides,
-  };
-}
+describe('IntentRouter', () => {
+  const router = new IntentRouter(allTools);
 
-function createMockContext(): ToolContext {
-  return {
-    userId: 'user_001',
-    sessionId: 'sess_001',
-    requestedBy: 'user',
-  };
-}
-
-describe('ToolPlanner', () => {
-  const planner = new ToolPlanner();
-
-  it('should plan a single-tool intent', () => {
-    const tools = [
-      createMockTool({
-        id: 'mail.send',
-        name: 'send_email',
-        description: 'Send an email to recipients',
-      }),
-      createMockTool({ id: 'chat.send', name: 'send_message', description: 'Send a chat message' }),
-    ];
-    const plan = planner.plan('send email to boss', tools);
-    expect(plan.length).toBeGreaterThan(0);
-    expect(plan.some((p) => p.toolId === 'mail.send')).toBe(true);
+  it('should route email-related intents to mail tools', () => {
+    const matches = router.route('send an email to someone');
+    expect(matches.length).toBeGreaterThan(0);
+    const mailMatch = matches.find((m) => m.appId === 'quantmail');
+    expect(mailMatch).toBeDefined();
   });
 
-  it('should plan multi-tool intent', () => {
-    const tools = [
-      createMockTool({
-        id: 'drive.search',
-        name: 'search_files',
-        description: 'Search files in drive',
-      }),
-      createMockTool({
-        id: 'mail.send',
-        name: 'send_email',
-        description: 'Send an email to recipients',
-      }),
-    ];
-    const plan = planner.plan('search files then send email', tools);
-    expect(plan.length).toBe(2);
+  it('should route calendar intents to calendar tools', () => {
+    const matches = router.route('create a new event on my calendar');
+    const calMatch = matches.find((m) => m.appId === 'quantcalendar');
+    expect(calMatch).toBeDefined();
   });
 
-  it('should return empty for unknown intent', () => {
-    const tools = [
-      createMockTool({ id: 'mail.send', name: 'send_email', description: 'Send an email' }),
-    ];
-    const plan = planner.plan('xyz qqq zzz', tools);
-    expect(plan).toHaveLength(0);
+  it('should extract email parameters from input', () => {
+    const matches = router.route('send email to user@example.com');
+    const mailMatch = matches.find((m) => m.appId === 'quantmail');
+    expect(mailMatch).toBeDefined();
+    expect(mailMatch!.extractedParams).toBeDefined();
   });
 
-  it('should execute plan in sequence', async () => {
-    const executeFn1 = vi.fn().mockResolvedValue({ success: true, data: { r: 1 }, auditId: 'a1' });
-    const executeFn2 = vi.fn().mockResolvedValue({ success: true, data: { r: 2 }, auditId: 'a2' });
-    const tool1 = createMockTool({ id: 't1', execute: executeFn1 });
-    const tool2 = createMockTool({ id: 't2', execute: executeFn2 });
-    const steps = [
-      { toolId: 't1', tool: tool1, estimatedInput: {}, reason: 'step 1' },
-      { toolId: 't2', tool: tool2, estimatedInput: {}, reason: 'step 2' },
-    ];
-    const context = createMockContext();
-    const results = await planner.executePlan(steps, context);
-    expect(results).toHaveLength(2);
-    expect(executeFn1).toHaveBeenCalled();
-    expect(executeFn2).toHaveBeenCalled();
+  it('should return results sorted by confidence', () => {
+    const matches = router.route('search files in drive');
+    expect(matches.length).toBeGreaterThan(1);
+    for (let i = 1; i < matches.length; i++) {
+      expect(matches[i - 1]!.confidence).toBeGreaterThanOrEqual(matches[i]!.confidence);
+    }
   });
 
-  it('should stop execution on failure', async () => {
-    const executeFn1 = vi.fn().mockResolvedValue({ success: false, error: 'fail', auditId: 'a1' });
-    const executeFn2 = vi.fn().mockResolvedValue({ success: true, data: {}, auditId: 'a2' });
-    const tool1 = createMockTool({ id: 't1', execute: executeFn1 });
-    const tool2 = createMockTool({ id: 't2', execute: executeFn2 });
-    const steps = [
-      { toolId: 't1', tool: tool1, estimatedInput: {}, reason: 'step 1' },
-      { toolId: 't2', tool: tool2, estimatedInput: {}, reason: 'step 2' },
-    ];
-    const context = createMockContext();
-    const results = await planner.executePlan(steps, context);
-    expect(results).toHaveLength(1);
-    expect(executeFn2).not.toHaveBeenCalled();
+  it('should return empty for unrelated input', () => {
+    const matches = router.route('xyz zzz qqq');
+    expect(matches).toHaveLength(0);
   });
 
-  it('should match based on description keywords', () => {
-    const tools = [
-      createMockTool({
-        id: 'calendar.create',
-        name: 'create_event',
-        description: 'Create a calendar event for scheduling',
-      }),
-      createMockTool({
-        id: 'mail.send',
-        name: 'send_email',
-        description: 'Send an email to recipients',
-      }),
-    ];
-    const plan = planner.plan('schedule a calendar meeting', tools);
-    expect(plan.some((p) => p.toolId === 'calendar.create')).toBe(true);
+  it('should match by tag keywords', () => {
+    const matches = router.route('social post');
+    const neonMatch = matches.find((m) => m.appId === 'quantneon');
+    expect(neonMatch).toBeDefined();
+  });
+});
+
+describe('MultiStepPlanner', () => {
+  const planner = new MultiStepPlanner();
+
+  it('should create a plan with relevant tools', () => {
+    const plan = planner.plan('send email', allTools);
+    expect(plan.steps.length).toBeGreaterThan(0);
+    expect(plan.id).toBeTruthy();
+    expect(plan.description).toContain('send email');
   });
 
-  it('should route through registry when provided', async () => {
-    const registry = new ToolRegistryImpl();
-    const tool = createMockTool({
-      id: 'mail.send',
-      name: 'send_email',
-      description: 'Send email',
-      inputSchema: z.object({}),
-      permissionTier: 1,
-    });
-    registry.register(tool);
-    const steps = [{ toolId: 'mail.send', tool, estimatedInput: {}, reason: 'test' }];
-    const context = createMockContext();
-    const results = await planner.executePlan(steps, context, registry);
-    expect(results).toHaveLength(1);
-    expect(results[0]!.success).toBe(true);
-    expect(results[0]!.auditId).toBeDefined();
-    // Verify audit trail was populated through registry
-    const audit = registry.getAuditTrail().getAll();
-    expect(audit).toHaveLength(1);
+  it('should create steps with proper dependencies', () => {
+    const plan = planner.plan('search email and send', allTools);
+    if (plan.steps.length > 1) {
+      expect(plan.steps[1]!.dependsOn.length).toBeGreaterThan(0);
+    }
+    expect(plan.steps[0]!.dependsOn).toHaveLength(0);
   });
 
-  it('should not match short words via substring', () => {
-    const tools = [
-      createMockTool({
-        id: 'news.read',
-        name: 'read_news',
-        description: 'Read the latest news articles',
-      }),
-    ];
-    // "new" is only 3 chars, should not match "news" via substring
-    const plan = planner.plan('new document creation', tools);
-    expect(plan.some((p) => p.toolId === 'news.read')).toBe(false);
+  it('should estimate cost based on tools', () => {
+    const plan = planner.plan('upload video and render', allTools);
+    expect(['free', 'low', 'medium', 'high']).toContain(plan.estimatedCost);
   });
 
-  it('should require minimum matches for long intents', () => {
-    const tools = [
-      createMockTool({
-        id: 'drive.upload',
-        name: 'upload_file',
-        description: 'Upload a file to cloud storage drive',
-      }),
-    ];
-    // Intent with >3 words requires at least 2 keyword matches
-    // "please help organize documents nicely" - only "documents" is not in this tool
-    const plan = planner.plan('please help organize documents nicely', tools);
-    expect(plan.some((p) => p.toolId === 'drive.upload')).toBe(false);
+  it('should validate a valid plan', () => {
+    const plan = planner.plan('send email', allTools);
+    const result = planner.validatePlan(plan);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('should reject an empty plan', () => {
+    const emptyPlan: ToolPlan = {
+      id: 'test',
+      steps: [],
+      estimatedCost: 'free',
+      requiredPermission: 0,
+      description: 'empty',
+    };
+    const result = planner.validatePlan(emptyPlan);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('Plan has no steps');
+  });
+
+  it('should detect invalid dependencies', () => {
+    const badPlan: ToolPlan = {
+      id: 'test',
+      steps: [
+        {
+          stepId: 'step-1',
+          toolId: 'test.tool',
+          params: {},
+          dependsOn: ['step-99'],
+          outputKey: 'out1',
+        },
+      ],
+      estimatedCost: 'free',
+      requiredPermission: 0,
+      description: 'bad deps',
+    };
+    const result = planner.validatePlan(badPlan);
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toContain('non-existent step');
+  });
+
+  it('should return max permission tier required', () => {
+    const plan = planner.plan('send payment refund', allTools);
+    expect(plan.requiredPermission).toBeGreaterThanOrEqual(0);
+    expect(plan.requiredPermission).toBeLessThanOrEqual(3);
+  });
+
+  it('should detect circular dependencies', () => {
+    const cyclicPlan: ToolPlan = {
+      id: 'test',
+      steps: [
+        {
+          stepId: 'a',
+          toolId: 't1',
+          params: {},
+          dependsOn: ['b'],
+          outputKey: 'o1',
+        } as ToolPlanStep,
+        {
+          stepId: 'b',
+          toolId: 't2',
+          params: {},
+          dependsOn: ['a'],
+          outputKey: 'o2',
+        } as ToolPlanStep,
+      ],
+      estimatedCost: 'free',
+      requiredPermission: 0,
+      description: 'cyclic',
+    };
+    const result = planner.validatePlan(cyclicPlan);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('Plan has circular dependencies');
   });
 });

@@ -191,6 +191,44 @@ describe('PhoneFreeController', () => {
     pf.activate();
     expect(pf.isSessionExpired()).toBe(true);
   });
+
+  it('enables and checks voice-only session', () => {
+    const pf = new PhoneFreeController();
+    expect(pf.isVoiceOnlySession()).toBe(false);
+    pf.enableVoiceOnlySession({ briefOnStart: true });
+    expect(pf.isVoiceOnlySession()).toBe(true);
+    expect(pf.isActive()).toBe(true);
+  });
+
+  it('returns proactive brief when enabled', () => {
+    const pf = new PhoneFreeController();
+    pf.enableVoiceOnlySession({ briefOnStart: true });
+    const brief = pf.getProactiveBrief();
+    expect(brief.available).toBe(true);
+    expect(brief.sections.length).toBeGreaterThan(0);
+  });
+
+  it('handles continuity handoff', () => {
+    const pf = new PhoneFreeController();
+    pf.activate();
+    const result = pf.handleContinuity('watch-1');
+    expect(result.success).toBe(true);
+    expect(result.sessionTransferred).toBe(true);
+    expect(result.targetDevice).toBe('watch-1');
+  });
+
+  it('tracks session summary with commands and apps', () => {
+    const pf = new PhoneFreeController();
+    pf.activate();
+    pf.getContextualResponse('calendar', 'meetings');
+    pf.getContextualResponse('mail', 'inbox');
+    pf.getContextualResponse('calendar', 'tomorrow');
+    const summary = pf.getSessionSummary();
+    expect(summary.commandsExecuted).toBe(3);
+    expect(summary.appsUsed).toContain('calendar');
+    expect(summary.appsUsed).toContain('mail');
+    expect(summary.duration).toBeGreaterThanOrEqual(0);
+  });
 });
 
 describe('CommandRegistry', () => {

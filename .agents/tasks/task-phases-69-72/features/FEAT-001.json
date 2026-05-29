@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Phase 69 - Zero-Defect Hardening: Add axe-core accessibility testing to shared-ui, create error-monitoring package, create chaos-testing package, add security eslint rules, add coverage config, add route validation testing, add no-console production eslint rule.",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Add axe-core accessibility testing to packages/shared-ui: Install vitest-axe or jest-axe as a devDependency. Create packages/shared-ui/src/__tests__/a11y.test.tsx that imports existing components and runs axe checks on them. Each component render should pass axe audit with 0 violations. Add at least 8 a11y test cases covering different component types.",
+    "Step 2 - Create packages/error-monitoring package: Create package.json (@quant/error-monitoring, workspace:* deps where needed, vitest/tsc scripts). Create src/types.ts with ErrorEvent, ErrorConfig, ErrorSeverity, ErrorContext, ErrorTransport interfaces. Create src/error-capture.ts with ErrorCapture class (captureException, captureMessage, setContext, addBreadcrumb, flush methods). Create src/transports/sentry-transport.ts with SentryTransport class implementing ErrorTransport. Create src/transports/glitchtip-transport.ts with GlitchTipTransport class. Create src/transports/console-transport.ts for local dev. Create src/error-boundary.ts with an ErrorBoundary hook pattern (onError callback, error recovery). Create src/index.ts exporting all. Create src/__tests__/error-monitoring.test.ts with at least 20 tests covering capture, breadcrumbs, transport routing, context management, severity filtering.",
+    "Step 3 - Create packages/chaos-testing package: Create package.json (@quant/chaos-testing). Create src/types.ts with ChaosExperiment, HealthCheck, HealthStatus, FaultInjection, ResilienceReport interfaces. Create src/health-checker.ts with ServiceHealthChecker class (registerService, checkAll, getStatus, onUnhealthy). Create src/fault-injector.ts with FaultInjector class (injectLatency, injectFailure, injectTimeout, reset). Create src/resilience-tester.ts with ResilienceTester class (testCircuitBreaker, testRetryLogic, testGracefulDegradation, generateReport). Create src/index.ts exporting all. Create src/__tests__/chaos-testing.test.ts with at least 20 tests covering health checks, fault injection, resilience testing.",
+    "Step 4 - Add security eslint rules to eslint.config.mjs: Add a production-files rule block that bans console.log/warn/error in production code (apps/*/src/**/*.ts, packages/*/src/**/*.ts but NOT test files). Add rules for no-eval, no-implied-eval, no-new-Function. Keep the existing ignores for test files and add explicit allowance for test files to still use console.",
+    "Step 5 - Add coverage configuration: Update the root vitest.config.ts to include coverage thresholds (statements: 50, branches: 50, functions: 50, lines: 50 as baseline - not 80% since we cannot control all packages). Add coverage reporter configuration with text-summary, json, and html reporters. This ensures coverage reports are generated when running with --coverage flag.",
+    "Step 6 - Create route validation testing: Create packages/testing/src/core/route-validator.ts with RouteValidator class that can validate a set of route definitions for completeness (no dead-end routes, all referenced paths exist, no duplicate routes). Create src/__tests__/route-validator.test.ts with at least 8 tests validating route checking logic.",
+    "Step 7 - Add tsconfig.json to new packages (error-monitoring, chaos-testing) following the same pattern as existing packages (extends root, composite true, outDir dist, rootDir src)."
+  ],
+  "acceptance_criteria": [
+    "packages/shared-ui/src/__tests__/a11y.test.tsx exists and passes with vitest",
+    "packages/error-monitoring/ is a complete package with types, capture, transports, tests (20+ tests pass)",
+    "packages/chaos-testing/ is a complete package with health-checker, fault-injector, resilience-tester, tests (20+ tests pass)",
+    "eslint.config.mjs has no-console rule for production code (not test files)",
+    "vitest.config.ts has coverage configuration",
+    "packages/testing/src/core/route-validator.ts exists with tests",
+    "pnpm typecheck passes (all packages)",
+    "pnpm test passes (all packages including new ones)"
+  ],
+  "verification": [
+    "pnpm typecheck - should pass with 0 errors",
+    "pnpm test - should pass including new packages",
+    "pnpm lint - should pass (new rules should not break existing code because console.log is allowed with warn severity)"
+  ],
+  "blocked_reason": null,
+  "findings": "All 113 typecheck tasks and 116 test tasks pass. Prettier reformatted some files during commit (lint-staged). The color contrast a11y check uses string-matching on inline styles which means jsdom-normalized hex colors (like #eee becoming rgb()) are not detected - used 'white' keyword which is reliably preserved."
+}

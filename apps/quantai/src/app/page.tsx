@@ -1,6 +1,6 @@
 'use client';
 
-import { AIChat, AppShell, Sidebar } from '@quant/shared-ui';
+import { AIChat, AnimatedPage, AppShell, Sidebar } from '@quant/shared-ui';
 import { LoadingState, ErrorState } from '@quant/shared-ui';
 import type { SidebarItem } from '@quant/shared-ui';
 import { useAIChat } from '../hooks/useAIChat';
@@ -31,29 +31,31 @@ export default function AIPage() {
         <Sidebar items={sidebarItems} header={<h2 className="text-lg font-semibold">QuantAI</h2>} />
       }
     >
-      <div className="flex flex-col h-full">
-        <div className="p-4 border-b border-[var(--quant-border)]">
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold">AI Assistant</h1>
-            <select
-              className="text-sm px-3 py-1 rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)]"
-              aria-label="Select AI model"
-            >
-              <option value="gpt-4">GPT-4</option>
-              <option value="claude-3">Claude 3</option>
-              <option value="llama-3">Llama 3</option>
-            </select>
+      <AnimatedPage>
+        <div className="flex flex-col h-full">
+          <div className="p-4 border-b border-[var(--quant-border)]">
+            <div className="flex items-center gap-3">
+              <h1 className="text-lg font-semibold">AI Assistant</h1>
+              <select
+                className="text-sm px-3 py-1 rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)]"
+                aria-label="Select AI model"
+              >
+                <option value="gpt-4">GPT-4</option>
+                <option value="claude-3">Claude 3</option>
+                <option value="llama-3">Llama 3</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <AIChat
+              messages={chatMessages}
+              onSendMessage={(content) => {
+                sendMessage(content);
+              }}
+            />
           </div>
         </div>
-        <div className="flex-1 overflow-hidden">
-          <AIChat
-            messages={chatMessages}
-            onSendMessage={(content) => {
-              sendMessage(content);
-            }}
-          />
-        </div>
-      </div>
+      </AnimatedPage>
     </AppShell>
   );
 }

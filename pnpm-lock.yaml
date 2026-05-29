@@ -186,6 +186,9 @@ importers:
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
+      framer-motion:
+        specifier: ^11.0.0
+        version: 11.18.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       ioredis:
         specifier: ^5.6.1
         version: 5.10.1
@@ -250,6 +253,9 @@ importers:
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
+      framer-motion:
+        specifier: ^11.0.0
+        version: 11.18.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       ioredis:
         specifier: ^5.6.1
         version: 5.10.1
@@ -320,6 +326,9 @@ importers:
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
+      framer-motion:
+        specifier: ^11.0.0
+        version: 11.18.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       ioredis:
         specifier: ^5.6.1
         version: 5.10.1
@@ -387,6 +396,9 @@ importers:
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
+      framer-motion:
+        specifier: ^11.0.0
+        version: 11.18.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       ioredis:
         specifier: ^5.6.1
         version: 5.10.1
@@ -460,6 +472,9 @@ importers:
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
+      framer-motion:
+        specifier: ^11.0.0
+        version: 11.18.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       ioredis:
         specifier: ^5.6.1
         version: 5.10.1
@@ -582,6 +597,9 @@ importers:
       fastify:
         specifier: ^5.2.1
         version: 5.8.5
+      framer-motion:
+        specifier: ^11.0.0
+        version: 11.18.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       ioredis:
         specifier: ^5.6.1
         version: 5.10.1
@@ -701,6 +719,9 @@ importers:
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
+      framer-motion:
+        specifier: ^11.0.0
+        version: 11.18.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       ioredis:
         specifier: ^5.6.1
         version: 5.10.1
@@ -1138,6 +1159,18 @@ importers:
         specifier: ^2
         version: 2.1.9(@types/node@22.19.19)(jsdom@29.1.1)
 
+  packages/chaos-testing:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: ^2
+        version: 2.1.9(@types/node@22.19.19)(jsdom@29.1.1)
+
   packages/co-presence:
     devDependencies:
       '@types/node':
@@ -1334,6 +1367,18 @@ importers:
         version: 2.1.9(@types/node@22.19.19)(jsdom@29.1.1)
 
   packages/encryption:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.19
+      typescript:
+        specifier: ~5.5.0
+        version: 5.5.4
+      vitest:
+        specifier: ^2
+        version: 2.1.9(@types/node@22.19.19)(jsdom@29.1.1)
+
+  packages/error-monitoring:
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1722,10 +1767,6 @@ importers:
         version: 2.1.9(@types/node@22.19.19)(jsdom@29.1.1)
 
   packages/quant-automate:
-    dependencies:
-      zod:
-        specifier: ^3.23.0
-        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1734,14 +1775,10 @@ importers:
         specifier: ~5.5.0
         version: 5.5.4
       vitest:
-        specifier: ^2.0.0
+        specifier: ^2
         version: 2.1.9(@types/node@22.19.19)(jsdom@29.1.1)
 
   packages/quant-codex:
-    dependencies:
-      zod:
-        specifier: ^3.23.0
-        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1750,7 +1787,7 @@ importers:
         specifier: ~5.5.0
         version: 5.5.4
       vitest:
-        specifier: ^2.0.0
+        specifier: ^2
         version: 2.1.9(@types/node@22.19.19)(jsdom@29.1.1)
 
   packages/quant-commerce:
@@ -1818,10 +1855,6 @@ importers:
         version: 2.1.9(@types/node@22.19.19)(jsdom@29.1.1)
 
   packages/quant-tools:
-    dependencies:
-      zod:
-        specifier: ^3.23.0
-        version: 3.25.76
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -1830,7 +1863,7 @@ importers:
         specifier: ~5.5.0
         version: 5.5.4
       vitest:
-        specifier: ^2.0.0
+        specifier: ^2
         version: 2.1.9(@types/node@22.19.19)(jsdom@29.1.1)
 
   packages/queue:
@@ -9309,6 +9342,14 @@ snapshots:
       chai: 5.3.3
       tinyrainbow: 1.2.0
 
+  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@22.19.19))':
+    dependencies:
+      '@vitest/spy': 2.1.9
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 5.4.21(@types/node@22.19.19)
+
   '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@25.9.1))':
     dependencies:
       '@vitest/spy': 2.1.9
@@ -12200,7 +12241,7 @@ snapshots:
   vitest@2.1.9(@types/node@22.19.19)(jsdom@29.1.1):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@25.9.1))
+      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@22.19.19))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9

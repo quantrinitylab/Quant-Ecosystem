@@ -1,42 +1,60 @@
+// Types
 export type {
-  QuantTool,
-  ToolContext,
-  ToolResult,
-  CostEstimate,
-  UndoRecipe,
-  AuditEntry,
-  ToolSearchResult,
-  ToolRegistry,
-  PlannedExecution,
-  UndoEntry,
   PermissionTier,
+  ToolInputSchema,
+  ToolOutputSchema,
+  UndoRecipe,
+  ToolDefinition,
+  ToolExecutionContext,
+  ToolResult,
+  ToolPlanStep,
+  ToolPlan,
+  IntentMatch,
+  AuditEntry,
+  UndoAction,
+  MCPToolEntry,
 } from './types.js';
 
-export { AuditEntrySchema } from './types.js';
+// Registry
+export { ToolRegistry } from './registry/tool-registry.js';
 
-export { ToolRegistryImpl } from './registry.js';
-export {
-  PermissionEngine,
-  isSafeAction,
-  requiresConfirmation,
-  requiresDoubleConfirmation,
-} from './permissions.js';
-export { ToolAuditTrail } from './audit.js';
-export { UndoManager } from './undo.js';
-export { ToolPlanner } from './planner.js';
+// Planner
+export { IntentRouter } from './planner/intent-router.js';
+export { MultiStepPlanner } from './planner/multi-step-planner.js';
 
+// Executor
+export { ToolExecutor } from './executor/tool-executor.js';
+
+// Permissions
+export { PermissionEngine } from './permissions/permission-engine.js';
+
+// Undo
+export { UndoRegistry } from './undo/undo-registry.js';
+
+// Audit
+export { AuditLog } from './audit/audit-log.js';
+
+// MCP
+export { MCPServerAdapter } from './mcp/mcp-server.js';
+
+// Tool definitions
 export {
+  allTools,
   mailTools,
   chatTools,
   calendarTools,
   docsTools,
   driveTools,
   meetTools,
-  aiTools,
   neonTools,
   syncTools,
   tubeTools,
   maxTools,
   editsTools,
   adsTools,
+  mapsTools,
+  photosTools,
+  deviceTools,
+  studioTools,
+  paymentsTools,
 } from './tools/index.js';

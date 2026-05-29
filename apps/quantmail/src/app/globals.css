@@ -9,6 +9,7 @@
   --brand-accent: #F59E0B;
   --brand-accent-hover: #D97706;
   --brand-app-color: #3B82F6;
+  --app-color: #3B82F6;
 
   /* Existing (now powered by brand) */
   --quant-primary: var(--brand-primary);
@@ -20,6 +21,14 @@
   --quant-border: #e2e8f0;
   --quant-ring: var(--brand-primary);
   --quant-radius: 0.5rem;
+  --quant-card: #ffffff;
+  --quant-card-foreground: #0f172a;
+  --quant-popover: #ffffff;
+  --quant-popover-foreground: #0f172a;
+  --quant-destructive: #ef4444;
+  --quant-destructive-foreground: #ffffff;
+  --quant-success: #22c55e;
+  --quant-warning: #f59e0b;
 }
 
 .dark {
@@ -28,10 +37,76 @@
   --quant-muted: #16161D;
   --quant-muted-foreground: #94a3b8;
   --quant-border: #334155;
+  --quant-card: #1a1a24;
+  --quant-card-foreground: #f8fafc;
+  --quant-popover: #1a1a24;
+  --quant-popover-foreground: #f8fafc;
+  --quant-ring: var(--brand-primary);
+  --quant-destructive: #dc2626;
+  --quant-destructive-foreground: #ffffff;
+  --quant-success: #16a34a;
+  --quant-warning: #d97706;
+}
+
+html {
+  transition: background-color 0.3s ease, color 0.2s ease;
 }
 
 @layer base {
   body {
     @apply bg-[var(--quant-background)] text-[var(--quant-foreground)] antialiased;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
+}
+
+/* Responsive breakpoints */
+@media (max-width: 360px) {
+  :root {
+    --quant-radius: 0.375rem;
+    --quant-spacing: 0.75rem;
+    --quant-font-size-base: 14px;
+  }
+}
+
+@media (min-width: 414px) and (max-width: 767px) {
+  :root {
+    --quant-radius: 0.5rem;
+    --quant-spacing: 1rem;
+    --quant-font-size-base: 15px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    --quant-radius: 0.5rem;
+    --quant-spacing: 1.5rem;
+    --quant-font-size-base: 16px;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1439px) {
+  :root {
+    --quant-radius: 0.5rem;
+    --quant-spacing: 2rem;
+    --quant-font-size-base: 16px;
+  }
+}
+
+@media (min-width: 1440px) {
+  :root {
+    --quant-radius: 0.625rem;
+    --quant-spacing: 2.5rem;
+    --quant-font-size-base: 16px;
+  }
+}
+
+/* Optimistic rollback shake animation */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 50%, 90% { transform: translateX(-3px); }
+  30%, 70% { transform: translateX(3px); }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
 }
