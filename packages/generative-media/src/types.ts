@@ -1,4 +1,4 @@
-export type MediaType = 'image' | 'video' | 'music' | 'voice';
+export type MediaType = 'image' | 'video' | 'music' | 'voice' | '3d';
 export type ProviderPriority = 'self-hosted' | 'commercial';
 export type SensitivityLevel = 'strict' | 'moderate' | 'permissive';
 

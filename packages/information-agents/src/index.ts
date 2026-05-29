@@ -19,3 +19,4 @@ export { EventSuggesterAgent } from './agents/event-suggester.js';
 export { UniversalCart } from './cart/universal-cart.js';
 export { getAvailableSources, searchSource } from './cart/cart-sources.js';
 export { AgentScheduler } from './scheduler.js';
+export type { AgentRunResult } from './scheduler.js';

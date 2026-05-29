@@ -12,6 +12,18 @@ export interface DetectionResult {
   metadata?: WatermarkMetadata;
 }
 
+/**
+ * Test/mock implementation of SynthID watermarking.
+ *
+ * This implementation embeds metadata by appending JSON to raw buffers
+ * and detects watermarks via string search. It will NOT survive real
+ * media codec pipelines (image compression, audio encoding, etc.).
+ *
+ * For production deployments, replace this with a codec-agnostic
+ * steganography library that embeds signals into the perceptual
+ * domain of the media (e.g. spectral-domain for audio, DCT-domain
+ * for images).
+ */
 export class SynthIDWatermarker {
   private config: SynthIDConfig;
   private watermarked = new Map<string, WatermarkMetadata>();

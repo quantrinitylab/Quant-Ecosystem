@@ -3,7 +3,7 @@ import type { ModalityTransformProvider } from './modality-router.js';
 
 function makeTransformResult(
   provider: string,
-  mediaType: 'image' | 'video' | 'music' | 'voice',
+  mediaType: 'image' | 'video' | 'music' | 'voice' | '3d',
   input: string,
   ext: string,
 ): GenerationResult {
@@ -58,7 +58,7 @@ export class TextTo3DTransform implements ModalityTransformProvider {
   async transform(input: string): Promise<GenerationResult> {
     return {
       uri: `https://cdn.quant.app/gen/${this.id}/${Date.now()}.glb`,
-      mediaType: 'image',
+      mediaType: '3d',
       provider: this.id,
       cost: 0.1,
       provenance: {
@@ -90,7 +90,7 @@ export class ImageTo3DTransform implements ModalityTransformProvider {
   async transform(input: string): Promise<GenerationResult> {
     return {
       uri: `https://cdn.quant.app/gen/${this.id}/${Date.now()}.glb`,
-      mediaType: 'image',
+      mediaType: '3d',
       provider: this.id,
       cost: 0.08,
       provenance: {

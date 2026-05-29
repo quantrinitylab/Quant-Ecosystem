@@ -2,10 +2,16 @@ import type { InformationAgent } from './types.js';
 
 type AgentRunner = () => unknown;
 
+export interface AgentRunResult<T = unknown> {
+  result: T | null;
+  error?: Error;
+}
+
 interface RegisteredAgent {
   agent: InformationAgent;
   runner: AgentRunner;
   nextRun: number;
+  lastError?: Error;
 }
 
 export class AgentScheduler {
@@ -21,7 +27,7 @@ export class AgentScheduler {
     });
   }
 
-  run(agentId: string): unknown {
+  run(agentId: string): AgentRunResult {
     const entry = this.agents.get(agentId);
     if (!entry) {
       throw new Error(`Agent ${agentId} not found`);
@@ -31,20 +37,23 @@ export class AgentScheduler {
     try {
       const result = entry.runner();
       entry.agent.status = 'idle';
+      entry.lastError = undefined;
       const frequency =
         'frequency' in entry.agent.config
           ? (entry.agent.config as { frequency: number }).frequency
           : 3600000;
       entry.nextRun = Date.now() + frequency;
-      return result;
-    } catch {
+      return { result };
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
       entry.agent.status = 'error';
-      return null;
+      entry.lastError = error;
+      return { result: null, error };
     }
   }
 
-  runAll(): Map<string, unknown> {
-    const results = new Map<string, unknown>();
+  runAll(): Map<string, AgentRunResult> {
+    const results = new Map<string, AgentRunResult>();
     for (const agentId of this.agents.keys()) {
       results.set(agentId, this.run(agentId));
     }
@@ -61,5 +70,9 @@ export class AgentScheduler {
 
   getAgent(agentId: string): InformationAgent | undefined {
     return this.agents.get(agentId)?.agent;
+  }
+
+  getLastError(agentId: string): Error | undefined {
+    return this.agents.get(agentId)?.lastError;
   }
 }
