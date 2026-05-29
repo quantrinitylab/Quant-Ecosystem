@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Phase 71 integration test: Prove voice-to-deploy E2E (CodexVoiceInterface) and NL-to-durable-automation E2E (quant-automate). Codex test: voice input parses to scaffold command, scaffold creates project, build orchestrator builds it, deploy pipeline deploys it (full pipeline). Automate test: NL description parsed to automation, trigger registered, durable executor starts/checkpoints/resumes mid-run.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create file packages/quant-codex/src/__tests__/phase71-integration.test.ts",
     "Import CodexVoiceInterface, ProjectScaffolder, BuildOrchestrator, DeployPipeline, ProjectStateManager from codex index",
