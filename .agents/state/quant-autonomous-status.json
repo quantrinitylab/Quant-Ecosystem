@@ -1,8 +1,8 @@
 {
   "repo": "Quant-Ecosystem",
-  "last_updated": "2026-05-29T16:00:00Z",
+  "last_updated": "2026-05-30T16:25:00Z",
   "current_phase": "phase-75-complete",
-  "audit_reverification": "2026-05-29: Independent clean-checkout audit (see AUDIT.md). On a fresh clone the gates did NOT pass as previously claimed: typecheck/build/test/lint were all RED. Four localized root causes were fixed (ai SDK v4/v5 mismatch in engine.ts; @quant/database build emitting no dist; auth/database missing @quant/common workspace dep causing a TS6305 build-ordering race; no-console lint errors in 9 packages). After fixes, all gates pass cold: typecheck 118/118, build 94/94, test 122/122, lint 101/101, audit 0 high/critical.",
+  "audit_reverification": "2026-05-30: Fixed OpenTelemetry v1/v2 dependency misalignment in packages/observability (sdk-trace-node, sdk-metrics, resources upgraded to ^2.7.0; exporters and instrumentation-http to ^0.218.0; Resource class replaced with resourceFromAttributes() factory). Removed inapplicable .github/workflows/brakeman.yml (Ruby scanner on TS project). All gates pass cold: typecheck 145/145, test 146/146, build 115/115.",
   "gates": {
     "install": "pass",
     "typecheck": "pass",
@@ -12,13 +12,14 @@
     "lint": "pass"
   },
   "gate_notes": {
-    "typecheck": "117/117 on 2026-05-29 after aligning @quant/ai to ai@^4.3.19 (main had ai@^6 vs v1 providers/v4-API code → engine.ts TS errors that broke typecheck for @quant/ai + dependents).",
-    "build": "94/94 over 3 consecutive cold runs, ZERO 'no output files' warnings, after BUG-1 turbo.json outputs fix (PR #93). CI-runner OOM mitigation (--concurrency=3 + heap bump) pending confirmation on GitHub Actions.",
-    "test": "turbo test = 121/121 after fixing the root vitest.config.ts include glob (the prior 'packages/**' globs broke per-package `vitest run` so packages like @quant/ai reported 'no test files'). NOTE: the separate coverage job (vitest run --coverage) is RED — real product line coverage ~30% < 50% threshold (genuine test debt, BUG-2). Not faked.",
-    "audit_high": "pnpm audit --audit-level=high exits 0. Re-verified 2026-05-29: 3 advisories remain (2 low + 1 moderate), 0 high/critical. (Prior note said '7 moderate + 1 low' — stale.)"
+    "typecheck": "145/145 on 2026-05-30 after aligning @opentelemetry packages to v2 generation (resources ^2.7.0, sdk-trace-node ^2.7.0, sdk-metrics ^2.7.0, exporter-trace-otlp-http ^0.218.0, exporter-metrics-otlp-http ^0.218.0, instrumentation-http ^0.218.0). Source updated to use resourceFromAttributes() instead of deprecated new Resource() constructor.",
+    "build": "115/115 on 2026-05-30. All packages build cleanly with --concurrency=3.",
+    "test": "146/146 on 2026-05-30. All test suites pass. NOTE: the separate coverage job (vitest run --coverage) is RED due to real product line coverage ~30% < 50% threshold (genuine test debt, BUG-2). Not faked.",
+    "audit_high": "pnpm audit --audit-level=high exits 0. 0 high/critical advisories.",
+    "brakeman_removed": "Removed .github/workflows/brakeman.yml - Ruby security scanner (Brakeman) was running on a pure TypeScript/Node.js monorepo with no Ruby code. It generated false positives and added CI noise."
   },
   "critical_risks": [
-    "Coverage debt (BUG-2): real product line coverage ~30% vs 50% global threshold — `test-and-coverage` CI job is red until tests are written (Phase 64.1).",
+    "Coverage debt (BUG-2): real product line coverage ~30% vs 50% global threshold - test-and-coverage CI job is red until tests are written.",
     "ci(22) parallel-Next-build OOM mitigation (PR #93) not yet confirmed green on the GitHub runner.",
     "E2E tests are advisory only - no real browser/integration tests running",
     "No staging environment provisioned",

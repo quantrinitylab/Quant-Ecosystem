@@ -1,6 +1,6 @@
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { trace, context, SpanStatusCode } from '@opentelemetry/api';
 import type { Span as OTelSpan, Tracer } from '@opentelemetry/api';
@@ -41,7 +41,7 @@ export function initTracing(config: TracingConfig): () => Promise<void> {
   });
 
   sdk = new NodeSDK({
-    resource: new Resource({
+    resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: config.serviceName,
     }),
     traceExporter,

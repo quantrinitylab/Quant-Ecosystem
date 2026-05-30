@@ -1,6 +1,6 @@
 import { MeterProvider, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
-import { Resource } from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { metrics } from '@opentelemetry/api';
 import type { Counter, Histogram, Meter } from '@opentelemetry/api';
@@ -46,7 +46,7 @@ export function initMetrics(config: MetricsConfig): () => Promise<void> {
   });
 
   meterProvider = new MeterProvider({
-    resource: new Resource({
+    resource: resourceFromAttributes({
       [ATTR_SERVICE_NAME]: config.serviceName,
     }),
     readers: [metricReader],

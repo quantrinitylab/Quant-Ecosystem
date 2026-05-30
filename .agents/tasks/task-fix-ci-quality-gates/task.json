@@ -1,0 +1,7 @@
+{
+  "task_id": "task-fix-ci-quality-gates",
+  "task_description": "Fix all failing CI quality gates on main branch: resolve OpenTelemetry dependency misalignment in packages/observability causing typecheck/build failures, remove inapplicable Brakeman workflow, and update quant-autonomous-status.json to reflect true gate state.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001"],
+  "blocked_reason": null
+}
