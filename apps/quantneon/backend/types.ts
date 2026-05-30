@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 /**
  * Narrow PrismaClient interface for QuantNeon services.
  * Constrains the available models and operations to only those

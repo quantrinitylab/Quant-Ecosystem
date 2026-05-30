@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 /**
  * Narrow PrismaClient interface for QuantTube services.
  * Constrains the available models and operations to only those

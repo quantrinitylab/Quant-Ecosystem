@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 /**
  * Narrow PrismaClient interface for QuantMax services.
  * Constrains the available models and operations to only those
@@ -43,7 +41,6 @@ export interface PrismaClient {
       data: Record<string, unknown>;
     }) => Promise<any>;
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
   $queryRawUnsafe<T = unknown>(query: string, ...values: unknown[]): Promise<T>;
 }
