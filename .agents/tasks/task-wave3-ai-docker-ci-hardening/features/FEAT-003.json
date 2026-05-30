@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Production Middleware Hardening - Add structured request logging, enhanced CORS, graceful shutdown hooks, and standardized health/readiness probes to server-core, plus create database migration and seed script",
+  "status": "pending",
+  "steps": [
+    "1. Create `packages/server-core/src/plugins/request-logger.ts` - Fastify plugin that logs structured JSON for every request: {requestId, method, url, statusCode, responseTime, userAgent, ip, userId (if auth'd)}. Uses pino's built-in request serializers. Register in app.ts.",
+    "2. Create `packages/server-core/src/plugins/graceful-shutdown.ts` - Fastify plugin that handles SIGTERM/SIGINT: sets a 'draining' flag, stops accepting new connections, waits for in-flight requests (with 30s timeout), closes Prisma connection, closes Redis if available, then exits. Replace the basic process.on handlers in app.ts with this plugin.",
+    "3. Update `packages/server-core/src/plugins/health.ts` - Add structured health check responses: /healthz returns {status, uptime, version, timestamp}. /readyz checks Prisma connectivity (prisma.$queryRaw`SELECT 1`) and Redis ping. Returns {status, checks: {database: 'ok'|'fail', redis: 'ok'|'fail'|'n/a'}}. Add /livez as alias for /healthz.",
+    "4. Update `packages/server-core/src/app.ts` - Register the new request-logger and graceful-shutdown plugins. Ensure CORS config supports multiple environments (read from config.corsOrigins which already exists). Document the public paths array as a constant.",
+    "5. Export new plugins from `packages/server-core/src/index.ts`.",
+    "6. Create `packages/database/prisma/migrations/0001_init/migration.sql` - A SQL file that creates all tables from schema.prisma. Use the complete DDL for all models (users, sessions, messages, emails, posts, videos, ai_sessions, etc). This is the initial migration baseline.",
+    "7. Create `packages/database/prisma/seed.ts` - Seed script that creates: 1 admin user, 2 regular users, sample conversations, sample emails, 1 AI session with messages. Uses @prisma/client directly. Add prisma.seed config to packages/database/package.json.",
+    "8. Create `packages/server-core/src/__tests__/health.test.ts` - Test the enhanced health plugin responses.",
+    "9. Create `packages/server-core/src/__tests__/graceful-shutdown.test.ts` - Test that shutdown plugin drains correctly."
+  ],
+  "acceptance_criteria": [
+    "Request logger plugin emits structured JSON log lines with requestId, method, url, statusCode, responseTime",
+    "Graceful shutdown plugin handles SIGTERM and drains in-flight requests",
+    "/healthz returns {status:'ok', uptime, version, timestamp}",
+    "/readyz returns {status, checks:{database,redis}} structure",
+    "/livez exists as liveness probe alias",
+    "Migration SQL file is syntactically valid PostgreSQL DDL",
+    "Seed script is valid TypeScript that imports PrismaClient",
+    "pnpm turbo typecheck passes for server-core and database",
+    "pnpm turbo test passes for server-core"
+  ],
+  "verification": [
+    "pnpm turbo typecheck --filter=@quant/server-core --filter=@quant/database",
+    "pnpm turbo test --filter=@quant/server-core",
+    "pnpm turbo build --filter=@quant/server-core --filter=@quant/database"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

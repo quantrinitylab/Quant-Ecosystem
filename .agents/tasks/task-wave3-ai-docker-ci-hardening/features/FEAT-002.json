@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Docker infrastructure - Production Dockerfiles for all deployable apps/services plus a comprehensive docker-compose.yml for full-stack development",
+  "status": "pending",
+  "steps": [
+    "1. Create `docker/.dockerignore` at project root - Ignore node_modules, .git, .next, dist, .turbo, *.md, .env*, coverage, e2e, tests, __tests__.",
+    "2. Create `.dockerignore` at project root (symlink or copy of docker/.dockerignore) for docker-compose context.",
+    "3. Create `docker/base.Dockerfile` - Multi-stage base: Stage 1 (deps): FROM node:22-slim, enable corepack, pnpm@10.28.1, copy workspace manifests + pnpm-lock.yaml, pnpm install --frozen-lockfile. Stage 2 (build): copy source, turbo build. Stage 3 (runner): node:22-slim, non-root user (nodejs:1001), copy only production artifacts. This is a reference/template, individual apps use their own.",
+    "4. Create `apps/quantmail/Dockerfile` - Multi-stage: install deps with turbo prune for @quant/quantmail, build with next build, run with next start. Expose port 3010. Non-root user. HEALTHCHECK curl localhost:3010/api/health.",
+    "5. Create `apps/quantchat/Dockerfile` - Same pattern as quantmail. Expose port 3015. HEALTHCHECK on /api/health.",
+    "6. Create `apps/quantai/Dockerfile` - Same pattern. Expose port 3020 (backend) and 3000 (Next.js). HEALTHCHECK on /healthz.",
+    "7. Create `apps/admin/Dockerfile` - Same pattern. Expose port 3100. HEALTHCHECK on /api/health.",
+    "8. Verify existing `services/ws-gateway/Dockerfile` is correct (it exists and looks good). No changes needed.",
+    "9. Create `docker-compose.yml` at project root - Full production-like compose with: postgres (pgvector), redis, all 4 app containers (quantmail, quantchat, quantai, admin), ws-gateway service. Proper networking (quant-network bridge), health checks, environment variables, depends_on with condition: service_healthy, volume mounts for dev. Redis used for EventBus scaling.",
+    "10. Update `.github/workflows/ci.yml` - Add quantmail, quantchat, quantai, admin to the docker-build matrix so CI validates all Dockerfiles build successfully."
+  ],
+  "acceptance_criteria": [
+    "Each Dockerfile (quantmail, quantchat, quantai, admin) has multi-stage build with deps/build/runner stages",
+    "All Dockerfiles use node:22-slim base, non-root user, HEALTHCHECK instruction",
+    "docker-compose.yml defines all services with proper networking and health checks",
+    ".dockerignore excludes node_modules, .git, coverage, tests",
+    "CI workflow matrix includes all deployable services",
+    "pnpm turbo typecheck still passes (no code changes, only Docker/YAML files)",
+    "pnpm turbo lint still passes"
+  ],
+  "verification": [
+    "pnpm turbo typecheck",
+    "pnpm turbo lint",
+    "docker build -f apps/quantai/Dockerfile -t quantai-test . (validate syntax)"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

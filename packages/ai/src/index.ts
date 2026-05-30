@@ -26,6 +26,23 @@ export { MailAIService } from './services/mail-ai';
 export { ContentAIService } from './services/content-ai';
 export { RecommendationAIService } from './services/recommendation-ai';
 export { DeviceControlAIService } from './services/device-control-ai';
+export { UnifiedAIService } from './services/unified-ai-service';
+export type { GenerateTextOptions, GenerateStreamOptions } from './services/unified-ai-service';
+
+// Config
+export {
+  getAvailableProviders,
+  getFallbackChain,
+  getProviderConfig,
+  hasAnyProvider,
+} from './config/providers';
+export type { ProviderConfig, FallbackChainConfig } from './config/providers';
+export {
+  generateMockTextResponse,
+  generateMockStreamChunks,
+  generateMockEmbedding,
+  generateMockModerationResult,
+} from './config/mock-responses';
 
 // Assistant
 export { UniversalAssistant } from './assistant/assistant';

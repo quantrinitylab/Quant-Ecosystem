@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Real AI Integration - Create production-ready AI configuration system with provider fallback, unified AI service with mock fallback, and wire it into QuantAI backend routes",
+  "status": "in_progress",
+  "steps": [
+    "1. Create `packages/ai/src/config/providers.ts` - Define a ProviderConfig interface and provider registry with configs for OpenAI, Anthropic, and Google. Environment variable driven (OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY). Include cost-per-token metadata. Export getProviderConfig(), getAvailableProviders(), and a fallback chain config.",
+    "2. Create `packages/ai/src/services/unified-ai-service.ts` - A unified high-level AI service class that wraps the AIEngine. Methods: generateText(prompt, options), generateStream(prompt, options) returning AsyncGenerator<StreamChunk>, generateEmbedding(text) returning number[], moderateContent(text) returning ModerationResult. Each method: checks if real API keys are available, if not returns mock/demo responses. Includes proper error handling, timeout (30s default), and retry logic via the existing retryWithBackoff utility. Uses the existing CostTracker to log costs.",
+    "3. Create `packages/ai/src/config/mock-responses.ts` - Mock response generator for when API keys are not configured. Returns realistic-looking mock text, mock embeddings (1536-dim zero vector), and mock moderation results. This ensures the system works gracefully without keys.",
+    "4. Export new modules from `packages/ai/src/index.ts` - Add exports for UnifiedAIService, ProviderConfig types, and mock utilities.",
+    "5. Create `apps/quantai/backend/routes/ask.ts` - A new route file for single-shot Q&A at POST /api/ask. Takes {question, model?, systemPrompt?} body, uses UnifiedAIService.generateText(), returns {answer, model, usage}. Register in apps/quantai/backend/app.ts.",
+    "6. Update `apps/quantai/backend/routes/chat.ts` - Refactor the streaming endpoint to use UnifiedAIService.generateStream() with proper SSE format (data: JSON\\n\\n pattern already in place). Ensure error events are sent as SSE error frames.",
+    "7. Create `packages/ai/src/__tests__/unified-ai-service.test.ts` - Unit tests for UnifiedAIService covering: mock mode when no keys, generateText returns valid response, generateEmbedding returns correct dimension, moderateContent returns proper ModerationResult structure, error handling on provider failure.",
+    "8. Create `apps/quantai/backend/__tests__/ask-route.test.ts` - Integration test for the /api/ask route verifying it returns proper JSON structure."
+  ],
+  "acceptance_criteria": [
+    "UnifiedAIService.generateText() returns a valid AIInferenceResponse when no API keys are set (mock mode)",
+    "UnifiedAIService.generateStream() yields StreamChunk objects ending with done:true",
+    "UnifiedAIService.generateEmbedding() returns a number array of length 1536",
+    "UnifiedAIService.moderateContent() returns a ModerationResult with safe/categories/action fields",
+    "The /api/ask route in quantai returns {answer, model, usage} JSON",
+    "All new code has proper TypeScript types - no `any` casts",
+    "pnpm turbo typecheck passes for packages/ai and apps/quantai",
+    "pnpm turbo test passes for packages/ai and apps/quantai"
+  ],
+  "verification": [
+    "pnpm turbo typecheck --filter=@quant/ai --filter=@quant/quantai",
+    "pnpm turbo test --filter=@quant/ai --filter=@quant/quantai",
+    "pnpm turbo build --filter=@quant/ai"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

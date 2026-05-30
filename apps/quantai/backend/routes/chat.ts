@@ -61,13 +61,18 @@ export default async function chatRoutes(fastify: FastifyInstance) {
       Connection: 'keep-alive',
     });
 
-    const stream = service.streamMessage(request.params.id, userId, parseResult.data.content);
+    try {
+      const stream = service.streamMessage(request.params.id, userId, parseResult.data.content);
 
-    for await (const chunk of stream) {
-      reply.raw.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      for await (const chunk of stream) {
+        reply.raw.write(`data: ${JSON.stringify(chunk)}\n\n`);
+      }
+
+      reply.raw.write('data: [DONE]\n\n');
+    } catch {
+      reply.raw.write(`data: ${JSON.stringify({ error: 'AI service unavailable' })}\n\n`);
     }
 
-    reply.raw.write('data: [DONE]\n\n');
     reply.raw.end();
   });
 
