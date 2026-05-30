@@ -15,9 +15,20 @@ export interface TracingConfig {
 /**
  * Initialize OpenTelemetry tracing.
  * Opt-in: only activates when OTEL_EXPORTER_OTLP_ENDPOINT env var is set.
- * Returns a shutdown function.
+ * Returns a shutdown function. Safe to call multiple times; subsequent calls
+ * return the existing shutdown function without re-initializing.
  */
 export function initTracing(config: TracingConfig): () => Promise<void> {
+  // Guard: if already initialized, return existing shutdown without re-init
+  if (sdk) {
+    return async () => {
+      if (sdk) {
+        await sdk.shutdown();
+        sdk = null;
+      }
+    };
+  }
+
   const endpoint = config.endpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
 
   if (!endpoint) {

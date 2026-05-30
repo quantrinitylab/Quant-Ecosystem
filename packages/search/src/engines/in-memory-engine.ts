@@ -22,7 +22,7 @@ export class InMemoryEngine implements SearchEngine {
     }
 
     const terms = query.toLowerCase().split(/\s+/);
-    const hits: Record<string, unknown>[] = [];
+    let hits: Record<string, unknown>[] = [];
 
     for (const doc of store.values()) {
       const docText = Object.values(doc)
@@ -33,6 +33,19 @@ export class InMemoryEngine implements SearchEngine {
       const matches = terms.some((term) => docText.includes(term));
       if (matches) {
         hits.push(doc);
+      }
+    }
+
+    // Apply filter: supports simple "key = value" equality checks
+    if (options?.filter) {
+      const filters = Array.isArray(options.filter) ? options.filter : [options.filter];
+      for (const filterStr of filters) {
+        const match = filterStr.match(/^\s*(\w+)\s*=\s*(.+?)\s*$/);
+        if (match) {
+          const key = match[1]!;
+          const value = match[2]!;
+          hits = hits.filter((doc) => String(doc[key]) === value);
+        }
       }
     }
 

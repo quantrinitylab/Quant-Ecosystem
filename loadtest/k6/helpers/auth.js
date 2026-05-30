@@ -1,4 +1,5 @@
 import encoding from 'k6/encoding';
+import crypto from 'k6/crypto';
 
 const DEFAULT_SECRET = __ENV.JWT_SECRET || 'dev-only-change-me-in-production!!!';
 
@@ -17,9 +18,13 @@ export function generateJWT(payload, secret) {
   const encodedPayload = encoding.b64encode(JSON.stringify(tokenPayload), 'rawurl');
   const signingInput = `${encodedHeader}.${encodedPayload}`;
 
-  // k6 does not have native HMAC - use a pre-shared token approach in load tests
-  // In practice, generate tokens externally or use a test auth endpoint
-  const signature = encoding.b64encode(signingInput, 'rawurl');
+  // Compute real HMAC-SHA256 signature for valid HS256 JWT
+  const signatureHex = crypto.hmac('sha256', sec, signingInput, 'hex');
+  const signatureBytes = [];
+  for (let i = 0; i < signatureHex.length; i += 2) {
+    signatureBytes.push(parseInt(signatureHex.substring(i, i + 2), 16));
+  }
+  const signature = encoding.b64encode(new Uint8Array(signatureBytes).buffer, 'rawurl');
 
   return `${encodedHeader}.${encodedPayload}.${signature}`;
 }

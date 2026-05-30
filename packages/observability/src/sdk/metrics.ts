@@ -16,8 +16,20 @@ export interface MetricsConfig {
 /**
  * Initialize OpenTelemetry metrics.
  * Opt-in: only activates when OTEL_EXPORTER_OTLP_ENDPOINT is set.
+ * Safe to call multiple times; subsequent calls return the existing shutdown
+ * function without re-initializing.
  */
 export function initMetrics(config: MetricsConfig): () => Promise<void> {
+  // Guard: if already initialized, return existing shutdown without re-init
+  if (meterProvider) {
+    return async () => {
+      if (meterProvider) {
+        await meterProvider.shutdown();
+        meterProvider = null;
+      }
+    };
+  }
+
   const endpoint = config.endpoint || process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
 
   if (!endpoint) {
