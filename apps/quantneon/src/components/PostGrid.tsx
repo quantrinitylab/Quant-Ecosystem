@@ -7,11 +7,10 @@ import type { Post } from '../types';
 
 interface PostGridProps {
   posts: Post[];
-  columns?: number;
   onPostClick?: (id: string) => void;
 }
 
-export function PostGrid({ posts, columns = 3, onPostClick }: PostGridProps) {
+export function PostGrid({ posts, onPostClick }: PostGridProps) {
   return (
     <div className={`grid gap-0.5 grid-cols-2 sm:grid-cols-3`} role="grid" aria-label="Photo grid">
       {posts.map((post, index) => (

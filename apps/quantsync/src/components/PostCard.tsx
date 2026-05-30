@@ -369,76 +369,66 @@ const PostCard: React.FC<PostCardProps> = ({
           )}
 
           <div className="flex items-center justify-between mt-1 max-w-md -ml-2">
-            <SpringButton>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onReply?.(id);
-                }}
-                className="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 group min-h-[44px] min-w-[44px]"
-              >
-                <span className="p-3 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 text-sm">
-                  &#x1F4AC;
-                </span>
-                <span className="text-xs">{formatCount(replies)}</span>
-              </button>
+            <SpringButton
+              onClick={(e) => {
+                e.stopPropagation();
+                onReply?.(id);
+              }}
+              className="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 group min-h-[44px] min-w-[44px]"
+            >
+              <span className="p-3 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 text-sm">
+                &#x1F4AC;
+              </span>
+              <span className="text-xs">{formatCount(replies)}</span>
             </SpringButton>
-            <SpringButton>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRepost();
-                }}
-                className={`flex items-center gap-1 group min-h-[44px] min-w-[44px] ${localReposted ? 'text-green-500' : 'text-gray-500 dark:text-gray-400 hover:text-green-500'}`}
-              >
-                <span className="p-3 rounded-full group-hover:bg-green-50 dark:group-hover:bg-green-900/20 text-sm">
-                  &#x1F504;
-                </span>
-                <span className="text-xs">{formatCount(localReposts)}</span>
-              </button>
+            <SpringButton
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRepost();
+              }}
+              className={`flex items-center gap-1 group min-h-[44px] min-w-[44px] ${localReposted ? 'text-green-500' : 'text-gray-500 dark:text-gray-400 hover:text-green-500'}`}
+            >
+              <span className="p-3 rounded-full group-hover:bg-green-50 dark:group-hover:bg-green-900/20 text-sm">
+                &#x1F504;
+              </span>
+              <span className="text-xs">{formatCount(localReposts)}</span>
             </SpringButton>
-            <SpringButton>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleLike();
-                }}
-                className={`flex items-center gap-1 group min-h-[44px] min-w-[44px] ${localLiked ? 'text-red-500' : 'text-gray-500 dark:text-gray-400 hover:text-red-500'}`}
+            <SpringButton
+              onClick={(e) => {
+                e.stopPropagation();
+                handleLike();
+              }}
+              className={`flex items-center gap-1 group min-h-[44px] min-w-[44px] ${localLiked ? 'text-red-500' : 'text-gray-500 dark:text-gray-400 hover:text-red-500'}`}
+            >
+              <motion.span
+                animate={likeAnimating ? { scale: [1, 1.4, 1] } : { scale: 1 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+                className="p-3 rounded-full group-hover:bg-red-50 dark:group-hover:bg-red-900/20 text-sm"
               >
-                <motion.span
-                  animate={likeAnimating ? { scale: [1, 1.4, 1] } : { scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-                  className="p-3 rounded-full group-hover:bg-red-50 dark:group-hover:bg-red-900/20 text-sm"
-                >
-                  {localLiked ? '\u2764\uFE0F' : '\u{1F90D}'}
-                </motion.span>
-                <span className="text-xs">{formatCount(localLikes)}</span>
-              </button>
+                {localLiked ? '\u2764\uFE0F' : '\u{1F90D}'}
+              </motion.span>
+              <span className="text-xs">{formatCount(localLikes)}</span>
             </SpringButton>
-            <SpringButton>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleBookmark();
-                }}
-                className={`flex items-center gap-1 group min-h-[44px] min-w-[44px] ${localBookmarked ? 'text-blue-500' : 'text-gray-500 dark:text-gray-400 hover:text-blue-500'}`}
-              >
-                <span className="p-3 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 text-sm">
-                  {localBookmarked ? '\uD83D\uDD16' : '\uD83D\uDCD1'}
-                </span>
-              </button>
+            <SpringButton
+              onClick={(e) => {
+                e.stopPropagation();
+                handleBookmark();
+              }}
+              className={`flex items-center gap-1 group min-h-[44px] min-w-[44px] ${localBookmarked ? 'text-blue-500' : 'text-gray-500 dark:text-gray-400 hover:text-blue-500'}`}
+            >
+              <span className="p-3 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 text-sm">
+                {localBookmarked ? '\uD83D\uDD16' : '\uD83D\uDCD1'}
+              </span>
             </SpringButton>
             <div className="relative">
-              <SpringButton>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowShareMenu(!showShareMenu);
-                  }}
-                  className="p-3 min-h-[44px] min-w-[44px] rounded-full text-gray-500 dark:text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-sm"
-                >
-                  &#x2197;&#xFE0F;
-                </button>
+              <SpringButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowShareMenu(!showShareMenu);
+                }}
+                className="p-3 min-h-[44px] min-w-[44px] rounded-full text-gray-500 dark:text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-sm"
+              >
+                &#x2197;&#xFE0F;
               </SpringButton>
               {showShareMenu && (
                 <div className="absolute bottom-full right-0 mb-1 bg-white dark:bg-[var(--quant-card)] border dark:border-gray-700 rounded-xl shadow-lg py-1 w-36 z-20">

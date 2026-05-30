@@ -119,7 +119,7 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900 text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-gray-900 dark:from-gray-950 dark:via-purple-950 dark:to-gray-950 text-white flex flex-col">
       <div className="relative overflow-hidden flex-1">
         {activeReactions.map((r) => (
           <div
@@ -139,16 +139,21 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
                 REC
               </span>
             )}
-            <span className="text-xs text-gray-400">{formatDuration(elapsedTime)}</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              {formatDuration(elapsedTime)}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowShareLink(true)}
-              className="text-xs text-gray-300 hover:text-white bg-white/10 px-3 py-1 rounded-full"
+              className="text-xs text-gray-300 hover:text-white dark:text-gray-400 dark:hover:text-white bg-white/10 dark:bg-white/5 px-3 py-1 rounded-full"
             >
               Share
             </button>
-            <button onClick={onLeave} className="text-xs text-gray-300 hover:text-white">
+            <button
+              onClick={onLeave}
+              className="text-xs text-gray-300 hover:text-white dark:text-gray-400 dark:hover:text-white"
+            >
               ✕
             </button>
           </div>
@@ -156,11 +161,13 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
 
         <div className="px-4 mb-6">
           <h1 className="text-lg font-bold">{title}</h1>
-          {description && <p className="text-sm text-gray-400 mt-1">{description}</p>}
+          {description && (
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">{description}</p>
+          )}
         </div>
 
         <section className="px-4 mb-6">
-          <h3 className="text-xs text-gray-400 uppercase tracking-wide mb-3">
+          <h3 className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3">
             Speakers ({speakers.length})
           </h3>
           <div className="grid grid-cols-4 gap-4">
@@ -173,7 +180,7 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
                   }
                 >
                   <div
-                    className={`w-16 h-16 rounded-full overflow-hidden ${speaker.isSpeaking ? 'ring-3 ring-green-400 ring-offset-2 ring-offset-gray-900' : ''}`}
+                    className={`w-16 h-16 rounded-full overflow-hidden ${speaker.isSpeaking ? 'ring-3 ring-green-400 ring-offset-2 ring-offset-gray-900 dark:ring-offset-gray-950' : ''}`}
                   >
                     <img
                       src={speaker.avatar}
@@ -197,13 +204,13 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
                 </div>
                 <span className="text-xs mt-1.5 text-center truncate w-full">{speaker.name}</span>
                 {showSpeakerMenu === speaker.id && isHost && (
-                  <div className="absolute top-full mt-1 bg-gray-800 rounded-lg py-1 w-32 z-10 shadow-lg">
+                  <div className="absolute top-full mt-1 bg-gray-800 dark:bg-gray-900 rounded-lg py-1 w-32 z-10 shadow-lg">
                     <button
                       onClick={() => {
                         onMuteSpeaker?.(speaker.id);
                         setShowSpeakerMenu(null);
                       }}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700"
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 dark:hover:bg-gray-800"
                     >
                       {speaker.isMuted ? 'Unmute' : 'Mute'}
                     </button>
@@ -212,7 +219,7 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
                         onRemoveSpeaker?.(speaker.id);
                         setShowSpeakerMenu(null);
                       }}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 text-red-400"
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 dark:hover:bg-gray-800 text-red-400"
                     >
                       Remove
                     </button>
@@ -224,7 +231,7 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
         </section>
 
         {isHost && handRaiseQueue.length > 0 && (
-          <section className="px-4 mb-6 bg-white/5 rounded-xl mx-4 p-3">
+          <section className="px-4 mb-6 bg-white/5 dark:bg-white/[0.03] rounded-xl mx-4 p-3">
             <h3 className="text-xs text-yellow-400 uppercase tracking-wide mb-2">
               Hand Raised ({handRaiseQueue.length})
             </h3>
@@ -234,13 +241,13 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
                   <div className="flex items-center gap-2">
                     <img src={person.avatar} alt="" className="w-8 h-8 rounded-full" />
                     <span className="text-sm">{person.name}</span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
                       {new Date(person.raisedAt).toLocaleTimeString()}
                     </span>
                   </div>
                   <button
                     onClick={() => onInviteSpeaker?.(person.id)}
-                    className="text-xs bg-purple-500 hover:bg-purple-600 px-3 py-1 rounded-full"
+                    className="text-xs bg-purple-500 hover:bg-purple-600 dark:bg-purple-600 dark:hover:bg-purple-700 px-3 py-1 rounded-full"
                   >
                     Invite
                   </button>
@@ -253,7 +260,7 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
         <section className="px-4 mb-6">
           <button
             onClick={() => setShowListeners(!showListeners)}
-            className="text-xs text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-1"
+            className="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1"
           >
             Listeners ({listeners.length}) {showListeners ? '▼' : '▶'}
           </button>
@@ -267,13 +274,13 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
                     className="w-10 h-10 rounded-full"
                     title={listener.name}
                   />
-                  <span className="text-xs text-gray-400 mt-0.5 truncate w-12 text-center">
+                  <span className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate w-12 text-center">
                     {listener.name.split(' ')[0]}
                   </span>
                 </div>
               ))}
               {listeners.length > 30 && (
-                <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-xs">
+                <div className="w-10 h-10 rounded-full bg-gray-700 dark:bg-gray-800 flex items-center justify-center text-xs">
                   +{listeners.length - 30}
                 </div>
               )}
@@ -282,14 +289,14 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
         </section>
       </div>
 
-      <div className="sticky bottom-0 bg-gray-900/95 backdrop-blur border-t border-gray-700 p-4">
+      <div className="sticky bottom-0 bg-gray-900/95 dark:bg-gray-950/95 backdrop-blur border-t border-gray-700 dark:border-gray-800 p-4">
         {showReactions && (
           <div className="flex justify-center gap-2 mb-3 flex-wrap">
             {REACTIONS.map((r) => (
               <button
                 key={r}
                 onClick={() => handleReact(r)}
-                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-lg transition-transform hover:scale-110"
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 dark:bg-white/5 dark:hover:bg-white/10 flex items-center justify-center text-lg transition-transform hover:scale-110"
               >
                 {r}
               </button>
@@ -299,7 +306,7 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
         <div className="flex items-center justify-between">
           <button
             onClick={() => setShowReactions(!showReactions)}
-            className="px-4 py-2 rounded-full bg-white/10 text-sm"
+            className="px-4 py-2 rounded-full bg-white/10 dark:bg-white/5 text-sm"
           >
             {showReactions ? '✕' : '😀'}
           </button>
@@ -314,7 +321,7 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
             ) : (
               <button
                 onClick={onRaiseHand}
-                className={`w-14 h-14 rounded-full flex items-center justify-center text-xl ${hasRaisedHand ? 'bg-yellow-500 animate-bounce' : 'bg-white/10'}`}
+                className={`w-14 h-14 rounded-full flex items-center justify-center text-xl ${hasRaisedHand ? 'bg-yellow-500 animate-bounce' : 'bg-white/10 dark:bg-white/5'}`}
               >
                 ✋
               </button>
@@ -342,7 +349,7 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
           onClick={() => setShowShareLink(false)}
         >
           <div
-            className="bg-gray-800 rounded-2xl p-6 w-full max-w-sm"
+            className="bg-gray-800 dark:bg-gray-900 rounded-2xl p-6 w-full max-w-sm"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="font-bold mb-3">Share Space</h3>
@@ -351,11 +358,11 @@ const SpaceRoom: React.FC<SpaceRoomProps> = ({
                 type="text"
                 value={`${typeof window !== 'undefined' ? window.location.origin : ''}/spaces/${spaceId}`}
                 readOnly
-                className="flex-1 bg-gray-700 rounded-lg px-3 py-2 text-sm"
+                className="flex-1 bg-gray-700 dark:bg-gray-800 rounded-lg px-3 py-2 text-sm"
               />
               <button
                 onClick={handleCopyLink}
-                className="px-4 py-2 bg-purple-500 rounded-lg text-sm"
+                className="px-4 py-2 bg-purple-500 dark:bg-purple-600 rounded-lg text-sm"
               >
                 {copied ? 'Copied!' : 'Copy'}
               </button>

@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Card,
-  Button,
   Avatar,
   LoadingState,
   ErrorState,
@@ -64,25 +63,17 @@ function PostCard({ post }: { post: Post }) {
             {post.content}
           </p>
           <div className="flex items-center gap-4 mt-3">
-            <SpringButton>
-              <Button variant="ghost" size="sm" className="min-h-[44px]">
-                {post.upvotes} Likes
-              </Button>
+            <SpringButton className="min-h-[44px] text-sm text-gray-600 dark:text-gray-400 hover:text-blue-500 px-2 py-1 rounded">
+              {post.upvotes} Likes
             </SpringButton>
-            <SpringButton>
-              <Button variant="ghost" size="sm" className="min-h-[44px]">
-                {post.repostCount} Reposts
-              </Button>
+            <SpringButton className="min-h-[44px] text-sm text-gray-600 dark:text-gray-400 hover:text-green-500 px-2 py-1 rounded">
+              {post.repostCount} Reposts
             </SpringButton>
-            <SpringButton>
-              <Button variant="ghost" size="sm" className="min-h-[44px]">
-                {post.commentCount} Comments
-              </Button>
+            <SpringButton className="min-h-[44px] text-sm text-gray-600 dark:text-gray-400 hover:text-blue-500 px-2 py-1 rounded">
+              {post.commentCount} Comments
             </SpringButton>
-            <SpringButton>
-              <Button variant="ghost" size="sm" className="min-h-[44px]">
-                Bookmark
-              </Button>
+            <SpringButton className="min-h-[44px] text-sm text-gray-600 dark:text-gray-400 hover:text-yellow-500 px-2 py-1 rounded">
+              Bookmark
             </SpringButton>
           </div>
         </div>
@@ -110,10 +101,8 @@ export default function FeedPage() {
       <main className="max-w-2xl mx-auto px-4 py-6 min-h-screen bg-[var(--quant-background)] text-[var(--quant-foreground)]">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Feed</h1>
-          <SpringButton>
-            <Button variant="primary" size="sm" className="min-h-[44px]">
-              Compose
-            </Button>
+          <SpringButton className="min-h-[44px] px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg">
+            Compose
           </SpringButton>
         </div>
 
