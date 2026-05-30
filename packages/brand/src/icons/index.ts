@@ -12,3 +12,5 @@ export { quantmaxIcon } from './quantmax';
 export { quanteditsIcon } from './quantedits';
 export { quantadsIcon } from './quantads';
 export { marketingIcon } from './marketing';
+export { quantmapsIcon } from './quantmaps';
+export { quantphotosIcon } from './quantphotos';

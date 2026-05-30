@@ -4,6 +4,7 @@ import { primary, accent, neutral, semantic, surface } from './colors';
 import { fontFamily, fontSize, lineHeight, fontWeight } from './typography';
 import { easing, duration } from './motion';
 import { apps } from './apps';
+import { themes } from './themes';
 
 function colorVars(prefix: string, shades: Record<string, string>): string {
   return Object.entries(shades)
@@ -111,5 +112,29 @@ export function generateAppCSS(appId: string): string {
   --app-name: "${app.name}";
   --app-color: ${app.color};
   --app-hue: ${app.hue};
+}`;
+}
+
+/** Generate theme CSS custom properties */
+export function generateThemeCSS(themeName: string): string {
+  const theme = themes[themeName];
+  if (!theme) {
+    return `/* Unknown theme: ${themeName} */`;
+  }
+  return `:root[data-theme="${themeName}"] {
+  --background: ${theme.background};
+  --foreground: ${theme.foreground};
+  --surface: ${theme.surface};
+  --surface-elevated: ${theme.surfaceElevated};
+  --primary: ${theme.primary};
+  --primary-foreground: ${theme.primaryForeground};
+  --accent: ${theme.accent};
+  --accent-foreground: ${theme.accentForeground};
+  --border: ${theme.border};
+  --muted: ${theme.muted};
+  --muted-foreground: ${theme.mutedForeground};
+  --destructive: ${theme.destructive};
+  --destructive-foreground: ${theme.destructiveForeground};
+  --ring: ${theme.ring};
 }`;
 }

@@ -135,6 +135,24 @@ export const marketing: AppBrandConfig = {
   iconRef: 'marketing',
 };
 
+export const quantmaps: AppBrandConfig = {
+  id: 'quantmaps',
+  name: 'QuantMaps',
+  color: '#22C55E',
+  hue: 145,
+  description: 'Navigation and location services',
+  iconRef: 'quantmaps',
+};
+
+export const quantphotos: AppBrandConfig = {
+  id: 'quantphotos',
+  name: 'QuantPhotos',
+  color: '#A855F7',
+  hue: 272,
+  description: 'Photo management and memories',
+  iconRef: 'quantphotos',
+};
+
 export const apps: Record<string, AppBrandConfig> = {
   quantmail,
   quantchat,
@@ -150,4 +168,6 @@ export const apps: Record<string, AppBrandConfig> = {
   quantedits,
   quantads,
   marketing,
+  quantmaps,
+  quantphotos,
 };

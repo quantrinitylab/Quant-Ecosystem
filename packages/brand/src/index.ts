@@ -24,6 +24,8 @@ export {
   quantedits,
   quantads,
   marketing,
+  quantmaps,
+  quantphotos,
 } from './apps';
 export type { AppBrandConfig } from './apps';
 export { quantWordmarkLight, quantWordmarkDark } from './logos/quant-wordmark';
@@ -43,5 +45,15 @@ export {
   quanteditsIcon,
   quantadsIcon,
   marketingIcon,
+  quantmapsIcon,
+  quantphotosIcon,
 } from './icons/index';
-export { generateBrandCSS, generateAppCSS } from './tokens';
+export { generateBrandCSS, generateAppCSS, generateThemeCSS } from './tokens';
+export { themes, dark, light, neon, bharat, highContrast, colorblindSafe } from './themes';
+export type { Theme } from './themes';
+export { hexToRgb, relativeLuminance, contrastRatio, meetsAA, meetsAAA } from './contrast';
+export { coreIcons } from './icons/core';
+export type { CoreIconName } from './icons/core';
+export { generateAppIconSet, generateFaviconSvg } from './icons/app-icons';
+export type { AppIconSet } from './icons/app-icons';
+export { appLogos } from './logos/app-logos';
