@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "WebRTC Signaling Package - Create packages/webrtc/ with real WebSocket-based signaling server (offer/answer/ICE exchange), room manager with participant tracking, client-side peer connection helper, and wire into quantmeet backend replacing fake ICE candidates.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create packages/webrtc/package.json with @quant/webrtc name, dependencies on ws, zod, pino, @quant/common. Include browser-safe exports field for client code.",
     "Create packages/webrtc/tsconfig.json",
