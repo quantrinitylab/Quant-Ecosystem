@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Create packages/edge-config/ - Edge/CDN optimization package with reusable Next.js middleware (geolocation routing, A/B testing, bot detection, rate limiting at edge), CDN cache headers, and static optimization configs. Then update all Next.js apps with optimized next.config (image optimization AVIF/WebP, font optimization, security headers including CSP).",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create packages/edge-config/package.json with name @quant/edge-config, deps: zod, @quant/common. Scripts: build/typecheck/test/lint",
     "Create packages/edge-config/tsconfig.json extending root pattern",
@@ -31,5 +31,5 @@
     "pnpm turbo lint --filter=@quant/edge-config"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All checks pass cleanly: typecheck, build, 27 tests (3 test files), lint. Pre-commit hook requires NVM sourced for pnpm path. noUncheckedIndexedAccess in root tsconfig requires guarding array index accesses in tests."
 }

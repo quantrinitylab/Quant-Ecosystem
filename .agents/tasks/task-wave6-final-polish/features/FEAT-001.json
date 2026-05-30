@@ -2,7 +2,7 @@
   "id": "FEAT-001",
   "type": "feat",
   "description": "Create packages/data-pipeline/ - a production Redis Streams-based event streaming infrastructure with consumer groups, dead letter queue, and 3 processors (analytics, notification, indexing). Wire into admin (publish analytics), ws-gateway (publish connection events), and search-indexer (consume indexing events).",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Create packages/data-pipeline/package.json with name @quant/data-pipeline, deps: ioredis, zod, pino, @quant/common. Scripts: build (tsc), typecheck (tsc --noEmit), test (vitest run), lint (eslint .)",
     "Create packages/data-pipeline/tsconfig.json extending root pattern (see packages/queue/tsconfig.json as reference)",
@@ -32,5 +32,5 @@
     "pnpm turbo lint --filter=@quant/data-pipeline"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 4 acceptance criteria met: typecheck, build, test (36 tests), lint all pass. Prettier reformatted via pre-commit hook. No eslint.config.mjs existed in packages/queue so used root eslint.config.mjs pattern. Node 22 via nvm required for pnpm. pnpm-lock.yaml updated as part of install."
 }
