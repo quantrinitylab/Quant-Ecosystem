@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-001",
+  "type": "fix",
+  "description": "Fix OpenTelemetry dependency version misalignment in packages/observability that causes typecheck and build failures, then remove the inapplicable Brakeman workflow, and update the autonomous status file.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1: Update packages/observability/package.json to align all OpenTelemetry deps to the v2/0.218.x generation. Specifically: keep @opentelemetry/api at ^1.9.0 (API package stays on v1.x). Update @opentelemetry/sdk-trace-node from ^1.30.0 to ^2.7.0. Update @opentelemetry/sdk-metrics from ^1.30.0 to ^2.7.0. Update @opentelemetry/exporter-trace-otlp-http from ^0.57.0 to ^0.218.0. Update @opentelemetry/exporter-metrics-otlp-http from ^0.57.0 to ^0.218.0. Update @opentelemetry/resources from ^1.30.0 to ^2.7.0. Keep @opentelemetry/semantic-conventions at ^1.28.0. Update @opentelemetry/instrumentation-http from ^0.57.0 to ^0.218.0. Update @opentelemetry/instrumentation-fastify from ^0.43.0 to ^0.218.0. Keep @opentelemetry/sdk-node at ^0.218.0.",
+    "Step 2: Run `pnpm install` (NOT --frozen-lockfile) to regenerate the lockfile with the new dependency versions.",
+    "Step 3: Check if packages/observability/src/sdk/tracing.ts and packages/observability/src/sdk/metrics.ts still compile. The v2 Resource API may have changed - in v2, the Resource constructor may need a different import or factory function. If `new Resource({...})` no longer works, look at the installed @opentelemetry/resources package to see what API is exported (check node_modules/@opentelemetry/resources/build/src/Resource.d.ts or similar). The fix may be to use `resourceFromAttributes()` or a different constructor pattern. Also verify ATTR_SERVICE_NAME is still exported from @opentelemetry/semantic-conventions.",
+    "Step 4: Run `pnpm typecheck --filter @quant/observability` to confirm the observability package compiles cleanly.",
+    "Step 5: Run `pnpm typecheck` (full monorepo) to verify no other packages broke.",
+    "Step 6: Run `pnpm turbo test` to verify all tests pass.",
+    "Step 7: Run `pnpm turbo build --concurrency=3` to verify the full build passes.",
+    "Step 8: Remove .github/workflows/brakeman.yml - this is a Ruby security scanner running on a pure TypeScript/Node.js monorepo. It generates false positives and is not applicable.",
+    "Step 9: Update .agents/state/quant-autonomous-status.json to reflect the verified state of all gates. Set last_updated to current timestamp. Update gate_notes with the fix details. Set all passing gates to 'pass'. Remove any stale notes about OTel errors. Add a note about the brakeman workflow removal."
+  ],
+  "acceptance_criteria": [
+    "pnpm typecheck passes for all packages (0 errors)",
+    "pnpm turbo test passes (all tests green)",
+    "pnpm turbo build --concurrency=3 passes (all packages build successfully)",
+    ".github/workflows/brakeman.yml is deleted",
+    ".agents/state/quant-autonomous-status.json is updated with accurate gate status"
+  ],
+  "verification": [
+    "pnpm typecheck --filter @quant/observability (should exit 0)",
+    "pnpm typecheck (full monorepo, should exit 0)",
+    "pnpm turbo test (should exit 0)",
+    "pnpm turbo build --concurrency=3 (should exit 0)"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
