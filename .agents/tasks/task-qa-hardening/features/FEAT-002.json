@@ -1,0 +1,22 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Add comprehensive unit tests for packages/common (validators and utils) - these core utilities are used across all apps but only have 4 test files covering logger, activity-feed, deep-linking, and sanitize-media-url. The validators.ts and utils.ts modules have zero tests.",
+  "status": "completed",
+  "steps": [
+    "Create packages/common/src/__tests__/validators.test.ts with comprehensive tests covering: validateEmail (valid emails, invalid formats, empty, too long), validatePhone (valid international, invalid formats, empty), validateUrl (http/https, invalid protocols, too long, empty), validateUsername (valid, too short, too long, invalid chars, starts/ends with special), validatePassword (strong, weak cases for each rule), validateDisplayName, validateFileUpload, validatePagination, validateSearchQuery, validateOAuthScope, validateDateRange, composeValidators. Follow the describe/it/expect pattern used in packages/common/src/__tests__/logger.test.ts.",
+    "Create packages/common/src/__tests__/utils.test.ts with tests covering: generateId (returns string with prefix), generateUUID (correct format), formatRelativeTime (just now, minutes, hours, days, weeks, months, years), formatDate (iso, short, long), debounce (delays execution, cancels on new call), throttle (limits call frequency), deepClone (primitives, arrays, objects, dates, nested), sleep (resolves after delay), retry (succeeds first try, retries on failure, gives up after max attempts), paginate (correct slicing, hasNext/hasPrevious), truncate (short strings unchanged, long strings truncated), sanitizeHtml (replaces dangerous chars), slugify (lowercase, spaces to hyphens, remove special), hashString (consistent for same input), pick/omit (correct key filtering), groupBy, formatFileSize, clamp, isEmpty (null, undefined, empty string, empty array, empty object, non-empty values)."
+  ],
+  "acceptance_criteria": [
+    "Running `pnpm --filter @quant/common test` passes with both new test files executing",
+    "validators.test.ts has at least 30 test cases covering all exported functions",
+    "utils.test.ts has at least 40 test cases covering all exported utility functions",
+    "No typecheck errors in the new test files"
+  ],
+  "verification": [
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm --filter @quant/common test",
+    "cd /projects/sandbox/Quant-Ecosystem && pnpm --filter @quant/common typecheck"
+  ],
+  "blocked_reason": null,
+  "findings": "All 188 tests pass (66 validator tests + 72 util tests + 50 pre-existing tests). Typecheck passes. retry() tests use real timers with baseDelayMs:1 to avoid unhandled rejection issues with vi.useFakeTimers and async retry loops. The email validator allows exactly 254 chars (boundary), so test needed 255+ to trigger the error."
+}
