@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  /* Brand System */
+  /* Brand System - QuantAI app color: #8B5CF6, hue: 263 */
   --brand-primary: #4F46E5;
   --brand-primary-hover: #4338CA;
   --brand-accent: #F59E0B;
@@ -11,7 +11,7 @@
   --brand-app-color: #8B5CF6;
   --app-color: #8B5CF6;
 
-  /* Existing (now powered by brand) */
+  /* Semantic tokens mapped from brand */
   --quant-primary: var(--brand-primary);
   --quant-secondary: #8b5cf6;
   --quant-background: #ffffff;
@@ -29,6 +29,19 @@
   --quant-destructive-foreground: #ffffff;
   --quant-success: #22c55e;
   --quant-warning: #f59e0b;
+
+  /* Surface tokens */
+  --surface: #ffffff;
+  --surface-elevated: #f8fafc;
+  --surface-hover: #f1f5f9;
+
+  /* Foreground */
+  --foreground: #0f172a;
+  --foreground-secondary: #64748b;
+
+  /* Primary for components */
+  --primary: var(--brand-primary);
+  --primary-foreground: #ffffff;
 }
 
 .dark {
@@ -36,7 +49,7 @@
   --quant-foreground: #f8fafc;
   --quant-muted: #16161D;
   --quant-muted-foreground: #94a3b8;
-  --quant-border: #334155;
+  --quant-border: #1e293b;
   --quant-card: #1a1a24;
   --quant-card-foreground: #f8fafc;
   --quant-popover: #1a1a24;
@@ -46,6 +59,19 @@
   --quant-destructive-foreground: #ffffff;
   --quant-success: #16a34a;
   --quant-warning: #d97706;
+
+  /* Surface tokens - dark */
+  --surface: #0F0F14;
+  --surface-elevated: #1a1a24;
+  --surface-hover: #252530;
+
+  /* Foreground - dark */
+  --foreground: #f8fafc;
+  --foreground-secondary: #94a3b8;
+
+  /* Primary - dark */
+  --primary: var(--brand-primary);
+  --primary-foreground: #ffffff;
 }
 
 html {

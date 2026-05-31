@@ -13,10 +13,6 @@ const config: Config = {
           'accent-hover': 'var(--brand-accent-hover)',
           app: 'var(--brand-app-color)',
         },
-        quant: {
-          primary: 'var(--quant-primary)',
-          secondary: '#8b5cf6',
-        },
         surface: {
           DEFAULT: 'var(--surface)',
           elevated: 'var(--surface-elevated)',

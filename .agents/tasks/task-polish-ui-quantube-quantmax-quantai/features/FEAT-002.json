@@ -1,0 +1,32 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Polish QuantAI app: integrate @quant/brand system into theme, add Framer Motion page transitions and staggered animations, enhance ChatInterface/page components with proper dark mode, loading skeletons, responsive layout, and motion tokens. Wire existing React Query hooks with the brand system theming.",
+  "status": "completed",
+  "steps": [
+    "Update apps/quantai/src/app/globals.css to import and use @quant/brand CSS variables via generateBrandCSS() and generateAppCSS('quantai') and generateThemeCSS('dark'). Add dark mode toggle support with proper theme variables. Ensure responsive 360-1440px coverage is maintained.",
+    "Update apps/quantai/tailwind.config.ts to extend theme colors from brand CSS variables (primary, accent, surface, semantic colors). Add brand font families and motion-related utilities.",
+    "Update apps/quantai/src/app/layout.tsx: Add dark mode class toggle (default to dark), import brand fonts (Inter from next/font), add meta viewport for responsive, wrap children in a ThemeProvider that applies data-theme attribute.",
+    "Create apps/quantai/src/providers/theme-provider.tsx: A client component that manages dark/light theme state using localStorage preference and system preference, applies class 'dark' to html element.",
+    "Update apps/quantai/src/app/page.tsx: Add Framer Motion AnimatePresence and motion.div page transitions using spring.gentle from @quant/brand. Add staggered list entrance for conversation items in sidebar. Add loading skeleton UI while chat loads (pulsing placeholder blocks). Use brand colors for accent/primary styling.",
+    "Update apps/quantai/src/components/ChatInterface.tsx: Add framer-motion animations - messages slide in with spring.snappy, typing indicator uses motion.div with bouncy spring. Add hover/press/focus states with 44px minimum tap targets (already mostly done). Add dark mode color classes using brand CSS vars. Add empty state when no messages with friendly copy and illustration.",
+    "Create apps/quantai/src/components/LoadingSkeleton.tsx: Reusable skeleton component with shimmer animation using brand motion tokens. Variants: chat-message, sidebar-item, model-card.",
+    "Update apps/quantai/src/components/ModelSelector.tsx: Add framer-motion dropdown animation (spring.stiff for open/close), brand colors for selected state, hover states with scale microinteraction.",
+    "Update apps/quantai/src/app/voice/page.tsx: Add motion animations for voice activation state, use brand accent color for active voice indicator, add loading/error/empty states.",
+    "Ensure all components use semantic color tokens (var(--foreground), var(--surface), var(--primary), etc.) so dark/light mode works automatically."
+  ],
+  "acceptance_criteria": [
+    "QuantAI app uses @quant/brand color tokens and motion springs throughout",
+    "Dark mode works correctly toggling via class strategy",
+    "Page transitions use Framer Motion with spring physics from brand",
+    "Chat messages animate in with stagger effect",
+    "Loading skeletons appear while data loads",
+    "Empty states display friendly copy when no conversations",
+    "All interactive elements have 44px minimum tap targets",
+    "Layout is responsive from 360px to 1440px",
+    "TypeScript compiles without errors: pnpm --filter @quant/quantai typecheck"
+  ],
+  "verification": ["Run pnpm --filter @quant/quantai typecheck and confirm it passes"],
+  "blocked_reason": null,
+  "findings": "All changes compile cleanly with npx tsc --noEmit (exit 0). Pre-commit hooks (prettier) ran successfully and reformatted code. ThemeProvider uses localStorage key 'quantai-theme' and system preference. Brand CSS variables applied in globals.css for both light and dark modes. Framer Motion spring tokens from @quant/brand used throughout. LoadingSkeleton has chat-message, sidebar-item, and model-card variants."
+}

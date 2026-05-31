@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Install dependencies and verify baseline compiles for all 3 apps. Add framer-motion, react-virtuoso to quantube and quantmax (quantai already has framer-motion). Add @quant/brand as workspace dependency to all 3 apps. Run pnpm install, then run typecheck for each app.",
+  "status": "completed",
+  "steps": [
+    "Add @quant/brand workspace:* to dependencies in apps/quantube/package.json, apps/quantmax/package.json, apps/quantai/package.json",
+    "Add framer-motion ^11.0.0 to apps/quantube/package.json and apps/quantmax/package.json dependencies",
+    "Add react-virtuoso ^4.0.0 to all 3 apps' package.json dependencies",
+    "Add tailwindcss ^3.4.13, postcss ^8.4.47, autoprefixer ^10.4.20 to apps/quantube/package.json devDependencies (quantmax and quantai already have them)",
+    "Run pnpm install from /projects/sandbox/Quant-Ecosystem root",
+    "Run pnpm --filter @quant/quantube typecheck to check current state (may have pre-existing errors - note them)",
+    "Run pnpm --filter @quant/quantmax typecheck to check current state",
+    "Run pnpm --filter @quant/quantai typecheck to check current state"
+  ],
+  "acceptance_criteria": [
+    "pnpm install completes without errors",
+    "@quant/brand is listed in all 3 package.json files",
+    "framer-motion is listed in quantube and quantmax package.json",
+    "react-virtuoso is listed in all 3 package.json files"
+  ],
+  "verification": [
+    "Run pnpm install and confirm it exits 0",
+    "Run pnpm --filter @quant/quantube typecheck (note baseline state)",
+    "Run pnpm --filter @quant/quantmax typecheck (note baseline state)",
+    "Run pnpm --filter @quant/quantai typecheck (note baseline state)"
+  ],
+  "blocked_reason": null,
+  "findings": "pnpm install completed successfully. Typecheck baseline: quantube has many pre-existing errors (possibly-undefined, unbuilt shared-ui/server-core dist, missing next/router module). quantmax and quantai both fail only on @quant/database unbuilt in server-core/plugins/prisma.ts. None of these are related to our newly added deps. quantube has no typecheck script so used npx tsc --noEmit directly. All acceptance criteria met."
+}

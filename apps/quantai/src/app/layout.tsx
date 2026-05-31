@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { QueryProvider } from '../providers/query-provider';
 import { AppProviders } from '../providers/app-providers';
+import { QuantAIThemeProvider } from '../providers/theme-provider';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -20,7 +21,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <QueryProvider>
-          <AppProviders>{children}</AppProviders>
+          <AppProviders>
+            <QuantAIThemeProvider>{children}</QuantAIThemeProvider>
+          </AppProviders>
         </QueryProvider>
       </body>
     </html>

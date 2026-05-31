@@ -3,17 +3,17 @@
 @tailwind utilities;
 
 :root {
-  /* Brand System - QuantMax app color: #F59E0B, hue: 38 */
-  --brand-primary: #4F46E5;
-  --brand-primary-hover: #4338CA;
-  --brand-accent: #F59E0B;
-  --brand-accent-hover: #D97706;
-  --brand-app-color: #F59E0B;
-  --app-color: #F59E0B;
+  /* Brand System - QuantTube app color: #F43F5E, hue: 350 */
+  --brand-primary: #F43F5E;
+  --brand-primary-hover: #E11D48;
+  --brand-accent: #FB923C;
+  --brand-accent-hover: #F97316;
+  --brand-app-color: #F43F5E;
+  --app-color: #F43F5E;
 
-  /* Semantic tokens mapped from brand */
+  /* Semantic tokens */
   --quant-primary: var(--brand-primary);
-  --quant-secondary: #f59e0b;
+  --quant-secondary: #f97316;
   --quant-background: #ffffff;
   --quant-foreground: #0f172a;
   --quant-muted: #f1f5f9;
@@ -29,7 +29,6 @@
   --quant-destructive-foreground: #ffffff;
   --quant-success: #22c55e;
   --quant-warning: #f59e0b;
-  --quant-info: #3b82f6;
 
   /* Surface tokens */
   --surface: #ffffff;
@@ -43,16 +42,6 @@
   /* Primary for components */
   --primary: var(--brand-primary);
   --primary-foreground: #ffffff;
-
-  /* Motion */
-  --brand-ease-out: cubic-bezier(0.0, 0.0, 0.2, 1.0);
-  --brand-ease-in: cubic-bezier(0.4, 0.0, 1.0, 1.0);
-  --brand-ease-in-out: cubic-bezier(0.4, 0.0, 0.2, 1.0);
-  --brand-ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --brand-duration-fast: 100ms;
-  --brand-duration-normal: 200ms;
-  --brand-duration-moderate: 300ms;
-  --brand-duration-slow: 500ms;
 }
 
 .dark {
@@ -70,7 +59,6 @@
   --quant-destructive-foreground: #ffffff;
   --quant-success: #16a34a;
   --quant-warning: #d97706;
-  --quant-info: #2563eb;
 
   /* Surface tokens - dark */
   --surface: #0f0f14;

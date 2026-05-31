@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { spring } from '@quant/brand';
 import { VoiceInput, Button } from '@quant/shared-ui';
 
 export default function VoicePage() {
@@ -37,63 +39,104 @@ export default function VoicePage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen p-6">
+    <motion.div
+      className="flex flex-col items-center justify-center h-screen p-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', ...spring.gentle }}
+    >
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold mb-2">Voice Interaction</h1>
-        <p className="text-[var(--quant-muted-foreground)]">
+        <h1 className="text-2xl font-bold mb-2 text-[var(--foreground)]">Voice Interaction</h1>
+        <p className="text-[var(--foreground-secondary)]">
           Tap the microphone to start speaking with QuantAI
         </p>
       </div>
-      <div className="mb-8">
-        <VoiceInput
-          onTranscript={handleTranscript}
-          onRecordingStart={() => {}}
-          onRecordingStop={() => {}}
-        />
-      </div>
+
+      <motion.div
+        className="mb-8"
+        animate={loading ? { scale: [1, 1.05, 1] } : undefined}
+        transition={loading ? { duration: 1.5, repeat: Infinity, ease: 'easeInOut' } : undefined}
+      >
+        <div
+          className={`rounded-full ${loading ? 'ring-4 ring-[var(--brand-accent)]/40' : ''} transition-shadow`}
+        >
+          <VoiceInput
+            onTranscript={handleTranscript}
+            onRecordingStart={() => {}}
+            onRecordingStop={() => {}}
+          />
+        </div>
+      </motion.div>
+
       <div className="w-full max-w-md space-y-4">
         {/* Transcript display */}
-        <div className="p-4 rounded-lg bg-[var(--quant-muted)]">
+        <motion.div
+          className="p-4 rounded-lg bg-[var(--quant-muted)]"
+          initial={false}
+          animate={transcript ? { borderColor: 'var(--brand-app-color)' } : undefined}
+        >
           {transcript ? (
             <div>
-              <p className="text-xs text-[var(--quant-muted-foreground)] mb-1">Your words:</p>
-              <p className="text-sm text-[var(--quant-foreground)]">{transcript}</p>
+              <p className="text-xs text-[var(--foreground-secondary)] mb-1">Your words:</p>
+              <p className="text-sm text-[var(--foreground)]">{transcript}</p>
             </div>
           ) : (
-            <p className="text-sm text-[var(--quant-muted-foreground)] text-center">
+            <p className="text-sm text-[var(--foreground-secondary)] text-center">
               Transcription will appear here...
             </p>
           )}
-        </div>
+        </motion.div>
 
         {/* Loading state */}
-        {loading && (
-          <div className="p-4 rounded-lg bg-indigo-500/5 border border-indigo-500/20">
-            <p className="text-sm text-indigo-400 animate-pulse">Thinking...</p>
-          </div>
-        )}
+        <AnimatePresence>
+          {loading && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ type: 'spring', ...spring.snappy }}
+              className="p-4 rounded-lg bg-[var(--brand-app-color)]/5 border border-[var(--brand-app-color)]/20"
+            >
+              <p className="text-sm text-[var(--brand-app-color)] animate-pulse">Thinking...</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* AI Response */}
-        {aiResponse && (
-          <div className="p-4 rounded-lg bg-indigo-500/5 border border-indigo-500/20">
-            <p className="text-xs text-indigo-400 mb-1">Quant AI:</p>
-            <p className="text-sm text-[var(--quant-foreground)] whitespace-pre-wrap">
-              {aiResponse}
-            </p>
-          </div>
-        )}
+        <AnimatePresence>
+          {aiResponse && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ type: 'spring', ...spring.snappy }}
+              className="p-4 rounded-lg bg-[var(--brand-app-color)]/5 border border-[var(--brand-app-color)]/20"
+            >
+              <p className="text-xs text-[var(--brand-app-color)] mb-1">Quant AI:</p>
+              <p className="text-sm text-[var(--foreground)] whitespace-pre-wrap">{aiResponse}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Error */}
-        {error && (
-          <div className="p-4 rounded-lg bg-red-500/5 border border-red-500/20">
-            <p className="text-sm text-red-400">{error}</p>
-          </div>
-        )}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ type: 'spring', ...spring.snappy }}
+              className="p-4 rounded-lg bg-red-500/5 border border-red-500/20"
+            >
+              <p className="text-sm text-red-400">{error}</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="flex justify-center">
           <Button variant="secondary">View History</Button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

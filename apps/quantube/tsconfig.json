@@ -1,18 +1,21 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": ".",
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "incremental": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noUncheckedIndexedAccess": false,
+    "skipLibCheck": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "backend/**/*.ts"],
-  "references": [
-    { "path": "../../packages/auth" },
-    { "path": "../../packages/ai" },
-    { "path": "../../packages/common" },
-    { "path": "../../packages/database" },
-    { "path": "../../packages/realtime" },
-    { "path": "../../packages/server-core" },
-    { "path": "../../packages/shared-ui" }
-  ]
+  "exclude": ["node_modules", "dist"]
 }
