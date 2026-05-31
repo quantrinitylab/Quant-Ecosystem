@@ -66,3 +66,37 @@ export const circleVariants = {
     },
   },
 };
+
+export const swipeVariants = {
+  enter: { x: 0, opacity: 1 },
+  exitLeft: {
+    x: -200,
+    opacity: 0,
+    transition: { type: 'spring' as const, ...spring.snappy },
+  },
+  exitRight: {
+    x: 200,
+    opacity: 0,
+    transition: { type: 'spring' as const, ...spring.snappy },
+  },
+};
+
+export const overlayVariants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.2 } },
+  exit: { opacity: 0, transition: { duration: 0.15 } },
+};
+
+export const slideUpVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { type: 'spring' as const, ...spring.gentle },
+  },
+  exit: {
+    opacity: 0,
+    y: 20,
+    transition: { duration: 0.15 },
+  },
+};

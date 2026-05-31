@@ -15,4 +15,5 @@ export const routes: Record<string, string> = {
   camera: '/camera',
   map: '/map',
   profile: '/profile',
+  call: '/call',
 };

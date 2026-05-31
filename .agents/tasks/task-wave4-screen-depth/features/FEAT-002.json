@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "QuantChat Snapchat/WhatsApp-Killer Screen Depth - Enhance chat list with presence dots, swipe actions (pin/archive), unread badges. Upgrade conversation with reactions, voice notes, image messages, link previews, reply-to-message threading. Upgrade stories with full-screen vertical viewer, progress bars, tap-to-advance. Add video/voice call UI with controls.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "1. Enhance apps/quantchat/src/app/page.tsx chat list: Add presence indicator dots (online=green/away=yellow/offline=gray) on avatars, swipe-left to archive with spring animation, swipe-right to pin with color highlight, long-press for context menu (mute/delete/mark-read), last-message time with relative formatting (just now, 2m, 1h, yesterday).",
     "2. Enhance apps/quantchat/src/app/chat/[id]/page.tsx conversation: Add long-press reactions overlay (emoji picker row: like/love/laugh/sad/angry/fire), voice note recording button with waveform visualization, image/video message cards with lightbox on tap, link preview cards (title/description/thumbnail auto-detected), reply-to-specific-message with quoted preview above input, message status indicators (sent/delivered/read checkmarks).",
