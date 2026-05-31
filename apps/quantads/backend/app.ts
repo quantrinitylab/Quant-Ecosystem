@@ -4,6 +4,12 @@ import campaignsRoutes from './routes/campaigns';
 import servingRoutes from './routes/serving';
 import analyticsRoutes from './routes/analytics';
 import privacyAdsRoutes from './routes/privacy-ads';
+import economyRoutes from './routes/economy';
+import storeRoutes from './routes/store';
+import creatorEconomyRoutes from './routes/creator-economy';
+import boostRoutes from './routes/boost';
+import subscriptionsRoutes from './routes/subscriptions';
+import giftingRoutes from './routes/gifting';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -35,6 +41,12 @@ export async function buildApp(config?: AppConfig) {
   await app.register(servingRoutes, { prefix: '/serving' });
   await app.register(analyticsRoutes, { prefix: '/analytics' });
   await app.register(privacyAdsRoutes, { prefix: '/privacy-ads' });
+  await app.register(economyRoutes, { prefix: '/economy' });
+  await app.register(storeRoutes, { prefix: '/store' });
+  await app.register(creatorEconomyRoutes, { prefix: '/creator' });
+  await app.register(boostRoutes, { prefix: '/boost' });
+  await app.register(subscriptionsRoutes, { prefix: '/subscriptions' });
+  await app.register(giftingRoutes, { prefix: '/gifting' });
 
   return app;
 }

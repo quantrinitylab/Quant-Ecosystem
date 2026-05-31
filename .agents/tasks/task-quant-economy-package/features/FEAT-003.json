@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Add backend service routes in apps/quantads/backend for the quant-economy API endpoints. Fastify routes following the pattern in apps/quantads/backend/routes/campaigns.ts - using zod validation, service instantiation, and proper error handling.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Create apps/quantads/backend/routes/economy.ts - Fastify route plugin with endpoints: POST /economy/wallet (create wallet), GET /economy/wallet/:userId (get balance), POST /economy/wallet/buy (buy coins), POST /economy/wallet/earn/daily (claim daily login), POST /economy/wallet/earn/referral (claim referral bonus)",
     "Create apps/quantads/backend/routes/store.ts - Fastify route plugin with endpoints: GET /store/catalog (list items with optional category filter), POST /store/purchase (purchase item with coins), GET /store/inventory/:userId (get user inventory)",
