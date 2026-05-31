@@ -4,8 +4,12 @@
     {
       "id": "FEAT-002",
       "title": "Polish and wire QuantDocs with Yjs collaboration",
-      "status": "in_progress",
-      "app": "@quant/quantdocs"
+      "status": "completed",
+      "app": "@quant/quantdocs",
+      "findings": {
+        "pre_existing_issues": "Backend tsconfig fails due to @quant/database dist not existing. Frontend tsconfig passes cleanly.",
+        "verification": "Frontend tsc --noEmit passes. eslint passes. Prettier applied by lint-staged."
+      }
     }
   ]
 }
