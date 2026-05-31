@@ -1,0 +1,7 @@
+{
+  "task_id": "task-wave4-screen-depth",
+  "task_description": "Wave 4 - Per-app screen depth and production hardening. Make key screens of QuantMail, QuantChat, QuantAI, Admin, QuantSync, and QuantTube truly functional with real data flows, interactions, animations, and professional UX. Every screen follows: skeleton loading -> data display -> interaction -> optimistic update -> success/error feedback.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
+  "blocked_reason": null
+}

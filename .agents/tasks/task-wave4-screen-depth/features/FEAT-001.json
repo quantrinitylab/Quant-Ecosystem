@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "QuantMail Gmail-Killer Screen Depth - Enhance inbox with virtualized list, swipe actions, 3-pane desktop layout. Upgrade compose with rich text toolbar, schedule send, undo send. Upgrade thread view with collapsible quotes, inline reply, AI summarize chips, attachment gallery. Add full-text search with advanced filters. Add labels/folders sidebar with drag-to-label and custom label creation.",
+  "status": "in_progress",
+  "steps": [
+    "1. Enhance apps/quantmail/src/app/page.tsx inbox: Add desktop 3-pane layout (sidebar | list | preview), virtualized email list using react-virtuoso for performance, swipe-to-archive/delete on mobile with framer-motion gesture detection, mark-as-read batch action in toolbar.",
+    "2. Upgrade apps/quantmail/src/components/EmailComposer.tsx: Add a formatting toolbar row (bold/italic/underline/lists/link/code), AI tone buttons (Professional/Friendly/Concise/Expand), drag-drop attachment zone with progress indicator, schedule send with date/time picker dropdown, undo-send countdown toast (5s timer).",
+    "3. Enhance apps/quantmail/src/app/thread/[id]/page.tsx: Add collapsible quoted text detection (lines starting with >) with 'Show quoted text' toggle, inline quick-reply textarea at bottom of each message, AI summarize chip button that calls existing AI compose endpoint, attachment gallery grid with thumbnails for images and file icons for documents.",
+    "4. Create apps/quantmail/src/app/search/page.tsx: Full-text search page with filter chips (from:, to:, has:attachment, in:label, date range), search results as email cards with highlighted matches, recent searches stored in localStorage.",
+    "5. Enhance apps/quantmail/src/components/AppSidebar.tsx: Add label list with unread counts and colored dots, drag-email-to-label functionality, 'Create label' button with inline form (name + color picker), collapsible sections (Inbox/Sent/Drafts/Trash/Labels).",
+    "6. Add motion variants for all new interactions in apps/quantmail/src/lib/motion-variants.ts: swipe variants, expand/collapse variants, toast slide-up variant."
+  ],
+  "acceptance_criteria": [
+    "QuantMail inbox renders with category tabs, batch toolbar, and skeleton loading",
+    "Compose page has formatting toolbar, AI assist buttons, Cc/Bcc expansion, schedule send UI, and undo send toast",
+    "Thread view shows collapsible quotes, inline reply, AI summarize chip, and attachment gallery",
+    "Search page with filter chips renders and connects to search API",
+    "Sidebar shows labels with counts and has create-label form",
+    "TypeScript compiles without errors for all quantmail changes"
+  ],
+  "verification": [
+    "pnpm turbo typecheck --filter=@quant/quantmail",
+    "pnpm turbo build --filter=@quant/quantmail",
+    "pnpm turbo test --filter=@quant/quantmail",
+    "pnpm turbo lint --filter=@quant/quantmail"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

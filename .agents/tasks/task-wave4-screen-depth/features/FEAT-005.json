@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "QuantSync + QuantTube Core Screen Depth - QuantSync: infinite scroll feed with like/comment/repost/bookmark interactions, compose post modal, trending sidebar, community pages. QuantTube: video player with chapters/quality selector, comment section, recommendation sidebar, channel pages, upload flow.",
+  "status": "pending",
+  "steps": [
+    "1. Enhance apps/quantsync/src/app/page.tsx feed: Add infinite scroll with intersection observer (load more when near bottom), like button with optimistic count update + heart animation, comment count that expands inline comment thread, repost with quote-repost option, bookmark with saved indicator, share button with copy-link toast.",
+    "2. Create apps/quantsync/src/app/compose/page.tsx (or modal): Post composer with character counter (280 limit with color warning), media attachment (up to 4 images in grid), poll creator (2-4 options + duration), mention autocomplete (@username), hashtag suggestions, audience selector (public/followers/mutual).",
+    "3. Enhance apps/quantsync/src/components/TrendingSidebar.tsx: Trending topics with post counts, 'Who to follow' suggestions with follow button, promoted content section, live spaces indicator.",
+    "4. Enhance apps/quantube/src/pages/index.tsx: Add recommendation sidebar on desktop (related videos list), channel avatar links, 'Watch Later' save button on hover, video quality badge overlay. Create apps/quantube/src/pages/watch/[id].tsx with full video player page: chapters list, quality selector dropdown, comments section with reply threading, like/dislike buttons, subscribe button with count.",
+    "5. Create apps/quantube/src/pages/upload.tsx: Upload flow with drag-drop video zone, processing progress bar, metadata form (title/description/tags/category/thumbnail), visibility selector (public/unlisted/private/scheduled), publish button.",
+    "6. Create apps/quantube/src/pages/channel/[id].tsx: Channel page with banner, avatar, subscriber count, tabs (Videos/Shorts/Live/Community/About), video grid with sort options."
+  ],
+  "acceptance_criteria": [
+    "QuantSync feed has infinite scroll with like/comment/repost/bookmark interactions",
+    "Post composer has character count, media attachments, poll creator",
+    "Trending sidebar shows topics and suggestions",
+    "QuantTube watch page has video player, chapters, quality selector, comments",
+    "Upload page has drag-drop, progress, metadata form",
+    "Channel page has banner, tabs, video grid",
+    "TypeScript compiles without errors for both apps"
+  ],
+  "verification": [
+    "pnpm turbo typecheck --filter=@quant/quantsync",
+    "pnpm turbo typecheck --filter=@quant/quantube",
+    "pnpm turbo build --filter=@quant/quantsync",
+    "pnpm turbo build --filter=@quant/quantube",
+    "pnpm turbo test --filter=@quant/quantsync",
+    "pnpm turbo test --filter=@quant/quantube"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Admin Panel Excellence - Enhance dashboard with real-time metric cards + line/bar charts. Upgrade user management with search/filter/bulk-actions/role-assignment table. Upgrade feature flags with percentage rollouts + targeting rules. Add audit log page with filterable activity log + pagination.",
+  "status": "pending",
+  "steps": [
+    "1. Enhance apps/admin/src/app/page.tsx dashboard: Add animated metric cards with sparkline mini-charts (using SVG path), trend indicators with colored arrows, auto-refresh every 30s with smooth number transitions, system health status bar (CPU/Memory/Disk as progress bars).",
+    "2. Enhance apps/admin/src/app/users/page.tsx: Add search input with debounce, filter dropdowns (role, status), sortable table columns (click header to sort), bulk select with checkbox column, bulk action buttons (suspend/activate/change-role/delete), role assignment dropdown in each row, pagination controls (prev/next/page-size selector).",
+    "3. Enhance apps/admin/src/app/feature-flags/page.tsx: Add percentage rollout slider with live preview, targeting rules builder (key/operator/value rows with add/remove), variant management (A/B variants with traffic split), flag history timeline showing who changed what when, search/filter flags.",
+    "4. Create apps/admin/src/app/audit/page.tsx (enhance existing if present): Filterable activity log showing user actions across the ecosystem, columns (timestamp/user/action/target/details), filter by action type, user, date range, auto-pagination with 'Load more' pattern, expandable row for full JSON details.",
+    "5. Add apps/admin/src/components/MetricCard.tsx, apps/admin/src/components/SparklineChart.tsx, apps/admin/src/components/DataTable.tsx reusable components for the admin panel."
+  ],
+  "acceptance_criteria": [
+    "Dashboard shows animated metric cards with sparklines and system health bars",
+    "Users page has search/filter/sort/bulk-actions/pagination working UI",
+    "Feature flags page has percentage slider, targeting rules builder, and variant management",
+    "Audit log page shows filterable activity with pagination",
+    "TypeScript compiles without errors for all admin changes"
+  ],
+  "verification": [
+    "pnpm turbo typecheck --filter=@quant/admin",
+    "pnpm turbo build --filter=@quant/admin",
+    "pnpm turbo test --filter=@quant/admin",
+    "pnpm turbo lint --filter=@quant/admin"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

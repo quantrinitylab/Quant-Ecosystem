@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "QuantAI ChatGPT/Gemini-Killer Screen Depth - Enhance chat with token-by-token streaming display, code blocks with syntax highlighting and copy button, conversation history sidebar. Add tool execution inline cards showing AI actions. Add multi-modal inputs (image upload, file attachment, voice toggle). Add persona/model switching UI.",
+  "status": "pending",
+  "steps": [
+    "1. Enhance apps/quantai/src/app/page.tsx: Add token-by-token animated text rendering (characters appearing with typewriter effect during streaming), code blocks with language detection header bar showing language name + copy button, markdown rendering for AI responses with proper heading/list/table formatting.",
+    "2. Enhance apps/quantai/src/components/ToolCallCard.tsx: Show tool execution as inline cards with icon + tool name + status (running spinner/success check/error X), expand to show input/output JSON, confirm/cancel buttons for destructive actions (e.g., 'Send email to X - Confirm?'), progress indicator for multi-step workflows.",
+    "3. Add multi-modal input area to the chat: Image upload button with preview thumbnail before sending, file attachment chip showing filename + size, voice input toggle that shows recording waveform, paste image from clipboard detection.",
+    "4. Enhance sidebar in apps/quantai/src/app/page.tsx: Conversation history list with title/date grouping (Today/Yesterday/This Week/Older), search conversations, pin important conversations, delete/rename conversations via context menu.",
+    "5. Add apps/quantai/src/components/PersonaSelector.tsx: Persona cards (Helpful Assistant/Creative Writer/Technical Expert/Concise Responder) with icon + description, custom persona creation form, active persona indicator in header.",
+    "6. Create apps/quantai/src/components/CodeBlock.tsx: Syntax-highlighted code display using CSS classes (no heavy library), language badge, copy-to-clipboard button with success feedback, line numbers toggle."
+  ],
+  "acceptance_criteria": [
+    "AI responses render with markdown formatting, code blocks have copy buttons and syntax classes",
+    "Tool call cards show status, expandable details, and confirm/cancel for actions",
+    "Multi-modal inputs (image, file, voice) are present in the input area",
+    "Conversation sidebar groups by date with search/pin/delete",
+    "Persona selector shows available personas with switching capability",
+    "TypeScript compiles without errors for all quantai changes"
+  ],
+  "verification": [
+    "pnpm turbo typecheck --filter=@quant/quantai",
+    "pnpm turbo build --filter=@quant/quantai",
+    "pnpm turbo test --filter=@quant/quantai",
+    "pnpm turbo lint --filter=@quant/quantai"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

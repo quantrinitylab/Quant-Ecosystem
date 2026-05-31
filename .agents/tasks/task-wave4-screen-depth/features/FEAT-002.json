@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "QuantChat Snapchat/WhatsApp-Killer Screen Depth - Enhance chat list with presence dots, swipe actions (pin/archive), unread badges. Upgrade conversation with reactions, voice notes, image messages, link previews, reply-to-message threading. Upgrade stories with full-screen vertical viewer, progress bars, tap-to-advance. Add video/voice call UI with controls.",
+  "status": "pending",
+  "steps": [
+    "1. Enhance apps/quantchat/src/app/page.tsx chat list: Add presence indicator dots (online=green/away=yellow/offline=gray) on avatars, swipe-left to archive with spring animation, swipe-right to pin with color highlight, long-press for context menu (mute/delete/mark-read), last-message time with relative formatting (just now, 2m, 1h, yesterday).",
+    "2. Enhance apps/quantchat/src/app/chat/[id]/page.tsx conversation: Add long-press reactions overlay (emoji picker row: like/love/laugh/sad/angry/fire), voice note recording button with waveform visualization, image/video message cards with lightbox on tap, link preview cards (title/description/thumbnail auto-detected), reply-to-specific-message with quoted preview above input, message status indicators (sent/delivered/read checkmarks).",
+    "3. Enhance apps/quantchat/src/app/stories/page.tsx and apps/quantchat/src/components/StoryViewer.tsx: Full-screen viewer with progress bar segments at top (one per story in group), tap left/right to navigate, hold to pause, swipe up to reply, swipe down to close, auto-advance timer (5s per story), story ring gradient on chat list for unseen stories.",
+    "4. Create apps/quantchat/src/app/call/page.tsx: Video/voice call UI with full-screen remote video, pip self-view, bottom control bar (mute/camera toggle/speaker/end call), incoming call overlay with accept/reject, call timer display, minimize to PiP mode button.",
+    "5. Add supporting components: apps/quantchat/src/components/ReactionPicker.tsx, apps/quantchat/src/components/VoiceNoteRecorder.tsx, apps/quantchat/src/components/LinkPreviewCard.tsx, apps/quantchat/src/components/CallControls.tsx."
+  ],
+  "acceptance_criteria": [
+    "Chat list shows presence dots, relative timestamps, and supports swipe gestures",
+    "Conversation page has reactions, voice note UI, image messages, link previews, and reply-to threading",
+    "Story viewer is full-screen with progress bars and tap/swipe navigation",
+    "Call page has full UI with controls for mute/camera/end",
+    "TypeScript compiles without errors for all quantchat changes"
+  ],
+  "verification": [
+    "pnpm turbo typecheck --filter=@quant/quantchat",
+    "pnpm turbo build --filter=@quant/quantchat",
+    "pnpm turbo test --filter=@quant/quantchat",
+    "pnpm turbo lint --filter=@quant/quantchat"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
