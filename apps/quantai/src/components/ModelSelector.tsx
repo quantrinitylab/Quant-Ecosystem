@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { spring } from '@quant/brand';
 import type { AIModel } from '../types/models';
 import { PROVIDER_COLORS } from '../types/models';
 
@@ -49,23 +50,27 @@ export function ModelSelector({
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
-      <button
+      <motion.button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-hover)] transition-colors text-sm"
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--surface-elevated)] hover:bg-[var(--surface-hover)] transition-colors text-sm min-h-[44px]"
         aria-label="Select AI model"
         aria-expanded={isOpen}
       >
         <span className="text-base">{currentModel.icon}</span>
-        <span className="font-medium">{currentModel.name}</span>
-        <svg
-          className={`w-3.5 h-3.5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        <span className="font-medium text-[var(--foreground)]">{currentModel.name}</span>
+        <motion.svg
+          className="w-3.5 h-3.5 text-[var(--foreground-secondary)]"
+          animate={{ rotate: isOpen ? 180 : 0 }}
+          transition={{ type: 'spring', ...spring.stiff }}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+        </motion.svg>
+      </motion.button>
 
       <AnimatePresence>
         {isOpen && (
@@ -73,21 +78,23 @@ export function ModelSelector({
             initial={{ opacity: 0, y: -8, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.95 }}
-            transition={{ duration: 0.15 }}
-            className="absolute top-full left-0 mt-2 w-80 max-h-96 overflow-y-auto rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] shadow-lg z-50"
+            transition={{ type: 'spring', ...spring.stiff }}
+            className="absolute top-full left-0 mt-2 w-80 max-h-96 overflow-y-auto rounded-xl border border-[var(--quant-border)] bg-[var(--surface-elevated)] shadow-lg z-50"
           >
             <div className="p-2 space-y-1">
               {models.map((model) => (
-                <button
+                <motion.button
                   key={model.id}
                   onClick={() => {
                     onSelect(model.id);
                     setIsOpen(false);
                   }}
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ type: 'spring', ...spring.snappy }}
                   className={`w-full text-left p-3 rounded-lg transition-colors ${
                     model.id === currentModel.id
-                      ? 'bg-[var(--quant-primary)]/10 border border-[var(--quant-primary)]/30'
-                      : 'hover:bg-[var(--quant-surface-hover)]'
+                      ? 'bg-[var(--brand-primary)]/10 border border-[var(--brand-primary)]/30'
+                      : 'hover:bg-[var(--surface-hover)]'
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -95,7 +102,9 @@ export function ModelSelector({
                       <span className="text-lg">{model.icon}</span>
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">{model.name}</span>
+                          <span className="font-medium text-sm text-[var(--foreground)]">
+                            {model.name}
+                          </span>
                           <span
                             className="text-[10px] px-1.5 py-0.5 rounded-full font-medium text-white"
                             style={{ backgroundColor: PROVIDER_COLORS[model.provider] }}
@@ -103,18 +112,18 @@ export function ModelSelector({
                             {model.provider}
                           </span>
                         </div>
-                        <p className="text-xs text-[var(--quant-text-secondary)] mt-0.5">
+                        <p className="text-xs text-[var(--foreground-secondary)] mt-0.5">
                           {model.description}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-[var(--quant-text-secondary)]">
+                      <span className="text-xs text-[var(--foreground-secondary)]">
                         {formatContextWindow(model.contextWindow)}
                       </span>
                       {model.id === currentModel.id && (
                         <svg
-                          className="w-4 h-4 text-[var(--quant-primary)]"
+                          className="w-4 h-4 text-[var(--brand-primary)]"
                           fill="currentColor"
                           viewBox="0 0 20 20"
                         >
@@ -131,13 +140,13 @@ export function ModelSelector({
                     {model.capabilities.slice(0, 4).map((cap) => (
                       <span
                         key={cap}
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--quant-surface-hover)] text-[var(--quant-text-secondary)]"
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--foreground-secondary)]"
                       >
                         {cap}
                       </span>
                     ))}
                   </div>
-                </button>
+                </motion.button>
               ))}
             </div>
           </motion.div>
