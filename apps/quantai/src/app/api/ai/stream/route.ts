@@ -1,10 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 
 const BACKEND_URL = process.env.QUANTAI_BACKEND_URL || 'http://localhost:3020';
 
+/**
+ * Dedicated streaming endpoint - always returns SSE (no JSON fallback).
+ * POST /api/ai/stream
+ */
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const isStreamRequested = body.stream === true;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -12,18 +15,6 @@ export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('Authorization');
   if (authHeader) headers['Authorization'] = authHeader;
 
-  if (!isStreamRequested) {
-    // JSON proxy fallback (original behavior)
-    const res = await fetch(`${BACKEND_URL}/assistant/chat`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
-  }
-
-  // Streaming proxy: forward SSE from backend to client
   const abortController = new AbortController();
 
   // Abort backend request when client disconnects
@@ -35,7 +26,7 @@ export async function POST(request: NextRequest) {
     const backendResponse = await fetch(`${BACKEND_URL}/assistant/chat`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, stream: true }),
       signal: abortController.signal,
     });
 

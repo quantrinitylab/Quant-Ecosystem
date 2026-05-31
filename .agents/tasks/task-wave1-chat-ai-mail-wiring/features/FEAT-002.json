@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "QuantAI - Real SSE Streaming: Replace the current /api/assistant/chat route (which just JSON-proxies) with a proper SSE streaming proxy that forwards the backend stream to the frontend. The useAIChat hook already has full SSE processing logic (processSSEStream) - it just needs the API route to actually stream. Also wire the model selector to pass the selected model through to the backend, and ensure tool-call cards render from the stream.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Step 1: Rewrite apps/quantai/src/app/api/assistant/chat/route.ts to be a streaming proxy. When the request body has stream:true, fetch from the backend with the same body but return a streaming Response using ReadableStream that pipes the backend SSE data through (TransformStream). Set headers Content-Type: text/event-stream, Cache-Control: no-cache, Connection: keep-alive. When stream is not requested, fall back to JSON proxy as before.",
     "Step 2: Add a new route apps/quantai/src/app/api/ai/stream/route.ts as an alternative SSE endpoint that always streams. Use the same streaming proxy logic. This provides a dedicated streaming URL separate from the REST chat endpoint.",

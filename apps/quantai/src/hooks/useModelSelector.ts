@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { AVAILABLE_MODELS } from '../types/models';
+import { useModels } from './useModels';
 import type { AIModel } from '../types/models';
 
 const STORAGE_KEY = 'quantai-model';
@@ -21,6 +22,7 @@ function getDefaultModelId(): string {
 }
 
 export function useModelSelector() {
+  const { models, isLoading: isLoadingModels } = useModels();
   const [selectedModelId, setSelectedModelId] = useState<string>(getDefaultModelId);
 
   const switchModel = useCallback((id: string) => {
@@ -30,20 +32,24 @@ export function useModelSelector() {
     }
   }, []);
 
-  const getModel = useCallback((id: string): AIModel | undefined => {
-    return AVAILABLE_MODELS.find((m) => m.id === id);
-  }, []);
+  const getModel = useCallback(
+    (id: string): AIModel | undefined => {
+      return models.find((m) => m.id === id);
+    },
+    [models],
+  );
 
   const currentModel = useMemo(() => {
-    return AVAILABLE_MODELS.find((m) => m.id === selectedModelId) || AVAILABLE_MODELS[0];
-  }, [selectedModelId]);
+    return models.find((m) => m.id === selectedModelId) || models[0];
+  }, [models, selectedModelId]);
 
   return {
-    models: AVAILABLE_MODELS,
+    models,
     currentModel,
     switchModel,
     selectedModelId,
     getModel,
+    isLoadingModels,
   };
 }
 
