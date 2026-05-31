@@ -83,7 +83,11 @@ export class WorkflowExecutor {
       for (const step of ready) {
         const tool = this.tools.find((t) => t.id === step.toolId);
         if (tool && tool.permissionTier >= 2 && options.confirmationCallback) {
-          this.emit({ type: 'confirmation_required', timestamp: Date.now(), data: { stepId: step.stepId, toolId: step.toolId } });
+          this.emit({
+            type: 'confirmation_required',
+            timestamp: Date.now(),
+            data: { stepId: step.stepId, toolId: step.toolId },
+          });
           const confirmed = await options.confirmationCallback(step);
           if (!confirmed) {
             const totalLatencyMs = performance.now() - startTime;
@@ -99,42 +103,48 @@ export class WorkflowExecutor {
 
       // Execute ready steps in parallel
       const parallelResults = await Promise.all(
-        ready.map((step) => this.executeStepWithRetry(step, outputs, options, maxRetries, stepTimeoutMs)),
+        ready.map((step) =>
+          this.executeStepWithRetry(step, outputs, options, maxRetries, stepTimeoutMs),
+        ),
       );
 
+      // Collect all results from the batch before checking for failures
+      let hasFailure = false;
       for (let i = 0; i < ready.length; i++) {
         const step = ready[i]!;
         const result = parallelResults[i]!;
         allResults.push(result);
+        remaining.delete(step.stepId);
 
         if (result.success) {
           completedSteps.push({ step, result });
           outputs.set(step.stepId, result.data);
-          remaining.delete(step.stepId);
         } else {
-          // Step failed - attempt rollback if enabled
-          remaining.delete(step.stepId);
+          hasFailure = true;
+        }
+      }
 
-          if (options.enableRollback && completedSteps.length > 0) {
-            const rollbackResults = await this.performRollback(completedSteps, options);
-            const totalLatencyMs = performance.now() - startTime;
-            return {
-              success: false,
-              results: allResults,
-              rollbackResults,
-              plan,
-              totalLatencyMs,
-            };
-          }
-
+      // If any step in the batch failed, trigger rollback and return
+      if (hasFailure) {
+        if (options.enableRollback && completedSteps.length > 0) {
+          const rollbackResults = await this.performRollback(completedSteps, options);
           const totalLatencyMs = performance.now() - startTime;
           return {
             success: false,
             results: allResults,
+            rollbackResults,
             plan,
             totalLatencyMs,
           };
         }
+
+        const totalLatencyMs = performance.now() - startTime;
+        return {
+          success: false,
+          results: allResults,
+          plan,
+          totalLatencyMs,
+        };
       }
     }
 

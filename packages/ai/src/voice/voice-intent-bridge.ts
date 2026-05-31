@@ -4,6 +4,18 @@
 
 import type { SpeechToTextService } from './speech-to-text';
 import type { TranscriptionResult } from './types';
+import type { WorkflowResult } from '@quant/quant-tools';
+
+/**
+ * Minimal interface for what VoiceIntentBridge uses from the orchestrator.
+ * Matches the processNaturalLanguage method on CrossAppOrchestrator.
+ */
+export interface NaturalLanguageOrchestrator {
+  processNaturalLanguage(
+    input: string,
+    options: { userId: string; sessionId: string },
+  ): Promise<WorkflowResult>;
+}
 
 export interface VoiceIntentResult {
   transcript: string;
@@ -28,17 +40,15 @@ export type VoiceBridgeListener = (event: VoiceBridgeEvent) => void;
 
 /**
  * VoiceIntentBridge connects SpeechToTextService to the CrossAppOrchestrator.
- * The orchestrator parameter accepts a CrossAppOrchestrator instance from @quant/quant-tools.
- * Using `any` here to avoid circular dependency between packages.
+ * The orchestrator parameter accepts any object implementing the NaturalLanguageOrchestrator
+ * interface (e.g., CrossAppOrchestrator from @quant/quant-tools).
  */
 export class VoiceIntentBridge {
   private stt: SpeechToTextService;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private orchestrator: any;
+  private orchestrator: NaturalLanguageOrchestrator;
   private listeners: VoiceBridgeListener[] = [];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  constructor(stt: SpeechToTextService, orchestrator: any) {
+  constructor(stt: SpeechToTextService, orchestrator: NaturalLanguageOrchestrator) {
     this.stt = stt;
     this.orchestrator = orchestrator;
   }
