@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Agentic Command Palette: Wire CommandPaletteUI + AskQuant AI button into apps via shared AppProviders pattern",
+  "status": "pending",
+  "steps": [
+    "Step 1 - Create CommandPalette provider in shared-ui: Add packages/shared-ui/src/components/CommandPaletteUI/CommandPaletteProvider.tsx that: (a) listens for Cmd+K / Ctrl+K globally, (b) manages open state, (c) provides registerCommand/unregisterCommand context API for apps to register app-specific commands, (d) includes built-in cross-app navigation commands (Go to Mail, Go to Chat, Go to AI, etc), (e) includes 'Ask Quant' command that opens AISidePanel.",
+    "Step 2 - Create AskQuant integration: Add a hook packages/shared-ui/src/hooks/useAskQuant.ts that connects to QuantAI's cross-app orchestrator at /api/ai/orchestrate (POST with {query, context, appId}). Returns streaming response. Wire this into the AISidePanel component (already exists at packages/shared-ui/src/components/Shell/AISidePanel.tsx).",
+    "Step 3 - Update shared-ui exports: Add CommandPaletteProvider, useCommandPalette, useAskQuant to packages/shared-ui/src/index.ts exports.",
+    "Step 4 - Integrate into QuantTube: In apps/quantube/src/pages/_app.tsx, wrap with CommandPaletteProvider. Register app-specific commands (Search videos, Upload video, Go to Music, Go to Library, Toggle dark mode). Add floating 'Ask Quant' button.",
+    "Step 5 - Integrate into QuantMax: In apps/quantmax/src/pages/_app.tsx, wrap with CommandPaletteProvider. Register commands (Discover matches, Start video chat, Go to profile, Safety settings).",
+    "Step 6 - Integrate into QuantNeon: In apps/quantneon/src/pages/_app.tsx, wrap with CommandPaletteProvider. Register commands (Post photo, Create reel, Explore, Shop, AR filters).",
+    "Step 7 - Integrate into QuantEdits: In apps/quantedits/src/pages/_app.tsx, wrap with CommandPaletteProvider. Register commands (New project, Add layer, Apply effect, Export, AI edit, Templates).",
+    "Step 8 - Integrate into QuantMeet and QuantDocs: Both use App Router, so add CommandPaletteProvider in their layout.tsx files. Register appropriate commands.",
+    "Step 9 - Add /api/ai/orchestrate route to QuantAI app: Create apps/quantai/src/app/api/orchestrate/route.ts that proxies to the backend's cross-app orchestrator endpoint. This provides the unified AI entry point for 'Ask Quant' across all apps."
+  ],
+  "acceptance_criteria": [
+    "CommandPaletteProvider exists in shared-ui with Cmd+K listener and context API",
+    "useAskQuant hook streams responses from QuantAI orchestrator",
+    "At least 5 apps have CommandPaletteProvider integrated",
+    "Each integrated app registers at least 4 app-specific commands",
+    "QuantAI has /api/ai/orchestrate route",
+    "TypeScript compiles without errors"
+  ],
+  "verification": [
+    "Run: pnpm turbo typecheck --filter=@quant/shared-ui --filter=@quant/quantube --filter=@quant/quantmax --filter=@quant/quantneon --filter=@quant/quantedits --filter=@quant/quantmeet --filter=@quant/quantdocs --filter=@quant/quantai",
+    "Run: pnpm turbo test --filter=@quant/shared-ui --filter=@quant/command-palette"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

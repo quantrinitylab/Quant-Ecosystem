@@ -33,7 +33,7 @@ class QuantTubeApiClient {
   private baseUrl: string;
   private token: string | null = null;
 
-  constructor(baseUrl: string = 'http://localhost:3005') {
+  constructor(baseUrl: string = '/api') {
     this.baseUrl = baseUrl;
   }
 

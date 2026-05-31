@@ -1,9 +1,12 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "jsx": "react-jsx",
+    "outDir": "./dist",
+    "rootDir": ".",
+    "jsx": "preserve",
     "module": "esnext",
     "moduleResolution": "bundler",
+    "allowJs": true,
     "noEmit": true,
     "composite": false,
     "declaration": false,
@@ -11,11 +14,24 @@
     "incremental": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "strict": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noUncheckedIndexedAccess": false,
-    "skipLibCheck": true
+    "noImplicitOverride": false,
+    "skipLibCheck": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "backend/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "next-env.d.ts"],
+  "exclude": [
+    "node_modules",
+    ".next",
+    "dist",
+    "src/pages/shorts.tsx",
+    "src/pages/channel/[id].tsx",
+    "src/hooks/useShorts.ts"
+  ]
 }

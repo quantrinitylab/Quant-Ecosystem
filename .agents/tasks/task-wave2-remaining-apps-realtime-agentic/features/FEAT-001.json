@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Wire QuantTube, QuantMax, QuantNeon, QuantEdits with Next.js API proxy routes + update ApiClient to use relative /api paths",
+  "status": "in_progress",
+  "steps": [
+    "Step 1 - QuantTube: Create src/app/ directory structure (QuantTube currently uses Pages Router at src/pages/ but needs API routes in App Router format). Create src/app/api/_lib/proxy.ts with proxyToBackend utility (copy pattern from apps/quantmail/src/app/api/_lib/proxy.ts but use QUANTUBE_BACKEND_URL env default http://localhost:3006). Also add next.config.mjs to enable the app.",
+    "Step 2 - QuantTube API routes: Create proxy routes matching the backend endpoints (videos: GET /api/videos, GET /api/videos/trending, GET /api/videos/shorts, GET /api/videos/[id], POST /api/videos/upload; music: GET /api/music, GET /api/music/tracks, GET /api/music/tracks/[id]; channels: GET /api/channels/[id]; playlists: GET /api/playlists, POST /api/playlists; live: GET /api/live, GET /api/live/[id]; search: GET /api/search; ai: GET /api/ai/recommendations; interactions: POST /api/interactions/like, POST /api/interactions/comment, GET /api/interactions/history; subscriptions: GET /api/subscriptions). Each route file uses proxyToBackend.",
+    "Step 3 - QuantTube ApiClient update: In apps/quantube/src/services/api-client.ts, change constructor default baseUrl from 'http://localhost:3005' to '' (empty string) so all requests go to relative /api paths. Update all request paths to be prefixed with /api (e.g., '/videos' becomes '/api/videos').",
+    "Step 4 - QuantNeon: Create src/app/api/_lib/proxy.ts (QUANTNEON_BACKEND_URL default http://localhost:3006). Create API routes for: posts (GET feed, GET [id], POST create, POST [id]/like, POST [id]/comment), reels (GET feed, POST create, POST [id]/like), stories (GET feed, POST create, POST [id]/view), profiles (GET [id], POST [id]/follow, DELETE [id]/follow), games (GET list, POST [id]/start, POST [id]/action), shopping (GET products, POST cart, POST checkout), ar (GET filters, POST process), explore (GET /, GET search), ai (POST hashtags/suggest, POST caption/generate).",
+    "Step 5 - QuantNeon ApiClient update: In apps/quantneon/src/services/api-client.ts, change constructor baseUrl default to '' and prefix all paths with /api.",
+    "Step 6 - QuantMax: Already uses relative /api paths in ApiClient. Create src/app/api/_lib/proxy.ts (QUANTMAX_BACKEND_URL default http://localhost:3007). Create API routes matching the ApiClient methods: feed (GET for-you, GET trending, POST engagement), videos (POST upload, GET [id], POST [id]/like), matching (GET discover, POST swipe, GET matches, GET [id]), videochat (POST start, POST [id]/end, POST preferences), live (GET events, POST [id]/join), profiles (GET [id], PUT [id], POST report), safety (POST report, GET settings).",
+    "Step 7 - QuantEdits: Already uses relative /api paths in ApiClient. Create src/app/api/_lib/proxy.ts (QUANTEDITS_BACKEND_URL default http://localhost:3008). Create API routes matching the ApiClient: projects (GET list, POST create, GET [id], PUT [id], DELETE [id], POST [id]/duplicate), layers (GET project/[id]/layers, POST create, PUT [id], DELETE [id], PUT reorder), templates (GET list, GET [id], POST [id]/use), effects (GET list), assets (GET list, POST upload, DELETE [id]), exports (POST start, GET [id]/status, GET [id]/download), ai (POST edit, POST suggest, POST background-remove, POST upscale), collaborate (GET [id]/collaborators, POST [id]/invite, DELETE [id]/remove, GET [id]/comments, POST [id]/comments), brand-kit (GET /, PUT /).",
+    "Step 8 - Add package.json next/build scripts for QuantTube (currently missing 'next' dep and build script). Add next.config.mjs for QuantTube with pageExtensions and proper transpilePackages for workspace deps."
+  ],
+  "acceptance_criteria": [
+    "Each of the 4 apps has src/app/api/_lib/proxy.ts with proxyToBackend function",
+    "Each app has at minimum 15 API route files covering their major backend endpoints",
+    "QuantTube and QuantNeon ApiClient classes use relative /api paths instead of hardcoded localhost",
+    "TypeScript compiles without errors for all 4 apps (pnpm turbo typecheck --filter=@quant/quantube --filter=@quant/quantmax --filter=@quant/quantneon --filter=@quant/quantedits)"
+  ],
+  "verification": [
+    "Run: pnpm turbo typecheck --filter=@quant/quantube --filter=@quant/quantmax --filter=@quant/quantneon --filter=@quant/quantedits",
+    "Run: pnpm turbo test --filter=@quant/quantube --filter=@quant/quantmax --filter=@quant/quantneon --filter=@quant/quantedits"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

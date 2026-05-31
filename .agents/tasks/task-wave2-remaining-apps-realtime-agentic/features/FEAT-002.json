@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Wire real-time features: QuantMeet LiveKit integration + QuantDocs Yjs collaboration + additional API routes for both apps",
+  "status": "pending",
+  "steps": [
+    "Step 1 - QuantMeet additional API routes: The app only has 2 API routes currently (rooms/[id] and rooms/[id]/participants). Add the missing routes needed by useMeeting hook and ControlBar: POST /api/rooms (create room), POST /api/rooms/[id]/join (join), POST /api/rooms/[id]/leave (leave), POST /api/rooms/[id]/recording/start, POST /api/rooms/[id]/recording/stop, POST /api/rooms/[id]/reactions, GET /api/rooms/[id]/token (get LiveKit token for client). Create src/app/api/_lib/proxy.ts using QUANTMEET_BACKEND_URL (already used in existing routes, default http://localhost:3107). Refactor the 2 existing routes to use the new proxyToBackend utility.",
+    "Step 2 - QuantMeet useLiveKit enhancement: The hook currently just does getUserMedia. Enhance it to: (a) fetch a token from /api/rooms/[id]/token, (b) connect to the LiveKit server URL from env NEXT_PUBLIC_LIVEKIT_URL, (c) manage remote participant tracks by connecting to the signaling server via WebSocket. Since we cannot install livekit-client SDK in this sandbox environment, implement a WebRTC-based approach using the LiveKit-compatible signaling protocol that sends/receives tracks. The key additions: remoteParticipants state array, onTrackSubscribed events, proper cleanup.",
+    "Step 3 - QuantMeet useParticipants hook: Read apps/quantmeet/src/hooks/useParticipants.ts and ensure it integrates with the enhanced useLiveKit to provide real participant data (remote streams, audio/video state, speaking indicators) to ParticipantGrid and VideoTile components.",
+    "Step 4 - QuantDocs additional API routes: Currently only has docs/[id] and docs/ routes. Add: POST /api/docs (create), PUT /api/docs/[id] (update), DELETE /api/docs/[id], GET /api/docs/[id]/versions, POST /api/docs/[id]/versions/[versionId]/restore, GET /api/docs/[id]/collaborators, POST /api/docs/[id]/share, POST /api/docs/[id]/comments, GET /api/docs/[id]/comments, POST /api/docs/[id]/export. Create _lib/proxy.ts with QUANTDOCS_BACKEND_URL default http://localhost:3040.",
+    "Step 5 - QuantDocs useYjsDoc enhancement: The hook in apps/quantdocs/src/hooks/useDocument.ts already has a solid Yjs WebSocket implementation. Add reconnection logic with exponential backoff, and add cursor position broadcasting so remote cursors work properly in DocEditor. Also add an offline queue that buffers updates when disconnected.",
+    "Step 6 - QuantDocs PresenceBar wiring: Read apps/quantdocs/src/components/PresenceBar.tsx and ensure it consumes the awareness data from useYjsDoc to display active collaborators with their colors and names."
+  ],
+  "acceptance_criteria": [
+    "QuantMeet has at least 8 API route files including token endpoint",
+    "QuantMeet useLiveKit hook manages remote participants and provides streams to components",
+    "QuantDocs has at least 10 API route files",
+    "QuantDocs useYjsDoc has reconnection logic and cursor broadcasting",
+    "TypeScript compiles for both apps without errors"
+  ],
+  "verification": [
+    "Run: pnpm turbo typecheck --filter=@quant/quantmeet --filter=@quant/quantdocs",
+    "Run: pnpm turbo test --filter=@quant/quantmeet --filter=@quant/quantdocs"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

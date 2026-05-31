@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "UI/UX Excellence Pass: Loading states, empty states, error boundaries, spring animations, and dark mode consistency across all wired apps",
+  "status": "pending",
+  "steps": [
+    "Step 1 - Create reusable state components in shared-ui if not already present: Verify/add SkeletonLoader (configurable rows/shapes), EmptyState (illustration + title + description + CTA button), ErrorState (icon + message + retry button), OptimisticWrapper (shows optimistic value with rollback). Check packages/shared-ui/src/components/States/ directory.",
+    "Step 2 - QuantTube UI polish: In key pages (src/pages/index.tsx, src/pages/watch/[id].tsx, src/pages/music.tsx, src/pages/shorts.tsx), add: Skeleton loading states during data fetch, branded empty states when no content, error boundaries with retry, spring page transitions (already in _app.tsx), framer-motion stagger animations for lists/grids.",
+    "Step 3 - QuantMax UI polish: In pages (src/pages/index.tsx, src/pages/matching.tsx, src/pages/videochat.tsx, src/pages/matches.tsx), add: Skeleton cards during loading, swipe card spring physics (spring.stiff for snap), empty state for no matches, error states with retry.",
+    "Step 4 - QuantNeon UI polish: In pages (src/pages/index.tsx, src/pages/reels.tsx, src/pages/explore.tsx, src/pages/stories.tsx), add: Grid skeleton for feed, reel skeleton, spring animations on like/follow actions (optimistic), empty explore state.",
+    "Step 5 - QuantEdits UI polish: In pages (src/pages/index.tsx, src/pages/editor.tsx, src/pages/projects.tsx, src/pages/templates.tsx), add: Project grid skeleton, timeline skeleton, spring animations on layer operations, empty project state with 'Start creating' CTA.",
+    "Step 6 - Dark mode consistency: Ensure all new components use CSS variables (var(--quant-background), var(--quant-foreground), var(--quant-card), var(--quant-border), var(--quant-muted)) instead of hardcoded colors. Verify ThemeProvider is present in each app's _app.tsx/layout.tsx."
+  ],
+  "acceptance_criteria": [
+    "Every major page in QuantTube/QuantMax/QuantNeon/QuantEdits has skeleton loading state",
+    "Every app has empty state with branded illustration component",
+    "Spring animations (from @quant/brand) used for list animations and interactions",
+    "No hardcoded color values - all use CSS variables for dark mode support",
+    "TypeScript compiles without errors"
+  ],
+  "verification": [
+    "Run: pnpm turbo typecheck --filter=@quant/quantube --filter=@quant/quantmax --filter=@quant/quantneon --filter=@quant/quantedits --filter=@quant/shared-ui",
+    "Run: pnpm turbo test --filter=@quant/shared-ui"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
