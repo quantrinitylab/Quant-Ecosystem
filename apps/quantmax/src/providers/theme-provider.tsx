@@ -14,20 +14,17 @@ const STORAGE_KEY = 'quantmax-theme';
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeValue>(() => {
-    if (typeof window === 'undefined') return 'system';
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY) as ThemeValue | null;
-      return stored || 'system';
-    } catch {
-      return 'system';
-    }
-  });
+  const [theme, setThemeState] = useState<ThemeValue>('system');
+  const [mounted, setMounted] = useState(false);
 
-  const [systemDark, setSystemDark] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
+  const [systemDark, setSystemDark] = useState<boolean>(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY) as ThemeValue | null;
+    if (stored) setThemeState(stored);
+    setSystemDark(window.matchMedia('(prefers-color-scheme: dark)').matches);
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -42,13 +39,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme, systemDark]);
 
   useEffect(() => {
+    if (!mounted) return;
     const root = document.documentElement;
     if (resolvedTheme === 'dark') {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
-  }, [resolvedTheme]);
+  }, [resolvedTheme, mounted]);
 
   const setTheme = useCallback((newTheme: ThemeValue) => {
     setThemeState(newTheme);

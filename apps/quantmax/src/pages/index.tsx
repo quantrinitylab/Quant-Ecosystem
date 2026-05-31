@@ -5,7 +5,7 @@
 // ============================================================================
 
 import React, { useState, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useFeed } from '../hooks/useFeed';
@@ -29,6 +29,7 @@ const ForYouFeedPage: React.FC = () => {
   const [showComments, setShowComments] = useState<boolean>(false);
   const [showShareMenu, setShowShareMenu] = useState<boolean>(false);
   const [likeAnimation, setLikeAnimation] = useState<boolean>(false);
+  const prefersReducedMotion = useReducedMotion();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const touchStartY = useRef<number>(0);
@@ -109,10 +110,12 @@ const ForYouFeedPage: React.FC = () => {
         {currentVideo && (
           <motion.div
             key={currentVideo.id}
-            initial={{ opacity: 0, y: 40 }}
+            initial={prefersReducedMotion ? false : { opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -40 }}
-            transition={{ type: 'spring', ...spring.gentle }}
+            exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -40 }}
+            transition={
+              prefersReducedMotion ? { duration: 0 } : { type: 'spring', ...spring.gentle }
+            }
             className="absolute inset-0"
             onClick={() => togglePlay()}
             onDoubleClick={handleDoubleTap}

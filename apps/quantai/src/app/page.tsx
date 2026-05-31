@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { AIChat, AnimatedPage, AppShell, Sidebar } from '@quant/shared-ui';
 import { ErrorState } from '@quant/shared-ui';
@@ -49,6 +49,7 @@ export default function AIPage() {
   } = useAIChat({ defaultModel: currentModel.id });
 
   const [voiceActive, setVoiceActive] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
 
   const handleModelSwitch = (modelId: string) => {
     switchModel(modelId);
@@ -114,9 +115,9 @@ export default function AIPage() {
       <AnimatedPage>
         <motion.div
           className="flex flex-col h-full"
-          initial={{ opacity: 0, y: 20 }}
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', ...spring.gentle }}
+          transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', ...spring.gentle }}
         >
           {/* Header */}
           <div className="p-4 border-b border-[var(--quant-border)]">

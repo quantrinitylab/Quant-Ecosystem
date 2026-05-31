@@ -4,7 +4,13 @@
 // ============================================================================
 
 import { useState } from 'react';
-import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
+import {
+  motion,
+  useMotionValue,
+  useTransform,
+  AnimatePresence,
+  useReducedMotion,
+} from 'framer-motion';
 import { spring } from '@quant/brand';
 import type { UserProfile, MatchAction } from '../types';
 
@@ -27,6 +33,7 @@ export function SwipeCard({
   const rotate = useTransform(x, [-200, 200], [-15, 15]);
   const likeOpacity = useTransform(x, [0, 100], [0, 1]);
   const nopeOpacity = useTransform(x, [-100, 0], [1, 0]);
+  const prefersReducedMotion = useReducedMotion();
 
   const [dragDirection, setDragDirection] = useState<'left' | 'right' | null>(null);
 
@@ -68,13 +75,12 @@ export function SwipeCard({
     <motion.div
       className="relative mx-auto w-full max-w-sm select-none overflow-hidden rounded-2xl bg-[var(--quant-card)] shadow-2xl"
       style={{ x, rotate }}
-      drag="x"
-      dragConstraints={{ left: 0, right: 0 }}
+      drag={prefersReducedMotion ? false : 'x'}
       dragElastic={0.9}
       onDrag={handleDrag}
       onDragEnd={handleDragEnd}
       animate={isAnimating ? exitAnimation() : { x: 0, rotate: 0, opacity: 1 }}
-      transition={{ type: 'spring', ...spring.gentle }}
+      transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', ...spring.gentle }}
       aria-label={`Profile card for ${profile.displayName}`}
     >
       {/* Card Image */}

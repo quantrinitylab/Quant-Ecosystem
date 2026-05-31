@@ -1,6 +1,6 @@
 import './globals.css';
 import { useRouter } from 'next/router';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { QueryProvider } from '../providers/query-provider';
 import { ThemeProvider } from '../providers/theme-provider';
@@ -13,6 +13,7 @@ interface AppProps {
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
+  const prefersReducedMotion = useReducedMotion();
 
   return (
     <ErrorBoundary>
@@ -21,10 +22,12 @@ export default function App({ Component, pageProps }: AppProps) {
           <AnimatePresence mode="wait">
             <motion.div
               key={router.pathname}
-              initial={{ opacity: 0, y: 8 }}
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ type: 'spring', ...spring.gentle, duration: 0.3 }}
+              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={
+                prefersReducedMotion ? { duration: 0 } : { type: 'spring', ...spring.gentle }
+              }
               className="min-h-screen"
             >
               <Component {...pageProps} />

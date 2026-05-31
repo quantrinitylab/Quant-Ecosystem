@@ -16,20 +16,17 @@ const STORAGE_KEY = 'quantai-theme';
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function QuantAIThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeValue>(() => {
-    if (typeof window === 'undefined') return 'system';
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY) as ThemeValue | null;
-      return stored || 'system';
-    } catch {
-      return 'system';
-    }
-  });
+  const [theme, setThemeState] = useState<ThemeValue>('system');
+  const [mounted, setMounted] = useState(false);
 
-  const [systemDark, setSystemDark] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
+  const [systemDark, setSystemDark] = useState<boolean>(true);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY) as ThemeValue | null;
+    if (stored) setThemeState(stored);
+    setSystemDark(window.matchMedia('(prefers-color-scheme: dark)').matches);
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -44,6 +41,7 @@ export function QuantAIThemeProvider({ children }: { children: React.ReactNode }
   }, [theme, systemDark]);
 
   useEffect(() => {
+    if (!mounted) return;
     const root = document.documentElement;
     if (resolvedTheme === 'dark') {
       root.classList.add('dark');
@@ -51,7 +49,7 @@ export function QuantAIThemeProvider({ children }: { children: React.ReactNode }
       root.classList.remove('dark');
     }
     root.setAttribute('data-theme', resolvedTheme);
-  }, [resolvedTheme]);
+  }, [resolvedTheme, mounted]);
 
   const setTheme = useCallback((newTheme: ThemeValue) => {
     setThemeState(newTheme);
