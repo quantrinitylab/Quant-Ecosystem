@@ -1,29 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { proxyToBackend } from '@quant/api-client/proxy';
 
 const BACKEND_URL = process.env.QUANTADS_BACKEND_URL || 'http://localhost:3004';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const res = await fetch(`${BACKEND_URL}/campaigns/${id}`, {
-    headers: { Authorization: request.headers.get('Authorization') || '' },
-  });
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
+  return proxyToBackend(request, { backendUrl: BACKEND_URL, path: `/campaigns/${id}` });
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await request.json();
-  const res = await fetch(`${BACKEND_URL}/campaigns/${id}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: request.headers.get('Authorization') || '',
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
+  return proxyToBackend(request, { backendUrl: BACKEND_URL, path: `/campaigns/${id}`, body });
 }
 
 export async function DELETE(
@@ -31,10 +19,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const res = await fetch(`${BACKEND_URL}/campaigns/${id}`, {
+  return proxyToBackend(request, {
+    backendUrl: BACKEND_URL,
+    path: `/campaigns/${id}`,
     method: 'DELETE',
-    headers: { Authorization: request.headers.get('Authorization') || '' },
   });
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
 }

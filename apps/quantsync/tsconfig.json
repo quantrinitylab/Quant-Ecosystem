@@ -19,7 +19,9 @@
       "@quant/shared-ui": ["../../packages/shared-ui/src/index.ts"],
       "@quant/shared-ui/*": ["../../packages/shared-ui/src/*"],
       "@quant/common": ["../../packages/common/src/index.ts"],
-      "@quant/common/*": ["../../packages/common/src/*"]
+      "@quant/common/*": ["../../packages/common/src/*"],
+      "@quant/api-client": ["../../packages/api-client/src/index.ts"],
+      "@quant/api-client/*": ["../../packages/api-client/src/*"]
     }
   },
   "include": [
@@ -37,6 +39,7 @@
     { "path": "../../packages/database" },
     { "path": "../../packages/realtime" },
     { "path": "../../packages/server-core" },
-    { "path": "../../packages/shared-ui" }
+    { "path": "../../packages/shared-ui" },
+    { "path": "../../packages/api-client" }
   ]
 }

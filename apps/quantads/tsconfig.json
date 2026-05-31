@@ -23,7 +23,9 @@
       "@quant/brand": ["../../packages/brand/src/index.ts"],
       "@quant/brand/*": ["../../packages/brand/src/*"],
       "@quant/privacy-ads": ["../../packages/privacy-ads/src/index.ts"],
-      "@quant/privacy-ads/*": ["../../packages/privacy-ads/src/*"]
+      "@quant/privacy-ads/*": ["../../packages/privacy-ads/src/*"],
+      "@quant/api-client": ["../../packages/api-client/src/index.ts"],
+      "@quant/api-client/*": ["../../packages/api-client/src/*"]
     }
   },
   "include": [
@@ -43,6 +45,7 @@
     { "path": "../../packages/server-core" },
     { "path": "../../packages/shared-ui" },
     { "path": "../../packages/privacy-ads" },
-    { "path": "../../packages/brand" }
+    { "path": "../../packages/brand" },
+    { "path": "../../packages/api-client" }
   ]
 }

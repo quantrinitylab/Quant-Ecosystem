@@ -1,28 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { proxyToBackend } from '@quant/api-client/proxy';
 
 const BACKEND_URL = process.env.QUANTSYNC_BACKEND_URL || 'http://localhost:3003';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { searchParams } = request.nextUrl;
-  const res = await fetch(`${BACKEND_URL}/posts/${id}/comments?${searchParams}`, {
-    headers: { Authorization: request.headers.get('Authorization') || '' },
+  return proxyToBackend(request, {
+    backendUrl: BACKEND_URL,
+    path: `/posts/${id}/comments`,
+    searchParams: request.nextUrl.searchParams,
   });
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await request.json();
-  const res = await fetch(`${BACKEND_URL}/posts/${id}/comments`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: request.headers.get('Authorization') || '',
-    },
-    body: JSON.stringify(body),
+  return proxyToBackend(request, {
+    backendUrl: BACKEND_URL,
+    path: `/posts/${id}/comments`,
+    body,
   });
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
 }

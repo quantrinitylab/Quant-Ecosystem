@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Address semantic review issues: create shared proxy utility with error handling/timeout, refactor all 54 routes to use it, add 8 missing routes, fix auth header issue, update package exports and next.config.",
+  "status": "in_progress",
+  "steps": [
+    "Create packages/api-client/src/proxy.ts with proxyToBackend utility (error handling, timeout, auth header fix, content-type check)",
+    "Update packages/api-client/src/index.ts to export proxyToBackend and ProxyOptions",
+    "Update packages/api-client/package.json exports field",
+    "Update next.config in both apps to include @quant/api-client in transpilePackages",
+    "Refactor all 37 QuantSync route handlers to use proxyToBackend",
+    "Refactor all 17 QuantAds route handlers to use proxyToBackend",
+    "Add 3 missing QuantSync routes: feed/engagement, posts/repost, posts/quote",
+    "Add 6 missing QuantAds routes: ai/predict-performance, ai/recommend-budget, ai/creative-suggestions, billing/balance, placements, placements/specs"
+  ],
+  "acceptance_criteria": [
+    "Shared proxy utility exists with try/catch, timeout, content-type check, and conditional auth header",
+    "All 54+ route handlers use the shared utility",
+    "8 missing routes are added",
+    "pnpm turbo typecheck --filter=@quant/quantsync --filter=@quant/quantads --filter=@quant/api-client passes",
+    "pnpm turbo build --filter=@quant/quantsync --filter=@quant/quantads passes",
+    "pnpm turbo test --filter=@quant/quantsync --filter=@quant/quantads --filter=@quant/api-client passes"
+  ],
+  "verification": [
+    "pnpm turbo typecheck --filter=@quant/quantsync --filter=@quant/quantads --filter=@quant/api-client --force",
+    "pnpm turbo test --filter=@quant/quantsync --filter=@quant/quantads --filter=@quant/api-client --force",
+    "pnpm turbo build --filter=@quant/quantsync --filter=@quant/quantads --force"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

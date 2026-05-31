@@ -1,25 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { proxyToBackend } from '@quant/api-client/proxy';
 
 const BACKEND_URL = process.env.QUANTADS_BACKEND_URL || 'http://localhost:3004';
 
 export async function GET(request: NextRequest) {
-  const res = await fetch(`${BACKEND_URL}/audiences`, {
-    headers: { Authorization: request.headers.get('Authorization') || '' },
-  });
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
+  return proxyToBackend(request, { backendUrl: BACKEND_URL, path: '/audiences' });
 }
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const res = await fetch(`${BACKEND_URL}/audiences`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: request.headers.get('Authorization') || '',
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  return NextResponse.json(data, { status: res.status });
+  return proxyToBackend(request, { backendUrl: BACKEND_URL, path: '/audiences', body });
 }
