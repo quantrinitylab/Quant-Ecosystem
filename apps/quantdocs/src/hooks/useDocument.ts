@@ -32,13 +32,17 @@ export interface AwarenessUser {
   name: string;
   color: string;
   cursor?: { index: number; length: number };
+  isTyping?: boolean;
 }
 
 export interface UseYjsDocReturn {
   doc: Y.Doc;
   connected: boolean;
   synced: boolean;
+  isReconnecting: boolean;
+  offlineChanges: number;
   awareness: Map<string, AwarenessUser>;
+  broadcastCursor: (cursor: { index: number; length: number }) => void;
   disconnect: () => void;
 }
 
@@ -52,18 +56,56 @@ export function useYjsDoc(
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [synced, setSynced] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [offlineChanges, setOfflineChanges] = useState(0);
   const [awareness, setAwareness] = useState<Map<string, AwarenessUser>>(new Map());
 
+  const offlineQueueRef = useRef<Uint8Array[]>([]);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maxReconnectDelay = 30000;
+  const intentionalDisconnectRef = useRef(false);
+
   const disconnect = useCallback(() => {
+    intentionalDisconnectRef.current = true;
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
     setConnected(false);
     setSynced(false);
+    setIsReconnecting(false);
   }, []);
 
-  useEffect(() => {
+  const broadcastCursor = useCallback(
+    (cursor: { index: number; length: number }) => {
+      if (wsRef.current?.readyState === WebSocket.OPEN && user) {
+        const msg = JSON.stringify({
+          type: 'awareness',
+          user: { ...user, cursor },
+        });
+        wsRef.current.send(msg);
+      }
+    },
+    [user],
+  );
+
+  const flushOfflineQueue = useCallback((ws: WebSocket) => {
+    const queue = offlineQueueRef.current;
+    if (queue.length > 0 && ws.readyState === WebSocket.OPEN) {
+      for (const update of queue) {
+        ws.send(update);
+      }
+      offlineQueueRef.current = [];
+      setOfflineChanges(0);
+    }
+  }, []);
+
+  const connectWs = useCallback(() => {
     if (!documentId) return;
 
     const doc = docRef.current;
@@ -75,6 +117,9 @@ export function useYjsDoc(
 
     ws.addEventListener('open', () => {
       setConnected(true);
+      setIsReconnecting(false);
+      reconnectAttemptsRef.current = 0;
+
       // Send initial sync step 1
       const encodedState = Y.encodeStateVector(doc);
       ws.send(encodedState);
@@ -84,6 +129,9 @@ export function useYjsDoc(
         const awarenessMsg = JSON.stringify({ type: 'awareness', user });
         ws.send(awarenessMsg);
       }
+
+      // Flush any offline queued updates
+      flushOfflineQueue(ws);
     });
 
     ws.addEventListener('message', (event) => {
@@ -104,41 +152,89 @@ export function useYjsDoc(
       } else {
         // Binary Yjs update
         const update = new Uint8Array(event.data);
-        Y.applyUpdate(doc, update);
+        Y.applyUpdate(doc, update, 'remote');
         setSynced(true);
       }
     });
 
     ws.addEventListener('close', () => {
       setConnected(false);
+      // Attempt reconnection with exponential backoff if not intentional
+      if (!intentionalDisconnectRef.current) {
+        scheduleReconnect();
+      }
     });
 
     ws.addEventListener('error', () => {
       setConnected(false);
     });
 
-    // Listen for local updates and send to server
+    // Listen for local updates and send to server (or queue offline)
     const updateHandler = (update: Uint8Array, origin: unknown) => {
-      if (origin !== 'remote' && ws.readyState === WebSocket.OPEN) {
+      if (origin === 'remote') return;
+      if (ws.readyState === WebSocket.OPEN) {
         ws.send(update);
+      } else {
+        // Buffer updates when disconnected
+        offlineQueueRef.current.push(update);
+        setOfflineChanges(offlineQueueRef.current.length);
       }
     };
     doc.on('update', updateHandler);
 
     return () => {
       doc.off('update', updateHandler);
-      ws.close();
-      wsRef.current = null;
+    };
+  }, [documentId, user, flushOfflineQueue]);
+
+  const scheduleReconnect = useCallback(() => {
+    if (intentionalDisconnectRef.current) return;
+
+    setIsReconnecting(true);
+    const attempt = reconnectAttemptsRef.current;
+    const delay = Math.min(1000 * Math.pow(2, attempt), maxReconnectDelay);
+    reconnectAttemptsRef.current = attempt + 1;
+
+    reconnectTimerRef.current = setTimeout(() => {
+      if (!intentionalDisconnectRef.current) {
+        connectWs();
+      }
+    }, delay);
+  }, [connectWs]);
+
+  useEffect(() => {
+    if (!documentId) return;
+
+    intentionalDisconnectRef.current = false;
+    reconnectAttemptsRef.current = 0;
+
+    const cleanup = connectWs();
+
+    return () => {
+      intentionalDisconnectRef.current = true;
+      if (cleanup) cleanup();
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
       setConnected(false);
       setSynced(false);
+      setIsReconnecting(false);
     };
-  }, [documentId, user]);
+  }, [documentId, connectWs]);
 
   return {
     doc: docRef.current,
     connected,
     synced,
+    isReconnecting,
+    offlineChanges,
     awareness,
+    broadcastCursor,
     disconnect,
   };
 }
