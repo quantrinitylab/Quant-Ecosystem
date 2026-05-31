@@ -2,7 +2,7 @@
   "id": "FEAT-004",
   "type": "feat",
   "description": "Cross-app token management foundation: Ensure packages/api-client has a proper token management system that all apps can use - set on login, auto-refresh, clear on logout. Add NEXT_PUBLIC_API_URL env var pattern documentation and examples across all three apps.",
-  "status": "pending",
+  "status": "in_progress",
   "steps": [
     "Step 1: In packages/api-client/src/core/http-client.ts, add auto-refresh token logic. Add a setRefreshToken(token) method, an onTokenRefresh callback, and an onAuthError callback. When a 401 is received and a refresh token is available, attempt to refresh via POST /api/auth/refresh before retrying the original request. If refresh fails, call onAuthError.",
     "Step 2: Add a new file packages/api-client/src/core/token-manager.ts that provides a singleton TokenManager class. It stores access/refresh tokens in memory (with optional localStorage persistence for browser), exposes setTokens(access, refresh), getAccessToken(), clearTokens(), isAuthenticated(), and an onTokenChange event. This is the single source of truth for auth state.",

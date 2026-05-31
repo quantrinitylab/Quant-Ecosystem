@@ -48,3 +48,11 @@ export interface QueryOptions {
   refetchOnWindowFocus?: boolean;
   retry?: number | boolean;
 }
+
+/** Token refresh configuration for HttpClient */
+export interface RefreshConfig {
+  /** Endpoint path for token refresh (e.g., '/api/auth/refresh') */
+  endpoint: string;
+  /** Function that returns the current refresh token */
+  getRefreshToken: () => string | null;
+}

@@ -2,13 +2,18 @@
 // API Client SDK - HTTP Client
 // ============================================================================
 
-import type { APIResponse, APIError, RequestConfig } from './types';
+import type { APIResponse, APIError, RequestConfig, RefreshConfig } from './types';
 
 /**
- * Type-safe HTTP client with auth token injection, error parsing, and configurable base URL.
+ * Type-safe HTTP client with auth token injection, automatic token refresh,
+ * error parsing, and configurable base URL.
  */
 export class HttpClient {
   private config: RequestConfig;
+  private refreshConfig: RefreshConfig | null = null;
+  private refreshPromise: Promise<boolean> | null = null;
+  private onTokenRefresh?: (newToken: string) => void;
+  private onAuthError?: (error: APIError) => void;
 
   constructor(config: RequestConfig) {
     this.config = config;
@@ -19,6 +24,27 @@ export class HttpClient {
    */
   setAuthToken(token: string): void {
     this.config.authToken = token;
+  }
+
+  /**
+   * Configure automatic token refresh on 401 responses
+   */
+  setRefreshConfig(config: RefreshConfig): void {
+    this.refreshConfig = config;
+  }
+
+  /**
+   * Set callback invoked when a token is successfully refreshed
+   */
+  setOnTokenRefresh(callback: (newToken: string) => void): void {
+    this.onTokenRefresh = callback;
+  }
+
+  /**
+   * Set callback invoked when authentication fails (refresh also fails)
+   */
+  setOnAuthError(callback: (error: APIError) => void): void {
+    this.onAuthError = callback;
   }
 
   /**
@@ -67,9 +93,14 @@ export class HttpClient {
   }
 
   /**
-   * Execute an HTTP request with error handling
+   * Execute an HTTP request with error handling and optional token refresh
    */
-  private async request<T>(method: string, url: string, body?: unknown): Promise<APIResponse<T>> {
+  private async request<T>(
+    method: string,
+    url: string,
+    body?: unknown,
+    isRetry = false,
+  ): Promise<APIResponse<T>> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...this.config.headers,
@@ -106,6 +137,18 @@ export class HttpClient {
           details: errorBody.details,
         };
 
+        // Attempt token refresh on 401 if configured and not already retrying
+        if (response.status === 401 && !isRetry && this.refreshConfig) {
+          const refreshed = await this.attemptTokenRefresh();
+          if (refreshed) {
+            return this.request<T>(method, url, body, true);
+          }
+          // Refresh failed - notify and return the error
+          if (this.onAuthError) {
+            this.onAuthError(apiError);
+          }
+        }
+
         return {
           success: false,
           data: undefined as unknown as T,
@@ -139,6 +182,62 @@ export class HttpClient {
           statusCode: 0,
         },
       };
+    }
+  }
+
+  /**
+   * Attempt to refresh the access token. Deduplicates concurrent refresh attempts.
+   */
+  private async attemptTokenRefresh(): Promise<boolean> {
+    if (!this.refreshConfig) return false;
+
+    // Deduplicate concurrent refresh requests
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = this.doRefresh();
+    try {
+      return await this.refreshPromise;
+    } finally {
+      this.refreshPromise = null;
+    }
+  }
+
+  private async doRefresh(): Promise<boolean> {
+    if (!this.refreshConfig) return false;
+
+    const { endpoint, getRefreshToken } = this.refreshConfig;
+    const refreshToken = getRefreshToken();
+
+    if (!refreshToken) return false;
+
+    try {
+      const base = this.config.baseUrl.replace(/\/$/, '');
+      const url = `${base}${endpoint}`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!response.ok) return false;
+
+      const data = (await response.json()) as { accessToken?: string; token?: string };
+      const newToken = data.accessToken || data.token;
+
+      if (newToken) {
+        this.config.authToken = newToken;
+        if (this.onTokenRefresh) {
+          this.onTokenRefresh(newToken);
+        }
+        return true;
+      }
+
+      return false;
+    } catch {
+      return false;
     }
   }
 }
