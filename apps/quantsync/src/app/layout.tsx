@@ -4,6 +4,7 @@ import './globals.css';
 import { QueryProvider } from '../providers/query-provider';
 import { AppProviders } from '../providers/app-providers';
 import { MotionProvider } from '@quant/shared-ui';
+import { AppLayout } from '../components/AppLayout';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -21,7 +22,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className}>
         <QueryProvider>
           <AppProviders>
-            <MotionProvider>{children}</MotionProvider>
+            <MotionProvider>
+              <AppLayout>{children}</AppLayout>
+            </MotionProvider>
           </AppProviders>
         </QueryProvider>
       </body>

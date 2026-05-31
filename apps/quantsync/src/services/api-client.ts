@@ -18,7 +18,7 @@ import type {
   ApiResponse,
 } from '../types';
 
-const API_BASE = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3003';
+const API_BASE = '/api';
 
 class QuantSyncAPI {
   private accessToken: string | null = null;

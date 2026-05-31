@@ -1,0 +1,7 @@
+{
+  "task_id": "task-wave0-wave1-foundation-wiring",
+  "task_description": "Wave 0/1 Foundation: Wire QuantSync and QuantAds with all missing Next.js API routes and AppShell integration. These are the two most broken apps (0 API routes each, all frontend fetches 404). This unblocks the data flow for both apps and establishes the proxy pattern for all other apps to follow.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

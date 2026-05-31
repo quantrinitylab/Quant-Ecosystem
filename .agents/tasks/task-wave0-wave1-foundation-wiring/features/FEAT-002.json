@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "QuantAds API routes + AppShell integration. QuantAds has 0 Next.js API routes, so all frontend API calls 404. Build the critical route handlers that proxy to the backend, and integrate AppShell with Sidebar for navigation between campaigns, audiences, creatives, analytics, and billing.",
+  "status": "pending",
+  "steps": [
+    "Create apps/quantads/src/app/api/campaigns/route.ts - GET (list) and POST (create) proxying to BACKEND_URL. Pattern: const BACKEND_URL = process.env.QUANTADS_BACKEND_URL || 'http://localhost:3004'; forward Authorization header.",
+    "Create apps/quantads/src/app/api/campaigns/[id]/route.ts - GET, PUT, DELETE for individual campaigns.",
+    "Create apps/quantads/src/app/api/campaigns/[id]/status/route.ts - PUT for updating campaign status.",
+    "Create apps/quantads/src/app/api/campaigns/dashboard/route.ts - GET for dashboard metrics.",
+    "Create apps/quantads/src/app/api/creatives/route.ts - GET (list) and POST (create), apps/quantads/src/app/api/creatives/[id]/route.ts - GET, PUT.",
+    "Create apps/quantads/src/app/api/audiences/route.ts - GET (list) and POST (create).",
+    "Create apps/quantads/src/app/api/targeting/estimate/route.ts - POST, /interests/route.ts - GET, /behaviors/route.ts - GET.",
+    "Create apps/quantads/src/app/api/bidding/ad-request/route.ts - POST, /stats/route.ts - GET, /models/route.ts - GET.",
+    "Create apps/quantads/src/app/api/analytics/campaigns/[id]/route.ts - GET, /reports/route.ts - POST.",
+    "Create apps/quantads/src/app/api/billing/invoices/route.ts - GET, /payment-methods/route.ts - GET and POST.",
+    "Update apps/quantads/src/services/api-client.ts to change API_BASE to '' (empty string) so frontend fetches go to the Next.js proxy routes at /api/*.",
+    "Update apps/quantads/src/app/layout.tsx to include AppShell with Sidebar navigation: Dashboard, Campaigns, Audiences, Creatives, Analytics, Billing.",
+    "Create sub-pages: apps/quantads/src/app/campaigns/[id]/page.tsx (campaign detail), apps/quantads/src/app/creatives/page.tsx, apps/quantads/src/app/audiences/[id]/page.tsx, apps/quantads/src/app/billing/page.tsx - each with proper loading/error/empty states from @quant/shared-ui."
+  ],
+  "acceptance_criteria": [
+    "All Next.js API route files exist and export proper handlers that proxy to QUANTADS_BACKEND_URL",
+    "apps/quantads/src/services/api-client.ts no longer references localhost:3004 directly for frontend fetches",
+    "AppShell with Sidebar renders on all QuantAds pages with working navigation",
+    "pnpm turbo typecheck --filter=@quant/quantads passes",
+    "pnpm turbo build --filter=@quant/quantads passes",
+    "pnpm turbo test --filter=@quant/quantads passes"
+  ],
+  "verification": [
+    "pnpm turbo typecheck --filter=@quant/quantads",
+    "pnpm turbo build --filter=@quant/quantads",
+    "pnpm turbo test --filter=@quant/quantads"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

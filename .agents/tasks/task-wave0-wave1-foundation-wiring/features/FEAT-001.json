@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "QuantSync API routes + AppShell integration. QuantSync is the most broken app (0 Next.js API routes, all frontend fetches hit /api/* paths that 404). Build all critical API route handlers that proxy to the backend, and integrate the AppShell with Sidebar navigation so users can navigate between feed, trending, communities, spaces, bookmarks, notifications, and profile.",
+  "status": "in_progress",
+  "steps": [
+    "Create apps/quantsync/src/app/api/feed/route.ts - GET handler proxying to backend /feed with mode, cursor, limit params. Follow pattern from apps/quantchat/src/app/api/messages/[id]/route.ts (const BACKEND_URL from env, forward Authorization header).",
+    "Create apps/quantsync/src/app/api/posts/route.ts - GET (list) and POST (create) handlers proxying to backend /posts.",
+    "Create apps/quantsync/src/app/api/posts/[id]/route.ts - GET, PUT, DELETE for individual posts.",
+    "Create apps/quantsync/src/app/api/posts/[id]/comments/route.ts - GET and POST for comments on a post.",
+    "Create apps/quantsync/src/app/api/interactions/[id]/upvote/route.ts, downvote/route.ts, bookmark/route.ts, share/route.ts - POST handlers.",
+    "Create apps/quantsync/src/app/api/interactions/bookmarks/route.ts - GET handler.",
+    "Create apps/quantsync/src/app/api/communities/route.ts - GET (list) and POST (create), plus apps/quantsync/src/app/api/communities/[id]/route.ts - GET, and /join/route.ts, /leave/route.ts - POST.",
+    "Create apps/quantsync/src/app/api/spaces/route.ts - GET (list live) and POST (create), plus apps/quantsync/src/app/api/spaces/[id]/route.ts - GET, and /join/route.ts, /leave/route.ts, /raise-hand/route.ts - POST.",
+    "Create apps/quantsync/src/app/api/trending/route.ts - GET, apps/quantsync/src/app/api/search/route.ts - GET.",
+    "Create apps/quantsync/src/app/api/notifications/route.ts - GET and POST (mark read), apps/quantsync/src/app/api/notifications/preferences/route.ts - GET and PUT.",
+    "Create apps/quantsync/src/app/api/auth/session/route.ts, /login/route.ts, /refresh/route.ts, /logout/route.ts.",
+    "Update apps/quantsync/src/services/api-client.ts to use relative URLs (/api/*) instead of API_BASE pointing to localhost:3003, since the Next.js routes now proxy to the backend. Change API_BASE to '' (empty string) so all fetches hit /api/* routes.",
+    "Update apps/quantsync/src/app/layout.tsx to wrap children in an AppShell from @quant/shared-ui with a Sidebar containing navigation items: Feed, Trending, Communities, Spaces, Bookmarks, Notifications, Profile.",
+    "Create sub-pages for each section: apps/quantsync/src/app/trending/page.tsx, communities/page.tsx, spaces/page.tsx, bookmarks/page.tsx, notifications/page.tsx, profile/page.tsx - each as simple pages that use the existing hook/component (import from legacy-pages or hooks) with proper loading/empty/error states from @quant/shared-ui."
+  ],
+  "acceptance_criteria": [
+    "All Next.js API route files exist and export proper GET/POST/PUT/DELETE handlers that proxy to BACKEND_URL",
+    "apps/quantsync/src/services/api-client.ts no longer references localhost:3003 directly for frontend fetches",
+    "AppShell with Sidebar renders on all QuantSync pages with working navigation links",
+    "pnpm turbo typecheck --filter=@quant/quantsync passes",
+    "pnpm turbo build --filter=@quant/quantsync passes",
+    "pnpm turbo test --filter=@quant/quantsync passes"
+  ],
+  "verification": [
+    "pnpm turbo typecheck --filter=@quant/quantsync",
+    "pnpm turbo build --filter=@quant/quantsync",
+    "pnpm turbo test --filter=@quant/quantsync"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
