@@ -1,3 +1,4 @@
+'use client';
 // ============================================================================
 // Shared UI - Toast Notification Component
 // ============================================================================
@@ -57,13 +58,25 @@ export const Toast: React.FC<ToastProps> = ({
       </svg>
       <p className="flex-1 text-sm font-medium">{message}</p>
       {action && (
-        <button onClick={action.onClick} className="text-sm font-semibold underline hover:no-underline">
+        <button
+          onClick={action.onClick}
+          className="text-sm font-semibold underline hover:no-underline"
+        >
           {action.label}
         </button>
       )}
-      <button onClick={() => onDismiss(id)} className="text-current opacity-50 hover:opacity-100" aria-label="Dismiss">
+      <button
+        onClick={() => onDismiss(id)}
+        className="text-current opacity-50 hover:opacity-100"
+        aria-label="Dismiss"
+      >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M6 18L18 6M6 6l12 12"
+          />
         </svg>
       </button>
     </div>

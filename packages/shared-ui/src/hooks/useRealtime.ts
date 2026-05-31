@@ -1,3 +1,4 @@
+'use client';
 // ============================================================================
 // Shared UI - useRealtime Hook
 // ============================================================================
@@ -85,27 +86,30 @@ export function useRealtime(options: UseRealtimeOptions): UseRealtimeReturn {
     setIsConnected(false);
   }, [reconnectAttempts]);
 
-  const subscribe = useCallback((channel: string, handler: (data: unknown) => void): (() => void) => {
-    if (!handlersRef.current.has(channel)) {
-      handlersRef.current.set(channel, new Set());
-    }
-    handlersRef.current.get(channel)!.add(handler);
-
-    // Send subscription message
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'subscribe', channel }));
-    }
-
-    return () => {
-      handlersRef.current.get(channel)?.delete(handler);
-      if (handlersRef.current.get(channel)?.size === 0) {
-        handlersRef.current.delete(channel);
-        if (wsRef.current?.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({ type: 'unsubscribe', channel }));
-        }
+  const subscribe = useCallback(
+    (channel: string, handler: (data: unknown) => void): (() => void) => {
+      if (!handlersRef.current.has(channel)) {
+        handlersRef.current.set(channel, new Set());
       }
-    };
-  }, []);
+      handlersRef.current.get(channel)!.add(handler);
+
+      // Send subscription message
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'subscribe', channel }));
+      }
+
+      return () => {
+        handlersRef.current.get(channel)?.delete(handler);
+        if (handlersRef.current.get(channel)?.size === 0) {
+          handlersRef.current.delete(channel);
+          if (wsRef.current?.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({ type: 'unsubscribe', channel }));
+          }
+        }
+      };
+    },
+    [],
+  );
 
   const emit = useCallback((event: string, data: unknown) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {

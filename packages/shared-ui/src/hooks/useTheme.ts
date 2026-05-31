@@ -1,3 +1,4 @@
+'use client';
 // ============================================================================
 // Shared UI - useTheme Hook
 // ============================================================================
@@ -36,9 +37,25 @@ const lightTheme: ThemeConfig = {
     heading: 'Inter, system-ui, sans-serif',
     body: 'Inter, system-ui, sans-serif',
     mono: 'JetBrains Mono, monospace',
-    sizes: { xs: '0.75rem', sm: '0.875rem', md: '1rem', lg: '1.125rem', xl: '1.25rem', '2xl': '1.5rem', '3xl': '2rem' },
+    sizes: {
+      xs: '0.75rem',
+      sm: '0.875rem',
+      md: '1rem',
+      lg: '1.125rem',
+      xl: '1.25rem',
+      '2xl': '1.5rem',
+      '3xl': '2rem',
+    },
   },
-  spacing: { xs: '0.25rem', sm: '0.5rem', md: '1rem', lg: '1.5rem', xl: '2rem', '2xl': '3rem', '3xl': '4rem' },
+  spacing: {
+    xs: '0.25rem',
+    sm: '0.5rem',
+    md: '1rem',
+    lg: '1.5rem',
+    xl: '2rem',
+    '2xl': '3rem',
+    '3xl': '4rem',
+  },
   borderRadius: { sm: '0.25rem', md: '0.5rem', lg: '0.75rem', xl: '1rem', full: '9999px' },
 };
 
@@ -72,7 +89,9 @@ export function useTheme(): UseThemeReturn {
   useEffect(() => {
     // Check system preference
     if (typeof globalThis !== 'undefined' && 'matchMedia' in globalThis) {
-      const mediaQuery = (globalThis as unknown as { matchMedia: (q: string) => MediaQueryList }).matchMedia('(prefers-color-scheme: dark)');
+      const mediaQuery = (
+        globalThis as unknown as { matchMedia: (q: string) => MediaQueryList }
+      ).matchMedia('(prefers-color-scheme: dark)');
       setSystemPrefersDark(mediaQuery.matches);
 
       const handler = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches);
@@ -84,7 +103,9 @@ export function useTheme(): UseThemeReturn {
   // Load saved preference
   useEffect(() => {
     if (typeof globalThis !== 'undefined' && 'localStorage' in globalThis) {
-      const stored = (globalThis as unknown as { localStorage: Storage }).localStorage.getItem('quant_theme_mode') as ThemeMode | null;
+      const stored = (globalThis as unknown as { localStorage: Storage }).localStorage.getItem(
+        'quant_theme_mode',
+      ) as ThemeMode | null;
       if (stored) setModeState(stored);
     }
   }, []);
@@ -95,7 +116,10 @@ export function useTheme(): UseThemeReturn {
   const setMode = useCallback((newMode: ThemeMode) => {
     setModeState(newMode);
     if (typeof globalThis !== 'undefined' && 'localStorage' in globalThis) {
-      (globalThis as unknown as { localStorage: Storage }).localStorage.setItem('quant_theme_mode', newMode);
+      (globalThis as unknown as { localStorage: Storage }).localStorage.setItem(
+        'quant_theme_mode',
+        newMode,
+      );
     }
   }, []);
 

@@ -1,3 +1,5 @@
+'use client';
+
 // ============================================================================
 // Shared UI - Feed Card Component
 // ============================================================================
@@ -69,7 +71,11 @@ export const FeedCard: React.FC<FeedCardProps> = ({
         <button onClick={() => onAuthorClick?.(author.username)} className="flex-shrink-0">
           <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden">
             {author.avatarUrl ? (
-              <img src={author.avatarUrl} alt={author.name} className="w-full h-full object-cover" />
+              <img
+                src={author.avatarUrl}
+                alt={author.name}
+                className="w-full h-full object-cover"
+              />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-sm font-medium text-gray-500">
                 {author.name[0]}
@@ -90,7 +96,12 @@ export const FeedCard: React.FC<FeedCardProps> = ({
         </div>
         <button className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 12h.01M12 12h.01M19 12h.01"
+            />
           </svg>
         </button>
       </div>
@@ -100,7 +111,9 @@ export const FeedCard: React.FC<FeedCardProps> = ({
 
       {/* Media grid */}
       {mediaUrls && mediaUrls.length > 0 && (
-        <div className={`grid gap-1 rounded-xl overflow-hidden mb-3 ${mediaUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+        <div
+          className={`grid gap-1 rounded-xl overflow-hidden mb-3 ${mediaUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}
+        >
           {mediaUrls.slice(0, 4).map((url, i) => (
             <div key={i} className="relative aspect-square bg-gray-100">
               <img src={url} alt={`Media ${i + 1}`} className="w-full h-full object-cover" />
@@ -116,27 +129,69 @@ export const FeedCard: React.FC<FeedCardProps> = ({
 
       {/* Actions */}
       <div className="flex items-center justify-between pt-1">
-        <button onClick={() => onComment?.(id)} className="flex items-center gap-1.5 text-gray-500 hover:text-blue-500 transition-colors group">
+        <button
+          onClick={() => onComment?.(id)}
+          className="flex items-center gap-1.5 text-gray-500 hover:text-blue-500 transition-colors group"
+        >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+            />
           </svg>
           <span className="text-xs">{formatCount(comments)}</span>
         </button>
-        <button onClick={() => onShare?.(id)} className="flex items-center gap-1.5 text-gray-500 hover:text-green-500 transition-colors">
+        <button
+          onClick={() => onShare?.(id)}
+          className="flex items-center gap-1.5 text-gray-500 hover:text-green-500 transition-colors"
+        >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+            />
           </svg>
           <span className="text-xs">{formatCount(shares)}</span>
         </button>
-        <button onClick={handleLike} className={`flex items-center gap-1.5 transition-colors ${liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'}`}>
-          <svg className="w-5 h-5" fill={liked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+        <button
+          onClick={handleLike}
+          className={`flex items-center gap-1.5 transition-colors ${liked ? 'text-red-500' : 'text-gray-500 hover:text-red-500'}`}
+        >
+          <svg
+            className="w-5 h-5"
+            fill={liked ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+            />
           </svg>
           <span className="text-xs">{formatCount(likeCount)}</span>
         </button>
-        <button onClick={handleBookmark} className={`transition-colors ${bookmarked ? 'text-yellow-500' : 'text-gray-500 hover:text-yellow-500'}`}>
-          <svg className="w-5 h-5" fill={bookmarked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+        <button
+          onClick={handleBookmark}
+          className={`transition-colors ${bookmarked ? 'text-yellow-500' : 'text-gray-500 hover:text-yellow-500'}`}
+        >
+          <svg
+            className="w-5 h-5"
+            fill={bookmarked ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+            />
           </svg>
         </button>
       </div>
