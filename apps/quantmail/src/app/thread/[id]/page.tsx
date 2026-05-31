@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { AppShell, Card, Avatar, Badge, Button, Skeleton } from '@quant/shared-ui';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../../components/AppSidebar';
+import { PageTransition } from '../../../components/PageTransition';
 import { useThread } from '../../../hooks/useThread';
 import { apiClient } from '../../../services/api-client';
 import type { Email } from '../../../types';
@@ -61,7 +62,7 @@ export default function ThreadPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />}>
-      <div className="flex flex-col h-full">
+      <PageTransition className="flex flex-col h-full">
         {/* Top bar */}
         <div className="flex items-center gap-2 p-4 border-b border-[var(--quant-border)]">
           <Button variant="secondary" onClick={() => router.push('/')}>
@@ -181,7 +182,7 @@ export default function ThreadPage() {
             </>
           )}
         </div>
-      </div>
+      </PageTransition>
     </AppShell>
   );
 }

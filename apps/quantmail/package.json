@@ -24,6 +24,7 @@
     "@quant/queue": "workspace:*",
     "@quant/realtime": "workspace:*",
     "@quant/server-core": "workspace:*",
+    "@quant/brand": "workspace:*",
     "@quant/shared-ui": "workspace:*",
     "fastify": "^5.2.1",
     "ioredis": "^5.6.1",

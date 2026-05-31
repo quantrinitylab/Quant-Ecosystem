@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@quant/shared-ui', '@quant/common'],
+  transpilePackages: ['@quant/shared-ui', '@quant/common', '@quant/brand'],
   output: 'standalone',
   async headers() {
     return [

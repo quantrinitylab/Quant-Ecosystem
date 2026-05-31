@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, FormField, Input, Button } from '@quant/shared-ui';
 import { apiClient } from '../../services/api-client';
+import { PageTransition } from '../../components/PageTransition';
 import Link from 'next/link';
 
 export default function RegisterPage() {
@@ -74,11 +75,11 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--quant-background,#f9fafb)] dark:bg-gray-900">
+    <PageTransition className="min-h-screen flex items-center justify-center p-4 bg-[var(--quant-background,#f9fafb)] dark:bg-gray-900">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-2xl mb-4">
+          <div className="w-16 h-16 rounded-full bg-[var(--brand-app-color)] flex items-center justify-center text-white font-bold text-2xl mb-4">
             Q
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
@@ -183,6 +184,6 @@ export default function RegisterPage() {
           </Link>
         </p>
       </div>
-    </div>
+    </PageTransition>
   );
 }

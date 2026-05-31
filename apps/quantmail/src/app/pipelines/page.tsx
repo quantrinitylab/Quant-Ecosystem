@@ -3,6 +3,7 @@
 import { AppShell, Card, Badge, Button, Skeleton } from '@quant/shared-ui';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
+import { PageTransition } from '../../components/PageTransition';
 import {
   useWorkflows,
   useBuilds,
@@ -60,7 +61,7 @@ export default function PipelinesPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />}>
-      <div className="flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-8">
+      <PageTransition className="flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-8">
         {/* Workflows */}
         <section>
           <h2 className="text-lg font-semibold mb-3">Workflows</h2>
@@ -165,7 +166,7 @@ export default function PipelinesPage() {
               </Card>
             ))}
         </section>
-      </div>
+      </PageTransition>
     </AppShell>
   );
 }

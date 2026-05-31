@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { AppShell, Card, Badge, Button, Skeleton } from '@quant/shared-ui';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../../components/AppSidebar';
+import { PageTransition } from '../../../components/PageTransition';
 import {
   useRepo,
   useBranches,
@@ -39,7 +40,7 @@ export default function RepoDetailPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />}>
-      <div className="flex flex-col h-full">
+      <PageTransition className="flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center gap-3 p-4 border-b border-[var(--quant-border)]">
           <Button variant="secondary" onClick={() => router.push('/repos')}>
@@ -212,7 +213,7 @@ export default function RepoDetailPage() {
             </>
           )}
         </div>
-      </div>
+      </PageTransition>
     </AppShell>
   );
 }

@@ -1,8 +1,10 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import { Sidebar } from '@quant/shared-ui';
 import type { SidebarItem } from '@quant/shared-ui';
 import { useRouter, usePathname } from 'next/navigation';
+import { spring } from '@quant/brand';
 
 const navItems = [
   { id: 'inbox', label: 'Inbox', icon: <span>&#128229;</span>, path: '/' },
@@ -15,6 +17,29 @@ const navItems = [
   { id: 'security', label: 'Security', icon: <span>&#128274;</span>, path: '/security' },
   { id: 'settings', label: 'Settings', icon: <span>&#9881;&#65039;</span>, path: '/settings' },
 ];
+
+const sidebarContainerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.04,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const sidebarItemVariants = {
+  hidden: { opacity: 0, x: -12 },
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: {
+      type: 'spring' as const,
+      ...spring.gentle,
+    },
+  },
+};
 
 export function AppSidebar() {
   const router = useRouter();
@@ -32,13 +57,19 @@ export function AppSidebar() {
     <Sidebar
       items={sidebarItems}
       header={
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+        <motion.div
+          className="flex items-center gap-2"
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', ...spring.gentle }}
+        >
+          <div className="w-8 h-8 rounded-full bg-[var(--brand-app-color)] flex items-center justify-center text-white font-bold text-sm">
             Q
           </div>
           <h2 className="text-lg font-semibold">QuantMail</h2>
-        </div>
+        </motion.div>
       }
+      className="min-h-touch [&_button]:min-h-[44px] [&_a]:min-h-[44px]"
     />
   );
 }

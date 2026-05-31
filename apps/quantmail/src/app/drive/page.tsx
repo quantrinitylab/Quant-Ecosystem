@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { AppShell, Card, Button, SearchInput, Skeleton } from '@quant/shared-ui';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
+import { PageTransition } from '../../components/PageTransition';
 import { useDrive } from '../../hooks/useDrive';
 
 export default function DrivePage() {
@@ -67,7 +68,7 @@ export default function DrivePage() {
 
   return (
     <AppShell sidebar={<AppSidebar />}>
-      <div className="flex flex-col h-full">
+      <PageTransition className="flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
           <h1 className="text-lg font-semibold">Drive</h1>
@@ -170,7 +171,7 @@ export default function DrivePage() {
               </div>
             ))}
         </div>
-      </div>
+      </PageTransition>
     </AppShell>
   );
 }

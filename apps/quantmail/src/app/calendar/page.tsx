@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { AppShell, Card, Button, Modal, Input, FormField, Skeleton } from '@quant/shared-ui';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
+import { PageTransition } from '../../components/PageTransition';
 import {
   useCalendarEvents,
   useTodayEvents,
@@ -79,7 +80,7 @@ export default function CalendarPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />}>
-      <div className="flex flex-col h-full">
+      <PageTransition className="flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
           <div className="flex items-center gap-3">
@@ -234,7 +235,7 @@ export default function CalendarPage() {
             </div>
           </div>
         </Modal>
-      </div>
+      </PageTransition>
     </AppShell>
   );
 }

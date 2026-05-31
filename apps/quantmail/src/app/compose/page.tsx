@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
+import { PageTransition } from '../../components/PageTransition';
 import { EmailComposer } from '../../components/EmailComposer';
 import { apiClient } from '../../services/api-client';
 
@@ -71,7 +72,7 @@ export default function ComposePage() {
 
   return (
     <AppShell sidebar={<AppSidebar />}>
-      <div className="flex flex-col h-full">
+      <PageTransition className="flex flex-col h-full">
         <EmailComposer
           initialSubject={forwardId ? 'Fwd: ' : replyTo ? 'Re: ' : undefined}
           inReplyTo={replyTo || undefined}
@@ -81,7 +82,7 @@ export default function ComposePage() {
           onAIAssist={handleAIAssist}
           onAttach={handleAttach}
         />
-      </div>
+      </PageTransition>
     </AppShell>
   );
 }

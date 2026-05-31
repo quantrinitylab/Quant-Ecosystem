@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { AppShell, Card, Button, Input, FormField, TextArea } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
+import { PageTransition } from '../../components/PageTransition';
 import { apiClient } from '../../services/api-client';
 
 export default function SettingsPage() {
@@ -41,7 +42,7 @@ export default function SettingsPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />}>
-      <div className="flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-8">
+      <PageTransition className="flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-8">
         <h1 className="text-2xl font-bold">Settings</h1>
 
         {/* Profile */}
@@ -144,7 +145,7 @@ export default function SettingsPage() {
             ))}
           </div>
         </Card>
-      </div>
+      </PageTransition>
     </AppShell>
   );
 }

@@ -2,12 +2,15 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AppShell, SearchInput, Card, Badge, Button, Skeleton } from '@quant/shared-ui';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
+import { spring } from '@quant/brand';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
 import { AppSidebar } from '../components/AppSidebar';
 import { apiClient } from '../services/api-client';
+import { listContainerVariants, listItemVariants } from '../lib/motion-variants';
 import type { Email, EmailCategory } from '../types';
 
 const CATEGORIES: { key: EmailCategory; label: string }[] = [
@@ -98,7 +101,12 @@ export default function InboxPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />}>
-      <div className="flex flex-col h-full">
+      <motion.div
+        className="flex flex-col h-full"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2 }}
+      >
         {/* Search */}
         <div className="p-4 border-b border-[var(--quant-border)]">
           <SearchInput placeholder="Search emails..." value={searchQuery} onChange={handleSearch} />
@@ -109,7 +117,7 @@ export default function InboxPage() {
           {CATEGORIES.map((cat) => (
             <button
               key={cat.key}
-              className={`px-3 py-1.5 text-sm rounded-md whitespace-nowrap transition-colors ${
+              className={`px-3 py-1.5 min-h-touch text-sm rounded-md whitespace-nowrap transition-colors ${
                 activeCategory === cat.key
                   ? 'bg-[var(--quant-primary)] text-white'
                   : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-muted)]'
@@ -127,20 +135,28 @@ export default function InboxPage() {
         </div>
 
         {/* Batch toolbar */}
-        {selectedIds.size > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-[var(--quant-muted)] border-b border-[var(--quant-border)]">
-            <span className="text-sm font-medium">{selectedIds.size} selected</span>
-            <Button variant="secondary" onClick={handleBatchArchive}>
-              Archive All
-            </Button>
-            <Button variant="secondary" onClick={handleBatchDelete}>
-              Delete All
-            </Button>
-            <Button variant="secondary" onClick={() => setSelectedIds(new Set())}>
-              Clear
-            </Button>
-          </div>
-        )}
+        <AnimatePresence>
+          {selectedIds.size > 0 && (
+            <motion.div
+              className="flex items-center gap-2 px-4 py-2 bg-[var(--quant-muted)] border-b border-[var(--quant-border)]"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ type: 'spring', ...spring.snappy }}
+            >
+              <span className="text-sm font-medium">{selectedIds.size} selected</span>
+              <Button variant="secondary" onClick={handleBatchArchive}>
+                Archive All
+              </Button>
+              <Button variant="secondary" onClick={handleBatchDelete}>
+                Delete All
+              </Button>
+              <Button variant="secondary" onClick={() => setSelectedIds(new Set())}>
+                Clear
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Email list */}
         <div className="flex-1 overflow-y-auto">
@@ -158,63 +174,64 @@ export default function InboxPage() {
               description={debouncedQuery ? 'Try a different search query' : 'No emails to show'}
             />
           )}
-          {!isLoading &&
-            !isSearching &&
-            !error &&
-            emails &&
-            emails.map((email) => (
-              <Card
-                key={email.id}
-                padding="none"
-                className={`mx-4 my-2 p-4 cursor-pointer hover:bg-[var(--quant-muted)] transition-colors ${
-                  !email.isRead ? 'border-l-4 border-l-[var(--quant-primary)]' : ''
-                }`}
-                onClick={() => handleEmailClick(email)}
-              >
-                <div className="flex items-start gap-3">
-                  {/* Checkbox */}
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(email.id)}
-                    onChange={() => handleToggleSelect(email.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="mt-1 w-4 h-4 rounded border-[var(--quant-border)]"
-                  />
-
-                  {/* Star */}
-                  <button
-                    className={`mt-0.5 text-lg ${email.isStarred ? 'text-yellow-500' : 'text-[var(--quant-muted-foreground)]'}`}
-                    onClick={(e) => handleToggleStar(e, email.id)}
-                    title={email.isStarred ? 'Unstar' : 'Star'}
+          {!isLoading && !isSearching && !error && emails && emails.length > 0 && (
+            <motion.div variants={listContainerVariants} initial="hidden" animate="visible">
+              {emails.map((email) => (
+                <motion.div key={email.id} variants={listItemVariants}>
+                  <Card
+                    padding="none"
+                    className={`mx-4 my-2 p-4 cursor-pointer hover:bg-[var(--quant-muted)] transition-colors ${
+                      !email.isRead ? 'border-l-4 border-l-[var(--quant-primary)]' : ''
+                    }`}
+                    onClick={() => handleEmailClick(email)}
                   >
-                    {email.isStarred ? '\u2605' : '\u2606'}
-                  </button>
+                    <div className="flex items-start gap-3">
+                      {/* Checkbox */}
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(email.id)}
+                        onChange={() => handleToggleSelect(email.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mt-1 w-4 h-4 rounded border-[var(--quant-border)]"
+                      />
 
-                  {/* Content */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`text-sm ${!email.isRead ? 'font-semibold' : 'font-normal'}`}
+                      {/* Star */}
+                      <button
+                        className={`mt-0.5 text-lg min-w-touch min-h-touch flex items-center justify-center ${email.isStarred ? 'text-yellow-500' : 'text-[var(--quant-muted-foreground)]'}`}
+                        onClick={(e) => handleToggleStar(e, email.id)}
+                        title={email.isStarred ? 'Unstar' : 'Star'}
                       >
-                        {email.from?.name || email.from?.email}
+                        {email.isStarred ? '\u2605' : '\u2606'}
+                      </button>
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-sm ${!email.isRead ? 'font-semibold' : 'font-normal'}`}
+                          >
+                            {email.from?.name || email.from?.email}
+                          </span>
+                          {!email.isRead && <Badge variant="info">New</Badge>}
+                        </div>
+                        <h3 className={`text-sm mt-1 ${!email.isRead ? 'font-semibold' : ''}`}>
+                          {email.subject}
+                        </h3>
+                        <p className="text-xs text-[var(--quant-muted-foreground)] mt-1 truncate">
+                          {email.snippet}
+                        </p>
+                      </div>
+                      <span className="text-xs text-[var(--quant-muted-foreground)] whitespace-nowrap ml-4">
+                        {email.receivedAt ? new Date(email.receivedAt).toLocaleDateString() : ''}
                       </span>
-                      {!email.isRead && <Badge variant="info">New</Badge>}
                     </div>
-                    <h3 className={`text-sm mt-1 ${!email.isRead ? 'font-semibold' : ''}`}>
-                      {email.subject}
-                    </h3>
-                    <p className="text-xs text-[var(--quant-muted-foreground)] mt-1 truncate">
-                      {email.snippet}
-                    </p>
-                  </div>
-                  <span className="text-xs text-[var(--quant-muted-foreground)] whitespace-nowrap ml-4">
-                    {email.receivedAt ? new Date(email.receivedAt).toLocaleDateString() : ''}
-                  </span>
-                </div>
-              </Card>
-            ))}
+                  </Card>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
         </div>
-      </div>
+      </motion.div>
     </AppShell>
   );
 }

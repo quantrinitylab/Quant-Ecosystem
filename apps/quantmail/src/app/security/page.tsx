@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { AppShell, Card, Button, Input, FormField, Skeleton } from '@quant/shared-ui';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
+import { PageTransition } from '../../components/PageTransition';
 import { apiClient } from '../../services/api-client';
 
 export default function SecurityPage() {
@@ -61,7 +62,7 @@ export default function SecurityPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />}>
-      <div className="flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-8">
+      <PageTransition className="flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-8">
         <h1 className="text-2xl font-bold">Security</h1>
 
         {/* 2FA Section */}
@@ -178,7 +179,7 @@ export default function SecurityPage() {
           <h2 className="text-lg font-semibold mb-4">Connected Apps</h2>
           <EmptyState title="OAuth connected apps" description="No third-party apps connected" />
         </Card>
-      </div>
+      </PageTransition>
     </AppShell>
   );
 }
