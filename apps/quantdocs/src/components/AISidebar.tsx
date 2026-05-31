@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@quant/shared-ui';
+import { motion } from 'framer-motion';
+import { spring } from '@quant/brand';
+import { Button, LoadingState } from '@quant/shared-ui';
 
 interface AIAction {
   id: string;
@@ -32,7 +34,11 @@ export function AISidebar({ onAction }: AISidebarProps) {
   };
 
   return (
-    <aside
+    <motion.aside
+      initial={{ opacity: 0, x: 24 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 24 }}
+      transition={{ type: 'spring', ...spring.gentle }}
       className="w-72 lg:w-80 border-l border-[var(--quant-border)] flex flex-col h-full bg-[var(--quant-background)]"
       aria-label="AI assistant panel"
     >
@@ -44,34 +50,46 @@ export function AISidebar({ onAction }: AISidebarProps) {
         <p className="text-xs text-[var(--quant-muted-foreground)] mb-3">
           Select an action to apply to the current document or selection.
         </p>
-        {AI_ACTIONS.map((action) => (
-          <Button
+        {AI_ACTIONS.map((action, index) => (
+          <motion.div
             key={action.id}
-            variant={activeAction === action.id ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => handleAction(action.id)}
-            aria-label={action.label}
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ type: 'spring', ...spring.gentle, delay: index * 0.04 }}
           >
-            <span className="mr-2" aria-hidden="true">
-              {action.icon}
-            </span>
-            {action.label}
-          </Button>
+            <Button
+              variant={activeAction === action.id ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={() => handleAction(action.id)}
+              aria-label={action.label}
+              className="w-full min-h-[44px] focus-visible:ring-2 focus-visible:ring-[var(--brand-ring)]"
+            >
+              <span className="mr-2" aria-hidden="true">
+                {action.icon}
+              </span>
+              {action.label}
+            </Button>
+          </motion.div>
         ))}
       </div>
 
       {result && (
-        <div className="flex-1 overflow-y-auto p-3 border-t border-[var(--quant-border)]">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ type: 'spring', ...spring.gentle }}
+          className="flex-1 overflow-y-auto p-3 border-t border-[var(--quant-border)]"
+        >
           <h3 className="text-xs font-medium text-[var(--quant-muted-foreground)] mb-2">Result</h3>
           <div className="text-sm bg-[var(--quant-muted)] rounded-md p-3">{result}</div>
-        </div>
+        </motion.div>
       )}
 
       {!result && activeAction && (
         <div className="flex-1 flex items-center justify-center p-3">
-          <p className="text-sm text-[var(--quant-muted-foreground)]">Processing...</p>
+          <LoadingState text="Processing..." />
         </div>
       )}
-    </aside>
+    </motion.aside>
   );
 }

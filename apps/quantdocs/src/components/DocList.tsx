@@ -1,12 +1,33 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, SearchInput, Badge, EmptyState } from '@quant/shared-ui';
+import { motion } from 'framer-motion';
+import { spring } from '@quant/brand';
+import { Card, SearchInput, Badge, EmptyState, Skeleton } from '@quant/shared-ui';
 import { useDocuments, type DocSummary } from '../hooks/useDocuments';
 
 interface DocListProps {
   filter?: string;
 }
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.06,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 12 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { type: 'spring', ...spring.gentle },
+  },
+};
 
 export function DocList({ filter }: DocListProps) {
   const [search, setSearch] = useState('');
@@ -18,7 +39,7 @@ export function DocList({ filter }: DocListProps) {
       <div className="p-6" role="status" aria-label="Loading documents">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-40 rounded-lg bg-[var(--quant-muted)] animate-pulse" />
+            <Skeleton key={i} className="h-40 rounded-lg" />
           ))}
         </div>
       </div>
@@ -51,8 +72,10 @@ export function DocList({ filter }: DocListProps) {
         >
           <button
             onClick={() => setViewMode('grid')}
-            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-              viewMode === 'grid' ? 'bg-quant-primary text-white' : 'hover:bg-[var(--quant-muted)]'
+            className={`min-h-[44px] min-w-[44px] flex items-center justify-center px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-ring)] ${
+              viewMode === 'grid'
+                ? 'bg-[var(--brand-app-color)] text-white'
+                : 'hover:bg-[var(--quant-muted)]'
             }`}
             aria-pressed={viewMode === 'grid'}
             aria-label="Grid view"
@@ -61,8 +84,10 @@ export function DocList({ filter }: DocListProps) {
           </button>
           <button
             onClick={() => setViewMode('list')}
-            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-              viewMode === 'list' ? 'bg-quant-primary text-white' : 'hover:bg-[var(--quant-muted)]'
+            className={`min-h-[44px] min-w-[44px] flex items-center justify-center px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-ring)] ${
+              viewMode === 'list'
+                ? 'bg-[var(--brand-app-color)] text-white'
+                : 'hover:bg-[var(--quant-muted)]'
             }`}
             aria-pressed={viewMode === 'list'}
             aria-label="List view"
@@ -78,21 +103,35 @@ export function DocList({ filter }: DocListProps) {
           description="Create a new document to get started."
         />
       ) : viewMode === 'grid' ? (
-        <div
+        <motion.div
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
           role="list"
           aria-label="Documents grid"
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
         >
           {documents.map((doc: DocSummary) => (
-            <DocCard key={doc.id} doc={doc} />
+            <motion.div key={doc.id} variants={itemVariants}>
+              <DocCard doc={doc} />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       ) : (
-        <div className="space-y-2" role="list" aria-label="Documents list">
+        <motion.div
+          className="space-y-2"
+          role="list"
+          aria-label="Documents list"
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+        >
           {documents.map((doc: DocSummary) => (
-            <DocListItem key={doc.id} doc={doc} />
+            <motion.div key={doc.id} variants={itemVariants}>
+              <DocListItem doc={doc} />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
     </div>
   );
@@ -100,7 +139,7 @@ export function DocList({ filter }: DocListProps) {
 
 function DocCard({ doc }: { doc: DocSummary }) {
   return (
-    <a href={`/doc/${doc.id}`} role="listitem">
+    <a href={`/doc/${doc.id}`} role="listitem" className="block min-h-[44px]">
       <Card hoverable clickable variant="outlined" padding="md">
         <div className="space-y-2">
           <div className="flex items-start justify-between">
@@ -128,7 +167,7 @@ function DocCard({ doc }: { doc: DocSummary }) {
 
 function DocListItem({ doc }: { doc: DocSummary }) {
   return (
-    <a href={`/doc/${doc.id}`} role="listitem">
+    <a href={`/doc/${doc.id}`} role="listitem" className="block min-h-[44px]">
       <Card hoverable clickable variant="flat" padding="sm">
         <div className="flex items-center gap-4">
           <div className="flex-1 min-w-0">

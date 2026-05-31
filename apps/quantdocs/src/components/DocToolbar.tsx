@@ -1,6 +1,7 @@
 'use client';
 
-import { Button } from '@quant/shared-ui';
+import { motion } from 'framer-motion';
+import { spring } from '@quant/brand';
 
 interface ToolbarAction {
   id: string;
@@ -35,7 +36,10 @@ interface DocToolbarProps {
 
 export function DocToolbar({ onAction }: DocToolbarProps) {
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', ...spring.snappy }}
       className="flex flex-wrap items-center gap-1 p-2 border-b border-[var(--quant-border)] bg-[var(--quant-muted)]"
       role="toolbar"
       aria-label="Document formatting toolbar"
@@ -45,7 +49,7 @@ export function DocToolbar({ onAction }: DocToolbarProps) {
       <ToolbarGroup actions={HEADING_ACTIONS} onAction={onAction} />
       <div className="w-px h-6 bg-[var(--quant-border)] mx-1" aria-hidden="true" />
       <ToolbarGroup actions={BLOCK_ACTIONS} onAction={onAction} />
-    </div>
+    </motion.div>
   );
 }
 
@@ -59,15 +63,17 @@ function ToolbarGroup({
   return (
     <div className="flex items-center gap-0.5">
       {actions.map((action) => (
-        <Button
+        <motion.button
           key={action.id}
-          variant="ghost"
-          size="sm"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.92 }}
+          transition={{ type: 'spring', ...spring.snappy }}
           onClick={() => onAction?.(action.id)}
           aria-label={action.label}
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md text-xs font-mono hover:bg-[var(--quant-background)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-ring)] transition-colors"
         >
-          <span className="text-xs font-mono">{action.icon}</span>
-        </Button>
+          {action.icon}
+        </motion.button>
       ))}
     </div>
   );

@@ -1,0 +1,11 @@
+{
+  "task_id": "task-polish-wireup-5apps",
+  "features": [
+    {
+      "id": "FEAT-002",
+      "title": "Polish and wire QuantDocs with Yjs collaboration",
+      "status": "in_progress",
+      "app": "@quant/quantdocs"
+    }
+  ]
+}

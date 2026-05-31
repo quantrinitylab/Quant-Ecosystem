@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { spring } from '@quant/brand';
 import { Avatar, Button, Input } from '@quant/shared-ui';
 
 interface Comment {
@@ -29,7 +31,11 @@ export function CommentsPanel({ comments = [], onAddComment, onReply }: Comments
   };
 
   return (
-    <aside
+    <motion.aside
+      initial={{ opacity: 0, x: 24 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 24 }}
+      transition={{ type: 'spring', ...spring.gentle }}
       className="w-72 lg:w-80 border-l border-[var(--quant-border)] flex flex-col h-full bg-[var(--quant-background)]"
       aria-label="Comments panel"
     >
@@ -43,9 +49,18 @@ export function CommentsPanel({ comments = [], onAddComment, onReply }: Comments
             No comments yet
           </p>
         ) : (
-          comments.map((comment) => (
-            <CommentItem key={comment.id} comment={comment} onReply={onReply} />
-          ))
+          <AnimatePresence>
+            {comments.map((comment, index) => (
+              <motion.div
+                key={comment.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: 'spring', ...spring.gentle, delay: index * 0.04 }}
+              >
+                <CommentItem comment={comment} onReply={onReply} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         )}
       </div>
 
@@ -63,12 +78,18 @@ export function CommentsPanel({ comments = [], onAddComment, onReply }: Comments
               }
             }}
           />
-          <Button variant="primary" size="sm" onClick={handleSubmit} disabled={!newComment.trim()}>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleSubmit}
+            disabled={!newComment.trim()}
+            className="min-h-[44px] focus-visible:ring-2 focus-visible:ring-[var(--brand-ring)]"
+          >
             Post
           </Button>
         </div>
       </div>
-    </aside>
+    </motion.aside>
   );
 }
 
@@ -104,7 +125,7 @@ function CommentItem({
           <p className="text-sm mt-0.5">{comment.text}</p>
           <button
             onClick={() => setShowReplyInput(!showReplyInput)}
-            className="text-xs text-quant-primary hover:underline mt-1"
+            className="min-h-[44px] text-xs text-[var(--brand-app-color)] hover:underline mt-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-ring)] rounded"
             aria-label={`Reply to ${comment.author}`}
           >
             Reply
@@ -112,19 +133,33 @@ function CommentItem({
         </div>
       </div>
 
-      {showReplyInput && (
-        <div className="ml-8 flex gap-2">
-          <Input
-            value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
-            placeholder="Write a reply..."
-            aria-label="Write a reply"
-          />
-          <Button variant="ghost" size="sm" onClick={handleReply} disabled={!replyText.trim()}>
-            Send
-          </Button>
-        </div>
-      )}
+      <AnimatePresence>
+        {showReplyInput && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ type: 'spring', ...spring.snappy }}
+            className="ml-8 flex gap-2 overflow-hidden"
+          >
+            <Input
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Write a reply..."
+              aria-label="Write a reply"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleReply}
+              disabled={!replyText.trim()}
+              className="min-h-[44px] focus-visible:ring-2 focus-visible:ring-[var(--brand-ring)]"
+            >
+              Send
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {comment.replies && comment.replies.length > 0 && (
         <div className="ml-8 space-y-2">

@@ -10,9 +10,10 @@
   --brand-accent-hover: #D97706;
   --brand-app-color: #14B8A6;
   --app-color: #14B8A6;
+  --brand-ring: #14B8A6;
 
   /* Existing (now powered by brand) */
-  --quant-primary: var(--brand-primary);
+  --quant-primary: var(--brand-app-color);
   --quant-secondary: #8b5cf6;
   --quant-background: #ffffff;
   --quant-foreground: #0f172a;
