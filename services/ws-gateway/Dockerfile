@@ -14,7 +14,7 @@ COPY packages/common/ ./packages/common/
 COPY packages/realtime/ ./packages/realtime/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # Compile TypeScript to JavaScript
 RUN pnpm --filter @quant/common exec tsc -b && \
@@ -59,7 +59,7 @@ COPY --from=builder /app/packages/realtime/dist/ ./packages/realtime/dist/
 COPY --from=builder /app/packages/realtime/package.json ./packages/realtime/package.json
 
 # Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 ENV NODE_ENV=production
 ENV PORT=8080

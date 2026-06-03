@@ -13,7 +13,7 @@ COPY packages/server-core/package.json ./packages/server-core/package.json
 COPY packages/shared-ui/package.json ./packages/shared-ui/package.json
 COPY packages/search/package.json ./packages/search/package.json
 COPY apps/quantmail/package.json ./apps/quantmail/package.json
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 FROM deps AS builder
 COPY packages/ ./packages/

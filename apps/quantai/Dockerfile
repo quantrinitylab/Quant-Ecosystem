@@ -11,7 +11,7 @@ COPY packages/realtime/package.json ./packages/realtime/package.json
 COPY packages/server-core/package.json ./packages/server-core/package.json
 COPY packages/shared-ui/package.json ./packages/shared-ui/package.json
 COPY apps/quantai/package.json ./apps/quantai/package.json
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 FROM deps AS builder
 COPY packages/ ./packages/
