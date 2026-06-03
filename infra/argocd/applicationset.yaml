@@ -38,7 +38,7 @@ spec:
     spec:
       project: quant-platform
       source:
-        repoURL: https://github.com/nicksavill/Quant-Ecosystem.git
+        repoURL: https://github.com/quantmailteamsupport-dev/Quant-Ecosystem.git
         targetRevision: "{{targetRevision}}"
         path: infra/helm/quant-platform
         helm:
@@ -120,7 +120,7 @@ spec:
     spec:
       project: quant-platform
       source:
-        repoURL: https://github.com/nicksavill/Quant-Ecosystem.git
+        repoURL: https://github.com/quantmailteamsupport-dev/Quant-Ecosystem.git
         targetRevision: main
         path: infra/helm/quant-platform
         helm:

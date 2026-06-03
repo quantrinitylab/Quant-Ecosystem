@@ -7,7 +7,7 @@ spec:
   description: Quant Platform - Production and Staging environments
 
   sourceRepos:
-    - "https://github.com/nicksavill/Quant-Ecosystem.git"
+    - "https://github.com/quantmailteamsupport-dev/Quant-Ecosystem.git"
 
   destinations:
     - namespace: quant-staging
