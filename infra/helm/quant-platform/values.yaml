@@ -133,7 +133,7 @@ services:
     replicaCount: 2
     image:
       repository: nvcr.io/nvidia/tritonserver
-      tag: 24.01-py3
+      tag: 24.01-py3-min
       pullPolicy: IfNotPresent
     port: 8000
     # NOTE: Current configuration is CPU-only. The model configs use KIND_CPU instance groups.

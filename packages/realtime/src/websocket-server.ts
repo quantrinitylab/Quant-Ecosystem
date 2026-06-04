@@ -133,7 +133,16 @@ export class WebSocketServer {
    */
   start(): Promise<void> {
     return new Promise((resolve) => {
-      this.httpServer = createServer();
+      this.httpServer = createServer((req, res) => {
+        const url = req.url || '';
+        if (url === '/health' || url === '/api/health') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'ok', uptime: Date.now() - this.startedAt }));
+        } else {
+          res.writeHead(404);
+          res.end();
+        }
+      });
       this.wss = new WsServer({
         noServer: true,
         maxPayload: this.config.maxMessageSize,

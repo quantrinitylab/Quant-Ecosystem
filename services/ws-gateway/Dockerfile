@@ -12,18 +12,22 @@ COPY tsconfig.json ./
 # Copy relevant packages
 COPY packages/common/ ./packages/common/
 COPY packages/realtime/ ./packages/realtime/
+COPY packages/health-server/ ./packages/health-server/
+COPY services/ws-gateway/ ./services/ws-gateway/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
 # Compile TypeScript to JavaScript
 RUN pnpm --filter @quant/common exec tsc -b && \
-    pnpm --filter @quant/realtime exec tsc -b
+    pnpm --filter @quant/realtime exec tsc -b && \
+    pnpm --filter @quant/health-server exec tsc -b && \
+    pnpm --filter @quant/ws-gateway exec tsc -b
 
 # Update main fields to point to compiled output for production runtime
 RUN node -e " \
   const fs = require('fs'); \
-  const pkgs = ['packages/common', 'packages/realtime']; \
+  const pkgs = ['packages/common', 'packages/realtime', 'packages/health-server', 'services/ws-gateway']; \
   for (const pkg of pkgs) { \
     const p = pkg + '/package.json'; \
     const j = JSON.parse(fs.readFileSync(p, 'utf8')); \
@@ -57,6 +61,10 @@ COPY --from=builder /app/packages/common/dist/ ./packages/common/dist/
 COPY --from=builder /app/packages/common/package.json ./packages/common/package.json
 COPY --from=builder /app/packages/realtime/dist/ ./packages/realtime/dist/
 COPY --from=builder /app/packages/realtime/package.json ./packages/realtime/package.json
+COPY --from=builder /app/packages/health-server/dist/ ./packages/health-server/dist/
+COPY --from=builder /app/packages/health-server/package.json ./packages/health-server/package.json
+COPY --from=builder /app/services/ws-gateway/dist/ ./services/ws-gateway/dist/
+COPY --from=builder /app/services/ws-gateway/package.json ./services/ws-gateway/package.json
 
 # Install production dependencies only
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts
@@ -71,4 +79,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD nc -z localhost 8080 || exit 1
 
-CMD ["node", "packages/realtime/dist/websocket-server.js"]
+CMD ["node", "--experimental-specifier-resolution=node", "services/ws-gateway/dist/main.js"]
