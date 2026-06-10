@@ -21,6 +21,17 @@ import trainingRoutes from './routes/training';
 import federationRoutes from './routes/federation';
 import agentHealthRoutes from './routes/agent-health';
 import agentLogsRoutes from './routes/agent-logs';
+import voiceRoutes from './routes/voice';
+import swarmRoutes from './routes/swarm';
+import recommendationRoutes from './routes/recommendations';
+import moderationRoutes from './routes/moderation';
+import paymentRoutes from './routes/payments';
+import cacheRoutes from './routes/cache';
+import cdnRoutes from './routes/cdn';
+import scalingRoutes from './routes/scaling';
+import mlRoutes from './routes/ml';
+import abTestingRoutes from './routes/ab-testing';
+import eventsRoutes from './routes/events';
 import { AIEngine } from './services/ai-engine';
 
 export function getConfig(): AppConfig {
@@ -74,6 +85,17 @@ export async function buildApp(config?: AppConfig) {
   await app.register(federationRoutes, { prefix: '/federation' });
   await app.register(agentHealthRoutes, { prefix: '/agent-health' });
   await app.register(agentLogsRoutes, { prefix: '/agent-logs' });
+  await app.register(voiceRoutes, { prefix: '/voice' });
+  await app.register(swarmRoutes, { prefix: '/swarm' });
+  await app.register(recommendationRoutes, { prefix: '/recommendations' });
+  await app.register(moderationRoutes, { prefix: '/moderation' });
+  await app.register(paymentRoutes, { prefix: '/payments' });
+  await app.register(cacheRoutes, { prefix: '/cache' });
+  await app.register(cdnRoutes, { prefix: '/cdn' });
+  await app.register(scalingRoutes, { prefix: '/scaling' });
+  await app.register(mlRoutes, { prefix: '/ml' });
+  await app.register(abTestingRoutes, { prefix: '/ab-testing' });
+  await app.register(eventsRoutes, { prefix: '/events' });
 
   return app;
 }

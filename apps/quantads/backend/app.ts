@@ -1,15 +1,6 @@
 import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
 import campaignsRoutes from './routes/campaigns';
-import servingRoutes from './routes/serving';
-import analyticsRoutes from './routes/analytics';
-import privacyAdsRoutes from './routes/privacy-ads';
-import economyRoutes from './routes/economy';
-import storeRoutes from './routes/store';
-import creatorEconomyRoutes from './routes/creator-economy';
-import boostRoutes from './routes/boost';
-import subscriptionsRoutes from './routes/subscriptions';
-import giftingRoutes from './routes/gifting';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -19,7 +10,7 @@ export function getConfig(): AppConfig {
   }
 
   return {
-    port: Number(process.env['PORT'] ?? 3005),
+    port: Number(process.env['PORT'] ?? 3010),
     host: process.env['HOST'] ?? '0.0.0.0',
     logLevel: process.env['LOG_LEVEL'] ?? 'info',
     corsOrigins: (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000').split(','),
@@ -38,27 +29,6 @@ export async function buildApp(config?: AppConfig) {
   const app = await createApp(appConfig);
 
   await app.register(campaignsRoutes, { prefix: '/campaigns' });
-  await app.register(servingRoutes, { prefix: '/serving' });
-  await app.register(analyticsRoutes, { prefix: '/analytics' });
-  await app.register(privacyAdsRoutes, { prefix: '/privacy-ads' });
-  await app.register(economyRoutes, { prefix: '/economy' });
-  await app.register(storeRoutes, { prefix: '/store' });
-  await app.register(creatorEconomyRoutes, { prefix: '/creator' });
-  await app.register(boostRoutes, { prefix: '/boost' });
-  await app.register(subscriptionsRoutes, { prefix: '/subscriptions' });
-  await app.register(giftingRoutes, { prefix: '/gifting' });
 
   return app;
-}
-
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1])) {
-  const config = getConfig();
-  buildApp(config).then((app) => {
-    app.listen({ port: config.port, host: config.host }, (err) => {
-      if (err) {
-        app.log.error(err);
-        process.exit(1);
-      }
-    });
-  });
 }

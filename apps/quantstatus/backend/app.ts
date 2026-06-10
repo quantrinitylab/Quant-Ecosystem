@@ -1,6 +1,6 @@
 import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
-import eventsRoutes from './routes/events';
+import statusRoutes from './routes/status';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -10,7 +10,7 @@ export function getConfig(): AppConfig {
   }
 
   return {
-    port: Number(process.env['PORT'] ?? 3011),
+    port: Number(process.env['PORT'] ?? 3014),
     host: process.env['HOST'] ?? '0.0.0.0',
     logLevel: process.env['LOG_LEVEL'] ?? 'info',
     corsOrigins: (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000').split(','),
@@ -18,7 +18,7 @@ export function getConfig(): AppConfig {
     rateLimitWindow: process.env['RATE_LIMIT_WINDOW'] ?? '1 minute',
     redisUrl: process.env['REDIS_URL'],
     jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
-    jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantcalendar',
+    jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantstatus',
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
     env,
   };
@@ -28,7 +28,7 @@ export async function buildApp(config?: AppConfig) {
   const appConfig = config ?? getConfig();
   const app = await createApp(appConfig);
 
-  await app.register(eventsRoutes, { prefix: '/events' });
+  await app.register(statusRoutes, { prefix: '/' });
 
   return app;
 }

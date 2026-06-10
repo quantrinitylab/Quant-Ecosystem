@@ -1,6 +1,8 @@
 import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
 import uploadRoutes from './routes/upload';
+import streamRoutes from './routes/stream';
+import thumbnailsRoutes from './routes/thumbnails';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -29,6 +31,8 @@ export async function buildApp(config?: AppConfig) {
   const app = await createApp(appConfig);
 
   await app.register(uploadRoutes, { prefix: '/upload' });
+  await app.register(streamRoutes, { prefix: '/stream' });
+  await app.register(thumbnailsRoutes, { prefix: '/thumbnails' });
 
   return app;
 }

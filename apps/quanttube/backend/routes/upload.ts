@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
-import { VideoProcessorService } from '../services/video-processor.service';
+import { transcodeQueue } from '../services/transcode-queue';
 
 const uploadVideoSchema = z.object({
   title: z.string().min(1).max(200),
@@ -11,8 +11,6 @@ const uploadVideoSchema = z.object({
 });
 
 export default async function uploadRoutes(fastify: FastifyInstance) {
-  const processor = new VideoProcessorService();
-
   fastify.post('/videos', async (request, reply) => {
     const parseResult = uploadVideoSchema.safeParse(request.body);
     if (!parseResult.success) {
@@ -26,21 +24,19 @@ export default async function uploadRoutes(fastify: FastifyInstance) {
 
     const { title, description, visibility, tags } = parseResult.data;
 
-    // TODO: Get actual file from multipart upload
     const videoId = 'video_' + Date.now();
-    const filePath = '/tmp/' + videoId; // Placeholder
+    const filePath = '/tmp/' + videoId; // TODO: Get from multipart upload
 
-    // Start async processing
-    processor.processVideo(videoId, filePath).then((result) => {
-      console.log('Video processing completed:', result);
-    });
+    // Add to transcoding queue
+    const jobId = transcodeQueue.addJob(videoId, filePath);
 
     return reply.send({
       success: true,
       videoId,
+      jobId,
       title,
-      status: 'processing',
-      message: 'Video upload started. Processing will begin shortly.',
+      status: 'queued',
+      message: 'Video added to transcoding queue',
     });
   });
 }

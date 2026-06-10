@@ -1,8 +1,6 @@
 import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
 import projectsRoutes from './routes/projects';
-import assetsRoutes from './routes/assets';
-import exportsRoutes from './routes/exports';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -12,7 +10,7 @@ export function getConfig(): AppConfig {
   }
 
   return {
-    port: Number(process.env['PORT'] ?? 3008),
+    port: Number(process.env['PORT'] ?? 3013),
     host: process.env['HOST'] ?? '0.0.0.0',
     logLevel: process.env['LOG_LEVEL'] ?? 'info',
     corsOrigins: (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000').split(','),
@@ -31,20 +29,6 @@ export async function buildApp(config?: AppConfig) {
   const app = await createApp(appConfig);
 
   await app.register(projectsRoutes, { prefix: '/projects' });
-  await app.register(assetsRoutes, { prefix: '/assets' });
-  await app.register(exportsRoutes, { prefix: '/exports' });
 
   return app;
-}
-
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1])) {
-  const config = getConfig();
-  buildApp(config).then((app) => {
-    app.listen({ port: config.port, host: config.host }, (err) => {
-      if (err) {
-        app.log.error(err);
-        process.exit(1);
-      }
-    });
-  });
 }

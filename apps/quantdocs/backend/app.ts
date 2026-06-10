@@ -1,7 +1,6 @@
 import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
-import docsRoutes from './routes/docs';
-import aiRoutes from './routes/ai';
+import documentsRoutes from './routes/documents';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -11,7 +10,7 @@ export function getConfig(): AppConfig {
   }
 
   return {
-    port: Number(process.env['PORT'] ?? 3040),
+    port: Number(process.env['PORT'] ?? 3009),
     host: process.env['HOST'] ?? '0.0.0.0',
     logLevel: process.env['LOG_LEVEL'] ?? 'info',
     corsOrigins: (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000').split(','),
@@ -29,20 +28,7 @@ export async function buildApp(config?: AppConfig) {
   const appConfig = config ?? getConfig();
   const app = await createApp(appConfig);
 
-  await app.register(docsRoutes, { prefix: '/api/v1/docs' });
-  await app.register(aiRoutes, { prefix: '/api/v1/ai' });
+  await app.register(documentsRoutes, { prefix: '/documents' });
 
   return app;
-}
-
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1])) {
-  const config = getConfig();
-  buildApp(config).then((app) => {
-    app.listen({ port: config.port, host: config.host }, (err) => {
-      if (err) {
-        app.log.error(err);
-        process.exit(1);
-      }
-    });
-  });
 }
