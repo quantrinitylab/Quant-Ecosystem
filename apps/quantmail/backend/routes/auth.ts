@@ -3,11 +3,12 @@ import prisma from '@quant/auth/lib/prisma';
 import { generateId } from '@quant/auth/crypto/secure-random';
 import * as argon2 from 'argon2';
 import { TokenService } from '@quant/auth/services/token-service';
+import { getJwtSecret, getJwtRefreshSecret } from '@quant/auth/lib/secrets';
 
 export async function authRoutes(fastify: FastifyInstance) {
   const tokenService = new TokenService({
-    jwtSecret: process.env.JWT_SECRET || 'dev-secret',
-    jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh',
+    jwtSecret: getJwtSecret(),
+    jwtRefreshSecret: getJwtRefreshSecret(),
     accessTokenExpiresIn: 900,
     refreshTokenExpiresIn: 2592000,
     issuer: 'quantmail',

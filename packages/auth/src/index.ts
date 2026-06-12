@@ -26,6 +26,7 @@ export type { PhoneAuthConfig, SMSDeliveryResult } from './providers/phone-provi
 
 // Services
 export { TokenService } from './services/token-service';
+export { getJwtSecret, getJwtRefreshSecret } from './lib/secrets';
 export { SessionService } from './services/session-service';
 export type { CreateSessionOptions } from './services/session-service';
 export { WebAuthnService } from './services/webauthn-service';

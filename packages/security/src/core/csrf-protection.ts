@@ -27,6 +27,12 @@ export class CSRFManager {
 
   constructor(config: Partial<CSRFConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    if (
+      process.env.NODE_ENV === 'production' &&
+      this.config.secretKey === DEFAULT_CONFIG.secretKey
+    ) {
+      throw new Error('CSRFManager requires an explicit secretKey in production');
+    }
     this.tokens = new Map();
     this.sessionTokens = new Map();
     this.usedTokens = new Set();
@@ -64,7 +70,11 @@ export class CSRFManager {
   }
 
   /** Validate a submitted CSRF token */
-  async validateToken(token: string, sessionId: string, headerToken?: string): Promise<{
+  async validateToken(
+    token: string,
+    sessionId: string,
+    headerToken?: string,
+  ): Promise<{
     valid: boolean;
     reason: string;
   }> {

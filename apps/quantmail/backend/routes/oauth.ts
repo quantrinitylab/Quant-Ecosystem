@@ -1,12 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { TokenService } from '@quant/auth/services/token-service';
+import { getJwtSecret, getJwtRefreshSecret } from '@quant/auth/lib/secrets';
 import prisma from '@quant/auth/lib/prisma';
 import { generateId } from '@quant/auth/crypto/secure-random';
 
 export async function oauthRoutes(fastify: FastifyInstance) {
   const tokenService = new TokenService({
-    jwtSecret: process.env.JWT_SECRET || 'dev-secret',
-    jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'dev-refresh',
+    jwtSecret: getJwtSecret(),
+    jwtRefreshSecret: getJwtRefreshSecret(),
     accessTokenExpiresIn: 900,
     refreshTokenExpiresIn: 2592000,
     issuer: 'quantmail',
