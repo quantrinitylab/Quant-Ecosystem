@@ -1,6 +1,7 @@
 import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
 import postsRoutes from './routes/posts';
+import aiRoutes from './routes/ai';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -29,6 +30,7 @@ export async function buildApp(config?: AppConfig) {
   const app = await createApp(appConfig);
 
   await app.register(postsRoutes, { prefix: '/posts' });
+  await app.register(aiRoutes, { prefix: '/ai' });
 
   return app;
 }

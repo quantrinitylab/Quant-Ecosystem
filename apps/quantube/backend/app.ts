@@ -3,6 +3,7 @@ import type { AppConfig } from '@quant/server-core';
 import videosRoutes from './routes/videos';
 import channelsRoutes from './routes/channels';
 import historyRoutes from './routes/history';
+import aiRoutes from './routes/ai';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -33,6 +34,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(videosRoutes, { prefix: '/videos' });
   await app.register(channelsRoutes, { prefix: '/channels' });
   await app.register(historyRoutes, { prefix: '/history' });
+  await app.register(aiRoutes, { prefix: '/ai' });
 
   return app;
 }
