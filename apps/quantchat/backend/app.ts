@@ -5,6 +5,7 @@ import conversationsRoutes from './routes/conversations';
 import encryptionRoutes from './routes/encryption';
 import mediaRoutes from './routes/media';
 import callsRoutes from './routes/calls';
+import aiRoutes from './routes/ai';
 import { websocketRoutes } from './routes/websocket';
 
 export function getConfig(): AppConfig {
@@ -41,6 +42,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(encryptionRoutes, { prefix: '/encryption' });
   await app.register(mediaRoutes, { prefix: '/media' });
   await app.register(callsRoutes, { prefix: '/calls' });
+  await app.register(aiRoutes, { prefix: '/ai' });
 
   return app;
 }
