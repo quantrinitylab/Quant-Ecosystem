@@ -4,16 +4,30 @@ import { Readable } from 'node:stream';
 const mockSend = vi.fn();
 
 vi.mock('@aws-sdk/client-s3', () => ({
-  S3Client: vi.fn().mockImplementation(() => ({
-    send: mockSend,
-  })),
-  PutObjectCommand: vi.fn().mockImplementation((params) => params),
-  GetObjectCommand: vi.fn().mockImplementation((params) => params),
-  DeleteObjectCommand: vi.fn().mockImplementation((params) => params),
-  DeleteObjectsCommand: vi.fn().mockImplementation((params) => params),
-  ListObjectsV2Command: vi.fn().mockImplementation((params) => params),
-  CopyObjectCommand: vi.fn().mockImplementation((params) => params),
-  HeadObjectCommand: vi.fn().mockImplementation((params) => params),
+  S3Client: vi.fn().mockImplementation(function () {
+    return { send: mockSend };
+  }),
+  PutObjectCommand: vi.fn().mockImplementation(function (params) {
+    return params;
+  }),
+  GetObjectCommand: vi.fn().mockImplementation(function (params) {
+    return params;
+  }),
+  DeleteObjectCommand: vi.fn().mockImplementation(function (params) {
+    return params;
+  }),
+  DeleteObjectsCommand: vi.fn().mockImplementation(function (params) {
+    return params;
+  }),
+  ListObjectsV2Command: vi.fn().mockImplementation(function (params) {
+    return params;
+  }),
+  CopyObjectCommand: vi.fn().mockImplementation(function (params) {
+    return params;
+  }),
+  HeadObjectCommand: vi.fn().mockImplementation(function (params) {
+    return params;
+  }),
 }));
 
 vi.mock('@aws-sdk/s3-request-presigner', () => ({

@@ -8,13 +8,15 @@ const mockDrain = vi.fn().mockResolvedValue(undefined);
 const mockClose = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('bullmq', () => ({
-  Queue: vi.fn().mockImplementation(() => ({
-    add: mockAdd,
-    addBulk: mockAddBulk,
-    getJob: mockGetJob,
-    drain: mockDrain,
-    close: mockClose,
-  })),
+  Queue: vi.fn().mockImplementation(function () {
+    return {
+      add: mockAdd,
+      addBulk: mockAddBulk,
+      getJob: mockGetJob,
+      drain: mockDrain,
+      close: mockClose,
+    };
+  }),
 }));
 
 import { TypedQueue } from '../src/queue-manager.js';

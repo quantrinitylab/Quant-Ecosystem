@@ -2,6 +2,8 @@ import { UserProfile } from '../models/user-profile';
 import { ContentItem } from '../models/content-item';
 import { Interaction } from '../models/interaction';
 
+type InteractionType = Interaction['type'];
+
 export class RecommendationEngine {
   private userProfiles: Map<string, UserProfile> = new Map();
   private contentItems: Map<string, ContentItem> = new Map();
@@ -20,6 +22,28 @@ export class RecommendationEngine {
     // Combine and rank
     const combined = this.combineRecommendations(collaborative, contentBased);
     return combined.slice(0, limit);
+  }
+
+  private combineRecommendations(
+    collaborative: ContentItem[],
+    contentBased: ContentItem[],
+  ): ContentItem[] {
+    const scored = new Map<string, ContentItem>();
+
+    for (const item of collaborative) {
+      scored.set(item.id, { ...item, score: (item.score || 0) + 1 });
+    }
+
+    for (const item of contentBased) {
+      const existing = scored.get(item.id);
+      if (existing) {
+        existing.score = (existing.score || 0) + (item.score || 0);
+      } else {
+        scored.set(item.id, { ...item, score: item.score || 0.5 });
+      }
+    }
+
+    return Array.from(scored.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
   }
 
   private async collaborativeFiltering(userId: string, limit: number): Promise<ContentItem[]> {
@@ -118,7 +142,12 @@ export class RecommendationEngine {
       .filter(Boolean);
   }
 
-  async recordInteraction(userId: string, contentId: string, type: string, value?: number) {
+  async recordInteraction(
+    userId: string,
+    contentId: string,
+    type: InteractionType,
+    value?: number,
+  ) {
     this.interactions.push({
       userId,
       contentId,
@@ -131,10 +160,10 @@ export class RecommendationEngine {
     await this.updateUserProfile(userId, contentId, type);
   }
 
-  private async updateUserProfile(userId: string, contentId: string, type: string) {
+  private async updateUserProfile(userId: string, contentId: string, type: InteractionType) {
     let profile = this.userProfiles.get(userId);
     if (!profile) {
-      profile = { userId, interests: [], preferredCategories: [] };
+      profile = { userId, interests: [], preferredCategories: [], lastUpdated: new Date() };
       this.userProfiles.set(userId, profile);
     }
 

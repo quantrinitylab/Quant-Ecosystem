@@ -17,12 +17,16 @@ const mockIndex = {
 
 const mockClient = {
   createIndex: vi.fn(),
-  index: vi.fn(() => mockIndex),
+  index: vi.fn(function () {
+    return mockIndex;
+  }),
   waitForTask: vi.fn(),
 };
 
 vi.mock('meilisearch', () => ({
-  MeiliSearch: vi.fn(() => mockClient),
+  MeiliSearch: vi.fn(function () {
+    return mockClient;
+  }),
 }));
 
 describe('SearchClient', () => {

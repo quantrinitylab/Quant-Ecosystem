@@ -89,7 +89,7 @@ describe('ElevenLabsTTSProvider', () => {
 
       vi.stubGlobal(
         'WebSocket',
-        vi.fn().mockImplementation((url: string) => {
+        vi.fn().mockImplementation(function (url: string) {
           constructedUrl = url;
           return mockWs;
         }),
@@ -127,7 +127,9 @@ describe('ElevenLabsTTSProvider', () => {
 
       vi.stubGlobal(
         'WebSocket',
-        vi.fn().mockImplementation(() => mockWs),
+        vi.fn().mockImplementation(function () {
+          return mockWs;
+        }),
       );
 
       const provider = new ElevenLabsTTSProvider({
@@ -160,7 +162,9 @@ describe('ElevenLabsTTSProvider', () => {
 
       vi.stubGlobal(
         'WebSocket',
-        vi.fn().mockImplementation(() => mockWs),
+        vi.fn().mockImplementation(function () {
+          return mockWs;
+        }),
       );
 
       const provider = new ElevenLabsTTSProvider({

@@ -1,48 +1,55 @@
-import { AIService } from '@quant/ai/services/ai.service';
-import { ModelRouter } from '@quant/ai/core/model-router';
+import { AIEngine as CoreAIEngine } from '@quant/ai';
 
 export class AIEngine {
-  private aiService: AIService;
-  private modelRouter: ModelRouter;
+  private engine: CoreAIEngine;
+  private modelRouter: ReturnType<CoreAIEngine['getModelRouter']>;
 
   constructor() {
-    this.modelRouter = new ModelRouter({
-      defaultModel: 'gpt-4o',
-      providers: {
-        openai: {
-          apiKey: process.env.OPENAI_API_KEY,
-          models: ['gpt-4o', 'gpt-4o-mini', 'o1-preview'],
-        },
-        anthropic: {
-          apiKey: process.env.ANTHROPIC_API_KEY,
-          models: ['claude-3-5-sonnet', 'claude-3-opus'],
-        },
-        // Add more providers as needed
-      },
-      routingStrategy: 'cost-optimized', // or 'quality-first', 'latency-first'
-    });
-
-    this.aiService = new AIService(this.modelRouter);
+    this.engine = new CoreAIEngine();
+    this.modelRouter = this.engine.getModelRouter();
   }
 
   async chat(messages: any[], options: any = {}) {
-    return this.aiService.chat(messages, {
-      model: options.model || 'gpt-4o',
-      temperature: options.temperature || 0.7,
-      maxTokens: options.maxTokens || 2000,
-      ...options,
+    const userMessage = [...messages].reverse().find((m) => m.role === 'user');
+    const systemMessage = messages.find((m) => m.role === 'system');
+    const prompt = userMessage?.content || '';
+
+    const response = await this.engine.infer({
+      prompt,
+      systemPrompt: systemMessage?.content || options.systemPrompt,
+      model: options.model,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+      userId: options.userId || 'anonymous',
+      app: 'quantai',
+      feature: 'chat',
     });
+
+    return {
+      content: response.content,
+      model: response.model,
+      usage: response.usage,
+    };
   }
 
   async streamChat(messages: any[], options: any = {}) {
-    return this.aiService.streamChat(messages, {
-      model: options.model || 'gpt-4o',
-      temperature: options.temperature || 0.7,
-      ...options,
+    const userMessage = [...messages].reverse().find((m) => m.role === 'user');
+    const systemMessage = messages.find((m) => m.role === 'system');
+    const prompt = userMessage?.content || '';
+
+    return this.engine.stream({
+      prompt,
+      systemPrompt: systemMessage?.content || options.systemPrompt,
+      model: options.model,
+      temperature: options.temperature,
+      userId: options.userId || 'anonymous',
+      app: 'quantai',
+      feature: 'chat',
+      stream: true,
     });
   }
 
   async getAvailableModels() {
-    return this.modelRouter.getAvailableModels();
+    return this.modelRouter.getModels();
   }
 }

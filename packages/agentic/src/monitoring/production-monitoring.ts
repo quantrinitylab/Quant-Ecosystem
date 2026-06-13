@@ -43,7 +43,7 @@ export class ProductionMonitoring extends EventEmitter {
 
     return {
       timestamp: new Date(),
-      activeAgents: report.totalAgents || 0,
+      activeAgents: report.agents || 0,
       activeSwarms: 0,
       totalTasks: this.metrics.length,
       avgResponseTime: 120 + Math.random() * 50,

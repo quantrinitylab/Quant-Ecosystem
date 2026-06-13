@@ -28,7 +28,10 @@ export default async function trainingRoutes(fastify: FastifyInstance) {
     try {
       const session = await training.startTraining(
         parseResult.data.agentId,
-        parseResult.data.examples,
+        parseResult.data.examples.map((e) => ({
+          ...e,
+          agentId: parseResult.data.agentId,
+        })),
       );
       return reply.send(session);
     } catch (error: any) {

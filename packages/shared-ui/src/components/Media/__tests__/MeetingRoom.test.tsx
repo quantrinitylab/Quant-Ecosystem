@@ -25,14 +25,16 @@ const mockLocalParticipant = {
 const mockRemoteParticipants = new Map();
 
 vi.mock('livekit-client', () => ({
-  Room: vi.fn().mockImplementation(() => ({
-    connect: mockConnect,
-    disconnect: mockDisconnect,
-    removeAllListeners: mockRemoveAllListeners,
-    on: mockOn,
-    localParticipant: mockLocalParticipant,
-    remoteParticipants: mockRemoteParticipants,
-  })),
+  Room: vi.fn().mockImplementation(function () {
+    return {
+      connect: mockConnect,
+      disconnect: mockDisconnect,
+      removeAllListeners: mockRemoveAllListeners,
+      on: mockOn,
+      localParticipant: mockLocalParticipant,
+      remoteParticipants: mockRemoteParticipants,
+    };
+  }),
   RoomEvent: {
     ParticipantConnected: 'participantConnected',
     ParticipantDisconnected: 'participantDisconnected',

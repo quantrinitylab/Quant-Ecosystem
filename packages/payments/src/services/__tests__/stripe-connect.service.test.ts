@@ -20,12 +20,14 @@ vi.mock('stripe', () => {
     create: vi.fn(),
   };
 
-  const StripeMock = vi.fn(() => ({
-    accounts: mockAccounts,
-    accountLinks: mockAccountLinks,
-    transfers: mockTransfers,
-    payouts: mockPayouts,
-  }));
+  const StripeMock = vi.fn(function () {
+    return {
+      accounts: mockAccounts,
+      accountLinks: mockAccountLinks,
+      transfers: mockTransfers,
+      payouts: mockPayouts,
+    };
+  });
 
   return { default: StripeMock };
 });

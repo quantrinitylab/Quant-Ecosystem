@@ -11,11 +11,13 @@ const mockClose = vi.fn();
 const mockOn = vi.fn();
 
 vi.mock('smtp-server', () => ({
-  SMTPServer: vi.fn().mockImplementation(() => ({
-    listen: mockListen,
-    close: mockClose,
-    on: mockOn,
-  })),
+  SMTPServer: vi.fn().mockImplementation(function () {
+    return {
+      listen: mockListen,
+      close: mockClose,
+      on: mockOn,
+    };
+  }),
 }));
 
 // Mock mailparser module

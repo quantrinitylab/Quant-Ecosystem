@@ -48,12 +48,14 @@ vi.mock('node:fs/promises', () => ({
 }));
 
 vi.mock('../services/auth.js', () => ({
-  GitAuthService: vi.fn().mockImplementation(() => ({
-    validateToken: vi
-      .fn()
-      .mockResolvedValue({ userId: 'test-user', scopes: ['repo:read', 'repo:write'] }),
-    generateToken: vi.fn().mockReturnValue('test-token'),
-  })),
+  GitAuthService: vi.fn().mockImplementation(function () {
+    return {
+      validateToken: vi
+        .fn()
+        .mockResolvedValue({ userId: 'test-user', scopes: ['repo:read', 'repo:write'] }),
+      generateToken: vi.fn().mockReturnValue('test-token'),
+    };
+  }),
 }));
 
 import { access } from 'node:fs/promises';

@@ -10,12 +10,12 @@ vi.mock('@aws-sdk/client-cloudfront', () => {
   });
 
   return {
-    CloudFrontClient: vi.fn().mockImplementation(() => ({
-      send: mockSend,
-    })),
-    CreateInvalidationCommand: vi.fn().mockImplementation((input: unknown) => ({
-      input,
-    })),
+    CloudFrontClient: vi.fn().mockImplementation(function () {
+      return { send: mockSend };
+    }),
+    CreateInvalidationCommand: vi.fn().mockImplementation(function (input: unknown) {
+      return { input };
+    }),
   };
 });
 

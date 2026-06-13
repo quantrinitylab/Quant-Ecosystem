@@ -23,13 +23,15 @@ vi.mock('stripe', () => {
     constructEvent: vi.fn(),
   };
 
-  const StripeMock = vi.fn(() => ({
-    paymentIntents: mockPaymentIntents,
-    customers: mockCustomers,
-    refunds: mockRefunds,
-    subscriptions: mockSubscriptions,
-    webhooks: mockWebhooks,
-  }));
+  const StripeMock = vi.fn(function () {
+    return {
+      paymentIntents: mockPaymentIntents,
+      customers: mockCustomers,
+      refunds: mockRefunds,
+      subscriptions: mockSubscriptions,
+      webhooks: mockWebhooks,
+    };
+  });
 
   return { default: StripeMock };
 });

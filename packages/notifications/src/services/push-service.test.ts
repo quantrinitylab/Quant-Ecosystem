@@ -8,10 +8,12 @@ import { PushService } from './push-service';
 // Mock firebase-admin
 const mockSend = vi.fn();
 const mockSendEachForMulticast = vi.fn();
-const mockMessaging = vi.fn(() => ({
-  send: mockSend,
-  sendEachForMulticast: mockSendEachForMulticast,
-}));
+const mockMessaging = vi.fn(function () {
+  return {
+    send: mockSend,
+    sendEachForMulticast: mockSendEachForMulticast,
+  };
+});
 const mockDelete = vi.fn().mockResolvedValue(undefined);
 const mockInitializeApp = vi.fn((_config?: unknown) => ({
   messaging: mockMessaging,

@@ -6,7 +6,7 @@ const mockOn = vi.fn();
 const mockClose = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('bullmq', () => ({
-  Worker: vi.fn().mockImplementation((_name, processor, _opts) => {
+  Worker: vi.fn().mockImplementation(function (_name, processor, _opts) {
     processorFn = processor as (job: unknown) => Promise<void>;
     return { on: mockOn, close: mockClose };
   }),

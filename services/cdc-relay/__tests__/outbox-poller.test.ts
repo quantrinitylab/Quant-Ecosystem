@@ -9,13 +9,16 @@ const mockUpdateMany = vi.fn().mockResolvedValue({ count: 0 });
 const mockTransaction = vi.fn();
 
 vi.mock('@prisma/client', () => ({
-  PrismaClient: vi.fn().mockImplementation(() => ({
-    $transaction: mockTransaction,
-    outboxEvent: {
-      findMany: mockFindMany,
-      updateMany: mockUpdateMany,
-    },
-  })),
+  PrismaClient: vi.fn().mockImplementation(function () {
+    return {
+      $transaction: mockTransaction,
+      $disconnect: vi.fn().mockResolvedValue(undefined),
+      outboxEvent: {
+        findMany: mockFindMany,
+        updateMany: mockUpdateMany,
+      },
+    };
+  }),
 }));
 
 vi.mock('pino', () => ({

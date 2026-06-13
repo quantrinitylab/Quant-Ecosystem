@@ -12,7 +12,7 @@ export default async function voiceRoutes(fastify: FastifyInstance) {
   });
 
   fastify.post('/stt', async (request, reply) => {
-    const data = await request.file();
+    const data = await (request as any).file();
     const buffer = await data.toBuffer();
 
     const text = await voiceInterface.speechToText(buffer);
