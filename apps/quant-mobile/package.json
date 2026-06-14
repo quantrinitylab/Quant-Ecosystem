@@ -8,20 +8,29 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsc --noEmit",
-    "lint": "eslint ."
+    "build": "vite build",
+    "lint": "eslint .",
+    "dev": "vite",
+    "build:web": "vite build",
+    "cap:sync": "cap sync"
   },
   "dependencies": {
     "@quant/common": "workspace:*",
     "@quant/sync-engine": "workspace:*",
     "@quant/auth": "workspace:*",
     "react": "^18.3.0",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "@capacitor/core": "^6.1.0",
+    "react-dom": "^18.3.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "vitest": "^4",
-    "typescript": "~5.5.0"
+    "typescript": "~5.5.0",
+    "@capacitor/cli": "^6.1.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.0",
+    "@types/react-dom": "^19.0.0"
   }
 }

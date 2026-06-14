@@ -1,12 +1,6 @@
-export interface CapacitorConfig {
-  appId: string;
-  appName: string;
-  webDir: string;
-  server?: { url?: string; cleartext?: boolean };
-  plugins?: Record<string, unknown>;
-}
+import type { CapacitorConfig } from '@capacitor/cli';
 
-export const config: CapacitorConfig = {
+const config: CapacitorConfig = {
   appId: 'com.quant.app',
   appName: 'Quant',
   webDir: 'dist',
@@ -16,3 +10,5 @@ export const config: CapacitorConfig = {
     Keyboard: { resize: 'body', style: 'dark' },
   },
 };
+
+export default config;
