@@ -2,6 +2,7 @@
 // Security Package - CSRF Protection
 // ============================================================================
 
+import crypto from 'crypto';
 import type { CSRFToken, CSRFConfig } from '../types';
 
 /** Default CSRF configuration */
@@ -208,7 +209,7 @@ export class CSRFManager {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
     let token = '';
     for (let i = 0; i < length; i++) {
-      token += chars[Math.floor(Math.random() * chars.length)];
+      token += chars[crypto.randomInt(chars.length)];
     }
     return token;
   }

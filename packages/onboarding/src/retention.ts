@@ -30,9 +30,11 @@ export class RetentionTracker {
 
   private generateToken(): string {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const bytes = new Uint8Array(32);
+    globalThis.crypto.getRandomValues(bytes);
     let token = '';
     for (let i = 0; i < 32; i++) {
-      token += chars[Math.floor(Math.random() * chars.length)];
+      token += chars[bytes[i]! % chars.length];
     }
     return token;
   }

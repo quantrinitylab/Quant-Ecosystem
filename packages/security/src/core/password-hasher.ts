@@ -2,6 +2,7 @@
 // Security Package - Password Hasher
 // ============================================================================
 
+import crypto from 'crypto';
 import type { PasswordHashResult, Argon2Params, PasswordStrength } from '../types';
 
 /** Default Argon2id parameters */
@@ -283,12 +284,7 @@ export class PasswordHasher {
 
   /** Generate cryptographic salt */
   private generateSalt(length: number): string {
-    const chars = '0123456789abcdef';
-    let salt = '';
-    for (let i = 0; i < length * 2; i++) {
-      salt += chars[Math.floor(Math.random() * 16)];
-    }
-    return salt;
+    return crypto.randomBytes(length).toString('hex');
   }
 
   /** Timing-safe string comparison */

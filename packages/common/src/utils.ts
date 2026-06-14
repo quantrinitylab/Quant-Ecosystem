@@ -10,29 +10,30 @@ import type { PaginatedResult, PaginationParams } from './types';
  */
 export function generateId(prefix: string = 'id'): string {
   const timestamp = Date.now().toString(36);
-  const randomPart = Math.random().toString(36).substring(2, 10);
-  const randomPart2 = Math.random().toString(36).substring(2, 6);
-  return `${prefix}_${timestamp}_${randomPart}${randomPart2}`;
+  const buf = new Uint32Array(2);
+  globalThis.crypto.getRandomValues(buf);
+  const randomPart = buf[0]!.toString(36) + buf[1]!.toString(36);
+  return `${prefix}_${timestamp}_${randomPart}`;
 }
 
 /**
  * Generate a UUID v4 compatible string
  */
 export function generateUUID(): string {
-  const hex = '0123456789abcdef';
-  let uuid = '';
-  for (let i = 0; i < 36; i++) {
-    if (i === 8 || i === 13 || i === 18 || i === 23) {
-      uuid += '-';
-    } else if (i === 14) {
-      uuid += '4';
-    } else if (i === 19) {
-      uuid += hex[(Math.random() * 4) | 8];
-    } else {
-      uuid += hex[(Math.random() * 16) | 0];
-    }
+  const c = globalThis.crypto;
+  if (typeof c.randomUUID === 'function') {
+    return c.randomUUID();
   }
-  return uuid;
+  // Fallback: assemble an RFC 4122 v4 UUID from CSPRNG bytes.
+  const bytes = new Uint8Array(16);
+  c.getRandomValues(bytes);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const h: string[] = [];
+  for (let i = 0; i < bytes.length; i++) {
+    h.push(bytes[i]!.toString(16).padStart(2, '0'));
+  }
+  return `${h[0]}${h[1]}${h[2]}${h[3]}-${h[4]}${h[5]}-${h[6]}${h[7]}-${h[8]}${h[9]}-${h[10]}${h[11]}${h[12]}${h[13]}${h[14]}${h[15]}`;
 }
 
 /**

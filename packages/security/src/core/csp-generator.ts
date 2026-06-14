@@ -2,6 +2,7 @@
 // Security Package - Content Security Policy Generator
 // ============================================================================
 
+import crypto from 'crypto';
 import type { CSPDirective, CSPPolicy } from '../types';
 
 /** CSP preset policy names */
@@ -67,7 +68,7 @@ export class CSPGenerator {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let nonce = '';
     for (let i = 0; i < 24; i++) {
-      nonce += chars[Math.floor(Math.random() * chars.length)];
+      nonce += chars[crypto.randomInt(chars.length)];
     }
     this.nonces.add(nonce);
     return nonce;
