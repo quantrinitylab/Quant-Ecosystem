@@ -29,10 +29,16 @@ export async function oauthRoutes(fastify: FastifyInstance) {
     (request as any).user = payload;
   };
 
-  const validateRedirectUri = async (clientId: string, redirectUri: string): Promise<boolean> => {
-    if (!clientId || !redirectUri) return false;
+  const resolveRedirectUri = async (
+    clientId: string,
+    redirectUri: string,
+  ): Promise<string | null> => {
+    if (!clientId || !redirectUri) return null;
     const client = await prisma.oAuthClient.findUnique({ where: { clientId } });
-    return !!client && client.redirectUris.includes(redirectUri);
+    if (!client) return null;
+    // Return the registered (DB-sourced) URI, never the request value, so the
+    // redirect target cannot be attacker-controlled (open-redirect safe).
+    return client.redirectUris.find((u: string) => u === redirectUri) ?? null;
   };
 
   const esc = (value: unknown): string =>
@@ -118,7 +124,8 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'invalid_request' });
     }
 
-    if (!(await validateRedirectUri(client_id, redirect_uri))) {
+    const safeRedirectUri = await resolveRedirectUri(client_id, redirect_uri);
+    if (!safeRedirectUri) {
       return reply
         .code(400)
         .send({ error: 'invalid_request', error_description: 'Invalid redirect_uri' });
@@ -155,7 +162,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
         },
       });
 
-      const redirectUrl = `${redirect_uri}?code=${code}${state ? `&state=${state}` : ''}`;
+      const redirectUrl = `${safeRedirectUri}?code=${code}${state ? `&state=${state}` : ''}`;
       return reply.redirect(redirectUrl);
     }
 
@@ -204,14 +211,15 @@ export async function oauthRoutes(fastify: FastifyInstance) {
     const body = request.body as any;
     const { action, client_id, redirect_uri, user_id, scope, state } = body;
 
-    if (!(await validateRedirectUri(client_id, redirect_uri))) {
+    const safeRedirectUri = await resolveRedirectUri(client_id, redirect_uri);
+    if (!safeRedirectUri) {
       return reply
         .code(400)
         .send({ error: 'invalid_request', error_description: 'Invalid redirect_uri' });
     }
 
     if (action !== 'approve') {
-      const errorUrl = `${redirect_uri}?error=access_denied${state ? `&state=${state}` : ''}`;
+      const errorUrl = `${safeRedirectUri}?error=access_denied${state ? `&state=${state}` : ''}`;
       return reply.redirect(errorUrl);
     }
 
@@ -247,7 +255,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const redirectUrl = `${redirect_uri}?code=${code}${state ? `&state=${state}` : ''}`;
+    const redirectUrl = `${safeRedirectUri}?code=${code}${state ? `&state=${state}` : ''}`;
     return reply.redirect(redirectUrl);
   });
 
