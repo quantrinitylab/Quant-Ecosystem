@@ -79,25 +79,35 @@ export type { OrchestratorTask, TaskStatus } from './orchestrator.js';
 // ============================================================================
 
 // Tier 1 - API Controller
-export { Tier1ApiController, ApiDefinitionSchema } from './device/tier1-api.js';
-export type { ApiDefinition, ApiCallResult } from './device/tier1-api.js';
+export {
+  Tier1ApiController,
+  ApiDefinitionSchema,
+  HttpApiExecutionBackend,
+} from './device/tier1-api.js';
+export type { ApiDefinition, ApiCallResult, ApiExecutionBackend } from './device/tier1-api.js';
 
 // Tier 2 - OS Controller
 export { Tier2OsController, PlatformSchema } from './device/tier2-os.js';
 export type { Platform, OsCommandResult, SystemInfo } from './device/tier2-os.js';
 
 // Tier 3 - Vision Controller
-export { Tier3VisionController } from './device/tier3-vision.js';
+export { Tier3VisionController, HttpVisionScreenSource } from './device/tier3-vision.js';
 export type {
   VisionAnalysisResult,
   DetectedElement,
   ClickCoords,
   VisionInferenceAdapter,
+  VisionScreenSource,
 } from './device/tier3-vision.js';
 
 // Screen Capture
-export { ScreenCapture } from './device/screen-capture.js';
-export type { ScreenBounds, CaptureFrame, ScreenDiff } from './device/screen-capture.js';
+export { ScreenCapture, HttpScreenCaptureBackend } from './device/screen-capture.js';
+export type {
+  ScreenBounds,
+  CaptureFrame,
+  ScreenDiff,
+  ScreenCaptureBackend,
+} from './device/screen-capture.js';
 
 // Action Executor
 export { ActionExecutor } from './device/action-executor.js';

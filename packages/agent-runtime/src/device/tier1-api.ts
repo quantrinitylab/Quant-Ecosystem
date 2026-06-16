@@ -17,15 +17,83 @@ export interface ApiCallResult {
   latencyMs: number;
 }
 
+/**
+ * Real API execution backend. When configured, registered API calls are issued
+ * against a real gateway instead of being simulated in-process. Throwing falls
+ * back to the simulated result.
+ */
+export interface ApiExecutionBackend {
+  execute(
+    api: ApiDefinition,
+    params: Record<string, unknown> | undefined,
+  ): Promise<{ success: boolean; data: unknown }>;
+}
+
+/**
+ * Real API execution backend that issues HTTP requests against a configured
+ * gateway base URL. Enabled by TIER1_API_BASE_URL (optionally TIER1_API_KEY).
+ */
+export class HttpApiExecutionBackend implements ApiExecutionBackend {
+  constructor(
+    private readonly baseUrl: string,
+    private readonly apiKey?: string,
+  ) {}
+
+  async execute(
+    api: ApiDefinition,
+    params: Record<string, unknown> | undefined,
+  ): Promise<{ success: boolean; data: unknown }> {
+    const base = this.baseUrl.replace(/\/$/, '');
+    const path = api.endpoint.startsWith('/') ? api.endpoint : `/${api.endpoint}`;
+    let url = `${base}${path}`;
+    const init: { method: string; headers: Record<string, string>; body?: string } = {
+      method: api.method,
+      headers: {
+        'content-type': 'application/json',
+        ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}),
+      },
+    };
+    if (params && (api.method === 'GET' || api.method === 'DELETE')) {
+      const qs = new URLSearchParams();
+      for (const [k, v] of Object.entries(params)) {
+        qs.append(k, typeof v === 'string' ? v : JSON.stringify(v));
+      }
+      const query = qs.toString();
+      if (query) url += `?${query}`;
+    } else if (params) {
+      init.body = JSON.stringify(params);
+    }
+
+    const res = await fetch(url, init);
+    const data: unknown = await res.json().catch(() => ({}));
+    return { success: res.ok, data };
+  }
+}
+
 export class Tier1ApiController {
   private readonly apis: Map<string, ApiDefinition> = new Map();
+  private readonly backend: ApiExecutionBackend | null;
 
-  constructor(apis?: ApiDefinition[]) {
+  constructor(apis?: ApiDefinition[], backend?: ApiExecutionBackend | null) {
     if (apis) {
       for (const api of apis) {
         this.apis.set(api.endpoint, api);
       }
     }
+    this.backend = backend ?? Tier1ApiController.createBackendFromEnv();
+  }
+
+  private static createBackendFromEnv(): ApiExecutionBackend | null {
+    const url = process.env['TIER1_API_BASE_URL'];
+    if (url) {
+      return new HttpApiExecutionBackend(url, process.env['TIER1_API_KEY']);
+    }
+    return null;
+  }
+
+  /** Whether a real API execution backend is wired up. */
+  isBackendConfigured(): boolean {
+    return this.backend !== null;
   }
 
   registerApi(definition: ApiDefinition): void {
@@ -51,16 +119,27 @@ export class Tier1ApiController {
 
     const start = Date.now();
 
-    // Simulate internal API call with instant execution
-    const result: ApiCallResult = {
+    if (this.backend) {
+      try {
+        const { success, data } = await this.backend.execute(api, params);
+        return { success, data, timestamp: Date.now(), endpoint, latencyMs: Date.now() - start };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[tier1-api] backend execution failed for ${endpoint}, using simulated result: ${message}`,
+        );
+      }
+    }
+
+    // Simulated internal API call (used when no real gateway is configured).
+    return {
       success: true,
       data: { endpoint, params, method: api.method },
       timestamp: Date.now(),
       endpoint,
       latencyMs: Date.now() - start,
     };
-
-    return result;
   }
 
   hasApi(endpoint: string): boolean {

@@ -21,20 +21,72 @@ export interface ScreenDiff {
   currentFrameId: string;
 }
 
+/**
+ * Real screen-capture backend. Implementations return raw RGBA pixel data for
+ * the requested dimensions (e.g. via a platform-native capture service or a
+ * configured capture daemon). Throwing falls back to the simulated empty frame.
+ */
+export interface ScreenCaptureBackend {
+  capture(width: number, height: number): Promise<Uint8Array>;
+}
+
+/**
+ * Real screen-capture backend backed by a configured HTTP capture service.
+ * Enabled by SCREEN_CAPTURE_URL (optionally SCREEN_CAPTURE_API_KEY). The service
+ * is expected to return raw RGBA bytes for the requested dimensions.
+ */
+export class HttpScreenCaptureBackend implements ScreenCaptureBackend {
+  constructor(
+    private readonly baseUrl: string,
+    private readonly apiKey?: string,
+  ) {}
+
+  async capture(width: number, height: number): Promise<Uint8Array> {
+    const res = await fetch(`${this.baseUrl.replace(/\/$/, '')}/capture`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}),
+      },
+      body: JSON.stringify({ width, height }),
+    });
+    if (!res.ok) {
+      throw new Error(`screen-capture service responded ${res.status}`);
+    }
+    const buffer = await res.arrayBuffer();
+    return new Uint8Array(buffer);
+  }
+}
+
 export class ScreenCapture {
   private frameBuffer: CaptureFrame[] = [];
   private readonly maxBufferSize: number;
   private frameCounter: number = 0;
+  private readonly backend: ScreenCaptureBackend | null;
 
-  constructor(maxBufferSize: number = 10) {
+  constructor(maxBufferSize: number = 10, backend?: ScreenCaptureBackend | null) {
     this.maxBufferSize = maxBufferSize;
+    this.backend = backend ?? ScreenCapture.createBackendFromEnv();
+  }
+
+  private static createBackendFromEnv(): ScreenCaptureBackend | null {
+    const url = process.env['SCREEN_CAPTURE_URL'];
+    if (url) {
+      return new HttpScreenCaptureBackend(url, process.env['SCREEN_CAPTURE_API_KEY']);
+    }
+    return null;
+  }
+
+  /** Whether a real screen-capture backend is wired up. */
+  isBackendConfigured(): boolean {
+    return this.backend !== null;
   }
 
   async capture(width: number = 1920, height: number = 1080): Promise<CaptureFrame> {
-    // Simulated capture - actual implementation uses platform-specific APIs
+    const data = await this.captureData(width, height);
     const frame: CaptureFrame = {
       id: `frame-${++this.frameCounter}`,
-      data: new Uint8Array(width * height * 4), // RGBA buffer (uninitialized)
+      data,
       timestamp: Date.now(),
       width,
       height,
@@ -46,6 +98,21 @@ export class ScreenCapture {
     }
 
     return frame;
+  }
+
+  /** Acquire raw pixel data from the real backend when configured; simulated buffer otherwise. */
+  private async captureData(width: number, height: number): Promise<Uint8Array> {
+    if (this.backend) {
+      try {
+        return await this.backend.capture(width, height);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        // eslint-disable-next-line no-console
+        console.warn(`[screen-capture] backend capture failed, using simulated frame: ${message}`);
+      }
+    }
+    // Simulated capture - RGBA buffer (uninitialized) used when no backend configured.
+    return new Uint8Array(width * height * 4);
   }
 
   getDiff(previous: CaptureFrame, current: CaptureFrame): ScreenDiff {

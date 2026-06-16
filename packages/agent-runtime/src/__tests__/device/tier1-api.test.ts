@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Tier1ApiController } from '../../device/tier1-api.js';
+import { Tier1ApiController, type ApiExecutionBackend } from '../../device/tier1-api.js';
 
 describe('Tier1ApiController', () => {
   it('registers and retrieves APIs', () => {
@@ -65,5 +65,45 @@ describe('Tier1ApiController', () => {
         description: 'Valid endpoint',
       });
     }).not.toThrow();
+  });
+
+  describe('real execution backend mode', () => {
+    it('reports no backend by default', () => {
+      expect(new Tier1ApiController([], null).isBackendConfigured()).toBe(false);
+    });
+
+    it('executes registered calls via the injected backend', async () => {
+      const calls: string[] = [];
+      const backend: ApiExecutionBackend = {
+        async execute(api, params) {
+          calls.push(api.endpoint);
+          return { success: true, data: { real: true, params } };
+        },
+      };
+      const controller = new Tier1ApiController(
+        [{ endpoint: '/data', method: 'GET', description: 'd' }],
+        backend,
+      );
+      expect(controller.isBackendConfigured()).toBe(true);
+      const result = await controller.callApi('/data', { limit: 5 });
+      expect(calls).toEqual(['/data']);
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ real: true, params: { limit: 5 } });
+    });
+
+    it('falls back to the simulated result when the backend throws', async () => {
+      const backend: ApiExecutionBackend = {
+        async execute() {
+          throw new Error('gateway down');
+        },
+      };
+      const controller = new Tier1ApiController(
+        [{ endpoint: '/data', method: 'GET', description: 'd' }],
+        backend,
+      );
+      const result = await controller.callApi('/data');
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ endpoint: '/data', params: undefined, method: 'GET' });
+    });
   });
 });

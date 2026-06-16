@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ScreenCapture } from '../../device/screen-capture.js';
+import { ScreenCapture, type ScreenCaptureBackend } from '../../device/screen-capture.js';
 
 describe('ScreenCapture', () => {
   it('captures a frame', async () => {
@@ -69,5 +69,35 @@ describe('ScreenCapture', () => {
     await capture.capture(10, 10);
     capture.clearBuffer();
     expect(capture.getFrameBuffer()).toHaveLength(0);
+  });
+
+  describe('real backend mode', () => {
+    it('reports no backend by default', () => {
+      expect(new ScreenCapture(10, null).isBackendConfigured()).toBe(false);
+    });
+
+    it('uses the injected backend pixel data', async () => {
+      const real = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+      const backend: ScreenCaptureBackend = {
+        async capture() {
+          return real;
+        },
+      };
+      const capture = new ScreenCapture(10, backend);
+      expect(capture.isBackendConfigured()).toBe(true);
+      const frame = await capture.capture(2, 1);
+      expect(frame.data).toBe(real);
+    });
+
+    it('falls back to a simulated frame when the backend throws', async () => {
+      const backend: ScreenCaptureBackend = {
+        async capture() {
+          throw new Error('display unavailable');
+        },
+      };
+      const capture = new ScreenCapture(10, backend);
+      const frame = await capture.capture(4, 4);
+      expect(frame.data.length).toBe(4 * 4 * 4);
+    });
   });
 });
