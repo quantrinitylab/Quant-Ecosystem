@@ -50,12 +50,46 @@ import type { Credits } from './pricing-engine.service';
 export type CreditBucket = 'DAILY' | 'MONTHLY' | 'PURCHASED';
 
 /**
- * The kinds of POSITIVE ledger entries `credit()` may append (design:
- * `kind IN (purchase, monthly_grant, refund, adjustment)`). `daily_grant` is
- * appended by `grantDaily` (task 26) and `debit` by `debit` (task 27), so they
- * are not valid `credit()` kinds.
+ * The kinds of POSITIVE ledger entries `credit()` may append.
+ *
+ * Top-up / correction kinds (design: `kind IN (purchase, monthly_grant, refund,
+ * adjustment)`):
+ *   purchase | monthly_grant | refund | adjustment
+ *
+ * EARN kinds — credits a user earns inside the ecosystem (creator payouts,
+ * post/reel boosts revenue-share, QuantChat streak rewards, marketplace/in-game
+ * item sales, referrals). They land in the PURCHASED bucket so they spend like
+ * real-money credits, but keep their own `entryType` so earnings remain
+ * identifiable for payout/withdrawal accounting (and platform commission)
+ * without changing the {daily, monthly, purchased} balance shape:
+ *   creator_payout | boost_earning | streak_reward | marketplace_sale | referral
+ *
+ * `daily_grant` is appended by `grantDaily` and `debit` by `debit`, so they are
+ * not valid `credit()` kinds.
  */
-export type CreditKind = 'purchase' | 'monthly_grant' | 'refund' | 'adjustment';
+export type CreditKind =
+  | 'purchase'
+  | 'monthly_grant'
+  | 'refund'
+  | 'adjustment'
+  | 'creator_payout'
+  | 'boost_earning'
+  | 'streak_reward'
+  | 'marketplace_sale'
+  | 'referral';
+
+/**
+ * The earn-kinds — the subset of {@link CreditKind} that represents credits a
+ * user earned (rather than bought or was granted). Used by payout/withdrawal
+ * accounting to total a user's earned, cash-out-eligible balance.
+ */
+export const EARN_CREDIT_KINDS = [
+  'creator_payout',
+  'boost_earning',
+  'streak_reward',
+  'marketplace_sale',
+  'referral',
+] as const satisfies readonly CreditKind[];
 
 /** The credit-kinds `credit()` accepts, and the bucket each contributes to. */
 const CREDIT_KIND_BUCKET: Readonly<Record<CreditKind, CreditBucket>> = {
@@ -64,6 +98,14 @@ const CREDIT_KIND_BUCKET: Readonly<Record<CreditKind, CreditBucket>> = {
   // Refunds/adjustments are corrections against purchased top-ups.
   refund: 'PURCHASED',
   adjustment: 'PURCHASED',
+  // Earned credits are real-money-equivalent: spendable like purchased balance
+  // and (later) eligible for withdrawal. Their distinct entryType keeps them
+  // identifiable for payout accounting.
+  creator_payout: 'PURCHASED',
+  boost_earning: 'PURCHASED',
+  streak_reward: 'PURCHASED',
+  marketplace_sale: 'PURCHASED',
+  referral: 'PURCHASED',
 };
 
 /**
@@ -202,11 +244,7 @@ function isUtcDay(value: unknown): value is string {
 
 /** True for a Prisma unique-constraint violation (a lost idempotency race). */
 function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    (err as { code?: unknown }).code === 'P2002'
-  );
+  return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === 'P2002';
 }
 
 /**
@@ -235,8 +273,7 @@ export class CreditWallet {
   ) {
     this.authz = options.authz ?? ownerOnlyAuthz;
     this.generateId = options.generateId ?? (() => globalThis.crypto.randomUUID());
-    this.dailyAllowanceProvider =
-      options.dailyAllowanceProvider ?? (() => DEFAULT_DAILY_ALLOWANCE);
+    this.dailyAllowanceProvider = options.dailyAllowanceProvider ?? (() => DEFAULT_DAILY_ALLOWANCE);
   }
 
   /**
@@ -304,6 +341,42 @@ export class CreditWallet {
   }
 
   /**
+   * Total credits the owner has EARNED (creator payouts, boosts, streaks,
+   * marketplace sales, referrals) — i.e. the sum of all positive ledger entries
+   * whose `entryType` is an {@link EARN_CREDIT_KINDS} kind. This is the
+   * cash-out-eligible earned balance that a future withdrawal/payout flow draws
+   * against (distinct from purchased top-ups and granted allowances).
+   *
+   * Note: this is a gross earned total from the ledger; a withdrawal flow will
+   * net it against prior payouts. Authz mirrors {@link getBalance} (Req 16.4).
+   *
+   * @throws 403 FORBIDDEN  when the caller is neither owner nor tenant admin.
+   */
+  async getEarnedTotal(caller: OwnershipPrincipal, ownerRef: OwnerRef): Promise<Credits> {
+    if (!nonEmpty(ownerRef?.ownerId)) {
+      throw createAppError('ownerRef.ownerId is required', 400, 'OWNER_REF_REQUIRED');
+    }
+    assertOwnership(this.authz, caller, {
+      ownerId: ownerRef.ownerId,
+      tenantId: ownerRef.tenantId,
+      kind: 'wallet',
+      resourceId: ownerRef.ownerId,
+    });
+
+    const earnKinds = new Set<string>(EARN_CREDIT_KINDS);
+    const entries = await this.prisma.creditLedgerEntry.findMany({
+      where: { ownerRef: ownerRef.ownerId },
+    });
+    let earned = 0;
+    for (const entry of entries) {
+      if (earnKinds.has(entry.entryType)) {
+        earned += Number.isFinite(entry.amount) ? entry.amount : 0;
+      }
+    }
+    return Math.max(0, earned);
+  }
+
+  /**
    * Append ONE positive credit entry, increasing the balance by EXACTLY
    * `amount` (Req 16.5).
    *
@@ -330,11 +403,7 @@ export class CreditWallet {
     }
     const bucket = CREDIT_KIND_BUCKET[args.kind];
     if (bucket == null) {
-      throw createAppError(
-        `Invalid credit kind '${String(args.kind)}'`,
-        400,
-        'INVALID_KIND',
-      );
+      throw createAppError(`Invalid credit kind '${String(args.kind)}'`, 400, 'INVALID_KIND');
     }
 
     // APPEND-ONLY (Req 16.3 / 16.5): create exactly ONE positive entry. The
@@ -393,11 +462,7 @@ export class CreditWallet {
       throw createAppError('ownerRef.ownerId is required', 400, 'OWNER_REF_REQUIRED');
     }
     if (!isUtcDay(utcDay)) {
-      throw createAppError(
-        'utcDay must be a YYYY-MM-DD UTC-day string',
-        400,
-        'INVALID_UTC_DAY',
-      );
+      throw createAppError('utcDay must be a YYYY-MM-DD UTC-day string', 400, 'INVALID_UTC_DAY');
     }
 
     // IDEMPOTENCY (Req 17.2): at most one daily_grant per (owner, utcDay). If a
@@ -410,8 +475,7 @@ export class CreditWallet {
 
     // Resolve the daily allowance from the per-call override -> injected
     // provider -> default constant.
-    const allowance =
-      options.dailyAllowance ?? (await this.dailyAllowanceProvider(ownerRef));
+    const allowance = options.dailyAllowance ?? (await this.dailyAllowanceProvider(ownerRef));
     if (!isNonNegativeWholeCredits(allowance)) {
       throw createAppError(
         'daily allowance must be a non-negative whole number of credits',
@@ -606,10 +670,7 @@ export class CreditWallet {
   }
 
   /** All debit ledger rows previously appended for (owner, logical actionKey). */
-  private async findDebitEntries(
-    ownerId: string,
-    actionKey: string,
-  ): Promise<CreditLedgerEntry[]> {
+  private async findDebitEntries(ownerId: string, actionKey: string): Promise<CreditLedgerEntry[]> {
     const prefix = `debit:${actionKey}#`;
     const entries = await this.prisma.creditLedgerEntry.findMany({
       where: { ownerRef: ownerId },
@@ -675,10 +736,7 @@ export class CreditWallet {
   }
 
   /** Find the existing `daily_grant` entry for (owner, utcDay), if any. */
-  private async findDailyGrant(
-    ownerId: string,
-    utcDay: string,
-  ): Promise<CreditLedgerEntry | null> {
+  private async findDailyGrant(ownerId: string, utcDay: string): Promise<CreditLedgerEntry | null> {
     return this.prisma.creditLedgerEntry.findFirst({
       where: { ownerRef: ownerId, entryType: 'daily_grant', utcDay },
     });

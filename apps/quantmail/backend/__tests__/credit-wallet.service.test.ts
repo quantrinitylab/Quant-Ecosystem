@@ -65,9 +65,7 @@ function createLedgerPrisma() {
       },
       async findMany({ where }: { where?: { ownerRef?: string } } = {}): Promise<LedgerRow[]> {
         const owner = where?.ownerRef;
-        return rows
-          .filter((r) => owner == null || r.ownerRef === owner)
-          .map((r) => ({ ...r }));
+        return rows.filter((r) => owner == null || r.ownerRef === owner).map((r) => ({ ...r }));
       },
     },
   };
@@ -182,12 +180,8 @@ describe('CreditWallet.credit — append-only, exactly one entry of exact amount
     const prisma = createLedgerPrisma();
     // The mock deliberately omits update/delete; assert they are absent so any
     // attempt to mutate an entry would be a hard failure.
-    expect(
-      (prisma.creditLedgerEntry as Record<string, unknown>).update,
-    ).toBeUndefined();
-    expect(
-      (prisma.creditLedgerEntry as Record<string, unknown>).delete,
-    ).toBeUndefined();
+    expect((prisma.creditLedgerEntry as Record<string, unknown>).update).toBeUndefined();
+    expect((prisma.creditLedgerEntry as Record<string, unknown>).delete).toBeUndefined();
   });
 
   it('routes each credit kind to the correct bucket', async () => {
@@ -198,6 +192,11 @@ describe('CreditWallet.credit — append-only, exactly one entry of exact amount
       monthly_grant: 'MONTHLY',
       refund: 'PURCHASED',
       adjustment: 'PURCHASED',
+      creator_payout: 'PURCHASED',
+      boost_earning: 'PURCHASED',
+      streak_reward: 'PURCHASED',
+      marketplace_sale: 'PURCHASED',
+      referral: 'PURCHASED',
     };
     for (const kind of Object.keys(expected) as CreditKind[]) {
       const entry = await wallet.credit(OWNER, { amount: 1, kind });

@@ -78,6 +78,7 @@ export type {
 // ----------------------------------------------------------------------------
 export { CreditWallet } from './services/credit-wallet.service';
 export { DEFAULT_DAILY_ALLOWANCE } from './services/credit-wallet.service';
+export { EARN_CREDIT_KINDS } from './services/credit-wallet.service';
 export type {
   CreditBucket,
   CreditKind,
