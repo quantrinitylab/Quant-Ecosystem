@@ -3,6 +3,8 @@
 // Share conversations with permissions
 // ============================================================================
 
+import { randomInt } from 'node:crypto';
+
 export type SharePermission = 'view' | 'edit' | 'comment';
 
 export interface ShareLink {
@@ -122,10 +124,13 @@ export class ConversationShareService {
   }
 
   private generateToken(): string {
+    // Security: share tokens are bearer credentials granting access to a
+    // conversation. They MUST be unpredictable, so use a CSPRNG (crypto.randomInt)
+    // rather than Math.random (which is seedable/predictable).
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let token = '';
     for (let i = 0; i < 32; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
+      token += chars.charAt(randomInt(0, chars.length));
     }
     return token;
   }

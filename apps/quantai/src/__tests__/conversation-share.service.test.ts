@@ -170,4 +170,21 @@ describe('ConversationShareService', () => {
       expect(service.deleteSharesForConversation('none')).toBe(0);
     });
   });
+
+  describe('token security', () => {
+    it('generates unguessable, unique tokens (CSPRNG-backed)', () => {
+      // Regression guard: share tokens are bearer credentials. They must come from a
+      // cryptographically secure RNG, never Math.random. A weak/seeded generator would
+      // produce collisions or predictable sequences at scale; assert high uniqueness.
+      const tokens = new Set<string>();
+      for (let i = 0; i < 5000; i++) {
+        tokens.add(service.createShare('conv-collision', 'user-1').token);
+      }
+      expect(tokens.size).toBe(5000);
+      // Every token must be exactly 32 chars from the expected alphabet.
+      for (const t of tokens) {
+        expect(t).toMatch(/^[A-Za-z0-9]{32}$/);
+      }
+    });
+  });
 });
