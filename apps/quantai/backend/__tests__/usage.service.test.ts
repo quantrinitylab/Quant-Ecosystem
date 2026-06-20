@@ -115,4 +115,36 @@ describe('UsageService', () => {
       expect(stats.streakDays).toBe(2);
     });
   });
+
+  describe('getDailyUsage', () => {
+    it('returns a dense, ordered series with zero-filled inactive days', async () => {
+      prisma.aISession.findMany.mockResolvedValue([
+        { totalTokensUsed: 300, totalCost: 0.2, createdAt: daysAgo(0), updatedAt: daysAgo(0) },
+        { totalTokensUsed: 100, totalCost: 0.1, createdAt: daysAgo(2), updatedAt: daysAgo(2) },
+      ]);
+
+      const series = await service.getDailyUsage('user-1', 5);
+
+      expect(series).toHaveLength(5);
+      // Series is chronological and ends today.
+      const last = series[series.length - 1]!;
+      expect(last.tokens).toBe(300);
+      expect(last.cost).toBeCloseTo(0.2);
+      expect(last.sessions).toBe(1);
+      // Two days ago had activity.
+      expect(series[2]!.tokens).toBe(100);
+      // Yesterday (index 3) was inactive -> zero-filled.
+      expect(series[3]).toEqual(expect.objectContaining({ tokens: 0, cost: 0, sessions: 0 }));
+      // Dates are ascending ISO strings.
+      const dates = series.map((p) => p.date);
+      expect([...dates].sort()).toEqual(dates);
+    });
+
+    it('clamps the window to a sane range', async () => {
+      prisma.aISession.findMany.mockResolvedValue([]);
+
+      const series = await service.getDailyUsage('user-1', 0);
+      expect(series).toHaveLength(1);
+    });
+  });
 });

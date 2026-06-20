@@ -20,7 +20,33 @@ const paginationSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
 });
 
+const searchSchema = z.object({
+  q: z.string().min(1).max(200),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+});
+
 export default async function sessionsRoutes(fastify: FastifyInstance) {
+  // GET /sessions/search - Full-text search across the user's conversations
+  fastify.get('/search', async (request, reply) => {
+    const queryResult = searchSchema.safeParse(request.query);
+    if (!queryResult.success) {
+      throw queryResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const { q, page, pageSize } = queryResult.data;
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new SessionService(prisma as never);
+    const result = await service.searchSessions(userId, q, { page, pageSize });
+
+    return reply.send({ success: true, data: result });
+  });
+
   // POST /sessions - Create a session
   fastify.post('/', async (request, reply) => {
     const parseResult = createSessionSchema.safeParse(request.body);

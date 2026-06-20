@@ -10,6 +10,8 @@ function createMockPrisma() {
     aIMessage: {
       create: vi.fn(),
       findMany: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
       count: vi.fn(),
     },
   };
@@ -213,6 +215,81 @@ describe('ChatService', () => {
       });
 
       await expect(service.getHistory('session-1', 'user-1')).rejects.toThrow('Access denied');
+    });
+  });
+
+  describe('setFeedback', () => {
+    beforeEach(() => {
+      prisma.aISession.findUnique.mockResolvedValue({ id: 'session-1', userId: 'user-1' });
+    });
+
+    it('sets POSITIVE feedback on an owned assistant message', async () => {
+      prisma.aIMessage.findUnique.mockResolvedValue({
+        id: 'msg-1',
+        sessionId: 'session-1',
+        role: 'ASSISTANT',
+      });
+      prisma.aIMessage.update.mockResolvedValue({
+        id: 'msg-1',
+        role: 'ASSISTANT',
+        feedback: 'POSITIVE',
+      });
+
+      const result = await service.setFeedback('session-1', 'user-1', 'msg-1', 'POSITIVE');
+
+      expect(result.feedback).toBe('POSITIVE');
+      expect(prisma.aIMessage.update).toHaveBeenCalledWith({
+        where: { id: 'msg-1' },
+        data: { feedback: 'POSITIVE' },
+      });
+    });
+
+    it('clears feedback when passed null', async () => {
+      prisma.aIMessage.findUnique.mockResolvedValue({
+        id: 'msg-1',
+        sessionId: 'session-1',
+        role: 'ASSISTANT',
+      });
+      prisma.aIMessage.update.mockResolvedValue({ id: 'msg-1', feedback: null });
+
+      await service.setFeedback('session-1', 'user-1', 'msg-1', null);
+
+      expect(prisma.aIMessage.update).toHaveBeenCalledWith({
+        where: { id: 'msg-1' },
+        data: { feedback: null },
+      });
+    });
+
+    it('throws ACCESS_DENIED when user does not own the session', async () => {
+      prisma.aISession.findUnique.mockResolvedValue({ id: 'session-1', userId: 'someone-else' });
+
+      await expect(service.setFeedback('session-1', 'user-1', 'msg-1', 'POSITIVE')).rejects.toThrow(
+        'Access denied',
+      );
+    });
+
+    it('throws MESSAGE_NOT_FOUND when the message belongs to another session', async () => {
+      prisma.aIMessage.findUnique.mockResolvedValue({
+        id: 'msg-1',
+        sessionId: 'other-session',
+        role: 'ASSISTANT',
+      });
+
+      await expect(service.setFeedback('session-1', 'user-1', 'msg-1', 'POSITIVE')).rejects.toThrow(
+        'Message not found',
+      );
+    });
+
+    it('rejects feedback on non-assistant messages', async () => {
+      prisma.aIMessage.findUnique.mockResolvedValue({
+        id: 'msg-1',
+        sessionId: 'session-1',
+        role: 'USER',
+      });
+
+      await expect(service.setFeedback('session-1', 'user-1', 'msg-1', 'NEGATIVE')).rejects.toThrow(
+        'Feedback can only be set on assistant messages',
+      );
     });
   });
 

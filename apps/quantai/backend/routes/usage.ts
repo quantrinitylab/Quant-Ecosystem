@@ -7,6 +7,10 @@ const usageQuerySchema = z.object({
   period: z.enum(['day', 'week', 'month']).optional(),
 });
 
+const dailyQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(365).optional(),
+});
+
 export default async function usageRoutes(fastify: FastifyInstance) {
   // GET /usage - Get usage stats
   fastify.get('/', async (request, reply) => {
@@ -54,5 +58,24 @@ export default async function usageRoutes(fastify: FastifyInstance) {
     const stats = await service.getStats(userId);
 
     return reply.send({ success: true, data: stats });
+  });
+
+  // GET /usage/daily - Per-day token/cost/session breakdown for analytics charts
+  fastify.get('/daily', async (request, reply) => {
+    const queryResult = dailyQuerySchema.safeParse(request.query);
+    if (!queryResult.success) {
+      throw queryResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new UsageService(prisma as never);
+    const data = await service.getDailyUsage(userId, queryResult.data.days ?? 30);
+
+    return reply.send({ success: true, data });
   });
 }

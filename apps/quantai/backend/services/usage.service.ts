@@ -29,6 +29,14 @@ export interface BillingResult {
   remainingBudget: number;
 }
 
+export interface DailyUsagePoint {
+  /** ISO date (YYYY-MM-DD), local time. */
+  date: string;
+  tokens: number;
+  cost: number;
+  sessions: number;
+}
+
 interface SessionUsageRecord {
   totalTokensUsed: number;
   totalCost: number;
@@ -133,6 +141,52 @@ export class UsageService {
 
   private dayKey(date: Date): string {
     return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  }
+
+  private isoDay(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  /**
+   * Per-day token/cost/session breakdown over the last `days` days (default 30),
+   * bucketed by session activity time. Days with no activity are returned as
+   * explicit zero points so the series is dense and chart-ready.
+   */
+  async getDailyUsage(userId: string, days = 30): Promise<DailyUsagePoint[]> {
+    const windowDays = Math.min(Math.max(Math.trunc(days), 1), 365);
+
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - (windowDays - 1));
+
+    const sessions = await this.prisma.aISession.findMany({
+      where: { userId, deletedAt: null, updatedAt: { gte: start } },
+      select: { totalTokensUsed: true, totalCost: true, createdAt: true, updatedAt: true },
+    });
+
+    // Seed a dense, ordered map of zeroed days.
+    const buckets = new Map<string, DailyUsagePoint>();
+    for (let i = 0; i < windowDays; i += 1) {
+      const day = new Date(start);
+      day.setDate(start.getDate() + i);
+      buckets.set(this.isoDay(day), { date: this.isoDay(day), tokens: 0, cost: 0, sessions: 0 });
+    }
+
+    for (const session of sessions) {
+      const when = session.updatedAt ?? session.createdAt;
+      if (!when) continue;
+      const key = this.isoDay(when);
+      const point = buckets.get(key);
+      if (!point) continue;
+      point.tokens += session.totalTokensUsed;
+      point.cost += session.totalCost;
+      point.sessions += 1;
+    }
+
+    return Array.from(buckets.values());
   }
 
   /**

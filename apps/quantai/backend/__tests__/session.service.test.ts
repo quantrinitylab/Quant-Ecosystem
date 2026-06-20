@@ -276,4 +276,38 @@ describe('SessionService', () => {
       expect(result.isPinned).toBe(false);
     });
   });
+
+  describe('searchSessions', () => {
+    it('searches title and message content, excluding archived/deleted, pinned first', async () => {
+      const matches = [{ id: 'session-1', title: 'Tax planning' }];
+      prisma.aISession.findMany.mockResolvedValue(matches);
+      prisma.aISession.count.mockResolvedValue(1);
+
+      const result = await service.searchSessions('user-1', '  tax  ', { page: 1, pageSize: 20 });
+
+      expect(result.data).toEqual(matches);
+      expect(result.total).toBe(1);
+      expect(prisma.aISession.findMany).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-1',
+          deletedAt: null,
+          isArchived: false,
+          OR: [
+            { title: { contains: 'tax', mode: 'insensitive' } },
+            { messages: { some: { content: { contains: 'tax', mode: 'insensitive' } } } },
+          ],
+        },
+        skip: 0,
+        take: 20,
+        orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
+      });
+    });
+
+    it('throws INVALID_QUERY for an empty/whitespace query', async () => {
+      await expect(service.searchSessions('user-1', '   ')).rejects.toThrow(
+        'Search query must not be empty',
+      );
+      expect(prisma.aISession.findMany).not.toHaveBeenCalled();
+    });
+  });
 });

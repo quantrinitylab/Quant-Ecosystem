@@ -3,6 +3,7 @@ import type { AppConfig } from '@quant/server-core';
 import chatRoutes from './routes/chat';
 import agentsRoutes from './routes/agents';
 import sessionsRoutes from './routes/sessions';
+import messagesRoutes from './routes/messages';
 import orchestrationRoutes from './routes/orchestration';
 import toolsRoutes from './routes/tools';
 import memoryRoutes from './routes/memory';
@@ -121,6 +122,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(codeAgentRoutes, { prefix: '/agents/code' });
   await app.register(userOwnedAiRoutes, { prefix: '/agents/owned' });
   await app.register(sessionsRoutes, { prefix: '/sessions' });
+  await app.register(messagesRoutes, { prefix: '/sessions' });
   await app.register(orchestrationRoutes, { prefix: '/orchestration' });
   await app.register(toolsRoutes, { prefix: '/tools' });
   await app.register(memoryRoutes, { prefix: '/memory' });

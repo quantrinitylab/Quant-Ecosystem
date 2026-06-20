@@ -205,4 +205,55 @@ export class SessionService {
       data: { isPinned: !session.isPinned, updatedAt: new Date() },
     });
   }
+
+  /**
+   * Full-text-ish search across a user's conversations. Matches on the session
+   * title OR the content of any message in the session (case-insensitive).
+   * Archived/deleted sessions are excluded. Pinned conversations rank first.
+   */
+  async searchSessions(
+    userId: string,
+    query: string,
+    options: PaginationOptions = {},
+  ): Promise<PaginatedResult<AISession>> {
+    const trimmed = query.trim();
+    if (trimmed.length === 0) {
+      throw createAppError('Search query must not be empty', 400, 'INVALID_QUERY');
+    }
+
+    const page = options.page ?? 1;
+    const pageSize = options.pageSize ?? 20;
+    const skip = (page - 1) * pageSize;
+
+    const where = {
+      userId,
+      deletedAt: null,
+      isArchived: false,
+      OR: [
+        { title: { contains: trimmed, mode: 'insensitive' } },
+        { messages: { some: { content: { contains: trimmed, mode: 'insensitive' } } } },
+      ],
+    };
+
+    const [data, total] = await Promise.all([
+      this.prisma.aISession.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
+      }),
+      this.prisma.aISession.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / pageSize);
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    };
+  }
 }

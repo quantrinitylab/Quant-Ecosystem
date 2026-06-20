@@ -85,9 +85,17 @@ export interface ChatPrismaClient {
   aIMessage: {
     create: (args: { data: Record<string, unknown> }) => Promise<AIMessage>;
     findMany: (args: Record<string, unknown>) => Promise<AIMessage[]>;
+    findUnique: (args: { where: Record<string, unknown> }) => Promise<AIMessage | null>;
+    update: (args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => Promise<AIMessage>;
     count: (args: Record<string, unknown>) => Promise<number>;
   };
 }
+
+/** Feedback a user can attach to an assistant message. `null` clears it. */
+export type FeedbackValue = 'POSITIVE' | 'NEGATIVE' | null;
 
 export interface SendMessageResult {
   message: AIMessage;
@@ -97,8 +105,15 @@ export interface SendMessageResult {
 export class ChatService {
   constructor(
     private readonly prisma: ChatPrismaClient,
-    private readonly engine: AIEngineInterface,
+    private readonly engine?: AIEngineInterface,
   ) {}
+
+  private requireEngine(): AIEngineInterface {
+    if (!this.engine) {
+      throw createAppError('AI engine not configured', 500, 'ENGINE_NOT_CONFIGURED');
+    }
+    return this.engine;
+  }
 
   async sendMessage(
     sessionId: string,
@@ -142,7 +157,7 @@ export class ChatService {
 
     // Call AI engine
     const startTime = Date.now();
-    const response = await this.engine.infer({
+    const response = await this.requireEngine().infer({
       prompt: content,
       systemPrompt: session.systemPrompt ?? undefined,
       context,
@@ -221,7 +236,7 @@ export class ChatService {
     }));
 
     // Stream from AI engine
-    const stream = this.engine.stream({
+    const stream = this.requireEngine().stream({
       prompt: content,
       systemPrompt: session.systemPrompt ?? undefined,
       context,
@@ -302,5 +317,42 @@ export class ChatService {
       hasNext: page < totalPages,
       hasPrev: page > 1,
     };
+  }
+
+  /**
+   * Attach (or clear) thumbs-up / thumbs-down feedback on an assistant message.
+   * Verifies the session is owned by the user and the message belongs to it.
+   * Feedback drives the quality/eval loop and is safe to call repeatedly.
+   */
+  async setFeedback(
+    sessionId: string,
+    userId: string,
+    messageId: string,
+    feedback: FeedbackValue,
+  ): Promise<AIMessage> {
+    const session = await this.prisma.aISession.findUnique({ where: { id: sessionId } });
+    if (!session) {
+      throw createAppError('Session not found', 404, 'SESSION_NOT_FOUND');
+    }
+    if (session.userId !== userId) {
+      throw createAppError('Access denied', 403, 'ACCESS_DENIED');
+    }
+
+    const message = await this.prisma.aIMessage.findUnique({ where: { id: messageId } });
+    if (!message || message.sessionId !== sessionId) {
+      throw createAppError('Message not found', 404, 'MESSAGE_NOT_FOUND');
+    }
+    if (message.role !== 'ASSISTANT') {
+      throw createAppError(
+        'Feedback can only be set on assistant messages',
+        400,
+        'INVALID_FEEDBACK_TARGET',
+      );
+    }
+
+    return this.prisma.aIMessage.update({
+      where: { id: messageId },
+      data: { feedback },
+    });
   }
 }
