@@ -2710,3 +2710,37 @@ model CloseFriend {
   @@index([friendId])
   @@map("close_friends")
 }
+
+
+// ==================== QuantTube Music (YouTube Music / Spotify) ====================
+
+model MusicAlbum {
+  id          String       @id @default(cuid())
+  title       String
+  artistName  String
+  artworkUrl  String?
+  releaseDate DateTime?
+  createdAt   DateTime     @default(now())
+  tracks      MusicTrack[]
+
+  @@index([artistName])
+  @@map("music_albums")
+}
+
+model MusicTrack {
+  id          String      @id @default(cuid())
+  title       String
+  artistName  String
+  albumId     String?
+  audioUrl    String
+  artworkUrl  String?
+  durationSec Int         @default(0)
+  genre       String?
+  playCount   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  album       MusicAlbum? @relation(fields: [albumId], references: [id])
+
+  @@index([albumId])
+  @@index([artistName])
+  @@map("music_tracks")
+}

@@ -26,4 +26,20 @@ export interface PrismaClient {
     count: (args: Record<string, unknown>) => Promise<number>;
     update: (args: { where: Record<string, unknown>; data: unknown }) => Promise<any>;
   };
+  musicAlbum: {
+    create: (args: { data: Record<string, unknown> }) => Promise<any>;
+    findUnique: (args: { where: Record<string, unknown>; include?: unknown }) => Promise<any>;
+    findMany: (args: Record<string, unknown>) => Promise<any[]>;
+    count: (args: Record<string, unknown>) => Promise<number>;
+  };
+  musicTrack: {
+    create: (args: { data: Record<string, unknown> }) => Promise<any>;
+    findUnique: (args: { where: Record<string, unknown> }) => Promise<any>;
+    findMany: (args: Record<string, unknown>) => Promise<any[]>;
+    count: (args: Record<string, unknown>) => Promise<number>;
+    update: (args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => Promise<any>;
+  };
 }
