@@ -13,6 +13,13 @@ export interface AppConfig {
   jwtIssuer: string;
   jwtAudience: string;
   env: 'development' | 'production' | 'test';
+  /**
+   * Extra URL path prefixes that bypass the global auth hook (in addition to
+   * the built-in health/metrics paths). Use for pre-authentication endpoints
+   * such as login / OTP request+verify. Each entry matches the path exactly or
+   * as a prefix segment (e.g. '/auth/otp' matches '/auth/otp/request').
+   */
+  publicPaths?: string[];
 }
 
 export interface AuthenticatedRequest extends FastifyRequest {

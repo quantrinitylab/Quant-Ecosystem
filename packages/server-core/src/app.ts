@@ -136,7 +136,17 @@ export async function createApp(config: AppConfig) {
   await fastify.register(teamsPlugin);
 
   // Public paths that bypass auth
-  const PUBLIC_PATHS = ['/health', '/healthz', '/ready', '/readyz', '/live', '/livez', '/metrics'];
+  const PUBLIC_PATHS = [
+    '/health',
+    '/healthz',
+    '/ready',
+    '/readyz',
+    '/live',
+    '/livez',
+    '/metrics',
+    // Caller-supplied pre-authentication endpoints (e.g. login / OTP).
+    ...(config.publicPaths ?? []),
+  ];
 
   // Enforce auth on all routes except health/metrics
   fastify.addHook('onRequest', async (request, reply) => {

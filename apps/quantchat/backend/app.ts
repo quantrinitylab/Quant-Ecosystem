@@ -31,6 +31,9 @@ import {
   createPushDispatcher,
   type PrismaPushSubscriptionClient,
 } from './services/push-dispatcher';
+import authRoutes from './routes/auth';
+import { OtpService, LoggingSmsSender } from './lib/otp-service';
+import { SessionTokenIssuer } from './lib/session-tokens';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -51,12 +54,33 @@ export function getConfig(): AppConfig {
     jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantchat',
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
     env,
+    // Phone-OTP sign-in endpoints are pre-authentication and must bypass the
+    // global auth hook.
+    publicPaths: ['/auth/otp/request', '/auth/otp/verify'],
   };
 }
 
 export async function buildApp(config?: AppConfig) {
   const appConfig = config ?? getConfig();
   const app = await createApp(appConfig);
+
+  // Phone-OTP sign-in (QuantChat additionally requires a verified phone on top
+  // of QuantMail SSO). The OtpService is an in-memory singleton (one code/rate
+  // store) decorated once at boot; the SMS sender is the dev logging sender
+  // unless real provider env (Twilio/MSG91) is wired. SessionTokenIssuer signs
+  // JWTs with the SAME secret/issuer/audience the auth plugin verifies, so the
+  // access token is immediately valid on protected routes. Routes are mounted
+  // at /auth and allow-listed as public via getConfig().publicPaths.
+  app.decorate('otpService', new OtpService(new LoggingSmsSender((m) => app.log.info(m))));
+  app.decorate(
+    'sessionTokens',
+    new SessionTokenIssuer({
+      jwtSecret: appConfig.jwtSecret,
+      jwtIssuer: appConfig.jwtIssuer,
+      jwtAudience: appConfig.jwtAudience,
+    }),
+  );
+  await app.register(authRoutes, { prefix: '/auth' });
 
   // W2/W3 — Shared realtime context (backplane + presence). Created once and
   // decorated on the app BEFORE the websocket routes register, so the websocket
