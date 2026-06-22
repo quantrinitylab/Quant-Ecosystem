@@ -536,6 +536,8 @@ model Post {
   viewCount        Int              @default(0)
   isEdited         Boolean          @default(false)
   isPinned         Boolean          @default(false)
+  isAnonymous      Boolean          @default(false)
+  anonymousAlias   String?
   moderationStatus ModerationStatus @default(APPROVED)
   publishedAt      DateTime?
   createdAt        DateTime         @default(now())
@@ -554,6 +556,7 @@ model Post {
   @@index([communityId])
   @@index([publishedAt])
   @@index([visibility])
+  @@index([isAnonymous])
   @@map("posts")
 }
 

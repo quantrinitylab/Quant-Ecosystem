@@ -4,6 +4,7 @@ import postsRoutes from './routes/posts';
 import feedRoutes from './routes/feed';
 import communitiesRoutes from './routes/communities';
 import aiRoutes from './routes/ai';
+import anonymousRoutes from './routes/anonymous';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -35,6 +36,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(feedRoutes, { prefix: '/feed' });
   await app.register(communitiesRoutes, { prefix: '/communities' });
   await app.register(aiRoutes, { prefix: '/ai' });
+  await app.register(anonymousRoutes, { prefix: '/anonymous' });
 
   return app;
 }
