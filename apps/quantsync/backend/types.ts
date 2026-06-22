@@ -36,4 +36,17 @@ export interface PrismaClient {
   userRelationship: {
     findMany: (args: Record<string, unknown>) => Promise<any[]>;
   };
+  user: {
+    findUnique: (args: { where: Record<string, unknown> }) => Promise<any>;
+    update: (args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => Promise<any>;
+  };
+  like: {
+    findUnique: (args: { where: Record<string, unknown> }) => Promise<any>;
+    create: (args: { data: Record<string, unknown> }) => Promise<any>;
+    delete: (args: { where: Record<string, unknown> }) => Promise<any>;
+    count: (args: Record<string, unknown>) => Promise<number>;
+  };
 }

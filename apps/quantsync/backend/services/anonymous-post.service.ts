@@ -59,6 +59,13 @@ export class AnonymousModerationError extends Error {
   }
 }
 
+export class AnonymousPostNotFoundError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = 'AnonymousPostNotFoundError';
+  }
+}
+
 export class AnonymousPostService {
   private readonly aliasSecret: string;
   private readonly moderator: ContentModerator;
@@ -153,6 +160,38 @@ export class AnonymousPostService {
     });
 
     return { data: rows.map((r) => this.toPublic(r)), page, pageSize };
+  }
+
+  /**
+   * Toggle the current user's reaction (like) on an anonymous post. Identity is
+   * never exposed: the response returns only the aggregate count + whether the
+   * caller has reacted, never who reacted. The post must be anonymous + visible.
+   */
+  async reactToPost(
+    userId: string,
+    postId: string,
+  ): Promise<{ reacted: boolean; likeCount: number }> {
+    const post = await this.prisma.post.findUnique({ where: { id: postId } });
+    if (!post || post.isAnonymous !== true || post.deletedAt) {
+      throw new AnonymousPostNotFoundError('Anonymous post not found');
+    }
+
+    const existing = await this.prisma.like.findUnique({
+      where: { userId_postId: { userId, postId } },
+    });
+
+    let reacted: boolean;
+    if (existing) {
+      await this.prisma.like.delete({ where: { userId_postId: { userId, postId } } });
+      reacted = false;
+    } else {
+      await this.prisma.like.create({ data: { userId, postId } });
+      reacted = true;
+    }
+
+    const likeCount = await this.prisma.like.count({ where: { postId } });
+    await this.prisma.post.update({ where: { id: postId }, data: { likeCount } });
+    return { reacted, likeCount };
   }
 
   /** Strip the real author; expose only the alias. */

@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   AnonymousPostService,
   AnonymousModerationError,
+  AnonymousPostNotFoundError,
   DefaultAnonymousModerator,
   type ContentModerator,
 } from '../services/anonymous-post.service';
@@ -12,6 +13,7 @@ const blockAll: ContentModerator = { check: async () => ({ allowed: false, reaso
 
 function mockPrisma() {
   const created: Record<string, unknown>[] = [];
+  const likes = new Map<string, { userId: string; postId: string }>();
   const prisma = {
     post: {
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
@@ -19,15 +21,38 @@ function mockPrisma() {
         return { ...data, createdAt: new Date('2026-06-20T00:00:00Z') };
       }),
       findMany: vi.fn(async () => created.filter((p) => p['isAnonymous'])),
-      findUnique: vi.fn(),
+      findUnique: vi.fn(
+        async ({ where }: { where: Record<string, unknown> }) =>
+          created.find((p) => p['id'] === where['id']) ?? null,
+      ),
       count: vi.fn(),
-      update: vi.fn(),
+      update: vi.fn(async () => ({})),
     },
+    like: {
+      findUnique: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+        const k = where['userId_postId'] as { userId: string; postId: string };
+        return likes.get(`${k.userId}:${k.postId}`) ?? null;
+      }),
+      create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        likes.set(`${data['userId']}:${data['postId']}`, data as never);
+        return data;
+      }),
+      delete: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+        const k = where['userId_postId'] as { userId: string; postId: string };
+        likes.delete(`${k.userId}:${k.postId}`);
+        return {};
+      }),
+      count: vi.fn(
+        async ({ where }: { where: Record<string, unknown> }) =>
+          [...likes.values()].filter((l) => l.postId === where['postId']).length,
+      ),
+    },
+    user: { findUnique: vi.fn(), update: vi.fn() },
     community: {} as never,
     communityMember: {} as never,
     userRelationship: {} as never,
   } as unknown as PrismaClient;
-  return { prisma, created };
+  return { prisma, created, likes };
 }
 
 const opts = (moderator: ContentModerator = allowAll) => ({
@@ -111,6 +136,37 @@ describe('AnonymousPostService', () => {
       expect((p as unknown as Record<string, unknown>)['userId']).toBeUndefined();
       expect(p.anonymousAlias).toMatch(/^Anon-[0-9a-f]{8}$/);
     }
+  });
+
+  describe('reactToPost', () => {
+    it('toggles a like on/off and updates the count', async () => {
+      const { prisma } = mockPrisma();
+      const svc = new AnonymousPostService(prisma, opts());
+      const post = await svc.createAnonymousPost({ userId: 'author', content: 'hi' });
+
+      const first = await svc.reactToPost('viewer-1', post.id);
+      expect(first).toEqual({ reacted: true, likeCount: 1 });
+
+      const second = await svc.reactToPost('viewer-1', post.id);
+      expect(second).toEqual({ reacted: false, likeCount: 0 });
+    });
+
+    it('counts reactions from distinct users', async () => {
+      const { prisma } = mockPrisma();
+      const svc = new AnonymousPostService(prisma, opts());
+      const post = await svc.createAnonymousPost({ userId: 'author', content: 'hi' });
+      await svc.reactToPost('viewer-1', post.id);
+      const r = await svc.reactToPost('viewer-2', post.id);
+      expect(r.likeCount).toBe(2);
+    });
+
+    it('rejects reactions to a non-existent or non-anonymous post', async () => {
+      const { prisma } = mockPrisma();
+      const svc = new AnonymousPostService(prisma, opts());
+      await expect(svc.reactToPost('u', 'missing')).rejects.toBeInstanceOf(
+        AnonymousPostNotFoundError,
+      );
+    });
   });
 });
 

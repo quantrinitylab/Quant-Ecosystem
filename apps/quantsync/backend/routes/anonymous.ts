@@ -4,6 +4,7 @@ import { createAppError } from '@quant/server-core';
 import {
   AnonymousPostService,
   AnonymousModerationError,
+  AnonymousPostNotFoundError,
   DefaultAnonymousModerator,
 } from '../services/anonymous-post.service';
 
@@ -69,5 +70,24 @@ export default async function anonymousRoutes(fastify: FastifyInstance) {
     }
     const result = await buildService().listAnonymousFeed(parsed.data);
     return reply.send({ success: true, data: result });
+  });
+
+  // POST /anonymous/posts/:id/react — toggle the caller's reaction. The response
+  // exposes only the aggregate count, never who reacted.
+  fastify.post<{ Params: { id: string } }>('/posts/:id/react', async (request, reply) => {
+    const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const postId = request.params.id;
+    try {
+      const result = await buildService().reactToPost(userId, postId);
+      return reply.send({ success: true, data: result });
+    } catch (err) {
+      if (err instanceof AnonymousPostNotFoundError) {
+        throw createAppError(err.message, 404, 'NOT_FOUND');
+      }
+      throw err;
+    }
   });
 }
