@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { PostService } from '../services/post.service';
+import { CommentService } from '../services/comment.service';
 
 const createPostSchema = z.object({
   content: z.string().min(1).max(50000),
@@ -27,6 +28,11 @@ const updatePostSchema = z.object({
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+const createCommentSchema = z.object({
+  content: z.string().min(1).max(10000),
+  parentId: z.string().optional(),
 });
 
 export default async function postsRoutes(fastify: FastifyInstance) {
@@ -120,5 +126,41 @@ export default async function postsRoutes(fastify: FastifyInstance) {
     const post = await service.repost(request.params.id, userId);
 
     return reply.status(201).send({ success: true, data: post });
+  });
+
+  // --- Comments (wires the existing CommentService) ---
+  fastify.get<{ Params: { id: string } }>('/:id/comments', async (request, reply) => {
+    const queryResult = paginationSchema.safeParse(request.query);
+    if (!queryResult.success) {
+      throw queryResult.error;
+    }
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new CommentService(prisma as never);
+    const comments = await service.getComments(
+      request.params.id,
+      queryResult.data.page ?? 1,
+      queryResult.data.pageSize ?? 20,
+    );
+    return reply.send({ success: true, data: comments });
+  });
+
+  fastify.post<{ Params: { id: string } }>('/:id/comments', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const parseResult = createCommentSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new CommentService(prisma as never);
+    const comment = await service.createComment(
+      userId,
+      request.params.id,
+      parseResult.data.content,
+      parseResult.data.parentId,
+    );
+    return reply.status(201).send({ success: true, data: comment });
   });
 }

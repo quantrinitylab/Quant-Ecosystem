@@ -533,6 +533,7 @@ model Post {
   likeCount        Int              @default(0)
   commentCount     Int              @default(0)
   repostCount      Int              @default(0)
+  shareCount       Int              @default(0)
   viewCount        Int              @default(0)
   isEdited         Boolean          @default(false)
   isPinned         Boolean          @default(false)
@@ -2964,4 +2965,29 @@ model LiveStreamViewer {
   @@unique([streamId, userId])
   @@index([streamId])
   @@map("live_stream_viewers")
+}
+
+// ==================== QuantSync Engagement (votes + bookmarks) ====================
+
+model PostVote {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  value     Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@index([postId])
+  @@map("post_votes")
+}
+
+model PostBookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@map("post_bookmarks")
 }
