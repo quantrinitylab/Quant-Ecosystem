@@ -135,6 +135,29 @@ export interface OwnerReport {
   createdAt: string;
 }
 
+/** A recorded owner control-plane action (the owner audit trail). */
+export interface AuditEntry {
+  id: string;
+  at: string;
+  actor: string;
+  action: string;
+  target: string;
+  detail?: string;
+}
+
+/** A user as surfaced to the owner oversight view (subset of the User model). */
+export interface OversightUser {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string;
+  role: string;
+  status: string;
+  level: number;
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
 export interface ApiOk<T> {
   success: true;
   data: T;

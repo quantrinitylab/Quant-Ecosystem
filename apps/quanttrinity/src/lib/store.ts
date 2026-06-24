@@ -9,6 +9,7 @@
 // Mirrors the pattern used by admin's feature-flags `_store`.
 
 import {
+  type AuditEntry,
   type CreditConfig,
   type EcosystemApp,
   type ModelRegistryEntry,
@@ -30,6 +31,7 @@ interface TrinityState {
   payouts: PayoutRequest[];
   revenue: RevenueStream[];
   reports: OwnerReport[];
+  audit: AuditEntry[];
 }
 
 const globalForTrinity = globalThis as unknown as { __trinity?: TrinityState };
@@ -149,6 +151,24 @@ function seed(): TrinityState {
         createdAt: nowIso(60 * 8),
       },
     ],
+    audit: [
+      {
+        id: 'au-001',
+        at: nowIso(60 * 2),
+        actor: 'owner@quant.dev',
+        action: 'economy.payout.approved',
+        target: 'po-003',
+        detail: 'editsbyriya · 430 cr · stripe',
+      },
+      {
+        id: 'au-002',
+        at: nowIso(60 * 5),
+        actor: 'QuantAI · Report Triage',
+        action: 'report.resolved',
+        target: 'rp-004',
+        detail: 'Phishing link auto-resolved by AI employee',
+      },
+    ],
   };
 }
 
@@ -212,6 +232,10 @@ export function listTeam(sector?: Sector): TeamMember[] {
   return sector ? team.filter((m) => m.sector === sector) : team;
 }
 
+export function getTeamMember(id: string): TeamMember | null {
+  return state().team.find((m) => m.id === id) ?? null;
+}
+
 export interface CreateTeamMemberInput {
   kind: PrincipalKind;
   name: string;
@@ -270,6 +294,24 @@ export function updateApp(
   return a;
 }
 
+/**
+ * Apply a control patch across the whole app registry (or a subset of ids).
+ * Powers the owner's ecosystem-wide actions (e.g. "switch every app to the
+ * local model" or "put everything in maintenance"). Returns the affected apps.
+ */
+export function bulkUpdateApps(
+  patch: Partial<Pick<EcosystemApp, 'status' | 'modelId' | 'sidekickEnabled'>>,
+  onlyIds?: string[],
+): EcosystemApp[] {
+  const targets = state().apps.filter((a) => !onlyIds || onlyIds.includes(a.id));
+  for (const a of targets) {
+    if (patch.status) a.status = patch.status;
+    if (patch.modelId) a.modelId = patch.modelId;
+    if (typeof patch.sidekickEnabled === 'boolean') a.sidekickEnabled = patch.sidekickEnabled;
+  }
+  return targets;
+}
+
 // ---------------------------------------------------------------------------
 // Economy: credits, models, payouts, revenue
 // ---------------------------------------------------------------------------
@@ -323,4 +365,32 @@ export function updateReport(id: string, status: OwnerReport['status']): OwnerRe
   if (!r) return null;
   r.status = status;
   return r;
+}
+
+// ---------------------------------------------------------------------------
+// Owner audit trail
+// ---------------------------------------------------------------------------
+
+export function recordAudit(entry: {
+  actor?: string;
+  action: string;
+  target: string;
+  detail?: string;
+}): AuditEntry {
+  const audit: AuditEntry = {
+    id: nextId('au'),
+    at: new Date().toISOString(),
+    actor: entry.actor ?? 'owner@quant.dev',
+    action: entry.action,
+    target: entry.target,
+    detail: entry.detail,
+  };
+  state().audit.unshift(audit);
+  // keep the trail bounded
+  if (state().audit.length > 500) state().audit.length = 500;
+  return audit;
+}
+
+export function listAudit(limit = 100): AuditEntry[] {
+  return state().audit.slice(0, limit);
 }

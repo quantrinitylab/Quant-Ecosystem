@@ -26,6 +26,29 @@ const STATUS_BADGE: Record<TeamMember['status'], 'success' | 'warning' | 'defaul
   suspended: 'default',
 };
 
+interface ShiftAction {
+  summary: string;
+  kind: 'resolved' | 'escalated' | 'suggested' | 'skipped';
+  creditsSpent: number;
+}
+interface ShiftResult {
+  employeeId: string;
+  permissionLevel: string;
+  trustScore: number;
+  dailyRemaining: number;
+  processed: number;
+  paused: boolean;
+  note: string;
+  actions: ShiftAction[];
+}
+
+const ACTION_BADGE: Record<ShiftAction['kind'], 'success' | 'warning' | 'info' | 'default'> = {
+  resolved: 'success',
+  escalated: 'warning',
+  suggested: 'info',
+  skipped: 'default',
+};
+
 export default function TeamsPage() {
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,6 +122,24 @@ export default function TeamsPage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update member');
+    }
+  };
+
+  const [shifts, setShifts] = useState<Record<string, ShiftResult>>({});
+  const [running, setRunning] = useState<string | null>(null);
+
+  const runShift = async (id: string) => {
+    setRunning(id);
+    setError(null);
+    try {
+      const res = await ownerFetch<{ data: ShiftResult }>(`/api/teams/${id}/run`, {
+        method: 'POST',
+      });
+      setShifts((prev) => ({ ...prev, [id]: res.data }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to run shift');
+    } finally {
+      setRunning(null);
     }
   };
 
@@ -287,8 +328,50 @@ export default function TeamsPage() {
                       · {m.ai.modelId} · {m.ai.dailyCreditBudget} cr/day — {m.ai.mandate}
                     </p>
                   )}
+                  {m.kind === 'ai' && shifts[m.id] && (
+                    <div className="mt-3 rounded-lg border border-[var(--brand-app-color)]/30 bg-[var(--brand-app-color)]/5 p-3">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <Badge variant="info" size="sm">
+                          trust {shifts[m.id]!.trustScore}
+                        </Badge>
+                        <Badge variant="default" size="sm">
+                          {shifts[m.id]!.permissionLevel}
+                        </Badge>
+                        <span className="text-[var(--quant-muted-foreground)]">
+                          {shifts[m.id]!.dailyRemaining} cr left today
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-xs font-medium text-[var(--quant-foreground)]">
+                        {shifts[m.id]!.note}
+                      </p>
+                      {shifts[m.id]!.actions.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {shifts[m.id]!.actions.map((a, i) => (
+                            <li key={i} className="flex items-start gap-2 text-xs">
+                              <Badge variant={ACTION_BADGE[a.kind]} size="sm">
+                                {a.kind}
+                              </Badge>
+                              <span className="text-[var(--quant-muted-foreground)]">
+                                {a.summary}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  {m.kind === 'ai' && m.status !== 'suspended' && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      loading={running === m.id}
+                      onClick={() => runShift(m.id)}
+                    >
+                      Run shift
+                    </Button>
+                  )}
                   {m.status !== 'suspended' ? (
                     <Button size="sm" variant="ghost" onClick={() => setStatus(m.id, 'suspended')}>
                       Suspend

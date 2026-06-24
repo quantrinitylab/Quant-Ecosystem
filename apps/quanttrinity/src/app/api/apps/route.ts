@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { listApps, updateApp } from '../../../lib/store';
+import { listApps, updateApp, recordAudit } from '../../../lib/store';
 
 export async function GET() {
   return NextResponse.json({ success: true, data: listApps() });
@@ -46,5 +46,6 @@ export async function PATCH(request: NextRequest) {
       { status: 404 },
     );
   }
+  recordAudit({ action: 'app.control.updated', target: id, detail: JSON.stringify(patch) });
   return NextResponse.json({ success: true, data: app });
 }

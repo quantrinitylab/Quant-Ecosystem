@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { SECTORS, TEAM_ROLES } from '../../../../lib/domain';
-import { updateTeamMember } from '../../../../lib/store';
+import { updateTeamMember, recordAudit } from '../../../../lib/store';
 
 const patchSchema = z.object({
   sector: z.enum(SECTORS).optional(),
@@ -50,5 +50,6 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       { status: 404 },
     );
   }
+  recordAudit({ action: 'team.member.updated', target: id, detail: JSON.stringify(parsed.data) });
   return NextResponse.json({ success: true, data: member });
 }

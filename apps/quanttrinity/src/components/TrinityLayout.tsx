@@ -12,10 +12,14 @@ interface NavLink {
 
 const navLinks: NavLink[] = [
   { label: 'Command Center', href: '/', icon: '🛰️' },
+  { label: 'Insights', href: '/insights', icon: '📊' },
   { label: 'App Control', href: '/apps', icon: '🚀' },
   { label: 'Teams & AI Staff', href: '/teams', icon: '🧑\u200d🚀' },
+  { label: 'AI Scheduler', href: '/scheduler', icon: '⏱️' },
+  { label: 'User Oversight', href: '/users', icon: '🛡️' },
   { label: 'Economy', href: '/economy', icon: '💳' },
   { label: 'Reports', href: '/reports', icon: '🚩' },
+  { label: 'Audit Trail', href: '/audit', icon: '📜' },
   { label: 'Owner QuantAI', href: '/ai', icon: '👾' },
 ];
 

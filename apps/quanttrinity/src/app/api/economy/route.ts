@@ -5,6 +5,7 @@ import {
   listModels,
   listPayouts,
   listRevenue,
+  recordAudit,
   updateCreditConfig,
 } from '../../../lib/store';
 
@@ -52,5 +53,11 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ success: true, data: updateCreditConfig(parsed.data) });
+  const updated = updateCreditConfig(parsed.data);
+  recordAudit({
+    action: 'economy.credit_config.updated',
+    target: 'credit',
+    detail: JSON.stringify(parsed.data),
+  });
+  return NextResponse.json({ success: true, data: updated });
 }

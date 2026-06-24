@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bulkUpdateApps,
   createTeamMember,
   getCreditConfig,
   listApps,
+  listAudit,
   listPayouts,
   listTeam,
+  recordAudit,
   updateApp,
   updateCreditConfig,
   updatePayout,
@@ -76,6 +79,20 @@ describe('QuantTrinity owner store', () => {
     updateApp(app.id, { status: 'live', sidekickEnabled: true });
   });
 
+  it('bulk-updates the whole app registry', () => {
+    const affected = bulkUpdateApps({ modelId: 'local-quant-8b', status: 'maintenance' });
+    expect(affected.length).toBe(listApps().length);
+    expect(listApps().every((a) => a.modelId === 'local-quant-8b')).toBe(true);
+    expect(listApps().every((a) => a.status === 'maintenance')).toBe(true);
+    // subset + restore
+    const first = listApps()[0]!;
+    const subset = bulkUpdateApps({ status: 'live' }, [first.id]);
+    expect(subset.length).toBe(1);
+    expect(listApps().find((a) => a.id === first.id)?.status).toBe('live');
+    // restore all
+    bulkUpdateApps({ status: 'live', modelId: 'or-claude-sonnet', sidekickEnabled: true });
+  });
+
   it('updates the credit config', () => {
     const updated = updateCreditConfig({ dailyFreeCredits: 9, commissionRate: 0.25 });
     expect(updated.dailyFreeCredits).toBe(9);
@@ -92,5 +109,17 @@ describe('QuantTrinity owner store', () => {
       expect(updatePayout(payout.id, 'paid')?.status).toBe('paid');
     }
     expect(updatePayout('missing', 'paid')).toBeNull();
+  });
+
+  it('records and lists owner audit entries (newest first)', () => {
+    const before = listAudit().length;
+    const entry = recordAudit({ action: 'test.action', target: 'x-1', detail: 'unit test' });
+    expect(entry.id).toMatch(/^au-/);
+    expect(entry.actor).toBe('owner@quant.dev');
+    const after = listAudit();
+    expect(after.length).toBe(before + 1);
+    expect(after[0]?.id).toBe(entry.id);
+    expect(recordAudit({ actor: 'QuantAI', action: 'a', target: 't' }).actor).toBe('QuantAI');
+    expect(listAudit(1).length).toBe(1);
   });
 });

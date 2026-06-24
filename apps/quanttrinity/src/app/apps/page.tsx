@@ -47,6 +47,20 @@ export default function AppControlPage() {
     }
   };
 
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const bulk = async (body: Record<string, unknown>) => {
+    setBulkBusy(true);
+    setError(null);
+    try {
+      await ownerFetch('/api/apps/bulk', { method: 'POST', body: JSON.stringify(body) });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Bulk action failed');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -62,6 +76,67 @@ export default function AppControlPage() {
           <p className="text-sm text-yellow-600">{error}</p>
         </div>
       )}
+
+      <Card padding="none">
+        <div className="border-b border-[var(--quant-border)] px-5 py-3">
+          <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+            Ecosystem-wide actions
+          </h2>
+          <p className="text-xs text-[var(--quant-muted-foreground)]">
+            Apply to every app at once — owner control plane.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2 p-4">
+          <Button
+            size="sm"
+            variant="success"
+            loading={bulkBusy}
+            onClick={() => bulk({ status: 'live' })}
+          >
+            All live
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            loading={bulkBusy}
+            onClick={() => bulk({ status: 'maintenance' })}
+          >
+            All maintenance
+          </Button>
+          <Button
+            size="sm"
+            variant="primary"
+            loading={bulkBusy}
+            onClick={() => bulk({ modelId: 'local-quant-8b' })}
+          >
+            Switch all → local model
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            loading={bulkBusy}
+            onClick={() => bulk({ modelId: 'or-claude-sonnet' })}
+          >
+            All → Claude Sonnet
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            loading={bulkBusy}
+            onClick={() => bulk({ sidekickEnabled: true })}
+          >
+            👾 Sidekick on all
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            loading={bulkBusy}
+            onClick={() => bulk({ sidekickEnabled: false })}
+          >
+            Sidekick off all
+          </Button>
+        </div>
+      </Card>
 
       {loading ? (
         <p className="text-sm text-[var(--quant-muted-foreground)]">Loading apps…</p>

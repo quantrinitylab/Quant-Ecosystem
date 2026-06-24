@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { recordAudit, updatePayout } from '../../../../../lib/store';
+import { prisma } from '../../../../lib/prisma';
+import { recordAudit } from '../../../../lib/store';
 
 const patchSchema = z.object({
-  status: z.enum(['pending', 'approved', 'paid', 'rejected']),
+  status: z.enum(['ACTIVE', 'SUSPENDED', 'DEACTIVATED']),
 });
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -26,17 +27,22 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     );
   }
 
-  const payout = updatePayout(id, parsed.data.status);
-  if (!payout) {
+  try {
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { status: parsed.data.status },
+      select: { id: true, username: true, status: true },
+    });
+    recordAudit({
+      action: `user.status.${parsed.data.status.toLowerCase()}`,
+      target: id,
+      detail: `@${updated.username}`,
+    });
+    return NextResponse.json({ success: true, data: updated });
+  } catch {
     return NextResponse.json(
-      { success: false, error: { message: 'Payout not found', code: 'NOT_FOUND' } },
-      { status: 404 },
+      { success: false, error: { message: 'User not found or DB unavailable', code: 'DB_ERROR' } },
+      { status: 503 },
     );
   }
-  recordAudit({
-    action: `economy.payout.${parsed.data.status}`,
-    target: id,
-    detail: `${payout.creatorName} · ${payout.credits} cr · ${payout.method}`,
-  });
-  return NextResponse.json({ success: true, data: payout });
 }

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { SECTORS, TEAM_ROLES } from '../../../lib/domain';
-import { createTeamMember, listTeam, type CreateTeamMemberInput } from '../../../lib/store';
+import {
+  createTeamMember,
+  listTeam,
+  recordAudit,
+  type CreateTeamMemberInput,
+} from '../../../lib/store';
 
 export async function GET(request: NextRequest) {
   const sectorParam = request.nextUrl.searchParams.get('sector');
@@ -60,5 +65,10 @@ export async function POST(request: NextRequest) {
   }
 
   const member = createTeamMember(parsed.data as CreateTeamMemberInput);
+  recordAudit({
+    action: member.kind === 'ai' ? 'team.ai_employee.deployed' : 'team.member.invited',
+    target: member.id,
+    detail: `${member.name} · ${member.sector}/${member.role}`,
+  });
   return NextResponse.json({ success: true, data: member }, { status: 201 });
 }

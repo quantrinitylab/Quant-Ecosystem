@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { SECTORS } from '../../../lib/domain';
-import { listReports, updateReport } from '../../../lib/store';
+import { listReports, recordAudit, updateReport } from '../../../lib/store';
 
 export async function GET(request: NextRequest) {
   const sectorParam = request.nextUrl.searchParams.get('sector');
@@ -40,5 +40,10 @@ export async function PATCH(request: NextRequest) {
       { status: 404 },
     );
   }
+  recordAudit({
+    action: `report.${parsed.data.status}`,
+    target: report.id,
+    detail: `${report.app} · ${report.reason}`,
+  });
   return NextResponse.json({ success: true, data: report });
 }
