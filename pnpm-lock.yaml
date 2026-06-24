@@ -1370,6 +1370,61 @@ importers:
         specifier: ^4
         version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(jsdom@29.1.1)(vite@8.0.16(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
 
+  apps/quanttrinity:
+    dependencies:
+      '@prisma/client':
+        specifier: ^6.19.3
+        version: 6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)
+      '@quant/brand':
+        specifier: workspace:*
+        version: link:../../packages/brand
+      '@quant/common':
+        specifier: workspace:*
+        version: link:../../packages/common
+      '@quant/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@quant/shared-ui':
+        specifier: workspace:*
+        version: link:../../packages/shared-ui
+      '@tanstack/react-query':
+        specifier: ^5.60.0
+        version: 5.100.14(react@19.2.6)
+      framer-motion:
+        specifier: ^11.0.0
+        version: 11.18.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      next:
+        specifier: ^15.5.16
+        version: 15.5.18(@opentelemetry/api@1.9.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.6(react@19.2.6)
+      zod:
+        specifier: ^3.24.2
+        version: 3.25.76
+    devDependencies:
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.15
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.15)
+      autoprefixer:
+        specifier: ^10.4.20
+        version: 10.5.0(postcss@8.5.15)
+      postcss:
+        specifier: '>=8.5.10'
+        version: 8.5.15
+      tailwindcss:
+        specifier: ^3.4.13
+        version: 3.4.19(tsx@4.22.3)(yaml@2.9.0)
+      vitest:
+        specifier: ^4
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
+
   apps/quanttube:
     dependencies:
       '@quant/agentic':

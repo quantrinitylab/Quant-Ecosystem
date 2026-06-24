@@ -1,0 +1,36 @@
+{
+  "name": "@quant/quanttrinity",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "QuantTrinity - Owner command center for the Quant Ecosystem: cross-app control, team/role provisioning with AI-as-employee, economy & model governance, and the owner's personal QuantAI ops console",
+  "scripts": {
+    "dev": "next dev --port 3200",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "@quant/brand": "workspace:*",
+    "@quant/common": "workspace:*",
+    "@quant/database": "workspace:*",
+    "@quant/shared-ui": "workspace:*",
+    "@tanstack/react-query": "^5.60.0",
+    "framer-motion": "^11.0.0",
+    "next": "^15.5.16",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "vitest": "^4"
+  }
+}
