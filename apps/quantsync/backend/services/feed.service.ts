@@ -131,26 +131,4 @@ export class FeedService {
 
     return posts;
   }
-
-  // In-memory bookmark store.
-  // Workaround: the Post model has no Bookmark join table or metadata field yet.
-  // Bookmarks live in memory until a schema migration adds dedicated storage.
-  private static bookmarks = new Map<string, Set<string>>();
-
-  static addBookmark(userId: string, postId: string): void {
-    let set = FeedService.bookmarks.get(userId);
-    if (!set) {
-      set = new Set<string>();
-      FeedService.bookmarks.set(userId, set);
-    }
-    set.add(postId);
-  }
-
-  static removeBookmark(userId: string, postId: string): void {
-    FeedService.bookmarks.get(userId)?.delete(postId);
-  }
-
-  static getBookmarks(userId: string): string[] {
-    return Array.from(FeedService.bookmarks.get(userId) ?? []);
-  }
 }

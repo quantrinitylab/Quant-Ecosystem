@@ -1,6 +1,5 @@
 import type { PrismaClient } from '../types';
 import { createAppError } from '@quant/server-core';
-import { FeedService } from './feed.service';
 
 export interface Post {
   id: string;
@@ -280,23 +279,5 @@ export class PostService {
         publishedAt: new Date(),
       },
     });
-  }
-
-  async bookmark(postId: string, userId: string): Promise<Post> {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-    });
-
-    if (!post || post.deletedAt) {
-      throw createAppError('Post not found', 404, 'POST_NOT_FOUND');
-    }
-
-    // Store bookmark in the in-memory bookmark store.
-    // Workaround: The Post model does not have a metadata JSON field.
-    // Bookmarks are stored in memory until a schema migration adds a dedicated
-    // Bookmark join table or metadata field to the Post model.
-    FeedService.addBookmark(userId, postId);
-
-    return post;
   }
 }
