@@ -88,6 +88,50 @@ export class FeedService {
     return posts;
   }
 
+  /**
+   * The "Following" feed: posts authored by the people the caller follows,
+   * newest first. Returns an empty list when the caller follows no one.
+   */
+  async getFollowingFeed(userId: string, page: number = 1, pageSize: number = 20) {
+    const rels = await this.prisma.userRelationship.findMany({
+      where: { followerId: userId },
+      select: { followingId: true },
+    });
+    const followingIds = rels.map((r) => r.followingId);
+    if (followingIds.length === 0) {
+      return [];
+    }
+
+    const posts = await this.prisma.post.findMany({
+      where: {
+        userId: { in: followingIds },
+        visibility: { in: ['PUBLIC', 'FOLLOWERS_ONLY'] },
+        deletedAt: null,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
+
+    return posts;
+  }
+
   // In-memory bookmark store.
   // Workaround: the Post model has no Bookmark join table or metadata field yet.
   // Bookmarks live in memory until a schema migration adds dedicated storage.

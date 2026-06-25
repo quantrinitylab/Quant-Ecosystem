@@ -59,4 +59,22 @@ export default async function feedRoutes(fastify: FastifyInstance) {
 
     return reply.send(posts);
   });
+
+  // "Following" feed — posts from the people the caller follows.
+  fastify.get('/following', async (request, reply) => {
+    const parseResult = paginationSchema.safeParse(request.query);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const { page = 1, pageSize = 20 } = parseResult.data;
+    const posts = await feedService.getFollowingFeed(userId, page, pageSize);
+
+    return reply.send(posts);
+  });
 }
