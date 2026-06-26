@@ -241,6 +241,86 @@ export class GoogleAdapter implements ProviderAdapter {
   }
 }
 
+/**
+ * OpenRouter — an OpenAI-compatible aggregator that proxies to virtually every
+ * model (OpenAI, Anthropic, Google, Meta/Llama, Mistral, DeepSeek, Qwen, ...).
+ * Configured via OPENROUTER_API_KEY against the OpenRouter base URL so a single
+ * key unlocks the whole catalogue (the ecosystem default model source). Models
+ * are addressed by their OpenRouter id, e.g. `anthropic/claude-3.5-sonnet`,
+ * `openai/gpt-4o`, `meta-llama/llama-3.1-70b-instruct`.
+ */
+export class OpenRouterAdapter implements ProviderAdapter {
+  readonly id = 'openrouter';
+  readonly name = 'OpenRouter';
+  private provider: ReturnType<typeof createOpenAI> | null = null;
+
+  constructor() {
+    const key = process.env['OPENROUTER_API_KEY'];
+    if (key) {
+      this.provider = createOpenAI({
+        apiKey: key,
+        baseURL: process.env['OPENROUTER_BASE_URL'] ?? 'https://openrouter.ai/api/v1',
+      });
+    }
+  }
+
+  isAvailable(): boolean {
+    return this.provider !== null;
+  }
+
+  getModel(modelId: string): unknown {
+    if (!this.provider) throw new Error('OpenRouter provider not configured');
+    return this.provider(modelId);
+  }
+
+  async generate(
+    model: AIModelConfig,
+    options: ProviderGenerateOptions,
+  ): Promise<ProviderGenerateResult> {
+    const providerModel = this.getModel(model.id);
+    const result = await generateText({
+      model: providerModel as any,
+      messages: options.messages,
+      temperature: options.temperature ?? 0.7,
+      maxOutputTokens: options.maxOutputTokens ?? model.maxOutputTokens,
+    });
+
+    const promptTokens = (result.usage as any)?.promptTokens ?? result.usage?.inputTokens ?? 0;
+    const completionTokens =
+      (result.usage as any)?.completionTokens ?? result.usage?.outputTokens ?? 0;
+
+    return {
+      text: result.text || '',
+      usage: {
+        promptTokens,
+        completionTokens,
+        totalTokens: promptTokens + completionTokens,
+        estimatedCost:
+          promptTokens * model.costPerInputToken + completionTokens * model.costPerOutputToken,
+      },
+      finishReason: 'stop',
+    };
+  }
+
+  async stream(
+    model: AIModelConfig,
+    options: ProviderGenerateOptions,
+  ): Promise<ProviderStreamResult> {
+    const providerModel = this.getModel(model.id);
+    const result = streamText({
+      model: providerModel as any,
+      messages: options.messages,
+      temperature: options.temperature ?? 0.7,
+      maxOutputTokens: options.maxOutputTokens ?? model.maxOutputTokens,
+    });
+    return { textStream: result.textStream };
+  }
+
+  countTokens(text: string, _model: AIModelConfig): number {
+    return estimateTokens(text);
+  }
+}
+
 export class ProviderAdapterRegistry {
   private adapters: Map<string, ProviderAdapter> = new Map();
 
@@ -248,6 +328,7 @@ export class ProviderAdapterRegistry {
     this.register(new OpenAIAdapter());
     this.register(new AnthropicAdapter());
     this.register(new GoogleAdapter());
+    this.register(new OpenRouterAdapter());
   }
 
   register(adapter: ProviderAdapter): void {

@@ -43,6 +43,20 @@ const PROVIDER_CONFIGS: ProviderConfig[] = [
     isAvailable: () => Boolean(process.env['GOOGLE_API_KEY']),
     costMultiplier: 0.8,
   },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    apiKeyEnvVar: 'OPENROUTER_API_KEY',
+    models: [
+      'openai/gpt-4o',
+      'anthropic/claude-3.5-sonnet',
+      'google/gemini-2.0-flash-001',
+      'meta-llama/llama-3.1-70b-instruct',
+      'deepseek/deepseek-chat',
+    ],
+    isAvailable: () => Boolean(process.env['OPENROUTER_API_KEY']),
+    costMultiplier: 1.0,
+  },
 ];
 
 /**

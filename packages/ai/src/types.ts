@@ -9,6 +9,7 @@ export type AIProvider =
   | 'openai'
   | 'anthropic'
   | 'google'
+  | 'openrouter'
   | 'deepseek'
   | 'groq'
   | 'mistral'

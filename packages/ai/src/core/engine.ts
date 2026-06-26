@@ -55,6 +55,7 @@ export class AIEngine {
   private openaiProvider: ReturnType<typeof createOpenAI> | null = null;
   private anthropicProvider: ReturnType<typeof createAnthropic> | null = null;
   private googleProvider: ReturnType<typeof createGoogleGenerativeAI> | null = null;
+  private openrouterProvider: ReturnType<typeof createOpenAI> | null = null;
 
   constructor(config: Partial<AIEngineConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -87,6 +88,14 @@ export class AIEngine {
     if (process.env['GOOGLE_API_KEY']) {
       this.googleProvider = createGoogleGenerativeAI({ apiKey: process.env['GOOGLE_API_KEY'] });
     }
+    // OpenRouter: a single OpenAI-compatible key that unlocks the whole model
+    // catalogue (the ecosystem's default multi-model source).
+    if (process.env['OPENROUTER_API_KEY']) {
+      this.openrouterProvider = createOpenAI({
+        apiKey: process.env['OPENROUTER_API_KEY'],
+        baseURL: process.env['OPENROUTER_BASE_URL'] ?? 'https://openrouter.ai/api/v1',
+      });
+    }
   }
 
   /**
@@ -116,6 +125,14 @@ export class AIEngine {
         );
       }
       return this.googleProvider(model.id);
+    }
+    if (model.provider === 'openrouter') {
+      if (!this.openrouterProvider) {
+        throw new Error(
+          'OPENROUTER_API_KEY not configured. Set the environment variable to use OpenRouter models.',
+        );
+      }
+      return this.openrouterProvider(model.id);
     }
     throw new Error(`Unsupported provider: ${model.provider}`);
   }
