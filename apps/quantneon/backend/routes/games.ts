@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { GameError, NeonGamesService } from '../services/neon-games.service';
+import { LeaderboardService } from '../services/leaderboard.service';
 
 // ============================================================================
 // QuantNeon in-feed games routes (mounted at /games).
@@ -88,5 +89,60 @@ export default async function gamesRoutes(fastify: FastifyInstance) {
       getService(fastify).submitMove(request.params.id, userId, parsed.data),
     );
     return reply.send({ success: true, data: { session } });
+  });
+
+  // --- Cross-app leaderboard (shared GameScore table) ---
+  const leaderboard = () =>
+    new LeaderboardService((fastify as unknown as { prisma: never }).prisma);
+
+  const submitScoreSchema = z.object({
+    gameId: z.string().min(1).max(64),
+    score: z.coerce.number().int(),
+    displayName: z.string().max(120).optional(),
+    region: z.string().max(64).optional(),
+  });
+  const boardQuerySchema = z.object({
+    gameId: z.string().min(1).max(64),
+    app: z.string().max(32).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+  });
+
+  // Record a score for the caller (this app = quantneon).
+  fastify.post('/score', async (request, reply) => {
+    const userId = getUserId(request);
+    const parsed = submitScoreSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+    const result = await leaderboard().submitScore({
+      gameId: parsed.data.gameId,
+      userId,
+      app: 'quantneon',
+      score: parsed.data.score,
+      displayName: parsed.data.displayName,
+      region: parsed.data.region,
+    });
+    return reply.status(201).send({ success: true, data: result });
+  });
+
+  // Cross-app leaderboard for a game (?app= to scope to one app).
+  fastify.get('/leaderboard', async (request, reply) => {
+    getUserId(request);
+    const parsed = boardQuerySchema.safeParse(request.query);
+    if (!parsed.success) throw parsed.error;
+    const entries = await leaderboard().getLeaderboard(parsed.data.gameId, {
+      app: parsed.data.app,
+      limit: parsed.data.limit,
+    });
+    return reply.send({ success: true, data: { entries } });
+  });
+
+  // The caller's own rank for a game.
+  fastify.get('/leaderboard/me', async (request, reply) => {
+    const userId = getUserId(request);
+    const parsed = boardQuerySchema.safeParse(request.query);
+    if (!parsed.success) throw parsed.error;
+    const rank = await leaderboard().getUserRank(parsed.data.gameId, userId, {
+      app: parsed.data.app,
+    });
+    return reply.send({ success: true, data: { rank } });
   });
 }
