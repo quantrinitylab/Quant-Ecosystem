@@ -175,6 +175,27 @@ export type {
 export type { TransactionRunner } from './tx';
 
 // ----------------------------------------------------------------------------
+// Payment rails — multi-provider top-up (Stripe / Razorpay-UPI / PayPal / crypto)
+// behind the PaymentProvider port, env-configured and fail-closed.
+// ----------------------------------------------------------------------------
+export {
+  ConfigurablePaymentProvider,
+  PaymentProviderRegistry,
+  createPaymentProvidersFromEnv,
+  hmacSha256Verify,
+  PAYMENT_RAIL_IDS,
+} from './payment-providers';
+export type {
+  PaymentRailId,
+  CheckoutSessionCreator,
+  SignatureVerifier,
+  ConfigurablePaymentProviderOptions,
+  ConfigurableProvider,
+  PaymentEnv,
+  PaymentRailWiring,
+} from './payment-providers';
+
+// ----------------------------------------------------------------------------
 // PayoutService — creator/owner withdrawals of EARNED credits to a payout rail
 // (UPI / crypto / bank). No overdraw, purchased-only debit, daily limit,
 // compliance hold, refund-on-failure.
