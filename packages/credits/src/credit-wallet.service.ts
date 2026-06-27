@@ -435,6 +435,77 @@ export class CreditWallet {
   }
 
   /**
+   * Append a positive credit EXACTLY ONCE, keyed by `actionKey` (idempotent
+   * credit). Mirrors {@link debit}'s idempotency for the credit side: replaying
+   * the same `actionKey` appends nothing and returns the prior entry. The
+   * `actionKey` is stored on the (`@unique`) ledger `actionKey` column, so a
+   * concurrent replay that loses the race returns the winning entry.
+   *
+   * This is what a marketplace/transfer settlement uses for the seller-credit
+   * and commission legs so a retried purchase never double-credits.
+   *
+   * @throws 400 INVALID_AMOUNT       when `amount` is not a positive whole number.
+   * @throws 400 INVALID_KIND         when `kind` is not an accepted credit kind.
+   * @throws 400 ACTION_KEY_REQUIRED  when `actionKey` is empty.
+   */
+  async creditOnce(
+    ownerRef: OwnerRef,
+    args: CreditArgs,
+    actionKey: string,
+  ): Promise<CreditLedgerEntry> {
+    if (!nonEmpty(ownerRef?.ownerId)) {
+      throw createAppError('ownerRef.ownerId is required', 400, 'OWNER_REF_REQUIRED');
+    }
+    if (!isPositiveWholeCredits(args?.amount)) {
+      throw createAppError(
+        'credit amount must be a positive whole number of credits',
+        400,
+        'INVALID_AMOUNT',
+      );
+    }
+    const bucket = CREDIT_KIND_BUCKET[args.kind];
+    if (bucket == null) {
+      throw createAppError(`Invalid credit kind '${String(args.kind)}'`, 400, 'INVALID_KIND');
+    }
+    if (!nonEmpty(actionKey)) {
+      throw createAppError('credit actionKey is required', 400, 'ACTION_KEY_REQUIRED');
+    }
+
+    // IDEMPOTENCY: a prior credit for this actionKey appends nothing.
+    const existing = await this.prisma.creditLedgerEntry.findFirst({ where: { actionKey } });
+    if (existing != null) {
+      return existing;
+    }
+
+    try {
+      return await this.prisma.creditLedgerEntry.create({
+        data: {
+          id: this.generateId(),
+          ownerRef: ownerRef.ownerId,
+          ownerType: ownerRef.ownerType ?? 'user',
+          tenantId: ownerRef.tenantId ?? null,
+          entryType: args.kind,
+          bucket,
+          amount: args.amount,
+          actionKey,
+          sourceRef: args.sourceRef ?? null,
+          utcDay: null,
+          reason: args.reason ?? null,
+        },
+      });
+    } catch (err) {
+      // Lost the race on the @unique actionKey: return the winning entry.
+      if (isUniqueViolation(err)) {
+        const winner = await this.prisma.creditLedgerEntry.findFirst({ where: { actionKey } });
+        if (winner != null) {
+          return winner;
+        }
+      }
+      throw err;
+    }
+  }
+
+  /**
    * Append the recurring daily free allowance for `ownerRef` on `utcDay`,
    * idempotent per (owner, UTC day).
    *

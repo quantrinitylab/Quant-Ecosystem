@@ -161,6 +161,20 @@ export type {
 } from './billing-service';
 
 // ----------------------------------------------------------------------------
+// MarketplaceLedger — atomic in-credits purchase of a digital good with a
+// platform commission split (buyer debit + seller earn + treasury commission,
+// one transaction, idempotent by purchaseId).
+// ----------------------------------------------------------------------------
+export { MarketplaceLedger } from './marketplace-ledger';
+export type {
+  MarketplacePrisma,
+  MarketplaceLedgerOptions,
+  PurchaseInput,
+  PurchaseResult,
+} from './marketplace-ledger';
+export type { TransactionRunner } from './tx';
+
+// ----------------------------------------------------------------------------
 // PayoutService — creator/owner withdrawals of EARNED credits to a payout rail
 // (UPI / crypto / bank). No overdraw, purchased-only debit, daily limit,
 // compliance hold, refund-on-failure.
