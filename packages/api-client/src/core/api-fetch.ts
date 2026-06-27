@@ -31,6 +31,45 @@ export interface ApiFetchInit {
   timeout?: number;
 }
 
+/** Validate that a request path is a safe, same-origin Next.js proxy path. */
+function validateProxyPath(path: string): { ok: true } | { ok: false; reason: string } {
+  if (!path || !path.startsWith('/')) {
+    return { ok: false, reason: 'Path must be an absolute same-origin path starting with "/"' };
+  }
+  if (path.startsWith('//')) {
+    return { ok: false, reason: 'Protocol-relative URLs are not allowed' };
+  }
+  if (/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(path)) {
+    return { ok: false, reason: 'Absolute URLs with a scheme are not allowed' };
+  }
+
+  const baseOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
+
+  let parsed: URL;
+  try {
+    parsed = new URL(path, baseOrigin);
+  } catch {
+    return { ok: false, reason: 'Path is not a valid URL path' };
+  }
+
+  if (parsed.origin !== baseOrigin) {
+    return { ok: false, reason: 'Cross-origin paths are not allowed' };
+  }
+  if (!parsed.pathname.startsWith('/api/')) {
+    return { ok: false, reason: 'Only /api/* proxy paths are allowed' };
+  }
+
+  const segments = parsed.pathname.split('/').filter(Boolean);
+  for (const segment of segments) {
+    const decoded = decodeURIComponent(segment);
+    if (decoded === '.' || decoded === '..') {
+      return { ok: false, reason: 'Path traversal segments are not allowed' };
+    }
+  }
+
+  return { ok: true };
+}
+
 /** Append query params to a same-origin path without dropping existing ones. */
 export function buildPath(path: string, params?: Record<string, string>): string {
   if (!params || Object.keys(params).length === 0) return path;
@@ -45,6 +84,19 @@ export function buildPath(path: string, params?: Record<string, string>): string
  */
 export async function apiFetch<T>(path: string, init: ApiFetchInit = {}): Promise<APIResponse<T>> {
   const { method = 'GET', body, headers, token, params, signal, timeout = 30000 } = init;
+
+  const pathValidation = validateProxyPath(path);
+  if (!pathValidation.ok) {
+    return {
+      success: false,
+      data: undefined as unknown as T,
+      error: {
+        code: 'INVALID_PATH',
+        message: pathValidation.reason,
+        statusCode: 400,
+      },
+    };
+  }
 
   const url = buildPath(path, params);
   const finalHeaders: Record<string, string> = {
