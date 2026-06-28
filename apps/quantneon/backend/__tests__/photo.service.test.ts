@@ -22,6 +22,11 @@ function createMockPrisma() {
       update: vi.fn(),
       deleteMany: vi.fn(),
     },
+    storyView: {
+      upsert: vi.fn(),
+      count: vi.fn(),
+      findMany: vi.fn(),
+    },
   };
 }
 
@@ -241,12 +246,15 @@ describe('StoryService', () => {
   });
 
   describe('viewStory', () => {
-    it('increments view count for non-expired story', async () => {
+    it('records a distinct view and sets viewCount to the distinct count', async () => {
       prisma.story.findUnique.mockResolvedValue({
         id: 'story-1',
+        userId: 'owner',
         viewCount: 5,
         expiresAt: new Date(Date.now() + 10 * 60 * 60 * 1000),
       });
+      prisma.storyView.upsert.mockResolvedValue({});
+      prisma.storyView.count.mockResolvedValue(6);
       prisma.story.update.mockResolvedValue({
         id: 'story-1',
         viewCount: 6,
@@ -255,6 +263,7 @@ describe('StoryService', () => {
       const result = await service.viewStory('story-1', 'viewer-1');
 
       expect(result.viewCount).toBe(6);
+      expect(prisma.storyView.upsert).toHaveBeenCalled();
     });
 
     it('throws STORY_EXPIRED for expired story', async () => {

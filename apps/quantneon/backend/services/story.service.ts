@@ -109,7 +109,7 @@ export class StoryService {
     return stories;
   }
 
-  async viewStory(storyId: string, _viewerId: string): Promise<Story> {
+  async viewStory(storyId: string, viewerId: string): Promise<Story> {
     const story = await this.prisma.story.findUnique({
       where: { id: storyId },
     });
@@ -123,9 +123,26 @@ export class StoryService {
       throw createAppError('Story has expired', 410, 'STORY_EXPIRED');
     }
 
+    // The owner viewing their own story does not count (Instagram parity) — just
+    // return it unchanged.
+    if (story.userId === viewerId) {
+      return story;
+    }
+
+    // Record ONE distinct view per (story, viewer). A re-view is idempotent (the
+    // @@unique(storyId, viewerId) constraint makes upsert a no-op on replay), so
+    // refreshing never inflates the count.
+    await this.prisma.storyView.upsert({
+      where: { storyId_viewerId: { storyId, viewerId } },
+      create: { storyId, viewerId },
+      update: {},
+    });
+
+    // viewCount is the number of DISTINCT viewers (excludes the owner).
+    const viewCount = await this.prisma.storyView.count({ where: { storyId } });
     return this.prisma.story.update({
       where: { id: storyId },
-      data: { viewCount: story.viewCount + 1 },
+      data: { viewCount },
     });
   }
 
@@ -136,10 +153,18 @@ export class StoryService {
     });
   }
 
+  /**
+   * The list of distinct viewers of a story (owner-only). Returns each viewer's
+   * id and when they first viewed, newest first, plus the aggregate count.
+   */
   async getViewers(
     storyId: string,
     userId: string,
-  ): Promise<{ storyId: string; viewCount: number }> {
+  ): Promise<{
+    storyId: string;
+    viewCount: number;
+    viewers: Array<{ viewerId: string; viewedAt: Date }>;
+  }> {
     const story = await this.prisma.story.findUnique({
       where: { id: storyId },
     });
@@ -152,7 +177,16 @@ export class StoryService {
       throw createAppError('Only the owner can view story viewers', 403, 'NOT_STORY_OWNER');
     }
 
-    return { storyId, viewCount: story.viewCount };
+    const rows = await this.prisma.storyView.findMany({
+      where: { storyId },
+      orderBy: { viewedAt: 'desc' },
+    });
+    const viewers = rows.map((r: any) => ({
+      viewerId: String(r.viewerId),
+      viewedAt: (r.viewedAt as Date) ?? new Date(),
+    }));
+
+    return { storyId, viewCount: viewers.length, viewers };
   }
 
   async expireStories(): Promise<number> {

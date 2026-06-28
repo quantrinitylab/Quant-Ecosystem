@@ -31,6 +31,7 @@ export interface PrismaClient {
   like: PrismaDelegate;
   savedPost: PrismaDelegate;
   story: PrismaDelegate;
+  storyView: PrismaDelegate;
   reel: PrismaDelegate;
   reelLike: PrismaDelegate;
   reelComment: PrismaDelegate;

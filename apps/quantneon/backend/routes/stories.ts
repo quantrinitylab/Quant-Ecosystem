@@ -65,6 +65,20 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: story });
   });
 
+  // Who viewed my story (owner-only) — distinct viewers, newest first.
+  fastify.get<{ Params: { id: string } }>('/:id/viewers', async (request, reply) => {
+    const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new StoryService(prisma as never);
+    const result = await service.getViewers(request.params.id, userId);
+
+    return reply.send({ success: true, data: result });
+  });
+
   fastify.post('/expire', async (_request, reply) => {
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new StoryService(prisma as never);

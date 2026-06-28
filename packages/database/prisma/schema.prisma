@@ -967,6 +967,20 @@ enum StoryType {
   TEXT
 }
 
+/// A distinct per-viewer record of a story view. One row per (storyId, viewerId)
+/// so a re-view never inflates the count; Story.viewCount == count of these rows
+/// (excluding the owner's own views). Relation-free + additive (no back-relations).
+model StoryView {
+  id       String   @id @default(cuid())
+  storyId  String
+  viewerId String
+  viewedAt DateTime @default(now())
+
+  @@unique([storyId, viewerId])
+  @@index([storyId])
+  @@map("story_views")
+}
+
 model Music {
   id         String   @id @default(cuid())
   title      String
