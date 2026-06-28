@@ -69,11 +69,25 @@ export class PostService {
   constructor(private readonly prisma: PrismaClient) {}
 
   async createPost(input: CreatePostInput): Promise<Post> {
-    const space: FeedSpace = input.space ?? 'main';
+    let space: FeedSpace = input.space ?? 'main';
+
+    // Replies INHERIT the parent's space. A reply into a Verified conversation
+    // is itself a Verified-space post, so the verified-account gate below applies
+    // to it — a non-verified user cannot sneak a 'main' reply onto a Verified
+    // post by omitting `space`.
+    if (input.replyToId) {
+      const parent = await this.prisma.post.findUnique({ where: { id: input.replyToId } });
+      if (!parent || parent.deletedAt) {
+        throw createAppError('Cannot reply: parent post not found', 404, 'POST_NOT_FOUND');
+      }
+      if (parent.space === 'verified') {
+        space = 'verified';
+      }
+    }
 
     // Verified-space enforcement (server-side authoritative gate). The
     // frontend gates the composer too, but a direct API call MUST NOT be able
-    // to post into the Verified space without a verified account.
+    // to post OR reply into the Verified space without a verified account.
     if (space === 'verified') {
       const author = await this.prisma.user.findUnique({ where: { id: input.userId } });
       if (!author) {
@@ -81,7 +95,7 @@ export class PostService {
       }
       if (!author.isVerified) {
         throw createAppError(
-          'Only verified accounts can post in QuantSync Verified',
+          'Only verified accounts can post or reply in QuantSync Verified',
           403,
           'NOT_VERIFIED',
         );

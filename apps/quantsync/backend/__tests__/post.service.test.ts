@@ -152,6 +152,66 @@ describe('PostService', () => {
     });
   });
 
+  describe('createPost — Verified-space reply inheritance', () => {
+    it('forces a reply to a Verified post into the Verified space and gates non-verified authors', async () => {
+      // Parent lives in the Verified space.
+      prisma.post.findUnique.mockResolvedValue({
+        id: 'parent-v',
+        space: 'verified',
+        deletedAt: null,
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-2', isVerified: false });
+
+      await expect(
+        service.createPost({ userId: 'user-2', content: 'me too', replyToId: 'parent-v' }),
+      ).rejects.toMatchObject({ code: 'NOT_VERIFIED' });
+      expect(prisma.post.create).not.toHaveBeenCalled();
+    });
+
+    it('allows a verified author to reply to a Verified post (inherits verified space)', async () => {
+      prisma.post.findUnique.mockResolvedValue({
+        id: 'parent-v',
+        space: 'verified',
+        deletedAt: null,
+      });
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', isVerified: true });
+      prisma.post.create.mockResolvedValue({ id: 'reply-v', space: 'verified' });
+
+      const result = await service.createPost({
+        userId: 'user-1',
+        content: 'official reply',
+        replyToId: 'parent-v',
+        // note: space omitted — must be inherited as 'verified'
+      });
+
+      expect(result).toEqual({ id: 'reply-v', space: 'verified' });
+      expect(prisma.post.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ space: 'verified', replyToId: 'parent-v' }),
+      });
+    });
+
+    it('does not gate replies to a main-space post', async () => {
+      prisma.post.findUnique.mockResolvedValue({ id: 'parent-m', space: 'main', deletedAt: null });
+      prisma.post.create.mockResolvedValue({ id: 'reply-m', space: 'main' });
+
+      await service.createPost({ userId: 'user-9', content: 'nice', replyToId: 'parent-m' });
+
+      // main parent => no verified lookup, reply stays in main.
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(prisma.post.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ space: 'main', replyToId: 'parent-m' }),
+      });
+    });
+
+    it('rejects replying to a missing/deleted parent', async () => {
+      prisma.post.findUnique.mockResolvedValue(null);
+      await expect(
+        service.createPost({ userId: 'user-1', content: 'x', replyToId: 'ghost' }),
+      ).rejects.toMatchObject({ code: 'POST_NOT_FOUND' });
+      expect(prisma.post.create).not.toHaveBeenCalled();
+    });
+  });
+
   describe('likePost', () => {
     it('increments like count', async () => {
       prisma.post.findUnique.mockResolvedValue({
