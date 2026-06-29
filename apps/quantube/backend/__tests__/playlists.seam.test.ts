@@ -7,8 +7,8 @@
 // Later" surfaces, using Fastify `inject()` against quantube's REAL
 // `buildApp()` (apps/quantube/backend/app.ts). Mirrors the as-shipped
 // engine-surfaces.seam.test.ts harness: no network, no mocked server-core — the
-// global `onRequest` auth hook from `createApp()`, the decorated
-// `fastify.playlists` PlaylistService, the route-layer Zod validation /
+// global `onRequest` auth hook from `createApp()`, the per-request Prisma-backed
+// PlaylistService, the route-layer Zod validation /
 // enrichment, and the route-boundary error classification are all exercised
 // exactly as in production. JWTs are HS256-signed with Node's built-in `crypto`
 // (matching the engine-surfaces template), adding no new dependency.
@@ -123,10 +123,130 @@ function seedVideo(v: Partial<SeedVideo> & { id: string }): void {
   });
 }
 function installVideoStore(app: FastifyInstance): void {
-  // Replace ONLY the DB driver; the real VideoService class + routes are untouched.
+  // Replace ONLY the DB driver; the real VideoService + PlaylistService classes
+  // and the routes are untouched. The PlaylistService is now Prisma-backed and
+  // constructed PER-REQUEST from `fastify.prisma`, so the same swapped fake
+  // backs BOTH the video-enrichment reads AND the durable playlist/watch-later
+  // storage. The fake faithfully models the two playlist delegates (assigning
+  // ids + timestamps, enforcing @@unique([playlistId, videoId]), honouring
+  // orderBy on createdAt/position) — every invariant under test is the REAL
+  // service logic.
+  type Row = Record<string, unknown>;
+  const playlists: Row[] = [];
+  const items: Row[] = [];
+  let seq = 0;
+  const nextId = (p: string): string => {
+    seq += 1;
+    return `${p}-${seq}`;
+  };
+  const matchRow = (row: Row, where: Record<string, unknown> = {}): boolean =>
+    Object.keys(where).every((k) => row[k] === where[k]);
+  const orderRows = (rows: Row[], orderBy?: unknown): Row[] => {
+    if (!orderBy || typeof orderBy !== 'object') return rows;
+    const [field, dir] = Object.entries(orderBy as Record<string, 'asc' | 'desc'>)[0] ?? [];
+    if (!field) return rows;
+    return [...rows].sort((a, b) => {
+      const av = a[field] as number | string | Date;
+      const bv = b[field] as number | string | Date;
+      const an = av instanceof Date ? av.getTime() : av;
+      const bn = bv instanceof Date ? bv.getTime() : bv;
+      if (an < bn) return dir === 'desc' ? 1 : -1;
+      if (an > bn) return dir === 'desc' ? -1 : 1;
+      return 0;
+    });
+  };
+
   (app as unknown as { prisma: unknown }).prisma = {
     video: {
       findUnique: async ({ where }: { where: { id: string } }) => videoStore.get(where.id) ?? null,
+    },
+    playlist: {
+      create: async ({ data }: { data: Row }) => {
+        const now = new Date();
+        const row: Row = {
+          id: nextId('pl'),
+          videoCount: 0,
+          createdAt: now,
+          updatedAt: now,
+          ...data,
+        };
+        playlists.push(row);
+        return { ...row };
+      },
+      findFirst: async ({ where }: { where: Record<string, unknown> }) => {
+        const f = playlists.find((r) => matchRow(r, where));
+        return f ? { ...f } : null;
+      },
+      findMany: async ({
+        where,
+        orderBy,
+      }: { where?: Record<string, unknown>; orderBy?: unknown } = {}) =>
+        orderRows(
+          playlists.filter((r) => matchRow(r, where)),
+          orderBy,
+        ).map((r) => ({ ...r })),
+      update: async ({ where, data }: { where: Record<string, unknown>; data: Row }) => {
+        const row = playlists.find((r) => matchRow(r, where))!;
+        Object.assign(row, data);
+        return { ...row };
+      },
+    },
+    playlistItem: {
+      create: async ({ data }: { data: Row }) => {
+        if (
+          items.some(
+            (r) => r['playlistId'] === data['playlistId'] && r['videoId'] === data['videoId'],
+          )
+        ) {
+          throw new Error('Unique constraint failed on (playlistId, videoId)');
+        }
+        const row: Row = { id: nextId('pli'), addedAt: new Date(), ...data };
+        items.push(row);
+        return { ...row };
+      },
+      delete: async ({ where }: { where: Record<string, unknown> }) => {
+        const i = items.findIndex((r) => matchRow(r, where));
+        const [removed] = items.splice(i, 1);
+        return { ...(removed as Row) };
+      },
+      deleteMany: async ({ where }: { where: Record<string, unknown> }) => {
+        let count = 0;
+        for (let i = items.length - 1; i >= 0; i -= 1) {
+          if (matchRow(items[i]!, where)) {
+            items.splice(i, 1);
+            count += 1;
+          }
+        }
+        return { count };
+      },
+      findMany: async ({
+        where,
+        orderBy,
+      }: { where?: Record<string, unknown>; orderBy?: unknown } = {}) =>
+        orderRows(
+          items.filter((r) => matchRow(r, where)),
+          orderBy,
+        ).map((r) => ({ ...r })),
+      findFirst: async ({
+        where,
+        orderBy,
+      }: {
+        where: Record<string, unknown>;
+        orderBy?: unknown;
+      }) => {
+        const f = orderRows(
+          items.filter((r) => matchRow(r, where)),
+          orderBy,
+        );
+        return f.length ? { ...(f[0] as Row) } : null;
+      },
+      count: async ({ where }: { where: Record<string, unknown> }) =>
+        items.filter((r) => matchRow(r, where)).length,
+      update: async ({ where, data }: { where: Record<string, unknown>; data: Row }) => {
+        const row = items.find((r) => matchRow(r, where))!;
+        Object.assign(row, data);
+        return { ...row };
+      },
     },
   };
 }
@@ -146,37 +266,15 @@ afterAll(async () => {
 });
 
 // ===========================================================================
-// Harness sanity — the decorated PlaylistService is a boot singleton
-// (Req 5.1, 5.2): one instance for the app lifetime, reference-equal across
-// requests (never per-request construction).
+// Harness sanity — the Prisma-backed PlaylistService is DURABLE: it is
+// constructed per-request from the shared `fastify.prisma`, so state written in
+// one request is visible to a later request because both reach the same store
+// (Req 5.1, 5.2 — durability now lives in Postgres, not a boot singleton).
 // ===========================================================================
-describe('seam: fastify.playlists decoration (Req 5.1, 5.2)', () => {
-  it('is decorated at boot and reference-equal across requests', async () => {
-    expect(app.playlists).toBeTruthy();
-    const ref1 = app.playlists;
-
-    // Drive two requests; the decorated instance must not be reconstructed.
-    const token = signToken([], 'singleton-user');
-    await app.inject({
-      method: 'GET',
-      url: '/playlists',
-      headers: { authorization: `Bearer ${token}` },
-    });
-    const ref2 = app.playlists;
-    await app.inject({
-      method: 'GET',
-      url: '/playlists',
-      headers: { authorization: `Bearer ${token}` },
-    });
-    const ref3 = app.playlists;
-
-    expect(ref2).toBe(ref1);
-    expect(ref3).toBe(ref1);
-  });
-
-  it('persists service state across requests (same singleton, P1 envelope)', async () => {
+describe('seam: durable PlaylistService across requests (Req 5.1, 5.2)', () => {
+  it('persists service state across requests (Prisma-backed store, P1 envelope)', async () => {
     // A create in one request must be visible to a list in a LATER request — only
-    // possible if the same in-memory instance backs both (Req 5.2).
+    // possible if both requests read/write the same durable store (Req 5.2).
     const token = signToken(['library:write'], 'persist-user');
     const created = await app.inject({
       method: 'POST',

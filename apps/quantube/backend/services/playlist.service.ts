@@ -1,30 +1,46 @@
 // ============================================================================
-// QuantTube - PlaylistService (in-memory)
+// QuantTube - PlaylistService (Prisma-backed, durable)
 // ----------------------------------------------------------------------------
-// Minimal, dependency-free in-memory service backing the Library "Playlists"
-// and "Watch Later" surfaces and the playlist/[id] detail page.
+// Persists the Library "Playlists" and "Watch Later" surfaces and the
+// playlist/[id] detail page to Postgres via Prisma. Replaces the previous
+// in-memory implementation so playlist + watch-later state survives restarts.
 //
 // Design notes (see .kiro/specs/quantube-real-data-wiring/design.md):
-//   * All state is held in-memory, keyed by userId (mirrors the in-memory style
-//     of packages/creator-economy's TierService and the as-shipped
-//     HistoryService). No DB schema is introduced.
-//   * This service has NO dependency on VideoService or prisma. It stores only
-//     raw videoIds + positions + timestamps. Enrichment of video metadata
-//     (title/thumbnail/channelName/duration) happens at the ROUTE layer
-//     (Task 3), which is why getPlaylist / listWatchLater return thin entries
+//   * Persistence is via the `Playlist` model (with a server-set `isSystem`
+//     boolean) and the `PlaylistItem` membership model
+//     (@@unique([playlistId, videoId])). The service receives a NARROW DI'd
+//     prisma surface (`PlaylistPrisma`) over just the `playlist` and
+//     `playlistItem` delegates it actually uses (the same DI pattern as
+//     ChannelService / VideoService in this app).
+//   * Ownership is enforced in the QUERY (every read/write filters by
+//     `userId`), so a cross-user `getPlaylist` resolves to `null` exactly like
+//     an unknown id — no existence leakage.
+//   * This service has NO dependency on VideoService. It stores only raw
+//     videoIds + positions + timestamps. Enrichment of video metadata
+//     (title/thumbnail/channelName/duration) happens at the ROUTE layer, which
+//     is why getPlaylist / listWatchLater return thin entries
 //     ({ id, videoId, position, addedAt } / { id, videoId, addedAt }).
 //   * Watch Later is modeled as a server-reserved *system playlist* per user
-//     (isSystem = true, server-set). Its videos ARE the watch-later entries;
-//     listWatchLater returns those entries most-recently-added-first. This keeps
-//     a single consistent model (Req 3.3).
-//   * The internal model holds enough to produce BOTH the Library list shape
-//     (PlaylistListItem) and the detail shape (PlaylistDetailMeta). Fields that
-//     depend on video metadata enrichment (totalDuration) are returned as 0 and
-//     recomputed by the route after enrichment.
+//     (isSystem = true, server-set). Its items ARE the watch-later entries;
+//     listWatchLater returns those entries most-recently-added-first. The
+//     reserved playlist is created LAZILY the first time a user touches the
+//     surface (Req 3.3).
+//   * Visibility is mapped at the boundary: the page contract uses lowercase
+//     'public' | 'private' | 'unlisted'; Prisma's `VideoVisibility` enum uses
+//     PUBLIC | UNLISTED | PRIVATE. Conversion happens in both directions.
+//   * The decorative fields (thumbnail / coverUrl / creatorName /
+//     creatorAvatar / collaborative / totalDuration) are not columns, so they
+//     return their previous defaults ('' / false / 0) exactly as before. The
+//     route recomputes `totalDuration` from the enriched per-video durations.
+//   * Item positions are kept a contiguous 1..n permutation: appends land at
+//     `count + 1`; a removal re-indexes the remaining items.
 // ============================================================================
 
 /** Visibility values accepted for a playlist (mirrors library.tsx PlaylistData). */
 export type PlaylistVisibility = 'public' | 'private' | 'unlisted';
+
+/** The Prisma `VideoVisibility` enum values reused by the `Playlist` model. */
+type PrismaVisibility = 'PUBLIC' | 'UNLISTED' | 'PRIVATE';
 
 /**
  * Input accepted by {@link PlaylistService.createPlaylist}. `isSystem` is
@@ -106,8 +122,7 @@ export interface WatchLaterEntry {
 /**
  * Validation failure raised by the service (e.g. an out-of-range title). The
  * route maps this class to a deterministic 400 envelope. Defined locally so the
- * pure service has no dependency on @quant/server-core (and therefore no
- * transitive @quant/database import chain — keeps unit/property tests boot-free).
+ * service has no dependency on @quant/server-core.
  */
 export class PlaylistValidationError extends Error {
   readonly code = 'VALIDATION_ERROR';
@@ -118,58 +133,112 @@ export class PlaylistValidationError extends Error {
 }
 
 // ---------------------------------------------------------------------------
-// Internal model (never returned directly; mapped to the shapes above)
+// Narrow Prisma DI surface — only the delegates/operations the service uses.
+// At runtime the real PrismaClient (over the `Playlist` / `PlaylistItem`
+// models) is injected; the route passes `fastify.prisma as never`.
 // ---------------------------------------------------------------------------
 
-interface InternalVideo {
-  id: string;
-  videoId: string;
-  position: number;
-  addedAt: Date;
-  // Monotonic insertion sequence. Used to order "most-recently-added-first"
-  // deterministically even when several adds land in the same millisecond
-  // (Date resolution is coarser than the add rate in tests).
-  seq: number;
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export interface PlaylistPrisma {
+  playlist: {
+    create: (args: { data: Record<string, unknown> }) => Promise<any>;
+    findFirst: (args: { where: Record<string, unknown>; orderBy?: unknown }) => Promise<any>;
+    findMany: (args: { where?: Record<string, unknown>; orderBy?: unknown }) => Promise<any[]>;
+    update: (args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => Promise<any>;
+    delete: (args: { where: Record<string, unknown> }) => Promise<any>;
+  };
+  playlistItem: {
+    create: (args: { data: Record<string, unknown> }) => Promise<any>;
+    delete: (args: { where: Record<string, unknown> }) => Promise<any>;
+    deleteMany: (args: { where: Record<string, unknown> }) => Promise<{ count: number }>;
+    findMany: (args: { where?: Record<string, unknown>; orderBy?: unknown }) => Promise<any[]>;
+    findFirst: (args: { where: Record<string, unknown>; orderBy?: unknown }) => Promise<any>;
+    count: (args: { where: Record<string, unknown> }) => Promise<number>;
+    update: (args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => Promise<any>;
+  };
 }
 
-interface InternalPlaylist {
+/** Persisted Playlist row shape (only the fields this service reads). */
+interface PlaylistRow {
   id: string;
-  ownerId: string;
+  userId: string;
   title: string;
-  description: string;
-  visibility: PlaylistVisibility;
+  description: string | null;
+  visibility: PrismaVisibility;
   isSystem: boolean;
-  thumbnail: string;
-  coverUrl: string;
-  creatorName: string;
-  creatorAvatar: string;
-  collaborative: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  videos: InternalVideo[];
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
+
+/** Persisted PlaylistItem row shape. */
+interface PlaylistItemRow {
+  id: string;
+  playlistId: string;
+  videoId: string;
+  position: number;
+  addedAt: Date | string;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 const TITLE_MIN = 1;
 const TITLE_MAX = 200;
 const WATCH_LATER_TITLE = 'Watch Later';
 
+/** Map the page-contract visibility to the Prisma `VideoVisibility` enum. */
+function toPrismaVisibility(v: PlaylistVisibility): PrismaVisibility {
+  switch (v) {
+    case 'public':
+      return 'PUBLIC';
+    case 'unlisted':
+      return 'UNLISTED';
+    case 'private':
+    default:
+      return 'PRIVATE';
+  }
+}
+
+/** Map the Prisma `VideoVisibility` enum back to the page-contract visibility. */
+function fromPrismaVisibility(v: PrismaVisibility | string): PlaylistVisibility {
+  switch (v) {
+    case 'PUBLIC':
+      return 'public';
+    case 'UNLISTED':
+      return 'unlisted';
+    case 'PRIVATE':
+    default:
+      return 'private';
+  }
+}
+
+/** Coerce a Date | string timestamp to an ISO-8601 UTC string. */
+function iso(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
 export class PlaylistService {
-  /** All playlists, isolated per user. The Map key IS the ownership boundary. */
-  private playlistsByUser = new Map<string, InternalPlaylist[]>();
-  /** Monotonic id source — opaque ids, never derived from userId. */
-  private idCounter = 0;
-  /** Monotonic insertion-sequence source for stable recency ordering. */
-  private seqCounter = 0;
+  constructor(private readonly prisma: PlaylistPrisma) {}
 
   // --- public API (exactly the six operations required by Req 5.6) ---------
 
   /**
    * Return the list-shape playlists owned by `userId` (Req 2.5, 5.12). Always
-   * includes the reserved "Watch Later" system playlist for that user.
+   * includes the reserved "Watch Later" system playlist for that user (created
+   * lazily if it does not yet exist).
    */
-  listPlaylists(userId: string): PlaylistListItem[] {
-    const playlists = this.ensureUser(userId);
-    return playlists.map((p) => this.toListItem(p));
+  async listPlaylists(userId: string): Promise<PlaylistListItem[]> {
+    await this.ensureWatchLater(userId);
+    const playlists = (await this.prisma.playlist.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+    })) as PlaylistRow[];
+
+    return Promise.all(playlists.map((p) => this.toListItem(p)));
   }
 
   /**
@@ -179,24 +248,32 @@ export class PlaylistService {
    * the route maps `null` to a 404 that is indistinguishable across the two
    * cases.
    */
-  getPlaylist(userId: string, id: string): PlaylistDetailResult | null {
-    const playlist = this.findOwned(userId, id);
+  async getPlaylist(userId: string, id: string): Promise<PlaylistDetailResult | null> {
+    const playlist = (await this.prisma.playlist.findFirst({
+      where: { id, userId },
+    })) as PlaylistRow | null;
     if (!playlist) {
       return null;
     }
+
+    const items = (await this.prisma.playlistItem.findMany({
+      where: { playlistId: playlist.id },
+      orderBy: { position: 'asc' },
+    })) as PlaylistItemRow[];
+
     return {
-      playlist: this.toDetailMeta(playlist),
-      videos: this.orderedVideos(playlist).map((v) => this.toVideoEntry(v)),
+      playlist: this.toDetailMeta(playlist, items.length),
+      videos: items.map((v) => this.toVideoEntry(v)),
     };
   }
 
   /**
-   * Create a new (non-system) playlist owned by `userId` and return its
-   * list shape (Req 2.14, 2.15, 2.16). The title is trimmed and validated to
-   * 1..200 chars; visibility defaults to 'private'; `isSystem` is always
+   * Create a new (non-system) playlist owned by `userId` and return its list
+   * shape (Req 2.14, 2.15, 2.16). The title is trimmed and validated to 1..200
+   * chars; visibility defaults to 'private'; `isSystem` is always
    * server-assigned to false (any client value is ignored).
    */
-  createPlaylist(userId: string, input: CreatePlaylistInput): PlaylistListItem {
+  async createPlaylist(userId: string, input: CreatePlaylistInput): Promise<PlaylistListItem> {
     const title = typeof input?.title === 'string' ? input.title.trim() : '';
     if (title.length < TITLE_MIN || title.length > TITLE_MAX) {
       throw new PlaylistValidationError(
@@ -209,37 +286,33 @@ export class PlaylistService {
       throw new PlaylistValidationError(`Invalid visibility: ${String(visibility)}`);
     }
 
-    const playlists = this.ensureUser(userId);
-    const now = new Date();
-    const playlist: InternalPlaylist = {
-      id: this.nextId('pl'),
-      ownerId: userId,
-      title,
-      description: typeof input?.description === 'string' ? input.description : '',
-      visibility,
-      isSystem: false, // SERVER-assigned; client `isSystem` is ignored.
-      thumbnail: '',
-      coverUrl: '',
-      creatorName: '',
-      creatorAvatar: '',
-      collaborative: false,
-      createdAt: now,
-      updatedAt: now,
-      videos: [],
-    };
-    playlists.push(playlist);
-    return this.toListItem(playlist);
+    const created = (await this.prisma.playlist.create({
+      data: {
+        userId,
+        title,
+        description: typeof input?.description === 'string' ? input.description : '',
+        visibility: toPrismaVisibility(visibility),
+        videoCount: 0,
+        isSystem: false, // SERVER-assigned; client `isSystem` is ignored.
+      },
+    })) as PlaylistRow;
+
+    return this.toListItem(created, 0);
   }
 
   /**
    * Return the watch-later entries owned by `userId`, ordered
-   * most-recently-added-first (Req 3.7, 5.12).
+   * most-recently-added-first (Req 3.7, 5.12). Append order is captured by the
+   * monotonically-increasing `position`, so descending position == most recent.
    */
-  listWatchLater(userId: string): WatchLaterEntry[] {
-    const wl = this.watchLaterPlaylist(userId);
-    return [...wl.videos]
-      .sort((a, b) => b.seq - a.seq)
-      .map((v) => ({ id: v.id, videoId: v.videoId, addedAt: v.addedAt.toISOString() }));
+  async listWatchLater(userId: string): Promise<WatchLaterEntry[]> {
+    const wl = await this.ensureWatchLater(userId);
+    const items = (await this.prisma.playlistItem.findMany({
+      where: { playlistId: wl.id },
+      orderBy: { position: 'desc' },
+    })) as PlaylistItemRow[];
+
+    return items.map((v) => ({ id: v.id, videoId: v.videoId, addedAt: iso(v.addedAt) }));
   }
 
   /**
@@ -247,30 +320,32 @@ export class PlaylistService {
    * already present, the existing entry is returned unchanged and no duplicate
    * is created and the existing order is preserved (Req 3.8, 3.10, 5.15).
    */
-  addToWatchLater(userId: string, videoId: string): WatchLaterEntry {
-    const wl = this.watchLaterPlaylist(userId);
+  async addToWatchLater(userId: string, videoId: string): Promise<WatchLaterEntry> {
+    const wl = await this.ensureWatchLater(userId);
 
-    const existing = wl.videos.find((v) => v.videoId === videoId);
+    const existing = (await this.prisma.playlistItem.findFirst({
+      where: { playlistId: wl.id, videoId },
+    })) as PlaylistItemRow | null;
     if (existing) {
       // Idempotent: no new row, order untouched.
-      return {
-        id: existing.id,
-        videoId: existing.videoId,
-        addedAt: existing.addedAt.toISOString(),
-      };
+      return { id: existing.id, videoId: existing.videoId, addedAt: iso(existing.addedAt) };
     }
 
-    const now = new Date();
-    const entry: InternalVideo = {
-      id: this.nextId('wl'),
-      videoId,
-      position: wl.videos.length + 1, // contiguous append
-      addedAt: now,
-      seq: this.nextSeq(),
-    };
-    wl.videos.push(entry);
-    wl.updatedAt = now;
-    return { id: entry.id, videoId: entry.videoId, addedAt: entry.addedAt.toISOString() };
+    const count = await this.prisma.playlistItem.count({ where: { playlistId: wl.id } });
+    const entry = (await this.prisma.playlistItem.create({
+      data: {
+        playlistId: wl.id,
+        videoId,
+        position: count + 1, // contiguous append
+      },
+    })) as PlaylistItemRow;
+
+    await this.prisma.playlist.update({
+      where: { id: wl.id },
+      data: { videoCount: count + 1, updatedAt: new Date() },
+    });
+
+    return { id: entry.id, videoId: entry.videoId, addedAt: iso(entry.addedAt) };
   }
 
   /**
@@ -279,120 +354,228 @@ export class PlaylistService {
    * removal the remaining videos are re-indexed so positions stay a contiguous
    * 1..n permutation (Req 2.10).
    */
-  removeFromWatchLater(userId: string, entryId: string): void {
-    const wl = this.watchLaterPlaylist(userId);
-    const index = wl.videos.findIndex((v) => v.id === entryId);
-    if (index < 0) {
-      return; // idempotent no-op
+  async removeFromWatchLater(userId: string, entryId: string): Promise<void> {
+    const wl = await this.ensureWatchLater(userId);
+
+    const target = (await this.prisma.playlistItem.findFirst({
+      where: { id: entryId, playlistId: wl.id },
+    })) as PlaylistItemRow | null;
+    if (!target) {
+      return; // idempotent no-op (unknown id, or an entry owned by another playlist)
     }
-    wl.videos.splice(index, 1);
-    this.reindex(wl);
-    wl.updatedAt = new Date();
+
+    await this.prisma.playlistItem.delete({ where: { id: target.id } });
+
+    // Re-index the survivors so positions stay a contiguous 1..n permutation.
+    const remaining = (await this.prisma.playlistItem.findMany({
+      where: { playlistId: wl.id },
+      orderBy: { position: 'asc' },
+    })) as PlaylistItemRow[];
+    for (let i = 0; i < remaining.length; i += 1) {
+      const expected = i + 1;
+      const item = remaining[i]!;
+      if (item.position !== expected) {
+        await this.prisma.playlistItem.update({
+          where: { id: item.id },
+          data: { position: expected },
+        });
+      }
+    }
+
+    await this.prisma.playlist.update({
+      where: { id: wl.id },
+      data: { videoCount: remaining.length, updatedAt: new Date() },
+    });
+  }
+
+  // --- regular playlist video management -----------------------------------
+
+  /**
+   * Add `videoId` to the regular playlist `playlistId` owned by `userId`.
+   * Generalizes {@link addToWatchLater}: ownership is enforced by resolving the
+   * OWNED playlist (`findFirst {id, userId}`). Returns `null` when the id is
+   * unknown OR owned by another user — the route maps that to a 404 exactly
+   * like {@link getPlaylist}, so there is no existence leakage. Idempotent: if
+   * `videoId` is already an item, the existing entry is returned unchanged (no
+   * duplicate, order preserved). Otherwise the video is appended at `count + 1`
+   * and the playlist's `videoCount` / `updatedAt` are bumped.
+   */
+  async addToPlaylist(
+    userId: string,
+    playlistId: string,
+    videoId: string,
+  ): Promise<PlaylistVideoEntry | null> {
+    const playlist = (await this.prisma.playlist.findFirst({
+      where: { id: playlistId, userId },
+    })) as PlaylistRow | null;
+    if (!playlist) {
+      return null; // unknown OR cross-user → route 404 (no existence leakage)
+    }
+
+    const existing = (await this.prisma.playlistItem.findFirst({
+      where: { playlistId: playlist.id, videoId },
+    })) as PlaylistItemRow | null;
+    if (existing) {
+      // Idempotent: no new row, order untouched.
+      return this.toVideoEntry(existing);
+    }
+
+    const count = await this.prisma.playlistItem.count({ where: { playlistId: playlist.id } });
+    const entry = (await this.prisma.playlistItem.create({
+      data: {
+        playlistId: playlist.id,
+        videoId,
+        position: count + 1, // contiguous append
+      },
+    })) as PlaylistItemRow;
+
+    await this.prisma.playlist.update({
+      where: { id: playlist.id },
+      data: { videoCount: count + 1, updatedAt: new Date() },
+    });
+
+    return this.toVideoEntry(entry);
+  }
+
+  /**
+   * Remove the entry `entryId` from the regular playlist `playlistId` owned by
+   * `userId`. Generalizes {@link removeFromWatchLater}. Returns `false` when the
+   * playlist id is unknown OR owned by another user (route → 404); returns
+   * `true` when the owned playlist exists, regardless of whether the entry was
+   * present (idempotent no-op when absent). After a removal the survivors are
+   * re-indexed so positions stay a contiguous 1..n permutation (the exact
+   * approach used by {@link removeFromWatchLater}).
+   */
+  async removeFromPlaylist(userId: string, playlistId: string, entryId: string): Promise<boolean> {
+    const playlist = (await this.prisma.playlist.findFirst({
+      where: { id: playlistId, userId },
+    })) as PlaylistRow | null;
+    if (!playlist) {
+      return false; // unknown OR cross-user → route 404
+    }
+
+    const target = (await this.prisma.playlistItem.findFirst({
+      where: { id: entryId, playlistId: playlist.id },
+    })) as PlaylistItemRow | null;
+    if (!target) {
+      return true; // playlist exists; absent entry is an idempotent no-op
+    }
+
+    await this.prisma.playlistItem.delete({ where: { id: target.id } });
+
+    // Re-index the survivors so positions stay a contiguous 1..n permutation.
+    const remaining = (await this.prisma.playlistItem.findMany({
+      where: { playlistId: playlist.id },
+      orderBy: { position: 'asc' },
+    })) as PlaylistItemRow[];
+    for (let i = 0; i < remaining.length; i += 1) {
+      const expected = i + 1;
+      const item = remaining[i]!;
+      if (item.position !== expected) {
+        await this.prisma.playlistItem.update({
+          where: { id: item.id },
+          data: { position: expected },
+        });
+      }
+    }
+
+    await this.prisma.playlist.update({
+      where: { id: playlist.id },
+      data: { videoCount: remaining.length, updatedAt: new Date() },
+    });
+
+    return true;
+  }
+
+  /**
+   * Delete the playlist `playlistId` owned by `userId` and all of its items.
+   * Returns `null` when the id is unknown OR owned by another user (route →
+   * 404). Refuses to delete a reserved SYSTEM playlist (e.g. Watch Later) by
+   * throwing {@link PlaylistValidationError} (route → 400). On success the
+   * playlist's items are removed first (`playlistItem.deleteMany`) and then the
+   * playlist row itself; returns `{ deleted: true }`.
+   */
+  async deletePlaylist(userId: string, playlistId: string): Promise<{ deleted: true } | null> {
+    const playlist = (await this.prisma.playlist.findFirst({
+      where: { id: playlistId, userId },
+    })) as PlaylistRow | null;
+    if (!playlist) {
+      return null; // unknown OR cross-user → route 404
+    }
+    if (playlist.isSystem) {
+      // Reserved system playlist (Watch Later) is undeletable → route 400.
+      throw new PlaylistValidationError('Cannot delete the Watch Later playlist');
+    }
+
+    await this.prisma.playlistItem.deleteMany({ where: { playlistId: playlist.id } });
+    await this.prisma.playlist.delete({ where: { id: playlist.id } });
+
+    return { deleted: true };
   }
 
   // --- internal helpers ----------------------------------------------------
 
-  /** Get (creating if needed) the per-user playlist list, with WL reserved. */
-  private ensureUser(userId: string): InternalPlaylist[] {
-    let playlists = this.playlistsByUser.get(userId);
-    if (!playlists) {
-      playlists = [];
-      this.playlistsByUser.set(userId, playlists);
+  /**
+   * Get (creating lazily if missing) the user's reserved "Watch Later" system
+   * playlist. `isSystem` and the private visibility are SERVER-set (Req 3.3).
+   */
+  private async ensureWatchLater(userId: string): Promise<PlaylistRow> {
+    const existing = (await this.prisma.playlist.findFirst({
+      where: { userId, isSystem: true, title: WATCH_LATER_TITLE },
+    })) as PlaylistRow | null;
+    if (existing) {
+      return existing;
     }
-    if (!playlists.some((p) => p.isSystem && p.title === WATCH_LATER_TITLE)) {
-      const now = new Date();
-      playlists.unshift({
-        id: this.nextId('wl-pl'),
-        ownerId: userId,
+
+    return (await this.prisma.playlist.create({
+      data: {
+        userId,
         title: WATCH_LATER_TITLE,
         description: '',
-        visibility: 'private',
+        visibility: 'PRIVATE',
+        videoCount: 0,
         isSystem: true, // SERVER-set reserved system playlist (Req 3.3).
-        thumbnail: '',
-        coverUrl: '',
-        creatorName: '',
-        creatorAvatar: '',
-        collaborative: false,
-        createdAt: now,
-        updatedAt: now,
-        videos: [],
-      });
-    }
-    return playlists;
+      },
+    })) as PlaylistRow;
   }
 
-  /** Find a playlist by id but only if owned by `userId` (else undefined). */
-  private findOwned(userId: string, id: string): InternalPlaylist | undefined {
-    const playlists = this.ensureUser(userId);
-    return playlists.find((p) => p.id === id);
-  }
-
-  /** The reserved Watch Later system playlist for a user. */
-  private watchLaterPlaylist(userId: string): InternalPlaylist {
-    const playlists = this.ensureUser(userId);
-    // ensureUser guarantees presence.
-    return playlists.find((p) => p.isSystem && p.title === WATCH_LATER_TITLE)!;
-  }
-
-  /** Videos ordered by their (already contiguous) position 1..n. */
-  private orderedVideos(playlist: InternalPlaylist): InternalVideo[] {
-    return [...playlist.videos].sort((a, b) => a.position - b.position);
-  }
-
-  /** Re-assign contiguous 1..n positions in current order (no gaps/dupes). */
-  private reindex(playlist: InternalPlaylist): void {
-    playlist.videos
-      .sort((a, b) => a.position - b.position)
-      .forEach((v, i) => {
-        v.position = i + 1;
-      });
-  }
-
-  private nextId(prefix: string): string {
-    this.idCounter += 1;
-    return `${prefix}-${this.idCounter}`;
-  }
-
-  private nextSeq(): number {
-    this.seqCounter += 1;
-    return this.seqCounter;
-  }
-
-  private toListItem(p: InternalPlaylist): PlaylistListItem {
+  private async toListItem(p: PlaylistRow, knownCount?: number): Promise<PlaylistListItem> {
+    const videoCount =
+      knownCount ?? (await this.prisma.playlistItem.count({ where: { playlistId: p.id } }));
     return {
       id: p.id,
       title: p.title,
-      thumbnail: p.thumbnail,
-      videoCount: p.videos.length,
-      visibility: p.visibility,
+      thumbnail: '',
+      videoCount,
+      visibility: fromPrismaVisibility(p.visibility),
       isSystem: p.isSystem,
-      updatedAt: p.updatedAt.toISOString(),
+      updatedAt: iso(p.updatedAt),
     };
   }
 
-  private toDetailMeta(p: InternalPlaylist): PlaylistDetailMeta {
+  private toDetailMeta(p: PlaylistRow, videoCount: number): PlaylistDetailMeta {
     return {
       id: p.id,
       title: p.title,
-      description: p.description,
-      coverUrl: p.coverUrl,
-      creatorName: p.creatorName,
-      creatorAvatar: p.creatorAvatar,
-      videoCount: p.videos.length,
+      description: p.description ?? '',
+      coverUrl: '',
+      creatorName: '',
+      creatorAvatar: '',
+      videoCount,
       totalDuration: 0, // route recomputes from enriched durations
-      isPublic: p.visibility === 'public',
-      collaborative: p.collaborative,
-      createdAt: p.createdAt.toISOString(),
-      updatedAt: p.updatedAt.toISOString(),
+      isPublic: p.visibility === 'PUBLIC',
+      collaborative: false,
+      createdAt: iso(p.createdAt),
+      updatedAt: iso(p.updatedAt),
     };
   }
 
-  private toVideoEntry(v: InternalVideo): PlaylistVideoEntry {
+  private toVideoEntry(v: PlaylistItemRow): PlaylistVideoEntry {
     return {
       id: v.id,
       videoId: v.videoId,
       position: v.position,
-      addedAt: v.addedAt.toISOString(),
+      addedAt: iso(v.addedAt),
     };
   }
 }

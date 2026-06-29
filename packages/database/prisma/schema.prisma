@@ -906,14 +906,33 @@ model Playlist {
   description String?
   visibility  VideoVisibility @default(PUBLIC)
   videoCount  Int             @default(0)
+  isSystem    Boolean         @default(false)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  channel VideoChannel? @relation(fields: [channelId], references: [id])
+  channel VideoChannel?  @relation(fields: [channelId], references: [id])
+  items   PlaylistItem[]
 
   @@index([userId])
   @@index([channelId])
   @@map("playlists")
+}
+
+// QuantTube durable playlist membership (previously in-memory). Each row is a
+// video's position within a playlist (Watch Later is a server-reserved system
+// playlist via Playlist.isSystem).
+model PlaylistItem {
+  id         String   @id @default(cuid())
+  playlistId String
+  videoId    String
+  position   Int
+  addedAt    DateTime @default(now())
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, videoId])
+  @@index([playlistId])
+  @@map("playlist_items")
 }
 
 model Photo {

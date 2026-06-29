@@ -8,7 +8,7 @@ import mediaRoutes, { createMediaService } from './routes/media';
 import feedRoutes from './routes/feed';
 import crossPublishRoutes, { createCrossPublishService } from './routes/cross-publish';
 import creatorRoutes, { createCreatorEconomyService } from './routes/creator';
-import playlistRoutes, { createPlaylistService } from './routes/playlists';
+import playlistRoutes from './routes/playlists';
 import paymentsRoutes, { paymentsWebhookRoutes, createPaymentsService } from './routes/payments';
 import payoutRoutes, { createPayoutService } from './routes/payouts';
 import musicRoutes from './routes/music';
@@ -67,12 +67,13 @@ export async function buildApp(config?: AppConfig) {
 
   // playlists engine — quantube Library "Playlists" + "Watch Later" surfaces
   // and the playlist/[id] detail page (quantube-real-data-wiring, Task 3).
-  // Decorated once at boot as a singleton (`fastify.playlists`, never
-  // per-request). Routes sit behind the global auth hook (401 unauthenticated);
-  // mutating routes additionally declare a `library:write` scope. The
-  // `/playlists` prefix does NOT collide with any PUBLIC_PATHS entry, so every
-  // `/playlists*` route requires authentication.
-  app.decorate('playlists', createPlaylistService());
+  // Now DURABLE: the PlaylistService is Prisma-backed (Playlist + PlaylistItem
+  // models) and constructed PER-REQUEST from `fastify.prisma` inside the route
+  // module (narrow-DI, exactly like VideoService) — no boot singleton holds
+  // state, so playlist/watch-later data survives restarts. Routes sit behind
+  // the global auth hook (401 unauthenticated); mutating routes additionally
+  // declare a `library:write` scope. The `/playlists` prefix does NOT collide
+  // with any PUBLIC_PATHS entry, so every `/playlists*` route requires auth.
   await app.register(playlistRoutes, { prefix: '/playlists' });
 
   // ==========================================================================
