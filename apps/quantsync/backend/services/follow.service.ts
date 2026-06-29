@@ -29,6 +29,13 @@ export interface FollowUserEntry {
   isFollowing: boolean;
 }
 
+/** A "Who to follow" suggestion: a not-yet-followed account ranked by how many
+ *  of the people you already follow also follow them (friends-of-friends). */
+export interface SuggestedUser extends FollowUserEntry {
+  /** How many of the caller's followees also follow this account. */
+  mutualCount: number;
+}
+
 export interface FollowPrisma {
   user: {
     findUnique: (args: { where: Record<string, unknown> }) => Promise<{
@@ -186,5 +193,60 @@ export class FollowService {
       skip: (page - 1) * pageSize,
       take: pageSize,
     });
+  }
+
+  /**
+   * "Who to follow": accounts the caller does NOT already follow, ranked by how
+   * many of the caller's own followees also follow them (a friends-of-friends
+   * signal — "followed by N people you follow"). Excludes the caller and anyone
+   * they already follow. Empty when the caller follows no one yet (cold start —
+   * a popularity fallback is a future enhancement).
+   */
+  async getSuggestions(userId: string, limit = 20): Promise<SuggestedUser[]> {
+    const myEdges = await this.prisma.userRelationship.findMany({
+      where: { followerId: userId, type: 'FOLLOW' },
+    });
+    const following = myEdges.map((e: any) => e.followingId as string);
+    if (following.length === 0) return [];
+
+    const exclude = new Set<string>([userId, ...following]);
+
+    // Who the people I follow also follow (the candidate pool).
+    const fofEdges = await this.prisma.userRelationship.findMany({
+      where: { followerId: { in: following }, type: 'FOLLOW' },
+    });
+
+    const mutualCount = new Map<string, number>();
+    for (const e of fofEdges) {
+      const candidate = e.followingId as string;
+      if (exclude.has(candidate)) continue;
+      mutualCount.set(candidate, (mutualCount.get(candidate) ?? 0) + 1);
+    }
+    if (mutualCount.size === 0) return [];
+
+    const ranked = [...mutualCount.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, Math.max(1, limit));
+    const ids = ranked.map(([id]) => id);
+
+    const users = await this.prisma.user.findMany({ where: { id: { in: ids } } });
+    const byId = new Map(users.map((u: any) => [u.id, u]));
+
+    return ranked
+      .map(([id, count]) => {
+        const u = byId.get(id);
+        if (!u || u.deletedAt) return null;
+        const entry: SuggestedUser = {
+          id: u.id,
+          username: u.username,
+          displayName: u.displayName ?? u.username,
+          avatarUrl: u.avatarUrl ?? null,
+          isVerified: u.emailVerified ?? false,
+          isFollowing: false, // candidates are, by construction, not yet followed
+          mutualCount: count,
+        };
+        return entry;
+      })
+      .filter((e): e is SuggestedUser => e !== null);
   }
 }

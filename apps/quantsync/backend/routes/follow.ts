@@ -52,6 +52,14 @@ export default async function followRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data });
   });
 
+  fastify.get('/suggestions', async (request, reply) => {
+    const userId = requireUserId(request);
+    const parsed = limitSchema.safeParse(request.query);
+    if (!parsed.success) throw parsed.error;
+    const users = await service(fastify).getSuggestions(userId, parsed.data.limit ?? 20);
+    return reply.send({ success: true, data: { users } });
+  });
+
   fastify.post<{ Params: { userId: string } }>('/:userId', async (request, reply) => {
     const followerId = requireUserId(request);
     const result = await service(fastify).follow(followerId, request.params.userId);

@@ -136,4 +136,51 @@ describe('FollowService', () => {
       expect(prisma.post.findMany).not.toHaveBeenCalled();
     });
   });
+
+  describe('getSuggestions', () => {
+    it('ranks not-yet-followed accounts by friends-of-followees count', async () => {
+      // I follow a and b.
+      prisma.userRelationship.findMany
+        .mockResolvedValueOnce([{ followingId: 'a' }, { followingId: 'b' }])
+        // a and b follow: x (twice), y (once), me (excluded), b (already followed, excluded).
+        .mockResolvedValueOnce([
+          { followingId: 'x' },
+          { followingId: 'x' },
+          { followingId: 'y' },
+          { followingId: 'me' },
+          { followingId: 'b' },
+        ]);
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'x', username: 'x', displayName: 'X', avatarUrl: null, emailVerified: true },
+        { id: 'y', username: 'y', displayName: 'Y', avatarUrl: null, emailVerified: false },
+      ]);
+
+      const out = await service.getSuggestions('me');
+
+      expect(out.map((u) => [u.id, u.mutualCount])).toEqual([
+        ['x', 2],
+        ['y', 1],
+      ]);
+      // suggestions are never already-followed
+      expect(out.every((u) => u.isFollowing === false)).toBe(true);
+      // never suggests the caller or someone already followed
+      expect(out.find((u) => u.id === 'me' || u.id === 'b')).toBeUndefined();
+    });
+
+    it('returns empty (cold start) when the caller follows no one', async () => {
+      prisma.userRelationship.findMany.mockResolvedValueOnce([]);
+      const out = await service.getSuggestions('me');
+      expect(out).toEqual([]);
+      expect(prisma.user.findMany).not.toHaveBeenCalled();
+    });
+
+    it('returns empty when followees only follow the caller / already-followed accounts', async () => {
+      prisma.userRelationship.findMany
+        .mockResolvedValueOnce([{ followingId: 'a' }])
+        .mockResolvedValueOnce([{ followingId: 'me' }, { followingId: 'a' }]);
+      const out = await service.getSuggestions('me');
+      expect(out).toEqual([]);
+      expect(prisma.user.findMany).not.toHaveBeenCalled();
+    });
+  });
 });
