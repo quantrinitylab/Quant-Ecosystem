@@ -22,6 +22,7 @@
     "@quant/brand": "workspace:*",
     "@quant/agentic": "workspace:*",
     "@quant/common": "workspace:*",
+    "@quant/cross-app-gaming": "workspace:*",
     "@quant/database": "workspace:*",
     "@quant/federation": "workspace:*",
     "@quant/ml-pipeline": "workspace:*",
