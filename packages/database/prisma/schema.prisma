@@ -2528,6 +2528,28 @@ model RoomParticipant {
   @@map("room_participants")
 }
 
+// QuantMeet durable meeting recordings. Previously the RecordingService kept all
+// recordings in an in-memory Map (lost on restart). roomId is a logical room
+// reference (may be a LiveKit room id, so relation-free). status lifecycle:
+// recording -> processing -> completed | failed.
+model Recording {
+  id         String    @id @default(cuid())
+  roomId     String
+  userId     String
+  status     String    @default("recording")
+  startedAt  DateTime  @default(now())
+  stoppedAt  DateTime?
+  storageKey String
+  duration   Int?
+  fileSize   Int?
+  egressId   String?
+  createdAt  DateTime  @default(now())
+
+  @@index([roomId])
+  @@index([userId])
+  @@map("recordings")
+}
+
 // Cross-app game leaderboard. Scores from EVERY Quant app (quantneon, quantchat,
 // quantmax, ...) land in this one table, tagged with the originating `app`, so a
 // user's game ranks are shared/aggregated across the whole ecosystem (the

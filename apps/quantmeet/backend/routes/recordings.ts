@@ -25,7 +25,11 @@ export default async function recordingsRoutes(fastify: FastifyInstance) {
     secretAccessKey: process.env['STORAGE_SECRET_ACCESS_KEY'] ?? 'minioadmin',
     forcePathStyle: true,
   });
-  const recordingService = new RecordingService(storage);
+  // RecordingService is now Prisma-backed (durable recordings). Build it with
+  // the shared `fastify.prisma` decorator exactly as the other Prisma-backed
+  // routes across the ecosystem do, passing prisma FIRST then the storage client.
+  const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+  const recordingService = new RecordingService(prisma as never, storage);
 
   fastify.post<{ Params: { roomId: string } }>('/:roomId/start', async (request, reply) => {
     const paramResult = roomIdParamSchema.safeParse(request.params);
@@ -61,7 +65,7 @@ export default async function recordingsRoutes(fastify: FastifyInstance) {
       throw createAppError('Invalid recording ID', 400, 'VALIDATION_ERROR');
     }
 
-    const recording = recordingService.getRecording(paramResult.data.id);
+    const recording = await recordingService.getRecording(paramResult.data.id);
     return reply.send({ success: true, data: recording });
   });
 
@@ -71,7 +75,7 @@ export default async function recordingsRoutes(fastify: FastifyInstance) {
       throw createAppError('Invalid room ID', 400, 'VALIDATION_ERROR');
     }
 
-    const recordings = recordingService.listRecordings(paramResult.data.roomId);
+    const recordings = await recordingService.listRecordings(paramResult.data.roomId);
     return reply.send({ success: true, data: recordings });
   });
 }
