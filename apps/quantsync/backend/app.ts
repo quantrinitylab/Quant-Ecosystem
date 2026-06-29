@@ -7,6 +7,7 @@ import aiRoutes from './routes/ai';
 import anonymousRoutes from './routes/anonymous';
 import authRoutes from './routes/auth';
 import interactionsRoutes from './routes/interactions';
+import followRoutes from './routes/follow';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -44,6 +45,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(anonymousRoutes, { prefix: '/anonymous' });
   await app.register(authRoutes, { prefix: '/auth' });
   await app.register(interactionsRoutes, { prefix: '/interactions' });
+  await app.register(followRoutes, { prefix: '/follow' });
 
   return app;
 }
