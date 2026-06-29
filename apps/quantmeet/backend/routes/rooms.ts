@@ -61,9 +61,12 @@ function mapRoomError(error: unknown): never {
 }
 
 export default async function roomsRoutes(fastify: FastifyInstance) {
-  // Singletons for the app lifetime (registered once at boot), mirroring the
-  // in-memory architecture used across the QuantMeet backend.
-  const roomService = new RoomService();
+  // RoomService is now Prisma-backed (durable rooms/participants). Build it with
+  // the shared `fastify.prisma` decorator exactly as the other Prisma-backed
+  // routes across the ecosystem do. MeetingChatService stays in-memory: meeting
+  // chat/reactions are intentionally EPHEMERAL for the duration of a call.
+  const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+  const roomService = new RoomService(prisma as never);
   const chatService = new MeetingChatService();
 
   // Create a room
@@ -74,7 +77,7 @@ export default async function roomsRoutes(fastify: FastifyInstance) {
       throw parsed.error;
     }
 
-    const room = roomService.createRoom({
+    const room = await roomService.createRoom({
       name: parsed.data.name,
       hostId: userId,
       settings: {
@@ -89,14 +92,14 @@ export default async function roomsRoutes(fastify: FastifyInstance) {
   // List the rooms the caller hosts or participates in
   fastify.get('/', async (request, reply) => {
     const userId = requireUserId(request);
-    return reply.send(roomService.listRooms(userId));
+    return reply.send(await roomService.listRooms(userId));
   });
 
   // Get a single room
   fastify.get('/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
     try {
-      return reply.send(roomService.getRoom(id));
+      return reply.send(await roomService.getRoom(id));
     } catch (error) {
       mapRoomError(error);
     }
@@ -112,13 +115,13 @@ export default async function roomsRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const existing = roomService.getRoom(id);
+      const existing = await roomService.getRoom(id);
       const already = existing.participants.find((p) => p.userId === userId);
       if (already) {
         return reply.send(existing);
       }
 
-      const room = roomService.joinRoom(id, {
+      const room = await roomService.joinRoom(id, {
         userId,
         displayName: parsed.data.displayName ?? userId,
         role: parsed.data.role ?? 'participant',
@@ -137,12 +140,12 @@ export default async function roomsRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
 
     try {
-      const room = roomService.getRoom(id);
+      const room = await roomService.getRoom(id);
       const participant = room.participants.find((p) => p.userId === userId);
       if (!participant) {
         return reply.send(room);
       }
-      return reply.send(roomService.leaveRoom(id, participant.id));
+      return reply.send(await roomService.leaveRoom(id, participant.id));
     } catch (error) {
       mapRoomError(error);
     }
@@ -152,7 +155,7 @@ export default async function roomsRoutes(fastify: FastifyInstance) {
   fastify.get('/:id/participants', async (request, reply) => {
     const { id } = request.params as { id: string };
     try {
-      return reply.send(roomService.listParticipants(id));
+      return reply.send(await roomService.listParticipants(id));
     } catch (error) {
       mapRoomError(error);
     }
@@ -163,7 +166,7 @@ export default async function roomsRoutes(fastify: FastifyInstance) {
     const userId = requireUserId(request);
     const { id } = request.params as { id: string };
     try {
-      const room = roomService.endMeeting(id, userId);
+      const room = await roomService.endMeeting(id, userId);
       chatService.clearRoom(id);
       return reply.send(room);
     } catch (error) {
@@ -177,7 +180,7 @@ export default async function roomsRoutes(fastify: FastifyInstance) {
     void requserId;
     const { id } = request.params as { id: string };
     try {
-      roomService.getRoom(id);
+      await roomService.getRoom(id);
     } catch (error) {
       mapRoomError(error);
     }
@@ -194,7 +197,7 @@ export default async function roomsRoutes(fastify: FastifyInstance) {
 
     let displayName = parsed.data.displayName ?? userId;
     try {
-      const room = roomService.getRoom(id);
+      const room = await roomService.getRoom(id);
       const participant = room.participants.find((p) => p.userId === userId);
       if (participant) displayName = parsed.data.displayName ?? participant.displayName;
     } catch (error) {
@@ -214,7 +217,7 @@ export default async function roomsRoutes(fastify: FastifyInstance) {
     requireUserId(request);
     const { id } = request.params as { id: string };
     try {
-      roomService.getRoom(id);
+      await roomService.getRoom(id);
     } catch (error) {
       mapRoomError(error);
     }
@@ -230,7 +233,7 @@ export default async function roomsRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      roomService.getRoom(id);
+      await roomService.getRoom(id);
     } catch (error) {
       mapRoomError(error);
     }

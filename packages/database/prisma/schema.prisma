@@ -2488,6 +2488,46 @@ model GameBadge {
   @@map("game_badges")
 }
 
+// QuantMeet durable meeting rooms + participants. Previously the QuantMeet
+// backend kept all room/participant state in an in-memory Map, so every room
+// and who was in it was lost on restart/redeploy and not shared across
+// instances. These tables make rooms durable; `settings` holds the RoomSettings
+// JSON (maxParticipants, waitingRoom, muteOnEntry, allowScreenShare,
+// enableRecording, enableTranscript).
+model MeetingRoom {
+  id        String   @id @default(cuid())
+  name      String
+  hostId    String
+  status    String   @default("active") // active | closed
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants RoomParticipant[]
+
+  @@index([hostId])
+  @@index([status])
+  @@map("meeting_rooms")
+}
+
+model RoomParticipant {
+  id           String   @id @default(cuid())
+  roomId       String
+  userId       String
+  displayName  String
+  role         String   @default("participant") // host | co-host | participant
+  audioEnabled Boolean  @default(true)
+  videoEnabled Boolean  @default(true)
+  joinedAt     DateTime @default(now())
+
+  room MeetingRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+  @@map("room_participants")
+}
+
 // Cross-app game leaderboard. Scores from EVERY Quant app (quantneon, quantchat,
 // quantmax, ...) land in this one table, tagged with the originating `app`, so a
 // user's game ranks are shared/aggregated across the whole ecosystem (the
@@ -3106,25 +3146,6 @@ model PostBookmark {
   @@unique([userId, postId])
   @@index([userId])
   @@map("post_bookmarks")
-}
-
-// ==================== QuantTube AI segment-skip ====================
-/// A labeled time-range within a video. AI (or the creator/community) classifies
-/// regions as intro/sponsor/recap/outro/filler/content; playback uses these to
-/// build a "skip plan" that plays only the useful (content) parts. Relation-free
-/// + additive (no Video back-relation) so it is safe for the shared schema.
-model VideoSegment {
-  id        String   @id @default(cuid())
-  videoId   String
-  kind      String   // intro | content | sponsor | recap | outro | filler
-  label     String?
-  startSec  Float
-  endSec    Float
-  source    String   @default("ai") // ai | creator | community
-  createdAt DateTime @default(now())
-
-  @@index([videoId])
-  @@map("video_segments")
 }
 
 // ==================== QuantDocs (Google Docs killer) ====================
