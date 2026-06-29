@@ -177,6 +177,23 @@ export default async function postsRoutes(fastify: FastifyInstance) {
     return reply.status(201).send({ success: true, data: comment });
   });
 
+  fastify.delete<{ Params: { id: string; commentId: string } }>(
+    '/:id/comments/:commentId',
+    async (request, reply) => {
+      const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+      if (!userId) {
+        throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+      }
+      const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+      const service = new CommentService(prisma as never);
+      const result = await service.deleteComment(userId, request.params.commentId);
+      if (!result.success) {
+        throw createAppError('Comment not found', 404, 'COMMENT_NOT_FOUND');
+      }
+      return reply.send({ success: true, data: result });
+    },
+  );
+
   // --- Polls (wires the existing Poll/PollVote models; fixes the dead
   // /posts/:id/poll/vote proxy path) ---
 
