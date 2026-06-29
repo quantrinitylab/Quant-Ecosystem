@@ -6,6 +6,9 @@
  * At runtime, the actual PrismaClient from @prisma/client is injected.
  */
 export interface PrismaClient {
+  user: {
+    findUnique: (args: { where: Record<string, unknown> }) => Promise<any>;
+  };
   datingProfile: {
     create: (args: { data: Record<string, unknown> }) => Promise<any>;
     findUnique: (args: { where: Record<string, unknown> }) => Promise<any>;

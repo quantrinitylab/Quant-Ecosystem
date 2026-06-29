@@ -3,6 +3,9 @@ import { ProfileService } from '../services/profile.service';
 
 function createMockPrisma() {
   return {
+    user: {
+      findUnique: vi.fn(),
+    },
     datingProfile: {
       create: vi.fn(),
       findUnique: vi.fn(),
@@ -28,17 +31,17 @@ describe('ProfileService', () => {
   });
 
   describe('createProfile', () => {
-    it('creates a new profile', async () => {
+    const adultDob = new Date(Date.now() - 25 * 365.25 * 24 * 60 * 60 * 1000);
+
+    it('creates a new profile for an adult (age derived from verified DOB)', async () => {
       prisma.datingProfile.findUnique.mockResolvedValue(null);
-      prisma.datingProfile.create.mockResolvedValue({
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', dateOfBirth: adultDob });
+      prisma.datingProfile.create.mockImplementation(async ({ data }: any) => ({
         id: 'profile-1',
-        userId: 'user-1',
-        displayName: 'Jane',
-        age: 25,
-        gender: 'female',
         isActive: true,
         profileScore: 0,
-      });
+        ...data,
+      }));
 
       const result = await service.createProfile({
         userId: 'user-1',
@@ -49,6 +52,28 @@ describe('ProfileService', () => {
 
       expect(result.displayName).toBe('Jane');
       expect(result.isActive).toBe(true);
+      // Age comes from the verified DOB, not the client-supplied value.
+      expect((result as { age: number }).age).toBeGreaterThanOrEqual(24);
+    });
+
+    it('rejects an underage user (UNDERAGE) regardless of the supplied age', async () => {
+      prisma.datingProfile.findUnique.mockResolvedValue(null);
+      const childDob = new Date(Date.now() - 15 * 365.25 * 24 * 60 * 60 * 1000);
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', dateOfBirth: childDob });
+
+      await expect(
+        service.createProfile({ userId: 'user-1', displayName: 'Kid', age: 25, gender: 'female' }),
+      ).rejects.toMatchObject({ code: 'UNDERAGE' });
+      expect(prisma.datingProfile.create).not.toHaveBeenCalled();
+    });
+
+    it('requires a verified DOB (AGE_VERIFICATION_REQUIRED) when none is set', async () => {
+      prisma.datingProfile.findUnique.mockResolvedValue(null);
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1', dateOfBirth: null });
+
+      await expect(
+        service.createProfile({ userId: 'user-1', displayName: 'Jane', age: 25, gender: 'female' }),
+      ).rejects.toMatchObject({ code: 'AGE_VERIFICATION_REQUIRED' });
     });
 
     it('throws PROFILE_EXISTS if profile already exists', async () => {

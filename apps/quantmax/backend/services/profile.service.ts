@@ -1,5 +1,6 @@
 import type { PrismaClient } from '../types';
 import { createAppError } from '@quant/server-core';
+import { assertMinAge } from '../lib/age-gate';
 
 export interface DatingProfile {
   id: string;
@@ -53,12 +54,22 @@ export class ProfileService {
       throw createAppError('Profile already exists for this user', 409, 'PROFILE_EXISTS');
     }
 
+    // AGE GATE (18+): dating is an adult-only surface. The authoritative age is
+    // derived from the user's verified date of birth — NOT the client-supplied
+    // `input.age` — so an underage user (or one with no verified DOB) cannot
+    // enter the dating pool. The stored profile age is set from the DOB.
+    const user = await this.prisma.user.findUnique({ where: { id: input.userId } });
+    if (!user) {
+      throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+    const verifiedAge = assertMinAge(user.dateOfBirth ?? null);
+
     return this.prisma.datingProfile.create({
       data: {
         userId: input.userId,
         displayName: input.displayName,
         bio: input.bio ?? null,
-        age: input.age,
+        age: verifiedAge,
         gender: input.gender,
         genderPreference: input.genderPreference ?? [],
         location: input.location ?? {},
