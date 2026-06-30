@@ -1,4 +1,14 @@
 export * from './types.js';
+export { ConnectFourEngine, ConnectFourError } from './services/connect-four-engine.service.js';
+export type {
+  ConnectFourErrorCode,
+  Disc,
+  Cell,
+  ConnectFourMove,
+  ConnectFourGameState,
+  ConnectFourPublicState,
+  CreateGameOptions as ConnectFourCreateGameOptions,
+} from './services/connect-four-engine.service.js';
 export {
   MonopolyEngine,
   MonopolyError,
