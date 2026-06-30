@@ -68,6 +68,52 @@ export interface SkipPlan {
   playableSec: number;
 }
 
+/** A "teach me X" jump target — a segment whose label matches the query. */
+export interface TopicJump {
+  segmentId: string;
+  kind: SegmentKind;
+  label: string | null;
+  /** Where to seek the player to. */
+  startSec: number;
+  endSec: number;
+  /** Relevance score (higher = better match). */
+  score: number;
+}
+
+/** Words too generic to be useful query tokens. */
+const STOPWORDS = new Set([
+  'the',
+  'a',
+  'an',
+  'to',
+  'of',
+  'in',
+  'on',
+  'for',
+  'and',
+  'or',
+  'me',
+  'how',
+  'do',
+  'i',
+  'teach',
+  'show',
+  'explain',
+  'what',
+  'is',
+  'about',
+  'part',
+  'where',
+  'find',
+]);
+
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 2 && !STOPWORDS.has(w));
+}
+
 export interface SegmentPrisma {
   videoSegment: {
     findMany: (args: Record<string, unknown>) => Promise<SegmentRow[]>;
@@ -164,6 +210,51 @@ export class SegmentService {
   async listSegments(videoId: string): Promise<SegmentRow[]> {
     const rows = await this.prisma.videoSegment.findMany({ where: { videoId } });
     return [...rows].sort((a, b) => a.startSec - b.startSec);
+  }
+
+  /**
+   * "Teach me X" — resolve the segments whose label best matches a topic query
+   * and return them as jump targets (where to seek). Deterministic keyword
+   * scoring: a segment scores by how many query tokens appear in its label,
+   * with a small boost for core `content` segments (the parts worth learning
+   * from). Returns the best matches, highest score first, then earliest.
+   *
+   * @throws 400 EMPTY_QUERY when the query has no usable tokens.
+   */
+  async findTopicJumps(
+    videoId: string,
+    query: string,
+    options: { limit?: number } = {},
+  ): Promise<TopicJump[]> {
+    const tokens = tokenize(query ?? '');
+    if (tokens.length === 0) {
+      throw createAppError('A non-empty topic query is required', 400, 'EMPTY_QUERY');
+    }
+    const limit = options.limit && options.limit > 0 ? Math.min(options.limit, 50) : 5;
+    const segments = await this.listSegments(videoId);
+
+    const scored: TopicJump[] = [];
+    for (const s of segments) {
+      const labelTokens = new Set(tokenize(s.label ?? ''));
+      if (labelTokens.size === 0) continue;
+      let score = 0;
+      for (const t of tokens) {
+        if (labelTokens.has(t)) score += 1;
+      }
+      if (score === 0) continue;
+      // Prefer core content over intro/sponsor/etc for "teach me" jumps.
+      if (s.kind === 'content') score += 0.5;
+      scored.push({
+        segmentId: s.id,
+        kind: s.kind as SegmentKind,
+        label: s.label,
+        startSec: s.startSec,
+        endSec: s.endSec,
+        score,
+      });
+    }
+
+    return scored.sort((a, b) => b.score - a.score || a.startSec - b.startSec).slice(0, limit);
   }
 
   /**

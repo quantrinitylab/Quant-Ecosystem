@@ -59,4 +59,18 @@ export default async function segmentsRoutes(fastify: FastifyInstance) {
     });
     return reply.send({ success: true, data: plan });
   });
+
+  // "Teach me X" — resolve topic-matching segments as jump targets.
+  fastify.get<{ Params: { id: string } }>('/videos/:id/teach', async (request, reply) => {
+    const q = request.query as { q?: string; limit?: string };
+    const query = (q.q ?? '').trim();
+    if (!query) {
+      throw createAppError('q (topic query) is required', 400, 'EMPTY_QUERY');
+    }
+    const limit = q.limit ? Number(q.limit) : undefined;
+    const jumps = await service(fastify).findTopicJumps(request.params.id, query, {
+      ...(limit && Number.isFinite(limit) ? { limit } : {}),
+    });
+    return reply.send({ success: true, data: jumps });
+  });
 }
