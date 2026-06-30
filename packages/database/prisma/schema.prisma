@@ -808,6 +808,29 @@ enum AdCreativeType {
   COLLECTION
 }
 
+/// A durable per-click record for QuantAds click-fraud accounting. Every click
+/// on the serving surface is recorded here with a fraud verdict; only clicks
+/// with `billable = true` (not flagged) charge the advertiser and count toward
+/// publisher payouts. Relation-free (additive) so it is safe for the shared
+/// schema. `ipHash` is a salted hash — never a raw IP.
+model AdClickEvent {
+  id         String   @id @default(cuid())
+  adId       String
+  campaignId String?
+  userId     String
+  ipHash     String?
+  deviceFp   String?
+  billable   Boolean  @default(true)
+  fraudFlag  Boolean  @default(false)
+  fraudReason String?
+  createdAt  DateTime @default(now())
+
+  @@index([adId])
+  @@index([userId, createdAt])
+  @@index([ipHash, createdAt])
+  @@map("ad_click_events")
+}
+
 // ==================== MEDIA (QuantTube / QuantNeon) ====================
 
 model Video {
