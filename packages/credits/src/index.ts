@@ -248,3 +248,18 @@ export type {
   RecordEarningInput,
   CreatorEarningsServiceOptions,
 } from './creator-earnings.service';
+
+// ----------------------------------------------------------------------------
+// WithdrawSchedulerService — the daily auto-withdraw batch. Processes owners who
+// opted in (AutoWithdrawSetting, default OFF) through PayoutService; idempotent
+// per UTC day with a durable WithdrawSchedulerRun record.
+// ----------------------------------------------------------------------------
+export { WithdrawSchedulerService } from './withdraw-scheduler.service';
+export type {
+  AutoWithdrawSettingRow,
+  WithdrawSchedulerRunRow,
+  WithdrawSchedulerPrisma,
+  WithdrawPayoutPort,
+  WithdrawRunSummary,
+  WithdrawSchedulerOptions,
+} from './withdraw-scheduler.service';

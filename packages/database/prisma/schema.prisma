@@ -2210,6 +2210,51 @@ model Payout {
 }
 
 // ---------------------------------------------------------------------------
+// AutoWithdrawSetting — a per-owner standing instruction to automatically
+// withdraw EARNED credits on a daily cadence. Default OFF (no surprise auto
+// cash-out): the WithdrawScheduler only processes owners who explicitly opted
+// in. `minThresholdCredits` suppresses dust withdrawals (only auto-withdraw
+// when the withdrawable balance is at least this many credits).
+// ---------------------------------------------------------------------------
+model AutoWithdrawSetting {
+  id                  String   @id @default(cuid())
+  ownerRef            String   @unique // OWNER — exactly one auto-withdraw rule per owner
+  ownerType           String   @default("user") // "user" | "org"
+  tenantId            String? // ownership/isolation boundary for authz
+  enabled             Boolean  @default(false) // OPT-IN; default OFF
+  method              String   @default("upi") // upi | crypto | bank
+  destination         String? // masked rail destination — no secrets
+  minThresholdCredits Int      @default(100) // skip auto-withdraw below this amount
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([tenantId])
+  @@map("auto_withdraw_settings")
+}
+
+// ---------------------------------------------------------------------------
+// WithdrawSchedulerRun — a durable record of one daily auto-withdraw batch.
+// `utcDay` is unique so a re-run for the same day is idempotent (a completed
+// run is returned, never reprocessed). Counts give an at-a-glance audit of
+// how many owners were considered / withdrawn / skipped / failed.
+// ---------------------------------------------------------------------------
+model WithdrawSchedulerRun {
+  id                String    @id @default(cuid())
+  utcDay            String    @unique // YYYY-MM-DD batch key (one run per day)
+  status            String    @default("running") // running | completed | failed
+  ownersConsidered  Int       @default(0)
+  withdrawn         Int       @default(0)
+  skipped           Int       @default(0)
+  failed            Int       @default(0)
+  error             String?
+  startedAt         DateTime  @default(now())
+  finishedAt        DateTime?
+
+  @@map("withdraw_scheduler_runs")
+}
+
+// ---------------------------------------------------------------------------
 // PlatformConfig — the owner-controlled credit/economy configuration, persisted
 // so PricingEngine / PlanService / OverageService read durable values instead
 // of in-memory constants. QuantTrinity is the single writer (owner-only). One
