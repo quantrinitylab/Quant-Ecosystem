@@ -1,18 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { PlatformConfigService, type PlatformConfigPatch } from '@quant/credits';
 import { prisma } from '../../../lib/prisma';
 import { listModels, listPayouts, listRevenue, recordAudit } from '../../../lib/store';
 
-// The credit/economy config is now DURABLE (a platform_config row owned by
-// @quant/credits), not the in-memory store. The owner gate is enforced upstream
-// by the /api middleware (owner token), so the service's write predicate trusts
-// the request here; the principal is recorded as the owner for the audit trail.
-const OWNER_PRINCIPAL = { principalId: 'owner', isPlatformOwner: true } as const;
+// The credit/economy config is DURABLE (a platform_config row owned by
+// @quant/credits). The /api middleware enforces the owner gate upstream, but we
+// add defense-in-depth here: the service's write predicate only allows writes
+// from a principal that has been re-verified as the platform owner in THIS
+// request. A request that somehow reaches the route without a valid owner
+// credential gets a non-owner principal and is denied by writeAuthz.
+const OWNER_WRITE_AUTHZ = (principal: { isPlatformOwner?: boolean }): boolean =>
+  principal.isPlatformOwner === true;
+
+/** Constant-time compare guarding against length leaks. */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
+
+/**
+ * Re-verify the owner credential carried by the request (Authorization bearer
+ * or the `owner_token` cookie) against OWNER_SECRET. Fails closed when the
+ * secret is unset or the token is missing/incorrect.
+ */
+function isVerifiedOwner(request: NextRequest): boolean {
+  const ownerSecret = process.env.OWNER_SECRET;
+  if (!ownerSecret) return false;
+  const headerToken = request.headers.get('Authorization')?.replace('Bearer ', '');
+  const cookieToken = request.cookies.get('owner_token')?.value;
+  const token = headerToken || cookieToken;
+  if (!token) return false;
+  return safeEqual(token, ownerSecret);
+}
 
 function configService(): PlatformConfigService {
   return new PlatformConfigService(prisma as never, {
-    writeAuthz: () => true,
+    writeAuthz: OWNER_WRITE_AUTHZ,
   });
 }
 
@@ -92,7 +119,11 @@ export async function PATCH(request: NextRequest) {
     patch.overageEnabledDefault = parsed.data.overageEnabled;
 
   try {
-    const updated = await configService().setConfig(OWNER_PRINCIPAL, patch);
+    const principal = {
+      principalId: 'owner',
+      isPlatformOwner: isVerifiedOwner(request),
+    };
+    const updated = await configService().setConfig(principal, patch);
     await recordAudit({
       action: 'economy.credit_config.updated',
       target: 'credit',

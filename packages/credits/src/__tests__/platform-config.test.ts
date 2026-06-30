@@ -15,6 +15,7 @@ import {
   DEFAULT_PLATFORM_CONFIG,
   createConfigDailyAllowanceProvider,
   resolveCommissionRate,
+  resolveUsdPerCredit,
   type PlatformConfigRow,
 } from '../index';
 
@@ -110,5 +111,20 @@ describe('PlatformConfigService', () => {
     const allowance = createConfigDailyAllowanceProvider(svc);
     expect(await allowance()).toBe(25);
     expect(await resolveCommissionRate(svc)).toBe(0.15);
+  });
+
+  it('propagates an owner usdPerCredit change to the pricing consumer without restart', async () => {
+    const prisma = createConfigPrisma();
+    const svc = new PlatformConfigService(prisma as never, { writeAuthz: ownerOnly });
+
+    // The pricing/top-up path resolves the credit value live through the same
+    // service instance, so an owner change must be visible on the next read.
+    expect(await resolveUsdPerCredit(svc)).toBe(DEFAULT_PLATFORM_CONFIG.usdPerCredit);
+
+    await svc.setConfig(OWNER, { usdPerCredit: 2.5 });
+    expect(await resolveUsdPerCredit(svc)).toBe(2.5);
+
+    await svc.setConfig(OWNER, { usdPerCredit: 0.75 });
+    expect(await resolveUsdPerCredit(svc)).toBe(0.75);
   });
 });
