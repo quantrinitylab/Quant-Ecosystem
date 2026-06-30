@@ -108,6 +108,7 @@ describe('NeonGamesService — durable in-feed game sessions', () => {
       expect(games.find((g) => g.id === 'ludo')?.status).toBe('playable');
       expect(games.find((g) => g.id === 'monopoly')?.status).toBe('playable');
       expect(games.find((g) => g.id === 'connect-four')?.status).toBe('playable');
+      expect(games.find((g) => g.id === 'othello')?.status).toBe('playable');
     });
 
     it('getGame returns the catalog entry or undefined', () => {
@@ -439,5 +440,39 @@ describe('NeonGamesService — engine games', () => {
     sess = await svc.submitMove(s.id, 'alice', { type: 'connect_four_drop', column: 0 });
     expect(sess.state).toBe('finished');
     expect(sess.winner).toBe('alice');
+  });
+
+  it('auto-starts an Othello session with the host (Black) on turn', async () => {
+    const s = await svc.startGame('othello', 'alice');
+    const sess = await svc.joinGame(s.id, 'bob');
+    expect(sess.state).toBe('active');
+    expect(sess.turn).toBe('alice');
+    expect(sess.engineState).toBeDefined();
+  });
+
+  it('rejects an Othello move from the wrong player', async () => {
+    const s = await svc.startGame('othello', 'alice');
+    await svc.joinGame(s.id, 'bob');
+    await expect(
+      svc.submitMove(s.id, 'bob', { type: 'othello_place', row: 2, col: 3 }),
+    ).rejects.toMatchObject({ code: 'NOT_YOUR_TURN' });
+  });
+
+  it('applies a legal Othello move and flips a disc', async () => {
+    const s = await svc.startGame('othello', 'alice');
+    await svc.joinGame(s.id, 'bob');
+    // Black's opening move (2,3) flanks the white disc at (3,3).
+    const sess = await svc.submitMove(s.id, 'alice', { type: 'othello_place', row: 2, col: 3 });
+    expect(sess.state).toBe('active');
+    expect(sess.turn).toBe('bob');
+    expect(sess.engineState).toBeDefined();
+  });
+
+  it('rejects an illegal Othello move (flips nothing)', async () => {
+    const s = await svc.startGame('othello', 'alice');
+    await svc.joinGame(s.id, 'bob');
+    await expect(
+      svc.submitMove(s.id, 'alice', { type: 'othello_place', row: 0, col: 0 }),
+    ).rejects.toMatchObject({ code: 'INVALID_MOVE' });
   });
 });

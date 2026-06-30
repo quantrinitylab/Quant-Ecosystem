@@ -49,6 +49,11 @@ const actionSchema = z.union([
     type: z.literal('connect_four_drop'),
     column: z.coerce.number().int().min(0).max(11),
   }),
+  z.object({
+    type: z.literal('othello_place'),
+    row: z.coerce.number().int().min(0).max(7),
+    col: z.coerce.number().int().min(0).max(7),
+  }),
 ]);
 
 const ERROR_STATUS: Record<GameError['code'], number> = {

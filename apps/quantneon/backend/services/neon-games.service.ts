@@ -48,6 +48,8 @@ import {
   MonopolyError,
   ConnectFourEngine,
   ConnectFourError,
+  OthelloEngine,
+  OthelloError,
 } from '@quant/cross-app-gaming';
 import type {
   UnoColor,
@@ -55,6 +57,7 @@ import type {
   LudoGameState,
   MonopolyGameState,
   ConnectFourGameState,
+  OthelloGameState,
 } from '@quant/cross-app-gaming';
 
 export type GameStatus = 'playable' | 'coming_soon';
@@ -126,7 +129,8 @@ export type NeonGameMove =
   | { type: 'monopoly_end' }
   | { type: 'monopoly_jail_fine' }
   | { type: 'monopoly_jail_card' }
-  | { type: 'connect_four_drop'; column: number };
+  | { type: 'connect_four_drop'; column: number }
+  | { type: 'othello_place'; row: number; col: number };
 
 // ---------------------------------------------------------------------------
 // Persisted row shape (the subset of columns this service reads/writes).
@@ -215,6 +219,15 @@ const CATALOG: GameCatalogEntry[] = [
     turnBased: true,
     status: 'playable',
   },
+  {
+    id: 'othello',
+    name: 'Reversi (Othello)',
+    description: 'Flank and flip discs; the majority at the end wins.',
+    minPlayers: 2,
+    maxPlayers: 2,
+    turnBased: true,
+    status: 'playable',
+  },
 ];
 
 const WIN_LINES = [
@@ -233,6 +246,7 @@ export class NeonGamesService {
   private readonly ludoEngine: LudoEngine;
   private readonly monopolyEngine: MonopolyEngine;
   private readonly connectFourEngine: ConnectFourEngine;
+  private readonly othelloEngine: OthelloEngine;
 
   constructor(
     private readonly prisma: NeonGamePrisma,
@@ -242,12 +256,14 @@ export class NeonGamesService {
       ludo?: LudoEngine;
       monopoly?: MonopolyEngine;
       connectFour?: ConnectFourEngine;
+      othello?: OthelloEngine;
     } = {},
   ) {
     this.unoEngine = engines.uno ?? new UnoEngine();
     this.ludoEngine = engines.ludo ?? new LudoEngine();
     this.monopolyEngine = engines.monopoly ?? new MonopolyEngine();
     this.connectFourEngine = engines.connectFour ?? new ConnectFourEngine();
+    this.othelloEngine = engines.othello ?? new OthelloEngine();
   }
 
   // --- Static catalog (in-memory / sync) ----------------------------------
@@ -431,6 +447,13 @@ export class NeonGamesService {
         }
         const next = this.connectFourEngine.dropDisc(state, userId, action.column);
         this.syncFromEngine(session, next);
+      } else if (session.gameId === 'othello') {
+        const state = session.engineState as OthelloGameState;
+        if (action.type !== 'othello_place') {
+          throw new GameError('Unsupported Othello move', 'INVALID_MOVE');
+        }
+        const next = this.othelloEngine.placeDisc(state, userId, action.row, action.col);
+        this.syncFromEngine(session, next);
       } else {
         throw new GameError(`${session.gameId} is not playable yet`, 'GAME_NOT_PLAYABLE');
       }
@@ -549,6 +572,9 @@ export class NeonGamesService {
       case 'connect-four':
         session.engineState = this.connectFourEngine.createGame(session.players);
         break;
+      case 'othello':
+        session.engineState = this.othelloEngine.createGame(session.players);
+        break;
       default:
         throw new GameError(`${session.gameId} is not playable yet`, 'GAME_NOT_PLAYABLE');
     }
@@ -589,7 +615,8 @@ export class NeonGamesService {
       err instanceof UnoError ||
       err instanceof LudoError ||
       err instanceof MonopolyError ||
-      err instanceof ConnectFourError
+      err instanceof ConnectFourError ||
+      err instanceof OthelloError
     ) {
       if (err.code === 'NOT_YOUR_TURN') throw new GameError(err.message, 'NOT_YOUR_TURN');
       if (err.code === 'GAME_OVER') throw new GameError(err.message, 'SESSION_NOT_ACTIVE');
