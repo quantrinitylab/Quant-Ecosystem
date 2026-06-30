@@ -22,6 +22,7 @@
     "@quant/common": "workspace:*",
     "@quant/database": "workspace:*",
     "@prisma/client": "^6.19.3",
+    "@quant/moderation": "workspace:*",
     "@quant/realtime": "workspace:*",
     "@quant/server-core": "workspace:*",
     "@quant/shared-ui": "workspace:*",

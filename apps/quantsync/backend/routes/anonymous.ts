@@ -5,8 +5,8 @@ import {
   AnonymousPostService,
   AnonymousModerationError,
   AnonymousPostNotFoundError,
-  DefaultAnonymousModerator,
 } from '../services/anonymous-post.service';
+import { EngineAnonymousModerator } from '../services/anonymous-moderator';
 
 // ============================================================================
 // QuantSync Anonymous section routes (mounted at /anonymous).
@@ -38,7 +38,7 @@ export default async function anonymousRoutes(fastify: FastifyInstance) {
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     return new AnonymousPostService(prisma as never, {
       aliasSecret: aliasSecret(),
-      moderator: new DefaultAnonymousModerator(),
+      moderator: new EngineAnonymousModerator(),
     });
   };
 
