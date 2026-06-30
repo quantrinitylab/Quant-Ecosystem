@@ -75,6 +75,37 @@ export interface UpdateVideoInput {
   visibility?: string;
 }
 
+/** Small success envelope returned by {@link VideoService.deleteVideo}. */
+export interface DeleteVideoResult {
+  success: true;
+  videoId: string;
+  deletedAt: Date;
+}
+
+export type VideoProcessingStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+
+/** All valid VideoProcessingStatus values (mirrors the Prisma enum). */
+export const VIDEO_PROCESSING_STATUSES: readonly VideoProcessingStatus[] = [
+  'PENDING',
+  'PROCESSING',
+  'COMPLETED',
+  'FAILED',
+];
+
+/**
+ * Monotonic processing lifecycle. A video may only move forward:
+ *   PENDING -> PROCESSING -> COMPLETED
+ * and may fail from any non-terminal state:
+ *   PENDING -> FAILED, PROCESSING -> FAILED
+ * COMPLETED and FAILED are terminal — no transitions out of them.
+ */
+const PROCESSING_TRANSITIONS: Record<VideoProcessingStatus, readonly VideoProcessingStatus[]> = {
+  PENDING: ['PROCESSING', 'FAILED'],
+  PROCESSING: ['COMPLETED', 'FAILED'],
+  COMPLETED: [],
+  FAILED: [],
+};
+
 export class VideoService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -197,7 +228,70 @@ export class VideoService {
     });
   }
 
-  async deleteVideo(videoId: string, userId: string): Promise<Video> {
+  /**
+   * Advance a video through its processing lifecycle. Owner-only.
+   *
+   * The lifecycle is monotonic (PENDING -> PROCESSING -> COMPLETED) with a
+   * failure escape hatch from any non-terminal state. Illegal transitions
+   * (e.g. out of a terminal COMPLETED/FAILED state, or skipping straight from
+   * PENDING to COMPLETED) are rejected. When a video reaches COMPLETED it is
+   * published: `publishedAt` is stamped once and never overwritten on later
+   * (re-)completions.
+   */
+  async setProcessingStatus(videoId: string, userId: string, status: string): Promise<Video> {
+    const video = await this.prisma.video.findUnique({
+      where: { id: videoId },
+    });
+
+    if (!video || video.deletedAt) {
+      throw createAppError('Video not found', 404, 'VIDEO_NOT_FOUND');
+    }
+
+    if (video.userId !== userId) {
+      throw createAppError('Only the owner can change processing status', 403, 'NOT_VIDEO_OWNER');
+    }
+
+    if (!VIDEO_PROCESSING_STATUSES.includes(status as VideoProcessingStatus)) {
+      throw createAppError('Invalid processing status', 400, 'INVALID_PROCESSING_STATUS');
+    }
+
+    const next = status as VideoProcessingStatus;
+    const current = video.processingStatus as VideoProcessingStatus;
+    const allowed = PROCESSING_TRANSITIONS[current] ?? [];
+    if (!allowed.includes(next)) {
+      throw createAppError(
+        `Cannot transition processing status from ${current} to ${next}`,
+        409,
+        'INVALID_PROCESSING_TRANSITION',
+      );
+    }
+
+    const data: Record<string, unknown> = {
+      processingStatus: next,
+      updatedAt: new Date(),
+    };
+    // Publish on completion, but only stamp publishedAt the first time.
+    if (next === 'COMPLETED' && !video.publishedAt) {
+      data.publishedAt = new Date();
+    }
+
+    return this.prisma.video.update({
+      where: { id: videoId },
+      data,
+    });
+  }
+
+  /**
+   * Soft-delete a video. Owner-only.
+   *
+   * A missing video — or one that is already soft-deleted (`deletedAt` set) —
+   * is reported as not found, so deletes are idempotent and never resurrect or
+   * double-count. Only the owner may delete (mirrors `updateVideo` /
+   * `setProcessingStatus`). On success the video's `deletedAt` is stamped and,
+   * if it belongs to a channel, that channel's `videoCount` is decremented and
+   * clamped at 0 so a drifted counter can never go negative.
+   */
+  async deleteVideo(videoId: string, userId: string): Promise<DeleteVideoResult> {
     const video = await this.prisma.video.findUnique({
       where: { id: videoId },
     });
@@ -210,10 +304,27 @@ export class VideoService {
       throw createAppError('Only the owner can delete this video', 403, 'NOT_VIDEO_OWNER');
     }
 
-    return this.prisma.video.update({
+    const deletedAt = new Date();
+    await this.prisma.video.update({
       where: { id: videoId },
-      data: { deletedAt: new Date() },
+      data: { deletedAt },
     });
+
+    // Keep the owning channel's videoCount in sync with the soft-delete.
+    // Clamp at 0 so the counter can never go negative even if it has drifted.
+    if (video.channelId) {
+      const channel = await this.prisma.videoChannel.findUnique({
+        where: { id: video.channelId },
+      });
+      if (channel) {
+        await this.prisma.videoChannel.update({
+          where: { id: video.channelId },
+          data: { videoCount: Math.max(0, (channel.videoCount ?? 0) - 1) },
+        });
+      }
+    }
+
+    return { success: true, videoId, deletedAt };
   }
 
   async incrementView(videoId: string): Promise<Video> {

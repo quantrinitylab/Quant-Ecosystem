@@ -21,6 +21,10 @@ function createMockPrisma() {
       findMany: vi.fn(),
       count: vi.fn(),
     },
+    videoChannel: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+    },
   };
 }
 
@@ -174,32 +178,95 @@ describe('VideoService', () => {
   });
 
   describe('deleteVideo', () => {
-    it('soft-deletes a video when called by owner', async () => {
+    it('soft-deletes a video and decrements the channel videoCount when called by owner', async () => {
       prisma.video.findUnique.mockResolvedValue({
         id: 'video-1',
         userId: 'user-1',
+        channelId: 'channel-1',
         deletedAt: null,
       });
-      prisma.video.update.mockResolvedValue({
-        id: 'video-1',
-        deletedAt: expect.any(Date),
+      prisma.video.update.mockResolvedValue({});
+      prisma.videoChannel.findUnique.mockResolvedValue({
+        id: 'channel-1',
+        videoCount: 5,
       });
+      prisma.videoChannel.update.mockResolvedValue({});
 
       const result = await service.deleteVideo('video-1', 'user-1');
 
-      expect(result.deletedAt).toBeDefined();
+      expect(result).toEqual({
+        success: true,
+        videoId: 'video-1',
+        deletedAt: expect.any(Date),
+      });
+      // Soft delete: deletedAt stamped, row not removed.
+      expect(prisma.video.update).toHaveBeenCalledWith({
+        where: { id: 'video-1' },
+        data: { deletedAt: expect.any(Date) },
+      });
+      // Channel videoCount decremented by one.
+      expect(prisma.videoChannel.update).toHaveBeenCalledWith({
+        where: { id: 'channel-1' },
+        data: { videoCount: 4 },
+      });
     });
 
-    it('throws NOT_VIDEO_OWNER if different user tries to delete', async () => {
+    it('clamps the channel videoCount at 0 (never negative)', async () => {
       prisma.video.findUnique.mockResolvedValue({
         id: 'video-1',
         userId: 'user-1',
+        channelId: 'channel-1',
+        deletedAt: null,
+      });
+      prisma.video.update.mockResolvedValue({});
+      prisma.videoChannel.findUnique.mockResolvedValue({
+        id: 'channel-1',
+        videoCount: 0,
+      });
+      prisma.videoChannel.update.mockResolvedValue({});
+
+      await service.deleteVideo('video-1', 'user-1');
+
+      expect(prisma.videoChannel.update).toHaveBeenCalledWith({
+        where: { id: 'channel-1' },
+        data: { videoCount: 0 },
+      });
+    });
+
+    it('throws NOT_VIDEO_OWNER if a different user tries to delete', async () => {
+      prisma.video.findUnique.mockResolvedValue({
+        id: 'video-1',
+        userId: 'user-1',
+        channelId: 'channel-1',
         deletedAt: null,
       });
 
       await expect(service.deleteVideo('video-1', 'user-2')).rejects.toThrow(
         'Only the owner can delete this video',
       );
+      // No mutation on a forbidden delete.
+      expect(prisma.video.update).not.toHaveBeenCalled();
+      expect(prisma.videoChannel.update).not.toHaveBeenCalled();
+    });
+
+    it('throws VIDEO_NOT_FOUND for a non-existent video', async () => {
+      prisma.video.findUnique.mockResolvedValue(null);
+
+      await expect(service.deleteVideo('missing', 'user-1')).rejects.toThrow('Video not found');
+      expect(prisma.video.update).not.toHaveBeenCalled();
+    });
+
+    it('throws VIDEO_NOT_FOUND for an already-deleted video (idempotent guard)', async () => {
+      prisma.video.findUnique.mockResolvedValue({
+        id: 'video-1',
+        userId: 'user-1',
+        channelId: 'channel-1',
+        deletedAt: new Date(),
+      });
+
+      await expect(service.deleteVideo('video-1', 'user-1')).rejects.toThrow('Video not found');
+      expect(prisma.video.update).not.toHaveBeenCalled();
+      expect(prisma.videoChannel.update).not.toHaveBeenCalled();
     });
   });
 
