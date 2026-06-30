@@ -32,6 +32,10 @@ const paginationSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
 });
 
+const processingStatusSchema = z.object({
+  status: z.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']),
+});
+
 export default async function videosRoutes(fastify: FastifyInstance) {
   fastify.post('/', async (request, reply) => {
     const parseResult = uploadVideoSchema.safeParse(request.body);
@@ -112,6 +116,41 @@ export default async function videosRoutes(fastify: FastifyInstance) {
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new VideoService(prisma as never);
     const video = await service.incrementView(request.params.id);
+
+    return reply.send({ success: true, data: video });
+  });
+
+  fastify.post<{ Params: { id: string } }>('/:id/processing-status', async (request, reply) => {
+    const parseResult = processingStatusSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new VideoService(prisma as never);
+    const video = await service.setProcessingStatus(
+      request.params.id,
+      userId,
+      parseResult.data.status,
+    );
+
+    return reply.send({ success: true, data: video });
+  });
+
+  fastify.post<{ Params: { id: string } }>('/:id/publish', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new VideoService(prisma as never);
+    const video = await service.setProcessingStatus(request.params.id, userId, 'COMPLETED');
 
     return reply.send({ success: true, data: video });
   });
