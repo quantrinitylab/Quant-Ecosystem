@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Owner-tier API gate. Only protects /api routes. In production this validates
- * a JWT carrying the OWNER role; here it requires a non-empty owner token or a
- * JWT-shaped bearer.
+ * Constant-time string comparison. Avoids leaking the owner secret through
+ * early-exit timing differences. Runs in the edge runtime (no Node crypto).
+ * The length check leaks only the secret's length, which is acceptable.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
+/**
+ * Owner-tier API gate. Only protects /api routes. Access requires the bearer
+ * token (Authorization header or `owner_token` cookie) to match the configured
+ * OWNER_SECRET exactly, compared in constant time. A missing OWNER_SECRET fails
+ * closed (503). There is no JWT-shape acceptance: a string merely *looking*
+ * like a JWT (`eyJ...`) is not a credential and must be rejected.
  */
 export function middleware(request: NextRequest) {
   if (!request.nextUrl.pathname.startsWith('/api')) {
@@ -33,10 +49,13 @@ export function middleware(request: NextRequest) {
       { status: 503 },
     );
   }
-  // NOTE: the `eyJ` (JWT-shaped) acceptance is a follow-up — it should validate
-  // the JWT signature/owner-role against the issuer's JWKS rather than trusting
-  // its shape. Tracked separately; this change removes the hardcoded fallback.
-  if (token !== ownerSecret && !token.startsWith('eyJ')) {
+
+  // The only credential is the configured OWNER_SECRET. Previously a token
+  // starting with `eyJ` (JWT-shaped) was accepted without verifying its
+  // signature — a trivial auth bypass, since anyone could craft such a string.
+  // Until a real JWS/JWKS-verified owner token flow exists, require an exact
+  // constant-time match and reject everything else.
+  if (!timingSafeEqual(token, ownerSecret)) {
     return NextResponse.json(
       { success: false, error: { message: 'Invalid owner credentials', code: 'FORBIDDEN' } },
       { status: 403 },
