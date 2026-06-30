@@ -13,6 +13,8 @@ function createMockPrisma() {
       findUnique: vi.fn(),
       create: vi.fn(),
       count: vi.fn(),
+      delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
   };
 }
@@ -127,6 +129,66 @@ describe('LiveService', () => {
       prisma.liveStreamViewer.count.mockResolvedValue(2); // already full
       await expect(service.join('s1', 'viewer-3')).rejects.toThrow('full');
       expect(prisma.liveStreamViewer.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('leave', () => {
+    it('removes the viewer row and recomputes the distinct viewer count', async () => {
+      prisma.liveStream.findUnique.mockResolvedValue({ id: 's1', isLive: true });
+      prisma.liveStreamViewer.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.liveStreamViewer.count.mockResolvedValue(2);
+      prisma.liveStream.update.mockResolvedValue({});
+
+      const r = await service.leave('s1', 'viewer-1');
+
+      expect(prisma.liveStreamViewer.deleteMany).toHaveBeenCalledWith({
+        where: { streamId: 's1', userId: 'viewer-1' },
+      });
+      // viewerCount is recomputed from the real remaining rows (count), not derived.
+      expect(prisma.liveStreamViewer.count).toHaveBeenCalledWith({ where: { streamId: 's1' } });
+      expect(prisma.liveStream.update).toHaveBeenCalledWith({
+        where: { id: 's1' },
+        data: { viewerCount: 2 },
+      });
+      expect(r).toEqual({ left: true, viewerCount: 2 });
+    });
+
+    it('is an idempotent no-op when the user is not a viewer', async () => {
+      prisma.liveStream.findUnique.mockResolvedValue({ id: 's1', isLive: true });
+      prisma.liveStreamViewer.deleteMany.mockResolvedValue({ count: 0 }); // nothing removed
+      prisma.liveStreamViewer.count.mockResolvedValue(3);
+      prisma.liveStream.update.mockResolvedValue({});
+
+      const r = await service.leave('s1', 'never-joined');
+
+      // Still recomputes + persists, and does not throw.
+      expect(prisma.liveStreamViewer.deleteMany).toHaveBeenCalledWith({
+        where: { streamId: 's1', userId: 'never-joined' },
+      });
+      expect(r).toEqual({ left: true, viewerCount: 3 });
+    });
+
+    it('recomputed count matches the remaining viewer rows', async () => {
+      prisma.liveStream.findUnique.mockResolvedValue({ id: 's1', isLive: true });
+      prisma.liveStreamViewer.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.liveStreamViewer.count.mockResolvedValue(0); // last viewer left
+      prisma.liveStream.update.mockResolvedValue({});
+
+      const r = await service.leave('s1', 'viewer-last');
+      expect(r.viewerCount).toBe(0);
+      expect(prisma.liveStream.update).toHaveBeenCalledWith({
+        where: { id: 's1' },
+        data: { viewerCount: 0 },
+      });
+    });
+
+    it('throws when the stream is missing or not live (same code/status as join)', async () => {
+      prisma.liveStream.findUnique.mockResolvedValue(null);
+      await expect(service.leave('missing', 'u')).rejects.toThrow('Live stream not found');
+
+      prisma.liveStream.findUnique.mockResolvedValue({ id: 's1', isLive: false });
+      await expect(service.leave('s1', 'u')).rejects.toThrow('Live stream not found');
+      expect(prisma.liveStreamViewer.deleteMany).not.toHaveBeenCalled();
     });
   });
 

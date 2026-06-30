@@ -8,8 +8,10 @@ import { VideoService, VideoNotFoundError, VideoValidationError } from '../servi
 //
 //   POST /videos            -> create a video (upload metadata)
 //   GET  /videos            -> feed (paginated)
+//   GET  /videos/user/:userId -> a creator's videos (paginated, excludes deleted)
 //   GET  /videos/:id        -> a video (counts a view)
 //   POST /videos/:id/like   -> toggle the caller's like
+//   DELETE /videos/:id      -> soft-delete the caller's own video
 // ============================================================================
 
 function getUserId(request: unknown): string {
@@ -61,6 +63,17 @@ export default async function videosRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: feed });
   });
 
+  fastify.get<{ Params: { userId: string }; Querystring: unknown }>(
+    '/user/:userId',
+    async (request, reply) => {
+      getUserId(request);
+      const parsed = feedSchema.safeParse(request.query);
+      if (!parsed.success) throw parsed.error;
+      const result = await getService(fastify).listByUser(request.params.userId, parsed.data);
+      return reply.send({ success: true, data: result });
+    },
+  );
+
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
     getUserId(request);
     try {
@@ -81,5 +94,11 @@ export default async function videosRoutes(fastify: FastifyInstance) {
       if (err instanceof VideoNotFoundError) throw createAppError(err.message, 404, 'NOT_FOUND');
       throw err;
     }
+  });
+
+  fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
+    const userId = getUserId(request);
+    const result = await getService(fastify).deleteVideo(request.params.id, userId);
+    return reply.send({ success: true, data: result });
   });
 }

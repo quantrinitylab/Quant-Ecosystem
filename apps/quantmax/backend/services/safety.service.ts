@@ -29,12 +29,32 @@ export const REPORT_REASONS = [
 ] as const;
 export type ReportReason = (typeof REPORT_REASONS)[number];
 
+// Moderation lifecycle states (mirrors the prisma ReportStatus enum).
+export const REPORT_STATUSES = ['PENDING', 'REVIEWING', 'ACTIONED', 'DISMISSED'] as const;
+export type ReportStatus = (typeof REPORT_STATUSES)[number];
+
 export interface ReportInput {
   targetType: ReportTargetType;
   targetId: string;
   reason: ReportReason;
   details?: string;
 }
+
+export interface ListReportsInput {
+  status?: ReportStatus;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface ListReportsResult {
+  reports: unknown[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
 
 export interface SafetySettings {
   hideSensitiveContent: boolean;
@@ -78,6 +98,64 @@ export class SafetyService {
         details: details && details.length > 0 ? details : null,
         status: 'PENDING',
       },
+    });
+  }
+
+  // ==========================================================================
+  // Moderation queue (moderator/admin-facing).
+  // ==========================================================================
+
+  /**
+   * List reports for moderation triage, newest-first, optionally filtered by
+   * status and paginated. Returns the page of rows plus the total count so
+   * callers can render pagination.
+   */
+  async listReports(input: ListReportsInput = {}): Promise<ListReportsResult> {
+    if (input.status !== undefined && !REPORT_STATUSES.includes(input.status)) {
+      throw createAppError('Invalid report status', 400, 'INVALID_STATUS');
+    }
+
+    const page = Math.max(1, Math.floor(input.page ?? 1));
+    const requestedSize = Math.floor(input.pageSize ?? DEFAULT_PAGE_SIZE);
+    const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, requestedSize || DEFAULT_PAGE_SIZE));
+
+    const where = input.status ? { status: input.status } : {};
+
+    const [reports, total] = await Promise.all([
+      this.prisma.userReport.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.userReport.count({ where }),
+    ]);
+
+    return { reports, total, page, pageSize };
+  }
+
+  /**
+   * Transition a report to a new lifecycle status. Validates the target
+   * status, ensures the report exists, then persists the update and returns
+   * the updated row.
+   */
+  async updateReportStatus(reportId: string, status: ReportStatus) {
+    if (!REPORT_STATUSES.includes(status)) {
+      throw createAppError('Invalid report status', 400, 'INVALID_STATUS');
+    }
+    const id = reportId?.trim();
+    if (!id) {
+      throw createAppError('Report id is required', 400, 'INVALID_REPORT_ID');
+    }
+
+    const existing = await this.prisma.userReport.findUnique({ where: { id } });
+    if (!existing) {
+      throw createAppError('Report not found', 404, 'REPORT_NOT_FOUND');
+    }
+
+    return this.prisma.userReport.update({
+      where: { id },
+      data: { status },
     });
   }
 

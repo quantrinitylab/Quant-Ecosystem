@@ -7,6 +7,8 @@ function createMockPrisma() {
       create: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
     },
     userSafetySetting: {
       findUnique: vi.fn(),

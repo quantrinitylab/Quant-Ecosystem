@@ -9,6 +9,7 @@ import { LiveService, LIVE_TYPES } from '../services/live.service';
 //   GET  /live            -> active streams
 //   POST /live/start      { title, type?, thumbnailUrl?, maxParticipants?, tags? }
 //   POST /live/:id/join   -> join (distinct-viewer count)
+//   POST /live/:id/leave  -> leave (distinct-viewer count)
 //   POST /live/:id/end    -> host ends the stream
 //
 // All authenticated. Media is delivered client/CDN-side; this owns the record.
@@ -53,6 +54,12 @@ export default async function liveRoutes(fastify: FastifyInstance) {
   fastify.post<{ Params: { id: string } }>('/:id/join', async (request, reply) => {
     const userId = requireUserId(request);
     const result = await buildService(fastify).join(request.params.id, userId);
+    return reply.send({ success: true, data: result });
+  });
+
+  fastify.post<{ Params: { id: string } }>('/:id/leave', async (request, reply) => {
+    const userId = requireUserId(request);
+    const result = await buildService(fastify).leave(request.params.id, userId);
     return reply.send({ success: true, data: result });
   });
 

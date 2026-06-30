@@ -54,6 +54,11 @@ export interface PrismaClient {
     create: (args: { data: Record<string, unknown> }) => Promise<any>;
     findMany: (args: Record<string, unknown>) => Promise<any[]>;
     count: (args: Record<string, unknown>) => Promise<number>;
+    findUnique: (args: { where: Record<string, unknown> }) => Promise<any>;
+    update: (args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => Promise<any>;
   };
   userSafetySetting: {
     findUnique: (args: { where: Record<string, unknown> }) => Promise<any>;

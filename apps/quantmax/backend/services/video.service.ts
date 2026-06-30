@@ -6,6 +6,7 @@
 // ShortVideo model + an idempotent ShortVideoLike join so likes can be toggled
 // and counted without double-counting (likeCount kept in sync).
 
+import { createAppError } from '@quant/server-core';
 import type { PrismaClient } from '../types';
 
 export interface CreateVideoInput {
@@ -113,6 +114,46 @@ export class VideoService {
       orderBy: { createdAt: 'desc' },
     });
     return { videos: rows.map((r) => this.toPublic(r)), page, pageSize };
+  }
+
+  /**
+   * List a single creator's videos, newest-first and paginated. Soft-deleted
+   * rows are excluded. Returns the same `PublicVideo` shape as getVideo/listFeed.
+   */
+  async listByUser(
+    userId: string,
+    options: { page?: number; pageSize?: number } = {},
+  ): Promise<VideoFeedPage> {
+    const page = Math.max(options.page ?? 1, 1);
+    const pageSize = Math.min(Math.max(options.pageSize ?? 10, 1), 50);
+    const rows = await this.prisma.shortVideo.findMany({
+      where: { userId, deletedAt: null },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      orderBy: { createdAt: 'desc' },
+    });
+    return { videos: rows.map((r) => this.toPublic(r)), page, pageSize };
+  }
+
+  /**
+   * Soft-delete a video. Only the owner may delete it.
+   *   - 404 if the video is missing or already soft-deleted.
+   *   - 403 if the caller is not the owner.
+   * Idempotent from the caller's perspective: a second delete returns 404.
+   */
+  async deleteVideo(videoId: string, userId: string): Promise<{ deleted: true }> {
+    const row = await this.prisma.shortVideo.findUnique({ where: { id: videoId } });
+    if (!row || row.deletedAt) {
+      throw createAppError('Video not found', 404, 'NOT_FOUND');
+    }
+    if (String(row.userId) !== userId) {
+      throw createAppError('You can only delete your own videos', 403, 'FORBIDDEN');
+    }
+    await this.prisma.shortVideo.update({
+      where: { id: videoId },
+      data: { deletedAt: new Date() },
+    });
+    return { deleted: true };
   }
 
   /** Toggle the caller's like; returns the new state + count. */

@@ -62,6 +62,8 @@ export interface LivePrisma {
     findUnique: (args: { where: Record<string, unknown> }) => Promise<any>;
     create: (args: { data: Record<string, unknown> }) => Promise<any>;
     count: (args: Record<string, unknown>) => Promise<number>;
+    delete: (args: { where: Record<string, unknown> }) => Promise<any>;
+    deleteMany: (args: { where: Record<string, unknown> }) => Promise<{ count: number }>;
   };
 }
 
@@ -127,6 +129,27 @@ export class LiveService {
     const viewerCount = await this.prisma.liveStreamViewer.count({ where: { streamId } });
     await this.prisma.liveStream.update({ where: { id: streamId }, data: { viewerCount } });
     return { joined: true, viewerCount };
+  }
+
+  /**
+   * Leave a live stream. Idempotent: removing a viewer that isn't present is a
+   * no-op. The caller's LiveStreamViewer row is deleted (by the (streamId,userId)
+   * unique key) and viewerCount is recomputed from the real remaining viewer
+   * rows — exactly like {@link join} — and persisted on the LiveStream.
+   */
+  async leave(streamId: string, userId: string): Promise<{ left: boolean; viewerCount: number }> {
+    const stream = await this.prisma.liveStream.findUnique({ where: { id: streamId } });
+    if (!stream || !stream.isLive) {
+      throw createAppError('Live stream not found', 404, 'STREAM_NOT_FOUND');
+    }
+
+    // deleteMany on the unique (streamId,userId) is naturally idempotent:
+    // it removes the caller's row if present and is a no-op otherwise.
+    await this.prisma.liveStreamViewer.deleteMany({ where: { streamId, userId } });
+
+    const viewerCount = await this.prisma.liveStreamViewer.count({ where: { streamId } });
+    await this.prisma.liveStream.update({ where: { id: streamId }, data: { viewerCount } });
+    return { left: true, viewerCount };
   }
 
   async end(streamId: string, hostId: string): Promise<{ ended: boolean }> {

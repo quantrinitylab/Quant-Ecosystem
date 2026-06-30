@@ -17,7 +17,12 @@ function mockPrisma() {
       findUnique: vi.fn(
         async ({ where }: { where: { id: string } }) => videos.get(where.id) ?? null,
       ),
-      findMany: vi.fn(async () => [...videos.values()].filter((v) => !v.deletedAt)),
+      findMany: vi.fn(async (args?: { where?: { userId?: string } }) => {
+        const where = args?.where ?? {};
+        return [...videos.values()]
+          .filter((v) => !v.deletedAt)
+          .filter((v) => (where.userId ? v.userId === where.userId : true));
+      }),
       count: vi.fn(async () => videos.size),
       update: vi.fn(
         async ({ where, data }: { where: { id: string }; data: Record<string, any> }) => {
@@ -144,6 +149,83 @@ describe('VideoService', () => {
       const feed = await svc.listFeed({ page: 1, pageSize: 10 });
       expect(feed.videos).toHaveLength(2);
       expect(feed.page).toBe(1);
+    });
+  });
+
+  describe('listByUser', () => {
+    it('returns only the given creator videos', async () => {
+      const { prisma } = mockPrisma();
+      const svc = new VideoService(prisma);
+      await svc.createVideo({ userId: 'alice', videoUrl: 'https://a1' });
+      await svc.createVideo({ userId: 'alice', videoUrl: 'https://a2' });
+      await svc.createVideo({ userId: 'bob', videoUrl: 'https://b1' });
+
+      const page = await svc.listByUser('alice', { page: 1, pageSize: 10 });
+      expect(page.videos).toHaveLength(2);
+      expect(page.videos.every((v) => v.userId === 'alice')).toBe(true);
+      expect(page.page).toBe(1);
+      expect(page.pageSize).toBe(10);
+    });
+
+    it('excludes soft-deleted videos', async () => {
+      const { prisma } = mockPrisma();
+      const svc = new VideoService(prisma);
+      const keep = await svc.createVideo({ userId: 'alice', videoUrl: 'https://keep' });
+      const gone = await svc.createVideo({ userId: 'alice', videoUrl: 'https://gone' });
+      await svc.deleteVideo(gone.id, 'alice');
+
+      const page = await svc.listByUser('alice');
+      expect(page.videos).toHaveLength(1);
+      expect(page.videos[0]?.id).toBe(keep.id);
+    });
+
+    it('returns an empty page for a creator with no videos', async () => {
+      const { prisma } = mockPrisma();
+      const svc = new VideoService(prisma);
+      const page = await svc.listByUser('nobody');
+      expect(page.videos).toHaveLength(0);
+    });
+  });
+
+  describe('deleteVideo', () => {
+    it('soft-deletes the owner own video', async () => {
+      const { prisma, videos } = mockPrisma();
+      const svc = new VideoService(prisma);
+      const v = await svc.createVideo({ userId: 'owner', videoUrl: 'https://x' });
+
+      const res = await svc.deleteVideo(v.id, 'owner');
+      expect(res).toEqual({ deleted: true });
+      expect(videos.get(v.id)?.deletedAt).toBeInstanceOf(Date);
+    });
+
+    it('rejects deletion by a non-owner with a 403', async () => {
+      const { prisma } = mockPrisma();
+      const svc = new VideoService(prisma);
+      const v = await svc.createVideo({ userId: 'owner', videoUrl: 'https://x' });
+      await expect(svc.deleteVideo(v.id, 'intruder')).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'FORBIDDEN',
+      });
+    });
+
+    it('throws 404 for an unknown video', async () => {
+      const { prisma } = mockPrisma();
+      const svc = new VideoService(prisma);
+      await expect(svc.deleteVideo('missing', 'owner')).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'NOT_FOUND',
+      });
+    });
+
+    it('is idempotent: a second delete returns 404 (already deleted)', async () => {
+      const { prisma } = mockPrisma();
+      const svc = new VideoService(prisma);
+      const v = await svc.createVideo({ userId: 'owner', videoUrl: 'https://x' });
+      await svc.deleteVideo(v.id, 'owner');
+      await expect(svc.deleteVideo(v.id, 'owner')).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'NOT_FOUND',
+      });
     });
   });
 });

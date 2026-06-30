@@ -1,6 +1,7 @@
 import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
 import matchingRoutes from './routes/matching';
+import matchesRoutes from './routes/matches';
 import profilesRoutes from './routes/profiles';
 import swipesRoutes from './routes/swipes';
 import randomChatRoutes from './routes/random-chat';
@@ -42,6 +43,9 @@ export async function buildApp(config?: AppConfig) {
   const app = await createApp(appConfig);
 
   await app.register(matchingRoutes, { prefix: '/matching' });
+  // Real mutual-match management (list + unmatch). DISTINCT from `/matching`
+  // above, which returns swipe candidates rather than actual Match rows.
+  await app.register(matchesRoutes, { prefix: '/matches' });
   await app.register(profilesRoutes, { prefix: '/profiles' });
   await app.register(swipesRoutes, { prefix: '/swipes' });
   await app.register(randomChatRoutes, { prefix: '/random-chat' });
