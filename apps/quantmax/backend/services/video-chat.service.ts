@@ -13,6 +13,7 @@
 // for testability.
 
 import { randomUUID } from 'node:crypto';
+import { AccessToken, type VideoGrant } from 'livekit-server-sdk';
 
 export interface VideoChatPreferences {
   interests?: string[];
@@ -34,7 +35,52 @@ export interface VideoChatSessionView {
 
 export type JoinResult =
   | { status: 'waiting' }
-  | { status: 'matched'; session: VideoChatSessionView };
+  | {
+      status: 'matched';
+      session: VideoChatSessionView;
+      /** LiveKit room for this pairing (deterministic from session id). */
+      roomName: string;
+      /**
+       * The CALLER's own LiveKit access token — never the partner's. Undefined
+       * when LiveKit is not configured (media cannot start; matchmaking still
+       * works). Each participant only ever receives their own token, so no
+       * participant can impersonate the other.
+       */
+      selfToken?: string;
+    };
+
+/**
+ * Issues a LiveKit access token for a single identity. Injectable so the
+ * service is unit-testable without LiveKit credentials.
+ */
+export interface VideoChatTokenIssuer {
+  issue(roomName: string, identity: string): Promise<string>;
+}
+
+/**
+ * Build a real LiveKit token issuer from env (LIVEKIT_API_KEY / LIVEKIT_API_SECRET).
+ * Returns undefined when unconfigured — the caller then issues NO token
+ * (fail-closed: media cannot start, never a fake/insecure token). Tokens are
+ * scoped to the caller's own identity with a short TTL (ephemeral random chat).
+ */
+export function createLiveKitTokenIssuer(): VideoChatTokenIssuer | undefined {
+  const apiKey = process.env['LIVEKIT_API_KEY'];
+  const apiSecret = process.env['LIVEKIT_API_SECRET'];
+  if (!apiKey || !apiSecret) return undefined;
+  return {
+    issue: async (roomName: string, identity: string) => {
+      const grant: VideoGrant = {
+        room: roomName,
+        roomJoin: true,
+        canPublish: true,
+        canSubscribe: true,
+      };
+      const token = new AccessToken(apiKey, apiSecret, { identity, name: identity, ttl: '30m' });
+      token.addGrant(grant);
+      return token.toJwt();
+    },
+  };
+}
 
 export interface VideoChatPrisma {
   videoChatSession: {
@@ -69,7 +115,31 @@ export class VideoChatService {
     private readonly prisma: VideoChatPrisma,
     private readonly now: () => number = () => Date.now(),
     private readonly genId: () => string = () => randomUUID(),
+    private readonly tokenIssuer: VideoChatTokenIssuer | undefined = createLiveKitTokenIssuer(),
   ) {}
+
+  /** Deterministic LiveKit room name for a session. */
+  private roomNameFor(sessionId: string): string {
+    return `max-random:${sessionId}`;
+  }
+
+  /**
+   * Build the matched result for a SPECIFIC caller. Issues only the caller's
+   * own LiveKit token (never the partner's), so the response cannot be used to
+   * impersonate the other participant.
+   */
+  private async toMatched(session: ActiveSession, forUserId: string): Promise<JoinResult> {
+    const roomName = this.roomNameFor(session.id);
+    const selfToken = this.tokenIssuer
+      ? await this.tokenIssuer.issue(roomName, forUserId)
+      : undefined;
+    return {
+      status: 'matched',
+      session: this.toView(session),
+      roomName,
+      ...(selfToken ? { selfToken } : {}),
+    };
+  }
 
   /** Normalize interests to a lowercased, de-duped, non-empty set. */
   private normInterests(interests?: string[]): string[] {
@@ -93,7 +163,7 @@ export class VideoChatService {
     const existingId = this.userToSession.get(userId);
     if (existingId) {
       const s = this.sessions.get(existingId);
-      if (s) return { status: 'matched', session: this.toView(s) };
+      if (s) return this.toMatched(s, userId);
     }
 
     // Re-joining while queued: drop the stale queue entry first.
@@ -112,7 +182,7 @@ export class VideoChatService {
           prefs,
           matched,
         );
-        return { status: 'matched', session: this.toView(session) };
+        return this.toMatched(session, userId);
       }
     }
 

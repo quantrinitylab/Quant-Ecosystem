@@ -144,3 +144,65 @@ describe('VideoChatService', () => {
     if (r.status === 'matched') expect(r.session.hasTextFallback).toBe(true);
   });
 });
+
+describe('VideoChatService LiveKit token issuance (own-token-only)', () => {
+  let prisma: ReturnType<typeof createMockPrisma>;
+  let idSeq: number;
+
+  // Fake issuer encodes the identity into the token so we can assert exactly
+  // which identity each participant received a token for.
+  const issuer = {
+    issue: vi.fn(async (roomName: string, identity: string) => `tok:${roomName}:${identity}`),
+  };
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    idSeq = 0;
+    issuer.issue.mockClear();
+  });
+
+  function build() {
+    return new VideoChatService(
+      prisma as never,
+      () => 1_000_000,
+      () => `sess-${++idSeq}`,
+      issuer,
+    );
+  }
+
+  it('gives each participant ONLY their own token (no partner token leak)', async () => {
+    const service = build();
+    await service.join('alice', { interests: ['x'] });
+    const bobMatch = await service.join('bob', { interests: ['x'] });
+
+    expect(bobMatch.status).toBe('matched');
+    if (bobMatch.status === 'matched') {
+      expect(bobMatch.roomName).toBe('max-random:sess-1');
+      // Bob receives a token scoped to bob only.
+      expect(bobMatch.selfToken).toBe('tok:max-random:sess-1:bob');
+      expect(bobMatch.selfToken).not.toContain('alice');
+    }
+
+    // Alice discovers the match on her next join/poll and gets HER own token.
+    const aliceMatch = await service.join('alice', { interests: ['x'] });
+    if (aliceMatch.status === 'matched') {
+      expect(aliceMatch.selfToken).toBe('tok:max-random:sess-1:alice');
+      expect(aliceMatch.selfToken).not.toContain('bob');
+    }
+  });
+
+  it('issues no token when LiveKit is unconfigured (fail-closed, no fake token)', async () => {
+    // Default issuer (no LIVEKIT_* env) is undefined in the test environment.
+    const service = new VideoChatService(
+      prisma as never,
+      () => 1_000_000,
+      () => `sess-${++idSeq}`,
+    );
+    await service.join('alice', { interests: ['x'] });
+    const r = await service.join('bob', { interests: ['x'] });
+    if (r.status === 'matched') {
+      expect(r.roomName).toBe('max-random:sess-1');
+      expect(r.selfToken).toBeUndefined();
+    }
+  });
+});
