@@ -3724,40 +3724,6 @@ importers:
         specifier: ^4
         version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(jsdom@29.1.1)(vite@8.0.16(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
 
-  services/matchmaking:
-    dependencies:
-      '@quant/common':
-        specifier: workspace:*
-        version: link:../../packages/common
-      '@quant/health-server':
-        specifier: workspace:*
-        version: link:../../packages/health-server
-      '@quant/server-core':
-        specifier: workspace:*
-        version: link:../../packages/server-core
-      fastify:
-        specifier: ^5.3.3
-        version: 5.8.5
-      ioredis:
-        specifier: ^5.6.1
-        version: 5.10.1
-      livekit-server-sdk:
-        specifier: ^2.15.3
-        version: 2.15.3
-      zod:
-        specifier: ^3.25.23
-        version: 3.25.76
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.19
-      typescript:
-        specifier: ~5.5.0
-        version: 5.5.4
-      vitest:
-        specifier: ^4
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(jsdom@29.1.1)(vite@8.0.16(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
-
   services/moderation-worker:
     dependencies:
       '@quant/common':
