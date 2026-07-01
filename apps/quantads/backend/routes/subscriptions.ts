@@ -12,6 +12,16 @@ const upgradeSchema = z.object({
   newTier: z.enum(['Free', 'Pro', 'ProPlus', 'Family']),
 });
 
+/**
+ * QuantAds subscription routes (mounted at /subscriptions).
+ *
+ * NON-MONEY BY DESIGN: these endpoints only manage subscription-tier metadata
+ * and feature entitlements (subscribe / upgrade / current / entitlements). No
+ * coins are charged or paid here — there is no recurring spend wired — so there
+ * is nothing to move onto the @quant/credits ledger and no residual coin-wallet
+ * money-path. When paid subscriptions are introduced, the charge would go
+ * through CreditTransferService.spend (see the migrated economy/store routes).
+ */
 export default async function subscriptionsRoutes(fastify: FastifyInstance) {
   const { subscriptionManager, entitlementService } = fastify.economy;
   fastify.post('/subscribe', async (request, reply) => {

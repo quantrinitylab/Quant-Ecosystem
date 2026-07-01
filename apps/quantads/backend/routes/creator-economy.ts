@@ -16,6 +16,19 @@ const payoutSchema = z.object({
   method: z.string().min(1),
 });
 
+/**
+ * QuantAds creator-economy routes (mounted at /creator-economy).
+ *
+ * NON-MONEY BY DESIGN: these endpoints manage listing metadata and read-only
+ * earnings/payout requests. No coins are charged or paid here — none of the
+ * backing services (CreatorListingService, RevenueSplitEngine,
+ * CreatorPayoutService) touch a coin wallet — so there is no residual coin-wallet
+ * money-path to move onto the @quant/credits ledger. NOTE: earnings are sourced
+ * from RevenueSplitEngine.recordSale, which is not currently wired anywhere, so
+ * getCreatorEarnings reads 0 and requestCashOut is a gated record, not a money
+ * movement. Real creator payouts would flow through the credits ledger (as the
+ * publisher-payout scheduler now does) once sales recording is wired.
+ */
 export default async function creatorEconomyRoutes(fastify: FastifyInstance) {
   const { listingService, revenueSplitEngine, payoutService } = fastify.economy;
   fastify.post('/listing', async (request, reply) => {
