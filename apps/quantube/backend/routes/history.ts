@@ -97,8 +97,11 @@ function getVideoService(fastify: FastifyInstance): VideoService {
   return new VideoService(prisma as never);
 }
 
-// Singleton history service (in-memory for now)
-const historyService = new HistoryService();
+// Durable, per-request history service (Prisma-backed via fastify.prisma).
+function getHistoryService(fastify: FastifyInstance): HistoryService {
+  const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+  return new HistoryService(prisma as never);
+}
 
 export default async function historyRoutes(fastify: FastifyInstance) {
   fastify.post('/', async (request, reply) => {
@@ -112,7 +115,7 @@ export default async function historyRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const entry = await historyService.addToHistory(
+    const entry = await getHistoryService(fastify).addToHistory(
       userId,
       parseResult.data.videoId,
       parseResult.data.watchDuration,
@@ -154,7 +157,7 @@ export default async function historyRoutes(fastify: FastifyInstance) {
     // --- Snapshot: read the FULL ordered history once (Req 10.12) ------------
     // watchedAt-descending order is produced by HistoryService; ties keep service
     // order (Req 1.12). A pageSize of MAX_SAFE_INTEGER returns every entry.
-    const fullResult = await historyService.getHistory(userId, {
+    const fullResult = await getHistoryService(fastify).getHistory(userId, {
       page: 1,
       pageSize: Number.MAX_SAFE_INTEGER,
     });
@@ -208,7 +211,7 @@ export default async function historyRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    await historyService.clearHistory(userId);
+    await getHistoryService(fastify).clearHistory(userId);
 
     return reply.send({ success: true });
   });

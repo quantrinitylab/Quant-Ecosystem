@@ -1,3 +1,13 @@
+// ============================================================================
+// QuantTube - HistoryService (Prisma-backed, durable)
+// ============================================================================
+//
+// Watch history was previously an in-memory array (lost on restart / not shared
+// across instances). It is now persisted to Postgres via the `WatchHistory`
+// model: one row per (user, video), re-watching upserts the same row's duration
+// and timestamp. Depends on a narrow structural prisma slice so it stays unit-
+// testable with a fake.
+
 export interface WatchHistoryEntry {
   id: string;
   userId: string;
@@ -21,56 +31,83 @@ export interface PaginatedResult<T> {
   hasPrev: boolean;
 }
 
-export class HistoryService {
-  private history: WatchHistoryEntry[] = [];
-  private idCounter = 0;
+interface WatchHistoryRow {
+  id: string;
+  userId: string;
+  videoId: string;
+  watchDuration: number;
+  watchedAt: Date | string;
+}
 
+/** Structural Prisma slice (the real PrismaClient satisfies it at runtime). */
+export interface HistoryPrisma {
+  watchHistory: {
+    upsert(args: {
+      where: { userId_videoId: { userId: string; videoId: string } };
+      update: Record<string, unknown>;
+      create: Record<string, unknown>;
+    }): Promise<WatchHistoryRow>;
+    findMany(args: {
+      where: Record<string, unknown>;
+      orderBy?: Record<string, unknown>;
+      skip?: number;
+      take?: number;
+    }): Promise<WatchHistoryRow[]>;
+    count(args: { where: Record<string, unknown> }): Promise<number>;
+    deleteMany(args: { where: Record<string, unknown> }): Promise<{ count: number }>;
+  };
+}
+
+export class HistoryService {
+  constructor(private readonly prisma: HistoryPrisma) {}
+
+  private toEntry(row: WatchHistoryRow): WatchHistoryEntry {
+    return {
+      id: row.id,
+      userId: row.userId,
+      videoId: row.videoId,
+      watchDuration: row.watchDuration,
+      watchedAt: new Date(row.watchedAt),
+    };
+  }
+
+  /** Record a watch (upsert by user+video): updates duration + timestamp. */
   async addToHistory(
     userId: string,
     videoId: string,
     watchDuration: number,
   ): Promise<WatchHistoryEntry> {
-    this.idCounter++;
-    const entry: WatchHistoryEntry = {
-      id: `history-${this.idCounter}`,
-      userId,
-      videoId,
-      watchDuration,
-      watchedAt: new Date(),
-    };
-
-    // Update existing entry or add new one
-    const existingIndex = this.history.findIndex(
-      (h) => h.userId === userId && h.videoId === videoId,
-    );
-
-    if (existingIndex >= 0) {
-      this.history[existingIndex] = entry;
-    } else {
-      this.history.push(entry);
-    }
-
-    return entry;
+    const now = new Date();
+    const row = await this.prisma.watchHistory.upsert({
+      where: { userId_videoId: { userId, videoId } },
+      update: { watchDuration, watchedAt: now },
+      create: { userId, videoId, watchDuration, watchedAt: now },
+    });
+    return this.toEntry(row);
   }
 
+  /** The user's watch history, newest-first, paginated. */
   async getHistory(
     userId: string,
     options: PaginationOptions = {},
   ): Promise<PaginatedResult<WatchHistoryEntry>> {
     const page = options.page ?? 1;
     const pageSize = options.pageSize ?? 20;
-
-    const userHistory = this.history
-      .filter((h) => h.userId === userId)
-      .sort((a, b) => b.watchedAt.getTime() - a.watchedAt.getTime());
-
-    const total = userHistory.length;
     const skip = (page - 1) * pageSize;
-    const data = userHistory.slice(skip, skip + pageSize);
-    const totalPages = Math.ceil(total / pageSize);
 
+    const [rows, total] = await Promise.all([
+      this.prisma.watchHistory.findMany({
+        where: { userId },
+        orderBy: { watchedAt: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      this.prisma.watchHistory.count({ where: { userId } }),
+    ]);
+
+    const totalPages = Math.ceil(total / pageSize);
     return {
-      data,
+      data: rows.map((r) => this.toEntry(r)),
       total,
       page,
       pageSize,
@@ -81,10 +118,10 @@ export class HistoryService {
   }
 
   async clearHistory(userId: string): Promise<void> {
-    this.history = this.history.filter((h) => h.userId !== userId);
+    await this.prisma.watchHistory.deleteMany({ where: { userId } });
   }
 
   async removeFromHistory(userId: string, videoId: string): Promise<void> {
-    this.history = this.history.filter((h) => !(h.userId === userId && h.videoId === videoId));
+    await this.prisma.watchHistory.deleteMany({ where: { userId, videoId } });
   }
 }

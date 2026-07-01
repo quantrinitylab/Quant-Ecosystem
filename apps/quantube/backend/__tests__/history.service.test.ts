@@ -1,84 +1,120 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { HistoryService } from '../services/history.service';
+import { HistoryService, type HistoryPrisma } from '../services/history.service';
 
-describe('HistoryService', () => {
+interface Row {
+  id: string;
+  userId: string;
+  videoId: string;
+  watchDuration: number;
+  watchedAt: Date;
+}
+
+function createFakePrisma() {
+  const rows: Row[] = [];
+  let n = 0;
+  const prisma: HistoryPrisma & { rows: Row[] } = {
+    rows,
+    watchHistory: {
+      async upsert({ where, update, create }) {
+        const { userId, videoId } = where.userId_videoId;
+        const existing = rows.find((r) => r.userId === userId && r.videoId === videoId);
+        if (existing) {
+          existing.watchDuration = Number(update['watchDuration']);
+          existing.watchedAt = update['watchedAt'] as Date;
+          return existing;
+        }
+        n += 1;
+        const row: Row = {
+          id: `h-${n}`,
+          userId: String(create['userId']),
+          videoId: String(create['videoId']),
+          watchDuration: Number(create['watchDuration']),
+          watchedAt: create['watchedAt'] as Date,
+        };
+        rows.push(row);
+        return row;
+      },
+      async findMany({ where, skip = 0, take = 20 }) {
+        const filtered = rows
+          .filter((r) => r.userId === where['userId'])
+          .sort((a, b) => b.watchedAt.getTime() - a.watchedAt.getTime());
+        return filtered.slice(skip, skip + take);
+      },
+      async count({ where }) {
+        return rows.filter((r) => r.userId === where['userId']).length;
+      },
+      async deleteMany({ where }) {
+        const before = rows.length;
+        for (let i = rows.length - 1; i >= 0; i -= 1) {
+          const r = rows[i]!;
+          if (
+            r.userId === where['userId'] &&
+            (where['videoId'] === undefined || r.videoId === where['videoId'])
+          ) {
+            rows.splice(i, 1);
+          }
+        }
+        return { count: before - rows.length };
+      },
+    },
+  };
+  return prisma;
+}
+
+describe('HistoryService (Prisma-backed)', () => {
+  let prisma: ReturnType<typeof createFakePrisma>;
   let service: HistoryService;
 
   beforeEach(() => {
-    service = new HistoryService();
+    prisma = createFakePrisma();
+    service = new HistoryService(prisma as never);
   });
 
-  describe('addToHistory', () => {
-    it('adds an entry to watch history', async () => {
-      const entry = await service.addToHistory('user-1', 'video-1', 60);
-
-      expect(entry.userId).toBe('user-1');
-      expect(entry.videoId).toBe('video-1');
-      expect(entry.watchDuration).toBe(60);
-    });
-
-    it('updates existing entry for same user-video pair', async () => {
-      await service.addToHistory('user-1', 'video-1', 30);
-      const updated = await service.addToHistory('user-1', 'video-1', 90);
-
-      expect(updated.watchDuration).toBe(90);
-
-      const history = await service.getHistory('user-1');
-      expect(history.total).toBe(1);
-    });
+  it('adds a watch entry', async () => {
+    const entry = await service.addToHistory('u1', 'v1', 120);
+    expect(entry.userId).toBe('u1');
+    expect(entry.videoId).toBe('v1');
+    expect(entry.watchDuration).toBe(120);
+    expect(prisma.rows).toHaveLength(1);
   });
 
-  describe('getHistory', () => {
-    it('returns paginated history sorted by most recent', async () => {
-      await service.addToHistory('user-1', 'video-1', 60);
-      await service.addToHistory('user-1', 'video-2', 120);
-
-      const result = await service.getHistory('user-1', { page: 1, pageSize: 10 });
-
-      expect(result.data).toHaveLength(2);
-      expect(result.total).toBe(2);
-      expect(result.page).toBe(1);
-    });
-
-    it('returns empty for user with no history', async () => {
-      const result = await service.getHistory('user-1');
-
-      expect(result.data).toHaveLength(0);
-      expect(result.total).toBe(0);
-    });
+  it('upserts (updates duration) on re-watch of the same video', async () => {
+    await service.addToHistory('u1', 'v1', 60);
+    await service.addToHistory('u1', 'v1', 200);
+    expect(prisma.rows).toHaveLength(1);
+    expect(prisma.rows[0]!.watchDuration).toBe(200);
   });
 
-  describe('clearHistory', () => {
-    it('removes all history for a user', async () => {
-      await service.addToHistory('user-1', 'video-1', 60);
-      await service.addToHistory('user-1', 'video-2', 120);
-
-      await service.clearHistory('user-1');
-
-      const result = await service.getHistory('user-1');
-      expect(result.total).toBe(0);
-    });
+  it('returns paginated history newest-first', async () => {
+    await service.addToHistory('u1', 'v1', 10);
+    await new Promise((r) => setTimeout(r, 2));
+    await service.addToHistory('u1', 'v2', 20);
+    const result = await service.getHistory('u1', { page: 1, pageSize: 10 });
+    expect(result.total).toBe(2);
+    expect(result.data[0]!.videoId).toBe('v2'); // newest first
   });
 
-  describe('removeFromHistory', () => {
-    it('removes a specific entry from history', async () => {
-      await service.addToHistory('user-1', 'video-1', 60);
-      await service.addToHistory('user-1', 'video-2', 120);
+  it('scopes history to the requesting user', async () => {
+    await service.addToHistory('u1', 'v1', 10);
+    await service.addToHistory('u2', 'v2', 10);
+    const result = await service.getHistory('u1');
+    expect(result.total).toBe(1);
+    expect(result.data[0]!.videoId).toBe('v1');
+  });
 
-      await service.removeFromHistory('user-1', 'video-1');
+  it('clears a user history', async () => {
+    await service.addToHistory('u1', 'v1', 10);
+    await service.addToHistory('u1', 'v2', 10);
+    await service.clearHistory('u1');
+    expect((await service.getHistory('u1')).total).toBe(0);
+  });
 
-      const result = await service.getHistory('user-1');
-      expect(result.total).toBe(1);
-      expect(result.data[0].videoId).toBe('video-2');
-    });
-
-    it('does nothing if entry does not exist', async () => {
-      await service.addToHistory('user-1', 'video-1', 60);
-
-      await service.removeFromHistory('user-1', 'video-99');
-
-      const result = await service.getHistory('user-1');
-      expect(result.total).toBe(1);
-    });
+  it('removes a single video from history', async () => {
+    await service.addToHistory('u1', 'v1', 10);
+    await service.addToHistory('u1', 'v2', 10);
+    await service.removeFromHistory('u1', 'v1');
+    const result = await service.getHistory('u1');
+    expect(result.total).toBe(1);
+    expect(result.data[0]!.videoId).toBe('v2');
   });
 });
