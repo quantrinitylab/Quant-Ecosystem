@@ -3028,6 +3028,19 @@ model AiPromptTemplate {
   @@map("ai_prompt_templates")
 }
 
+/// A user's preferred default AI model (OpenRouter id). Resolved by the QuantAI
+/// ask/chat path when a request does not pin a model, via resolveUserModel with
+/// the platform default as fallback. Durable + per-user (one row per user).
+model UserModelPreference {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  model     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_model_preferences")
+}
+
 /// A user-defined QuantAI automation (trigger + ordered actions + conditions).
 /// Persisted so automations survive restarts and sync across devices; the
 /// `/automations` API previously had no backend at all. Trigger, actions and
