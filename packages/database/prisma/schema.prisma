@@ -3041,6 +3041,31 @@ model UserModelPreference {
   @@map("user_model_preferences")
 }
 
+/// A durable QuantEdits daily auto-edit run: select-source -> render -> meter ->
+/// schedule/post -> report. `utcDay` is unique per user so a re-run for the same
+/// day is idempotent (no double-post). Per-step checkpoints make an interrupted
+/// run inspectable/resumable. Rendering + publishing go through pluggable ports
+/// (NullRenderer fails closed until real WASM-ffmpeg is wired in staging).
+model AutoEditRun {
+  id             String    @id @default(cuid())
+  userId         String
+  utcDay         String
+  status         String    @default("running") // running | completed | failed
+  currentStep    Int       @default(0)
+  checkpoints    Json      @default("[]")
+  sourceRef      String?
+  outputUrl      String?
+  postId         String?
+  creditsCharged Int       @default(0)
+  error          String?
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+
+  @@unique([userId, utcDay])
+  @@index([userId])
+  @@map("auto_edit_runs")
+}
+
 /// A user-defined QuantAI automation (trigger + ordered actions + conditions).
 /// Persisted so automations survive restarts and sync across devices; the
 /// `/automations` API previously had no backend at all. Trigger, actions and
