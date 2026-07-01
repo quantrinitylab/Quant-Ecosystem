@@ -3107,6 +3107,23 @@ model AutoEditRun {
   @@map("auto_edit_runs")
 }
 
+/// A user's opt-in for the QuantEdits daily auto-edit -> auto-post loop (default
+/// OFF). The daily scheduler only processes enabled users. Optional source /
+/// template / caption defaults feed each run.
+model AutoEditPreference {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  enabled    Boolean  @default(false)
+  sourceRef  String?
+  templateId String?
+  caption    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([enabled])
+  @@map("auto_edit_preferences")
+}
+
 /// A per-user registration of an EXTERNAL MCP server that QuantAI may bridge to
 /// (discover + invoke tools). Durable; the transport (http/stdio) is resolved by
 /// a pluggable port at runtime. Registration is metadata only — no secrets.
