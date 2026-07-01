@@ -175,6 +175,20 @@ export type {
 export type { TransactionRunner } from './tx';
 
 // ----------------------------------------------------------------------------
+// CreditTransferService — generic peer transfers (gifting/tipping) + spends
+// (boost/store/subscription) on the append-only ledger. Atomic + idempotent.
+// ----------------------------------------------------------------------------
+export { CreditTransferService } from './credit-transfer.service';
+export type {
+  CreditTransferPrisma,
+  CreditTransferServiceOptions,
+  TransferInput,
+  TransferResult,
+  SpendInput,
+  SpendResult,
+} from './credit-transfer.service';
+
+// ----------------------------------------------------------------------------
 // Payment rails — multi-provider top-up (Stripe / Razorpay-UPI / PayPal / crypto)
 // behind the PaymentProvider port, env-configured and fail-closed.
 // ----------------------------------------------------------------------------
