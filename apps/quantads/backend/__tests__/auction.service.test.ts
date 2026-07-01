@@ -4,14 +4,17 @@ import { AuctionService, SubmitBidSchema } from '../services/auction.service';
 function createMockRedis() {
   return {
     zadd: vi.fn().mockResolvedValue(1),
+    zrange: vi.fn().mockResolvedValue([]),
     zrevrange: vi.fn().mockResolvedValue([]),
     zrem: vi.fn().mockResolvedValue(1),
+    zcard: vi.fn().mockResolvedValue(0),
     sadd: vi.fn().mockResolvedValue(1),
     srem: vi.fn().mockResolvedValue(1),
     smembers: vi.fn().mockResolvedValue([]),
     del: vi.fn().mockResolvedValue(1),
     hset: vi.fn().mockResolvedValue('OK'),
     hget: vi.fn().mockResolvedValue(null),
+    expire: vi.fn().mockResolvedValue(1),
   };
 }
 
@@ -52,12 +55,25 @@ describe('AuctionService', () => {
       );
       expect(redis.sadd).toHaveBeenCalledWith('auctions:active', 'auction-1');
     });
+
+    it('bounds key lifetime with a defensive TTL on the bid set + metadata', async () => {
+      await service.submitBid({
+        auctionId: 'auction-1',
+        bidderId: 'bidder-1',
+        bidAmount: 5.0,
+        qualityScore: 0.8,
+      });
+
+      expect(redis.expire).toHaveBeenCalledWith('auction:bids:auction-1', 86_400);
+      expect(redis.expire).toHaveBeenCalledWith('auction:meta:auction-1:bidder-1', 86_400);
+    });
   });
 
   describe('resolveAuction', () => {
     it('returns winner and second price with two bidders', async () => {
       // ZREVRANGE returns [member1, score1, member2, score2]
       redis.zrevrange.mockResolvedValue(['bidder-a', '8', 'bidder-b', '5']);
+      redis.zrange.mockResolvedValue(['bidder-b', 'bidder-a']);
       redis.hget.mockResolvedValue('10'); // bidder-a original bid amount
 
       const result = await service.resolveAuction('auction-1');
@@ -76,6 +92,7 @@ describe('AuctionService', () => {
     it('returns winner at own price with single bidder', async () => {
       // ZREVRANGE with only one bidder returns [member, score]
       redis.zrevrange.mockResolvedValue(['bidder-only', '6']);
+      redis.zrange.mockResolvedValue(['bidder-only']);
       redis.hget.mockResolvedValue('7.5');
 
       const result = await service.resolveAuction('auction-1');
@@ -89,6 +106,7 @@ describe('AuctionService', () => {
 
     it('cleans up bid key and active set for single-bidder resolution', async () => {
       redis.zrevrange.mockResolvedValue(['bidder-only', '6']);
+      redis.zrange.mockResolvedValue(['bidder-only']);
       redis.hget.mockResolvedValue('7.5');
 
       await service.resolveAuction('auction-1');
@@ -99,6 +117,7 @@ describe('AuctionService', () => {
 
     it('cleans up metadata keys after two-bidder resolution', async () => {
       redis.zrevrange.mockResolvedValue(['bidder-a', '8', 'bidder-b', '5']);
+      redis.zrange.mockResolvedValue(['bidder-b', 'bidder-a']);
       redis.hget.mockResolvedValue('10');
 
       await service.resolveAuction('auction-1');
@@ -109,11 +128,37 @@ describe('AuctionService', () => {
 
     it('cleans up metadata key after single-bidder resolution', async () => {
       redis.zrevrange.mockResolvedValue(['bidder-only', '6']);
+      redis.zrange.mockResolvedValue(['bidder-only']);
       redis.hget.mockResolvedValue('7.5');
 
       await service.resolveAuction('auction-1');
 
       expect(redis.del).toHaveBeenCalledWith('auction:meta:auction-1:bidder-only');
+    });
+
+    it('reaps EVERY bidder metadata hash with 3+ bidders (no orphans)', async () => {
+      // Top-2 by score, but four bidders total — the 3rd/4th must not orphan.
+      redis.zrevrange.mockResolvedValue(['bidder-a', '9', 'bidder-b', '7']);
+      redis.zrange.mockResolvedValue(['bidder-d', 'bidder-c', 'bidder-b', 'bidder-a']);
+      redis.hget.mockResolvedValue('12');
+
+      await service.resolveAuction('auction-1');
+
+      expect(redis.del).toHaveBeenCalledWith('auction:bids:auction-1');
+      expect(redis.srem).toHaveBeenCalledWith('auctions:active', 'auction-1');
+      for (const b of ['bidder-a', 'bidder-b', 'bidder-c', 'bidder-d']) {
+        expect(redis.del).toHaveBeenCalledWith(`auction:meta:auction-1:${b}`);
+      }
+    });
+
+    it('reaps the active-set entry when resolving with no bids', async () => {
+      redis.zrevrange.mockResolvedValue([]);
+      redis.zrange.mockResolvedValue([]);
+
+      const result = await service.resolveAuction('auction-1');
+
+      expect(result).toBeNull();
+      expect(redis.srem).toHaveBeenCalledWith('auctions:active', 'auction-1');
     });
 
     it('returns null with no bidders', async () => {
@@ -142,6 +187,25 @@ describe('AuctionService', () => {
       const result = await service.cancelBid('auction-1', 'nonexistent');
 
       expect(result).toBe(false);
+    });
+
+    it('reaps the active-set entry when the last bid is cancelled', async () => {
+      redis.zrem.mockResolvedValue(1);
+      redis.zcard.mockResolvedValue(0); // no bids remain
+
+      await service.cancelBid('auction-1', 'bidder-1');
+
+      expect(redis.srem).toHaveBeenCalledWith('auctions:active', 'auction-1');
+      expect(redis.del).toHaveBeenCalledWith('auction:bids:auction-1');
+    });
+
+    it('keeps the auction active when other bids remain', async () => {
+      redis.zrem.mockResolvedValue(1);
+      redis.zcard.mockResolvedValue(2); // other bids still present
+
+      await service.cancelBid('auction-1', 'bidder-1');
+
+      expect(redis.srem).not.toHaveBeenCalledWith('auctions:active', 'auction-1');
     });
   });
 
