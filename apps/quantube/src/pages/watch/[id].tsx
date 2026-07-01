@@ -3,13 +3,15 @@
 // Full video player with chapters, quality selector, comments, recommendations
 // ============================================================================
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { LoadingState, ErrorState, EmptyState, SpringButton } from '@quant/shared-ui';
 import { useVideo } from '../../hooks/useVideo';
 import { useComments } from '../../hooks/useComments';
+import { useSegmentSkip } from '../../hooks/useSegmentSkip';
+import { topicJumpTarget } from '../../lib/segment-skip';
 import { apiClient } from '../../services/api-client';
 
 type VideoQuality = '144p' | '360p' | '720p' | '1080p' | '4K';
@@ -121,6 +123,52 @@ const WatchPage: React.FC = () => {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [activeChapter, setActiveChapter] = useState<string | null>(null);
 
+  // --- Smart segment-skip (server skip-plan + "teach me X") wired to the real
+  // <video> element's currentTime seek handle. ---
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [autoSkip, setAutoSkip] = useState(true);
+  const [topicQuery, setTopicQuery] = useState('');
+  const { skipPlan, topicJumps, fetchTopicJumps, skipTargetAt } = useSegmentSkip(id, duration);
+
+  // Seed the duration from the loaded video record so the skip-plan can be
+  // fetched even before the media element reports its own metadata.
+  useEffect(() => {
+    const d = (video as { duration?: number } | undefined)?.duration;
+    if (typeof d === 'number' && d > 0) {
+      setDuration((prev) => (prev > 0 ? prev : d));
+    }
+  }, [video]);
+
+  const seek = useCallback((targetSec: number) => {
+    const el = videoRef.current;
+    if (el && Number.isFinite(targetSec)) {
+      el.currentTime = Math.max(0, targetSec);
+    }
+    setCurrentTime((prev) => (Number.isFinite(targetSec) ? Math.max(0, targetSec) : prev));
+  }, []);
+
+  const handleTimeUpdate = useCallback(
+    (e: React.SyntheticEvent<HTMLVideoElement>) => {
+      const t = e.currentTarget.currentTime;
+      setCurrentTime(t);
+      if (autoSkip) {
+        const target = skipTargetAt(t);
+        if (target != null && target > t) {
+          e.currentTarget.currentTime = target;
+        }
+      }
+    },
+    [autoSkip, skipTargetAt],
+  );
+
+  const handleTopicSearch = useCallback(() => {
+    void fetchTopicJumps(topicQuery);
+  }, [fetchTopicJumps, topicQuery]);
+
+  const manualSkipTarget = skipTargetAt(currentTime);
+
   const formatViews = useCallback((views: number): string => {
     if (views >= 1000000) return `${(views / 1000000).toFixed(1)}M views`;
     if (views >= 1000) return `${(views / 1000).toFixed(1)}K views`;
@@ -229,11 +277,17 @@ const WatchPage: React.FC = () => {
           {/* Video Player */}
           <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden">
             <video
+              ref={videoRef}
               src={v.url}
               poster={v.thumbnailUrl}
               controls
               className="w-full h-full object-contain"
               aria-label={v.title}
+              onLoadedMetadata={(e) => {
+                const d = e.currentTarget.duration;
+                if (Number.isFinite(d) && d > 0) setDuration(d);
+              }}
+              onTimeUpdate={handleTimeUpdate}
             />
             {/* Quality selector overlay */}
             <div className="absolute top-3 right-3">
@@ -432,6 +486,81 @@ const WatchPage: React.FC = () => {
 
         {/* Sidebar - Chapters + Recommendations */}
         <aside className="w-full lg:w-[380px] flex-shrink-0">
+          {/* Smart Skip (server skip-plan + "teach me X") */}
+          <div className="mb-6 p-3 rounded-xl bg-[var(--quant-muted)]">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold text-[var(--quant-foreground)]">Smart Skip</h3>
+              <label className="flex items-center gap-2 text-xs text-[var(--quant-muted-foreground)] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoSkip}
+                  onChange={(e) => setAutoSkip(e.target.checked)}
+                  className="accent-[var(--brand-primary)] min-h-[20px] min-w-[20px]"
+                  aria-label="Auto-skip non-content segments"
+                />
+                Auto-skip
+              </label>
+            </div>
+            {skipPlan ? (
+              <>
+                <p className="text-xs text-[var(--quant-muted-foreground)]">
+                  Skipping {skipPlan.skipKinds.join(', ') || 'nothing'} &middot;{' '}
+                  {formatDuration(Math.round(skipPlan.skippedSec))} saved
+                </p>
+                {manualSkipTarget != null && (
+                  <SpringButton
+                    onClick={() => seek(manualSkipTarget)}
+                    className="mt-2 min-h-[44px] px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-full hover:bg-blue-700"
+                  >
+                    Skip to {formatDuration(Math.round(manualSkipTarget))} &#x23ED;
+                  </SpringButton>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-[var(--quant-muted-foreground)]">
+                No skip data for this video yet.
+              </p>
+            )}
+
+            {/* "Teach me X" topic jumps */}
+            <div className="mt-3">
+              <div className="flex items-center gap-2">
+                <input
+                  value={topicQuery}
+                  onChange={(e) => setTopicQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleTopicSearch();
+                  }}
+                  placeholder="Teach me&hellip; (e.g. deployment)"
+                  className="flex-1 px-3 py-2 text-sm bg-[var(--quant-background)] border border-[var(--quant-border)] rounded-lg text-[var(--quant-foreground)] focus:outline-none focus:border-[var(--quant-foreground)] min-h-[44px]"
+                  aria-label="Jump to a topic"
+                />
+                <SpringButton
+                  onClick={handleTopicSearch}
+                  className="min-h-[44px] px-3 py-2 text-sm font-medium bg-[var(--quant-background)] rounded-lg text-[var(--quant-foreground)] hover:bg-[var(--quant-border)]"
+                >
+                  Find
+                </SpringButton>
+              </div>
+              {topicJumps.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {topicJumps.map((jump) => (
+                    <button
+                      key={jump.segmentId}
+                      onClick={() => seek(topicJumpTarget(jump))}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors min-h-[44px] hover:bg-[var(--quant-border)] text-[var(--quant-foreground)]"
+                    >
+                      <span className="text-xs font-mono text-[var(--quant-muted-foreground)] w-12 flex-shrink-0">
+                        {formatDuration(Math.round(jump.startSec))}
+                      </span>
+                      <span className="text-sm truncate">{jump.label || jump.kind}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Chapters */}
           <div className="mb-6">
             <h3 className="text-sm font-bold text-[var(--quant-foreground)] mb-3">Chapters</h3>

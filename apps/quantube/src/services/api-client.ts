@@ -94,6 +94,16 @@ class QuantTubeApiClient {
   async getChapters(id: string) {
     return this.request(`/videos/${id}/chapters`);
   }
+  async getSkipPlan(id: string, params: { duration: number; skip?: string }) {
+    return this.request<import('../lib/segment-skip').SkipPlan>(`/videos/${id}/skip-plan`, {
+      params: params as unknown as Record<string, string | number | boolean>,
+    });
+  }
+  async getTopicJumps(id: string, params: { q: string; limit?: number }) {
+    return this.request<import('../lib/segment-skip').TopicJump[]>(`/videos/${id}/teach`, {
+      params: params as unknown as Record<string, string | number | boolean>,
+    });
+  }
   async getSubtitles(id: string) {
     return this.request(`/videos/${id}/subtitles`);
   }
