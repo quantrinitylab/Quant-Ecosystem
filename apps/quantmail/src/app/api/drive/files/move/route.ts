@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.QUANTDRIVE_BACKEND_URL || 'http://localhost:3005';
+const BACKEND_URL = process.env.QUANTDRIVE_BACKEND_URL || 'http://localhost:3012';
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
