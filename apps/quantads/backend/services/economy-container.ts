@@ -5,7 +5,6 @@ import {
   BoostPackRegistry,
   SubscriptionManager,
   EntitlementService,
-  CreatorListingService,
   RevenueSplitEngine,
   CreatorPayoutService,
 } from '@quant/quant-economy';
@@ -39,7 +38,6 @@ export interface EconomyContainer {
   packRegistry: BoostPackRegistry;
   subscriptionManager: SubscriptionManager;
   entitlementService: EntitlementService;
-  listingService: CreatorListingService;
   revenueSplitEngine: RevenueSplitEngine;
   payoutService: CreatorPayoutService;
 }
@@ -51,7 +49,6 @@ export function createEconomyContainer(): EconomyContainer {
   const packRegistry = new BoostPackRegistry();
   const subscriptionManager = new SubscriptionManager();
   const entitlementService = new EntitlementService(subscriptionManager);
-  const listingService = new CreatorListingService();
   const revenueSplitEngine = new RevenueSplitEngine();
   const payoutService = new CreatorPayoutService(revenueSplitEngine);
 
@@ -61,7 +58,6 @@ export function createEconomyContainer(): EconomyContainer {
     packRegistry,
     subscriptionManager,
     entitlementService,
-    listingService,
     revenueSplitEngine,
     payoutService,
   };

@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
+import { DurableCreatorListingService } from '../services/creator-listing.service.js';
 
 const createListingSchema = z.object({
   creatorId: z.string().min(1),
   name: z.string().min(1),
   description: z.string().min(1),
-  price: z.number().positive(),
+  price: z.number().int().positive(),
   itemType: z.enum(['virtual_good', 'game_pass']),
 });
 
@@ -30,7 +31,10 @@ const payoutSchema = z.object({
  * publisher-payout scheduler now does) once sales recording is wired.
  */
 export default async function creatorEconomyRoutes(fastify: FastifyInstance) {
-  const { listingService, revenueSplitEngine, payoutService } = fastify.economy;
+  const { revenueSplitEngine, payoutService } = fastify.economy;
+  const listingService = new DurableCreatorListingService(
+    (fastify as unknown as { prisma: never }).prisma,
+  );
   fastify.post('/listing', async (request, reply) => {
     const parseResult = createListingSchema.safeParse(request.body);
     if (!parseResult.success) {
@@ -40,9 +44,16 @@ export default async function creatorEconomyRoutes(fastify: FastifyInstance) {
     const { creatorId, name, description, price, itemType } = parseResult.data;
 
     try {
-      const listing = listingService.createListing(creatorId, name, description, itemType, price);
+      const listing = await listingService.createListing(
+        creatorId,
+        name,
+        description,
+        itemType,
+        price,
+      );
       return reply.status(201).send({ success: true, data: listing });
     } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'statusCode' in e) throw e;
       const message = e instanceof Error ? e.message : 'Failed to create listing';
       throw createAppError(message, 400, 'LISTING_CREATE_FAILED');
     }
@@ -50,7 +61,7 @@ export default async function creatorEconomyRoutes(fastify: FastifyInstance) {
 
   fastify.get<{ Params: { creatorId: string } }>('/listings/:creatorId', async (request, reply) => {
     try {
-      const listings = listingService.getCreatorListings(request.params.creatorId);
+      const listings = await listingService.getCreatorListings(request.params.creatorId);
       return reply.send({ success: true, data: listings });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Failed to get listings';
@@ -60,7 +71,7 @@ export default async function creatorEconomyRoutes(fastify: FastifyInstance) {
 
   fastify.get('/marketplace', async (_request, reply) => {
     try {
-      const listings = listingService.getMarketplaceListings();
+      const listings = await listingService.getMarketplaceListings();
       return reply.send({ success: true, data: listings });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Failed to get marketplace';

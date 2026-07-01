@@ -3124,6 +3124,27 @@ model AutoEditPreference {
   @@map("auto_edit_preferences")
 }
 
+/// A durable creator-marketplace listing: a digital good/asset a creator sells
+/// for credits. Replaces the prior in-memory (ephemeral, per-process) listing
+/// store so a creator's listings survive restarts. Purchases settle atomically
+/// on the @quant/credits ledger (MarketplaceLedger), crediting the seller
+/// withdrawable `marketplace_sale` proceeds (wired in the purchase phase).
+model CreatorListing {
+  id           String   @id @default(cuid())
+  creatorId    String
+  title        String
+  description  String
+  type         String // 'virtual_good' | 'game_pass'
+  priceCredits Int
+  status       String   @default("active") // 'active' | 'delisted'
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([creatorId])
+  @@index([status])
+  @@map("creator_listings")
+}
+
 /// A per-user registration of an EXTERNAL MCP server that QuantAI may bridge to
 /// (discover + invoke tools). Durable; the transport (http/stdio) is resolved by
 /// a pluggable port at runtime. Registration is metadata only — no secrets.
