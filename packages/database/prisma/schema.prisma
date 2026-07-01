@@ -3145,6 +3145,25 @@ model CreatorListing {
   @@map("creator_listings")
 }
 
+/// A buyer's durable ownership record for a creator-marketplace purchase. Written
+/// idempotently (keyed by the ledger `purchaseId`) right AFTER MarketplaceLedger
+/// settles the money, so a retried purchase reconciles to exactly one
+/// entitlement — never money-moved-without-access, never double-granted. Powers
+/// "my purchases" listing + delivery/access gating.
+model CreatorPurchase {
+  id           String   @id @default(cuid())
+  purchaseId   String   @unique
+  buyerId      String
+  listingId    String
+  sellerId     String
+  priceCredits Int
+  createdAt    DateTime @default(now())
+
+  @@index([buyerId])
+  @@index([listingId])
+  @@map("creator_purchases")
+}
+
 /// A per-user registration of an EXTERNAL MCP server that QuantAI may bridge to
 /// (discover + invoke tools). Durable; the transport (http/stdio) is resolved by
 /// a pluggable port at runtime. Registration is metadata only — no secrets.

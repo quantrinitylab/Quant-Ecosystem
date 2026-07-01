@@ -152,4 +152,35 @@ export default async function creatorEconomyRoutes(fastify: FastifyInstance) {
       throw createAppError(message, 400, 'EARNINGS_FETCH_FAILED');
     }
   });
+
+  // "My purchases" — the buyer's durable ownership records, newest first.
+  fastify.get<{ Params: { buyerId: string } }>('/purchases/:buyerId', async (request, reply) => {
+    try {
+      const purchases = await marketplace.getPurchases(request.params.buyerId);
+      return reply.send({ success: true, data: purchases });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Failed to get purchases';
+      throw createAppError(message, 400, 'PURCHASES_FETCH_FAILED');
+    }
+  });
+
+  // Access gate — has this buyer purchased this listing? (delivery/access check)
+  fastify.get<{ Params: { buyerId: string; listingId: string } }>(
+    '/purchases/:buyerId/:listingId',
+    async (request, reply) => {
+      try {
+        const owned = await marketplace.hasPurchased(
+          request.params.buyerId,
+          request.params.listingId,
+        );
+        return reply.send({
+          success: true,
+          data: { buyerId: request.params.buyerId, listingId: request.params.listingId, owned },
+        });
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : 'Failed to check access';
+        throw createAppError(message, 400, 'ACCESS_CHECK_FAILED');
+      }
+    },
+  );
 }

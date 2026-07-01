@@ -50,10 +50,35 @@ export interface CreatorPurchaseResult extends PurchaseResult {
   creatorId: string;
 }
 
+/** A durable buyer ownership record (mirrors the CreatorPurchase Prisma row). */
+export interface CreatorPurchaseRecord {
+  id: string;
+  purchaseId: string;
+  buyerId: string;
+  listingId: string;
+  sellerId: string;
+  priceCredits: number;
+  createdAt: Date;
+}
+
+/** The narrow Prisma slice for buyer entitlements (real PrismaClient satisfies it). */
+export interface CreatorPurchasePrisma {
+  creatorPurchase: {
+    upsert(args: {
+      where: { purchaseId: string };
+      create: Record<string, unknown>;
+      update: Record<string, unknown>;
+    }): Promise<CreatorPurchaseRecord>;
+    findMany(args: Record<string, unknown>): Promise<CreatorPurchaseRecord[]>;
+    findFirst(args: { where: Record<string, unknown> }): Promise<CreatorPurchaseRecord | null>;
+  };
+}
+
 export class CreatorMarketplaceService {
   private readonly listings: DurableCreatorListingService;
   private readonly ledger: MarketplaceLedger;
   private readonly wallet: CreditWallet;
+  private readonly prisma: CreatorPurchasePrisma;
 
   constructor(prisma: unknown) {
     this.listings = new DurableCreatorListingService(prisma as never);
@@ -61,11 +86,21 @@ export class CreatorMarketplaceService {
       defaultCommissionRate: CREATOR_COMMISSION_RATE,
     });
     this.wallet = new CreditWallet(prisma as never);
+    this.prisma = prisma as CreatorPurchasePrisma;
   }
 
   /**
-   * Buy a creator listing. Looks up the durable listing, then settles the
-   * purchase atomically on the ledger (idempotent per `purchaseId`).
+   * Buy a creator listing. Looks up the durable listing, settles the purchase
+   * atomically on the ledger (idempotent per `purchaseId`), THEN records the
+   * buyer's durable ownership entitlement with an idempotent upsert keyed by the
+   * same `purchaseId`.
+   *
+   * ORDER + RECONCILE: money settles first (fail-closed — an insufficient
+   * balance throws before any entitlement is written, so there is never an
+   * entitlement without payment). The entitlement upsert is keyed by the unique
+   * `purchaseId`, so a retry after a crash between settlement and the
+   * entitlement write reconciles (the ledger leg replays harmlessly and the
+   * entitlement is created) and a replay never double-grants.
    *
    * @throws 404 LISTING_NOT_FOUND   no such listing.
    * @throws 400 LISTING_NOT_ACTIVE  the listing is delisted.
@@ -91,7 +126,36 @@ export class CreatorMarketplaceService {
       listingId,
       priceCredits: listing.priceCredits,
     });
+
+    // Durable entitlement — idempotent by purchaseId (reconciles retries, never
+    // double-grants). Runs after the money has settled.
+    await this.prisma.creatorPurchase.upsert({
+      where: { purchaseId },
+      create: {
+        purchaseId,
+        buyerId,
+        listingId,
+        sellerId: listing.creatorId,
+        priceCredits: listing.priceCredits,
+      },
+      update: {},
+    });
+
     return { ...result, creatorId: listing.creatorId };
+  }
+
+  /** A buyer's owned purchases, newest first ("my purchases"). */
+  async getPurchases(buyerId: string): Promise<CreatorPurchaseRecord[]> {
+    return this.prisma.creatorPurchase.findMany({
+      where: { buyerId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Access gate: has `buyerId` purchased `listingId`? */
+  async hasPurchased(buyerId: string, listingId: string): Promise<boolean> {
+    const row = await this.prisma.creatorPurchase.findFirst({ where: { buyerId, listingId } });
+    return row != null;
   }
 
   /** A creator's real, ledger-visible EARNED (cash-out-eligible) credit total. */

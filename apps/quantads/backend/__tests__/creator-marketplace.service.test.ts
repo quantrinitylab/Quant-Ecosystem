@@ -42,11 +42,22 @@ interface ListingRow {
 function createPrisma() {
   const ledger: LedgerRow[] = [];
   const listings: ListingRow[] = [];
+  const purchases: Array<{
+    id: string;
+    purchaseId: string;
+    buyerId: string;
+    listingId: string;
+    sellerId: string;
+    priceCredits: number;
+    createdAt: Date;
+  }> = [];
   let ln = 0;
   let cn = 0;
+  let pn = 0;
   const api = {
     _ledger: ledger,
     _listings: listings,
+    _purchases: purchases,
     async $transaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
       const snap = ledger.map((r) => ({ ...r }));
       try {
@@ -127,6 +138,42 @@ function createPrisma() {
         return { ...row };
       },
     },
+    creatorPurchase: {
+      async upsert({
+        where,
+        create,
+      }: {
+        where: { purchaseId: string };
+        create: Record<string, unknown>;
+        update: Record<string, unknown>;
+      }) {
+        const existing = purchases.find((p) => p.purchaseId === where.purchaseId);
+        if (existing) return { ...existing };
+        const row = {
+          id: `pur-${++pn}`,
+          purchaseId: create.purchaseId as string,
+          buyerId: create.buyerId as string,
+          listingId: create.listingId as string,
+          sellerId: create.sellerId as string,
+          priceCredits: create.priceCredits as number,
+          createdAt: new Date(),
+        };
+        purchases.push(row);
+        return { ...row };
+      },
+      async findMany({ where }: { where?: { buyerId?: string } } = {}) {
+        const b = where?.buyerId;
+        return purchases.filter((p) => b == null || p.buyerId === b).map((p) => ({ ...p }));
+      },
+      async findFirst({ where }: { where: { buyerId?: string; listingId?: string } }) {
+        const m = purchases.find(
+          (p) =>
+            (where.buyerId == null || p.buyerId === where.buyerId) &&
+            (where.listingId == null || p.listingId === where.listingId),
+        );
+        return m ? { ...m } : null;
+      },
+    },
   };
   return api;
 }
@@ -170,9 +217,13 @@ describe('CreatorMarketplaceService.purchase', () => {
     expect(balanceOf(prisma, 'creator-1')).toBe(70);
     expect(balanceOf(prisma, 'platform')).toBe(30);
     expect(await marketplace.getCreatorEarnings('creator-1')).toBe(70);
+
+    // buyer gets a durable entitlement
+    expect(prisma._purchases).toHaveLength(1);
+    expect(await marketplace.hasPurchased('buyer-1', listingId)).toBe(true);
   });
 
-  it('is idempotent per purchaseId (replay moves nothing more)', async () => {
+  it('is idempotent per purchaseId (replay moves nothing more, no double-entitlement)', async () => {
     const listingId = await seedListing('creator-1', 100);
     await fund(prisma, 'buyer-1', 100);
 
@@ -181,9 +232,10 @@ describe('CreatorMarketplaceService.purchase', () => {
     expect(replay.replayed).toBe(true);
     expect(balanceOf(prisma, 'creator-1')).toBe(70);
     expect(await marketplace.getCreatorEarnings('creator-1')).toBe(70);
+    expect(prisma._purchases).toHaveLength(1); // no double-entitlement
   });
 
-  it('fails closed when the buyer cannot afford it (nothing moves)', async () => {
+  it('fails closed when the buyer cannot afford it (no money, no entitlement)', async () => {
     const listingId = await seedListing('creator-1', 100);
     await fund(prisma, 'buyer-1', 40);
 
@@ -193,6 +245,7 @@ describe('CreatorMarketplaceService.purchase', () => {
     });
     expect(balanceOf(prisma, 'buyer-1')).toBe(40);
     expect(balanceOf(prisma, 'creator-1')).toBe(0);
+    expect(prisma._purchases).toHaveLength(0); // fail-closed: no entitlement
   });
 
   it('rejects buying your own listing', async () => {
@@ -208,5 +261,26 @@ describe('CreatorMarketplaceService.purchase', () => {
       statusCode: 404,
       code: 'LISTING_NOT_FOUND',
     });
+  });
+});
+
+describe('CreatorMarketplaceService buyer entitlements', () => {
+  it('lists a buyer purchases newest-first and gates access correctly', async () => {
+    const l1 = await seedListing('creator-1', 30);
+    const l2 = await seedListing('creator-2', 50);
+    await fund(prisma, 'buyer-1', 200);
+
+    await marketplace.purchase('buyer-1', l1, 'pa');
+    await marketplace.purchase('buyer-1', l2, 'pb');
+
+    const purchases = await marketplace.getPurchases('buyer-1');
+    expect(purchases.map((p) => p.listingId).sort()).toEqual([l1, l2].sort());
+
+    expect(await marketplace.hasPurchased('buyer-1', l1)).toBe(true);
+    expect(await marketplace.hasPurchased('buyer-1', l2)).toBe(true);
+    // a non-buyer has no access
+    expect(await marketplace.hasPurchased('buyer-2', l1)).toBe(false);
+    // buyer-1 never bought a listing they didn't purchase
+    expect(await marketplace.hasPurchased('buyer-1', 'other')).toBe(false);
   });
 });
