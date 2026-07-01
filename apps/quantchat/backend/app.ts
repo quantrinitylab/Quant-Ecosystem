@@ -21,6 +21,7 @@ import notificationsRoutes from './routes/notifications';
 import themesRoutes from './routes/themes';
 import ephemeralRoutes from './routes/ephemeral';
 import gamesRoutes from './routes/games';
+import channelsRoutes from './routes/channels';
 import mapRoutes from './routes/map';
 import { websocketRoutes } from './routes/websocket';
 import { InMemoryE2EERelay } from './lib/e2ee-relay';
@@ -154,6 +155,7 @@ export async function buildApp(config?: AppConfig) {
   // aggregate across the whole ecosystem. Uses the shared `fastify.prisma`
   // decorator and the global auth hook from createApp().
   await app.register(gamesRoutes, { prefix: '/games' });
+  await app.register(channelsRoutes, { prefix: '/channels' });
 
   // Snapchat parity — Memories vault + Spotlight feed (Task 13). Both rely on
   // the shared `fastify.prisma`/`fastify.notifications` decorators from
