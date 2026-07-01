@@ -1,7 +1,13 @@
+import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
+import { CreditWallet, PayoutService } from '@quant/credits';
 import { DurableCreatorListingService } from '../services/creator-listing.service.js';
+import {
+  CreatorMarketplaceService,
+  NullPayoutRail,
+} from '../services/creator-marketplace.service.js';
 
 const createListingSchema = z.object({
   creatorId: z.string().min(1),
@@ -11,30 +17,42 @@ const createListingSchema = z.object({
   itemType: z.enum(['virtual_good', 'game_pass']),
 });
 
+const purchaseSchema = z.object({
+  buyerId: z.string().min(1),
+  listingId: z.string().min(1),
+  // A stable idempotency key from the client; one is generated if omitted.
+  purchaseRef: z.string().min(1).max(200).optional(),
+});
+
 const payoutSchema = z.object({
   creatorId: z.string().min(1),
-  amount: z.number().positive(),
-  method: z.string().min(1),
+  amount: z.number().int().positive(),
+  method: z.enum(['upi', 'crypto', 'bank']),
+  destination: z.string().min(1).max(200).optional(),
 });
 
 /**
  * QuantAds creator-economy routes (mounted at /creator-economy).
  *
- * NON-MONEY BY DESIGN: these endpoints manage listing metadata and read-only
- * earnings/payout requests. No coins are charged or paid here — none of the
- * backing services (CreatorListingService, RevenueSplitEngine,
- * CreatorPayoutService) touch a coin wallet — so there is no residual coin-wallet
- * money-path to move onto the @quant/credits ledger. NOTE: earnings are sourced
- * from RevenueSplitEngine.recordSale, which is not currently wired anywhere, so
- * getCreatorEarnings reads 0 and requestCashOut is a gated record, not a money
- * movement. Real creator payouts would flow through the credits ledger (as the
- * publisher-payout scheduler now does) once sales recording is wired.
+ * Creator listings are durable (Prisma), and a PURCHASE settles atomically on
+ * the @quant/credits MarketplaceLedger: buyer debit + seller withdrawable
+ * `marketplace_sale` earn + platform commission. Creator earnings are therefore
+ * REAL, ledger-visible EARNED credits (getEarnedTotal), and withdrawals go
+ * through the durable PayoutService (no-overdraw, daily limit, compliance hold).
+ * The actual payout RAIL (UPI/crypto/bank disbursement) is a needs-staging port
+ * — until one is configured, withdrawals fail closed (503) rather than fake a
+ * completed payout.
  */
 export default async function creatorEconomyRoutes(fastify: FastifyInstance) {
-  const { revenueSplitEngine, payoutService } = fastify.economy;
-  const listingService = new DurableCreatorListingService(
-    (fastify as unknown as { prisma: never }).prisma,
+  const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+  const listingService = new DurableCreatorListingService(prisma as never);
+  const marketplace = new CreatorMarketplaceService(prisma);
+  const payouts = new PayoutService(
+    prisma as never,
+    new CreditWallet(prisma as never),
+    new NullPayoutRail(),
   );
+
   fastify.post('/listing', async (request, reply) => {
     const parseResult = createListingSchema.safeParse(request.body);
     if (!parseResult.success) {
@@ -79,20 +97,38 @@ export default async function creatorEconomyRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Buy a creator listing — atomic ledger settlement (buyer -> seller + commission).
+  fastify.post('/purchase', async (request, reply) => {
+    const parseResult = purchaseSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+    const { buyerId, listingId, purchaseRef } = parseResult.data;
+    try {
+      const result = await marketplace.purchase(buyerId, listingId, purchaseRef ?? randomUUID());
+      return reply.status(201).send({ success: true, data: result });
+    } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'statusCode' in e) throw e;
+      const message = e instanceof Error ? e.message : 'Purchase failed';
+      throw createAppError(message, 400, 'PURCHASE_FAILED');
+    }
+  });
+
   fastify.post('/payout', async (request, reply) => {
     const parseResult = payoutSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw parseResult.error;
     }
 
-    const { creatorId, amount, method } = parseResult.data;
+    const { creatorId, amount, method, destination } = parseResult.data;
 
     try {
-      const result = payoutService.requestCashOut(creatorId, amount, method);
-      if (!result.success) {
-        throw createAppError(result.message ?? 'Payout failed', 400, 'PAYOUT_FAILED');
-      }
-      return reply.status(201).send({ success: true, data: result.payout });
+      const payout = await payouts.requestWithdrawal(
+        { principalId: creatorId },
+        { ownerId: creatorId, ownerType: 'user' },
+        { amountCredits: amount, method, ...(destination ? { destination } : {}) },
+      );
+      return reply.status(201).send({ success: true, data: payout });
     } catch (e: unknown) {
       if (e && typeof e === 'object' && 'statusCode' in e) throw e;
       const message = e instanceof Error ? e.message : 'Payout request failed';
@@ -102,10 +138,14 @@ export default async function creatorEconomyRoutes(fastify: FastifyInstance) {
 
   fastify.get<{ Params: { creatorId: string } }>('/earnings/:creatorId', async (request, reply) => {
     try {
-      const earnings = revenueSplitEngine.getCreatorEarnings(request.params.creatorId);
+      const earnings = await marketplace.getCreatorEarnings(request.params.creatorId);
+      const withdrawable = await payouts.getWithdrawable(
+        { principalId: request.params.creatorId },
+        { ownerId: request.params.creatorId, ownerType: 'user' },
+      );
       return reply.send({
         success: true,
-        data: { creatorId: request.params.creatorId, earnings },
+        data: { creatorId: request.params.creatorId, earnings, withdrawable },
       });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Failed to get earnings';

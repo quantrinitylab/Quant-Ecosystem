@@ -5,8 +5,6 @@ import {
   BoostPackRegistry,
   SubscriptionManager,
   EntitlementService,
-  RevenueSplitEngine,
-  CreatorPayoutService,
 } from '@quant/quant-economy';
 
 // ============================================================================
@@ -26,7 +24,9 @@ import {
 //     • catalog + inventory   — shared by the store and gifting flows.
 //     • packRegistry          — boost-pack lookup.
 //     • subscriptionManager + entitlementService — subscription tiers.
-//     • listingService + revenueSplitEngine + payoutService — creator economy.
+//
+//   (Creator listings + marketplace purchases + payouts are now durable/ledger
+//   -backed and built per route from `fastify.prisma`, not held here.)
 //
 //   Built once per Fastify instance (via `app.decorate('economy', ...)`), so
 //   their in-memory state is shared across requests exactly as before.
@@ -38,8 +38,6 @@ export interface EconomyContainer {
   packRegistry: BoostPackRegistry;
   subscriptionManager: SubscriptionManager;
   entitlementService: EntitlementService;
-  revenueSplitEngine: RevenueSplitEngine;
-  payoutService: CreatorPayoutService;
 }
 
 /** Build a fresh set of shared, non-money economy helpers. */
@@ -49,8 +47,6 @@ export function createEconomyContainer(): EconomyContainer {
   const packRegistry = new BoostPackRegistry();
   const subscriptionManager = new SubscriptionManager();
   const entitlementService = new EntitlementService(subscriptionManager);
-  const revenueSplitEngine = new RevenueSplitEngine();
-  const payoutService = new CreatorPayoutService(revenueSplitEngine);
 
   return {
     catalog,
@@ -58,8 +54,6 @@ export function createEconomyContainer(): EconomyContainer {
     packRegistry,
     subscriptionManager,
     entitlementService,
-    revenueSplitEngine,
-    payoutService,
   };
 }
 
