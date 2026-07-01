@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { safeFetch } from '../../../_lib/safe-fetch';
 
 const BACKEND_URL = process.env.QUANTDRIVE_BACKEND_URL || 'http://localhost:3012';
 
@@ -7,7 +8,7 @@ export async function POST(
   { params }: { params: Promise<{ fileId: string }> },
 ) {
   const { fileId } = await params;
-  const res = await fetch(`${BACKEND_URL}/drive/files/${fileId}/copy`, {
+  const res = await safeFetch(`${BACKEND_URL}/drive/files/${fileId}/copy`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

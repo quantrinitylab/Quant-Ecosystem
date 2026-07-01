@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { safeFetch } from '../../_lib/safe-fetch';
 
 const BACKEND_URL = process.env.QUANTDRIVE_BACKEND_URL || 'http://localhost:3012';
 
@@ -8,7 +9,7 @@ export async function PUT(
 ) {
   const { fileId } = await params;
   const body = await request.json();
-  const res = await fetch(`${BACKEND_URL}/drive/files/${fileId}`, {
+  const res = await safeFetch(`${BACKEND_URL}/drive/files/${fileId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
