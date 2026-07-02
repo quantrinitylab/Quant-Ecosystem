@@ -1,187 +1,160 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Card, Button } from '@quant/shared-ui';
-import { spring } from '@quant/brand';
-import type { CoinTransaction } from '@quant/quant-economy';
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Card, Button, LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
+import { useAuth } from '@quant/shared-ui';
 
-const staggerContainer = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.06 },
-  },
-};
-
-const staggerItem = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { type: 'spring', ...spring.gentle } },
-};
-
-const mockBalance = 2450;
-
-const mockTransactions: CoinTransaction[] = [
-  {
-    id: 'tx-1',
-    userId: 'user-1',
-    amount: 500,
-    direction: 'credit',
-    reason: 'Purchased coins via Stripe',
-    idempotencyKey: 'buy-stripe-1',
-    timestamp: new Date('2024-06-10'),
-  },
-  {
-    id: 'tx-2',
-    userId: 'user-1',
-    amount: 250,
-    direction: 'debit',
-    reason: 'Boost: Standard Pack',
-    idempotencyKey: 'boost-2',
-    timestamp: new Date('2024-06-09'),
-  },
-  {
-    id: 'tx-3',
-    userId: 'user-1',
-    amount: 50,
-    direction: 'credit',
-    reason: 'Daily login reward',
-    idempotencyKey: 'daily-3',
-    timestamp: new Date('2024-06-08'),
-  },
-  {
-    id: 'tx-4',
-    userId: 'user-1',
-    amount: 200,
-    direction: 'credit',
-    reason: 'Referral bonus',
-    idempotencyKey: 'referral-1',
-    timestamp: new Date('2024-06-07'),
-  },
-  {
-    id: 'tx-5',
-    userId: 'user-1',
-    amount: 75,
-    direction: 'debit',
-    reason: 'Store purchase: Neon Avatar',
-    idempotencyKey: 'store-1',
-    timestamp: new Date('2024-06-06'),
-  },
-];
-
-const coinPacks = [
-  { amount: 100, price: '$0.99' },
-  { amount: 500, price: '$4.49' },
-  { amount: 1200, price: '$9.99' },
-  { amount: 5000, price: '$39.99' },
-];
+// ============================================================================
+// QuantAds - Coin Wallet (real credits-ledger balance + real daily-earn)
+// ============================================================================
+// Bucket A (wired to durable endpoints): balance (GET /economy/wallet/:userId)
+// and the daily-login reward (POST /economy/wallet/earn/daily). Bucket B
+// (no durable endpoint yet — honestly gated, never mocked): buy-coins catalog +
+// payment (needs a coin-pack catalog + live payment rail), transaction history
+// (needs a ledger-list endpoint), and referral links. No user-1 / mock arrays.
 
 export default function WalletPage() {
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const userId = user?.id ?? null;
+
+  const [balance, setBalance] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [claiming, setClaiming] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  const loadBalance = useCallback(async () => {
+    if (!userId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/economy/wallet/${encodeURIComponent(userId)}`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) {
+        throw new Error(body?.error?.message ?? `Failed to load balance (${res.status})`);
+      }
+      setBalance((body?.data ?? body)?.balance ?? 0);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load your wallet');
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (isAuthenticated) void loadBalance();
+  }, [isAuthenticated, loadBalance]);
+
+  const claimDaily = useCallback(async () => {
+    if (!userId || claiming) return;
+    setClaiming(true);
+    setNotice(null);
+    try {
+      const res = await fetch('/api/economy/earn/daily', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false) {
+        throw new Error(body?.error?.message ?? `Claim failed (${res.status})`);
+      }
+      const data = (body?.data ?? body) as { success?: boolean; coins?: number };
+      setNotice(
+        data.success
+          ? { kind: 'ok', text: `Claimed ${data.coins ?? 0} credits.` }
+          : { kind: 'err', text: 'Already claimed today.' },
+      );
+      await loadBalance();
+    } catch (e) {
+      setNotice({ kind: 'err', text: e instanceof Error ? e.message : 'Claim failed' });
+    } finally {
+      setClaiming(false);
+    }
+  }, [userId, claiming, loadBalance]);
+
+  if (authLoading) {
+    return (
+      <div className="max-w-4xl mx-auto py-16">
+        <LoadingState variant="skeleton" text="Loading…" />
+      </div>
+    );
+  }
+  if (!isAuthenticated) {
+    return (
+      <div className="max-w-md mx-auto py-16 text-center">
+        <EmptyState
+          title="Sign in to view your wallet"
+          description="Sign in with your Quant account."
+        />
+        <Link href="/auth/login">
+          <Button variant="primary" className="mt-4">
+            Sign in
+          </Button>
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Coin Wallet</h1>
 
-      {/* Balance Display */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: 'spring', ...spring.gentle }}
-      >
-        <Card className="p-8 mb-8 text-center">
-          <p className="text-sm text-[var(--quant-muted-foreground)] uppercase tracking-wide">
-            Your Balance
+      {notice && (
+        <div
+          role="status"
+          className={`mb-4 rounded-lg px-4 py-2 text-sm ${
+            notice.kind === 'ok' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}
+        >
+          {notice.text}
+        </div>
+      )}
+
+      {/* Balance (real, credits ledger) */}
+      <Card className="p-8 mb-8 text-center">
+        <p className="text-sm text-[var(--quant-muted-foreground)] uppercase tracking-wide">
+          Your Balance
+        </p>
+        {loading ? (
+          <div className="mt-3">
+            <LoadingState variant="dots" text="Loading balance…" size="sm" />
+          </div>
+        ) : error ? (
+          <ErrorState message={error} onRetry={() => void loadBalance()} />
+        ) : (
+          <>
+            <p className="text-5xl font-bold mt-2">{(balance ?? 0).toLocaleString()}</p>
+            <p className="text-sm text-[var(--quant-muted-foreground)] mt-1">Quant Credits</p>
+          </>
+        )}
+      </Card>
+
+      {/* Earn (real daily-login reward) */}
+      <section className="mb-8" aria-label="Earn credits">
+        <h2 className="text-lg font-semibold mb-3">Earn Credits</h2>
+        <Card className="p-4">
+          <h3 className="font-medium text-sm mb-2">Daily Login Reward</h3>
+          <p className="text-xs text-[var(--quant-muted-foreground)] mb-3">
+            Claim your free credits once per day.
           </p>
-          <p className="text-5xl font-bold mt-2">{mockBalance.toLocaleString()}</p>
-          <p className="text-sm text-[var(--quant-muted-foreground)] mt-1">Quant Coins</p>
+          <Button variant="primary" size="sm" disabled={claiming} onClick={() => void claimDaily()}>
+            {claiming ? 'Claiming…' : 'Claim Daily Login'}
+          </Button>
         </Card>
-      </motion.div>
+      </section>
 
-      {/* Buy Coins Section */}
-      <motion.div variants={staggerContainer} initial="hidden" animate="show" className="mb-8">
-        <h2 className="text-lg font-semibold mb-3">Buy Coins</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          {coinPacks.map((pack) => (
-            <motion.div key={pack.amount} variants={staggerItem}>
-              <Card className="p-4 text-center">
-                <p className="text-xl font-bold">{pack.amount}</p>
-                <p className="text-xs text-[var(--quant-muted-foreground)]">coins</p>
-                <p className="text-sm font-medium mt-2">{pack.price}</p>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Button variant="primary" size="sm">
-            Pay with Stripe
-          </Button>
-          <Button variant="secondary" size="sm">
-            Pay with Razorpay
-          </Button>
-          <Button variant="secondary" size="sm">
-            Pay with UPI
-          </Button>
-        </div>
-      </motion.div>
-
-      {/* Earn Coins Section */}
-      <motion.div variants={staggerContainer} initial="hidden" animate="show" className="mb-8">
-        <h2 className="text-lg font-semibold mb-3">Earn Coins</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <motion.div variants={staggerItem}>
-            <Card className="p-4">
-              <h3 className="font-medium text-sm mb-2">Daily Login Reward</h3>
-              <p className="text-xs text-[var(--quant-muted-foreground)] mb-3">
-                Claim 50 coins every day just for logging in.
-              </p>
-              <Button variant="primary" size="sm">
-                Claim Daily Login
-              </Button>
-            </Card>
-          </motion.div>
-          <motion.div variants={staggerItem}>
-            <Card className="p-4">
-              <h3 className="font-medium text-sm mb-2">Referral Program</h3>
-              <p className="text-xs text-[var(--quant-muted-foreground)] mb-3">
-                Earn 200 coins for each friend who joins.
-              </p>
-              <div className="flex items-center gap-2">
-                <code className="px-2 py-1 bg-[var(--quant-muted)] rounded text-xs">REF-ABCDE</code>
-                <Button variant="secondary" size="sm">
-                  Copy Link
-                </Button>
-              </div>
-            </Card>
-          </motion.div>
-        </div>
-      </motion.div>
-
-      {/* Transaction History */}
-      <motion.div variants={staggerContainer} initial="hidden" animate="show">
-        <h2 className="text-lg font-semibold mb-3">Transaction History</h2>
-        {mockTransactions.map((tx) => (
-          <motion.div key={tx.id} variants={staggerItem}>
-            <Card className="p-4 mb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">{tx.reason}</p>
-                  <p className="text-xs text-[var(--quant-muted-foreground)]">
-                    {tx.timestamp.toLocaleDateString()}
-                  </p>
-                </div>
-                <p
-                  className={`text-sm font-bold ${
-                    tx.direction === 'credit'
-                      ? 'text-[var(--quant-success)]'
-                      : 'text-[var(--quant-warning)]'
-                  }`}
-                >
-                  {tx.direction === 'credit' ? '+' : '-'}
-                  {tx.amount} coins
-                </p>
-              </div>
-            </Card>
-          </motion.div>
-        ))}
-      </motion.div>
+      {/* Bucket B — honestly gated (no mock): needs durable backend / live rail. */}
+      <section aria-label="Coming soon">
+        <h2 className="text-lg font-semibold mb-3">Buy Credits &amp; History</h2>
+        <Card className="p-4">
+          <p className="text-sm text-[var(--quant-muted-foreground)]">
+            Buying credits (live payment rail) and transaction history are coming soon. We only show
+            data backed by a real endpoint — nothing mocked.
+          </p>
+        </Card>
+      </section>
     </div>
   );
 }
