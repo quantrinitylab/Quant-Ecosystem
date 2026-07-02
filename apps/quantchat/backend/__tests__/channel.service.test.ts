@@ -72,6 +72,15 @@ function createFakePrisma() {
           ) ?? null
         );
       },
+      async findMany({ where }) {
+        return members.filter((m) => {
+          if (where['userId'] != null && m.userId !== where['userId']) return false;
+          if (where['conversationId'] != null && m.conversationId !== where['conversationId'])
+            return false;
+          if ('leftAt' in where && where['leftAt'] === null && m.leftAt !== null) return false;
+          return true;
+        });
+      },
       async count({ where }) {
         return members.filter(
           (m) => m.conversationId === where['conversationId'] && m.leftAt === null,
@@ -100,10 +109,16 @@ function createFakePrisma() {
           conversationId: String(data['conversationId']),
           senderId: String(data['senderId']),
           content: (data['content'] as string) ?? null,
-          createdAt: new Date(),
+          createdAt: new Date(Date.now() + n),
         };
         messages.push(msg);
         return msg;
+      },
+      async findMany({ where, take }) {
+        const rows = messages
+          .filter((m) => m.conversationId === where['conversationId'])
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        return typeof take === 'number' ? rows.slice(0, take) : rows;
       },
     },
   };
@@ -180,5 +195,36 @@ describe('ChannelService', () => {
 
   it('404s for a non-existent or non-channel id', async () => {
     await expect(svc.subscribe('missing', 'u1')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('lists a user channels (owned + subscribed) with role + canPost', async () => {
+    const owned = await svc.createChannel('owner-1', { name: 'Mine' });
+    const other = await svc.createChannel('owner-2', { name: 'Theirs' });
+    await svc.subscribe(other.id, 'owner-1');
+
+    const list = await svc.listChannels('owner-1');
+    expect(list).toHaveLength(2);
+    const mine = list.find((c) => c.id === owned.id)!;
+    expect(mine.role).toBe('OWNER');
+    expect(mine.canPost).toBe(true);
+    const subbed = list.find((c) => c.id === other.id)!;
+    expect(subbed.role).toBe('MEMBER');
+    expect(subbed.canPost).toBe(false);
+  });
+
+  it('returns the channel feed chronologically for a subscriber', async () => {
+    const ch = await svc.createChannel('owner-1', { name: 'News' });
+    await svc.subscribe(ch.id, 'reader-1');
+    await svc.publish(ch.id, 'owner-1', 'first');
+    await svc.publish(ch.id, 'owner-1', 'second');
+
+    const feed = await svc.getMessages(ch.id, 'reader-1');
+    expect(feed.map((m) => m.content)).toEqual(['first', 'second']);
+  });
+
+  it('forbids a non-member from reading the feed (403)', async () => {
+    const ch = await svc.createChannel('owner-1', { name: 'News' });
+    await svc.publish(ch.id, 'owner-1', 'secret');
+    await expect(svc.getMessages(ch.id, 'stranger')).rejects.toMatchObject({ statusCode: 403 });
   });
 });
