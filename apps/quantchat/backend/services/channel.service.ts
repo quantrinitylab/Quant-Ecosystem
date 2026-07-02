@@ -49,6 +49,7 @@ export interface ChannelPrisma {
   conversationMember: {
     create(args: { data: Record<string, unknown> }): Promise<MemberRow>;
     findFirst(args: { where: Record<string, unknown> }): Promise<MemberRow | null>;
+    findMany(args: { where: Record<string, unknown> }): Promise<MemberRow[]>;
     count(args: { where: Record<string, unknown> }): Promise<number>;
     updateMany(args: {
       where: Record<string, unknown>;
@@ -57,6 +58,11 @@ export interface ChannelPrisma {
   };
   message: {
     create(args: { data: Record<string, unknown> }): Promise<MessageRow>;
+    findMany(args: {
+      where: Record<string, unknown>;
+      orderBy?: Record<string, unknown>;
+      take?: number;
+    }): Promise<MessageRow[]>;
   };
 }
 
@@ -66,6 +72,21 @@ export interface ChannelView {
   description: string | null;
   ownerId: string;
   subscriberCount: number;
+}
+
+/** A channel plus the caller's membership role + posting capability. */
+export interface SubscribedChannelView extends ChannelView {
+  role: string;
+  canPost: boolean;
+}
+
+/** A single broadcast message in a channel feed. */
+export interface ChannelMessageView {
+  id: string;
+  channelId: string;
+  senderId: string;
+  content: string | null;
+  createdAt: Date | string;
 }
 
 export class ChannelService {
@@ -189,6 +210,58 @@ export class ChannelService {
     return this.prisma.conversationMember.count({
       where: { conversationId: channelId, leftAt: null },
     });
+  }
+
+  /**
+   * List the channels a user is an active member of (owned + subscribed), each
+   * with the caller's role and whether they may post. Powers the client channel
+   * list + admin-composer gating (the server 403 stays authoritative).
+   */
+  async listChannels(userId: string): Promise<SubscribedChannelView[]> {
+    if (!userId) throw createAppError('userId is required', 400, 'USER_ID_REQUIRED');
+    const memberships = await this.prisma.conversationMember.findMany({
+      where: { userId, leftAt: null },
+    });
+    const views: SubscribedChannelView[] = [];
+    for (const m of memberships) {
+      const conv = await this.prisma.conversation.findUnique({ where: { id: m.conversationId } });
+      if (!conv || conv.type !== 'CHANNEL') continue;
+      const count = await this.subscriberCount(conv.id);
+      views.push({
+        ...this.toView(conv, count),
+        role: m.role,
+        canPost: POSTING_ROLES.has(m.role),
+      });
+    }
+    return views;
+  }
+
+  /**
+   * Read a channel's broadcast feed (most recent first, returned chronological).
+   * A subscriber (any active member) may read; a non-member is rejected 403 so a
+   * private channel's posts are not leaked.
+   */
+  async getMessages(channelId: string, userId: string, limit = 50): Promise<ChannelMessageView[]> {
+    await this.requireChannel(channelId);
+    const member = await this.activeMember(channelId, userId);
+    if (!member) {
+      throw createAppError('Subscribe to view this channel', 403, 'NOT_A_MEMBER');
+    }
+    const capped = Math.min(Math.max(1, Math.floor(limit)), 100);
+    const rows = await this.prisma.message.findMany({
+      where: { conversationId: channelId },
+      orderBy: { createdAt: 'desc' },
+      take: capped,
+    });
+    return [...rows]
+      .map((r) => ({
+        id: r.id,
+        channelId: r.conversationId,
+        senderId: r.senderId,
+        content: r.content,
+        createdAt: r.createdAt,
+      }))
+      .reverse();
   }
 
   private toView(channel: ConversationRow, subscriberCount: number): ChannelView {

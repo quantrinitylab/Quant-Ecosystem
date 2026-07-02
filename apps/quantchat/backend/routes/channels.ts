@@ -28,6 +28,26 @@ export default async function channelsRoutes(fastify: FastifyInstance) {
     return new ChannelService(prisma as never);
   }
 
+  // GET /channels — the caller's channels (owned + subscribed) with role/canPost.
+  fastify.get('/', async (request, reply) => {
+    const data = await service().listChannels(userId(request));
+    return reply.send({ success: true, data });
+  });
+
+  // GET /channels/:id/messages — the channel feed (subscribers only).
+  fastify.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
+    '/:id/messages',
+    async (request, reply) => {
+      const limit = request.query.limit ? Number(request.query.limit) : undefined;
+      const data = await service().getMessages(
+        request.params.id,
+        userId(request),
+        limit && Number.isFinite(limit) ? limit : undefined,
+      );
+      return reply.send({ success: true, data });
+    },
+  );
+
   // POST /channels — create a channel (caller becomes OWNER).
   fastify.post('/', async (request, reply) => {
     const parsed = createSchema.safeParse(request.body);
