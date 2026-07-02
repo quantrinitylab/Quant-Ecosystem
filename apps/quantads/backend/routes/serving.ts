@@ -12,6 +12,8 @@ const serveAdSchema = z.object({
 const recordEventSchema = z.object({
   adId: z.string(),
   userId: z.string(),
+  /** The clearing price (cents) returned by /serve's auction result, if known. */
+  clearingPriceCents: z.coerce.number().int().min(0).optional(),
 });
 
 const clickEventSchema = z.object({
@@ -43,7 +45,11 @@ export default async function servingRoutes(fastify: FastifyInstance) {
 
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new AdServingService(prisma as never);
-    await service.recordImpression(parseResult.data.adId, parseResult.data.userId);
+    await service.recordImpression(
+      parseResult.data.adId,
+      parseResult.data.userId,
+      parseResult.data.clearingPriceCents,
+    );
 
     return reply.send({ success: true });
   });
