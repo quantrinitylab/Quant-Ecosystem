@@ -10,6 +10,7 @@ import {
 import type { CommandPaletteItem } from '@quant/shared-ui';
 import { RealtimeProvider } from './realtime-provider';
 import { MicroInteractionProvider } from './MicroInteractionProvider';
+import { AuthGate } from './auth-gate';
 
 const commands: CommandPaletteItem[] = [
   { id: 'new-chat', label: 'New Chat', shortcut: 'N', action: () => {} },
@@ -36,7 +37,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       <QuantSidekickProvider>
         <RealtimeProvider>
           <MicroInteractionProvider>
-            {children}
+            <AuthGate>{children}</AuthGate>
             <CommandPaletteUI
               isOpen={commandPaletteOpen}
               onClose={() => setCommandPaletteOpen(false)}

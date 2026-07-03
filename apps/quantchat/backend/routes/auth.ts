@@ -49,16 +49,58 @@ function decorations(fastify: FastifyInstance) {
 export default async function authRoutes(fastify: FastifyInstance) {
   const { prisma, otpService, sessionTokens } = decorations(fastify);
 
+  // GET /auth/me — OIDC-style userinfo: verify the caller's bearer token (the
+  // global auth hook already validated the JWT signature and bound req.auth)
+  // and return the durable, backend-resolved identity. This is what the shared
+  // useAuth hook resolves via each app's `/api/auth/userinfo` proxy. It is NOT
+  // in publicPaths, so an absent/invalid token is rejected upstream — the app
+  // fails closed (no fabricated user).
+  fastify.get('/me', async (request, reply) => {
+    const authUserId = (request as { auth?: { userId?: string } }).auth?.userId;
+    if (!authUserId) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required', statusCode: 401 },
+      });
+    }
+    const user = await prisma.user.findUnique({
+      where: { id: authUserId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        displayName: true,
+        avatarUrl: true,
+        role: true,
+      },
+    });
+    if (!user) {
+      return reply.status(404).send({
+        success: false,
+        error: { code: 'USER_NOT_FOUND', message: 'User not found', statusCode: 404 },
+      });
+    }
+    return reply.send({
+      success: true,
+      data: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+        ...(user.avatarUrl ? { avatarUrl: user.avatarUrl } : {}),
+        role: String(user.role).toLowerCase(),
+      },
+    });
+  });
+
   // POST /auth/otp/request
   fastify.post('/otp/request', async (request, reply) => {
     const parsed = requestSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply
-        .status(400)
-        .send({
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Invalid request', statusCode: 400 },
-        });
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'BAD_REQUEST', message: 'Invalid request', statusCode: 400 },
+      });
     }
     const { phoneNumber, countryCode, locale } = parsed.data;
     const full = countryCode ? `${countryCode}${phoneNumber.replace(/\D/g, '')}` : phoneNumber;
@@ -81,12 +123,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/otp/verify', async (request, reply) => {
     const parsed = verifySchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply
-        .status(400)
-        .send({
-          success: false,
-          error: { code: 'BAD_REQUEST', message: 'Invalid request', statusCode: 400 },
-        });
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'BAD_REQUEST', message: 'Invalid request', statusCode: 400 },
+      });
     }
     const { phoneNumber, otp } = parsed.data;
 
