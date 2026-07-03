@@ -138,6 +138,50 @@ export class VideoTranscoder {
   }
 
   /**
+   * Render a single output clip from an input file: applies an optional trim
+   * window and caption overlay, re-encodes to H.264/AAC MP4. This is the
+   * primitive an auto-edit pipeline composes into a finished post -- unlike
+   * `transcode`, it produces ONE playable MP4 (not an HLS ladder).
+   * @param inputPath - Path to the source video
+   * @param outputPath - Path to write the rendered MP4
+   * @param options - Optional trim window (seconds) and caption text overlay
+   */
+  async renderClip(
+    inputPath: string,
+    outputPath: string,
+    options: { startSec?: number; durationSec?: number; caption?: string } = {},
+  ): Promise<{ outputPath: string; duration: number }> {
+    await mkdir(join(outputPath, '..'), { recursive: true });
+
+    await new Promise<void>((resolve, reject) => {
+      let command = ffmpeg(inputPath);
+      if (typeof options.startSec === 'number') {
+        command = command.seekInput(options.startSec);
+      }
+      if (typeof options.durationSec === 'number') {
+        command = command.duration(options.durationSec);
+      }
+      command = command.videoCodec('libx264').audioCodec('aac');
+      if (options.caption) {
+        // Burn a simple caption overlay onto the bottom of the frame. The text
+        // is escaped for the drawtext filter's colon/quote-sensitive syntax.
+        const escaped = options.caption.replace(/[\\:']/g, '\\$&');
+        command = command.videoFilters([
+          `drawtext=text='${escaped}':fontcolor=white:fontsize=28:box=1:boxcolor=black@0.5:boxborderw=8:x=(w-text_w)/2:y=h-th-40`,
+        ]);
+      }
+      command
+        .output(outputPath)
+        .on('end', () => resolve())
+        .on('error', (err: Error) => reject(err))
+        .run();
+    });
+
+    const info = await this.getMediaInfo(outputPath);
+    return { outputPath, duration: info.format?.duration ?? 0 };
+  }
+
+  /**
    * Extract a thumbnail from a video at a specific timestamp
    * @param inputPath - Path to the input video
    * @param outputPath - Path to write the thumbnail image

@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
-import { AutoEditOrchestrator } from '../services/auto-edit-orchestrator.service';
+import { AutoEditOrchestrator, type RenderPort } from '../services/auto-edit-orchestrator.service';
 import { AutoEditSchedulerService } from '../services/auto-edit-scheduler.service';
+import { FfmpegAutoEditRenderer } from '../services/ffmpeg-auto-edit-renderer';
 
 const runSchema = z.object({
   sourceRef: z.string().max(2048).optional(),
@@ -44,8 +45,22 @@ export default async function autoEditRoutes(fastify: FastifyInstance) {
     return (fastify as unknown as { prisma: never }).prisma;
   }
 
+  /**
+   * Build the real ffmpeg renderer ONLY when an output location is configured
+   * (env AUTO_EDIT_OUTPUT_DIR + AUTO_EDIT_OUTPUT_BASE_URL). Otherwise return
+   * undefined so the orchestrator keeps its default NullRenderer (fail-closed,
+   * needs-staging) -- a missing render backend never fakes success.
+   */
+  function renderer(): RenderPort | undefined {
+    const outputDir = process.env['AUTO_EDIT_OUTPUT_DIR'];
+    const outputBaseUrl = process.env['AUTO_EDIT_OUTPUT_BASE_URL'];
+    if (!outputDir || !outputBaseUrl) return undefined;
+    return new FfmpegAutoEditRenderer({ outputDir, outputBaseUrl });
+  }
+
   function orchestrator(): AutoEditOrchestrator {
-    return new AutoEditOrchestrator(prisma() as never);
+    const r = renderer();
+    return new AutoEditOrchestrator(prisma() as never, r ? { renderer: r } : {});
   }
 
   // POST /auto-edit/run — run the pipeline now for the caller (idempotent/day).

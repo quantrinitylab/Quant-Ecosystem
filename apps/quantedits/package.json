@@ -21,6 +21,7 @@
     "@quant/brand": "workspace:*",
     "@quant/common": "workspace:*",
     "@quant/database": "workspace:*",
+    "@quant/media": "workspace:*",
     "@quant/realtime": "workspace:*",
     "@quant/server-core": "workspace:*",
     "@quant/shared-ui": "workspace:*",
