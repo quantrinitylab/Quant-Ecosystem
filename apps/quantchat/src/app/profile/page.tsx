@@ -11,17 +11,13 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AppShell, TopBar, BottomNav } from '@quant/shared-ui';
+import { AppShell, TopBar, BottomNav, LoadingState, ErrorState } from '@quant/shared-ui';
 import { navItems, routes } from '../../lib/navigation';
 import { AlienAvatar } from '../../components/avatar/AlienAvatar';
 import { LevelProgress } from '../../components/profile/LevelProgress';
 import { AvatarGenerator } from '../../components/profile/AvatarGenerator';
 import { NotificationSettings } from '../../components/settings/NotificationSettings';
-
-// Placeholder current-user identity. In a wired-up build this would come from
-// the auth/session layer; a constant keeps the hub self-contained.
-const CURRENT_USER_ID = 'me';
-const CURRENT_USER_XP = 2450;
+import { useMe } from '../../hooks/useMe';
 
 interface RouteTile {
   id: string;
@@ -68,20 +64,32 @@ type Panel = 'avatar' | 'notifications' | null;
 export default function ProfilePage() {
   const router = useRouter();
   const [panel, setPanel] = useState<Panel>(null);
+  const { me, isLoading, error, refetch } = useMe();
 
   const closePanel = () => setPanel(null);
+
+  if (isLoading) return <LoadingState variant="skeleton" text="Loading profile..." />;
+  if (error || !me)
+    return (
+      <ErrorState
+        message={error?.message ?? 'Could not load your profile'}
+        onRetry={() => void refetch()}
+      />
+    );
 
   return (
     <AppShell topBar={<TopBar title="Profile" />}>
       <div className="flex h-full flex-col overflow-y-auto bg-gradient-to-b from-black via-zinc-950 to-black pb-20 text-white">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6">
-          {/* User header */}
+          {/* User header — real, backend-verified identity (useMe -> /auth/me) */}
           <section className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-            <AlienAvatar userId={CURRENT_USER_ID} size={72} surface="profile_header" />
+            <AlienAvatar userId={me.id} size={72} surface="profile_header" />
             <div className="flex-1">
-              <h2 className="text-lg font-bold">@{CURRENT_USER_ID}</h2>
-              <p className="mb-2 text-xs text-gray-400">Your QuantChat profile</p>
-              <LevelProgress xp={CURRENT_USER_XP} />
+              <h2 className="text-lg font-bold">@{me.username}</h2>
+              <p className="mb-2 text-xs text-gray-400">
+                {me.displayName || 'Your QuantChat profile'}
+              </p>
+              <LevelProgress xp={me.xpPoints} level={me.level} />
             </div>
           </section>
 
@@ -172,11 +180,7 @@ export default function ProfilePage() {
                   Close
                 </button>
               </div>
-              {panel === 'avatar' ? (
-                <AvatarGenerator userId={CURRENT_USER_ID} />
-              ) : (
-                <NotificationSettings />
-              )}
+              {panel === 'avatar' ? <AvatarGenerator userId={me.id} /> : <NotificationSettings />}
             </motion.div>
           </motion.div>
         )}

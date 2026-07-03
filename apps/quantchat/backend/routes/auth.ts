@@ -72,6 +72,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         displayName: true,
         avatarUrl: true,
         role: true,
+        xpPoints: true,
+        level: true,
       },
     });
     if (!user) {
@@ -89,6 +91,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         displayName: user.displayName,
         ...(user.avatarUrl ? { avatarUrl: user.avatarUrl } : {}),
         role: String(user.role).toLowerCase(),
+        xpPoints: user.xpPoints,
+        level: user.level,
       },
     });
   });

@@ -84,6 +84,18 @@ export interface ChannelMessageView {
   createdAt: string;
 }
 
+/** The authenticated user's profile, verified server-side via /auth/me. */
+export interface MeView {
+  id: string;
+  email: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  role: string;
+  xpPoints: number;
+  level: number;
+}
+
 export interface QuantMailLinkRequest {
   quantMailEmail: string;
   quantMailToken: string;
