@@ -32,6 +32,9 @@ import type {
   StoryHighlight,
   PhoneAuthRequest,
   OTPVerifyRequest,
+  ChannelView,
+  SubscribedChannelView,
+  ChannelMessageView,
 } from '../types';
 
 // ============================================================================
@@ -184,6 +187,47 @@ export class QuantChatApiClient {
 
   async setTyping(conversationId: string, isTyping: boolean): Promise<ApiResponse<void>> {
     return this.post(`/conversations/${conversationId}/typing`, { isTyping });
+  }
+
+  // --------------------------------------------------------------------------
+  // Broadcast Channels (Telegram-style one-to-many)
+  // --------------------------------------------------------------------------
+
+  /** The caller's channels (owned + subscribed) with role + canPost. */
+  async getChannels(): Promise<ApiResponse<SubscribedChannelView[]>> {
+    return this.get('/channels');
+  }
+
+  async createChannel(name: string, description?: string): Promise<ApiResponse<ChannelView>> {
+    return this.post('/channels', { name, ...(description ? { description } : {}) });
+  }
+
+  /** A channel's broadcast feed (subscribers only; chronological). */
+  async getChannelMessages(
+    channelId: string,
+    limit?: number,
+  ): Promise<ApiResponse<ChannelMessageView[]>> {
+    return this.get(`/channels/${channelId}/messages`, { params: { limit } });
+  }
+
+  async subscribeChannel(channelId: string): Promise<ApiResponse<{ subscribed: true }>> {
+    return this.post(`/channels/${channelId}/subscribe`, {});
+  }
+
+  async unsubscribeChannel(channelId: string): Promise<ApiResponse<{ unsubscribed: boolean }>> {
+    return this.post(`/channels/${channelId}/unsubscribe`, {});
+  }
+
+  /** Publish a broadcast message (OWNER/ADMIN only; backend 403 authoritative). */
+  async publishToChannel(
+    channelId: string,
+    content: string,
+  ): Promise<ApiResponse<ChannelMessageView>> {
+    return this.post(`/channels/${channelId}/publish`, { content });
+  }
+
+  async getChannelSubscriberCount(channelId: string): Promise<ApiResponse<{ count: number }>> {
+    return this.get(`/channels/${channelId}/subscribers/count`);
   }
 
   // --------------------------------------------------------------------------
