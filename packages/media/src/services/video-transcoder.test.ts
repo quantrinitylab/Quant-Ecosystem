@@ -22,6 +22,8 @@ vi.mock('fluent-ffmpeg', () => {
     command.output = vi.fn(() => command);
     command.frames = vi.fn(() => command);
     command.seekInput = vi.fn(() => command);
+    command.duration = vi.fn(() => command);
+    command.videoFilters = vi.fn(() => command);
     command.on = vi.fn((event: string, handler: () => void) => {
       if (event === 'end') {
         (command as Record<string, unknown>)._endHandler = handler;
@@ -165,6 +167,70 @@ describe('VideoTranscoder', () => {
       expect(mockCommand.addOptions).toHaveBeenCalledWith(
         expect.arrayContaining(['-hls_time', '8', '-f', 'hls']),
       );
+    });
+  });
+
+  describe('renderClip', () => {
+    it('renders a full clip with h264/aac codecs and returns its duration', async () => {
+      const ffmpegModule = await import('fluent-ffmpeg');
+      const ffmpegFn = ffmpegModule.default as unknown as ReturnType<typeof vi.fn>;
+
+      const result = await transcoder.renderClip('/videos/in.mp4', '/output/out.mp4');
+
+      expect(result).toEqual({ outputPath: '/output/out.mp4', duration: 120 });
+      expect(ffmpegFn).toHaveBeenCalledWith('/videos/in.mp4');
+      const mockCommand = ffmpegFn.mock.results[0]!.value as Record<
+        string,
+        ReturnType<typeof vi.fn>
+      >;
+      expect(mockCommand.videoCodec).toHaveBeenCalledWith('libx264');
+      expect(mockCommand.audioCodec).toHaveBeenCalledWith('aac');
+      expect(mockCommand.output).toHaveBeenCalledWith('/output/out.mp4');
+      // No trim/caption requested -> seekInput/duration/videoFilters not called.
+      expect(mockCommand.seekInput).not.toHaveBeenCalled();
+      expect(mockCommand.videoFilters).not.toHaveBeenCalled();
+    });
+
+    it('applies a trim window when start/duration are given', async () => {
+      const ffmpegModule = await import('fluent-ffmpeg');
+      const ffmpegFn = ffmpegModule.default as unknown as ReturnType<typeof vi.fn>;
+
+      await transcoder.renderClip('/videos/in.mp4', '/output/out.mp4', {
+        startSec: 5,
+        durationSec: 15,
+      });
+
+      const mockCommand = ffmpegFn.mock.results[0]!.value as Record<
+        string,
+        ReturnType<typeof vi.fn>
+      >;
+      expect(mockCommand.seekInput).toHaveBeenCalledWith(5);
+      expect(mockCommand.duration).toHaveBeenCalledWith(15);
+    });
+
+    it('burns a caption overlay via drawtext when caption is given', async () => {
+      const ffmpegModule = await import('fluent-ffmpeg');
+      const ffmpegFn = ffmpegModule.default as unknown as ReturnType<typeof vi.fn>;
+
+      await transcoder.renderClip('/videos/in.mp4', '/output/out.mp4', {
+        caption: "Today's vlog",
+      });
+
+      const mockCommand = ffmpegFn.mock.results[0]!.value as Record<
+        string,
+        ReturnType<typeof vi.fn>
+      >;
+      expect(mockCommand.videoFilters).toHaveBeenCalledWith([
+        expect.stringContaining('drawtext=text='),
+      ]);
+      const filterArg = (mockCommand.videoFilters!.mock.calls[0]![0] as string[])[0]!;
+      expect(filterArg).toContain("Today\\'s vlog");
+    });
+
+    it('creates the output directory before rendering', async () => {
+      const { mkdir } = await import('node:fs/promises');
+      await transcoder.renderClip('/videos/in.mp4', '/output/nested/out.mp4');
+      expect(mkdir).toHaveBeenCalled();
     });
   });
 
