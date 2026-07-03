@@ -35,6 +35,7 @@ import type {
   ChannelView,
   SubscribedChannelView,
   ChannelMessageView,
+  MeView,
 } from '../types';
 
 // ============================================================================
@@ -109,6 +110,11 @@ export class QuantChatApiClient {
 
   async linkQuantMail(email: string, token: string): Promise<ApiResponse<{ message: string }>> {
     return this.post('/auth/link-quantmail', { quantMailEmail: email, quantMailToken: token });
+  }
+
+  /** The authenticated user's verified profile (backend /auth/me via proxy). */
+  async getMe(): Promise<ApiResponse<MeView>> {
+    return this.get('/auth/userinfo');
   }
 
   async getProfile(): Promise<
