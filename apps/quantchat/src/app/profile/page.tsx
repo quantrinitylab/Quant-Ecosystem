@@ -54,6 +54,13 @@ const ROUTE_TILES: RouteTile[] = [
     route: routes.memories,
   },
   { id: 'reels', label: 'Reels', description: 'Your video feed', icon: '🎬', route: routes.reels },
+  {
+    id: 'channels',
+    label: 'Channels',
+    description: 'Broadcast channels',
+    icon: '📢',
+    route: routes.channels,
+  },
 ];
 
 type Panel = 'avatar' | 'notifications' | null;

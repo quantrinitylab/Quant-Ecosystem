@@ -58,6 +58,32 @@ export interface AuthTokens {
   userId: string;
 }
 
+// ---- Broadcast channels (Telegram-style one-to-many) ----------------------
+
+/** A channel's public shape. */
+export interface ChannelView {
+  id: string;
+  name: string | null;
+  description: string | null;
+  ownerId: string;
+  subscriberCount: number;
+}
+
+/** A channel plus the caller's membership role and posting capability. */
+export interface SubscribedChannelView extends ChannelView {
+  role: string;
+  canPost: boolean;
+}
+
+/** A single broadcast message in a channel feed. */
+export interface ChannelMessageView {
+  id: string;
+  channelId: string;
+  senderId: string;
+  content: string | null;
+  createdAt: string;
+}
+
 export interface QuantMailLinkRequest {
   quantMailEmail: string;
   quantMailToken: string;
@@ -67,7 +93,16 @@ export interface QuantMailLinkRequest {
 // Message Types
 // ============================================================================
 
-export type MessageType = 'text' | 'image' | 'video' | 'voice' | 'sticker' | 'gif' | 'location' | 'contact' | 'file';
+export type MessageType =
+  | 'text'
+  | 'image'
+  | 'video'
+  | 'voice'
+  | 'sticker'
+  | 'gif'
+  | 'location'
+  | 'contact'
+  | 'file';
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 export type DisappearMode = 'off' | 'after_view' | '24h' | '7d' | '30d';
 
@@ -205,7 +240,16 @@ export interface TextStyle {
 
 export interface StorySticker {
   id: string;
-  type: 'emoji' | 'gif' | 'poll' | 'question' | 'countdown' | 'mention' | 'location' | 'music' | 'custom';
+  type:
+    | 'emoji'
+    | 'gif'
+    | 'poll'
+    | 'question'
+    | 'countdown'
+    | 'mention'
+    | 'location'
+    | 'music'
+    | 'custom';
   content: string;
   position: { x: number; y: number };
   scale: number;
@@ -255,7 +299,13 @@ export interface MusicTrack {
 // ============================================================================
 
 export type SnapType = 'photo' | 'video';
-export type SnapStatus = 'pending' | 'delivered' | 'opened' | 'replayed' | 'expired' | 'screenshotted';
+export type SnapStatus =
+  | 'pending'
+  | 'delivered'
+  | 'opened'
+  | 'replayed'
+  | 'expired'
+  | 'screenshotted';
 
 export interface Snap extends BaseEntity {
   senderId: string;
@@ -428,7 +478,17 @@ export interface GroupInvite {
 // ============================================================================
 
 export type DiscoverContentType = 'story' | 'show' | 'article' | 'game' | 'lens';
-export type DiscoverCategory = 'news' | 'entertainment' | 'sports' | 'fashion' | 'food' | 'gaming' | 'science' | 'technology' | 'music' | 'comedy';
+export type DiscoverCategory =
+  | 'news'
+  | 'entertainment'
+  | 'sports'
+  | 'fashion'
+  | 'food'
+  | 'gaming'
+  | 'science'
+  | 'technology'
+  | 'music'
+  | 'comedy';
 
 export interface DiscoverItem extends BaseEntity {
   publisherId: string;
@@ -530,7 +590,13 @@ export interface CustomFilterRequest {
 // AI Types
 // ============================================================================
 
-export type AIFeature = 'smart_reply' | 'translation' | 'moderation' | 'chatbot' | 'sticker_gen' | 'caption';
+export type AIFeature =
+  | 'smart_reply'
+  | 'translation'
+  | 'moderation'
+  | 'chatbot'
+  | 'sticker_gen'
+  | 'caption';
 
 export interface SmartReply {
   id: string;
@@ -583,8 +649,24 @@ export interface StickerGenerationRequest {
 // Bitmoji Types
 // ============================================================================
 
-export type BitmojiExpression = 'happy' | 'sad' | 'surprised' | 'angry' | 'cool' | 'love' | 'thinking' | 'wink' | 'laugh' | 'neutral';
-export type BitmojiOutfitCategory = 'casual' | 'formal' | 'sporty' | 'seasonal' | 'costume' | 'accessory';
+export type BitmojiExpression =
+  | 'happy'
+  | 'sad'
+  | 'surprised'
+  | 'angry'
+  | 'cool'
+  | 'love'
+  | 'thinking'
+  | 'wink'
+  | 'laugh'
+  | 'neutral';
+export type BitmojiOutfitCategory =
+  | 'casual'
+  | 'formal'
+  | 'sporty'
+  | 'seasonal'
+  | 'costume'
+  | 'accessory';
 
 export interface Bitmoji extends BaseEntity {
   userId: string;
@@ -702,7 +784,16 @@ export interface MapEvent {
 // Notification Types
 // ============================================================================
 
-export type NotificationType = 'message' | 'snap' | 'story_reply' | 'call' | 'group_invite' | 'friend_request' | 'streak_warning' | 'mention' | 'reaction';
+export type NotificationType =
+  | 'message'
+  | 'snap'
+  | 'story_reply'
+  | 'call'
+  | 'group_invite'
+  | 'friend_request'
+  | 'streak_warning'
+  | 'mention'
+  | 'reaction';
 
 export interface Notification extends BaseEntity {
   userId: string;

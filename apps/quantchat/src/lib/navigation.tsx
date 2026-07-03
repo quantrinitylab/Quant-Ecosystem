@@ -21,4 +21,5 @@ export const routes: Record<string, string> = {
   reels: '/reels',
   spotlight: '/spotlight',
   memories: '/memories',
+  channels: '/channels',
 };
