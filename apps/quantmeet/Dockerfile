@@ -32,4 +32,6 @@ EXPOSE 3109
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://localhost:3109/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" || exit 1
 
-CMD ["npx", "next", "start", "apps/quantmeet", "-p", "3109"]
+# Use the workspace-pinned Next (v15) via pnpm — never `npx next`, which fetches
+# the latest Next (16.x) at runtime and runs the v15-built app on v16 (crash).
+CMD ["pnpm", "--filter", "@quant/quantmeet", "exec", "next", "start", "-p", "3109"]
