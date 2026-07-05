@@ -6,6 +6,7 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
+    "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc",
@@ -17,7 +18,8 @@
     "nodemailer": "^9.0.1",
     "zod": "^3.24.2",
     "pino": "^9.6.0",
-    "@quant/common": "workspace:*"
+    "@quant/common": "workspace:*",
+    "@quant/health-server": "workspace:*"
   },
   "devDependencies": {
     "@types/smtp-server": "^3.5.0",
