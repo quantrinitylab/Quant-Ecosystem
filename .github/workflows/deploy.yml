@@ -1,0 +1,107 @@
+name: Build & Deploy (production)
+
+# Builds the deployable service images, pushes them to ECR, and rolls out the
+# quant-production EKS deployments. Auth to AWS is via GitHub OIDC assuming the
+# `quant-gha-deploy` IAM role (no static secrets). Runs on push to main when a
+# relevant path changes, or manually via the Actions tab.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/**'
+      - 'services/**'
+      - 'packages/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: 'Comma-separated apps to deploy (default: all)'
+        required: false
+        default: 'all'
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ACCOUNT_ID: '650708167640'
+  CLUSTER: quant-production-eks
+  NAMESPACE: quant-production
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: quantmail
+            ecr: quant-quantmail
+            dockerfile: apps/quantmail/Dockerfile
+            deployment: quant-platform-production-quantmail
+          - app: quantchat
+            ecr: quant-quantchat
+            dockerfile: apps/quantchat/Dockerfile
+            deployment: quant-platform-production-quantchat
+          - app: quantai
+            ecr: quant-quantai
+            dockerfile: apps/quantai/Dockerfile
+            deployment: quant-platform-production-quantai
+          - app: admin
+            ecr: quant-admin
+            dockerfile: apps/admin/Dockerfile
+            deployment: quant-platform-production-admin
+          - app: ws-gateway
+            ecr: quant-ws-gateway
+            dockerfile: services/ws-gateway/Dockerfile
+            deployment: quant-platform-production-ws-gateway
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free up runner disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL || true
+          df -h
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::650708167640:role/quant-gha-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Ensure ECR repository exists
+        run: |
+          aws ecr describe-repositories --repository-names "${{ matrix.ecr }}" \
+            || aws ecr create-repository --repository-name "${{ matrix.ecr }}" \
+                 --image-scanning-configuration scanOnPush=true
+
+      - name: Build & push image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          IMAGE="$REGISTRY/${{ matrix.ecr }}"
+          docker build -f "${{ matrix.dockerfile }}" \
+            -t "$IMAGE:${{ github.sha }}" \
+            -t "$IMAGE:latest" .
+          docker push "$IMAGE:${{ github.sha }}"
+          docker push "$IMAGE:latest"
+
+      - name: Deploy to EKS
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          aws eks update-kubeconfig --name "$CLUSTER" --region "$AWS_REGION"
+          IMAGE="$REGISTRY/${{ matrix.ecr }}:${{ github.sha }}"
+          kubectl set image "deployment/${{ matrix.deployment }}" "*=$IMAGE" -n "$NAMESPACE"
+          kubectl rollout status "deployment/${{ matrix.deployment }}" -n "$NAMESPACE" --timeout=300s
