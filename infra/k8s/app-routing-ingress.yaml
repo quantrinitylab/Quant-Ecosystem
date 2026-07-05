@@ -1,0 +1,63 @@
+# Routes public hostnames to each app frontend service. Supplements the
+# Helm-managed ingress (which only wired the ws-gateway paths). Apply with:
+#   kubectl apply -f infra/k8s/app-routing-ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quant-apps-routing
+  namespace: quant-production
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: quant.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantmail
+                port:
+                  number: 3010
+    - host: mail.quant.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantmail
+                port:
+                  number: 3010
+    - host: chat.quant.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantchat
+                port:
+                  number: 3015
+    - host: ai.quant.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantai
+                port:
+                  number: 3020
+    - host: admin.quant.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-admin
+                port:
+                  number: 3100
