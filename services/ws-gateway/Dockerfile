@@ -24,19 +24,29 @@ RUN pnpm --filter @quant/common exec tsc -b && \
     pnpm --filter @quant/health-server exec tsc -b && \
     pnpm --filter @quant/ws-gateway exec tsc -b
 
-# Update main fields to point to compiled output for production runtime
+# Update main/types/exports to point to compiled output for production runtime.
+# NOTE: Node's ESM resolver prefers the "exports" map over "main". Packages like
+# @quant/realtime declare exports pointing at ./src/*.ts, so rewriting only
+# "main" leaves the runtime resolving to source .ts files that don't exist in
+# the dist-only production image (ERR_MODULE_NOT_FOUND). We therefore rewrite
+# "exports" too. String helpers avoid '$' so the sh -c inline stays safe.
 RUN node -e " \
   const fs = require('fs'); \
+  const toDist = (s) => { \
+    if (typeof s !== 'string' || !s.includes('src/')) return s; \
+    s = s.replace('src/', 'dist/'); \
+    if (s.endsWith('.d.ts')) return s; \
+    if (s.endsWith('.ts')) return s.slice(0, -3) + '.js'; \
+    return s; \
+  }; \
+  const walk = (v) => typeof v === 'string' ? toDist(v) : (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, val]) => [k, walk(val)])) : v); \
   const pkgs = ['packages/common', 'packages/realtime', 'packages/health-server', 'services/ws-gateway']; \
   for (const pkg of pkgs) { \
     const p = pkg + '/package.json'; \
     const j = JSON.parse(fs.readFileSync(p, 'utf8')); \
-    if (j.main && j.main.startsWith('src/')) { \
-      j.main = j.main.replace('src/', 'dist/').replace('.ts', '.js'); \
-    } \
-    if (j.types && j.types.startsWith('src/')) { \
-      j.types = j.types.replace('src/', 'dist/').replace('.ts', '.d.ts'); \
-    } \
+    if (j.main && j.main.startsWith('src/')) j.main = j.main.replace('src/', 'dist/').replace('.ts', '.js'); \
+    if (j.types && j.types.startsWith('src/')) j.types = j.types.replace('src/', 'dist/').replace('.ts', '.d.ts'); \
+    if (j.exports) j.exports = walk(j.exports); \
     fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\\n'); \
   } \
 "
