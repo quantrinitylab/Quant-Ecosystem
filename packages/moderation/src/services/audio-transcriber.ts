@@ -98,7 +98,10 @@ export class OpenAIWhisperProvider implements WhisperProvider {
       const buf = await res.arrayBuffer();
       return new Blob([new Uint8Array(buf)]);
     }
-    return new Blob([audio]);
+    // Copy into a fresh Uint8Array so the BlobPart is guaranteed to be backed by
+    // a plain ArrayBuffer (a Node Buffer may be backed by a SharedArrayBuffer,
+    // which is not assignable to BlobPart under strict DOM lib types).
+    return new Blob([new Uint8Array(audio)]);
   }
 }
 
