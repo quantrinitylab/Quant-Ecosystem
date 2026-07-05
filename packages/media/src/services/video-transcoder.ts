@@ -6,10 +6,20 @@
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, posix } from 'node:path';
 import { z } from 'zod';
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+
+/**
+ * Join path segments with forward slashes regardless of OS. HLS playlist and
+ * segment paths are written into `.m3u8` manifests and served as URLs, so they
+ * must always use `/` — never Windows `\`. Node's fs APIs and ffmpeg both accept
+ * forward slashes on Windows, so this is safe for the on-disk writes too.
+ */
+function joinPosix(...parts: string[]): string {
+  return posix.join(...parts.map((p) => p.replace(/\\/g, '/')));
+}
 
 /** Schema for transcode profile configuration */
 export const TranscodeProfileSchema = z.object({
@@ -69,11 +79,11 @@ export class VideoTranscoder {
     const variants: TranscodeResult['variants'] = [];
 
     for (const profile of profiles) {
-      const variantDir = join(outputDir, profile.name);
+      const variantDir = joinPosix(outputDir, profile.name);
       await mkdir(variantDir, { recursive: true });
 
-      const playlistPath = join(variantDir, 'playlist.m3u8');
-      const segmentPattern = join(variantDir, 'segment_%03d.ts');
+      const playlistPath = joinPosix(variantDir, 'playlist.m3u8');
+      const segmentPattern = joinPosix(variantDir, 'segment_%03d.ts');
 
       await this.runFfmpeg(inputPath, playlistPath, segmentPattern, profile, segmentDuration);
 
@@ -85,7 +95,7 @@ export class VideoTranscoder {
     }
 
     // Generate master playlist
-    const masterPlaylistPath = join(outputDir, 'master.m3u8');
+    const masterPlaylistPath = joinPosix(outputDir, 'master.m3u8');
     await this.writeMasterPlaylist(masterPlaylistPath, variants, profiles);
 
     // Get duration
@@ -109,8 +119,8 @@ export class VideoTranscoder {
   ): Promise<string> {
     await mkdir(outputDir, { recursive: true });
 
-    const playlistPath = join(outputDir, 'playlist.m3u8');
-    const segmentPattern = join(outputDir, 'segment_%03d.ts');
+    const playlistPath = joinPosix(outputDir, 'playlist.m3u8');
+    const segmentPattern = joinPosix(outputDir, 'segment_%03d.ts');
 
     return new Promise<string>((resolve, reject) => {
       ffmpeg(inputPath)
@@ -266,7 +276,6 @@ export class VideoTranscoder {
     profiles: Array<z.infer<typeof TranscodeProfileSchema>>,
   ): Promise<void> {
     const { writeFile } = await import('node:fs/promises');
-    const { relative, dirname } = await import('node:path');
 
     let content = '#EXTM3U\n#EXT-X-VERSION:3\n';
 
@@ -274,7 +283,12 @@ export class VideoTranscoder {
       const variant = variants[i]!;
       const profile = profiles[i]!;
       const bandwidth = parseInt(profile.videoBitrate) * 1000;
-      const relativePath = relative(dirname(masterPath), variant.playlistPath);
+      // Forward-slash relative reference — this string goes into the .m3u8 and
+      // is resolved as a URL by HLS players, so it must never use Windows `\`.
+      const relativePath = posix.relative(
+        posix.dirname(masterPath.replace(/\\/g, '/')),
+        variant.playlistPath.replace(/\\/g, '/'),
+      );
       content += `#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},RESOLUTION=${variant.resolution}\n`;
       content += `${relativePath}\n`;
     }
