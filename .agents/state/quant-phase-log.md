@@ -1269,3 +1269,37 @@ All Dockerfiles follow best practices: FROM node:22-alpine, WORKDIR /app, multi-
 - No staging environment provisioned
 - Helm/Terraform not validated against a real cluster
 - Capacitor native builds require Xcode/Android Studio (not validated in CI)
+
+---
+
+## 2026-07-03 — Reality re-audit + gate repair + last-mile containerization (Kiro)
+
+**Context:** Owner reported "bahut kam hua hai" (very little done). A deep code-vs-docs
+re-audit found the OPPOSITE: the ecosystem is far more complete than the `.agents/state`
+docs claim. Every high-priority feature probed was already built AND tested:
+QuantSync Verified backend enforcement, OpenRouter + per-user model swap, cross-app games
+(Uno/Ludo/Monopoly/Othello/ConnectFour + shared GameScore leaderboards), X3DH E2EE,
+QuantEdits daily auto-edit→auto-post automation, Calendar call-style ringing alarm,
+unified credits/payouts/marketplace. **The tracking docs are stale — trust the code.**
+
+**What was actually broken (found by running the gates) and fixed this session:**
+
+1. **typecheck gate was RED** — `packages/moderation/src/services/audio-transcriber.ts`
+   passed a Node `Buffer` to `new Blob([...])` (invalid `BlobPart` under strict DOM types;
+   `SharedArrayBuffer`-backed). Surfaced via `@quant/quantsync`. Fixed → `Uint8Array` copy.
+   Full `pnpm typecheck` now **199/199**. (PR #496)
+2. **test gate was RED** — `@quant/media` `VideoTranscoder` wrote Windows backslashes into
+   HLS `.m3u8` manifests (which are URLs — must be `/`). Real cross-platform bug. Fixed with
+   POSIX paths + added a `dist` vitest exclude (stale compiled tests were double-run). (PR #497)
+3. **lint gate was RED** — ESLint parsed `.next/` build artifacts in `@quant/quantmeet`.
+   Added `**/.next/**` to the global ignore list. (PR #497)
+
+**Deployability closed:** all 15 apps + all 7 services now have Dockerfiles. The last two
+(`git-server`, `smtp-inbound`) were added. `smtp-inbound` was an orphaned barrel-export
+library (no entrypoint, imported by nobody) — promoted to a real runnable service:
+`main.ts` (SMTP listener + health server + graceful shutdown) + `createIngestionHandler`
+(fail-closed webhook forwarding) + tests (29 green). (PR #498)
+
+**Genuinely remaining (needs owner-provided external accounts/keys, not code):**
+managed Postgres/Redis/S3/Kafka/LiveKit provisioning, secrets vault, real E2E in CI,
+coverage 30%→50%, and the one absent greenfield feature — the Godot real-world game.
