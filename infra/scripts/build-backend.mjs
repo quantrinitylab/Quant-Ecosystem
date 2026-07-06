@@ -32,6 +32,18 @@ const external = [
 
 const appAbs = path.resolve(appDir);
 
+// Most @quant/* workspace packages publish their entry as TypeScript source
+// (main: src/index.ts), so esbuild bundles them straight from source. A few
+// packages (e.g. @quant/agentic) instead point their package.json `exports`
+// at compiled `dist/`, which does NOT exist in the backend image's bundle
+// stage (we run `prisma generate` + this bundler, never a full `tsc` build of
+// every package). Aliasing those to their `src` entry lets esbuild resolve and
+// bundle them from source like the rest, without changing the package's
+// published entry (which the Next frontends' transpile config depends on).
+const srcEntryAliases = {
+  '@quant/agentic': path.resolve('packages/agentic/src/index.ts'),
+};
+
 // The deprecated `request` lib imports non-existent `uuid/v4` / `uuid/v1`
 // subpaths. This plugin maps them onto modern uuid's named exports, resolving
 // `uuid` from the app's own node_modules.
@@ -64,6 +76,7 @@ await build({
   target: 'node22',
   outfile,
   external,
+  alias: srcEntryAliases,
   logLevel: 'error',
   plugins: [deprecatedStubPlugin],
   banner: {
