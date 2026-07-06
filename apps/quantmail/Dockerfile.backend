@@ -1,0 +1,48 @@
+# syntax=docker/dockerfile:1
+# ============================================================================
+# @quant/quantmail — BACKEND (Fastify API) image.
+# The frontend image runs `next start`; this image runs the bundled Fastify
+# backend (backend/server.ts). The monorepo uses moduleResolution=bundler, so
+# the backend is bundled into one self-contained ESM file via esbuild
+# (infra/scripts/build-backend.mjs); only native/generated packages
+# (@prisma/client + query engine, argon2, sharp) stay external and are provided
+# by the copied node_modules.
+# ============================================================================
+FROM node:22-slim AS deps
+RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
+WORKDIR /app
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json turbo.json ./
+COPY packages/ ./packages/
+COPY apps/quantmail/ ./apps/quantmail/
+COPY infra/scripts/ ./infra/scripts/
+RUN pnpm install --frozen-lockfile --ignore-scripts --network-concurrency 1 --child-concurrency 1
+
+FROM deps AS builder
+ENV NODE_OPTIONS="--max-old-space-size=2048"
+RUN npx prisma@6.19.3 generate --schema=packages/database/prisma/schema.prisma
+RUN node infra/scripts/build-backend.mjs apps/quantmail backend/server.ts apps/quantmail/backend/dist/server.mjs
+
+FROM node:22-slim AS runner
+RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 quantapp
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3011
+ENV HOST=0.0.0.0
+ENV HOME=/tmp
+
+# node_modules provides the external native/generated deps (@prisma/client +
+# generated client + query engine, argon2, sharp) that the bundle require()s.
+COPY --from=builder --chown=quantapp:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=quantapp:nodejs /app/packages/ ./packages/
+COPY --from=builder --chown=quantapp:nodejs /app/apps/quantmail/ ./apps/quantmail/
+COPY --from=builder --chown=quantapp:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=quantapp:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+
+USER quantapp
+EXPOSE 3011
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://localhost:3011/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" || exit 1
+
+CMD ["node", "apps/quantmail/backend/dist/server.mjs"]

@@ -46,6 +46,10 @@ jobs:
             ecr: quant-quantmail
             dockerfile: apps/quantmail/Dockerfile
             deployment: quant-platform-production-quantmail
+          - app: quantmail-backend
+            ecr: quant-quantmail-backend
+            dockerfile: apps/quantmail/Dockerfile.backend
+            deployment: quant-platform-production-quantmail-backend
           - app: quantchat
             ecr: quant-quantchat
             dockerfile: apps/quantchat/Dockerfile

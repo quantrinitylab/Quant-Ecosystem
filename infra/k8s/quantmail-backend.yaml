@@ -1,0 +1,93 @@
+# QuantMail Fastify backend: deployment + service + /api ingress.
+# The frontend (mail.quantchat.online) calls same-origin /api/*; this ingress
+# strips /api and routes to the backend, whose routes live at root (/auth,
+# /oauth, /emails, ...).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-platform-production-quantmail-backend
+  namespace: quant-production
+  labels:
+    app.kubernetes.io/name: quantmail-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: quantmail-backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: quantmail-backend
+    spec:
+      containers:
+        - name: quantmail-backend
+          image: 650708167640.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail-backend:latest
+          ports:
+            - containerPort: 3011
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-platform-production-config
+            - secretRef:
+                name: quant-platform-production-secrets
+          env:
+            - name: PORT
+              value: '3011'
+          readinessProbe:
+            tcpSocket:
+              port: 3011
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 3011
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-platform-production-quantmail-backend
+  namespace: quant-production
+  labels:
+    app.kubernetes.io/name: quantmail-backend
+spec:
+  selector:
+    app.kubernetes.io/name: quantmail-backend
+  ports:
+    - port: 3011
+      targetPort: 3011
+      name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quant-quantmail-api
+  namespace: quant-production
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - mail.quantchat.online
+      secretName: quant-apps-tls
+  rules:
+    - host: mail.quantchat.online
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: quant-platform-production-quantmail-backend
+                port:
+                  number: 3011

@@ -65,9 +65,11 @@
     "@commitlint/cli": "^19",
     "@commitlint/config-conventional": "^19",
     "@faker-js/faker": "^9",
+    "@types/node": "^22.10.1",
     "@typescript-eslint/eslint-plugin": "^8",
     "@typescript-eslint/parser": "^8",
     "@vitest/coverage-v8": "^4",
+    "esbuild": "0.24.2",
     "eslint": "^9",
     "husky": "^9",
     "lint-staged": "^15",
@@ -76,7 +78,6 @@
     "turbo": "^2",
     "typescript": "~5.5.0",
     "typescript-eslint": "^8",
-    "@types/node": "^22.10.1",
     "vitest": "^4"
   }
 }
