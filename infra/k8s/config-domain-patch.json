@@ -1,7 +1,7 @@
 {
   "data": {
-    "CORS_ORIGINS": "https://mail.quantmail.online,https://chat.quantmail.online,https://ai.quantmail.online,https://admin.quantmail.online",
-    "DOMAIN": "quantmail.online",
-    "JWT_ISSUER": "https://mail.quantmail.online"
+    "CORS_ORIGINS": "https://mail.quantchat.online,https://chat.quantchat.online,https://ai.quantchat.online,https://admin.quantchat.online",
+    "DOMAIN": "quantchat.online",
+    "JWT_ISSUER": "https://mail.quantchat.online"
   }
 }
