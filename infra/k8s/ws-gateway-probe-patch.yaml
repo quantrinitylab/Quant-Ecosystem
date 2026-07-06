@@ -1,0 +1,17 @@
+spec:
+  template:
+    spec:
+      containers:
+        - name: ws-gateway
+          readinessProbe:
+            httpGet: null
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: null
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
