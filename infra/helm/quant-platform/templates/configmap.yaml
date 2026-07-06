@@ -12,3 +12,9 @@ data:
   JWT_AUDIENCE: {{ .Values.configmap.JWT_AUDIENCE | quote }}
   ENVIRONMENT: {{ .Values.global.environment | quote }}
   DOMAIN: {{ .Values.global.domain | quote }}
+  {{- if .Values.configmap.QUANTCHAT_BACKEND_URL }}
+  QUANTCHAT_BACKEND_URL: {{ .Values.configmap.QUANTCHAT_BACKEND_URL | quote }}
+  {{- end }}
+  {{- if .Values.configmap.QUANTAI_BACKEND_URL }}
+  QUANTAI_BACKEND_URL: {{ .Values.configmap.QUANTAI_BACKEND_URL | quote }}
+  {{- end }}

@@ -24,7 +24,9 @@ import { proxyToBackend } from '@quant/api-client';
  * env var shared with every other quantchat proxy (Requirement 1.6).
  */
 export const QUANTCHAT_BACKEND_URL =
-  process.env.NEXT_PUBLIC_QUANTCHAT_BACKEND_URL ?? 'http://localhost:3002';
+  process.env.QUANTCHAT_BACKEND_URL ??
+  process.env.NEXT_PUBLIC_QUANTCHAT_BACKEND_URL ??
+  'http://localhost:3002';
 
 interface ProxyEncryptionOptions {
   /** Parsed request body to forward (mutations only) — ciphertext/public only. */

@@ -31,7 +31,9 @@ import { proxyToBackend } from '@quant/api-client';
  * var so the proxy and backend share one source of truth (Requirement 1.6).
  */
 export const QUANTCHAT_BACKEND_URL =
-  process.env.NEXT_PUBLIC_QUANTCHAT_BACKEND_URL ?? 'http://localhost:3002';
+  process.env.QUANTCHAT_BACKEND_URL ??
+  process.env.NEXT_PUBLIC_QUANTCHAT_BACKEND_URL ??
+  'http://localhost:3002';
 
 interface ProxyArLensesOptions {
   /** Parsed request body to forward (mutations only). */

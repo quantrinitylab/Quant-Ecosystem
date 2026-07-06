@@ -1,0 +1,70 @@
+# QuantAI Fastify backend: deployment + service (no public ingress).
+# The QuantAI frontend proxies server-side to this backend via the internal
+# cluster DNS name set in QUANTAI_BACKEND_URL (shared configmap):
+#   http://quant-platform-production-quantai-backend:3004
+# No /api ingress: the frontend owns /api/* via its own Next route handlers and
+# forwards to this backend server-side.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-platform-production-quantai-backend
+  namespace: quant-production
+  labels:
+    app.kubernetes.io/name: quantai-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: quantai-backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: quantai-backend
+    spec:
+      containers:
+        - name: quantai-backend
+          image: 650708167640.dkr.ecr.us-east-1.amazonaws.com/quant-quantai-backend:latest
+          ports:
+            - containerPort: 3004
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-platform-production-config
+            - secretRef:
+                name: quant-platform-production-secrets
+          env:
+            - name: PORT
+              value: '3004'
+            - name: JWT_ISSUER
+              value: 'quantai'
+          readinessProbe:
+            tcpSocket:
+              port: 3004
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 3004
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-platform-production-quantai-backend
+  namespace: quant-production
+  labels:
+    app.kubernetes.io/name: quantai-backend
+spec:
+  selector:
+    app.kubernetes.io/name: quantai-backend
+  ports:
+    - port: 3004
+      targetPort: 3004
+      name: http

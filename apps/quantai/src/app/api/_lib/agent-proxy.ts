@@ -28,7 +28,9 @@ import { proxyToBackend } from '@quant/api-client';
  * var so the proxy and backend share one source of truth (Requirement 1.6).
  */
 export const QUANTAI_BACKEND_URL =
-  process.env.NEXT_PUBLIC_QUANTAI_BACKEND_URL ?? 'http://localhost:3004';
+  process.env.QUANTAI_BACKEND_URL ??
+  process.env.NEXT_PUBLIC_QUANTAI_BACKEND_URL ??
+  'http://localhost:3004';
 
 interface ProxyAgentOptions {
   /** Parsed request body to forward (mutations only). */

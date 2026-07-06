@@ -20,6 +20,11 @@ configmap:
   CORS_ORIGINS: 'https://quant.app'
   JWT_ISSUER: 'https://quant.app'
   JWT_AUDIENCE: 'quant-platform'
+  # Internal cluster DNS the app frontends use to reach their Fastify backends
+  # (server-side proxy in Next route handlers). Kept in the shared configmap so
+  # every frontend/back-end pod resolves the same origin at runtime.
+  QUANTCHAT_BACKEND_URL: 'http://quant-platform-production-quantchat-backend:3002'
+  QUANTAI_BACKEND_URL: 'http://quant-platform-production-quantai-backend:3004'
 
 ingress:
   enabled: true

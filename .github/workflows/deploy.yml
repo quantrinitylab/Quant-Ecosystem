@@ -54,10 +54,20 @@ jobs:
             ecr: quant-quantchat
             dockerfile: apps/quantchat/Dockerfile
             deployment: quant-platform-production-quantchat
+          - app: quantchat-backend
+            ecr: quant-quantchat-backend
+            dockerfile: apps/quantchat/Dockerfile.backend
+            deployment: quant-platform-production-quantchat-backend
+            manifest: infra/k8s/quantchat-backend.yaml
           - app: quantai
             ecr: quant-quantai
             dockerfile: apps/quantai/Dockerfile
             deployment: quant-platform-production-quantai
+          - app: quantai-backend
+            ecr: quant-quantai-backend
+            dockerfile: apps/quantai/Dockerfile.backend
+            deployment: quant-platform-production-quantai-backend
+            manifest: infra/k8s/quantai-backend.yaml
           - app: admin
             ecr: quant-admin
             dockerfile: apps/admin/Dockerfile
@@ -107,5 +117,10 @@ jobs:
         run: |
           aws eks update-kubeconfig --name "$CLUSTER" --region "$AWS_REGION"
           IMAGE="$REGISTRY/${{ matrix.ecr }}:${{ github.sha }}"
+          # Apply the k8s manifest first when provided (creates the deployment,
+          # service and ingress on first rollout; idempotent thereafter).
+          if [ -n "${{ matrix.manifest }}" ]; then
+            kubectl apply -f "${{ matrix.manifest }}" -n "$NAMESPACE"
+          fi
           kubectl set image "deployment/${{ matrix.deployment }}" "*=$IMAGE" -n "$NAMESPACE"
           kubectl rollout status "deployment/${{ matrix.deployment }}" -n "$NAMESPACE" --timeout=300s
