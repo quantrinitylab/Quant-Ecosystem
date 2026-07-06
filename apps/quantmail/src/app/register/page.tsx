@@ -1,48 +1,51 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, FormField, Input, Button } from '@quant/shared-ui';
+import Link from 'next/link';
 import { apiClient } from '../../services/api-client';
 import { PageTransition } from '../../components/PageTransition';
-import Link from 'next/link';
+import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
+import { AuthShell } from '../../components/auth/AuthShell';
+import {
+  QUANT_MAIL_DOMAIN,
+  normalizeUsername,
+  isValidUsername,
+  toQuantAddress,
+} from '../../config/identity';
 
 export default function RegisterPage() {
   const router = useRouter();
 
-  const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const normalized = useMemo(() => normalizeUsername(username), [username]);
+  const address = normalized ? toQuantAddress(normalized) : '';
+
+  // Lightweight password-strength signal (length + variety), 0..4.
+  const strength = useMemo(() => {
+    let s = 0;
+    if (password.length >= 8) s++;
+    if (password.length >= 12) s++;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) s++;
+    if (/\d/.test(password) && /[^A-Za-z0-9]/.test(password)) s++;
+    return s;
+  }, [password]);
+
   function validate(): boolean {
     const errors: Record<string, string> = {};
-
-    if (!email) {
-      errors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errors.email = 'Please enter a valid email address';
-    }
-
-    if (!username) {
-      errors.username = 'Username is required';
-    }
-
-    if (!password) {
-      errors.password = 'Password is required';
-    } else if (password.length < 8) {
-      errors.password = 'Password must be at least 8 characters';
-    }
-
-    if (!confirmPassword) {
-      errors.confirmPassword = 'Please confirm your password';
-    } else if (password !== confirmPassword) {
-      errors.confirmPassword = 'Passwords do not match';
-    }
-
+    if (!normalized) errors.username = 'Choose a username';
+    else if (!isValidUsername(normalized))
+      errors.username = '3–30 chars: letters, numbers, dot, dash, underscore';
+    if (!password) errors.password = 'Password is required';
+    else if (password.length < 8) errors.password = 'At least 8 characters';
+    if (confirmPassword !== password) errors.confirmPassword = 'Passwords do not match';
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -50,20 +53,21 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-
     if (!validate()) return;
 
     setIsSubmitting(true);
     try {
       const res = await apiClient.register({
-        email,
+        email: address,
         password,
-        username,
-        displayName: username,
+        username: normalized,
+        displayName: normalized,
         acceptTerms: true,
       });
       if (res.success) {
-        router.push('/login?success=Registration+successful.+Please+sign+in.');
+        router.push(
+          `/login?success=${encodeURIComponent(`Welcome to QuantMail. Sign in as ${address}`)}`,
+        );
       } else {
         setError(res.error?.message || 'Registration failed. Please try again.');
       }
@@ -74,116 +78,187 @@ export default function RegisterPage() {
     }
   }
 
+  const strengthLabel = ['Too weak', 'Weak', 'Fair', 'Good', 'Strong'][strength];
+  const strengthColor = ['#ef4444', '#f59e0b', '#f59e0b', '#3b82f6', '#22c55e'][strength];
+
   return (
-    <PageTransition className="min-h-screen flex items-center justify-center p-4 bg-[var(--quant-background,#f9fafb)] dark:bg-gray-900">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-full bg-[var(--brand-app-color)] flex items-center justify-center text-white font-bold text-2xl mb-4">
-            Q
+    <PageTransition>
+      <AuthShell
+        brand={
+          <AuthBrandPanel
+            eyebrow="One identity for everything"
+            title="Your whole workflow, one address."
+            subtitle="Mail, code, calendar and AI — unified under a single QuantMail identity. Claim your handle."
+          />
+        }
+      >
+        <div className="w-full max-w-sm mx-auto animate-slide-up">
+          <div className="mb-8">
+            <h1 className="text-[26px] font-semibold tracking-tight text-[var(--quant-foreground)]">
+              Create your QuantMail
+            </h1>
+            <p className="text-sm text-[var(--quant-muted-foreground)] mt-1.5">
+              Pick a handle — it becomes your address across the ecosystem.
+            </p>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Create your account
-          </h1>
-          <p className="text-sm text-[var(--quant-muted-foreground)] mt-1">
-            Join QuantMail and unify your workflow
-          </p>
-        </div>
 
-        <Card className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <FormField label="Email" required htmlFor="register-email" error={fieldErrors.email}>
-              <Input
-                id="register-email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                fullWidth
-                autoComplete="email"
-              />
-            </FormField>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Username → live address */}
+            <div>
+              <label
+                htmlFor="reg-username"
+                className="block text-[13px] font-medium text-[var(--quant-foreground)] mb-1.5"
+              >
+                Choose your handle
+              </label>
+              <div
+                className={`flex items-stretch rounded-xl border bg-[var(--quant-surface)] overflow-hidden transition-shadow focus-within:ring-2 focus-within:ring-[var(--brand-primary)]/60 ${
+                  fieldErrors.username
+                    ? 'border-[var(--quant-destructive)]'
+                    : 'border-[var(--quant-border)]'
+                }`}
+              >
+                <input
+                  id="reg-username"
+                  type="text"
+                  inputMode="text"
+                  autoComplete="username"
+                  placeholder="shivani454"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="flex-1 min-w-0 bg-transparent px-3.5 py-3 text-sm outline-none placeholder:text-[var(--quant-muted-foreground)]"
+                />
+                <span className="flex items-center px-3 text-sm text-[var(--quant-muted-foreground)] bg-[var(--quant-muted)] border-l border-[var(--quant-border)] select-none">
+                  @{QUANT_MAIL_DOMAIN}
+                </span>
+              </div>
+              {fieldErrors.username ? (
+                <p className="text-xs text-[var(--quant-destructive)] mt-1.5">
+                  {fieldErrors.username}
+                </p>
+              ) : (
+                <p className="text-xs text-[var(--quant-muted-foreground)] mt-1.5">
+                  {address ? (
+                    <>
+                      Your address:{' '}
+                      <span className="font-medium text-[var(--brand-primary)]">{address}</span>
+                    </>
+                  ) : (
+                    'Letters, numbers, dot, dash, underscore.'
+                  )}
+                </p>
+              )}
+            </div>
 
-            <FormField
-              label="Username"
-              required
-              htmlFor="register-username"
-              error={fieldErrors.username}
-            >
-              <Input
-                id="register-username"
-                type="text"
-                placeholder="Choose a username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                fullWidth
-                autoComplete="username"
-              />
-            </FormField>
+            {/* Password */}
+            <div>
+              <label
+                htmlFor="reg-password"
+                className="block text-[13px] font-medium text-[var(--quant-foreground)] mb-1.5"
+              >
+                Password
+              </label>
+              <div
+                className={`flex items-stretch rounded-xl border bg-[var(--quant-surface)] overflow-hidden transition-shadow focus-within:ring-2 focus-within:ring-[var(--brand-primary)]/60 ${
+                  fieldErrors.password
+                    ? 'border-[var(--quant-destructive)]'
+                    : 'border-[var(--quant-border)]'
+                }`}
+              >
+                <input
+                  id="reg-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Create a strong password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="flex-1 min-w-0 bg-transparent px-3.5 py-3 text-sm outline-none placeholder:text-[var(--quant-muted-foreground)]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="px-3 text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              {password && (
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="flex-1 h-1.5 rounded-full bg-[var(--quant-muted)] overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{ width: `${(strength / 4) * 100}%`, background: strengthColor }}
+                    />
+                  </div>
+                  <span className="text-[11px]" style={{ color: strengthColor }}>
+                    {strengthLabel}
+                  </span>
+                </div>
+              )}
+              {fieldErrors.password && (
+                <p className="text-xs text-[var(--quant-destructive)] mt-1.5">
+                  {fieldErrors.password}
+                </p>
+              )}
+            </div>
 
-            <FormField
-              label="Password"
-              required
-              htmlFor="register-password"
-              error={fieldErrors.password}
-              hint="Minimum 8 characters"
-            >
-              <Input
-                id="register-password"
-                type="password"
-                placeholder="Create a password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                fullWidth
+            {/* Confirm */}
+            <div>
+              <label
+                htmlFor="reg-confirm"
+                className="block text-[13px] font-medium text-[var(--quant-foreground)] mb-1.5"
+              >
+                Confirm password
+              </label>
+              <input
+                id="reg-confirm"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="new-password"
-              />
-            </FormField>
-
-            <FormField
-              label="Confirm Password"
-              required
-              htmlFor="register-confirm-password"
-              error={fieldErrors.confirmPassword}
-            >
-              <Input
-                id="register-confirm-password"
-                type="password"
-                placeholder="Confirm your password"
+                placeholder="Re-enter password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                fullWidth
-                autoComplete="new-password"
+                className={`w-full rounded-xl border bg-[var(--quant-surface)] px-3.5 py-3 text-sm outline-none transition-shadow focus:ring-2 focus:ring-[var(--brand-primary)]/60 placeholder:text-[var(--quant-muted-foreground)] ${
+                  fieldErrors.confirmPassword
+                    ? 'border-[var(--quant-destructive)]'
+                    : 'border-[var(--quant-border)]'
+                }`}
               />
-            </FormField>
+              {fieldErrors.confirmPassword && (
+                <p className="text-xs text-[var(--quant-destructive)] mt-1.5">
+                  {fieldErrors.confirmPassword}
+                </p>
+              )}
+            </div>
 
             {error && (
-              <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+              <div
+                role="alert"
+                className="rounded-xl border border-[var(--quant-destructive)]/30 bg-[var(--quant-destructive)]/10 px-3.5 py-2.5 text-sm text-[var(--quant-destructive)]"
+              >
                 {error}
-              </p>
+              </div>
             )}
 
-            <Button
+            <button
               type="submit"
-              variant="primary"
-              fullWidth
-              loading={isSubmitting}
               disabled={isSubmitting}
+              className="group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-[var(--brand-primary)] to-[var(--quant-secondary)] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[var(--brand-primary)]/25 transition-all hover:shadow-xl hover:shadow-[var(--brand-primary)]/30 active:scale-[0.99] disabled:opacity-70"
             >
-              Create Account
-            </Button>
+              {isSubmitting ? 'Creating your account…' : 'Claim your address'}
+            </button>
           </form>
-        </Card>
 
-        <p className="mt-4 text-center text-sm text-[var(--quant-muted-foreground)]">
-          Already have an account?{' '}
-          <Link
-            href="/login"
-            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 font-medium"
-          >
-            Sign in
-          </Link>
-        </p>
-      </div>
+          <p className="mt-6 text-center text-sm text-[var(--quant-muted-foreground)]">
+            Already have an account?{' '}
+            <Link
+              href="/login"
+              className="font-medium text-[var(--brand-primary)] hover:underline underline-offset-4"
+            >
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </AuthShell>
     </PageTransition>
   );
 }
