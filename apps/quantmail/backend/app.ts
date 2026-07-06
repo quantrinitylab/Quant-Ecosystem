@@ -20,6 +20,7 @@ import federationRoutes, { createFederationService } from './routes/federation';
 import { oauthRoutes } from './routes/oauth';
 import { authRoutes } from './routes/auth';
 import reposRoutes from './routes/repos';
+import ciRoutes from './routes/ci';
 import { InMemoryE2EERelay } from './lib/e2ee-relay';
 
 export function getConfig(): AppConfig {
@@ -72,6 +73,9 @@ export async function buildApp(config?: AppConfig) {
   // Product-surface repositories API (id-based, list-my-repos) consumed by the
   // Repos page. Complements the QuantCode owner/name git API under /api/code.
   await app.register(reposRoutes, { prefix: '/repos' });
+  // CI/CD product surface (/ci/*) for the Pipelines page — builds backed by the
+  // CiRun model; workflows/deployments are empty until those are modelled.
+  await app.register(ciRoutes);
   await app.register(aiRoutes, { prefix: '/emails' });
   await app.register(aiServicesRoutes, { prefix: '/api/v1' });
 
