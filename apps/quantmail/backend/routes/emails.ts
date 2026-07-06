@@ -82,6 +82,26 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       const sendService = new EmailService(prisma as never, pipeline);
       const sent = await sendService.send(userId, email.id, parseResult.data.sentFolderId);
 
+      // Internal delivery: any recipient that is itself a QuantMail user gets a
+      // received copy in their mailbox immediately (mail between @quantchat.online
+      // addresses works with no external SMTP). External recipients continue via
+      // the outbound pipeline enqueued above.
+      try {
+        await sendService.deliverInternally({
+          fromUserId: userId,
+          subject: parseResult.data.subject,
+          bodyHtml: sanitizedHtml,
+          bodyPlain: parseResult.data.bodyPlain,
+          toAddresses: parseResult.data.toAddresses,
+          ccAddresses: parseResult.data.ccAddresses,
+          bccAddresses: parseResult.data.bccAddresses,
+          threadId: parseResult.data.threadId,
+          inReplyTo: parseResult.data.inReplyTo,
+        });
+      } catch {
+        /* internal delivery failure must not block the send response */
+      }
+
       // Notify recipients about the new email
       try {
         notifier.notifyNewEmail(
@@ -100,6 +120,101 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     return reply.status(201).send({ success: true, data: email });
   });
 
+  // POST /emails/compose - create a draft (frontend composer contract).
+  // Accepts recipients as {email,name}[] and maps them to address arrays.
+  const addr = z.object({ email: z.string().email(), name: z.string().optional() });
+  const composeRequestSchema = z.object({
+    to: z.array(addr).min(1),
+    cc: z.array(addr).optional(),
+    bcc: z.array(addr).optional(),
+    subject: z.string().min(1).max(500),
+    bodyText: z.string().optional(),
+    bodyHtml: z.string().optional(),
+    priority: z.enum(['high', 'normal', 'low']).optional(),
+    inReplyTo: z.string().optional(),
+    threadId: z.string().optional(),
+  });
+
+  fastify.post('/compose', async (request, reply) => {
+    const parsed = composeRequestSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+
+    const d = parsed.data;
+    const sanitized = d.bodyHtml ? sanitizeHtml(d.bodyHtml) : undefined;
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new EmailService(prisma as never);
+
+    const email = await service.compose({
+      userId,
+      toAddresses: d.to.map((r) => r.email),
+      ccAddresses: d.cc?.map((r) => r.email) ?? [],
+      bccAddresses: d.bcc?.map((r) => r.email) ?? [],
+      subject: d.subject,
+      bodyHtml: sanitized,
+      bodyPlain: d.bodyText,
+      inReplyTo: d.inReplyTo,
+      threadId: d.threadId,
+    });
+    return reply.status(201).send({ success: true, data: email });
+  });
+
+  // POST /emails/:id/send - send a draft + deliver to QuantMail recipients.
+  fastify.post<{ Params: { id: string } }>('/:id/send', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const service = new EmailService(prisma as never);
+
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email) throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
+
+    await prisma.email.update({
+      where: { id: request.params.id },
+      data: { isDraft: false, isSent: true, sentAt: new Date(), deliveryStatus: 'delivered' },
+    });
+
+    const asArray = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
+    try {
+      await service.deliverInternally({
+        fromUserId: userId,
+        subject: email.subject,
+        bodyHtml: email.bodyHtml ?? undefined,
+        bodyPlain: email.bodyPlain ?? undefined,
+        toAddresses: asArray(email.toAddresses),
+        ccAddresses: asArray(email.ccAddresses),
+        bccAddresses: asArray(email.bccAddresses),
+        threadId: email.threadId ?? undefined,
+        inReplyTo: email.inReplyTo ?? undefined,
+      });
+    } catch {
+      /* internal delivery failure must not fail the send */
+    }
+
+    try {
+      notifier.notifyNewEmail(asArray(email.toAddresses), userId, email.subject, email.id);
+    } catch {
+      /* ignore */
+    }
+
+    return reply.send({ success: true, data: { message: 'Email sent', emailId: email.id } });
+  });
+
+  // POST /emails/:id/archive - remove from the inbox view (soft archive).
+  fastify.post<{ Params: { id: string } }>('/:id/archive', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email) throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    await prisma.email.update({ where: { id: request.params.id }, data: { isTrash: true } });
+    return reply.send({ success: true, data: { message: 'Email archived' } });
+  });
+
   // GET /emails - List emails (requires folderId or search)
   fastify.get('/', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
@@ -114,7 +229,15 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
 
     const prisma = (fastify as unknown as { prisma: any }).prisma;
     const where: any = { userId, deletedAt: null };
-    if (q.folderId) where.folderId = q.folderId;
+    if (q.folderId) {
+      where.folderId = q.folderId;
+    } else {
+      // Default inbox view: received mail only — exclude the user's own sent
+      // copies, drafts, and archived/trashed messages.
+      where.isDraft = false;
+      where.isSent = false;
+      where.isTrash = false;
+    }
 
     const [data, total, unreadCount] = await Promise.all([
       prisma.email.findMany({ where, skip, take: pageSize, orderBy: { receivedAt: 'desc' } }),

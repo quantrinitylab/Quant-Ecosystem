@@ -69,6 +69,19 @@ export class EmailService {
   ) {}
 
   async compose(input: ComposeEmailInput): Promise<Email> {
+    // Stamp the sender's own QuantMail address on the message so the Sent copy
+    // (and internal delivery) shows a correct From instead of an empty string.
+    const sender = await (
+      this.prisma as unknown as {
+        user: {
+          findUnique(a: unknown): Promise<{ email: string; displayName: string | null } | null>;
+        };
+      }
+    ).user.findUnique({
+      where: { id: input.userId },
+      select: { email: true, displayName: true },
+    });
+
     const email = await this.prisma.email.create({
       data: {
         userId: input.userId,
@@ -78,7 +91,8 @@ export class EmailService {
         subject: input.subject,
         bodyHtml: input.bodyHtml ?? '',
         bodyPlain: input.bodyPlain ?? '',
-        fromAddress: '',
+        fromAddress: sender?.email ?? '',
+        fromName: sender?.displayName ?? null,
         isDraft: true,
         threadId: input.threadId ?? null,
         inReplyTo: input.inReplyTo ?? null,
@@ -87,6 +101,80 @@ export class EmailService {
     });
 
     return email;
+  }
+
+  /**
+   * Deliver a message to any recipients that are QuantMail users, by creating a
+   * received copy in each recipient's mailbox (inbox = no folder). This makes
+   * mail between QuantMail addresses work end-to-end without any external SMTP
+   * provider. External (non-QuantMail) recipients are handled by the outbound
+   * delivery pipeline. Returns the number of internal recipients delivered to.
+   */
+  async deliverInternally(input: {
+    fromUserId: string;
+    subject: string;
+    bodyHtml?: string;
+    bodyPlain?: string;
+    toAddresses: string[];
+    ccAddresses?: string[];
+    bccAddresses?: string[];
+    threadId?: string;
+    inReplyTo?: string;
+  }): Promise<number> {
+    const recipients = Array.from(
+      new Set(
+        [...input.toAddresses, ...(input.ccAddresses ?? []), ...(input.bccAddresses ?? [])].map(
+          (a) => a.trim().toLowerCase(),
+        ),
+      ),
+    );
+    if (recipients.length === 0) return 0;
+
+    const userModel = this.prisma as unknown as {
+      user: {
+        findUnique(a: unknown): Promise<{ email: string; displayName: string | null } | null>;
+        findMany(a: unknown): Promise<Array<{ id: string; email: string }>>;
+      };
+    };
+
+    const sender = await userModel.user.findUnique({
+      where: { id: input.fromUserId },
+      select: { email: true, displayName: true },
+    });
+    const matches = await userModel.user.findMany({
+      where: { email: { in: recipients } },
+      select: { id: true, email: true },
+    });
+
+    const snippet = (input.bodyPlain ?? input.bodyHtml ?? '').replace(/<[^>]+>/g, '').slice(0, 140);
+
+    let delivered = 0;
+    for (const recipient of matches) {
+      await this.prisma.email.create({
+        data: {
+          userId: recipient.id,
+          folderId: null,
+          fromAddress: sender?.email ?? '',
+          fromName: sender?.displayName ?? null,
+          toAddresses: input.toAddresses,
+          ccAddresses: input.ccAddresses ?? [],
+          bccAddresses: [],
+          subject: input.subject,
+          bodyHtml: input.bodyHtml ?? '',
+          bodyPlain: input.bodyPlain ?? '',
+          snippet,
+          threadId: input.threadId ?? null,
+          inReplyTo: input.inReplyTo ?? null,
+          isRead: false,
+          isSent: false,
+          isDraft: false,
+          receivedAt: new Date(),
+          deliveryStatus: 'delivered',
+        } as never,
+      });
+      delivered++;
+    }
+    return delivered;
   }
 
   async send(userId: string, emailId: string, sentFolderId: string): Promise<Email> {

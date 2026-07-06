@@ -21,6 +21,10 @@ function createMockPrisma() {
       update: vi.fn(),
       delete: vi.fn(),
     },
+    user: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+    },
     label: {
       findMany: vi.fn(),
     },

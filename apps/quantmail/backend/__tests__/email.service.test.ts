@@ -11,6 +11,10 @@ function createMockPrisma() {
       update: vi.fn(),
       delete: vi.fn(),
     },
+    user: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+    },
     label: {
       findMany: vi.fn(),
     },
@@ -37,13 +41,18 @@ describe('EmailService', () => {
         subject: 'Test Subject',
         bodyHtml: '<p>Hello</p>',
         bodyPlain: 'Hello',
-        fromAddress: '',
+        fromAddress: 'user-1@quantchat.online',
+        fromName: 'User One',
         isDraft: true,
         threadId: null,
         inReplyTo: null,
         attachments: [],
         createdAt: new Date(),
       };
+      prisma.user.findUnique.mockResolvedValue({
+        email: 'user-1@quantchat.online',
+        displayName: 'User One',
+      });
       prisma.email.create.mockResolvedValue(mockEmail);
 
       const result = await service.compose({
@@ -56,6 +65,7 @@ describe('EmailService', () => {
 
       expect(result).toEqual(mockEmail);
       expect(result.isDraft).toBe(true);
+      // Sender's own QuantMail address is stamped onto the draft.
       expect(prisma.email.create).toHaveBeenCalledWith({
         data: {
           userId: 'user-1',
@@ -65,7 +75,8 @@ describe('EmailService', () => {
           subject: 'Test Subject',
           bodyHtml: '<p>Hello</p>',
           bodyPlain: 'Hello',
-          fromAddress: '',
+          fromAddress: 'user-1@quantchat.online',
+          fromName: 'User One',
           isDraft: true,
           threadId: null,
           inReplyTo: null,
