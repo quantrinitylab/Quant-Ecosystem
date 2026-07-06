@@ -19,6 +19,7 @@ import e2eeRoutes from './routes/e2ee';
 import federationRoutes, { createFederationService } from './routes/federation';
 import { oauthRoutes } from './routes/oauth';
 import { authRoutes } from './routes/auth';
+import reposRoutes from './routes/repos';
 import { InMemoryE2EERelay } from './lib/e2ee-relay';
 
 export function getConfig(): AppConfig {
@@ -68,6 +69,9 @@ export async function buildApp(config?: AppConfig) {
   await app.register(threadsRoutes, { prefix: '/threads' });
   await app.register(foldersRoutes, { prefix: '/folders' });
   await app.register(contactsRoutes, { prefix: '/contacts' });
+  // Product-surface repositories API (id-based, list-my-repos) consumed by the
+  // Repos page. Complements the QuantCode owner/name git API under /api/code.
+  await app.register(reposRoutes, { prefix: '/repos' });
   await app.register(aiRoutes, { prefix: '/emails' });
   await app.register(aiServicesRoutes, { prefix: '/api/v1' });
 
