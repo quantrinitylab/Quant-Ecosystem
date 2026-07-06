@@ -1,4 +1,4 @@
-# Routes quantmail.online subdomains to each app frontend service. Supplements
+# Routes quantchat.online subdomains to each app frontend service. Supplements
 # the Helm-managed ingress (which only wired ws-gateway). Apply with:
 #   kubectl apply -f infra/k8s/app-routing-ingress.yaml
 apiVersion: networking.k8s.io/v1
@@ -11,7 +11,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: mail.quantmail.online
+    - host: mail.quantchat.online
       http:
         paths:
           - path: /
@@ -21,7 +21,7 @@ spec:
                 name: quant-platform-production-quantmail
                 port:
                   number: 3010
-    - host: chat.quantmail.online
+    - host: chat.quantchat.online
       http:
         paths:
           - path: /
@@ -31,7 +31,7 @@ spec:
                 name: quant-platform-production-quantchat
                 port:
                   number: 3015
-    - host: ai.quantmail.online
+    - host: ai.quantchat.online
       http:
         paths:
           - path: /
@@ -41,7 +41,7 @@ spec:
                 name: quant-platform-production-quantai
                 port:
                   number: 3020
-    - host: admin.quantmail.online
+    - host: admin.quantchat.online
       http:
         paths:
           - path: /
@@ -51,7 +51,7 @@ spec:
                 name: quant-platform-production-admin
                 port:
                   number: 3100
-    - host: ws.quantmail.online
+    - host: ws.quantchat.online
       http:
         paths:
           - path: /
