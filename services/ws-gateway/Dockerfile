@@ -1,92 +1,45 @@
+# syntax=docker/dockerfile:1
+# ============================================================================
+# @quant/ws-gateway — realtime WebSocket gateway
+#
+# The monorepo is authored for a BUNDLER (root tsconfig moduleResolution=bundler
+# emits extensionless relative imports, e.g. `./websocket-server`). Running the
+# raw `tsc` output with `node` fails Node's strict ESM resolution
+# (ERR_MODULE_NOT_FOUND), and `--experimental-specifier-resolution=node` was
+# removed in Node 22. So we BUNDLE the service into a single self-contained ESM
+# file with esbuild, which resolves all workspace + npm deps at build time.
+# ============================================================================
 FROM node:22-alpine AS builder
-
 WORKDIR /app
-
-# Install pnpm
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 
-# Copy workspace configuration
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY tsconfig.json ./
-
-# Copy relevant packages
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json ./
 COPY packages/common/ ./packages/common/
 COPY packages/realtime/ ./packages/realtime/
 COPY packages/health-server/ ./packages/health-server/
 COPY services/ws-gateway/ ./services/ws-gateway/
 
-# Install dependencies
 RUN pnpm install --frozen-lockfile --ignore-scripts
 
-# Compile TypeScript to JavaScript
-RUN pnpm --filter @quant/common exec tsc -b && \
-    pnpm --filter @quant/realtime exec tsc -b && \
-    pnpm --filter @quant/health-server exec tsc -b && \
-    pnpm --filter @quant/ws-gateway exec tsc -b
-
-# Update main/types/exports to point to compiled output for production runtime.
-# NOTE: Node's ESM resolver prefers the "exports" map over "main". Packages like
-# @quant/realtime declare exports pointing at ./src/*.ts, so rewriting only
-# "main" leaves the runtime resolving to source .ts files that don't exist in
-# the dist-only production image (ERR_MODULE_NOT_FOUND). We therefore rewrite
-# "exports" too. String helpers avoid '$' so the sh -c inline stays safe.
-RUN node -e " \
-  const fs = require('fs'); \
-  const toDist = (s) => { \
-    if (typeof s !== 'string' || !s.includes('src/')) return s; \
-    s = s.replace('src/', 'dist/'); \
-    if (s.endsWith('.d.ts')) return s; \
-    if (s.endsWith('.ts')) return s.slice(0, -3) + '.js'; \
-    return s; \
-  }; \
-  const walk = (v) => typeof v === 'string' ? toDist(v) : (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, val]) => [k, walk(val)])) : v); \
-  const pkgs = ['packages/common', 'packages/realtime', 'packages/health-server', 'services/ws-gateway']; \
-  for (const pkg of pkgs) { \
-    const p = pkg + '/package.json'; \
-    const j = JSON.parse(fs.readFileSync(p, 'utf8')); \
-    if (j.main && j.main.startsWith('src/')) j.main = j.main.replace('src/', 'dist/').replace('.ts', '.js'); \
-    if (j.types && j.types.startsWith('src/')) j.types = j.types.replace('src/', 'dist/').replace('.ts', '.d.ts'); \
-    if (j.exports) j.exports = walk(j.exports); \
-    fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\\n'); \
-  } \
-"
+# Bundle to one self-contained ESM file. The createRequire banner lets any
+# bundled CommonJS dependency call `require` from within the ESM output.
+RUN npx --yes esbuild@0.24.2 services/ws-gateway/src/main.ts \
+      --bundle --platform=node --format=esm --target=node22 \
+      --outfile=services/ws-gateway/dist/bundle.mjs \
+      --banner:js="import{createRequire}from'module';const require=createRequire(import.meta.url);"
 
 FROM node:22-alpine AS runner
-
 WORKDIR /app
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 quantws
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 quantws
-
-# Install pnpm for production install
-RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
-
-# Copy workspace configuration
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY tsconfig.json ./
-
-# Copy compiled output and updated package.json from builder
-COPY --from=builder /app/packages/common/dist/ ./packages/common/dist/
-COPY --from=builder /app/packages/common/package.json ./packages/common/package.json
-COPY --from=builder /app/packages/realtime/dist/ ./packages/realtime/dist/
-COPY --from=builder /app/packages/realtime/package.json ./packages/realtime/package.json
-COPY --from=builder /app/packages/health-server/dist/ ./packages/health-server/dist/
-COPY --from=builder /app/packages/health-server/package.json ./packages/health-server/package.json
-COPY --from=builder /app/services/ws-gateway/dist/ ./services/ws-gateway/dist/
-COPY --from=builder /app/services/ws-gateway/package.json ./services/ws-gateway/package.json
-
-# Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod --ignore-scripts
+COPY --from=builder /app/services/ws-gateway/dist/bundle.mjs ./bundle.mjs
 
 ENV NODE_ENV=production
-ENV PORT=8080
-
+# WS_PORT is also set by the k8s deployment; kept here for local `docker run`.
+ENV WS_PORT=8080
+ENV HEALTH_PORT=8081
 USER quantws
-
-EXPOSE 8080
-
+EXPOSE 8080 8081
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD nc -z localhost 8080 || exit 1
-
-CMD ["node", "--experimental-specifier-resolution=node", "services/ws-gateway/dist/main.js"]
+CMD ["node", "bundle.mjs"]

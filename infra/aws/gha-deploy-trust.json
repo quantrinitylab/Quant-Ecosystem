@@ -12,7 +12,7 @@
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:quantchat-yy/Quant-Ecosystem:*"
+          "token.actions.githubusercontent.com:sub": "repo:quantrinity/Quant-Ecosystem:*"
         }
       }
     }
