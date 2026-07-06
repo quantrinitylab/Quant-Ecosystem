@@ -12,6 +12,8 @@ on:
       - 'apps/**'
       - 'services/**'
       - 'packages/**'
+      - 'infra/scripts/**'
+      - 'infra/k8s/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
     inputs:
