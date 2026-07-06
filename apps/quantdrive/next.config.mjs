@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@quant/shared-ui', '@quant/common'],
-  output: 'standalone',
   webpack: (config) => {
     // Resolve workspace TS packages that use NodeNext `.js` import specifiers
     // (e.g. @quant/bharat-ai pulled in via @quant/shared-ui) to their `.ts` sources.

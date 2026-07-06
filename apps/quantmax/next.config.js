@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@quant/shared-ui', '@quant/common'],
-  output: 'standalone',
   serverExternalPackages: ['nats'],
   webpack: (config, { isServer }) => {
     // Resolve workspace TS packages that use NodeNext `.js` import specifiers

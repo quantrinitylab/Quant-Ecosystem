@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@quant/shared-ui', '@quant/common', '@quant/brand', '@quant/bharat-ai'],
-  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },

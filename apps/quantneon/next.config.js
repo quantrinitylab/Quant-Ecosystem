@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@quant/agentic', '@quant/shared-ui', '@quant/common'],
-  output: 'standalone',
   serverExternalPackages: ['nats'],
   webpack: (config, { isServer }) => {
     // Resolve workspace TypeScript sources that use `.js` import specifiers

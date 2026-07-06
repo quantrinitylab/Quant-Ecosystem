@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@quant/shared-ui', '@quant/common', '@quant/quant-tools'],
-  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },

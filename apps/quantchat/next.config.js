@@ -7,7 +7,6 @@ const nextConfig = {
     '@quant/agentic',
     '@quant/ai',
   ],
-  output: 'standalone',
   typescript: {
     ignoreBuildErrors: true,
   },
