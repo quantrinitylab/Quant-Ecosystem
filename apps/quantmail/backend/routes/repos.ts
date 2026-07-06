@@ -158,6 +158,130 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: toDto(repo) });
   });
 
+  // Load a repo the caller may read (owner, or non-private), else 404.
+  async function loadReadableRepo(request: unknown, id: string): Promise<RepoRow> {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const repo = (await prisma.repository.findUnique({ where: { id } })) as
+      | (RepoRow & { deletedAt?: Date | null })
+      | null;
+    if (!repo || repo.deletedAt)
+      throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+    if (repo.ownerId !== userId && String(repo.visibility).toUpperCase() === 'PRIVATE') {
+      throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+    }
+    return repo;
+  }
+
+  // GET /repos/:id/branches — DB-backed branch list.
+  fastify.get<{ Params: { id: string } }>('/:id/branches', async (request, reply) => {
+    await loadReadableRepo(request, request.params.id);
+    const prisma = getPrisma(fastify);
+    const rows = (await prisma.branch.findMany({
+      where: { repoId: request.params.id },
+      orderBy: { name: 'asc' },
+    })) as Array<{ name: string; commitSha: string; isProtected: boolean }>;
+    return reply.send({
+      success: true,
+      data: rows.map((b) => ({
+        name: b.name,
+        sha: b.commitSha,
+        isProtected: b.isProtected,
+        protection: b.isProtected ? 'require_reviews' : 'none',
+        aheadBy: 0,
+        behindBy: 0,
+      })),
+    });
+  });
+
+  // GET /repos/:id/pulls — DB-backed pull requests (with author).
+  fastify.get<{ Params: { id: string }; Querystring: { status?: string } }>(
+    '/:id/pulls',
+    async (request, reply) => {
+      await loadReadableRepo(request, request.params.id);
+      const prisma = getPrisma(fastify);
+      const where: Record<string, unknown> = { repoId: request.params.id };
+      if (request.query.status) where.status = request.query.status.toUpperCase();
+      const rows = (await prisma.pullRequest.findMany({
+        where,
+        include: { author: { select: { username: true, displayName: true } } },
+        orderBy: { number: 'desc' },
+      })) as Array<{
+        id: string;
+        number: number;
+        title: string;
+        status: string;
+        sourceBranch: string;
+        targetBranch: string;
+        author?: { username: string; displayName: string | null } | null;
+      }>;
+      return reply.send({
+        success: true,
+        data: rows.map((p) => ({
+          id: p.id,
+          number: p.number,
+          title: p.title,
+          status: p.status.toLowerCase(),
+          sourceBranch: p.sourceBranch,
+          targetBranch: p.targetBranch,
+          author: {
+            name: p.author?.displayName ?? p.author?.username ?? '',
+            username: p.author?.username ?? '',
+          },
+        })),
+      });
+    },
+  );
+
+  // GET /repos/:id/issues — DB-backed issues.
+  fastify.get<{ Params: { id: string }; Querystring: { status?: string } }>(
+    '/:id/issues',
+    async (request, reply) => {
+      await loadReadableRepo(request, request.params.id);
+      const prisma = getPrisma(fastify);
+      const where: Record<string, unknown> = { repoId: request.params.id };
+      if (request.query.status) where.status = request.query.status.toUpperCase();
+      const rows = (await prisma.issue.findMany({
+        where,
+        orderBy: { number: 'desc' },
+      })) as Array<{ id: string; number: number; title: string; status: string }>;
+      return reply.send({
+        success: true,
+        data: rows.map((i) => ({
+          id: i.id,
+          number: i.number,
+          title: i.title,
+          status: i.status.toLowerCase(),
+        })),
+      });
+    },
+  );
+
+  // GET /repos/:id/commits — commit history requires the git storage backend
+  // (not yet wired for the product surface); a repo with no pushes has none.
+  fastify.get<{ Params: { id: string } }>('/:id/commits', async (request, reply) => {
+    await loadReadableRepo(request, request.params.id);
+    return reply.send({ success: true, data: [], metadata: { total: 0, page: 1, pageSize: 0 } });
+  });
+
+  // GET /repos/:id/tree — file tree (empty until the repo has content).
+  fastify.get<{ Params: { id: string } }>('/:id/tree', async (request, reply) => {
+    await loadReadableRepo(request, request.params.id);
+    return reply.send({ success: true, data: [] });
+  });
+
+  // GET /repos/:id/file — file content (none until the repo has content).
+  fastify.get<{ Params: { id: string }; Querystring: { path?: string } }>(
+    '/:id/file',
+    async (request, reply) => {
+      await loadReadableRepo(request, request.params.id);
+      return reply.send({
+        success: true,
+        data: { path: request.query.path ?? '', content: '' },
+      });
+    },
+  );
+
   // DELETE /repos/:id — soft-delete (owner only).
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const userId = requireUserId(request);
