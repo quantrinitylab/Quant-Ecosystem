@@ -125,4 +125,6 @@ jobs:
             kubectl apply -f "${{ matrix.manifest }}" -n "$NAMESPACE"
           fi
           kubectl set image "deployment/${{ matrix.deployment }}" "*=$IMAGE" -n "$NAMESPACE"
-          kubectl rollout status "deployment/${{ matrix.deployment }}" -n "$NAMESPACE" --timeout=300s
+          # Rollouts can briefly churn while nodes pull the (large) images and
+          # reclaim disk via image GC, so allow generous time to converge.
+          kubectl rollout status "deployment/${{ matrix.deployment }}" -n "$NAMESPACE" --timeout=600s
