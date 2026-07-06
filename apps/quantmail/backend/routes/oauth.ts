@@ -419,6 +419,44 @@ export async function oauthRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // GET /oauth/userinfo — current user for the authenticated session. The
+  // frontend auth-provider calls this right after login/hydrate to populate
+  // the user; it expects the standard `{ success, data }` envelope with
+  // `{ id, email, username, displayName, role }`. Protected by requireAuth
+  // (validates the bearer access token).
+  fastify.get('/oauth/userinfo', { preHandler: requireAuth }, async (request: any, reply) => {
+    const userId = request.user?.sub || request.user?.id;
+    if (!userId) {
+      return reply
+        .code(401)
+        .send({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Not authenticated', statusCode: 401 },
+        });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return reply
+        .code(404)
+        .send({
+          success: false,
+          error: { code: 'USER_NOT_FOUND', message: 'User not found', statusCode: 404 },
+        });
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+        role: user.role,
+      },
+    });
+  });
+
   // Discovery (OpenID Connect Discovery 1.0 + RFC 8414)
   fastify.get('/.well-known/openid-configuration', async () => ({
     issuer: getIssuer(),

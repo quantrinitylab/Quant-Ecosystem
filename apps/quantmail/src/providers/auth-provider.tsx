@@ -89,12 +89,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userRes = await apiClient.getUserInfo();
         if (userRes.success && userRes.data) {
           setUser(userRes.data);
+        } else {
+          throw new Error(userRes.error?.message || 'Could not load your profile.');
         }
       } else {
-        setError(res.error?.message || 'Login failed');
+        const message = res.error?.message || 'Login failed';
+        setError(message);
+        // Surface to the caller (the login page) so it can render the reason,
+        // instead of silently redirecting on a failed sign-in.
+        throw new Error(message);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
+      throw err;
     } finally {
       setIsLoading(false);
     }

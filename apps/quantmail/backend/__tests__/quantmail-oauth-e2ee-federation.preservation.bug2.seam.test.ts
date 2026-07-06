@@ -559,7 +559,7 @@ describe('Bug 2 preservation baseline — POST /oauth/consent (open-redirect-saf
 // success paths (Req 3.3).
 // ===========================================================================
 describe('Bug 2 preservation baseline — POST /auth/login', () => {
-  it('missing email/password -> 400', async () => {
+  it('missing email/password -> 400 standard error envelope', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/auth/login',
@@ -567,10 +567,13 @@ describe('Bug 2 preservation baseline — POST /auth/login', () => {
       payload: { email: '' },
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json()).toMatchObject({ error: 'email and password required' });
+    expect(res.json()).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', statusCode: 400 },
+    });
   });
 
-  it('non-existent user -> 401 invalid_credentials', async () => {
+  it('non-existent user -> 401 INVALID_CREDENTIALS', async () => {
     db.user.findUnique.mockResolvedValue(null);
     const res = await app.inject({
       method: 'POST',
@@ -579,10 +582,13 @@ describe('Bug 2 preservation baseline — POST /auth/login', () => {
       payload: { email: 'nobody@test.com', password: 'pw' },
     });
     expect(res.statusCode).toBe(401);
-    expect(res.json()).toMatchObject({ error: 'invalid_credentials' });
+    expect(res.json()).toMatchObject({
+      success: false,
+      error: { code: 'INVALID_CREDENTIALS', statusCode: 401 },
+    });
   });
 
-  it('wrong password -> 401 invalid_credentials', async () => {
+  it('wrong password -> 401 INVALID_CREDENTIALS', async () => {
     db.user.findUnique.mockResolvedValue({
       id: 'u1',
       email: 'a@test.com',
@@ -597,10 +603,13 @@ describe('Bug 2 preservation baseline — POST /auth/login', () => {
       payload: { email: 'a@test.com', password: 'WRONG' },
     });
     expect(res.statusCode).toBe(401);
-    expect(res.json()).toMatchObject({ error: 'invalid_credentials' });
+    expect(res.json()).toMatchObject({
+      success: false,
+      error: { code: 'INVALID_CREDENTIALS', statusCode: 401 },
+    });
   });
 
-  it('valid credentials -> 200 { user, tokens }', async () => {
+  it('valid credentials -> 200 { success, data: { user, accessToken } }', async () => {
     db.user.findUnique.mockResolvedValue({
       id: 'u1',
       email: 'a@test.com',
@@ -617,16 +626,20 @@ describe('Bug 2 preservation baseline — POST /auth/login', () => {
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body).toMatchObject({ user: { id: 'u1', email: 'a@test.com', username: 'alice' } });
-    expect(body.tokens).toMatchObject({
-      accessToken: 'mock-access-token',
-      refreshToken: 'mock-refresh-token',
+    expect(body).toMatchObject({
+      success: true,
+      data: {
+        userId: 'u1',
+        accessToken: 'mock-access-token',
+        refreshToken: 'mock-refresh-token',
+        user: { id: 'u1', email: 'a@test.com', username: 'alice' },
+      },
     });
   });
 });
 
 describe('Bug 2 preservation baseline — POST /auth/register', () => {
-  it('missing required fields -> 400', async () => {
+  it('missing required fields -> 400 standard error envelope', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/auth/register',
@@ -634,10 +647,13 @@ describe('Bug 2 preservation baseline — POST /auth/register', () => {
       payload: { email: 'a@test.com' },
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json()).toMatchObject({ error: 'missing required fields' });
+    expect(res.json()).toMatchObject({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', statusCode: 400 },
+    });
   });
 
-  it('duplicate user -> 409 user already exists', async () => {
+  it('duplicate user -> 409 USER_EXISTS', async () => {
     db.user.findFirst.mockResolvedValue({ id: 'existing', email: 'taken@test.com' } as never);
     const res = await app.inject({
       method: 'POST',
@@ -646,10 +662,13 @@ describe('Bug 2 preservation baseline — POST /auth/register', () => {
       payload: { email: 'taken@test.com', username: 'taken', password: 'pw' },
     });
     expect(res.statusCode).toBe(409);
-    expect(res.json()).toMatchObject({ error: 'user already exists' });
+    expect(res.json()).toMatchObject({
+      success: false,
+      error: { code: 'USER_EXISTS', statusCode: 409 },
+    });
   });
 
-  it('new user -> 200 { user, tokens }', async () => {
+  it('new user -> 200 { success, data: { user, accessToken } }', async () => {
     db.user.findFirst.mockResolvedValue(null);
     db.user.create.mockResolvedValue({
       id: 'u-new',
@@ -665,9 +684,13 @@ describe('Bug 2 preservation baseline — POST /auth/register', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body).toMatchObject({
-      user: { id: 'u-new', email: 'new@test.com', username: 'newuser' },
+      success: true,
+      data: {
+        userId: 'u-new',
+        accessToken: 'mock-access-token',
+        user: { id: 'u-new', email: 'new@test.com', username: 'newuser' },
+      },
     });
-    expect(body.tokens).toMatchObject({ accessToken: 'mock-access-token' });
   });
 });
 

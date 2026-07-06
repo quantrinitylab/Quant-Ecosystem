@@ -18,48 +18,67 @@ export async function authRoutes(fastify: FastifyInstance) {
     lockoutDuration: 900,
   });
 
+  // Standard response envelope helpers. The frontend api-client (and the rest
+  // of the platform) expect `{ success, data }` on success and
+  // `{ success: false, error: { code, message, statusCode } }` on failure.
+  // Returning raw objects here silently broke the login/register UI (success
+  // was read as `undefined`), so every auth response now uses these.
+  const fail = (reply: any, statusCode: number, code: string, message: string) =>
+    reply.code(statusCode).send({ success: false, error: { code, message, statusCode } });
+
   // POST /auth/login
-  fastify.post('/auth/login', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request, reply) => {
-    const { email, password } = request.body as any;
+  fastify.post(
+    '/auth/login',
+    { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const { email, password } = request.body as any;
 
-    if (!email || !password) {
-      return reply.code(400).send({ error: 'email and password required' });
-    }
+      if (!email || !password) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Email and password are required.');
+      }
 
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return reply.code(401).send({ error: 'invalid_credentials' });
-    }
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (!user) {
+        return fail(reply, 401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
+      }
 
-    const valid = await argon2.verify(user.passwordHash, password);
-    if (!valid) {
-      return reply.code(401).send({ error: 'invalid_credentials' });
-    }
+      const valid = await argon2.verify(user.passwordHash, password);
+      if (!valid) {
+        return fail(reply, 401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
+      }
 
-    const tokens = await tokenService.generateTokenPair(
-      user.id,
-      { email: user.email, username: user.username, role: user.role },
-      ['openid', 'profile', 'email'],
-      'quantmail' as any,
-    );
+      const tokens = await tokenService.generateTokenPair(
+        user.id,
+        { email: user.email, username: user.username, role: user.role },
+        ['openid', 'profile', 'email'],
+        'quantmail' as any,
+      );
 
-    return reply.send({
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        displayName: user.displayName,
-      },
-      tokens,
-    });
-  });
+      return reply.send({
+        success: true,
+        data: {
+          userId: user.id,
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          expiresIn: tokens.expiresIn,
+          tokenType: tokens.tokenType,
+          user: {
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            displayName: user.displayName,
+          },
+        },
+      });
+    },
+  );
 
   // POST /auth/register
   fastify.post('/auth/register', async (request, reply) => {
     const { email, username, displayName, password } = request.body as any;
 
     if (!email || !username || !password) {
-      return reply.code(400).send({ error: 'missing required fields' });
+      return fail(reply, 400, 'VALIDATION_ERROR', 'Email, username and password are required.');
     }
 
     const existing = await prisma.user.findFirst({
@@ -67,7 +86,13 @@ export async function authRoutes(fastify: FastifyInstance) {
     });
 
     if (existing) {
-      return reply.code(409).send({ error: 'user already exists' });
+      const takenField = existing.email === email ? 'email' : 'username';
+      return fail(
+        reply,
+        409,
+        'USER_EXISTS',
+        `An account with this ${takenField} already exists. Try signing in instead.`,
+      );
     }
 
     const passwordHash = await argon2.hash(password);
@@ -91,12 +116,19 @@ export async function authRoutes(fastify: FastifyInstance) {
     );
 
     return reply.send({
-      user: {
-        id: user.id,
-        email: user.email,
-        username: user.username,
+      success: true,
+      data: {
+        userId: user.id,
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        tokenType: tokens.tokenType,
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+        },
       },
-      tokens,
     });
   });
 }
