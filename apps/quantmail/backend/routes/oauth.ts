@@ -20,13 +20,16 @@ function endpoint(path: string): string {
 const ACCESS_TOKEN_TTL_SECONDS = 900;
 
 export async function oauthRoutes(fastify: FastifyInstance) {
+  // The issuer/audience MUST match the global auth hook's verifier
+  // (@quant/server-core reads JWT_ISSUER / JWT_AUDIENCE from env), otherwise
+  // tokens minted here fail verification on every protected endpoint.
   const tokenService = new TokenService({
     jwtSecret: getJwtSecret(),
     jwtRefreshSecret: getJwtRefreshSecret(),
     accessTokenExpiresIn: 900,
     refreshTokenExpiresIn: 2592000,
-    issuer: 'quantmail',
-    audience: 'quant-ecosystem',
+    issuer: process.env['JWT_ISSUER'] ?? 'quantmail',
+    audience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
     bcryptRounds: 12,
     maxLoginAttempts: 5,
     lockoutDuration: 900,
@@ -427,22 +430,18 @@ export async function oauthRoutes(fastify: FastifyInstance) {
   fastify.get('/oauth/userinfo', { preHandler: requireAuth }, async (request: any, reply) => {
     const userId = request.user?.sub || request.user?.id;
     if (!userId) {
-      return reply
-        .code(401)
-        .send({
-          success: false,
-          error: { code: 'UNAUTHORIZED', message: 'Not authenticated', statusCode: 401 },
-        });
+      return reply.code(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Not authenticated', statusCode: 401 },
+      });
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      return reply
-        .code(404)
-        .send({
-          success: false,
-          error: { code: 'USER_NOT_FOUND', message: 'User not found', statusCode: 404 },
-        });
+      return reply.code(404).send({
+        success: false,
+        error: { code: 'USER_NOT_FOUND', message: 'User not found', statusCode: 404 },
+      });
     }
 
     return reply.send({

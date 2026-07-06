@@ -6,13 +6,19 @@ import { TokenService } from '@quant/auth/services/token-service';
 import { getJwtSecret, getJwtRefreshSecret } from '@quant/auth/lib/secrets';
 
 export async function authRoutes(fastify: FastifyInstance) {
+  // CRITICAL: the issuer/audience used to SIGN tokens here MUST match what the
+  // global auth hook (@quant/server-core) uses to VERIFY them. That hook reads
+  // JWT_ISSUER / JWT_AUDIENCE from the environment (getConfig()), so we sign
+  // with the same values. Hardcoding 'quantmail' / 'quant-ecosystem' previously
+  // caused every authenticated request to fail jwtVerify (issuer/audience
+  // mismatch) even though the signature + secret were correct.
   const tokenService = new TokenService({
     jwtSecret: getJwtSecret(),
     jwtRefreshSecret: getJwtRefreshSecret(),
     accessTokenExpiresIn: 900,
     refreshTokenExpiresIn: 2592000,
-    issuer: 'quantmail',
-    audience: 'quant-ecosystem',
+    issuer: process.env['JWT_ISSUER'] ?? 'quantmail',
+    audience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
     bcryptRounds: 12,
     maxLoginAttempts: 5,
     lockoutDuration: 900,
