@@ -64,7 +64,22 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
     const service = new ContactService(prisma as never);
     const result = await service.getContacts(userId, queryResult.data);
 
-    return reply.send({ success: true, data: result });
+    // The frontend contract (ApiResponse<Contact[]>) expects `data` to be the
+    // array itself, with pagination carried in `metadata`. Returning the raw
+    // PaginatedResult object here made `data` an object, so the contacts page
+    // crashed with "F.map is not a function". Unwrap it.
+    return reply.send({
+      success: true,
+      data: result.data,
+      metadata: {
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+        totalPages: result.totalPages,
+        hasNext: result.hasNext,
+        hasPrev: result.hasPrev,
+      },
+    });
   });
 
   // GET /contacts/search
