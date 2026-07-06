@@ -39,6 +39,18 @@ export function getConfig(): AppConfig {
     jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
     jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantmail',
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
+    // Pre-authentication endpoints that must bypass the global auth hook so
+    // users can sign in / sign up / run OAuth without a token. `/oauth/authorize`
+    // stays protected (it needs a logged-in user for the consent screen).
+    publicPaths: [
+      '/auth/login',
+      '/auth/register',
+      '/oauth/token',
+      '/oauth/revoke',
+      '/oauth/register',
+      '/oauth/consent',
+      '/.well-known',
+    ],
     env,
   };
 }
