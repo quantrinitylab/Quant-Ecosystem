@@ -15,6 +15,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "@quant/agent-runtime": "workspace:*",
     "@quant/agent-swarm": "workspace:*",
     "@quant/ai-memory": "workspace:*",

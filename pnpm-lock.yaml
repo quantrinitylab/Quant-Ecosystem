@@ -316,6 +316,9 @@ importers:
 
   apps/quantai:
     dependencies:
+      '@prisma/client':
+        specifier: ^6.19.3
+        version: 6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)
       '@quant/ab-testing':
         specifier: workspace:*
         version: link:../../packages/ab-testing
