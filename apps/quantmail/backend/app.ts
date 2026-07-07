@@ -21,6 +21,8 @@ import { oauthRoutes } from './routes/oauth';
 import { authRoutes } from './routes/auth';
 import reposRoutes from './routes/repos';
 import ciRoutes from './routes/ci';
+import calendarRoutes from './routes/calendar';
+import driveRoutes from './routes/drive';
 import { InMemoryE2EERelay } from './lib/e2ee-relay';
 
 export function getConfig(): AppConfig {
@@ -76,6 +78,10 @@ export async function buildApp(config?: AppConfig) {
   // CI/CD product surface (/ci/*) for the Pipelines page — builds backed by the
   // CiRun model; workflows/deployments are empty until those are modelled.
   await app.register(ciRoutes);
+  // Calendar (/events, /calendars) and Drive (/drive/*) product surfaces,
+  // backed by the Event/Calendar and File/Folder models respectively.
+  await app.register(calendarRoutes);
+  await app.register(driveRoutes);
   await app.register(aiRoutes, { prefix: '/emails' });
   await app.register(aiServicesRoutes, { prefix: '/api/v1' });
 
