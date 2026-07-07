@@ -1,243 +1,181 @@
 // ============================================================================
-// AI Core — MemoryPort Interface (PR-M01)
+// AI Core — Memory Interfaces (PR-M01 v2.1)
 //
-// CEO Order #0040: Future-proof interface for Memory as Reasoning Infrastructure.
-// Memory is NOT storage. Memory is the ability to retrieve the right information
-// at the right time for the right reason.
+// Architecture: Engine → MemoryService → [Ports] → [Backends]
+// CEO Score: 9.2/10 with 5 improvements applied.
 //
-// ADR Reference: ADR-005 (Memory Port Architecture)
-// QAP Satisfied: QAP-006 (Every interface is replaceable)
-//
-// Design Principles:
-// - Hierarchical (6 levels: working → world)
-// - Every memory has provenance, score, and explainability
-// - Controlled forgetting (decay, pin, privacy-delete)
-// - Budget-aware retrieval (never exceed token budget)
-// - No direct prompt injection (normalize → deduplicate → rank → compress)
+// Principles:
+// - Each interface = ONE responsibility
+// - Storage model ≠ Retrieval model
+// - Engine sees ONLY MemoryService (never individual ports)
+// - No algorithm in contracts
+// - MemoryRecord is immutable (event-sourcing compatible)
+// - Levels/kinds are strings (extensible, never enum-locked)
 // ============================================================================
 
-/**
- * Memory hierarchy levels (CEO Order #0031).
- * Each level has different owner, TTL, retrieval strategy, and security boundary.
- */
-export enum MemoryLevel {
-  /** Level 0: Current request scope. Discarded after response. */
-  WORKING = 0,
-  /** Level 1: Current conversation/session. Persists across turns. */
-  CONVERSATION = 1,
-  /** Level 2: User preferences, facts, patterns. Long-lived. */
-  USER = 2,
-  /** Level 3: Documents, files, repos owned by user. Permanent until deleted. */
-  KNOWLEDGE = 3,
-  /** Level 4: Organization/team shared knowledge. Scoped by org/tenant. */
-  ORGANIZATION = 4,
-  /** Level 5: Public/world knowledge. Shared across all users. */
-  WORLD = 5,
-}
+// ─── Storage Types ──────────────────────────────────────────────────────────
 
 /**
- * Memory provenance — every memory carries its origin story (CEO Order #0037).
+ * A stored memory fact. IMMUTABLE after creation.
+ * Updates create new versions; projection derives latest state.
+ * Lean — no scoring, no ACL, no algorithm baked in.
  */
-export interface MemoryProvenance {
-  /** Where this memory came from */
-  source: string;
-  /** When it was first created */
-  createdAt: number;
-  /** When it was last updated */
-  updatedAt: number;
-  /** Confidence score (0-1): how certain are we this is accurate */
-  confidence: number;
-  /** Why this memory was stored */
-  reason: string;
-  /** Which other memories reference this one */
-  referencedBy: string[];
-  /** Version of the embedding model used (for re-embedding on model change) */
-  embeddingVersion: string | null;
-  /** Owner userId (or orgId for Level 4, null for Level 5) */
-  owner: string | null;
-  /** Access control: who can read this memory */
-  acl: string[];
-}
-
-/**
- * A single memory entry with full metadata.
- */
-export interface MemoryEntry {
-  /** Unique identifier */
+export interface MemoryRecord {
   id: string;
-  /** Hierarchy level */
-  level: MemoryLevel;
-  /** The actual content (text) */
   content: string;
-  /** Normalized key/label for deduplication (CEO Order #0038) */
-  key: string;
-  /** Provenance metadata */
-  provenance: MemoryProvenance;
-  /** Composite score: importance × freshness × confidence × usage × trust (CEO Order #0033) */
-  score: number;
-  /** Individual score components for explainability */
-  scoreComponents: {
-    importance: number;
-    freshness: number;
-    confidence: number;
-    usage: number;
-    trust: number;
-  };
-  /** Whether this memory is pinned (never auto-expires) (CEO Order #0036) */
+  /** Extensible kind: 'fact' | 'preference' | 'episodic' | 'document' | custom */
+  kind: string;
+  /** Extensible level: 'working' | 'conversation' | 'user' | 'knowledge' | 'org' | 'world' | custom */
+  level: string;
+  /** Who owns this memory */
+  owner: string | null;
+  /** When created (immutable) */
+  createdAt: number;
+  /** Version number (incremented on logical update) */
+  version: number;
+  /** Never auto-expire if true */
   pinned: boolean;
-  /** Optional TTL timestamp — null = no auto-expiry */
+  /** Optional expiry */
   expiresAt: number | null;
-  /** How many times this memory has been retrieved */
-  retrievalCount: number;
-  /** Tags for categorization */
-  tags: string[];
+  /** Freeform metadata — schema owned by the writer */
+  metadata: Record<string, unknown>;
 }
 
-/**
- * Retrieval options for memory search.
- */
-export interface MemoryRetrievalOptions {
-  /** Which levels to search (default: all applicable) */
-  levels?: MemoryLevel[];
-  /** Maximum number of results */
-  limit?: number;
-  /** Minimum score threshold */
-  minScore?: number;
-  /** Token budget for returned memories (CEO Order #0035) */
-  tokenBudget?: number;
-  /** Filter by tags */
-  tags?: string[];
-  /** Owner filter (userId/orgId) */
-  owner?: string;
-}
+// ─── Retrieval Types (separate from storage) ────────────────────────────────
 
 /**
- * Retrieval result with explainability (CEO Order #0039).
+ * What comes back from retrieval. Independent of storage model.
+ * A retriever may source from Qdrant, Neo4j, Redis, or hybrid — caller doesn't know.
  */
-export interface MemoryRetrievalResult {
-  /** The memory entry */
-  entry: MemoryEntry;
-  /** Why this memory was retrieved */
-  retrievalReason: string;
-  /** Relevance score to the query (0-1) */
+export interface RetrievedMemory {
+  id: string;
+  content: string;
+  /** Where this memory came from (e.g. 'prisma', 'qdrant', 'graph', 'cache') */
+  source: string;
+  /** Implementation-provided relevance (0-1). Opaque to caller. */
   relevance: number;
+  /** Optional kind for context-building */
+  kind?: string;
+  /** Optional level */
+  level?: string;
 }
 
 /**
- * Memory statistics for observability.
+ * Context passed to retrieval — future-proof.
+ * Retrieval is not always query-based; it can be objective-based.
  */
-export interface MemoryStats {
-  /** Total entries per level */
-  countByLevel: Record<MemoryLevel, number>;
-  /** Total memory size (approximate tokens) */
-  totalTokens: number;
-  /** Cache hit rate (for semantic cache layer) */
-  cacheHitRate: number;
-  /** Average retrieval latency (ms) */
-  avgRetrievalLatencyMs: number;
-  /** Number of memories decayed in last cycle */
-  decayedLastCycle: number;
-  /** Number of pinned memories */
-  pinnedCount: number;
+export interface RetrievalContext {
+  /** Who is asking */
+  actor: string;
+  /** Natural-language query or intent */
+  query: string;
+  /** What the retrieval is FOR (planning, coding, debugging, summarization, etc.) */
+  objective?: string;
+  /** Token budget for results */
+  budget?: number;
+  /** Session/conversation scope */
+  session?: string;
+  /** Which levels to search */
+  levels?: string[];
+  /** Max results */
+  limit?: number;
+  /** Arbitrary constraints (permissions, scopes, active tools, model context window) */
+  constraints?: Record<string, unknown>;
+}
+
+// ─── Port Interfaces (one responsibility each) ──────────────────────────────
+
+/**
+ * MemoryStore — durable write/delete of memory records.
+ * ONE job: persist facts. Deduplication strategy is implementation's choice.
+ */
+export interface MemoryStore {
+  store(record: Omit<MemoryRecord, 'id' | 'createdAt' | 'version'>): Promise<MemoryRecord>;
+  delete(id: string): Promise<boolean>;
+  get(id: string): Promise<MemoryRecord | null>;
 }
 
 /**
- * MemoryPort — The core interface for Quant's Memory Reasoning Infrastructure.
- *
- * This interface defines the CONTRACT between the AI Engine and memory.
- * Implementations can be in-memory (dev), Prisma-backed (prod), or hybrid.
- *
- * CEO Philosophy: "Storage is not Memory. Memory is the ability to retrieve
- * the right information at the right time for the right reason."
+ * MemoryRetriever — find relevant memories for a context.
+ * ONE job: retrieval. HOW (vector, keyword, graph, hybrid) is implementation.
+ * Returns RetrievedMemory (NOT MemoryRecord) — decoupled from storage model.
  */
-export interface MemoryPort {
-  // ─── Core Operations ──────────────────────────────────────────────────────
+export interface MemoryRetriever {
+  retrieve(ctx: RetrievalContext): Promise<RetrievedMemory[]>;
+}
 
+/**
+ * ConversationLog — append-only dialogue turns.
+ * NOT memory. Raw conversation. Memory is EXTRACTED from this by MemoryExtractor.
+ */
+export interface ConversationLog {
+  append(actor: string, session: string, role: string, content: string): Promise<void>;
+  recent(actor: string, session: string, limit?: number): Promise<Array<{ role: string; content: string; timestamp: number }>>;
+  clear(actor: string, session: string): Promise<void>;
+}
+
+/**
+ * MemoryExtractor — decides what to remember from conversation.
+ * Sits BETWEEN ConversationLog and MemoryStore.
+ * Decides: what to remember, what to ignore, what to summarize.
+ */
+export interface MemoryExtractor {
   /**
-   * Store a memory entry. Deduplicates by key (CEO Order #0038).
-   * If a memory with the same key+owner exists, updates it instead of duplicating.
+   * Given a conversation turn, extract facts worth remembering.
+   * Returns records to store (may be empty if nothing memorable).
    */
-  store(userId: string, entry: Omit<MemoryEntry, 'id' | 'retrievalCount'>): Promise<MemoryEntry>;
+  extract(
+    actor: string,
+    session: string,
+    role: string,
+    content: string,
+  ): Promise<Array<Omit<MemoryRecord, 'id' | 'createdAt' | 'version'>>>;
+}
 
+/**
+ * MemoryMaintenance — lifecycle operations.
+ * ONE job: keep memory healthy. Decay, pin, promote/demote.
+ */
+export interface MemoryMaintenance {
+  decay(owner: string): Promise<number>;
+  pin(id: string): Promise<boolean>;
+  unpin(id: string): Promise<boolean>;
+  promote(id: string): Promise<boolean>;
+  demote(id: string): Promise<boolean>;
+}
+
+// ─── MemoryService (Engine's ONLY dependency) ───────────────────────────────
+
+/**
+ * MemoryService — the orchestration layer.
+ *
+ * Engine calls ONLY this. It never touches stores, retrievers, or logs directly.
+ * MemoryService coordinates across all ports and backends internally.
+ *
+ * This IS Quant's "brain". Stores, retrievers, vector DBs are its plugins.
+ */
+export interface MemoryService {
   /**
-   * Retrieve relevant memories for a query.
-   * Does NOT return raw results — applies: normalize → deduplicate → rank → compress (CEO Order #0034).
-   * Respects token budget (CEO Order #0035).
+   * Remember something. MemoryService decides WHERE and HOW to store it
+   * (may go to MemoryStore, may go to vector index, may go to graph — caller doesn't know).
    */
-  retrieve(userId: string, query: string, options?: MemoryRetrievalOptions): Promise<MemoryRetrievalResult[]>;
+  remember(actor: string, content: string, kind: string, level: string, metadata?: Record<string, unknown>): Promise<void>;
 
   /**
-   * Semantic search across memories (lower-level than retrieve; no budget/compression).
+   * Recall relevant memories for a context.
+   * MemoryService orchestrates: which backends to query, how to merge, how to budget.
+   * Returns ready-to-use context (compressed, deduplicated, budget-aware).
    */
-  search(userId: string, query: string, options?: MemoryRetrievalOptions): Promise<MemoryEntry[]>;
-
-  // ─── History ──────────────────────────────────────────────────────────────
+  recall(ctx: RetrievalContext): Promise<RetrievedMemory[]>;
 
   /**
-   * Get conversation history for a user/session.
-   */
-  getHistory(userId: string, sessionId?: string, limit?: number): Promise<Array<{ role: string; content: string; timestamp: number }>>;
-
-  /**
-   * Append a turn to conversation history.
-   */
-  appendHistory(userId: string, sessionId: string, role: string, content: string): Promise<void>;
-
-  // ─── Summarization ────────────────────────────────────────────────────────
-
-  /**
-   * Summarize a set of memories or conversation history into a condensed form.
-   * Used for context compression when approaching token budget limits.
-   */
-  summarize(userId: string, sessionId?: string): Promise<string | null>;
-
-  // ─── Lifecycle (CEO Order #0036: Controlled Forgetting) ───────────────────
-
-  /**
-   * Forget a specific memory (soft-delete with audit trail).
+   * Forget a specific memory (with audit).
    */
   forget(memoryId: string, reason: string): Promise<boolean>;
 
   /**
-   * Apply decay to all memories below a threshold. Reduces scores over time.
-   * Low-score, unpinned memories are eligible for garbage collection.
+   * Compress/summarize conversation history for a session.
+   * Used when approaching token limits. MemoryService decides strategy.
    */
-  decay(userId: string): Promise<number>;
-
-  // ─── Importance Management ────────────────────────────────────────────────
-
-  /**
-   * Promote a memory (increase importance score). Used by feedback loop.
-   */
-  promote(memoryId: string, boostFactor?: number): Promise<MemoryEntry | null>;
-
-  /**
-   * Demote a memory (decrease importance score). Used on negative feedback.
-   */
-  demote(memoryId: string, decayFactor?: number): Promise<MemoryEntry | null>;
-
-  /**
-   * Pin a memory so it never auto-expires.
-   */
-  pin(memoryId: string): Promise<MemoryEntry | null>;
-
-  /**
-   * Unpin a memory (subject to normal TTL/decay again).
-   */
-  unpin(memoryId: string): Promise<MemoryEntry | null>;
-
-  // ─── Explainability (CEO Order #0039) ─────────────────────────────────────
-
-  /**
-   * Explain why a memory exists and how it's used.
-   * Returns a human-readable explanation: source, usage count, relevance history.
-   */
-  explain(memoryId: string): Promise<string>;
-
-  // ─── Observability ────────────────────────────────────────────────────────
-
-  /**
-   * Get memory statistics for a user (or global if no userId).
-   */
-  stats(userId?: string): Promise<MemoryStats>;
+  compress(actor: string, session: string): Promise<string | null>;
 }
