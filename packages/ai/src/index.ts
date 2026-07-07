@@ -22,6 +22,27 @@ export type {
   MemoryAuditSink,
   MemoryIndexer,
 } from './core/default-memory-service';
+export {
+  DefaultMemoryExtractor,
+  FactExtractor,
+  PreferenceExtractor,
+  EntityExtractor,
+  EpisodicExtractor,
+  RoleIgnoreFilter,
+  AcknowledgementIgnoreFilter,
+  ContentDuplicateFilter,
+  TurnCountSummarizerTrigger,
+} from './core/default-memory-extractor';
+export type {
+  ExtractionInput,
+  MemoryCandidate,
+  IgnoreFilter,
+  CandidateExtractor,
+  DuplicateFilter,
+  ExtractionModel,
+  SummarizerTrigger,
+  ExtractionPipelineDeps,
+} from './core/default-memory-extractor';
 export { asKind, asLevel } from './core/memory-port';
 export type {
   MemoryService,
