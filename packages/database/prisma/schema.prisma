@@ -2078,6 +2078,67 @@ model DocumentChunk {
   @@map("document_chunks")
 }
 
+// ==================== AI/AGENT MEMORY (packages/ai MemoryStore, ADR-006) ====================
+// Durable home for the frozen MemoryStore port (ADR-005). Relation-free and
+// additive: polymorphic ownership (ownerType/ownerId/tenantId) mirrors
+// credit_ledger_entries, so there is NO User FK and this is safe for the shared
+// schema. Vectors live in Qdrant (pointed to by MemoryEmbedding), matching the
+// DocumentChunk convention. Writes are immutable-append (logicalId + version);
+// `archivedAt` is a soft archive, `deletedAt` a hard/GDPR erase intent.
+// The frozen port carries only `owner: string`; PrismaMemoryStore maps it to
+// ownerId and defaults ownerType='user'. The extra columns exist from day one so
+// polymorphic ownership needs NO future migration (see ADR-006).
+
+model MemoryRecord {
+  id         String    @id @default(cuid()) // internal surrogate row id
+  logicalId  String    @default(cuid()) // stable identity across versions (port `id`)
+  version    Int       @default(1) // immutable-append version
+  ownerType  String    @default("user") // user | org | workspace | agent | system
+  ownerId    String? // null = shared/world memory
+  tenantId   String? // authz/isolation boundary (null = self-owned)
+  kind       String // fact | preference | episodic | entity | document | custom
+  level      String // working | conversation | user | knowledge | org | world | custom
+  content    String // canonical text/caption (non-text via metadata.ref)
+  pinned     Boolean   @default(false)
+  metadata   Json      @default("{}")
+  expiresAt  DateTime?
+  archivedAt DateTime? // soft archive (ForgetPolicy 'archive')
+  deletedAt  DateTime? // hard/GDPR intent
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  embeddings MemoryEmbedding[]
+
+  @@unique([logicalId, version])
+  @@index([ownerType, ownerId])
+  @@index([ownerType, ownerId, level])
+  @@index([ownerType, ownerId, kind])
+  @@index([ownerId, createdAt])
+  @@index([expiresAt])
+  @@index([archivedAt])
+  @@index([tenantId])
+  @@map("memory_records")
+}
+
+// One row per (memory, provider, model). Re-embedding = insert a new row; the
+// vector lives in Qdrant (embeddingRef = point id), matching DocumentChunk.
+model MemoryEmbedding {
+  id           String   @id @default(cuid())
+  memoryId     String
+  provider     String // openai | bedrock | google | quant | local
+  model        String // e.g. text-embedding-3-large
+  dimension    Int
+  embeddingRef String? // Qdrant point id (external vector store)
+  createdAt    DateTime @default(now())
+
+  memory MemoryRecord @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, provider, model])
+  @@index([memoryId])
+  @@index([provider, model])
+  @@map("memory_embeddings")
+}
+
 // ==================== BILLING / CREDITS (Phase 7) ====================
 // quantmail-superhub Task 25.1 (Requirements 16.1-16.5).
 //

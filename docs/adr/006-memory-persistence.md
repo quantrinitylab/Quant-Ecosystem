@@ -2,7 +2,7 @@
 
 ## Status
 
-PROPOSED
+ACCEPTED (implemented in PR-M04B: migration 0049_memory_records + PrismaMemoryStore)
 
 ## Date
 

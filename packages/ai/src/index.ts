@@ -43,6 +43,14 @@ export type {
   SummarizerTrigger,
   ExtractionPipelineDeps,
 } from './core/default-memory-extractor';
+export { PrismaMemoryStore } from './core/prisma-memory-store';
+export type {
+  MemoryPrismaClient,
+  MemoryRecordDelegate,
+  MemoryRecordRow,
+  MemoryRecordCreateData,
+  PrismaMemoryStoreOptions,
+} from './core/prisma-memory-store';
 export { asKind, asLevel } from './core/memory-port';
 export type {
   MemoryService,
