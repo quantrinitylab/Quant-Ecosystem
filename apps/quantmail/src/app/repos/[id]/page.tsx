@@ -63,22 +63,22 @@ export default function RepoDetailPage() {
           )}
         </div>
 
-        {/* Tabs */}
-        <div className="flex items-center gap-1 px-4 py-2 border-b border-[var(--quant-border)] overflow-x-auto">
+        {/* Tabs — GitHub-style underline */}
+        <nav className="flex items-center gap-1 px-4 border-b border-[var(--quant-border)] overflow-x-auto">
           {tabs.map((tab) => (
             <button
               key={tab.key}
-              className={`px-3 py-1.5 text-sm rounded-md whitespace-nowrap transition-colors ${
+              className={`relative px-3 py-2.5 text-sm font-medium rounded-t-md transition-colors whitespace-nowrap ${
                 activeTab === tab.key
-                  ? 'bg-[var(--quant-primary)] text-white'
-                  : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-muted)]'
+                  ? 'text-[var(--quant-foreground)] after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-[var(--brand-primary)] after:rounded-t'
+                  : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-muted)]'
               }`}
               onClick={() => setActiveTab(tab.key)}
             >
               {tab.label}
             </button>
           ))}
-        </div>
+        </nav>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
