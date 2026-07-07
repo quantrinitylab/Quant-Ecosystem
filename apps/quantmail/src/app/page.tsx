@@ -3,12 +3,13 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
-import { AppShell, SearchInput, Card, Badge, Button, Skeleton, Avatar } from '@quant/shared-ui';
-import { ErrorState, EmptyState } from '@quant/shared-ui';
+import { AppShell, SearchInput, Button, Skeleton } from '@quant/shared-ui';
+import { ErrorState } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
 import { AppSidebar } from '../components/AppSidebar';
+import { IdentityAvatar } from '../components/IdentityAvatar';
 import { apiClient } from '../services/api-client';
 import {
   listContainerVariants,
@@ -71,49 +72,68 @@ function SwipeableEmailCard({
         onDragEnd={handleDragEnd}
         className="relative z-10"
       >
-        <Card
-          padding="none"
-          className={`p-4 cursor-pointer hover:bg-[var(--quant-muted)] transition-colors ${
-            !email.isRead ? 'border-l-4 border-l-[var(--quant-primary)]' : ''
+        <div
+          className={`group relative flex items-start gap-3 rounded-xl border px-3.5 py-3 cursor-pointer transition-all ${
+            email.isRead
+              ? 'border-transparent hover:border-[var(--quant-border)] hover:bg-[var(--quant-muted)]'
+              : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:shadow-md'
           }`}
           onClick={() => {
             if (!swiping) onClick();
           }}
         >
-          <div className="flex items-start gap-3">
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={onToggleSelect}
-              onClick={(e) => e.stopPropagation()}
-              className="mt-1 w-4 h-4 rounded border-[var(--quant-border)]"
-            />
-            <button
-              className={`mt-0.5 text-lg min-w-[44px] min-h-[44px] flex items-center justify-center ${email.isStarred ? 'text-yellow-500' : 'text-[var(--quant-muted-foreground)]'}`}
-              onClick={onToggleStar}
-              title={email.isStarred ? 'Unstar' : 'Star'}
-            >
-              {email.isStarred ? '\u2605' : '\u2606'}
-            </button>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className={`text-sm ${!email.isRead ? 'font-semibold' : 'font-normal'}`}>
-                  {email.from?.name || email.from?.email}
-                </span>
-                {!email.isRead && <Badge variant="info">New</Badge>}
-              </div>
-              <h3 className={`text-sm mt-1 ${!email.isRead ? 'font-semibold' : ''}`}>
-                {email.subject}
-              </h3>
-              <p className="text-xs text-[var(--quant-muted-foreground)] mt-1 truncate">
-                {email.snippet}
-              </p>
+          {/* Unread accent */}
+          {!email.isRead && (
+            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 rounded-r bg-gradient-to-b from-[var(--brand-primary)] to-[var(--quant-secondary)]" />
+          )}
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onToggleSelect}
+            onClick={(e) => e.stopPropagation()}
+            className="mt-2.5 h-4 w-4 flex-none rounded border-[var(--quant-border)] opacity-0 group-hover:opacity-100 checked:opacity-100 transition-opacity"
+          />
+          <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="md" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span
+                className={`truncate text-sm ${!email.isRead ? 'font-semibold text-[var(--quant-foreground)]' : 'text-[var(--quant-foreground)]'}`}
+              >
+                {email.from?.name || email.from?.email}
+              </span>
+              {!email.isRead && (
+                <span className="h-1.5 w-1.5 flex-none rounded-full bg-[var(--brand-primary)]" />
+              )}
+              <span className="ml-auto flex-none text-xs text-[var(--quant-muted-foreground)]">
+                {email.receivedAt
+                  ? new Date(email.receivedAt).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                    })
+                  : ''}
+              </span>
             </div>
-            <span className="text-xs text-[var(--quant-muted-foreground)] whitespace-nowrap ml-4">
-              {email.receivedAt ? new Date(email.receivedAt).toLocaleDateString() : ''}
-            </span>
+            <h3
+              className={`truncate text-sm mt-0.5 ${!email.isRead ? 'font-medium text-[var(--quant-foreground)]' : 'text-[var(--quant-foreground)]'}`}
+            >
+              {email.subject || '(no subject)'}
+            </h3>
+            <p className="truncate text-xs text-[var(--quant-muted-foreground)] mt-0.5">
+              {email.snippet}
+            </p>
           </div>
-        </Card>
+          <button
+            className={`mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md text-base transition-colors ${
+              email.isStarred
+                ? 'text-amber-400'
+                : 'text-[var(--quant-muted-foreground)] opacity-0 group-hover:opacity-100 hover:text-amber-400'
+            }`}
+            onClick={onToggleStar}
+            title={email.isStarred ? 'Unstar' : 'Star'}
+          >
+            {email.isStarred ? '\u2605' : '\u2606'}
+          </button>
+        </div>
       </motion.div>
     </div>
   );
@@ -160,7 +180,7 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
         <div className="p-6 flex-1">
           <h2 className="text-lg font-semibold mb-3">{email.subject}</h2>
           <div className="flex items-center gap-3 mb-4">
-            <Avatar name={email.from?.name || email.from?.email || '?'} size="sm" src={undefined} />
+            <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="md" />
             <div>
               <p className="text-sm font-medium">{email.from?.name || email.from?.email}</p>
               <p className="text-xs text-[var(--quant-muted-foreground)]">
@@ -310,10 +330,23 @@ export default function InboxPage() {
       >
         {/* Email list pane */}
         <div className="flex flex-col flex-1 md:max-w-[50%] lg:max-w-[45%] md:min-w-[320px] h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-3 px-4 pt-4">
+            <h1 className="text-xl font-semibold tracking-tight text-[var(--quant-foreground)]">
+              Inbox
+            </h1>
+            <button
+              onClick={() => router.push('/compose')}
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[var(--brand-primary)] to-[var(--quant-secondary)] px-3.5 py-2 text-sm font-semibold text-white shadow-md shadow-[var(--brand-primary)]/20 transition-all hover:shadow-lg active:scale-[0.99]"
+            >
+              <span className="text-base leading-none">&#9997;</span>
+              Compose
+            </button>
+          </div>
           {/* Search */}
-          <div className="p-4 border-b border-[var(--quant-border)]">
+          <div className="p-4">
             <SearchInput
-              placeholder="Search emails..."
+              placeholder="Search mail — sender, subject, keywords…"
               value={searchQuery}
               onChange={handleSearch}
             />
@@ -376,10 +409,41 @@ export default function InboxPage() {
             )}
             {error && <ErrorState message={error.message} onRetry={() => void refetch()} />}
             {!isLoading && !isSearching && !error && (!emails || emails.length === 0) && (
-              <EmptyState
-                title={debouncedQuery ? 'No results found' : 'Inbox is empty'}
-                description={debouncedQuery ? 'Try a different search query' : 'No emails to show'}
-              />
+              <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
+                <div
+                  className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl text-white shadow-lg"
+                  style={{
+                    background:
+                      'linear-gradient(135deg, var(--brand-primary), var(--quant-secondary))',
+                  }}
+                >
+                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path
+                      d="M3 7l9 6 9-6M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M3 7a2 2 0 012-2h14a2 2 0 012 2"
+                      stroke="white"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-[var(--quant-foreground)]">
+                  {debouncedQuery ? 'No results found' : 'Your inbox is all clear'}
+                </h3>
+                <p className="mt-1.5 max-w-xs text-sm text-[var(--quant-muted-foreground)]">
+                  {debouncedQuery
+                    ? 'Try a different search — sender, subject, or keywords.'
+                    : 'New mail will land here. Start a conversation or invite someone to QuantMail.'}
+                </p>
+                {!debouncedQuery && (
+                  <button
+                    onClick={() => router.push('/compose')}
+                    className="mt-6 rounded-xl bg-gradient-to-r from-[var(--brand-primary)] to-[var(--quant-secondary)] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[var(--brand-primary)]/25 transition-all hover:shadow-xl active:scale-[0.99]"
+                  >
+                    Compose your first email
+                  </button>
+                )}
+              </div>
             )}
             {!isLoading && !isSearching && !error && emails && emails.length > 0 && (
               <motion.div variants={listContainerVariants} initial="hidden" animate="visible">
