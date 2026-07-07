@@ -26,7 +26,7 @@ describe('ModelRouter — Bedrock provider gating', () => {
   it('registers Bedrock models in the default catalog', () => {
     const bedrockModels = router.getModels().filter((m) => m.provider === 'bedrock');
     expect(bedrockModels.length).toBeGreaterThan(0);
-    expect(bedrockModels.map((m) => m.id)).toContain('anthropic.claude-3-haiku-20240307-v1:0');
+    expect(bedrockModels.map((m) => m.id)).toContain('us.amazon.nova-lite-v1:0');
   });
 
   it('selects a Bedrock model when only Bedrock is available', () => {
@@ -45,8 +45,8 @@ describe('ModelRouter — Bedrock provider gating', () => {
 
   it('honours a specific available Bedrock model when requested', () => {
     router.setAvailableProviders(new Set(['bedrock']));
-    const model = router.selectModel(req({ model: 'amazon.nova-lite-v1:0' }));
-    expect(model.id).toBe('amazon.nova-lite-v1:0');
+    const model = router.selectModel(req({ model: 'us.amazon.nova-lite-v1:0' }));
+    expect(model.id).toBe('us.amazon.nova-lite-v1:0');
   });
 
   it('applies no gating when availableProviders is never set (backward compatible)', () => {

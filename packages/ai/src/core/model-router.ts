@@ -63,6 +63,20 @@ export class ModelRouter {
       if (model && this.isModelAvailable(model)) return model;
     }
 
+    // Operator override: when no explicit model is requested, prefer the
+    // env-configured default (AI_DEFAULT_MODEL) if it is registered and its
+    // provider is configured. This gives single-provider deployments (e.g.
+    // Bedrock-only) a deterministic model instead of relying on scoring, which
+    // could otherwise pick a higher-"quality" model that is gated (e.g. an
+    // Anthropic model needing the AWS use-case form).
+    if (!request.model) {
+      const defaultId = process.env['AI_DEFAULT_MODEL'];
+      if (defaultId) {
+        const preferred = this.models.get(defaultId);
+        if (preferred && this.isModelAvailable(preferred)) return preferred;
+      }
+    }
+
     // Determine required capabilities from the request
     const capabilities = this.inferCapabilities(request);
 
@@ -503,9 +517,26 @@ export class ModelRouter {
         latencyMs: 200,
         qualityScore: 0.88,
       },
-      // Amazon Bedrock models (invoked via the Converse API using AWS creds).
+      // Amazon Bedrock models — invoked via the Converse API using AWS creds.
+      // NOTE: these use cross-region INFERENCE PROFILE ids (the `us.` prefix).
+      // The bare foundation-model ids (e.g. `amazon.nova-lite-v1:0`) are retired
+      // for on-demand invoke and return ResourceNotFoundException ("model
+      // version has reached the end of its life"); the inference profile is the
+      // supported on-demand path in us-east-1.
       {
-        id: 'anthropic.claude-3-haiku-20240307-v1:0',
+        id: 'us.amazon.nova-lite-v1:0',
+        name: 'Amazon Nova Lite (Bedrock)',
+        provider: 'bedrock',
+        capabilities: ['text_generation', 'text_summarization', 'code_generation', 'translation'],
+        maxContextLength: 300000,
+        maxOutputTokens: 5120,
+        costPerInputToken: 0.00000006,
+        costPerOutputToken: 0.00000024,
+        latencyMs: 250,
+        qualityScore: 0.85,
+      },
+      {
+        id: 'us.anthropic.claude-3-haiku-20240307-v1:0',
         name: 'Claude 3 Haiku (Bedrock)',
         provider: 'bedrock',
         capabilities: [
@@ -526,7 +557,7 @@ export class ModelRouter {
         qualityScore: 0.9,
       },
       {
-        id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+        id: 'us.anthropic.claude-3-5-sonnet-20240620-v1:0',
         name: 'Claude 3.5 Sonnet (Bedrock)',
         provider: 'bedrock',
         capabilities: [
@@ -546,18 +577,6 @@ export class ModelRouter {
         costPerOutputToken: 0.000015,
         latencyMs: 500,
         qualityScore: 0.96,
-      },
-      {
-        id: 'amazon.nova-lite-v1:0',
-        name: 'Amazon Nova Lite (Bedrock)',
-        provider: 'bedrock',
-        capabilities: ['text_generation', 'text_summarization', 'code_generation', 'translation'],
-        maxContextLength: 300000,
-        maxOutputTokens: 5120,
-        costPerInputToken: 0.00000006,
-        costPerOutputToken: 0.00000024,
-        latencyMs: 250,
-        qualityScore: 0.85,
       },
       // DeepSeek models
       {
