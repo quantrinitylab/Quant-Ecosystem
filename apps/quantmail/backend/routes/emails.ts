@@ -200,6 +200,47 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       /* ignore */
     }
 
+    // External delivery via SES: for recipients outside @quantmail.in, send
+    // directly through Amazon SES. The BullMQ outbound worker handles this in
+    // production (DKIM+SMTP), but when Redis/queue isn't available (sandbox,
+    // early deploy) this direct SES path ensures emails actually leave.
+    try {
+      const { sendViaSes, isSesConfigured } = await import('../lib/ses-sender');
+      if (isSesConfigured()) {
+        const allRecipients = [
+          ...asArray(email.toAddresses),
+          ...asArray(email.ccAddresses),
+          ...asArray(email.bccAddresses),
+        ];
+        const externalRecipients = allRecipients.filter(
+          (addr: string) => !addr.endsWith('@quantmail.in') && !addr.endsWith('@quantchat.online'),
+        );
+        if (externalRecipients.length > 0) {
+          const sender = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { displayName: true, email: true },
+          });
+          const fromAddr = sender?.displayName
+            ? `${sender.displayName} <${sender.email}>`
+            : sender?.email ?? `noreply@quantmail.in`;
+          await sendViaSes({
+            from: fromAddr,
+            to: externalRecipients,
+            subject: email.subject ?? '(no subject)',
+            bodyHtml: email.bodyHtml ?? undefined,
+            bodyText: email.bodyPlain ?? email.bodyText ?? undefined,
+          });
+          request.log.info(
+            { to: externalRecipients },
+            'external email sent via SES',
+          );
+        }
+      }
+    } catch (sesErr) {
+      // SES send failure should not fail the response (graceful degradation).
+      request.log.warn({ err: sesErr }, 'SES external delivery failed (sandbox or config issue)');
+    }
+
     return reply.send({ success: true, data: { message: 'Email sent', emailId: email.id } });
   });
 
