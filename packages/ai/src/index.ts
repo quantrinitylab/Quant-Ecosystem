@@ -8,6 +8,38 @@ export * from './types';
 // Core
 export { AIEngine } from './core/engine';
 export { ContextManager } from './core/context-manager';
+export {
+  DefaultMemoryService,
+  DefaultMergeStrategy,
+  DefaultDeduplicator,
+  DefaultBudgetAllocator,
+} from './core/default-memory-service';
+export type {
+  DefaultMemoryServiceDeps,
+  MergeStrategy,
+  Deduplicator,
+  BudgetAllocator,
+  MemoryAuditSink,
+  MemoryIndexer,
+} from './core/default-memory-service';
+export { asKind, asLevel } from './core/memory-port';
+export type {
+  MemoryService,
+  MemoryStore,
+  MemoryRetriever,
+  ConversationLog,
+  ConversationTurn,
+  MemoryExtractor,
+  MemoryCompressor,
+  MemoryMaintenance,
+  MemoryRecord,
+  RememberRequest,
+  RetrievalContext,
+  RetrievedMemory,
+  ForgetPolicy,
+  MemoryKind,
+  MemoryLevel,
+} from './core/memory-port';
 export { ModelRouter } from './core/model-router';
 export { CircuitBreaker, CircuitBreakerRegistry } from './core/circuit-breaker';
 export { retryWithBackoff } from './core/retry';
