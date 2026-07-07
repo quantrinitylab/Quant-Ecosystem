@@ -23,6 +23,7 @@ import reposRoutes from './routes/repos';
 import ciRoutes from './routes/ci';
 import calendarRoutes from './routes/calendar';
 import driveRoutes from './routes/drive';
+import aiComposeRoutes from './routes/ai-compose';
 import { InMemoryE2EERelay } from './lib/e2ee-relay';
 
 export function getConfig(): AppConfig {
@@ -82,6 +83,9 @@ export async function buildApp(config?: AppConfig) {
   // backed by the Event/Calendar and File/Folder models respectively.
   await app.register(calendarRoutes);
   await app.register(driveRoutes);
+  // AI compose (/ai/compose) for the composer's AI assist — real @quant/ai
+  // engine; degrades to 503 when no provider key is configured.
+  await app.register(aiComposeRoutes, { prefix: '/ai' });
   await app.register(aiRoutes, { prefix: '/emails' });
   await app.register(aiServicesRoutes, { prefix: '/api/v1' });
 
