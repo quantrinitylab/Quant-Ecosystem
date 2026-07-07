@@ -10,8 +10,18 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState({ displayName: '', email: '', avatar: '' });
   const [emailPrefs, setEmailPrefs] = useState({ signature: '', autoReply: false });
   const [notifications, setNotifications] = useState({ email: true, push: true, desktop: false });
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('dark');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  // Reflect the persisted theme (set pre-paint by the layout script) in the UI.
+  useEffect(() => {
+    try {
+      const saved = (localStorage.getItem('quant-theme') as 'light' | 'dark' | 'system') || 'dark';
+      setTheme(saved);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -35,9 +45,18 @@ export default function SettingsPage() {
 
   const handleThemeChange = useCallback((newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
-    if (typeof document !== 'undefined') {
-      document.documentElement.setAttribute('data-theme', newTheme);
+    if (typeof document === 'undefined') return;
+    try {
+      localStorage.setItem('quant-theme', newTheme);
+    } catch {
+      /* ignore */
     }
+    // The design tokens live under the `.dark` class (globals.css). Resolve
+    // 'system' against the OS preference and toggle the class accordingly.
+    const isDark =
+      newTheme === 'dark' ||
+      (newTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', isDark);
   }, []);
 
   return (

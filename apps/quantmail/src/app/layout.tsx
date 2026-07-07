@@ -20,6 +20,17 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Apply the saved theme before first paint to avoid a flash. QuantMail
+            defaults to DARK. Resolves 'system' against the OS preference. The
+            CSS variables live under the `.dark` class (see globals.css). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('quant-theme')||'dark';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();",
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <QueryProvider>
           <BrandProvider>
