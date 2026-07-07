@@ -7,8 +7,8 @@
 // moment those are acquired — today it resolves to a domain we actually own.
 // ============================================================================
 
-/** The domain QuantMail addresses are issued under (e.g. `alex@quantchat.online`). */
-export const QUANT_MAIL_DOMAIN = process.env.NEXT_PUBLIC_QUANT_MAIL_DOMAIN ?? 'quantchat.online';
+/** The domain QuantMail addresses are issued under (e.g. `alex@quantmail.in`). */
+export const QUANT_MAIL_DOMAIN = process.env.NEXT_PUBLIC_QUANT_MAIL_DOMAIN ?? 'quantmail.in';
 
 /** Lowercase, dot/underscore/dash + alphanumerics; 3–30 chars; must start alnum. */
 const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,29}$/;

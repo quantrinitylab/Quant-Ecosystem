@@ -1,8 +1,9 @@
 {
   "data": {
-    "CORS_ORIGINS": "https://mail.quantchat.online,https://chat.quantchat.online,https://ai.quantchat.online,https://admin.quantchat.online",
-    "DOMAIN": "quantchat.online",
-    "JWT_ISSUER": "https://mail.quantchat.online",
+    "CORS_ORIGINS": "https://mail.quantchat.online,https://chat.quantchat.online,https://ai.quantchat.online,https://admin.quantchat.online,https://quantmail.quantrinity.in,https://quantchat.quantrinity.in,https://quantai.quantrinity.in,https://quanttrinity.quantrinity.in",
+    "DOMAIN": "quantrinity.in",
+    "JWT_ISSUER": "https://quant.app",
+    "QUANT_MAIL_DOMAIN": "quantmail.in",
     "QUANTCHAT_BACKEND_URL": "http://quant-platform-production-quantchat-backend:3002",
     "QUANTAI_BACKEND_URL": "http://quant-platform-production-quantai-backend:3004"
   }

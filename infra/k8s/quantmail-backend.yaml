@@ -80,8 +80,21 @@ spec:
     - hosts:
         - mail.quantchat.online
       secretName: quant-apps-tls
+    - hosts:
+        - quantmail.quantrinity.in
+      secretName: quant-trinity-tls
   rules:
     - host: mail.quantchat.online
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: quant-platform-production-quantmail-backend
+                port:
+                  number: 3011
+    - host: quantmail.quantrinity.in
       http:
         paths:
           - path: /api(/|$)(.*)

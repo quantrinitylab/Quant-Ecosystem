@@ -19,7 +19,66 @@ spec:
         - admin.quantchat.online
         - ws.quantchat.online
       secretName: quant-apps-tls
+    # New primary brand domain (quantrinity.in). Separate cert secret so a
+    # reissue here never disturbs the working quantchat.online certificate.
+    - hosts:
+        - quantmail.quantrinity.in
+        - quantchat.quantrinity.in
+        - quantai.quantrinity.in
+        - quanttrinity.quantrinity.in
+        - quantws.quantrinity.in
+      secretName: quant-trinity-tls
   rules:
+    - host: quantmail.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantmail
+                port:
+                  number: 3010
+    - host: quantchat.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantchat
+                port:
+                  number: 3015
+    - host: quantai.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantai
+                port:
+                  number: 3020
+    - host: quanttrinity.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-admin
+                port:
+                  number: 3100
+    - host: quantws.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-ws-gateway
+                port:
+                  number: 8080
     - host: mail.quantchat.online
       http:
         paths:
