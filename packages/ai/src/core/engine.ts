@@ -6,11 +6,19 @@ import { generateText, streamText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import {
+  BedrockRuntimeClient,
+  ConverseCommand,
+  ConverseStreamCommand,
+  type Message as BedrockMessage,
+  type SystemContentBlock as BedrockSystemBlock,
+} from '@aws-sdk/client-bedrock-runtime';
 import type {
   AIEngineConfig,
   AIInferenceRequest,
   AIInferenceResponse,
   AIModelConfig,
+  AIProvider,
   StreamChunk,
   TokenUsage,
 } from '../types';
@@ -24,7 +32,7 @@ import { CostTracker } from './cost-tracker';
 
 /** Default engine configuration */
 const DEFAULT_CONFIG: AIEngineConfig = {
-  defaultModel: 'gpt-4o',
+  defaultModel: process.env['AI_DEFAULT_MODEL'] ?? 'gpt-4o',
   maxConcurrentRequests: 50,
   requestTimeoutMs: 30000,
   retryAttempts: 3,
@@ -56,6 +64,7 @@ export class AIEngine {
   private anthropicProvider: ReturnType<typeof createAnthropic> | null = null;
   private googleProvider: ReturnType<typeof createGoogleGenerativeAI> | null = null;
   private openrouterProvider: ReturnType<typeof createOpenAI> | null = null;
+  private bedrockClient: BedrockRuntimeClient | null = null;
 
   constructor(config: Partial<AIEngineConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -96,6 +105,39 @@ export class AIEngine {
         baseURL: process.env['OPENROUTER_BASE_URL'] ?? 'https://openrouter.ai/api/v1',
       });
     }
+
+    // Amazon Bedrock: uses AWS credentials (no external provider key required).
+    // Dedicated BEDROCK_* env vars are passed explicitly so we never clobber the
+    // global AWS_* credentials used by SES / S3 elsewhere in the platform. When
+    // only BEDROCK_REGION is set and USE_BEDROCK_DEFAULT_CREDS=true, we fall back
+    // to the default AWS credential chain (e.g. EKS IRSA role).
+    const bedrockRegion = process.env['BEDROCK_REGION'] ?? process.env['AWS_REGION'];
+    const bedrockAccessKeyId = process.env['BEDROCK_ACCESS_KEY_ID'];
+    const bedrockSecretAccessKey = process.env['BEDROCK_SECRET_ACCESS_KEY'];
+    if (bedrockRegion && bedrockAccessKeyId && bedrockSecretAccessKey) {
+      this.bedrockClient = new BedrockRuntimeClient({
+        region: bedrockRegion,
+        credentials: {
+          accessKeyId: bedrockAccessKeyId,
+          secretAccessKey: bedrockSecretAccessKey,
+          ...(process.env['BEDROCK_SESSION_TOKEN']
+            ? { sessionToken: process.env['BEDROCK_SESSION_TOKEN'] }
+            : {}),
+        },
+      });
+    } else if (bedrockRegion && process.env['USE_BEDROCK_DEFAULT_CREDS'] === 'true') {
+      this.bedrockClient = new BedrockRuntimeClient({ region: bedrockRegion });
+    }
+
+    // Tell the router which providers are actually configured so it never
+    // selects a model whose credentials are missing.
+    const configured = new Set<AIProvider>();
+    if (this.openaiProvider) configured.add('openai');
+    if (this.anthropicProvider) configured.add('anthropic');
+    if (this.googleProvider) configured.add('google');
+    if (this.openrouterProvider) configured.add('openrouter');
+    if (this.bedrockClient) configured.add('bedrock');
+    this.modelRouter.setAvailableProviders(configured);
   }
 
   /**
@@ -134,7 +176,97 @@ export class AIEngine {
       }
       return this.openrouterProvider(model.id);
     }
+    if (model.provider === 'bedrock') {
+      // Bedrock does not use the Vercel AI SDK model interface; it is invoked
+      // directly via the Converse API (see bedrockConverse / bedrockConverseStream).
+      throw new Error('Bedrock models are invoked via the Converse API, not getProviderModel.');
+    }
     throw new Error(`Unsupported provider: ${model.provider}`);
+  }
+
+  /**
+   * Split our flat message list into the Bedrock Converse shape:
+   * system prompts go into a dedicated `system` array, the rest become
+   * alternating user/assistant turns.
+   */
+  private toBedrockMessages(
+    messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+  ): { system: BedrockSystemBlock[]; conversation: BedrockMessage[] } {
+    const system: BedrockSystemBlock[] = [];
+    const conversation: BedrockMessage[] = [];
+    for (const msg of messages) {
+      if (msg.role === 'system') {
+        system.push({ text: msg.content });
+      } else {
+        conversation.push({ role: msg.role, content: [{ text: msg.content }] });
+      }
+    }
+    return { system, conversation };
+  }
+
+  /**
+   * Invoke a Bedrock model via the Converse API (model-agnostic across
+   * Anthropic Claude, Amazon Nova, Meta Llama, etc.). Returns a shape aligned
+   * with the Vercel AI SDK `generateText` result so downstream usage/token
+   * extraction works uniformly.
+   */
+  private async bedrockConverse(
+    model: AIModelConfig,
+    messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+    opts: { temperature: number; maxTokens: number },
+  ): Promise<{ text: string; usage: { inputTokens: number; outputTokens: number } }> {
+    if (!this.bedrockClient) {
+      throw new Error(
+        'Amazon Bedrock is not configured. Set BEDROCK_REGION + BEDROCK_ACCESS_KEY_ID + ' +
+          'BEDROCK_SECRET_ACCESS_KEY (or USE_BEDROCK_DEFAULT_CREDS=true).',
+      );
+    }
+    const { system, conversation } = this.toBedrockMessages(messages);
+    const command = new ConverseCommand({
+      modelId: model.id,
+      messages: conversation,
+      ...(system.length > 0 ? { system } : {}),
+      inferenceConfig: { maxTokens: opts.maxTokens, temperature: opts.temperature },
+    });
+    const response = await this.bedrockClient.send(command);
+    const text = response.output?.message?.content?.map((block) => block.text ?? '').join('') ?? '';
+    return {
+      text,
+      usage: {
+        inputTokens: response.usage?.inputTokens ?? 0,
+        outputTokens: response.usage?.outputTokens ?? 0,
+      },
+    };
+  }
+
+  /**
+   * Stream a Bedrock model response via the ConverseStream API, yielding text
+   * deltas as they arrive.
+   */
+  private async *bedrockConverseStream(
+    model: AIModelConfig,
+    messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>,
+    opts: { temperature: number; maxTokens: number },
+  ): AsyncGenerator<string> {
+    if (!this.bedrockClient) {
+      throw new Error(
+        'Amazon Bedrock is not configured. Set BEDROCK_REGION + BEDROCK_ACCESS_KEY_ID + ' +
+          'BEDROCK_SECRET_ACCESS_KEY (or USE_BEDROCK_DEFAULT_CREDS=true).',
+      );
+    }
+    const { system, conversation } = this.toBedrockMessages(messages);
+    const command = new ConverseStreamCommand({
+      modelId: model.id,
+      messages: conversation,
+      ...(system.length > 0 ? { system } : {}),
+      inferenceConfig: { maxTokens: opts.maxTokens, temperature: opts.temperature },
+    });
+    const response = await this.bedrockClient.send(command);
+    if (!response.stream) return;
+    for await (const event of response.stream) {
+      const delta = event.contentBlockDelta?.delta?.text;
+      if (delta) yield delta;
+    }
   }
 
   /**
@@ -185,8 +317,6 @@ export class AIEngine {
       const response = await breaker.execute(async () => {
         return retryWithBackoff(
           async () => {
-            const providerModel = this.getProviderModel(model);
-
             const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [];
 
             if (request.systemPrompt) {
@@ -201,6 +331,16 @@ export class AIEngine {
             }
 
             messages.push({ role: 'user', content: enrichedPrompt });
+
+            // Amazon Bedrock uses the AWS SDK Converse API directly.
+            if (model.provider === 'bedrock') {
+              return this.bedrockConverse(model, messages, {
+                temperature: request.temperature ?? 0.7,
+                maxTokens: request.maxTokens ?? model.maxOutputTokens,
+              });
+            }
+
+            const providerModel = this.getProviderModel(model);
 
             const result = await generateText({
               model: providerModel as any,
@@ -292,7 +432,6 @@ export class AIEngine {
       request.context || [],
     );
 
-    const providerModel = this.getProviderModel(model);
     const requestId = this.generateRequestId();
 
     const messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }> = [];
@@ -309,19 +448,29 @@ export class AIEngine {
 
     messages.push({ role: 'user', content: enrichedPrompt });
 
-    // Wrap the initial streamText call in the circuit breaker
+    // Wrap the initial stream setup in the circuit breaker
     const breaker = this.circuitBreakerRegistry.getBreaker(model.provider);
-    let result: ReturnType<typeof streamText>;
+    let textStream: AsyncIterable<string>;
 
     try {
-      result = await breaker.execute(async () => {
-        return streamText({
-          model: providerModel as any,
-          messages,
+      if (model.provider === 'bedrock') {
+        // The AWS call is issued lazily on first iteration of the generator.
+        textStream = this.bedrockConverseStream(model, messages, {
           temperature: request.temperature ?? 0.7,
-          maxOutputTokens: request.maxTokens ?? model.maxOutputTokens,
+          maxTokens: request.maxTokens ?? model.maxOutputTokens,
         });
-      });
+      } else {
+        const providerModel = this.getProviderModel(model);
+        const result = await breaker.execute(async () => {
+          return streamText({
+            model: providerModel as any,
+            messages,
+            temperature: request.temperature ?? 0.7,
+            maxOutputTokens: request.maxTokens ?? model.maxOutputTokens,
+          });
+        });
+        textStream = result.textStream;
+      }
     } catch (error) {
       // Circuit breaker recorded the failure
       throw error;
@@ -331,7 +480,7 @@ export class AIEngine {
     let streamFailed = false;
 
     try {
-      for await (const chunk of result.textStream) {
+      for await (const chunk of textStream) {
         accumulated += chunk;
         yield {
           id: requestId,

@@ -33,6 +33,13 @@ export class ModelRouter {
   private circuitBreakerRegistry: CircuitBreakerRegistry | null = null;
   private routingTable: RoutingTable | null = null;
   private healthMonitor: ProviderHealthMonitor | null = null;
+  /**
+   * Set of providers whose credentials are actually configured. When null
+   * (default), no provider-availability gating is applied (backward compatible
+   * for direct ModelRouter use in tests). The AIEngine sets this after it
+   * initializes its providers so the router never picks an unusable model.
+   */
+  private availableProviders: Set<string> | null = null;
 
   constructor(
     circuitBreakerRegistry?: CircuitBreakerRegistry,
@@ -66,7 +73,18 @@ export class ModelRouter {
       // Use fallback chain
       const fallback = this.getFallbackModel(capabilities);
       if (fallback) return fallback;
-      // Ultimate fallback to default model
+      // Ultimate fallback: env-configured default model, if it is available.
+      const defaultId = process.env['AI_DEFAULT_MODEL'];
+      if (defaultId) {
+        const configuredDefault = this.models.get(defaultId);
+        if (configuredDefault && this.isModelAvailable(configuredDefault)) {
+          return configuredDefault;
+        }
+      }
+      // Otherwise, the first available model of any provider.
+      const firstAvailable = Array.from(this.models.values()).find((m) => this.isModelAvailable(m));
+      if (firstAvailable) return firstAvailable;
+      // Legacy fallback for callers with no provider gating configured.
       const defaultModel = this.models.get('gpt-4o-mini');
       if (!defaultModel) {
         throw new Error('No models available');
@@ -139,6 +157,14 @@ export class ModelRouter {
   }
 
   /**
+   * Declare which providers have configured credentials. Models whose provider
+   * is not in this set are excluded from selection.
+   */
+  setAvailableProviders(providers: Set<string>): void {
+    this.availableProviders = providers;
+  }
+
+  /**
    * Register a new model
    */
   registerModel(config: AIModelConfig): void {
@@ -164,6 +190,10 @@ export class ModelRouter {
    * Check if a model is available based on circuit breaker state
    */
   private isModelAvailable(model: AIModelConfig): boolean {
+    // Exclude models whose provider has no configured credentials.
+    if (this.availableProviders && !this.availableProviders.has(model.provider)) {
+      return false;
+    }
     if (!this.circuitBreakerRegistry) return true;
     const breaker = this.circuitBreakerRegistry.getBreaker(model.provider);
     return breaker.isAvailable();
@@ -472,6 +502,62 @@ export class ModelRouter {
         costPerOutputToken: 0.0000006,
         latencyMs: 200,
         qualityScore: 0.88,
+      },
+      // Amazon Bedrock models (invoked via the Converse API using AWS creds).
+      {
+        id: 'anthropic.claude-3-haiku-20240307-v1:0',
+        name: 'Claude 3 Haiku (Bedrock)',
+        provider: 'bedrock',
+        capabilities: [
+          'text_generation',
+          'text_summarization',
+          'code_generation',
+          'translation',
+          'sentiment_analysis',
+          'content_moderation',
+          'recommendation',
+          'device_control',
+        ],
+        maxContextLength: 200000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.00000025,
+        costPerOutputToken: 0.00000125,
+        latencyMs: 300,
+        qualityScore: 0.9,
+      },
+      {
+        id: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+        name: 'Claude 3.5 Sonnet (Bedrock)',
+        provider: 'bedrock',
+        capabilities: [
+          'text_generation',
+          'text_summarization',
+          'code_generation',
+          'translation',
+          'sentiment_analysis',
+          'content_moderation',
+          'recommendation',
+          'device_control',
+          'long_context',
+        ],
+        maxContextLength: 200000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.000003,
+        costPerOutputToken: 0.000015,
+        latencyMs: 500,
+        qualityScore: 0.96,
+      },
+      {
+        id: 'amazon.nova-lite-v1:0',
+        name: 'Amazon Nova Lite (Bedrock)',
+        provider: 'bedrock',
+        capabilities: ['text_generation', 'text_summarization', 'code_generation', 'translation'],
+        maxContextLength: 300000,
+        maxOutputTokens: 5120,
+        costPerInputToken: 0.00000006,
+        costPerOutputToken: 0.00000024,
+        latencyMs: 250,
+        qualityScore: 0.85,
       },
       // DeepSeek models
       {

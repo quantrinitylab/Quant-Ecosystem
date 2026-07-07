@@ -94,6 +94,34 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
     },
   );
 
+  // GET /events/today — events whose start falls within the current day.
+  fastify.get('/events/today', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const rows = (await prisma.event.findMany({
+      where: { userId, startTime: { gte: startOfDay, lt: endOfDay } },
+      orderBy: { startTime: 'asc' },
+      take: 200,
+    })) as EventRow[];
+    return reply.send({ success: true, data: rows.map(toEventDto) });
+  });
+
+  // GET /events/upcoming — the next N events from now onward.
+  fastify.get<{ Querystring: { limit?: string } }>('/events/upcoming', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const limit = Math.min(Math.max(Number(request.query.limit) || 10, 1), 100);
+    const rows = (await prisma.event.findMany({
+      where: { userId, startTime: { gte: new Date() } },
+      orderBy: { startTime: 'asc' },
+      take: limit,
+    })) as EventRow[];
+    return reply.send({ success: true, data: rows.map(toEventDto) });
+  });
+
   // POST /events — create an event.
   fastify.post('/events', async (request, reply) => {
     const parsed = eventCreateSchema.safeParse(request.body);
