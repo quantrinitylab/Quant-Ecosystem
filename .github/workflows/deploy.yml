@@ -119,11 +119,20 @@ jobs:
         run: |
           aws eks update-kubeconfig --name "$CLUSTER" --region "$AWS_REGION"
           IMAGE="$REGISTRY/${{ matrix.ecr }}:${{ github.sha }}"
+          # Reap terminated (Evicted/Failed) pods before rolling out. Under node
+          # DiskPressure these tombstones accumulate by the hundreds, which
+          # cascades eviction churn and makes the rollout below time out even
+          # though the new ReplicaSet is healthy. Best-effort, never fatal.
+          kubectl delete pods -n "$NAMESPACE" --field-selector=status.phase=Failed --ignore-not-found=true || true
           # Apply the k8s manifest first when provided (creates the deployment,
           # service and ingress on first rollout; idempotent thereafter).
           if [ -n "${{ matrix.manifest }}" ]; then
             kubectl apply -f "${{ matrix.manifest }}" -n "$NAMESPACE"
           fi
+          # Cap ReplicaSet history so stale RSs (and their evictable pods) don't
+          # pile up across many deploys and keep the nodes under disk pressure.
+          kubectl patch "deployment/${{ matrix.deployment }}" -n "$NAMESPACE" \
+            --type=merge -p '{"spec":{"revisionHistoryLimit":2}}' || true
           kubectl set image "deployment/${{ matrix.deployment }}" "*=$IMAGE" -n "$NAMESPACE"
           # Rollouts can briefly churn while nodes pull the (large) images and
           # reclaim disk via image GC, so allow generous time to converge.
