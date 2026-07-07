@@ -324,3 +324,239 @@ html {
   color: var(--quant-primary);
   font-weight: 600;
 }
+
+/* ==========================================================================
+   EmailComposer — premium styling for the compose screen. The component ships
+   semantic classNames only; these rules give it a Superhuman-class look using
+   the shared design tokens. Scoped under .email-composer.
+   ========================================================================== */
+.email-composer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--quant-background);
+  color: var(--quant-foreground);
+}
+
+.email-composer .composer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid var(--quant-border);
+}
+.email-composer .composer-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.email-composer .composer-header-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+.email-composer .btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--quant-muted-foreground);
+  cursor: pointer;
+  transition: background 0.15s var(--brand-ease-out), color 0.15s var(--brand-ease-out);
+}
+.email-composer .btn-icon:hover {
+  background: var(--quant-muted);
+  color: var(--quant-foreground);
+}
+
+.email-composer .composer-fields {
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem 1.25rem;
+}
+.email-composer .composer-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--quant-border) 60%, transparent);
+}
+.email-composer .composer-field label {
+  width: 3.5rem;
+  flex: none;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--quant-muted-foreground);
+}
+.email-composer .composer-field input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--quant-foreground);
+  font-size: 0.9rem;
+}
+.email-composer .composer-field input::placeholder {
+  color: var(--quant-muted-foreground);
+}
+.email-composer .btn-link {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--brand-primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.email-composer .btn-link:hover {
+  text-decoration: underline;
+}
+
+.email-composer .composer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--quant-border);
+  flex-wrap: wrap;
+}
+.email-composer .toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--quant-foreground);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s var(--brand-ease-out), border-color 0.15s var(--brand-ease-out);
+}
+.email-composer .toolbar-btn:hover {
+  background: var(--quant-muted);
+}
+.email-composer .toolbar-btn.active {
+  background: color-mix(in srgb, var(--brand-primary) 14%, transparent);
+  border-color: color-mix(in srgb, var(--brand-primary) 40%, transparent);
+  color: var(--brand-primary);
+}
+.email-composer .toolbar-divider {
+  width: 1px;
+  height: 1.25rem;
+  margin: 0 0.35rem;
+  background: var(--quant-border);
+}
+.email-composer .toolbar-right {
+  margin-left: auto;
+}
+.email-composer .priority-select {
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--quant-border);
+  border-radius: 0.5rem;
+  background: var(--quant-surface);
+  color: var(--quant-foreground);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.email-composer .composer-body {
+  flex: 1;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 1.25rem;
+  background: transparent;
+  color: var(--quant-foreground);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  font-family: inherit;
+}
+.email-composer .composer-body::placeholder {
+  color: var(--quant-muted-foreground);
+}
+
+.email-composer .composer-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.875rem 1.25rem;
+  border-top: 1px solid var(--quant-border);
+  background: var(--quant-surface);
+}
+.email-composer .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.5rem;
+  padding: 0 1.1rem;
+  border: 1px solid var(--quant-border);
+  border-radius: 0.75rem;
+  background: var(--quant-background);
+  color: var(--quant-foreground);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow 0.15s var(--brand-ease-out), transform 0.1s var(--brand-ease-out),
+    background 0.15s var(--brand-ease-out);
+}
+.email-composer .btn:hover {
+  background: var(--quant-muted);
+}
+.email-composer .btn:active {
+  transform: scale(0.99);
+}
+.email-composer .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.email-composer .btn-primary {
+  border-color: transparent;
+  color: #fff;
+  background: linear-gradient(90deg, var(--brand-primary), var(--quant-secondary));
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--brand-primary) 60%, transparent);
+}
+.email-composer .btn-primary:hover {
+  background: linear-gradient(90deg, var(--brand-primary), var(--quant-secondary));
+  filter: brightness(1.05);
+}
+.email-composer .btn-outline {
+  background: transparent;
+}
+.email-composer .btn .shortcut {
+  font-size: 0.7rem;
+  font-weight: 500;
+  opacity: 0.7;
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.35rem;
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.composer-minimized {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--quant-surface);
+  border: 1px solid var(--quant-border);
+  border-radius: 0.75rem;
+  cursor: pointer;
+}
+.composer-minimized-title {
+  font-size: 0.85rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
