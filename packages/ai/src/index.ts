@@ -171,6 +171,16 @@ export type {
   Evidence,
   InstrumentedExtractionModel,
 } from './core/extraction-schema';
+export { MemoryFacade } from './core/memory-facade';
+export type {
+  FacadeMode,
+  MemoryBackend,
+  ShadowReport,
+  ShadowSink,
+  SecondaryWriteErrorSink,
+  DivergenceSeverity,
+  MemoryFacadeOptions,
+} from './core/memory-facade';
 export { asKind, asLevel } from './core/memory-port';
 export type {
   MemoryService,
