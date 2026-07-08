@@ -81,6 +81,15 @@ export type {
   VectorMemoryIndexerOptions,
 } from './core/vector-memory-indexer';
 export { runMemoryEval, formatDashboard } from './eval/memory-eval';
+export {
+  runExtractionEval,
+  ruleExtractorAdapter,
+  llmExtractorAdapter,
+  formatExtractionDashboard,
+} from './eval/extraction-eval';
+export type { EvaluableExtractor, ExtractionQualityMetrics } from './eval/extraction-eval';
+export { extractionCases } from './eval/extraction-datasets';
+export type { ExtractionCase, ExpectedMemory } from './eval/extraction-datasets';
 export { allScenarios, coreScenarios, frontierScenarios } from './eval/datasets';
 export type { EvalScenario, EvalCase, EvalQuery, EvalMetrics } from './eval/types';
 export {
