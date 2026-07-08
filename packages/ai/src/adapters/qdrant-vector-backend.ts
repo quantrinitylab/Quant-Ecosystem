@@ -10,7 +10,10 @@
 // scoping is enforced with a Qdrant filter so recall never crosses owners.
 // ============================================================================
 
-import { createHash } from 'node:crypto';
+// bare 'crypto' (not 'node:crypto'): the node: scheme throws UnhandledSchemeError
+// in Next.js/webpack when this module is reached via the @quant/ai barrel. Bare
+// 'crypto' resolves on the server and tree-shakes out of client bundles.
+import { createHash } from 'crypto';
 import { z } from 'zod';
 import type { VectorBackend, VectorQueryHit } from '../core/vector-memory-retriever';
 

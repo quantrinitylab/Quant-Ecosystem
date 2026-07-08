@@ -7,7 +7,10 @@
 // into the frozen MemoryCandidate shape via metadata (ADR-008/009).
 // ============================================================================
 
-import { createHash } from 'node:crypto';
+// bare 'crypto' (not 'node:crypto'): the node: scheme throws UnhandledSchemeError
+// in Next.js/webpack when this module is reached via the @quant/ai barrel. Bare
+// 'crypto' resolves on the server and tree-shakes out of client bundles.
+import { createHash } from 'crypto';
 import { asKind, asLevel } from './memory-port';
 import type { MemoryCandidate } from './default-memory-extractor';
 
