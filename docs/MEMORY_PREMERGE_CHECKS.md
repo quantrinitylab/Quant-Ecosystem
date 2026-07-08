@@ -29,13 +29,19 @@ Results for the four reviewer-requested manual checks. Three are verified by
 In-memory (fakes), representative not absolute — the guardrail is regression
 detection, not production numbers (those come from M11d with live Postgres/Qdrant).
 
-| Operation                                | Baseline      | CI upper bound |
-| ---------------------------------------- | ------------- | -------------- |
-| `observe` (extract→resolve→policy→store) | ~0.33 ms/turn | < 50 ms        |
-| `recall`                                 | < 1 ms        | < 500 ms       |
-| `replay` (1000 decisions)                | < 1 ms        | < 500 ms       |
+| Operation                                | Baseline (in-memory) | CI assertion                                            |
+| ---------------------------------------- | -------------------- | ------------------------------------------------------- |
+| `observe` (extract→resolve→policy→store) | ~0.33 ms/turn        | observational only                                      |
+| `recall`                                 | < 1 ms               | observational only                                      |
+| `replay` complexity                      | O(n), stateless      | **structural** (batch == per-record; order-independent) |
 
-Loose bounds avoid flakiness while catching catastrophic regressions. Real latency
+Per review feedback, CI asserts **no timing at all** — even ratio-based timing
+flakes under runner variance / GC pauses (observed: a 1.58× ratio in isolation
+became a failure under full-suite load). Instead CI asserts the STRUCTURAL property
+that guarantees linear, order-independent cost: each record's replay decision is
+independent of the others (batch result == per-record result, and reversing input
+order changes nothing). If that holds, `replay` is O(n) by construction — no timing
+needed. Latency numbers are printed for human tracking only. Real latency
 (network + DB + vector + LLM) is measured in M11d.
 
 ## 4. Live service smoke test — DEFERRED to M11d

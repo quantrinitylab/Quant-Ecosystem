@@ -69,10 +69,22 @@ activates true versioned reads/history. ADR update expected.
   rule/model/confidence/policy. The data already exists in
   `metadata.transitions` + `PolicyDecision`; this exposes it as a queryable API.
 
+### Candidate ADR-011 — Memory Lifecycle & Garbage Collection
+
+Not needed yet; becomes important at million-scale memories. Would cover:
+
+- stale `Pending` cleanup (candidates never confirmed/rejected),
+- orphaned subject-scoped memories (`user#subject`) with no live references,
+- expired transient memories (TTL sweep beyond query-time filtering),
+- vector index compaction (Qdrant points for archived/deleted memories),
+- duplicate-cluster merging (near-identical memories collapsed).
+  Ties into the existing state machine (archive/pending/rejected/deleted) and the
+  forgetting policy. Design-first: write ADR-011 before implementing GC.
+
 ## Notes
 
-- Items 1, 3, 7, 8 touch persistence/retention semantics → each should get an ADR
-  before implementation, consistent with the design-first discipline.
+- Items 1, 3, 7, 8 (and GC/ADR-011) touch persistence/retention semantics → each
+  should get an ADR before implementation, consistent with the design-first discipline.
 - Items 2, 9, 10 are largely additive on top of existing structured data
   (transitions, PolicyDecision, calibration-by-provenance).
 - Production-ready is declared only after M11d + stress benchmarks show the
