@@ -154,6 +154,10 @@ export class AcknowledgementIgnoreFilter implements IgnoreFilter {
 export class FactExtractor implements CandidateExtractor {
   private static readonly PATTERNS: Array<{ re: RegExp; phrase: (m: string) => string }> = [
     { re: /\bI live in ([A-Za-z][\w\s,'-]{1,60})/i, phrase: (m) => `lives in ${clean(m)}` },
+    {
+      re: /\bI (?:moved|relocated) (?:from .+? )?to ([A-Za-z][\w\s,'-]{1,60})/i,
+      phrase: (m) => `lives in ${clean(m)}`,
+    },
     { re: /\bmy name is ([A-Za-z][\w\s'-]{1,60})/i, phrase: (m) => `name is ${clean(m)}` },
     { re: /\bI(?:'m| am) called ([A-Za-z][\w\s'-]{1,60})/i, phrase: (m) => `name is ${clean(m)}` },
     {

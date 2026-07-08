@@ -76,10 +76,26 @@ export const isolation: EvalScenario = {
   ],
 };
 
+export const employment: EvalScenario = {
+  name: 'employment',
+  description: 'A new employer supersedes the previous one.',
+  cases: [
+    {
+      id: 'job-change',
+      seed: [
+        { role: 'user', content: 'I work at Google' },
+        { role: 'user', content: 'I work at OpenAI' },
+      ],
+      queries: [
+        { query: 'where do I work', expectIncludes: ['OpenAI'], expectExcludes: ['Google'] },
+      ],
+    },
+  ],
+};
+
 export const corrections: EvalScenario = {
   name: 'corrections',
-  description: 'A later statement supersedes an earlier fact (KNOWN HARD).',
-  knownHard: true,
+  description: 'A later statement supersedes an earlier fact.',
   cases: [
     {
       id: 'moved-city',
@@ -96,8 +112,7 @@ export const corrections: EvalScenario = {
 
 export const temporal: EvalScenario = {
   name: 'temporal',
-  description: 'Most-recent value wins for a changing attribute (KNOWN HARD).',
-  knownHard: true,
+  description: 'Most-recent value wins for a changing attribute.',
   cases: [
     {
       id: 'changing-favorite',
@@ -118,6 +133,7 @@ export const allScenarios: EvalScenario[] = [
   preferences,
   noise,
   isolation,
+  employment,
   corrections,
   temporal,
 ];

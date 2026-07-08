@@ -78,6 +78,19 @@ export interface PrismaMemoryStoreOptions {
   defaultOwnerType?: string;
 }
 
+// ─── Archive capability (separate delegate — keeps MemoryStore surface frozen) ─
+
+export interface MemoryRecordUpdateDelegate {
+  updateMany(args: {
+    where: Record<string, unknown>;
+    data: { archivedAt: Date };
+  }): Promise<{ count: number }>;
+}
+
+export interface MemoryArchiverPrismaClient {
+  memoryRecord: MemoryRecordUpdateDelegate;
+}
+
 // ─── Implementation ───────────────────────────────────────────────────────────
 
 export class PrismaMemoryStore implements MemoryStore {
@@ -123,6 +136,29 @@ export class PrismaMemoryStore implements MemoryStore {
   async delete(id: string): Promise<boolean> {
     // Hard-delete every version of the logical record (embeddings cascade).
     const res = await this.client.memoryRecord.deleteMany({ where: { logicalId: id } });
+    return res.count > 0;
+  }
+}
+
+// ─── PrismaMemoryArchiver (soft archive: set archivedAt) ─────────────────────
+
+/**
+ * Soft-archive implementation: marks every live version of a logical record as
+ * archived (archivedAt = now). Archived rows are excluded from recall by the
+ * retrievers but retained for audit/rollback. Realizes the MemoryArchiver port.
+ */
+export class PrismaMemoryArchiver {
+  private readonly client: MemoryArchiverPrismaClient;
+
+  constructor(client: MemoryArchiverPrismaClient) {
+    this.client = client;
+  }
+
+  async archive(id: string, _reason: string): Promise<boolean> {
+    const res = await this.client.memoryRecord.updateMany({
+      where: { logicalId: id, archivedAt: null },
+      data: { archivedAt: new Date() },
+    });
     return res.count > 0;
   }
 }

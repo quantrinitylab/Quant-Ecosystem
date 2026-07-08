@@ -76,6 +76,23 @@ class FakeMemoryDb implements MemoryDbClient {
       this.rows = this.rows.filter((r) => !matchWhere(r, where));
       return { count: before - this.rows.length };
     },
+
+    updateMany: async ({
+      where,
+      data,
+    }: {
+      where: Record<string, unknown>;
+      data: { archivedAt: Date };
+    }): Promise<{ count: number }> => {
+      let count = 0;
+      for (const r of this.rows) {
+        if (matchWhere(r, where)) {
+          r.archivedAt = data.archivedAt;
+          count++;
+        }
+      }
+      return { count };
+    },
   };
 }
 
@@ -83,6 +100,8 @@ function matchWhere(row: MemoryRecordRow, where: Record<string, unknown>): boole
   if ('logicalId' in where && row.logicalId !== where['logicalId']) return false;
   if ('ownerId' in where && row.ownerId !== where['ownerId']) return false;
   if ('deletedAt' in where && where['deletedAt'] === null && row.deletedAt !== null) return false;
+  if ('archivedAt' in where && where['archivedAt'] === null && row.archivedAt !== null)
+    return false;
   return true;
 }
 

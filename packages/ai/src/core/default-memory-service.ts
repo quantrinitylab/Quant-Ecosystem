@@ -42,6 +42,7 @@ import type {
   MemoryLevel,
 } from './memory-port';
 import { asKind, asLevel } from './memory-port';
+import type { MemoryConflictResolver } from './memory-conflict';
 
 // ─── Pluggable recall strategies (defaults provided, all injectable) ─────────
 
@@ -70,6 +71,15 @@ export type MemoryAuditSink = (event: {
 
 /** Optional side-effect after a record is stored (e.g. vector indexing). */
 export type MemoryIndexer = (record: MemoryRecord) => Promise<void>;
+
+/**
+ * Soft-archive capability (removes a memory from recall while retaining it for
+ * audit). Distinct from MemoryStore.delete (hard). When present, superseded
+ * facts are archived rather than deleted. Deferred in ADR-005, realized here.
+ */
+export interface MemoryArchiver {
+  archive(id: string, reason: string): Promise<boolean>;
+}
 
 // ─── Default strategy implementations ────────────────────────────────────────
 
@@ -145,6 +155,15 @@ export interface DefaultMemoryServiceDeps {
   indexer?: MemoryIndexer;
   /** Optional audit sink for forget operations. */
   audit?: MemoryAuditSink;
+  /**
+   * Optional fact-supersession engine. When present, a new fact that supersedes
+   * or contradicts an existing one retires the old memory before storing.
+   */
+  conflictResolver?: MemoryConflictResolver;
+  /** Optional soft-archive port. Superseded facts are archived if present, else deleted. */
+  archiver?: MemoryArchiver;
+  /** How many existing memories to consider when resolving conflicts (default 20). */
+  conflictScanLimit?: number;
   /** Strategy overrides (defaults used if omitted). */
   merge?: MergeStrategy;
   deduplicator?: Deduplicator;
@@ -168,6 +187,9 @@ export class DefaultMemoryService implements MemoryService {
   private readonly maintenance: MemoryMaintenance | undefined;
   private readonly indexer: MemoryIndexer | undefined;
   private readonly audit: MemoryAuditSink | undefined;
+  private readonly conflictResolver: MemoryConflictResolver | undefined;
+  private readonly archiver: MemoryArchiver | undefined;
+  private readonly conflictScanLimit: number;
   private readonly merger: MergeStrategy;
   private readonly deduplicator: Deduplicator;
   private readonly budgeter: BudgetAllocator;
@@ -181,6 +203,9 @@ export class DefaultMemoryService implements MemoryService {
     this.maintenance = deps.maintenance;
     this.indexer = deps.indexer;
     this.audit = deps.audit;
+    this.conflictResolver = deps.conflictResolver;
+    this.archiver = deps.archiver;
+    this.conflictScanLimit = deps.conflictScanLimit ?? 20;
     this.merger = deps.merge ?? new DefaultMergeStrategy();
     this.deduplicator = deps.deduplicator ?? new DefaultDeduplicator();
     this.budgeter = deps.budgeter ?? new DefaultBudgetAllocator();
@@ -201,10 +226,9 @@ export class DefaultMemoryService implements MemoryService {
     );
     if (extracted.length === 0) return;
 
-    // 3. Store each extracted record, then optionally index it.
+    // 3. Persist each extracted record (with conflict resolution).
     for (const record of extracted) {
-      const stored = await this.store.store(record);
-      if (this.indexer) await this.indexer(stored);
+      await this.persist(record);
     }
   }
 
@@ -225,8 +249,50 @@ export class DefaultMemoryService implements MemoryService {
         ...(input.session ? { session: input.session } : {}),
       },
     };
+    await this.persist(record);
+  }
+
+  // ─── Persist with fact supersession ─────────────────────────────────────────
+
+  /**
+   * Store a record after resolving conflicts against existing memories:
+   * duplicate → skip; supersedes/contradicts → retire the old, then store new.
+   */
+  private async persist(record: Omit<MemoryRecord, 'id' | 'createdAt' | 'version'>): Promise<void> {
+    if (this.conflictResolver && record.owner && this.retrievers.length > 0) {
+      const existing = await this.recall({
+        actor: record.owner,
+        query: record.content,
+        limit: this.conflictScanLimit,
+      });
+      if (existing.length > 0) {
+        const decisions = this.conflictResolver.resolve(
+          { content: record.content, kind: record.kind as unknown as string },
+          existing.map((e) => ({
+            id: e.id,
+            content: e.content,
+            kind: (e.kind as unknown as string) ?? '',
+          })),
+        );
+        // A duplicate of something we already know → nothing to do.
+        if (decisions.some((d) => d.verdict === 'duplicate')) return;
+        // Retire everything the new fact supersedes/contradicts.
+        for (const d of decisions) {
+          if (d.verdict === 'supersedes' || d.verdict === 'contradicts') {
+            await this.retire(d.existingId);
+          }
+        }
+      }
+    }
+
     const stored = await this.store.store(record);
     if (this.indexer) await this.indexer(stored);
+  }
+
+  /** Remove a superseded memory from recall — archive if possible, else delete. */
+  private async retire(id: string): Promise<void> {
+    if (this.archiver) await this.archiver.archive(id, 'superseded');
+    else await this.store.delete(id);
   }
 
   // ─── Recall pipeline ──────────────────────────────────────────────────────

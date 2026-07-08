@@ -79,6 +79,29 @@ export type {
   MemoryEmbeddingCreateData,
   VectorMemoryIndexerOptions,
 } from './core/vector-memory-indexer';
+export {
+  DefaultMemoryConflictResolver,
+  DEFAULT_SLOT_RULES,
+  ResidenceRule,
+  EmployerRule,
+  NameRule,
+  FavoriteRule,
+  SentimentRule,
+} from './core/memory-conflict';
+export type {
+  MemoryConflictResolver,
+  ConflictVerdict,
+  ConflictDecision,
+  ConflictCandidate,
+  ExistingMemoryRef,
+  SlotRule,
+} from './core/memory-conflict';
+export { PrismaMemoryArchiver } from './core/prisma-memory-store';
+export type {
+  MemoryArchiverPrismaClient,
+  MemoryRecordUpdateDelegate,
+} from './core/prisma-memory-store';
+export type { MemoryArchiver } from './core/default-memory-service';
 export { asKind, asLevel } from './core/memory-port';
 export type {
   MemoryService,

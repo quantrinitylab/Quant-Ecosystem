@@ -25,7 +25,13 @@ import type {
 import { DefaultMemoryService, type MemoryIndexer } from './default-memory-service';
 import type { MemoryRetriever } from './memory-port';
 import { DefaultMemoryExtractor } from './default-memory-extractor';
-import { PrismaMemoryStore, type MemoryPrismaClient } from './prisma-memory-store';
+import {
+  PrismaMemoryStore,
+  PrismaMemoryArchiver,
+  type MemoryPrismaClient,
+  type MemoryArchiverPrismaClient,
+} from './prisma-memory-store';
+import { DefaultMemoryConflictResolver, type MemoryConflictResolver } from './memory-conflict';
 import { PrismaMemoryRetriever, type MemoryRetrieverPrismaClient } from './prisma-memory-retriever';
 import {
   VectorMemoryRetriever,
@@ -86,7 +92,9 @@ export class NoopMemoryCompressor implements MemoryCompressor {
  * create / findFirst / findMany / deleteMany on memory_records. A real
  * PrismaClient satisfies this structurally.
  */
-export type MemoryDbClient = MemoryPrismaClient & MemoryRetrieverPrismaClient;
+export type MemoryDbClient = MemoryPrismaClient &
+  MemoryRetrieverPrismaClient &
+  MemoryArchiverPrismaClient;
 
 export interface MemoryCompositionOptions {
   /** The (real) Prisma client. Powers both the store and the retriever. */
@@ -105,6 +113,12 @@ export interface MemoryCompositionOptions {
   defaultOwnerType?: string;
   /** How many candidates the keyword retriever scans per recall. */
   retrieverScanLimit?: number;
+  /**
+   * Fact supersession (PR-M07). Enabled by default with the rule-based resolver;
+   * pass `false` to disable, or a custom resolver to override. Superseded facts
+   * are soft-archived (retained for audit), not deleted.
+   */
+  conflictResolver?: MemoryConflictResolver | false;
   /**
    * Optional semantic layer (PR-M05). When provided, a VectorMemoryRetriever is
    * added AHEAD of the keyword retriever, and a VectorMemoryIndexer embeds on
@@ -167,6 +181,13 @@ export function createMemoryService(opts: MemoryCompositionOptions): DefaultMemo
 
   const indexer = opts.indexer ?? vectorIndexer;
 
+  // Fact supersession: enabled by default; superseded facts are soft-archived.
+  const conflictResolver: MemoryConflictResolver | undefined =
+    opts.conflictResolver === false
+      ? undefined
+      : (opts.conflictResolver ?? new DefaultMemoryConflictResolver());
+  const archiver = conflictResolver ? new PrismaMemoryArchiver(opts.prisma) : undefined;
+
   return new DefaultMemoryService({
     store,
     retrievers,
@@ -175,5 +196,7 @@ export function createMemoryService(opts: MemoryCompositionOptions): DefaultMemo
     compressor: opts.compressor ?? new NoopMemoryCompressor(),
     ...(opts.maintenance !== undefined ? { maintenance: opts.maintenance } : {}),
     ...(indexer !== undefined ? { indexer } : {}),
+    ...(conflictResolver !== undefined ? { conflictResolver } : {}),
+    ...(archiver !== undefined ? { archiver } : {}),
   });
 }

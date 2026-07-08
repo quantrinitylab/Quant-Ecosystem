@@ -23,15 +23,27 @@ describe('memory evaluation', () => {
     expect(result.overall.avgLatencyMs).toBeLessThan(200);
   });
 
-  it('documents the known-hard gaps (supersession) as currently unsolved', async () => {
+  it('fact supersession now resolves corrections, temporal, and employment (PR-M07)', async () => {
     const result = await runMemoryEval();
     const by = Object.fromEntries(result.perScenario.map((m) => [m.scenario, m]));
 
-    // These are the CURRENT baselines for the known-hard scenarios. The extractor
-    // stores both the old and new fact, so a superseded value still leaks. This
-    // test PINS that reality: when supersession is implemented, these expectations
-    // flip to precision === 1 and this test is updated to lock the improvement.
-    expect(by['corrections']?.precision).toBe(0); // 'Patna' still leaks after moving
-    expect(by['temporal']?.precision).toBe(0); // 'Python' still leaks after switching
+    // Superseded values no longer leak: "Patna" after moving, "Python" after
+    // switching favorites, "Google" after changing jobs are all archived.
+    expect(by['corrections']?.recallAccuracy).toBe(1);
+    expect(by['corrections']?.precision).toBe(1);
+    expect(by['temporal']?.recallAccuracy).toBe(1);
+    expect(by['temporal']?.precision).toBe(1);
+    expect(by['employment']?.recallAccuracy).toBe(1);
+    expect(by['employment']?.precision).toBe(1);
+  });
+
+  it('regression gate: overall quality must clear production thresholds', async () => {
+    const { overall } = await runMemoryEval();
+    // These thresholds are the CI gate. A regression that drops recall/precision
+    // or inflates duplicates/latency fails the build.
+    expect(overall.recallAccuracy).toBeGreaterThanOrEqual(0.98);
+    expect(overall.precision).toBeGreaterThanOrEqual(0.97);
+    expect(overall.duplicateRate).toBeLessThanOrEqual(0.01);
+    expect(overall.avgLatencyMs).toBeLessThan(200);
   });
 });
