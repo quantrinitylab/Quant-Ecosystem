@@ -243,9 +243,8 @@ export function formatDashboard(
 }
 
 // Direct execution: print the dashboard.
-// eslint-disable-next-line @typescript-eslint/no-floating-promises
 if (typeof process !== 'undefined' && process.argv[1] && /memory-eval/.test(process.argv[1])) {
-  runMemoryEval().then((result) => {
+  void runMemoryEval().then((result) => {
     // eslint-disable-next-line no-console
     console.log(formatDashboard(result));
   });
