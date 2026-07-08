@@ -9,6 +9,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "memory:eval": "vitest run src/__tests__/memory-eval.test.ts --reporter=verbose",
     "lint": "eslint ."
   },
   "dependencies": {
