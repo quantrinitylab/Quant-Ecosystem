@@ -79,6 +79,9 @@ export type {
   MemoryEmbeddingCreateData,
   VectorMemoryIndexerOptions,
 } from './core/vector-memory-indexer';
+export { runMemoryEval, formatDashboard } from './eval/memory-eval';
+export { allScenarios, coreScenarios, frontierScenarios } from './eval/datasets';
+export type { EvalScenario, EvalCase, EvalQuery, EvalMetrics } from './eval/types';
 export {
   DefaultMemoryConflictResolver,
   DEFAULT_SLOT_RULES,

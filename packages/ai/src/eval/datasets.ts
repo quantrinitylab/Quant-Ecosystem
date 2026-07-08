@@ -127,8 +127,97 @@ export const temporal: EvalScenario = {
   ],
 };
 
-/** All scenarios, in reporting order. */
-export const allScenarios: EvalScenario[] = [
+// ─── FRONTIER: messy real-world inputs (KNOWN HARD — measured, not gated) ─────
+// These probe what real users actually type. Most FAIL today — that is the
+// point. They are the backlog; the CI gate runs on `coreScenarios` only so these
+// can be added without breaking the build, and each one that gets solved graduates.
+
+export const negation: EvalScenario = {
+  name: 'negation',
+  description: 'A negated statement should retract an earlier fact (KNOWN HARD).',
+  knownHard: true,
+  cases: [
+    {
+      id: 'no-longer-there',
+      seed: [
+        { role: 'user', content: 'I live in Patna' },
+        { role: 'user', content: "I don't live in Patna anymore" },
+      ],
+      queries: [{ query: 'where do I live', expectIncludes: [], expectExcludes: ['Patna'] }],
+    },
+  ],
+};
+
+export const hinglish: EvalScenario = {
+  name: 'hinglish',
+  description: 'Code-mixed Hindi/English facts (KNOWN HARD — extractor is English-only).',
+  knownHard: true,
+  cases: [
+    {
+      id: 'rehta-hu',
+      seed: [{ role: 'user', content: 'Ab main Bangalore me rehta hu' }],
+      queries: [{ query: 'where do I live', expectIncludes: ['Bangalore'] }],
+    },
+    {
+      id: 'favourite-ab',
+      seed: [{ role: 'user', content: 'Mera favourite language ab Rust nahi Go hai' }],
+      queries: [{ query: 'favorite language', expectIncludes: ['Go'], expectExcludes: ['Rust'] }],
+    },
+  ],
+};
+
+export const typos: EvalScenario = {
+  name: 'typos',
+  description: 'Misspelled entities should still be recalled by correct spelling (KNOWN HARD).',
+  knownHard: true,
+  cases: [
+    {
+      id: 'banglore',
+      seed: [{ role: 'user', content: 'I live in Banglore' }],
+      queries: [{ query: 'where do I live', expectIncludes: ['Bangalore'] }],
+    },
+  ],
+};
+
+export const temporalComplex: EvalScenario = {
+  name: 'temporal-complex',
+  description: '"used to be X, now Y" phrasing (KNOWN HARD).',
+  knownHard: true,
+  cases: [
+    {
+      id: 'used-to-now',
+      seed: [{ role: 'user', content: 'My favorite language used to be Rust, now mostly Go' }],
+      queries: [{ query: 'favorite language', expectIncludes: ['Go'], expectExcludes: ['Rust'] }],
+    },
+  ],
+};
+
+export const multiClauseCurrent: EvalScenario = {
+  name: 'multi-current',
+  description: 'A multi-clause sentence whose CURRENT value is buried (KNOWN HARD).',
+  knownHard: true,
+  cases: [
+    {
+      id: 'shifted-but-currently',
+      seed: [
+        {
+          role: 'user',
+          content: "I shifted from Patna to Bangalore last year, but currently I'm in Hyderabad",
+        },
+      ],
+      queries: [
+        {
+          query: 'where do I live',
+          expectIncludes: ['Hyderabad'],
+          expectExcludes: ['Patna', 'Bangalore'],
+        },
+      ],
+    },
+  ],
+};
+
+/** Core scenarios — the CI regression gate runs on these. Must stay green. */
+export const coreScenarios: EvalScenario[] = [
   facts,
   preferences,
   noise,
@@ -137,3 +226,15 @@ export const allScenarios: EvalScenario[] = [
   corrections,
   temporal,
 ];
+
+/** Frontier scenarios — measured and reported, NOT gated. The quality backlog. */
+export const frontierScenarios: EvalScenario[] = [
+  negation,
+  hinglish,
+  typos,
+  temporalComplex,
+  multiClauseCurrent,
+];
+
+/** All scenarios, in reporting order. */
+export const allScenarios: EvalScenario[] = [...coreScenarios, ...frontierScenarios];
