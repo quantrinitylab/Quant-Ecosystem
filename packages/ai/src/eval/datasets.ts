@@ -247,6 +247,35 @@ export const multiClauseCurrent: EvalScenario = {
   ],
 };
 
+export const hallucination: EvalScenario = {
+  name: 'hallucination',
+  description:
+    "Third-person / hypothetical / past statements must NOT become the user's memory (KNOWN HARD).",
+  knownHard: true,
+  cases: [
+    {
+      id: 'third-person-residence',
+      seed: [{ role: 'user', content: 'My brother lives in Delhi' }],
+      queries: [{ query: 'where do I live', expectIncludes: [], expectExcludes: ['Delhi'] }],
+    },
+    {
+      id: 'hypothetical-residence',
+      seed: [{ role: 'user', content: 'I wish I lived in Japan' }],
+      queries: [{ query: 'where do I live', expectIncludes: [], expectExcludes: ['Japan'] }],
+    },
+    {
+      id: 'third-person-employer',
+      seed: [{ role: 'user', content: 'My friend John works at Google' }],
+      queries: [{ query: 'where do I work', expectIncludes: [], expectExcludes: ['Google'] }],
+    },
+    {
+      id: 'past-favorite',
+      seed: [{ role: 'user', content: 'My favorite movie used to be Interstellar' }],
+      queries: [{ query: 'favorite movie', expectIncludes: [], expectExcludes: ['Interstellar'] }],
+    },
+  ],
+};
+
 /** Core scenarios — the CI regression gate runs on these. Must stay green. */
 export const coreScenarios: EvalScenario[] = [
   facts,
@@ -267,6 +296,7 @@ export const frontierScenarios: EvalScenario[] = [
   typos,
   temporalComplex,
   multiClauseCurrent,
+  hallucination,
 ];
 
 /** All scenarios, in reporting order. */
