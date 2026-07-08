@@ -71,6 +71,7 @@ export class PrismaMemoryRetriever implements MemoryRetriever {
       if (row.archivedAt !== null) continue;
       if (row.expiresAt !== null && row.expiresAt.getTime() <= now) continue;
       if (levels && !levels.has(row.level)) continue;
+      if (!isRecallableState(row.metadata)) continue; // exclude pending/rejected
 
       const relevance = score(queryWords, row.content);
       if (queryWords.size > 0 && relevance === 0) continue; // no keyword overlap
@@ -102,6 +103,12 @@ function score(queryWords: Set<string>, content: string): number {
     if (hit) overlap++;
   }
   return overlap / queryWords.size;
+}
+
+/** A memory is recallable unless its lifecycle state hides it (pending/rejected). */
+export function isRecallableState(metadata: unknown): boolean {
+  const state = (metadata as Record<string, unknown> | undefined)?.['state'];
+  return state !== 'pending' && state !== 'rejected';
 }
 
 function toRetrieved(row: MemoryRecordRow, relevance: number): RetrievedMemory {

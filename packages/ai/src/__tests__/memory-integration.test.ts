@@ -208,6 +208,35 @@ describe('memory vertical slice (composition root)', () => {
     expect(memories.some((m) => m.content.includes('Patna'))).toBe(true);
   });
 
+  it('low-confidence memory is stored Pending and excluded from recall', async () => {
+    // remember() with confidence/trust below the activate threshold → Pending.
+    await service.remember({
+      actor: 'user_1',
+      content: 'maybe lives in Goa',
+      kind: 'fact' as never,
+      level: 'user' as never,
+      metadata: { confidence: 0.4, trust: 1 },
+    });
+    // Stored, but with pending state.
+    expect(db.rows).toHaveLength(1);
+    expect((db.rows[0]?.metadata as Record<string, unknown>)?.['state']).toBe('pending');
+    // Not returned by default recall.
+    expect(await service.recall({ actor: 'user_1', query: 'where do I live' })).toEqual([]);
+  });
+
+  it('high-confidence memory is stored Active and recalled', async () => {
+    await service.remember({
+      actor: 'user_1',
+      content: 'lives in Goa',
+      kind: 'fact' as never,
+      level: 'user' as never,
+      metadata: { confidence: 0.95, trust: 1 },
+    });
+    expect((db.rows[0]?.metadata as Record<string, unknown>)?.['state']).toBe('active');
+    const memories = await service.recall({ actor: 'user_1', query: 'where do I live' });
+    expect(memories.some((m) => m.content.includes('Goa'))).toBe(true);
+  });
+
   it('forget(hard) removes a stored memory', async () => {
     const rec = await (async () => {
       await service.remember({

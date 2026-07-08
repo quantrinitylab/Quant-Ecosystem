@@ -15,7 +15,7 @@
 import type { MemoryRetriever, RetrievalContext, RetrievedMemory } from './memory-port';
 import { asKind, asLevel } from './memory-port';
 import type { MemoryRecordRow } from './prisma-memory-store';
-import type { MemoryRetrieverPrismaClient } from './prisma-memory-retriever';
+import { type MemoryRetrieverPrismaClient, isRecallableState } from './prisma-memory-retriever';
 
 // ─── Model-agnostic ports (interfaces + DI only, no defaults) ────────────────
 
@@ -146,6 +146,7 @@ export class VectorMemoryRetriever implements MemoryRetriever {
       if (row.archivedAt !== null) continue;
       if (row.expiresAt !== null && row.expiresAt.getTime() <= now) continue;
       if (levels && !levels.has(row.level)) continue;
+      if (!isRecallableState(row.metadata)) continue; // exclude pending/rejected
 
       const semantic = clamp01(hit.score);
       const recency = this.recencyScore(row.createdAt.getTime(), now);

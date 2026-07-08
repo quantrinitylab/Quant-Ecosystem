@@ -43,6 +43,11 @@ import type {
 } from './memory-port';
 import { asKind, asLevel } from './memory-port';
 import { type MemoryConflictResolver, recallHintForSlot } from './memory-conflict';
+import {
+  type MemoryAcceptancePolicy,
+  type AcceptanceExisting,
+  DefaultMemoryAcceptancePolicy,
+} from './memory-acceptance-policy';
 
 // ─── Pluggable recall strategies (defaults provided, all injectable) ─────────
 
@@ -162,6 +167,8 @@ export interface DefaultMemoryServiceDeps {
   conflictResolver?: MemoryConflictResolver;
   /** Optional soft-archive port. Superseded facts are archived if present, else deleted. */
   archiver?: MemoryArchiver;
+  /** Acceptance policy (ADR-009). Defaults to DefaultMemoryAcceptancePolicy. */
+  acceptancePolicy?: MemoryAcceptancePolicy;
   /** How many existing memories to consider when resolving conflicts (default 20). */
   conflictScanLimit?: number;
   /** Strategy overrides (defaults used if omitted). */
@@ -189,6 +196,7 @@ export class DefaultMemoryService implements MemoryService {
   private readonly audit: MemoryAuditSink | undefined;
   private readonly conflictResolver: MemoryConflictResolver | undefined;
   private readonly archiver: MemoryArchiver | undefined;
+  private readonly acceptancePolicy: MemoryAcceptancePolicy;
   private readonly conflictScanLimit: number;
   private readonly merger: MergeStrategy;
   private readonly deduplicator: Deduplicator;
@@ -205,6 +213,7 @@ export class DefaultMemoryService implements MemoryService {
     this.audit = deps.audit;
     this.conflictResolver = deps.conflictResolver;
     this.archiver = deps.archiver;
+    this.acceptancePolicy = deps.acceptancePolicy ?? new DefaultMemoryAcceptancePolicy();
     this.conflictScanLimit = deps.conflictScanLimit ?? 20;
     this.merger = deps.merge ?? new DefaultMergeStrategy();
     this.deduplicator = deps.deduplicator ?? new DefaultDeduplicator();
@@ -265,6 +274,8 @@ export class DefaultMemoryService implements MemoryService {
       return;
     }
 
+    // Gather conflicting existing memories (with their state/weight) for the policy.
+    let existingInfos: AcceptanceExisting[] = [];
     if (this.conflictResolver && record.owner && this.retrievers.length > 0) {
       const existing = await this.recall({
         actor: record.owner,
@@ -280,19 +291,74 @@ export class DefaultMemoryService implements MemoryService {
             kind: (e.kind as unknown as string) ?? '',
           })),
         );
-        // A duplicate of something we already know → nothing to do.
-        if (decisions.some((d) => d.verdict === 'duplicate')) return;
-        // Retire everything the new fact supersedes/contradicts.
-        for (const d of decisions) {
-          if (d.verdict === 'supersedes' || d.verdict === 'contradicts') {
-            await this.retire(d.existingId);
-          }
-        }
+        const relevant = decisions.filter((d) => d.verdict !== 'unrelated');
+        existingInfos = await Promise.all(
+          relevant.map(async (d) => {
+            const rec = await this.store.get(d.existingId);
+            return {
+              id: d.existingId,
+              state: metaString(rec?.metadata, 'state', 'active'),
+              effectiveWeight: metaWeight(rec?.metadata),
+              verdict: d.verdict,
+              ...(metaOptString(rec?.metadata, 'fingerprint')
+                ? { fingerprint: metaOptString(rec?.metadata, 'fingerprint') as string }
+                : {}),
+            } satisfies AcceptanceExisting;
+          }),
+        );
       }
     }
 
-    const stored = await this.store.store(record);
-    if (this.indexer) await this.indexer(stored);
+    // The acceptance policy decides the action (ADR-009).
+    const decision = this.acceptancePolicy.decide(
+      {
+        confidence: metaNumber(record.metadata, 'confidence', 1),
+        trust: metaNumber(record.metadata, 'trust', 1),
+        provenance: metaString(record.metadata, 'provenance', 'rule'),
+        ...(metaOptString(record.metadata, 'fingerprint')
+          ? { fingerprint: metaOptString(record.metadata, 'fingerprint') as string }
+          : {}),
+      },
+      existingInfos,
+    );
+
+    switch (decision.action) {
+      case 'duplicate_skip':
+      case 'drop':
+      case 'reject':
+        return;
+      case 'supersede':
+        for (const id of decision.supersedeIds) await this.retire(id);
+        await this.storeWithState(record, 'active', decision.reason, decision.policyVersion);
+        return;
+      case 'store_pending':
+        await this.storeWithState(record, 'pending', decision.reason, decision.policyVersion);
+        return;
+      case 'store_active':
+        await this.storeWithState(record, 'active', decision.reason, decision.policyVersion);
+        return;
+    }
+  }
+
+  /** Store a record stamped with lifecycle state + an append-only transition (ADR-009). */
+  private async storeWithState(
+    record: Omit<MemoryRecord, 'id' | 'createdAt' | 'version'>,
+    state: string,
+    reason: string,
+    policyVersion: string,
+  ): Promise<void> {
+    const enriched: Omit<MemoryRecord, 'id' | 'createdAt' | 'version'> = {
+      ...record,
+      metadata: {
+        ...record.metadata,
+        state,
+        policyVersion,
+        transitions: [{ from: null, to: state, reason, at: Date.now(), policyVersion }],
+      },
+    };
+    const stored = await this.store.store(enriched);
+    // Pending/rejected memories are not recalled, so they are not indexed.
+    if (this.indexer && state === 'active') await this.indexer(stored);
   }
 
   /** Remove a superseded memory from recall — archive if possible, else delete. */
@@ -386,4 +452,34 @@ function normalizeKind(kind: MemoryKind | string): MemoryKind {
 }
 function normalizeLevel(level: MemoryLevel | string): MemoryLevel {
   return asLevel(level as string);
+}
+
+// ─── Metadata readers (safe access to freeform metadata) ─────────────────────
+
+function metaString(
+  meta: Record<string, unknown> | undefined,
+  key: string,
+  fallback: string,
+): string {
+  const v = meta?.[key];
+  return typeof v === 'string' ? v : fallback;
+}
+
+function metaOptString(meta: Record<string, unknown> | undefined, key: string): string | undefined {
+  const v = meta?.[key];
+  return typeof v === 'string' ? v : undefined;
+}
+
+function metaNumber(
+  meta: Record<string, unknown> | undefined,
+  key: string,
+  fallback: number,
+): number {
+  const v = meta?.[key];
+  return typeof v === 'number' ? v : fallback;
+}
+
+/** Effective weight of an existing memory from its metadata (min of confidence, trust). */
+function metaWeight(meta: Record<string, unknown> | undefined): number {
+  return Math.min(metaNumber(meta, 'confidence', 1), metaNumber(meta, 'trust', 1));
 }

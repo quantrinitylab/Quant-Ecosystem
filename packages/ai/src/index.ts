@@ -118,6 +118,19 @@ export type {
 } from './core/prisma-memory-store';
 export type { MemoryArchiver } from './core/default-memory-service';
 export {
+  DefaultMemoryAcceptancePolicy,
+  DEFAULT_MEMORY_POLICY,
+  effectiveWeight,
+} from './core/memory-acceptance-policy';
+export type {
+  MemoryAcceptancePolicy,
+  MemoryPolicy,
+  PolicyDecision,
+  PolicyAction,
+  AcceptanceCandidate,
+  AcceptanceExisting,
+} from './core/memory-acceptance-policy';
+export {
   OpenAIEmbeddingProvider,
   loadOpenAIEmbeddingConfig,
   OPENAI_EMBEDDING_DIMENSIONS,
