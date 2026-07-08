@@ -2,11 +2,31 @@
 
 ## Status
 
-PROPOSED
+ACCEPTED (with review refinements — see "Refinements adopted")
 
 ## Date
 
 2026-07-08
+
+## Refinements adopted (review)
+
+1. **Acceptance is a service-level POLICY, not resolver logic.** The
+   `MemoryConflictResolver` only classifies (same slot? duplicate? supersede?
+   contradict? why?). Whether a candidate is accepted/activated/held is a
+   `MemoryAcceptancePolicy` the service consults. Pipeline:
+   `Extractor → Candidate(+confidence/trust) → ConflictResolver → ConflictDecision → MemoryAcceptancePolicy → Persistence`.
+2. **`Pending` never appears in default recall.** Only `Active`/`Verified` are
+   recalled. `Pending` is exposed via a future review API
+   (`listPending`/`confirm`/`reject`).
+3. **`Rejected` is a distinct state.** `Pending` = "we don't know yet";
+   `Rejected` = "we know this is wrong" (e.g. user said no). Rejected memories
+   are retained (not recalled) so the model can learn from them.
+4. **No hardcoded thresholds.** A `MemoryPolicy` object carries
+   `{ activate: 0.70, pending: 0.35 }`; the service depends on the policy, not
+   numeric constants. Different extractors (OpenAI/Claude/local) can carry
+   different calibration.
+5. **Confidence ≠ trust ≠ provenance** (see the new section). Prevents a
+   high-confidence LLM extraction from overriding explicit user input.
 
 ## Context
 
@@ -31,14 +51,16 @@ Observed        raw turn (ConversationLog)
 Extracted       a candidate produced by rules or LLM
    │  admit
    ▼
-Candidate       not yet stored; awaiting a store decision
+Candidate       not yet stored; awaiting an acceptance decision
    │
-   ├── (confidence ≥ storeThreshold) ─────────────► Active
+   ├── (confidence ≥ policy.activate) ────────────► Active
    │
-   └── (confidence < storeThreshold) ─────────────► Pending
-                                                      │  verify / confirm
-                                                      ▼
-                                                    Verified ──► Active
+   └── (policy.pending ≤ confidence < activate) ──► Pending
+                                                      │  confirm        reject
+                                                      ├──► Verified ──► Active
+                                                      └──► Rejected  (retained, never recalled)
+
+(confidence < policy.pending) ─────────────────────► dropped (not stored)
 
 Active (a live, retrievable memory) can transition to:
    ├── Updated      value changed, same slot, new version (immutable append)
@@ -53,21 +75,26 @@ changed by another Verified/human action or a Retract/Delete.
 
 ### State meanings
 
-| State        | Retrievable?         | Meaning                                          |
-| ------------ | -------------------- | ------------------------------------------------ |
-| `Observed`   | no                   | raw dialogue turn; not a memory                  |
-| `Extracted`  | no                   | a candidate emitted by an extractor              |
-| `Candidate`  | no                   | admitted, pending a store decision               |
-| `Pending`    | no (or low-priority) | stored but low-confidence; needs confirmation    |
-| `Verified`   | yes                  | human- or high-trust-confirmed; confidence 1.0   |
-| `Active`     | yes                  | live, retrievable memory                         |
-| `Updated`    | yes (new version)    | superseded-in-place by a newer version of itself |
-| `Superseded` | no                   | replaced by a different Active memory            |
-| `Retracted`  | no                   | ended, no replacement                            |
-| `Archived`   | no                   | soft-hidden, retained for audit                  |
-| `Deleted`    | no                   | hard-erased                                      |
+| State        | Retrievable?         | Meaning                                           |
+| ------------ | -------------------- | ------------------------------------------------- |
+| `Observed`   | no                   | raw dialogue turn; not a memory                   |
+| `Extracted`  | no                   | a candidate emitted by an extractor               |
+| `Candidate`  | no                   | admitted, pending a store decision                |
+| `Pending`    | no (or low-priority) | stored but low-confidence; needs confirmation     |
+| `Verified`   | yes                  | human- or high-trust-confirmed; confidence 1.0    |
+| `Active`     | yes                  | live, retrievable memory                          |
+| `Updated`    | yes (new version)    | superseded-in-place by a newer version of itself  |
+| `Superseded` | no                   | replaced by a different Active memory             |
+| `Retracted`  | no                   | ended, no replacement                             |
+| `Archived`   | no                   | soft-hidden, retained for audit                   |
+| `Rejected`   | no                   | known-wrong (user said no); retained for learning |
+| `Deleted`    | no                   | hard-erased                                       |
 
-`Superseded`/`Retracted`/`Archived` are all realized today by `archivedAt`
+`Pending` ("don't know yet") and `Rejected` ("known wrong") are deliberately
+distinct: rejected memories are kept (not recalled) so future models can learn
+from corrections.
+
+`Superseded`/`Retracted`/`Archived`/`Rejected` are all realized today by `archivedAt`
 (recall excludes them); the state label lives in `metadata.state` so the _reason_
 is queryable and the eval/audit can distinguish them. `Deleted` = row removed.
 
@@ -75,51 +102,90 @@ is queryable and the eval/audit can distinguish them. `Deleted` = row removed.
 
 - `metadata.state`: one of the labels above (default `active` for rule extractor).
 - `metadata.confidence`: number 0-1 (ADR-008).
-- `metadata.source`: `'rule' | 'llm:<model>' | 'human' | 'import'`.
+- `metadata.provenance`: `'rule' | 'llm:<model>' | 'user' | 'import' | 'web'`.
+- `metadata.trust`: number 0-1 (source trust; see below).
 - `metadata.observations`: count of times independently observed (for reinforcement).
 - `archivedAt` already distinguishes hidden-vs-live; `metadata.state` adds the why.
 
 A first-class `state`/`confidence` column is promoted (additive migration) only
 when ranking or gating reads it at query time — likely with M11.
 
-## Decision — confidence semantics
+## Decision — confidence vs trust vs provenance
 
-Confidence is the probability the memory is TRUE and CURRENT, in [0,1].
+Three DISTINCT concepts. Conflating them causes bugs like a confident LLM
+overriding an explicit user statement.
 
-| Source                           | Confidence                              |
-| -------------------------------- | --------------------------------------- |
-| Rule extractor (deterministic)   | 1.0                                     |
-| LLM extractor                    | model-reported / calibrated probability |
-| Human confirmation               | 1.0 (→ Verified)                        |
-| Imported memories                | configurable (default 0.7)              |
-| Repeated independent observation | increases toward 1.0 (reinforcement)    |
+| Concept        | Answers                          | Example                                      |
+| -------------- | -------------------------------- | -------------------------------------------- |
+| **confidence** | How certain is the EXTRACTION?   | LLM 0.98 sure it parsed "lives in Delhi"     |
+| **provenance** | WHERE did it come from?          | `user` \| `llm:<model>` \| `rule` \| `web`   |
+| **trust**      | How much do we trust the SOURCE? | `user`=1.0, `rule`=1.0, `llm`=0.8, `web`=0.2 |
 
-### Overwrite / conflict rules (the core safety property)
+Overwrite decisions use **effective weight = f(confidence, trust)** (default
+`min(confidence, trust)` — a barely-trusted source caps the outcome regardless of
+model confidence). So `confidence 0.98 / trust 0.2` (web) cannot override
+`confidence 0.55 / trust 1.0` (user typed it).
 
-When a candidate conflicts with an existing memory in the same slot
-(ADR-007/008 resolver), the OUTCOME is gated by confidence + recency:
+| Source               | confidence   | trust              | initial state                     |
+| -------------------- | ------------ | ------------------ | --------------------------------- |
+| Rule extractor       | 1.0          | 1.0                | Active                            |
+| LLM extractor        | model-calib. | 0.8 (configurable) | Active if ≥ activate else Pending |
+| Human/user           | 1.0          | 1.0                | Active (Verified on confirm)      |
+| Import               | source-dep.  | configurable 0.7   | policy                            |
+| Repeated observation | ↑ toward 1.0 | unchanged          | reinforcement                     |
 
-1. A lower-confidence candidate MUST NOT supersede a higher-confidence memory
-   unless: `newer timestamp AND same slot AND resolver verdict ∈ {supersedes, contradicts}`
-   AND `candidate.confidence ≥ existing.confidence − ε` (ε small, e.g. 0.1).
-2. A `Verified` memory (confidence 1.0) can only be changed by another
-   `Verified`/human action, or by an explicit `Retract`/`Delete`. An LLM
-   candidate never silently overwrites a Verified memory — it goes `Pending`.
-3. If the candidate would supersede but fails the confidence guard, it is stored
-   as `Pending` (both coexist) and surfaced for confirmation, rather than
-   destroying the trusted value.
-4. Below `storeThreshold` (default 0.35) a candidate is stored `Pending`, not
-   `Active`; it does not pollute normal recall.
+Stored in `metadata.confidence`, `metadata.provenance`, `metadata.trust`.
 
-These guards are enforced in `DefaultMemoryService.persist` (it already
-orchestrates conflict resolution); the resolver stays pure and now returns
-`confidence` (ADR-008) which the service compares.
+## Decision — MemoryAcceptancePolicy (service-level, not the resolver)
+
+The resolver CLASSIFIES; a `MemoryAcceptancePolicy` decides ACCEPTANCE, so
+classification and business policy are separate:
+
+```
+Extractor → Candidate(+confidence/trust) → ConflictResolver → ConflictDecision
+          → MemoryAcceptancePolicy(candidate, decision, existing) → action → Persistence
+```
+
+`MemoryPolicy` config (no hardcoded constants; per-extractor calibration):
+
+```
+memory:
+  activate: 0.70   # effective weight >= this  -> Active
+  pending:  0.35   # [pending, activate) -> Pending; below -> drop
+  epsilon:  0.10   # supersede tolerance band
+```
+
+Policy emits an action: `store_active | store_pending | supersede | retract |
+duplicate_skip | reject | drop`, executed by `DefaultMemoryService.persist`. The
+resolver stays a pure classifier returning `{ verdict, confidence, reason }`
+(ADR-008) and never reads policy.
+
+## Decision — precedence matrix (existing state × candidate source)
+
+Removes ambiguity for future contributors. "Candidate" is the incoming write;
+"Existing" is what is already stored in the same slot.
+
+| Existing | Candidate                     | Result                                          |
+| -------- | ----------------------------- | ----------------------------------------------- |
+| Verified | rule                          | keep Verified (rule cannot override human)      |
+| Verified | llm                           | candidate → Pending (never silently overwrite)  |
+| Verified | user/human                    | supersede (human overrides human)               |
+| Active   | rule                          | supersede                                       |
+| Active   | llm (higher effective weight) | supersede (policy)                              |
+| Active   | llm (lower effective weight)  | store Pending (coexist, await confirm)          |
+| Pending  | Verified/user                 | Verified wins (replace Pending)                 |
+| Pending  | rule                          | rule wins (promote to Active)                   |
+| Rejected | any (non-user)                | ignore (do not resurrect a known-wrong memory)  |
+| Rejected | user correction               | allow (explicit user overrides prior rejection) |
+| (none)   | any ≥ activate                | store Active                                    |
+| (none)   | any in [pending, activate)    | store Pending                                   |
+| (none)   | any < pending                 | drop                                            |
 
 ### Retrieval interaction
 
-Confidence becomes a term in the hybrid score (`RetrievalWeights`) — added only
-when the eval shows it helps (ADR-007 discipline). `Pending` memories are
-excluded from default recall or heavily down-weighted.
+Only `Active`/`Verified` participate in default recall. `Pending`/`Rejected` are
+excluded (exposed later via `listPending`/`confirm`/`reject`). Effective weight
+may become a hybrid-score term (ADR-007) only when the eval shows it helps.
 
 ## Options Considered
 
@@ -154,4 +220,4 @@ the logic in the service/resolver behind the frozen ports.
 
 ---
 
-_Signed by: Kiro (Principal Systems Engineer) | Reviewed by: CEO — PENDING_
+_Signed by: Kiro (Principal Systems Engineer) | Reviewed by: CEO — ACCEPTED with refinements_
