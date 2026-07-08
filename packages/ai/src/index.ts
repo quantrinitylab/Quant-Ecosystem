@@ -51,6 +51,18 @@ export type {
   MemoryRecordCreateData,
   PrismaMemoryStoreOptions,
 } from './core/prisma-memory-store';
+export { PrismaMemoryRetriever } from './core/prisma-memory-retriever';
+export type {
+  MemoryRetrieverPrismaClient,
+  MemoryRecordQueryDelegate,
+  PrismaMemoryRetrieverOptions,
+} from './core/prisma-memory-retriever';
+export {
+  createMemoryService,
+  InMemoryConversationLog,
+  NoopMemoryCompressor,
+} from './core/memory-composition';
+export type { MemoryCompositionOptions, MemoryDbClient } from './core/memory-composition';
 export { asKind, asLevel } from './core/memory-port';
 export type {
   MemoryService,
