@@ -90,6 +90,24 @@ export {
 export type { EvaluableExtractor, ExtractionQualityMetrics } from './eval/extraction-eval';
 export { extractionCases } from './eval/extraction-datasets';
 export type { ExtractionCase, ExpectedMemory } from './eval/extraction-datasets';
+export { replay, diffPolicies, histogramOf, formatPolicyDiff } from './eval/policy-replay';
+export type {
+  ReplayRecord,
+  ReplayOutcome,
+  PolicyDiff,
+  ActionHistogram,
+} from './eval/policy-replay';
+export {
+  acceptanceMetrics,
+  calibrationByProvenance,
+  formatAcceptanceDashboard,
+  formatCalibrationByProvenance,
+} from './eval/acceptance-metrics';
+export type {
+  AcceptanceMetrics,
+  CalibrationSample,
+  ProvenanceCalibration,
+} from './eval/acceptance-metrics';
 export { allScenarios, coreScenarios, frontierScenarios } from './eval/datasets';
 export type { EvalScenario, EvalCase, EvalQuery, EvalMetrics } from './eval/types';
 export {
