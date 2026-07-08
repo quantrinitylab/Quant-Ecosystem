@@ -108,6 +108,14 @@ export type {
   MemoryRecordUpdateDelegate,
 } from './core/prisma-memory-store';
 export type { MemoryArchiver } from './core/default-memory-service';
+export {
+  OpenAIEmbeddingProvider,
+  loadOpenAIEmbeddingConfig,
+  OPENAI_EMBEDDING_DIMENSIONS,
+} from './adapters/openai-embedding-provider';
+export type { OpenAIEmbeddingConfig } from './adapters/openai-embedding-provider';
+export { QdrantVectorBackend, loadQdrantConfig, toPointId } from './adapters/qdrant-vector-backend';
+export type { QdrantConfig } from './adapters/qdrant-vector-backend';
 export { asKind, asLevel } from './core/memory-port';
 export type {
   MemoryService,
