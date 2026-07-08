@@ -23,9 +23,18 @@ import type {
   MemoryMaintenance,
 } from './memory-port';
 import { DefaultMemoryService, type MemoryIndexer } from './default-memory-service';
+import type { MemoryRetriever } from './memory-port';
 import { DefaultMemoryExtractor } from './default-memory-extractor';
 import { PrismaMemoryStore, type MemoryPrismaClient } from './prisma-memory-store';
 import { PrismaMemoryRetriever, type MemoryRetrieverPrismaClient } from './prisma-memory-retriever';
+import {
+  VectorMemoryRetriever,
+  type EmbeddingProvider,
+  type VectorBackend,
+  type RetrievalWeights,
+  type RetrievalTrace,
+} from './vector-memory-retriever';
+import { VectorMemoryIndexer, type MemoryEmbeddingPrismaClient } from './vector-memory-indexer';
 
 // ─── Default ConversationLog (ephemeral; swap for a durable one in prod) ─────
 
@@ -90,12 +99,29 @@ export interface MemoryCompositionOptions {
   compressor?: MemoryCompressor;
   /** Optional lifecycle port (enables soft-archive on forget). */
   maintenance?: MemoryMaintenance;
-  /** Optional post-store side effect (e.g. vector indexing in M05). */
+  /** Optional post-store side effect. Overrides the vector indexer if both set. */
   indexer?: MemoryIndexer;
   /** Owner type stamped on stored records (default 'user'). */
   defaultOwnerType?: string;
-  /** How many candidates the retriever scans per recall. */
+  /** How many candidates the keyword retriever scans per recall. */
   retrieverScanLimit?: number;
+  /**
+   * Optional semantic layer (PR-M05). When provided, a VectorMemoryRetriever is
+   * added AHEAD of the keyword retriever, and a VectorMemoryIndexer embeds on
+   * store. If the vector backend fails at recall time, the orchestrator drops it
+   * and the keyword retriever still answers (graceful fallback).
+   */
+  vector?: {
+    embedder: EmbeddingProvider;
+    vectorBackend: VectorBackend;
+    /** Prisma client for writing memory_embeddings (usually the same client). */
+    embeddingClient: MemoryEmbeddingPrismaClient;
+    weights?: Partial<RetrievalWeights>;
+    candidateLimit?: number;
+    recencyWindowMs?: number;
+    embeddingVersion?: number;
+    onTrace?: (trace: RetrievalTrace) => void;
+  };
 }
 
 /**
@@ -108,18 +134,46 @@ export function createMemoryService(opts: MemoryCompositionOptions): DefaultMemo
     ...(opts.defaultOwnerType !== undefined ? { defaultOwnerType: opts.defaultOwnerType } : {}),
   });
 
-  const retriever = new PrismaMemoryRetriever({
+  const keywordRetriever = new PrismaMemoryRetriever({
     client: opts.prisma,
     ...(opts.retrieverScanLimit !== undefined ? { scanLimit: opts.retrieverScanLimit } : {}),
   });
 
+  // Semantic layer sits AHEAD of the keyword retriever; the keyword one is the
+  // graceful fallback when the vector backend is unavailable.
+  const retrievers: MemoryRetriever[] = [];
+  let vectorIndexer: MemoryIndexer | undefined;
+  if (opts.vector) {
+    const v = opts.vector;
+    retrievers.push(
+      new VectorMemoryRetriever({
+        embedder: v.embedder,
+        vectorBackend: v.vectorBackend,
+        client: opts.prisma,
+        ...(v.weights !== undefined ? { weights: v.weights } : {}),
+        ...(v.candidateLimit !== undefined ? { candidateLimit: v.candidateLimit } : {}),
+        ...(v.recencyWindowMs !== undefined ? { recencyWindowMs: v.recencyWindowMs } : {}),
+        ...(v.onTrace !== undefined ? { onTrace: v.onTrace } : {}),
+      }),
+    );
+    vectorIndexer = new VectorMemoryIndexer({
+      embedder: v.embedder,
+      vectorBackend: v.vectorBackend,
+      client: v.embeddingClient,
+      ...(v.embeddingVersion !== undefined ? { embeddingVersion: v.embeddingVersion } : {}),
+    }).index;
+  }
+  retrievers.push(keywordRetriever);
+
+  const indexer = opts.indexer ?? vectorIndexer;
+
   return new DefaultMemoryService({
     store,
-    retrievers: [retriever],
+    retrievers,
     conversationLog: opts.conversationLog ?? new InMemoryConversationLog(),
     extractor: opts.extractor ?? new DefaultMemoryExtractor(),
     compressor: opts.compressor ?? new NoopMemoryCompressor(),
     ...(opts.maintenance !== undefined ? { maintenance: opts.maintenance } : {}),
-    ...(opts.indexer !== undefined ? { indexer: opts.indexer } : {}),
+    ...(indexer !== undefined ? { indexer } : {}),
   });
 }

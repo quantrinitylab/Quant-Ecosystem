@@ -2107,8 +2107,6 @@ model MemoryRecord {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  embeddings MemoryEmbedding[]
-
   @@unique([logicalId, version])
   @@index([ownerType, ownerId])
   @@index([ownerType, ownerId, level])
@@ -2120,20 +2118,24 @@ model MemoryRecord {
   @@map("memory_records")
 }
 
-// One row per (memory, provider, model). Re-embedding = insert a new row; the
-// vector lives in Qdrant (embeddingRef = point id), matching DocumentChunk.
+// One row per (memory, provider, model, embeddingVersion). Re-embedding = insert
+// a new row with a higher embeddingVersion; the vector lives in Qdrant
+// (embeddingRef = point id), matching the DocumentChunk convention. Relation-free
+// and additive (memoryId = MemoryRecord.logicalId, indexed, no FK) — consistent
+// with credit_ledger_entries / document_chunks and compatible with the frozen
+// port, which exposes only logicalId. logicalId is non-unique (versioning) so a
+// hard FK is intentionally avoided.
 model MemoryEmbedding {
-  id           String   @id @default(cuid())
-  memoryId     String
-  provider     String // openai | bedrock | google | quant | local
-  model        String // e.g. text-embedding-3-large
-  dimension    Int
-  embeddingRef String? // Qdrant point id (external vector store)
-  createdAt    DateTime @default(now())
+  id               String   @id @default(cuid())
+  memoryId         String // MemoryRecord.logicalId
+  provider         String // openai | bedrock | google | quant | local
+  model            String // e.g. text-embedding-3-large
+  dimension        Int
+  embeddingVersion Int      @default(1) // bumped on re-embedding
+  embeddingRef     String? // Qdrant point id (external vector store)
+  createdAt        DateTime @default(now())
 
-  memory MemoryRecord @relation(fields: [memoryId], references: [id], onDelete: Cascade)
-
-  @@unique([memoryId, provider, model])
+  @@unique([memoryId, provider, model, embeddingVersion])
   @@index([memoryId])
   @@index([provider, model])
   @@map("memory_embeddings")

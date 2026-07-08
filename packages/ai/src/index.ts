@@ -63,6 +63,22 @@ export {
   NoopMemoryCompressor,
 } from './core/memory-composition';
 export type { MemoryCompositionOptions, MemoryDbClient } from './core/memory-composition';
+export { VectorMemoryRetriever, DEFAULT_RETRIEVAL_WEIGHTS } from './core/vector-memory-retriever';
+export type {
+  EmbeddingProvider,
+  VectorBackend,
+  VectorQueryHit,
+  RetrievalWeights,
+  RetrievalTrace,
+  VectorMemoryRetrieverOptions,
+} from './core/vector-memory-retriever';
+export { VectorMemoryIndexer } from './core/vector-memory-indexer';
+export type {
+  MemoryEmbeddingPrismaClient,
+  MemoryEmbeddingDelegate,
+  MemoryEmbeddingCreateData,
+  VectorMemoryIndexerOptions,
+} from './core/vector-memory-indexer';
 export { asKind, asLevel } from './core/memory-port';
 export type {
   MemoryService,

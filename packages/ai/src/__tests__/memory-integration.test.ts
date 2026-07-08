@@ -159,6 +159,36 @@ describe('memory vertical slice (composition root)', () => {
     expect(memories[0]?.content).toBe('prefers dark mode');
   });
 
+  it('falls back to the keyword retriever when the vector backend is down', async () => {
+    // Wire a vector layer whose backend always throws. The orchestrator must
+    // drop it and still answer from the keyword retriever.
+    const embedder = {
+      provider: 'fake',
+      model: 'fake',
+      dimension: 3,
+      embed: async () => [0, 0, 0],
+    };
+    const brokenBackend = {
+      name: 'qdrant',
+      upsert: async () => {},
+      query: async () => {
+        throw new Error('qdrant down');
+      },
+    };
+    const embeddingClient = {
+      memoryEmbedding: { create: async ({ data }: { data: unknown }) => data },
+    };
+
+    const svc = createMemoryService({
+      prisma: db,
+      vector: { embedder, vectorBackend: brokenBackend, embeddingClient },
+    });
+
+    await svc.observe({ actor: 'user_1', session: 's1', role: 'user', content: 'I live in Patna' });
+    const memories = await svc.recall({ actor: 'user_1', query: 'where do I live' });
+    expect(memories.some((m) => m.content.includes('Patna'))).toBe(true);
+  });
+
   it('forget(hard) removes a stored memory', async () => {
     const rec = await (async () => {
       await service.remember({

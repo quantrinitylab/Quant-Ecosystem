@@ -24,14 +24,17 @@ CREATE TABLE "memory_records" (
     CONSTRAINT "memory_records_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable: one row per (memory, provider, model). Re-embedding inserts a new
--- row; the vector itself lives in Qdrant (embeddingRef = point id).
+-- CreateTable: one row per (memory, provider, model, embeddingVersion).
+-- Re-embedding inserts a new row with a higher embeddingVersion; the vector
+-- itself lives in Qdrant (embeddingRef = point id). Relation-free: memoryId is
+-- MemoryRecord.logicalId (indexed, no FK — logicalId is non-unique by design).
 CREATE TABLE "memory_embeddings" (
     "id" TEXT NOT NULL,
     "memoryId" TEXT NOT NULL,
     "provider" TEXT NOT NULL,
     "model" TEXT NOT NULL,
     "dimension" INTEGER NOT NULL,
+    "embeddingVersion" INTEGER NOT NULL DEFAULT 1,
     "embeddingRef" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -49,9 +52,6 @@ CREATE INDEX "memory_records_archivedAt_idx" ON "memory_records"("archivedAt");
 CREATE INDEX "memory_records_tenantId_idx" ON "memory_records"("tenantId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "memory_embeddings_memoryId_provider_model_key" ON "memory_embeddings"("memoryId", "provider", "model");
+CREATE UNIQUE INDEX "memory_embeddings_memoryId_provider_model_embeddingVersion_key" ON "memory_embeddings"("memoryId", "provider", "model", "embeddingVersion");
 CREATE INDEX "memory_embeddings_memoryId_idx" ON "memory_embeddings"("memoryId");
 CREATE INDEX "memory_embeddings_provider_model_idx" ON "memory_embeddings"("provider", "model");
-
--- AddForeignKey
-ALTER TABLE "memory_embeddings" ADD CONSTRAINT "memory_embeddings_memoryId_fkey" FOREIGN KEY ("memoryId") REFERENCES "memory_records"("id") ON DELETE CASCADE ON UPDATE CASCADE;
