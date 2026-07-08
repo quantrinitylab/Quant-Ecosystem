@@ -188,6 +188,17 @@ export {
   evaluateCutoverGates,
 } from './eval/shadow-replay';
 export type { ShadowAggregate, CutoverGateResult } from './eval/shadow-replay';
+export {
+  runBaseline,
+  composeLiveBaselineDeps,
+  formatBaselineMarkdown,
+} from './eval/baseline-runner';
+export type {
+  BaselineReport,
+  BaselineMeta,
+  BaselineDeps,
+  RetrievalBaseline,
+} from './eval/baseline-runner';
 export { asKind, asLevel } from './core/memory-port';
 export type {
   MemoryService,
