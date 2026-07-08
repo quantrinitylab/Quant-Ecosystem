@@ -168,4 +168,16 @@ readable years later. Not implemented now; tracked as a roadmap item.
 
 ---
 
+## References
+
+- **ADR-005** — Memory port architecture (the frozen `MemoryService`/`MemoryBackend` seam this routes).
+- **ADR-009** — State machine + acceptance policy (Pending/confidence the shadow compares).
+- **ADR-010** — Extraction schema (what the new path produces).
+- **Engineering Bible** — _"Migration code is temporary. Measurement infrastructure is permanent."_
+- **MEMORY_ROADMAP.md** — M11c placement → M11d → M11e.
+- **REPO_INTEGRATION_AUDIT.md** — why migration is needed (subsystem unwired).
+- **INTEGRATION_MAP.md / SHADOW_METRICS.md / MIGRATION_SCOREBOARD.md** — execution artifacts.
+
+---
+
 _Signed by: Kiro (Principal Systems Engineer) | Reviewed by: CEO — ACCEPTED with refinements_

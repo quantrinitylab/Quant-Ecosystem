@@ -171,7 +171,7 @@ export type {
   Evidence,
   InstrumentedExtractionModel,
 } from './core/extraction-schema';
-export { MemoryFacade } from './core/memory-facade';
+export { MemoryFacade, compareRecalls } from './core/memory-facade';
 export type {
   FacadeMode,
   MemoryBackend,
@@ -181,6 +181,13 @@ export type {
   DivergenceSeverity,
   MemoryFacadeOptions,
 } from './core/memory-facade';
+export { LegacyMemoryAdapter } from './core/legacy-memory-adapter';
+export {
+  aggregateShadowReports,
+  verifyReproducible,
+  evaluateCutoverGates,
+} from './eval/shadow-replay';
+export type { ShadowAggregate, CutoverGateResult } from './eval/shadow-replay';
 export { asKind, asLevel } from './core/memory-port';
 export type {
   MemoryService,

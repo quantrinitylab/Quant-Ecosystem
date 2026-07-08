@@ -160,7 +160,7 @@ export class MemoryFacade {
     if (this.onShadow) {
       const legacyContents = legacyResults.map((m) => m.content);
       const nextContents = nextResults.map((m) => m.content);
-      const { onlyLegacy, onlyNew, agreementRate } = compareSemantic(legacyContents, nextContents);
+      const { onlyLegacy, onlyNew, agreementRate } = compareRecalls(legacyContents, nextContents);
       const severity = nextError
         ? 'HIGH'
         : this.classifySeverity(onlyLegacy, onlyNew, agreementRate);
@@ -186,7 +186,8 @@ export class MemoryFacade {
 
 // ─── Pure comparison helpers ─────────────────────────────────────────────────
 
-function compareSemantic(
+/** Semantic comparison of two recalled-content lists. Pure — reused by replay. */
+export function compareRecalls(
   legacy: string[],
   next: string[],
 ): { onlyLegacy: string[]; onlyNew: string[]; agreementRate: number } {
