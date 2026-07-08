@@ -23,6 +23,7 @@ import type {
   TokenUsage,
 } from '../types';
 import { ContextManager } from './context-manager';
+import { EngineMemoryFacade, LegacyEngineMemory, type EngineMemory } from './engine-memory';
 import { ModelRouter } from './model-router';
 import { CircuitBreakerRegistry } from './circuit-breaker';
 import { retryWithBackoff } from './retry';
@@ -54,6 +55,14 @@ const DEFAULT_CONFIG: AIEngineConfig = {
 export class AIEngine {
   private config: AIEngineConfig;
   private contextManager: ContextManager;
+  /**
+   * Memory seam (M11c, ADR-011). Defaults to `legacy` mode, which delegates
+   * byte-identically to `contextManager`. The engine never calls
+   * `contextManager` directly for enrich/record — it goes through this facade so
+   * the memory backend can migrate (legacy → dual_write → shadow → new) with
+   * zero behavioral change and instant rollback.
+   */
+  private memory: EngineMemory;
   private modelRouter: ModelRouter;
   private circuitBreakerRegistry: CircuitBreakerRegistry;
   private semanticCache: SemanticCache;
@@ -71,6 +80,12 @@ export class AIEngine {
     this.circuitBreakerRegistry = new CircuitBreakerRegistry();
     this.modelRouter = new ModelRouter(this.circuitBreakerRegistry);
     this.contextManager = new ContextManager();
+    // Route memory through the facade in `legacy` mode: byte-identical to
+    // calling contextManager.enrichPrompt / addToHistory directly (ADR-011).
+    this.memory = new EngineMemoryFacade({
+      mode: 'legacy',
+      legacy: new LegacyEngineMemory(this.contextManager),
+    });
     this.semanticCache = new SemanticCache(this.config.cacheTtlMs);
     this.safetyPipeline = new SafetyPipeline();
     this.costTracker = new CostTracker({
@@ -300,8 +315,8 @@ export class AIEngine {
     // Route to appropriate model
     const model = this.modelRouter.selectModel(request);
 
-    // Build context-enriched prompt
-    const enrichedPrompt = await this.contextManager.enrichPrompt(
+    // Build context-enriched prompt (via memory facade; legacy mode = unchanged)
+    const enrichedPrompt = await this.memory.enrich(
       request.userId,
       safePrompt,
       request.context || [],
@@ -396,8 +411,8 @@ export class AIEngine {
         this.semanticCache.set(safePrompt, outputSafety.text);
       }
 
-      // Update conversation context
-      await this.contextManager.addToHistory(request.userId, request.prompt, outputSafety.text);
+      // Update conversation context (via memory facade; legacy mode = unchanged)
+      await this.memory.record(request.userId, request.prompt, outputSafety.text);
 
       return {
         id: this.generateRequestId(),
@@ -426,7 +441,7 @@ export class AIEngine {
     const safePrompt = safetyResult.text;
 
     const model = this.modelRouter.selectModel(request);
-    const enrichedPrompt = await this.contextManager.enrichPrompt(
+    const enrichedPrompt = await this.memory.enrich(
       request.userId,
       safePrompt,
       request.context || [],
@@ -504,8 +519,8 @@ export class AIEngine {
       };
     }
 
-    // Update context with the response
-    await this.contextManager.addToHistory(request.userId, request.prompt, accumulated);
+    // Update context with the response (via memory facade; legacy mode = unchanged)
+    await this.memory.record(request.userId, request.prompt, accumulated);
 
     // Track usage (estimated)
     const promptTokens = Math.ceil(enrichedPrompt.length / 4);

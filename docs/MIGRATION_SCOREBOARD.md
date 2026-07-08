@@ -5,9 +5,10 @@
 > Gates (ADR-011): semantic agreement > 99%, latency delta < 10%,
 > pending agreement > 98%, critical divergences = 0, infra failures = 0.
 
-| Date                                                          | Mode | Semantic Agreement | Pending Agreement | Latency Δ | Critical Divergences | Infra Failures | Rollback Tested | Decision |
-| ------------------------------------------------------------- | ---- | ------------------ | ----------------- | --------- | -------------------- | -------------- | --------------- | -------- |
-| _(none yet — awaiting first shadow run against live traffic)_ |      |                    |                   |           |                      |                |                 |          |
+| Date                                                          | Mode   | Semantic Agreement   | Pending Agreement | Latency Δ         | Critical Divergences | Infra Failures | Rollback Tested              | Decision                      |
+| ------------------------------------------------------------- | ------ | -------------------- | ----------------- | ----------------- | -------------------- | -------------- | ---------------------------- | ----------------------------- |
+| 2026-07-08 (M11c Phase 1: AIEngine wired via facade)          | legacy | n/a (byte-identical) | n/a               | ~0 (2 async hops) | 0                    | 0              | yes (revert to direct calls) | ADVANCE(→ dual_write in M11d) |
+| _(none yet — awaiting first shadow run against live traffic)_ |        |                      |                   |                   |                      |                |                              |                               |
 
 ## How rows are produced
 
