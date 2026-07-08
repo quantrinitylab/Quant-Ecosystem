@@ -2,11 +2,42 @@
 
 ## Status
 
-PROPOSED
+ACCEPTED (with review refinements — see "Refinements adopted")
 
 ## Date
 
 2026-07-08
+
+## Refinements adopted (review)
+
+1. **Evidence is a structured POINTER, not copied text.** Enables
+   explainability, human verification, and re-extraction after prompt updates
+   without brittle text matching:
+   ```
+   Evidence {
+     conversationId?: string
+     messageId?:      string
+     turnIndex?:      number
+     spanStart?:      number   // char offset in the turn
+     spanEnd?:        number
+     extractor:       string   // 'rule' | 'llm:<model>'
+     quote?:          string   // optional denormalized copy for display
+   }
+   ```
+2. **Provenance is HIERARCHICAL** (`family.detail`), so acceptance policy can
+   express precedence without code changes:
+   ```
+   user.explicit > user.correction > user.confirmation
+     > import.contacts > import.calendar
+     > llm.gpt5 > llm.claude > llm.llama
+     > system.inference > system.derived
+   ```
+   Stored as a dotted string `metadata.provenance` (e.g. `'llm.gpt5'`); trust is
+   resolved from the family/detail by the policy.
+3. **Calibration is a first-class metric.** M11's eval reports Expected
+   Calibration Error (ECE) and/or Brier score, not just precision — an
+   overconfident model (`confidence 0.95`, actual `0.62`) is worse than a
+   well-calibrated one (`0.82`/`0.81`) even at similar precision.
 
 ## Context
 
@@ -32,9 +63,9 @@ ExtractedFact {
   polarity:    'positive' | 'negative'
   temporal:    'current' | 'transient' | 'past'   // "visiting" | "used to"
   confidence:  number          // 0-1, model-calibrated (ADR-009)
-  provenance:  string          // 'llm:<model>' | 'rule' | 'user' | 'import' | 'web'
+  provenance:  string          // hierarchical 'family.detail', e.g. 'llm.gpt5'
   subject:     'user' | string // WHO the fact is about — 'user' vs a third party
-  evidence:    string          // the source span/quote that justifies the fact
+  evidence:    Evidence        // STRUCTURED pointer (see Refinements) — not copied text
 }
 
 ExtractionResult {
@@ -152,4 +183,4 @@ post-hoc filters.
 
 ---
 
-_Signed by: Kiro (Principal Systems Engineer) | Reviewed by: CEO — PENDING_
+_Signed by: Kiro (Principal Systems Engineer) | Reviewed by: CEO — ACCEPTED with refinements_

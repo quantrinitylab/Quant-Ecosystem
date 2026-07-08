@@ -116,6 +116,21 @@ export {
 export type { OpenAIEmbeddingConfig } from './adapters/openai-embedding-provider';
 export { QdrantVectorBackend, loadQdrantConfig, toPointId } from './adapters/qdrant-vector-backend';
 export type { QdrantConfig } from './adapters/qdrant-vector-backend';
+export { LlmExtractionModel } from './adapters/llm-extraction-model';
+export type { LlmExtractionConfig } from './adapters/llm-extraction-model';
+export {
+  mapFactToCandidate,
+  fingerprintFact,
+  trustForProvenance,
+  DEFAULT_TRUST_BY_FAMILY,
+} from './core/extraction-schema';
+export type {
+  ExtractedFact,
+  ExtractionResult,
+  ExtractionMetrics,
+  Evidence,
+  InstrumentedExtractionModel,
+} from './core/extraction-schema';
 export { asKind, asLevel } from './core/memory-port';
 export type {
   MemoryService,
