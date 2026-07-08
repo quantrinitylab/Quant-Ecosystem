@@ -187,6 +187,72 @@ Only `Active`/`Verified` participate in default recall. `Pending`/`Rejected` are
 excluded (exposed later via `listPending`/`confirm`/`reject`). Effective weight
 may become a hybrid-score term (ADR-007) only when the eval shows it helps.
 
+## Decision — policy versioning
+
+`MemoryPolicy` carries a `version` so historical evaluations are reproducible and
+we know which policy produced which behavior:
+
+```
+MemoryPolicy {
+  version: "v1"
+  activateThreshold: 0.70
+  pendingThreshold:  0.35
+  epsilon:           0.10
+}
+```
+
+Every stored memory records `metadata.policyVersion` at write time. Tuning
+thresholds bumps the version; the eval can pin a version to reproduce a run.
+
+## Decision — transition reasons
+
+Every state transition records a STRUCTURED reason in `metadata` (not inferred
+from timestamps). Enumerated reasons:
+
+| Transition   | reason (examples)                              |
+| ------------ | ---------------------------------------------- |
+| → Superseded | `newer_same_slot`                              |
+| → Retracted  | `explicit_user_negation`, `employer_departure` |
+| → Rejected   | `human_feedback`                               |
+| → Pending    | `low_confidence`, `verified_conflict`          |
+| → Archived   | `ttl_expired`, `superseded_soft`               |
+| → Active     | `above_activate`, `promoted_from_pending`      |
+
+Stored as `metadata.transitions: [{ from, to, reason, at, policyVersion }]`
+(append-only), giving a per-memory audit trail without a separate event store.
+
+## Decision — idempotency
+
+LLMs and queues retry; `persist()` must be idempotent. Each candidate carries a
+deterministic **fingerprint**:
+
+```
+fingerprint = sha1(owner + ':' + slot-or-kind + ':' + normalize(content) + ':' + operation)
+```
+
+Stored as `metadata.fingerprint`. Before writing, `persist` checks for a live
+memory (Active/Verified/Pending) with the same fingerprint:
+
+- exact fingerprint + same value → `duplicate_skip` (no new row, no transition).
+- retry of a retraction whose target is already retracted → no-op.
+
+This makes replays safe: the same candidate twice produces one memory and one
+transition history.
+
+## System Invariants
+
+Documentation + future property-based-test targets:
+
+1. A memory has exactly ONE current lifecycle state (`metadata.state`).
+2. Only `Active` and `Verified` are returned by default recall.
+3. A `Superseded` memory can never become `Active` again (only a NEW version is).
+4. `Deleted` is terminal (row removed; no transition out).
+5. `Rejected` memories never participate in retrieval.
+6. Every transition is append-only in `metadata.transitions` (never rewritten).
+7. A `Verified` memory is never overwritten by an unverified candidate.
+8. `persist(candidate)` is idempotent by fingerprint.
+9. Effective weight below `pendingThreshold` never produces a stored memory.
+
 ## Options Considered
 
 - **A — no state, booleans (`isArchived`, `isDeleted`).** Scattered flags,
@@ -207,10 +273,14 @@ may become a hybrid-score term (ADR-007) only when the eval shows it helps.
 
 ## Future Impact
 
-- M11 emits candidates with `source='llm:<model>'` + calibrated confidence; the
-  guards protect existing trusted memories automatically.
-- A later verification UI moves `Pending → Verified`.
+- M11 emits candidates with `provenance='llm:<model>'` + calibrated confidence;
+  the guards + precedence matrix protect existing trusted memories automatically.
+- M11 also expands the eval with EXTRACTION-quality metrics (extraction
+  precision/recall, hallucination rate, average confidence/calibration, token
+  cost, latency) so rule vs GPT vs local extractors compare on one benchmark.
+- A later verification UI moves `Pending → Verified` / `Rejected`.
 - Reinforcement (repeated observation) raises confidence over time.
+- The invariants become property-based tests (e.g. fast-check) once M11 lands.
 
 ## Complexity Assessment
 
