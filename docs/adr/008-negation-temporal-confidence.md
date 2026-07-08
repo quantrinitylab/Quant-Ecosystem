@@ -2,11 +2,37 @@
 
 ## Status
 
-PROPOSED
+ACCEPTED (with review refinements — see "Refinements adopted")
 
 ## Date
 
 2026-07-08
+
+## Refinements adopted (review)
+
+1. **Retraction via metadata, extractor frozen.** The extractor emits a normal
+   candidate carrying `metadata.operation: "retract"` + `metadata.slot`; the
+   service interprets it. No new extractor channel, no port change. The future
+   LLM extractor emits the same metadata.
+2. **Negative facts are STRUCTURED, not natural-language.** Store
+   `content: "dog"`, `metadata: { slot: "pet", polarity: "negative" }` — never
+   `"has no dog"`. Prevents an embedder/keyword retriever from matching a
+   negative fact as if positive. Presentation ("You have no dog") is a separate
+   layer. `negative_fact` is therefore a UNARY candidate property (polarity), not
+   a pairwise verdict — the pairwise verdict set is 5, not 6.
+3. **Richer conflict decisions.** `ConflictDecision` becomes
+   `{ existingId, verdict, confidence, reason }` so rule-based and future
+   LLM-based resolvers return the same shape and the eval can inspect reasons.
+4. **Slot registry over hardcoded rule classes.** `SlotDefinition`
+   (`id`, `recallHint`, `conflictKind`, `match`) in a registry; adding a slot
+   (education, spouse, phone, email, allergies, citizenship...) needs no resolver
+   change.
+5. **Confidence stays in `metadata.confidence`** (default 1.0), promoted to a
+   column only when the LLM extractor/ensemble/ranking needs it.
+
+Pairwise verdict set (final): `supersedes | contradicts | duplicate | retracts | unrelated`.
+A follow-up **Memory Lifecycle ADR** (post-M09) will formalize the
+Created→Updated→Superseded→Retracted→Archived→Deleted state machine.
 
 ## Context
 

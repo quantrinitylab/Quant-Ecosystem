@@ -134,8 +134,7 @@ export const temporal: EvalScenario = {
 
 export const negation: EvalScenario = {
   name: 'negation',
-  description: 'A negated statement should retract an earlier fact (KNOWN HARD).',
-  knownHard: true,
+  description: 'A negated statement retracts an earlier fact (no replacement).',
   cases: [
     {
       id: 'no-longer-there',
@@ -144,6 +143,38 @@ export const negation: EvalScenario = {
         { role: 'user', content: "I don't live in Patna anymore" },
       ],
       queries: [{ query: 'where do I live', expectIncludes: [], expectExcludes: ['Patna'] }],
+    },
+  ],
+};
+
+export const departure: EvalScenario = {
+  name: 'departure',
+  description: 'Leaving a job retracts the employer (no replacement).',
+  cases: [
+    {
+      id: 'left-job',
+      seed: [
+        { role: 'user', content: 'I work at Google' },
+        { role: 'user', content: 'I left Google' },
+      ],
+      queries: [{ query: 'where do I work', expectIncludes: [], expectExcludes: ['Google'] }],
+    },
+  ],
+};
+
+export const transient: EvalScenario = {
+  name: 'transient',
+  description: 'A transient visit must not change the current residence.',
+  cases: [
+    {
+      id: 'visiting',
+      seed: [
+        { role: 'user', content: 'I live in Bangalore' },
+        { role: 'user', content: 'I am visiting Patna this week' },
+      ],
+      queries: [
+        { query: 'where do I live', expectIncludes: ['Bangalore'], expectExcludes: ['Patna'] },
+      ],
     },
   ],
 };
@@ -225,11 +256,13 @@ export const coreScenarios: EvalScenario[] = [
   employment,
   corrections,
   temporal,
+  negation,
+  departure,
+  transient,
 ];
 
 /** Frontier scenarios — measured and reported, NOT gated. The quality backlog. */
 export const frontierScenarios: EvalScenario[] = [
-  negation,
   hinglish,
   typos,
   temporalComplex,

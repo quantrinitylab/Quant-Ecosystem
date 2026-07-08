@@ -9,6 +9,7 @@ import {
   RoleIgnoreFilter,
   ContentDuplicateFilter,
   TurnCountSummarizerTrigger,
+  NegationExtractor,
   type ExtractionInput,
   type ExtractionModel,
   type MemoryCandidate,
@@ -107,6 +108,24 @@ describe('EpisodicExtractor', () => {
 });
 
 // ─── Filters ─────────────────────────────────────────────────────────────────
+
+describe('NegationExtractor', () => {
+  const n = new NegationExtractor();
+  it('emits a residence retract intent for "I don\'t live in X anymore"', () => {
+    const out = n.extract(at("I don't live in Patna anymore"));
+    expect(out).toHaveLength(1);
+    expect(out[0]?.metadata).toMatchObject({ operation: 'retract', slot: 'residence' });
+  });
+  it('emits an employer retract intent for departure verbs', () => {
+    expect(n.extract(at('I left Google'))[0]?.metadata).toMatchObject({
+      operation: 'retract',
+      slot: 'employer',
+    });
+  });
+  it('emits nothing for a plain positive statement', () => {
+    expect(n.extract(at('I live in Patna'))).toEqual([]);
+  });
+});
 
 describe('AcknowledgementIgnoreFilter', () => {
   const f = new AcknowledgementIgnoreFilter();

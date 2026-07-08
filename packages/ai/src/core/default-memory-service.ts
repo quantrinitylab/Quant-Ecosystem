@@ -42,7 +42,7 @@ import type {
   MemoryLevel,
 } from './memory-port';
 import { asKind, asLevel } from './memory-port';
-import type { MemoryConflictResolver } from './memory-conflict';
+import { type MemoryConflictResolver, recallHintForSlot } from './memory-conflict';
 
 // ─── Pluggable recall strategies (defaults provided, all injectable) ─────────
 
@@ -259,6 +259,12 @@ export class DefaultMemoryService implements MemoryService {
    * duplicate → skip; supersedes/contradicts → retire the old, then store new.
    */
   private async persist(record: Omit<MemoryRecord, 'id' | 'createdAt' | 'version'>): Promise<void> {
+    // Retraction intent (ADR-008): end the target slot, store nothing.
+    if (record.metadata?.['operation'] === 'retract') {
+      await this.applyRetraction(record);
+      return;
+    }
+
     if (this.conflictResolver && record.owner && this.retrievers.length > 0) {
       const existing = await this.recall({
         actor: record.owner,
@@ -293,6 +299,39 @@ export class DefaultMemoryService implements MemoryService {
   private async retire(id: string): Promise<void> {
     if (this.archiver) await this.archiver.archive(id, 'superseded');
     else await this.store.delete(id);
+  }
+
+  /**
+   * Apply a retraction intent: find existing memories in the target slot and
+   * retire them. Never stores a replacement (that is what makes it a retraction,
+   * not a supersede).
+   */
+  private async applyRetraction(
+    record: Omit<MemoryRecord, 'id' | 'createdAt' | 'version'>,
+  ): Promise<void> {
+    if (!this.conflictResolver || !record.owner || this.retrievers.length === 0) return;
+    const slot = typeof record.metadata?.['slot'] === 'string' ? record.metadata['slot'] : '';
+    if (!slot) return;
+
+    const hint = recallHintForSlot(slot) ?? slot;
+    const existing = await this.recall({
+      actor: record.owner,
+      query: hint,
+      limit: this.conflictScanLimit,
+    });
+    if (existing.length === 0) return;
+
+    const decisions = this.conflictResolver.resolve(
+      { content: '', kind: record.kind as unknown as string, operation: 'retract', slot },
+      existing.map((e) => ({
+        id: e.id,
+        content: e.content,
+        kind: (e.kind as unknown as string) ?? '',
+      })),
+    );
+    for (const d of decisions) {
+      if (d.verdict === 'retracts') await this.retire(d.existingId);
+    }
   }
 
   // ─── Recall pipeline ──────────────────────────────────────────────────────

@@ -28,6 +28,7 @@ export {
   PreferenceExtractor,
   EntityExtractor,
   EpisodicExtractor,
+  NegationExtractor,
   RoleIgnoreFilter,
   AcknowledgementIgnoreFilter,
   ContentDuplicateFilter,
@@ -84,12 +85,13 @@ export { allScenarios, coreScenarios, frontierScenarios } from './eval/datasets'
 export type { EvalScenario, EvalCase, EvalQuery, EvalMetrics } from './eval/types';
 export {
   DefaultMemoryConflictResolver,
-  DEFAULT_SLOT_RULES,
-  ResidenceRule,
-  EmployerRule,
-  NameRule,
-  FavoriteRule,
-  SentimentRule,
+  DEFAULT_SLOT_REGISTRY,
+  recallHintForSlot,
+  residenceSlot,
+  employerSlot,
+  nameSlot,
+  favouriteSlot,
+  sentimentSlot,
 } from './core/memory-conflict';
 export type {
   MemoryConflictResolver,
@@ -97,7 +99,8 @@ export type {
   ConflictDecision,
   ConflictCandidate,
   ExistingMemoryRef,
-  SlotRule,
+  SlotDefinition,
+  SlotMatch,
 } from './core/memory-conflict';
 export { PrismaMemoryArchiver } from './core/prisma-memory-store';
 export type {

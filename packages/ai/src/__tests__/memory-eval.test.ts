@@ -21,18 +21,22 @@ describe('memory evaluation', () => {
     expect(by['isolation']?.wrongMemories).toBe(0);
   });
 
-  it('fact supersession now resolves corrections, temporal, and employment (PR-M07)', async () => {
+  it('supersession + retraction resolve corrections/temporal/employment/negation/departure', async () => {
     const result = await runMemoryEval();
     const by = Object.fromEntries(result.perScenario.map((m) => [m.scenario, m]));
 
-    // Superseded values no longer leak: "Patna" after moving, "Python" after
-    // switching favorites, "Google" after changing jobs are all archived.
-    expect(by['corrections']?.recallAccuracy).toBe(1);
+    // Supersession (PR-M07): superseded values no longer leak.
     expect(by['corrections']?.precision).toBe(1);
-    expect(by['temporal']?.recallAccuracy).toBe(1);
     expect(by['temporal']?.precision).toBe(1);
-    expect(by['employment']?.recallAccuracy).toBe(1);
     expect(by['employment']?.precision).toBe(1);
+    // Retraction (PR-M09): negation/departure retire the slot with no replacement.
+    expect(by['negation']?.precision).toBe(1);
+    expect(by['negation']?.recallAccuracy).toBe(1);
+    expect(by['departure']?.precision).toBe(1);
+    expect(by['departure']?.recallAccuracy).toBe(1);
+    // Transient visit must not change residence.
+    expect(by['transient']?.precision).toBe(1);
+    expect(by['transient']?.recallAccuracy).toBe(1);
   });
 
   it('regression gate: CORE quality must clear production thresholds', async () => {

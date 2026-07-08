@@ -285,6 +285,42 @@ export class EpisodicExtractor implements CandidateExtractor {
   }
 }
 
+/**
+ * Detects negations/retractions and emits a RETRACT INTENT (ADR-008): a
+ * content-less candidate tagged `metadata.operation = 'retract'` + the slot to
+ * end. The service interprets it (archive the slot, store nothing). The
+ * extractor stays free of persistence semantics.
+ */
+export class NegationExtractor implements CandidateExtractor {
+  private static readonly RETRACTIONS: Array<{ re: RegExp; slot: string }> = [
+    // Residence: "I don't live in X anymore", "I no longer live in X", "I moved out of X".
+    { re: /\bI (?:don'?t|do not|no longer) live\b/i, slot: 'residence' },
+    { re: /\bI moved out of\b/i, slot: 'residence' },
+    // Employer: departure verbs.
+    { re: /\bI (?:left|quit|resigned from)\b/i, slot: 'employer' },
+    // NOTE: sentiment/preference retraction ("I don't like X anymore") needs the
+    // OBJECT to retract precisely (else it would end every like/dislike). Deferred
+    // until object extraction lands (M11 LLM extractor). Single-valued slots only here.
+  ];
+
+  extract(input: ExtractionInput): MemoryCandidate[] {
+    for (const { re, slot } of NegationExtractor.RETRACTIONS) {
+      if (re.test(input.content)) {
+        return [
+          candidate(input.actor, '', 'fact', 'user', {
+            extractor: 'negation',
+            operation: 'retract',
+            slot,
+            session: input.session,
+            original: input.content,
+          }),
+        ];
+      }
+    }
+    return [];
+  }
+}
+
 // ─── Default DuplicateFilter ────────────────────────────────────────────────────
 
 /** Collapse candidates with identical normalized content (keeps the first). */
@@ -347,6 +383,7 @@ export class DefaultMemoryExtractor implements MemoryExtractor {
       new AcknowledgementIgnoreFilter(),
     ];
     this.extractors = deps.extractors ?? [
+      new NegationExtractor(),
       new FactExtractor(),
       new PreferenceExtractor(),
       new EntityExtractor(),
