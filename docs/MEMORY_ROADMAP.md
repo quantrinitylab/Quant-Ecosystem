@@ -104,7 +104,7 @@ Not needed yet; becomes important at million-scale memories. Would cover:
 - vector index compaction (Qdrant points for archived/deleted memories),
 - duplicate-cluster merging (near-identical memories collapsed).
   Ties into the existing state machine (archive/pending/rejected/deleted) and the
-  forgetting policy. Design-first: write ADR-011 before implementing GC.
+  forgetting policy. Design-first: write ADR-012 before implementing GC.
 
 ### Candidate ADR-013 — Memory schema versioning
 
