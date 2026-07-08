@@ -4,6 +4,11 @@
 > This is the living constitution of the Quant platform. Every major architectural
 > decision must be traceable to evidence in this document.
 >
+> **Principle:** _Migration code is temporary. Measurement infrastructure is permanent._
+> Facades, dual-write, and shadow mode are scaffolding to get safely from old to
+> new, and are deleted after cutover. The replay framework, evaluation harness,
+> corpus, ADRs, and metrics are long-term assets — keep them clean and extensible.
+>
 > Generated: 2026-07-07 | Status: INITIAL AUDIT (Section 1-3)
 
 ---
@@ -37,6 +42,7 @@ trusted coordination layer. Its name: Quant.
 apps (interfaces) on top of a shared core.
 
 **Core Pillars (P0)**:
+
 - Identity (single auth root)
 - Memory (durable context for AI + users)
 - AI Orchestrator (multi-model, multi-agent)
@@ -104,15 +110,15 @@ graph TD
 
 ### Key Numbers
 
-| Metric | Value |
-|--------|-------|
-| Total workspace packages | ~96 |
-| Apps (frontends + backends) | 19 |
-| Infrastructure services | 7 |
-| Prisma models | 60+ |
-| AI models registered | 25+ |
-| Lines of TypeScript | ~500K+ (estimated) |
-| Commits (last week) | 97 PRs merged |
+| Metric                      | Value              |
+| --------------------------- | ------------------ |
+| Total workspace packages    | ~96                |
+| Apps (frontends + backends) | 19                 |
+| Infrastructure services     | 7                  |
+| Prisma models               | 60+                |
+| AI models registered        | 25+                |
+| Lines of TypeScript         | ~500K+ (estimated) |
+| Commits (last week)         | 97 PRs merged      |
 
 ---
 
@@ -134,26 +140,26 @@ graph LR
 
 ### Foundation Packages (consumed by everything)
 
-| Package | Purpose | Consumers |
-|---------|---------|-----------|
-| `@quant/common` | Types, constants, validators | ALL |
-| `@quant/database` | Prisma client, repos, transactions | ALL apps + git-server |
-| `@quant/auth` | JWT, argon2, TOTP, WebAuthn, PKCE | ALL apps + server-core |
-| `@quant/server-core` | Fastify factory + plugins | ALL app backends |
+| Package              | Purpose                            | Consumers              |
+| -------------------- | ---------------------------------- | ---------------------- |
+| `@quant/common`      | Types, constants, validators       | ALL                    |
+| `@quant/database`    | Prisma client, repos, transactions | ALL apps + git-server  |
+| `@quant/auth`        | JWT, argon2, TOTP, WebAuthn, PKCE  | ALL apps + server-core |
+| `@quant/server-core` | Fastify factory + plugins          | ALL app backends       |
 
 ### Platform Packages
 
-| Package | Purpose | Real consumers |
-|---------|---------|----------------|
-| `@quant/ai` | Multi-provider AI engine | quantmail, quantchat, quantai, quantsync, quantads + 5 more |
-| `@quant/realtime` | WebSocket server/client | quantmail, quantchat, quantai + ws-gateway |
-| `@quant/shared-ui` | React components | ALL frontends |
-| `@quant/queue` | BullMQ queue abstraction | quantmail, moderation-worker, ci-runner |
-| `@quant/storage` | S3-compatible file ops | quantdrive, ci-runner |
-| `@quant/search` | Full-text + vector search | admin, search-indexer |
-| `@quant/notifications` | Push/email/in-app | quantmail, quantchat, admin |
-| `@quant/encryption` | E2E crypto primitives | quantmail, quantchat |
-| `@quant/credits` | Ledger, wallets, metering | quantmail, quantads |
+| Package                | Purpose                   | Real consumers                                              |
+| ---------------------- | ------------------------- | ----------------------------------------------------------- |
+| `@quant/ai`            | Multi-provider AI engine  | quantmail, quantchat, quantai, quantsync, quantads + 5 more |
+| `@quant/realtime`      | WebSocket server/client   | quantmail, quantchat, quantai + ws-gateway                  |
+| `@quant/shared-ui`     | React components          | ALL frontends                                               |
+| `@quant/queue`         | BullMQ queue abstraction  | quantmail, moderation-worker, ci-runner                     |
+| `@quant/storage`       | S3-compatible file ops    | quantdrive, ci-runner                                       |
+| `@quant/search`        | Full-text + vector search | admin, search-indexer                                       |
+| `@quant/notifications` | Push/email/in-app         | quantmail, quantchat, admin                                 |
+| `@quant/encryption`    | E2E crypto primitives     | quantmail, quantchat                                        |
+| `@quant/credits`       | Ledger, wallets, metering | quantmail, quantads                                         |
 
 ### ORPHANED Packages (~35 packages with zero or single consumers)
 
@@ -203,26 +209,26 @@ sequenceDiagram
 
 ### Security Properties (REAL, verified in code)
 
-| Property | Implementation | File |
-|----------|---------------|------|
-| Password hashing | argon2id (default params) | `packages/auth/src/crypto/password.ts` |
-| Token signing | jose HS256 with KMS key rotation | `packages/auth/src/services/token-service.ts` |
-| Key rotation | `kid` header + multi-key verify window | `token-service.ts:verifyWithKms` |
-| Refresh rotation | Family tracking + reuse detection (revokes family) | `token-service.ts:refreshToken` |
-| PKCE S256 | `crypto.subtle.digest('SHA-256')` | `packages/auth/src/crypto/pkce.ts` |
-| Random IDs | `crypto.randomBytes` | `packages/auth/src/crypto/secure-random.ts` |
-| Rate limiting | `@fastify/rate-limit` (Redis-backed in prod) | `packages/server-core/src/app.ts` |
-| CORS | `@fastify/cors` (configurable origins) | `packages/server-core/src/app.ts` |
-| Helmet (CSP/HSTS) | `@fastify/helmet` (global) | `packages/server-core/src/app.ts` |
+| Property          | Implementation                                     | File                                          |
+| ----------------- | -------------------------------------------------- | --------------------------------------------- |
+| Password hashing  | argon2id (default params)                          | `packages/auth/src/crypto/password.ts`        |
+| Token signing     | jose HS256 with KMS key rotation                   | `packages/auth/src/services/token-service.ts` |
+| Key rotation      | `kid` header + multi-key verify window             | `token-service.ts:verifyWithKms`              |
+| Refresh rotation  | Family tracking + reuse detection (revokes family) | `token-service.ts:refreshToken`               |
+| PKCE S256         | `crypto.subtle.digest('SHA-256')`                  | `packages/auth/src/crypto/pkce.ts`            |
+| Random IDs        | `crypto.randomBytes`                               | `packages/auth/src/crypto/secure-random.ts`   |
+| Rate limiting     | `@fastify/rate-limit` (Redis-backed in prod)       | `packages/server-core/src/app.ts`             |
+| CORS              | `@fastify/cors` (configurable origins)             | `packages/server-core/src/app.ts`             |
+| Helmet (CSP/HSTS) | `@fastify/helmet` (global)                         | `packages/server-core/src/app.ts`             |
 
 ### Gaps / Risks
 
-| # | Gap | Severity | Evidence |
-|---|-----|----------|----------|
-| 1 | No mTLS between services | MEDIUM | Services trust JWT at boundary; no wire-level auth |
-| 2 | No session revocation on password change | MEDIUM | `change-password` route doesn't revoke existing tokens |
-| 3 | No JWT blacklist for immediate revocation | LOW | Access tokens (15min) expire naturally; no instant revoke |
-| 4 | WebSocket auth is query-param based | LOW | Token in URL can leak in logs; header auth also supported |
+| #   | Gap                                       | Severity | Evidence                                                  |
+| --- | ----------------------------------------- | -------- | --------------------------------------------------------- |
+| 1   | No mTLS between services                  | MEDIUM   | Services trust JWT at boundary; no wire-level auth        |
+| 2   | No session revocation on password change  | MEDIUM   | `change-password` route doesn't revoke existing tokens    |
+| 3   | No JWT blacklist for immediate revocation | LOW      | Access tokens (15min) expire naturally; no instant revoke |
+| 4   | WebSocket auth is query-param based       | LOW      | Token in URL can leak in logs; header auth also supported |
 
 ---
 
@@ -273,16 +279,16 @@ graph TD
 
 ### Status Assessment
 
-| Component | Status | Evidence |
-|-----------|--------|----------|
-| Multi-provider routing | REAL | 5 providers, 25+ models, circuit breakers |
-| Bedrock Converse API | REAL | Native AWS SDK, inference-profile IDs |
-| Safety pipeline | REAL | PII regex + moderation pre/post |
-| Semantic cache | NAIVE | String-key lookup, not vector similarity |
-| Context memory | NAIVE | In-memory Map, no pgvector retrieval |
-| Cost tracking | NAIVE | In-process, not persisted to ClickHouse |
-| Prompt registry | REAL | YAML files with version loading |
-| Streaming | REAL | SSE via Vercel AI SDK + Bedrock ConverseStream |
+| Component              | Status | Evidence                                       |
+| ---------------------- | ------ | ---------------------------------------------- |
+| Multi-provider routing | REAL   | 5 providers, 25+ models, circuit breakers      |
+| Bedrock Converse API   | REAL   | Native AWS SDK, inference-profile IDs          |
+| Safety pipeline        | REAL   | PII regex + moderation pre/post                |
+| Semantic cache         | NAIVE  | String-key lookup, not vector similarity       |
+| Context memory         | NAIVE  | In-memory Map, no pgvector retrieval           |
+| Cost tracking          | NAIVE  | In-process, not persisted to ClickHouse        |
+| Prompt registry        | REAL   | YAML files with version loading                |
+| Streaming              | REAL   | SSE via Vercel AI SDK + Bedrock ConverseStream |
 
 ---
 
@@ -313,20 +319,20 @@ erDiagram
 
 ### Data Store Mapping
 
-| Store | Purpose | Status |
-|-------|---------|--------|
-| PostgreSQL 16 + pgvector | Primary OLTP | REAL (RDS in prod) |
-| Redis 7 | Rate limit, sessions cache | REAL (ElastiCache in prod) |
-| Meilisearch | Full-text search | REAL (pod running) |
-| Qdrant | Vector embeddings | DEV ONLY (docker-compose) |
-| S3 | Object storage | REAL (configured in prod) |
-| ClickHouse | Analytics/cost tracking | MISSING |
-| Kafka/NATS | Event streaming | MISSING in prod |
+| Store                    | Purpose                    | Status                     |
+| ------------------------ | -------------------------- | -------------------------- |
+| PostgreSQL 16 + pgvector | Primary OLTP               | REAL (RDS in prod)         |
+| Redis 7                  | Rate limit, sessions cache | REAL (ElastiCache in prod) |
+| Meilisearch              | Full-text search           | REAL (pod running)         |
+| Qdrant                   | Vector embeddings          | DEV ONLY (docker-compose)  |
+| S3                       | Object storage             | REAL (configured in prod)  |
+| ClickHouse               | Analytics/cost tracking    | MISSING                    |
+| Kafka/NATS               | Event streaming            | MISSING in prod            |
 
 ---
 
-*Sections 7-13 will be completed in the next iteration of this document.*
-*This is a living document — updated as the audit deepens.*
+_Sections 7-13 will be completed in the next iteration of this document._
+_This is a living document — updated as the audit deepens._
 
 ---
 

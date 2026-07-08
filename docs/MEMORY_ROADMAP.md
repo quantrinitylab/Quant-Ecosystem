@@ -21,15 +21,33 @@
 | 9   | Multi-agent extractor consistency benchmark                         | planned                                | M-multiagent   |
 | 10  | Explainability API (why stored/rejected/pending/superseded)         | planned                                | M13            |
 
+## Sequence (current)
+
+`PR #548 merge → M11c (facade/dual-write/shadow/metrics) → shadow gates pass →
+M11d (live baseline) → M11e (stabilization, no new features) → M12 (retrieval) →
+M13 (human feedback)`.
+
 ## Milestone detail
 
-### M11d — Real-world validation (next)
+### M11c — Memory Facade & Shadow Mode
+
+See ADR-011. Stateless facade, reversible modes, observational shadow metrics,
+reproducible HIGH/CRITICAL divergences, strict definition of done.
+
+### M11d — Real-world validation (after M11c gates pass)
 
 Bring up the dev stack (Postgres+pgvector, Qdrant), configure a real
 `OPENAI_API_KEY`, run the frontier datasets through the live `LlmExtractionModel`,
 and capture baseline metrics (candidate/final precision, recall, hallucination,
 ECE/Brier, tokens, cost, latency) via the existing eval + replay framework.
 **Document results before any tuning.**
+
+### M11e — Stabilization (between M11d and M12)
+
+Inserted so stabilization is never mixed with new features. Purpose: fix bugs
+found during live validation, improve reliability, reduce operational risk.
+**No new capabilities.** Exit when the live path is stable under real traffic and
+the failure log has no open HIGH/CRITICAL items.
 
 ### M12 — Hybrid retrieval + ranking (#4)
 
@@ -69,7 +87,14 @@ activates true versioned reads/history. ADR update expected.
   rule/model/confidence/policy. The data already exists in
   `metadata.transitions` + `PolicyDecision`; this exposes it as a queryable API.
 
-### Candidate ADR-011 — Memory Lifecycle & Garbage Collection
+### ADR-011 — Memory Facade & Shadow-Mode Migration (WRITTEN, next up)
+
+Design complete (`docs/adr/011-memory-facade-shadow-migration.md`). Migrate the
+old memory path to the new subsystem via a facade with modes
+(legacy → dual-write → shadow → new), gathering production evidence with zero user
+risk before cutover. This is M11c and precedes the M11d live baseline.
+
+### Candidate ADR-012 — Memory Lifecycle & Garbage Collection
 
 Not needed yet; becomes important at million-scale memories. Would cover:
 
@@ -79,12 +104,20 @@ Not needed yet; becomes important at million-scale memories. Would cover:
 - vector index compaction (Qdrant points for archived/deleted memories),
 - duplicate-cluster merging (near-identical memories collapsed).
   Ties into the existing state machine (archive/pending/rejected/deleted) and the
-  forgetting policy. Design-first: write ADR-011 before implementing GC.
+  forgetting policy. Design-first: write ADR-012 before implementing GC.
+
+### Candidate ADR-013 — Memory schema versioning
+
+Memory records will gain fields over time (importance, embeddingVersion, ...).
+Add an explicit `metadata.schemaVersion`; readers stay tolerant of older versions;
+migrations are controlled. Ensures v1 memories remain readable years later. Not
+needed now; noted so it's designed-in, not bolted-on. (Referenced in ADR-011.)
 
 ## Notes
 
-- Items 1, 3, 7, 8 (and GC/ADR-011) touch persistence/retention semantics → each
-  should get an ADR before implementation, consistent with the design-first discipline.
+- Items 1, 3, 7, 8 (and GC/ADR-012, schema versioning/ADR-013) touch
+  persistence/retention semantics → each should get an ADR before implementation,
+  consistent with the design-first discipline.
 - Items 2, 9, 10 are largely additive on top of existing structured data
   (transitions, PolicyDecision, calibration-by-provenance).
 - Production-ready is declared only after M11d + stress benchmarks show the
