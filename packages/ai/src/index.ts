@@ -8,6 +8,187 @@ export * from './types';
 // Core
 export { AIEngine } from './core/engine';
 export { ContextManager } from './core/context-manager';
+export {
+  DefaultMemoryService,
+  DefaultMergeStrategy,
+  DefaultDeduplicator,
+  DefaultBudgetAllocator,
+} from './core/default-memory-service';
+export type {
+  DefaultMemoryServiceDeps,
+  MergeStrategy,
+  Deduplicator,
+  BudgetAllocator,
+  MemoryAuditSink,
+  MemoryIndexer,
+} from './core/default-memory-service';
+export {
+  DefaultMemoryExtractor,
+  FactExtractor,
+  PreferenceExtractor,
+  EntityExtractor,
+  EpisodicExtractor,
+  NegationExtractor,
+  RoleIgnoreFilter,
+  AcknowledgementIgnoreFilter,
+  ContentDuplicateFilter,
+  TurnCountSummarizerTrigger,
+} from './core/default-memory-extractor';
+export type {
+  ExtractionInput,
+  MemoryCandidate,
+  IgnoreFilter,
+  CandidateExtractor,
+  DuplicateFilter,
+  ExtractionModel,
+  SummarizerTrigger,
+  ExtractionPipelineDeps,
+} from './core/default-memory-extractor';
+export { PrismaMemoryStore } from './core/prisma-memory-store';
+export type {
+  MemoryPrismaClient,
+  MemoryRecordDelegate,
+  MemoryRecordRow,
+  MemoryRecordCreateData,
+  PrismaMemoryStoreOptions,
+} from './core/prisma-memory-store';
+export { PrismaMemoryRetriever } from './core/prisma-memory-retriever';
+export type {
+  MemoryRetrieverPrismaClient,
+  MemoryRecordQueryDelegate,
+  PrismaMemoryRetrieverOptions,
+} from './core/prisma-memory-retriever';
+export {
+  createMemoryService,
+  InMemoryConversationLog,
+  NoopMemoryCompressor,
+} from './core/memory-composition';
+export type { MemoryCompositionOptions, MemoryDbClient } from './core/memory-composition';
+export { VectorMemoryRetriever, DEFAULT_RETRIEVAL_WEIGHTS } from './core/vector-memory-retriever';
+export type {
+  EmbeddingProvider,
+  VectorBackend,
+  VectorQueryHit,
+  RetrievalWeights,
+  RetrievalTrace,
+  VectorMemoryRetrieverOptions,
+} from './core/vector-memory-retriever';
+export { VectorMemoryIndexer } from './core/vector-memory-indexer';
+export type {
+  MemoryEmbeddingPrismaClient,
+  MemoryEmbeddingDelegate,
+  MemoryEmbeddingCreateData,
+  VectorMemoryIndexerOptions,
+} from './core/vector-memory-indexer';
+export { runMemoryEval, formatDashboard } from './eval/memory-eval';
+export {
+  runExtractionEval,
+  ruleExtractorAdapter,
+  llmExtractorAdapter,
+  formatExtractionDashboard,
+} from './eval/extraction-eval';
+export type { EvaluableExtractor, ExtractionQualityMetrics } from './eval/extraction-eval';
+export { extractionCases } from './eval/extraction-datasets';
+export type { ExtractionCase, ExpectedMemory } from './eval/extraction-datasets';
+export { replay, diffPolicies, histogramOf, formatPolicyDiff } from './eval/policy-replay';
+export type {
+  ReplayRecord,
+  ReplayOutcome,
+  PolicyDiff,
+  ActionHistogram,
+} from './eval/policy-replay';
+export {
+  acceptanceMetrics,
+  calibrationByProvenance,
+  formatAcceptanceDashboard,
+  formatCalibrationByProvenance,
+} from './eval/acceptance-metrics';
+export type {
+  AcceptanceMetrics,
+  CalibrationSample,
+  ProvenanceCalibration,
+} from './eval/acceptance-metrics';
+export { allScenarios, coreScenarios, frontierScenarios } from './eval/datasets';
+export type { EvalScenario, EvalCase, EvalQuery, EvalMetrics } from './eval/types';
+export {
+  DefaultMemoryConflictResolver,
+  DEFAULT_SLOT_REGISTRY,
+  recallHintForSlot,
+  residenceSlot,
+  employerSlot,
+  nameSlot,
+  favouriteSlot,
+  sentimentSlot,
+} from './core/memory-conflict';
+export type {
+  MemoryConflictResolver,
+  ConflictVerdict,
+  ConflictDecision,
+  ConflictCandidate,
+  ExistingMemoryRef,
+  SlotDefinition,
+  SlotMatch,
+} from './core/memory-conflict';
+export { PrismaMemoryArchiver } from './core/prisma-memory-store';
+export type {
+  MemoryArchiverPrismaClient,
+  MemoryRecordUpdateDelegate,
+} from './core/prisma-memory-store';
+export type { MemoryArchiver } from './core/default-memory-service';
+export {
+  DefaultMemoryAcceptancePolicy,
+  DEFAULT_MEMORY_POLICY,
+  effectiveWeight,
+} from './core/memory-acceptance-policy';
+export type {
+  MemoryAcceptancePolicy,
+  MemoryPolicy,
+  PolicyDecision,
+  PolicyAction,
+  AcceptanceCandidate,
+  AcceptanceExisting,
+} from './core/memory-acceptance-policy';
+export {
+  OpenAIEmbeddingProvider,
+  loadOpenAIEmbeddingConfig,
+  OPENAI_EMBEDDING_DIMENSIONS,
+} from './adapters/openai-embedding-provider';
+export type { OpenAIEmbeddingConfig } from './adapters/openai-embedding-provider';
+export { QdrantVectorBackend, loadQdrantConfig, toPointId } from './adapters/qdrant-vector-backend';
+export type { QdrantConfig } from './adapters/qdrant-vector-backend';
+export { LlmExtractionModel } from './adapters/llm-extraction-model';
+export type { LlmExtractionConfig } from './adapters/llm-extraction-model';
+export {
+  mapFactToCandidate,
+  fingerprintFact,
+  trustForProvenance,
+  DEFAULT_TRUST_BY_FAMILY,
+} from './core/extraction-schema';
+export type {
+  ExtractedFact,
+  ExtractionResult,
+  ExtractionMetrics,
+  Evidence,
+  InstrumentedExtractionModel,
+} from './core/extraction-schema';
+export { asKind, asLevel } from './core/memory-port';
+export type {
+  MemoryService,
+  MemoryStore,
+  MemoryRetriever,
+  ConversationLog,
+  ConversationTurn,
+  MemoryExtractor,
+  MemoryCompressor,
+  MemoryMaintenance,
+  MemoryRecord,
+  RememberRequest,
+  RetrievalContext,
+  RetrievedMemory,
+  ForgetPolicy,
+  MemoryKind,
+  MemoryLevel,
+} from './core/memory-port';
 export { ModelRouter } from './core/model-router';
 export { CircuitBreaker, CircuitBreakerRegistry } from './core/circuit-breaker';
 export { retryWithBackoff } from './core/retry';
