@@ -147,6 +147,28 @@ describe('EngineMemoryFacade dual_write mode', () => {
       assistantResponse: 'r',
     });
   });
+
+  it('a throwing error-sink never impacts the request (ADR-011 constraint 3)', async () => {
+    const legacy: EngineMemory = {
+      enrich: vi.fn().mockResolvedValue('LEGACY'),
+      record: vi.fn().mockResolvedValue(undefined),
+    };
+    const next: EngineMemory = {
+      enrich: vi.fn(),
+      record: vi.fn().mockRejectedValue(new Error('new store down')),
+    };
+    const facade = new EngineMemoryFacade({
+      mode: 'dual_write',
+      legacy,
+      next,
+      onSecondaryWriteError: () => {
+        throw new Error('error sink itself is broken');
+      },
+    });
+
+    await expect(facade.record('u1', 'p', 'r')).resolves.toBeUndefined();
+    expect(legacy.record).toHaveBeenCalledWith('u1', 'p', 'r');
+  });
 });
 
 // ─── shadow: serve legacy, run new silently, compare, report ──────────────────
@@ -208,6 +230,27 @@ describe('EngineMemoryFacade shadow mode', () => {
     expect(out).toContain('allergy: peanuts');
     expect(reports[0]!.divergence.severity).toBe('CRITICAL');
     expect(reports[0]!.divergence.onlyLegacy).toEqual(['allergy: peanuts']);
+  });
+
+  it('a throwing shadow sink never impacts the request (ADR-011 constraint 3)', async () => {
+    const legacy: EngineMemory = {
+      enrich: vi.fn().mockResolvedValue('user: q'),
+      record: vi.fn().mockResolvedValue(undefined),
+    };
+    const next: EngineMemory = {
+      enrich: vi.fn().mockResolvedValue('user: q'),
+      record: vi.fn().mockResolvedValue(undefined),
+    };
+    const facade = new EngineMemoryFacade({
+      mode: 'shadow',
+      legacy,
+      next,
+      onShadow: () => {
+        throw new Error('metrics pipeline down');
+      },
+    });
+
+    await expect(facade.enrich('u1', 'q', [])).resolves.toBe('user: q');
   });
 
   it('swallows a next-path error, marks HIGH, still serves legacy', async () => {

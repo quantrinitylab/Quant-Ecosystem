@@ -224,7 +224,13 @@ export class EngineMemoryFacade implements EngineMemory {
     try {
       await this.next!.record(userId, userMessage, assistantResponse);
     } catch (err) {
-      this.onSecondaryWriteError?.(err, { userId, userMessage, assistantResponse });
+      // Observability is best-effort: a throwing sink must never impact the
+      // request (ADR-011 constraint 3 — metrics never affect runtime).
+      try {
+        this.onSecondaryWriteError?.(err, { userId, userMessage, assistantResponse });
+      } catch {
+        /* swallow: metrics sink failure cannot fail the request */
+      }
     }
   }
 
@@ -264,20 +270,26 @@ export class EngineMemoryFacade implements EngineMemory {
               : agreementRate >= 0.9
                 ? 'MEDIUM'
                 : 'HIGH';
-      this.onShadow({
-        requestId: this.requestId(),
-        mode: this.mode,
-        userId,
-        query: prompt,
-        legacy: { enriched: legacyEnriched, latencyMs: legacyLatency },
-        next: {
-          enriched: nextEnriched,
-          latencyMs: nextLatency,
-          ...(nextError ? { error: nextError } : {}),
-        },
-        divergence: { identical, agreementRate, severity, onlyLegacy, onlyNew },
-        at: Date.now(),
-      });
+      // Observability is best-effort: a throwing shadow sink must never impact
+      // the request (ADR-011 constraint 3 — metrics never affect runtime).
+      try {
+        this.onShadow({
+          requestId: this.requestId(),
+          mode: this.mode,
+          userId,
+          query: prompt,
+          legacy: { enriched: legacyEnriched, latencyMs: legacyLatency },
+          next: {
+            enriched: nextEnriched,
+            latencyMs: nextLatency,
+            ...(nextError ? { error: nextError } : {}),
+          },
+          divergence: { identical, agreementRate, severity, onlyLegacy, onlyNew },
+          at: Date.now(),
+        });
+      } catch {
+        /* swallow: shadow metrics sink failure cannot fail the request */
+      }
     }
 
     // The user ALWAYS gets the legacy (authoritative) enrichment in shadow mode.
