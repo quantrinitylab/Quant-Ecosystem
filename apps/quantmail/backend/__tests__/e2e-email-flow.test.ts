@@ -4,6 +4,10 @@ import { FolderService } from '../services/folder.service';
 
 function createMockPrisma() {
   return {
+    user: {
+      // EmailService.compose stamps the sender's own address on the message.
+      findUnique: vi.fn().mockResolvedValue({ email: 'alice@test.com', displayName: 'Alice' }),
+    },
     email: {
       create: vi.fn(),
       findUnique: vi.fn(),
