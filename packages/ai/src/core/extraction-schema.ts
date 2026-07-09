@@ -131,7 +131,6 @@ export function mapFactToCandidate(
   const metadata: Record<string, unknown> = {
     operation: fact.operation,
     slot: fact.slot,
-    value: fact.value, // canonical value (H4: content carries the evidence sentence)
     polarity: fact.polarity,
     temporal: fact.temporal,
     confidence: fact.confidence,
@@ -143,17 +142,8 @@ export function mapFactToCandidate(
     extractor: 'llm',
   };
 
-  // H4 (M11d Tuning experiment T-001, see M11D_DECISION_LOG): content carries
-  // the evidence sentence so keyword retrieval keeps lexical overlap with
-  // future queries; the canonical value lives in metadata.value. Baseline
-  // evidence: canonical-content-lexical-mismatch caused 100% of recall misses
-  // (docs/baselines/FAILURE_ANALYSIS_2026-07-09.md).
-  const quote = fact.evidence.quote?.trim();
-  const content =
-    quote && quote.length > 0 ? quote : fact.slot ? `${fact.slot}: ${fact.value}` : fact.value;
-
   return {
-    content,
+    content: fact.value,
     kind: asKind(kindForSlot(fact.slot)),
     level: asLevel(levelForSlot(fact.slot)),
     owner,
