@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AIEngine } from '@quant/ai';
+import type { RememberingMemoryBackend } from './ai-style-learner.service';
 import { createAppError } from '@quant/server-core';
 
 export const RecipientPatternSchema = z.object({
@@ -21,8 +22,81 @@ export const OptimalTimeSchema = z.object({
 export type RecipientPattern = z.infer<typeof RecipientPatternSchema>;
 export type OptimalTime = z.infer<typeof OptimalTimeSchema>;
 
+// ─── Recipient pattern persistence port (flagship memory integration) ───────
+// How a recipient engages (active hours, response latency, timezone) is a
+// learned user memory. Without persistence getRecipientPatterns() can only
+// return a hardcoded stub.
+
+export interface RecipientPatternStore {
+  get(userId: string, recipientEmail: string): Promise<RecipientPattern | null>;
+  set(userId: string, pattern: RecipientPattern): Promise<void>;
+}
+
+const SENDTIME_MEMORY_PREFIX = 'quantmail-sendtime-pattern';
+
+/** Persists recipient engagement patterns as user memories. */
+export class MemoryBackedPatternStore implements RecipientPatternStore {
+  constructor(private readonly memory: RememberingMemoryBackend) {}
+
+  async get(userId: string, recipientEmail: string): Promise<RecipientPattern | null> {
+    const results = await this.memory.recall({
+      actor: userId,
+      query: `${SENDTIME_MEMORY_PREFIX} ${recipientEmail}`,
+    });
+    for (const r of results) {
+      const idx = r.content.indexOf('{');
+      if (idx < 0) continue;
+      try {
+        const parsed = RecipientPatternSchema.safeParse(JSON.parse(r.content.slice(idx)));
+        if (parsed.success && parsed.data.recipientEmail === recipientEmail) return parsed.data;
+      } catch {
+        /* skip malformed row */
+      }
+    }
+    return null;
+  }
+
+  async set(userId: string, pattern: RecipientPattern): Promise<void> {
+    const content = `${SENDTIME_MEMORY_PREFIX} ${pattern.recipientEmail} ${JSON.stringify(pattern)}`;
+    if (this.memory.remember) {
+      await this.memory.remember({
+        actor: userId,
+        content,
+        kind: 'entity',
+        level: 'user',
+        session: 'quantmail-sendtime',
+      });
+    } else {
+      await this.memory.observe({
+        actor: userId,
+        session: 'quantmail-sendtime',
+        role: 'system',
+        content,
+      });
+    }
+  }
+}
+
 export class SmartSendTimeService {
-  constructor(private readonly ai: AIEngine) {}
+  /** Optional persistence port. Absent = original stub behavior. */
+  private readonly store: RecipientPatternStore | undefined;
+
+  constructor(
+    private readonly ai: AIEngine,
+    store?: RecipientPatternStore,
+  ) {
+    this.store = store;
+  }
+
+  /** Record a learned engagement pattern (best-effort; never throws). */
+  async saveRecipientPattern(userId: string, pattern: RecipientPattern): Promise<void> {
+    if (!this.store) return;
+    try {
+      await this.store.set(userId, pattern);
+    } catch {
+      /* best-effort by design */
+    }
+  }
 
   async predictOptimalTime(
     recipientEmail: string,
@@ -75,7 +149,12 @@ Respond ONLY with valid JSON:
   }
 
   async getRecipientPatterns(recipientEmail: string, userId: string): Promise<RecipientPattern> {
-    // In a real implementation, this would analyze engagement data from the database
+    // Remembered engagement pattern beats the hardcoded default.
+    if (this.store) {
+      const remembered = await this.store.get(userId, recipientEmail);
+      if (remembered) return remembered;
+    }
+    // Fallback: the original default profile (unchanged).
     return {
       recipientEmail,
       averageResponseTimeMinutes: 45,
