@@ -109,7 +109,24 @@ const TOP_K = 5;
 const includedIn = (results: RetrievedMemory[], needle: string): boolean =>
   results.some((r) => r.content.toLowerCase().includes(needle.toLowerCase()));
 
-async function evaluateScenario(scenario: EvalScenario): Promise<EvalMetrics> {
+/**
+ * Builds the service under evaluation for one case. The default exercises the
+ * keyword-only path (backend-agnostic, runs anywhere). Live/semantic runs pass
+ * a factory that adds the vector layer (real embedder + vector backend) —
+ * see memory-eval-live.test.ts. The scoring logic is IDENTICAL either way,
+ * so dashboards stay comparable across configurations.
+ */
+export type EvalServiceFactory = (
+  db: MemoryDbClient,
+  context: { scenario: string; caseId: string },
+) => Promise<ReturnType<typeof createMemoryService>> | ReturnType<typeof createMemoryService>;
+
+const defaultServiceFactory: EvalServiceFactory = (db) => createMemoryService({ prisma: db });
+
+async function evaluateScenario(
+  scenario: EvalScenario,
+  serviceFactory: EvalServiceFactory = defaultServiceFactory,
+): Promise<EvalMetrics> {
   let totalQueries = 0;
   let recallHits = 0;
   let precisionHits = 0;
@@ -121,7 +138,7 @@ async function evaluateScenario(scenario: EvalScenario): Promise<EvalMetrics> {
 
   for (const testCase of scenario.cases) {
     const db = new InMemoryDbClient();
-    const service = createMemoryService({ prisma: db });
+    const service = await serviceFactory(db, { scenario: scenario.name, caseId: testCase.id });
     const actor = 'user_1';
 
     for (const turn of testCase.seed) {
@@ -171,9 +188,10 @@ async function evaluateScenario(scenario: EvalScenario): Promise<EvalMetrics> {
 
 export async function runMemoryEval(
   scenarios: EvalScenario[] = allScenarios,
+  serviceFactory?: EvalServiceFactory,
 ): Promise<{ perScenario: EvalMetrics[]; overall: EvalMetrics }> {
   const perScenario: EvalMetrics[] = [];
-  for (const s of scenarios) perScenario.push(await evaluateScenario(s));
+  for (const s of scenarios) perScenario.push(await evaluateScenario(s, serviceFactory));
 
   const totalQueries = perScenario.reduce((a, m) => a + m.totalQueries, 0);
   const weighted = (sel: (m: EvalMetrics) => number): number =>
