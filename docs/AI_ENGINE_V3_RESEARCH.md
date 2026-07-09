@@ -8,7 +8,7 @@
 > `[RESEARCH]` literature-informed direction requiring experiments.
 >
 > **Prime constraint (Law 6):** every model is temporary; architecture is
-> permanent. V3 is therefore a paper about *orchestration*, not about models.
+> permanent. V3 is therefore a paper about _orchestration_, not about models.
 > **Second constraint (Law 7):** trust before intelligence. No capability ships
 > without an evaluation and a safety boundary.
 
@@ -31,9 +31,10 @@ V3's thesis is one sentence:
 
 Three pillars: (1) **Decision intelligence** — routing/planning as learned,
 evaluated policies rather than static tables. (2) **Compound memory** — episodic
-+ semantic + procedural memory with supersession and confidence propagation.
-(3) **Coordinated agency** — multi-agent execution over open protocols (MCP,
-A2A) inside hard trust boundaries.
+
+- semantic + procedural memory with supersession and confidence propagation.
+  (3) **Coordinated agency** — multi-agent execution over open protocols (MCP,
+  A2A) inside hard trust boundaries.
 
 The paper specifies each pillar, its benchmarks, its cost/latency envelope
 (tied to `SYSTEM_MATHEMATICS.md`), its failure modes, and its migration path —
@@ -48,20 +49,20 @@ tuning, one change per experiment, rollback always proven.
 
 Honest inventory (from repo, main @ `aa1fc92`):
 
-| Capability | V2 state | Evidence |
-|---|---|---|
-| Multi-provider inference | ✅ 10+ providers via adapters | `providers/`, `provider-adapter.ts` |
-| Routing | ✅ static task→model table + fallback chains | `routing-table.ts`, `model-router.ts` |
-| Resilience | ✅ circuit breaker, retry, provider health | `circuit-breaker.ts`, `retry.ts`, `provider-health.ts` |
-| Cost control | ✅ token counting, per-request cost logs | `token-counter.ts`, `cost-tracker.ts` |
-| Caching | ✅ semantic cache | `semantic-cache.ts` |
-| Memory | ✅ frozen v1: ports, policy, hybrid retrieval, traces | ADR-005…011, `memory-*.ts` |
-| Evaluation | ✅ extraction eval, policy replay, shadow replay | `eval/` (10 modules) |
-| Migration safety | ✅ facade, 4 modes, cutover gates | `memory-facade.ts`, ADR-011 |
-| Planning | ❌ none — single-shot inference | — |
-| Reflection/learning | ❌ none | — |
-| Multi-agent | ⚠️ scaffolding only (`agent-runtime`, `agent-swarm` — LOW/DEAD in heatmap) | `DEPENDENCY_HEATMAP.md` |
-| Knowledge graph | ❌ deliberately deferred (correct call — see §8) | CEO review of M06 |
+| Capability               | V2 state                                                                   | Evidence                                               |
+| ------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Multi-provider inference | ✅ 10+ providers via adapters                                              | `providers/`, `provider-adapter.ts`                    |
+| Routing                  | ✅ static task→model table + fallback chains                               | `routing-table.ts`, `model-router.ts`                  |
+| Resilience               | ✅ circuit breaker, retry, provider health                                 | `circuit-breaker.ts`, `retry.ts`, `provider-health.ts` |
+| Cost control             | ✅ token counting, per-request cost logs                                   | `token-counter.ts`, `cost-tracker.ts`                  |
+| Caching                  | ✅ semantic cache                                                          | `semantic-cache.ts`                                    |
+| Memory                   | ✅ frozen v1: ports, policy, hybrid retrieval, traces                      | ADR-005…011, `memory-*.ts`                             |
+| Evaluation               | ✅ extraction eval, policy replay, shadow replay                           | `eval/` (10 modules)                                   |
+| Migration safety         | ✅ facade, 4 modes, cutover gates                                          | `memory-facade.ts`, ADR-011                            |
+| Planning                 | ❌ none — single-shot inference                                            | —                                                      |
+| Reflection/learning      | ❌ none                                                                    | —                                                      |
+| Multi-agent              | ⚠️ scaffolding only (`agent-runtime`, `agent-swarm` — LOW/DEAD in heatmap) | `DEPENDENCY_HEATMAP.md`                                |
+| Knowledge graph          | ❌ deliberately deferred (correct call — see §8)                           | CEO review of M06                                      |
 
 **V2's genuine achievements:** hexagonal purity (engine depends on ports only),
 replayability (policy replay + shadow replay = fair A/B forever), and restraint
@@ -113,15 +114,15 @@ subject to: budget(x), provider_health(m), data_policy(x)
 
 ### 4. Planning `[DESIGNED]`
 
-V2 has no planner. V3 introduces one — as a *typed artifact*, not a hidden CoT:
+V2 has no planner. V3 introduces one — as a _typed artifact_, not a hidden CoT:
 
 ```ts
 interface Plan {
-  goal: string
-  steps: PlanStep[]          // typed: tool | inference | recall | verify
-  budget: BudgetVector       // tokens, $, ms, toolCalls
-  fallback: PlanStep[]       // degraded path if budget/steps fail
-  trace: PlanTrace           // why this plan (replayable)
+  goal: string;
+  steps: PlanStep[]; // typed: tool | inference | recall | verify
+  budget: BudgetVector; // tokens, $, ms, toolCalls
+  fallback: PlanStep[]; // degraded path if budget/steps fail
+  trace: PlanTrace; // why this plan (replayable)
 }
 ```
 
@@ -173,7 +174,7 @@ Priorities in expected-return order (matches CEO's revised M06–M12 ordering):
    ≥ 95% before any new memory feature.
 2. **Confidence propagation** — extend scoring from `(confidence, relevance)` to
    `(confidence, freshness, source_reliability, confirmation_count,
-   contradiction_score)`. Gated: ship only if the eval suite proves ranking
+contradiction_score)`. Gated: ship only if the eval suite proves ranking
    lift (CEO condition, explicitly).
 3. **Forgetting economics** — decay/archival policy derived from
    `SYSTEM_MATHEMATICS.md §2` (linear growth is unaffordable at 1M+ users).
@@ -210,10 +211,10 @@ perceive (input + recall) → plan (§4) → act (tool/inference)
 Tools come from `@quant/quant-tools` registry; every tool declares permission
 scope, cost estimate, and reversibility class:
 
-| Class | Example | Policy |
-|---|---|---|
-| Reversible | draft email, search | auto-execute |
-| Compensable | send message (deletable) | execute + audit |
+| Class        | Example                          | Policy                     |
+| ------------ | -------------------------------- | -------------------------- |
+| Reversible   | draft email, search              | auto-execute               |
+| Compensable  | send message (deletable)         | execute + audit            |
 | Irreversible | send mail, spend credits, deploy | **human approval (Law 7)** |
 
 ### 10. Multi-agent `[RESEARCH]`
@@ -268,13 +269,13 @@ V2 already has the right skeleton (`eval/`): extraction eval, policy replay,
 shadow replay, failure taxonomy, versioned corpus. V3 extends the same
 discipline to every new component:
 
-| Suite | Measures | Exists? |
-|---|---|---|
-| memory-eval (facts, prefs, corrections, temporal, conflicts, long-context, multilingual) | recall/precision/duplicate-rate/latency | ✅ datasets in repo |
-| routing-eval | quality-vs-cost frontier per (task, difficulty) | ❌ build first in V3 |
-| plan-eval | success rate, step efficiency, budget adherence | ❌ |
-| safety-eval | injection resistance, gating correctness | ❌ |
-| e2e assistant-eval | task completion on realistic multi-turn scenarios | ❌ |
+| Suite                                                                                    | Measures                                          | Exists?                                                                      |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------- |
+| memory-eval (facts, prefs, corrections, temporal, conflicts, long-context, multilingual) | recall/precision/duplicate-rate/latency           | ✅ datasets in repo                                                          |
+| routing-eval                                                                             | quality-vs-cost frontier per (task, difficulty)   | ✅ V3.0 shipped (#7): 95.5% acc, 76.2% projected savings on `routing-v1`     |
+| plan-eval                                                                                | success rate, step efficiency, budget adherence   | ❌                                                                           |
+| safety-eval                                                                              | injection resistance, gating correctness          | ✅ V3.0 shipped (#9): PII 100%, **injection 0% (honest gap)** on `safety-v1` |
+| e2e assistant-eval                                                                       | task completion on realistic multi-turn scenarios | ❌                                                                           |
 
 Rules inherited from M11: baselines are read-only forever; one change per
 rerun; version-freeze (model ID, prompt rev, policy version, corpus version,
@@ -311,7 +312,7 @@ Targets (derived in `SYSTEM_MATHEMATICS.md` §1/§4):
 
 V2 primitives (breaker/retry/health) extend to V3 semantics:
 
-- **Provider failure:** breaker → fallback chain (exists) → *stateful resume*:
+- **Provider failure:** breaker → fallback chain (exists) → _stateful resume_:
   a failed plan step retries alone, never the whole plan.
 - **Partial plan failure:** compensable steps roll back via compensation
   events; irreversible steps park the plan for human decision.
@@ -371,13 +372,13 @@ Each question = one experiment = one decision-log row. That is the whole method.
 ## Appendix A — Traceability
 
 | CEO order/topic | Section |
-|---|---|
-| Routing | §3 | Planning | §4 | Memory | §6–7 | Evaluation | §13 |
-| Reflection | §14 | Learning | §14 | Agents | §9 | Multi-agent | §10 |
-| Context | §5 | Long-term memory | §7 | Knowledge graph | §8 |
-| MCP | §11 | A2A | §11 | Benchmarks | §13 | Cost | §15 |
-| Latency | §15 | Safety | §12 | Failure recovery | §16 |
-| Model evolution | §17 | Provider strategy | §17 |
+| --------------- | ------- | ----------------- | --- | ---------------- | ---- | ----------- | --- |
+| Routing         | §3      | Planning          | §4  | Memory           | §6–7 | Evaluation  | §13 |
+| Reflection      | §14     | Learning          | §14 | Agents           | §9   | Multi-agent | §10 |
+| Context         | §5      | Long-term memory  | §7  | Knowledge graph  | §8   |
+| MCP             | §11     | A2A               | §11 | Benchmarks       | §13  | Cost        | §15 |
+| Latency         | §15     | Safety            | §12 | Failure recovery | §16  |
+| Model evolution | §17     | Provider strategy | §17 |
 
 **Owner:** Kiro (Principal Systems Engineer) · **Approved pending:** CEO review
 **Version:** 1.0 · **Date:** 2026-07-09 · Expansion of any `[RESEARCH]` chapter
