@@ -71,6 +71,31 @@ Optional env: `OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`),
 `MEMORY_EXTRACTION_MODEL` (default `gpt-4o-mini`), `QDRANT_COLLECTION`
 (default `quant_memories`), `BASELINE_NOTES`.
 
+## Provider selection (ADR-003 model-agnostic)
+
+The memory layer is provider-agnostic: embeddings implement `EmbeddingProvider`
+and extraction implements `InstrumentedExtractionModel`. Choose the provider with
+`MEMORY_PROVIDER`:
+
+| `MEMORY_PROVIDER`  | Embeddings                     | Extraction              | Vector dim | Required env                     |
+| ------------------ | ------------------------------ | ----------------------- | ---------- | -------------------------------- |
+| `openai` (default) | `text-embedding-3-small`       | `gpt-4o-mini`           | 1536       | `OPENAI_API_KEY`                 |
+| `bedrock`          | `amazon.titan-embed-text-v2:0` | `amazon.nova-lite-v1:0` | 1024       | AWS creds + Bedrock model access |
+
+**Bedrock run** (no OpenAI billing needed once model access is enabled):
+
+```bash
+MEMORY_PROVIDER=bedrock AWS_REGION=us-east-1 \
+QDRANT_URL=http://localhost:6333 \
+DATABASE_URL=postgresql://quant:quant_secret@localhost:5432/quantdb \
+  pnpm memory:baseline
+```
+
+**Important — vector dimension must match the collection.** Titan v2 = 1024 dims,
+OpenAI small = 1536. Create/recreate the Qdrant collection at the provider's
+dimension before the run, e.g. for Bedrock:
+`PUT :6333/collections/quant_memories {"vectors":{"size":1024,"distance":"Cosine"}}`.
+
 ## Freeze
 
 1. Commit the generated `docs/baselines/baseline-<timestamp>.{json,md}` unchanged.

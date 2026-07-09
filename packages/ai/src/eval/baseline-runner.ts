@@ -40,6 +40,7 @@ import {
 import { coreScenarios, frontierScenarios } from './datasets';
 import type { EvalMetrics, EvalScenario } from './types';
 import type { InstrumentedExtractionModel } from '../core/extraction-schema';
+import type { EmbeddingProvider } from '../core/vector-memory-retriever';
 
 const TOP_K = 5;
 const DATASET_VERSION = 'm11d-v1'; // frozen: coreScenarios + frontierScenarios @ this tag
@@ -263,18 +264,35 @@ export async function composeLiveBaselineDeps(args: {
   notes?: string;
 }): Promise<BaselineDeps> {
   const env = args.env ?? (typeof process !== 'undefined' ? process.env : {});
-  const { OpenAIEmbeddingProvider, loadOpenAIEmbeddingConfig } =
-    await import('../adapters/openai-embedding-provider');
   const { QdrantVectorBackend, loadQdrantConfig } =
     await import('../adapters/qdrant-vector-backend');
-  const { LlmExtractionModel } = await import('../adapters/llm-extraction-model');
+  const vectorBackend = new QdrantVectorBackend(loadQdrantConfig(env));
 
-  const embedCfg = loadOpenAIEmbeddingConfig(env);
-  const embedder = new OpenAIEmbeddingProvider(embedCfg);
-  const qdrantCfg = loadQdrantConfig(env);
-  const vectorBackend = new QdrantVectorBackend(qdrantCfg);
-  const extractionModel = env['MEMORY_EXTRACTION_MODEL'] ?? 'gpt-4o-mini';
-  const extractor = new LlmExtractionModel({ apiKey: embedCfg.apiKey, model: extractionModel });
+  // Provider selection (ADR-003 model-agnostic). Same ports either way; the
+  // memory pipeline is unchanged. Choose via MEMORY_PROVIDER=openai|bedrock.
+  const provider = (env['MEMORY_PROVIDER'] ?? 'openai').toLowerCase();
+  let embedder: EmbeddingProvider;
+  let extractor: InstrumentedExtractionModel;
+  let extractionModel: string;
+
+  if (provider === 'bedrock') {
+    const { BedrockEmbeddingProvider, loadBedrockEmbeddingConfig } =
+      await import('../adapters/bedrock-embedding-provider');
+    const { BedrockExtractionModel, loadBedrockExtractionConfig } =
+      await import('../adapters/bedrock-extraction-model');
+    embedder = new BedrockEmbeddingProvider(loadBedrockEmbeddingConfig(env));
+    const extractCfg = loadBedrockExtractionConfig(env);
+    extractor = new BedrockExtractionModel(extractCfg);
+    extractionModel = extractCfg.model ?? 'amazon.nova-lite-v1:0';
+  } else {
+    const { OpenAIEmbeddingProvider, loadOpenAIEmbeddingConfig } =
+      await import('../adapters/openai-embedding-provider');
+    const { LlmExtractionModel } = await import('../adapters/llm-extraction-model');
+    const embedCfg = loadOpenAIEmbeddingConfig(env);
+    embedder = new OpenAIEmbeddingProvider(embedCfg);
+    extractionModel = env['MEMORY_EXTRACTION_MODEL'] ?? 'gpt-4o-mini';
+    extractor = new LlmExtractionModel({ apiKey: embedCfg.apiKey, model: extractionModel });
+  }
 
   const makeService = (): MemoryService =>
     createMemoryService({
