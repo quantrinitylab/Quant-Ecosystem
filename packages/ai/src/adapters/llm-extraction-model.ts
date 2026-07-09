@@ -85,9 +85,16 @@ export class LlmExtractionModel implements InstrumentedExtractionModel {
     content: string,
   ): Promise<MemoryCandidate[]> {
     const { facts } = await this.extractDetailed(actor, session, role, content);
+    // T-002: values of retracted/past/negative facts poison quotes — a quote
+    // mentioning them must not become recallable content (see extraction-schema).
+    const excludeValues = facts
+      .filter(
+        (f) => f.operation === 'retract' || f.temporal === 'past' || f.polarity === 'negative',
+      )
+      .map((f) => f.value);
     const candidates: MemoryCandidate[] = [];
     for (const fact of facts) {
-      const c = mapFactToCandidate(fact, actor);
+      const c = mapFactToCandidate(fact, actor, undefined, { excludeValues });
       if (c) candidates.push(c);
     }
     return candidates;
