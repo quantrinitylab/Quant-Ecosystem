@@ -23,7 +23,21 @@ import type {
   TokenUsage,
 } from '../types';
 import { ContextManager } from './context-manager';
-import { EngineMemoryFacade, LegacyEngineMemory, type EngineMemory } from './engine-memory';
+import {
+  EngineMemoryFacade,
+  LegacyEngineMemory,
+  type EngineMemory,
+  type EngineMemoryFacadeOptions,
+} from './engine-memory';
+
+/**
+ * Optional memory wiring for AIEngine (M11d). Lets a caller point the engine's
+ * memory facade at the real MemoryService backend and choose a migration mode,
+ * while the engine keeps owning the legacy ContextManager (so `getContextManager`
+ * and shadow comparison stay consistent). Omit entirely → `legacy` mode,
+ * byte-identical to before. `legacy` is supplied by the engine, not the caller.
+ */
+export type AIEngineMemoryOptions = Omit<EngineMemoryFacadeOptions, 'legacy'>;
 import { ModelRouter } from './model-router';
 import { CircuitBreakerRegistry } from './circuit-breaker';
 import { retryWithBackoff } from './retry';
@@ -75,16 +89,25 @@ export class AIEngine {
   private openrouterProvider: ReturnType<typeof createOpenAI> | null = null;
   private bedrockClient: BedrockRuntimeClient | null = null;
 
-  constructor(config: Partial<AIEngineConfig> = {}) {
+  constructor(config: Partial<AIEngineConfig> = {}, memoryOptions?: AIEngineMemoryOptions) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     this.circuitBreakerRegistry = new CircuitBreakerRegistry();
     this.modelRouter = new ModelRouter(this.circuitBreakerRegistry);
     this.contextManager = new ContextManager();
-    // Route memory through the facade in `legacy` mode: byte-identical to
+    // Route memory through the facade. Default = `legacy` mode: byte-identical to
     // calling contextManager.enrichPrompt / addToHistory directly (ADR-011).
+    // A caller may inject a real MemoryService backend (`next`) + a migration
+    // mode (dual_write/shadow/new); the engine always owns `legacy` so
+    // getContextManager() and shadow comparison stay consistent (M11d).
     this.memory = new EngineMemoryFacade({
-      mode: 'legacy',
+      mode: memoryOptions?.mode ?? 'legacy',
       legacy: new LegacyEngineMemory(this.contextManager),
+      ...(memoryOptions?.next !== undefined ? { next: memoryOptions.next } : {}),
+      ...(memoryOptions?.onShadow !== undefined ? { onShadow: memoryOptions.onShadow } : {}),
+      ...(memoryOptions?.onSecondaryWriteError !== undefined
+        ? { onSecondaryWriteError: memoryOptions.onSecondaryWriteError }
+        : {}),
+      ...(memoryOptions?.requestId !== undefined ? { requestId: memoryOptions.requestId } : {}),
     });
     this.semanticCache = new SemanticCache(this.config.cacheTtlMs);
     this.safetyPipeline = new SafetyPipeline();
