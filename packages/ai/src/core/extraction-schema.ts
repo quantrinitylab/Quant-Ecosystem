@@ -120,7 +120,6 @@ export function mapFactToCandidate(
   fact: ExtractedFact,
   userId: string,
   trustTable: Record<string, number> = DEFAULT_TRUST_BY_FAMILY,
-  turn?: { excludeValues?: string[] },
 ): MemoryCandidate | null {
   // "used to be X" is not a current fact — do not store as active memory.
   if (fact.temporal === 'past') return null;
@@ -132,7 +131,6 @@ export function mapFactToCandidate(
   const metadata: Record<string, unknown> = {
     operation: fact.operation,
     slot: fact.slot,
-    value: fact.value, // canonical value (content may carry the evidence sentence)
     polarity: fact.polarity,
     temporal: fact.temporal,
     confidence: fact.confidence,
@@ -144,25 +142,8 @@ export function mapFactToCandidate(
     extractor: 'llm',
   };
 
-  // T-002 (M11D_DECISION_LOG): SELECTIVE quote content. T-001 proved a bare
-  // quote doubles recall but leaks superseded/negated values into recall
-  // (precision 100%→72.7% → reverted). The refined rule: the evidence quote
-  // becomes content ONLY for positive, current, store facts whose quote
-  // contains the fact's own value and NO value from a retracted/past/negative
-  // fact of the same turn (turn.excludeValues). Everything else keeps the
-  // canonical value — identical to the T-000 baseline behavior.
-  const quote = fact.evidence.quote?.trim();
-  const excluded = (turn?.excludeValues ?? []).map((v) => v.toLowerCase());
-  const quoteSafe =
-    fact.operation === 'store' &&
-    fact.polarity === 'positive' &&
-    fact.temporal === 'current' &&
-    !!quote &&
-    quote.toLowerCase().includes(fact.value.toLowerCase()) &&
-    !excluded.some((v) => v.length > 0 && quote.toLowerCase().includes(v));
-
   return {
-    content: quoteSafe ? (quote as string) : fact.value,
+    content: fact.value,
     kind: asKind(kindForSlot(fact.slot)),
     level: asLevel(levelForSlot(fact.slot)),
     owner,
