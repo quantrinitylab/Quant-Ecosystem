@@ -136,16 +136,17 @@ describe('action-item extraction baseline (meet-extract-v1)', () => {
     expect(r.titleRecall).toBeGreaterThanOrEqual(0.75); // line-per-item parser keeps titles
   });
 
-  it('honest gap: the parser DISCARDS assignees the model clearly provides (0%)', async () => {
+  // MEET-T-001 (one change: structured line format + parser, commit refs in
+  // PR): baseline assignee 0% / dueDate 0% -> measured 100% / 100% on the
+  // identical meet-extract-v1 corpus, title recall unchanged at 100%.
+  // Decision: KEEP. These gates freeze the new floor.
+  it('regression gate: assignees survive parsing (was 0% pre-MEET-T-001)', async () => {
     const r = await runEval();
-    // The commitments bridge (#31) cannot fire until this number moves.
-    // Better extraction must change THIS assertion with a corpus bump +
-    // decision-log row — not claim improvement by intuition.
-    expect(r.assigneeRecall).toBe(0);
+    expect(r.assigneeRecall).toBeGreaterThanOrEqual(0.75);
   });
 
-  it('honest gap: the parser discards due dates too (0%)', async () => {
+  it('regression gate: due dates survive parsing (was 0% pre-MEET-T-001)', async () => {
     const r = await runEval();
-    expect(r.dueDateRecall).toBe(0);
+    expect(r.dueDateRecall).toBeGreaterThanOrEqual(0.66);
   });
 });
