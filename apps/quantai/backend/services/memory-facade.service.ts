@@ -17,6 +17,7 @@
 import {
   MemoryFacade,
   createMemoryService,
+  createInMemoryMemoryDb,
   type MemoryBackend,
   type ConversationTurn,
   type RetrievalContext,
@@ -82,60 +83,11 @@ export function resolveFacadeMode(env: NodeJS.ProcessEnv = process.env): FacadeM
   return VALID_MODES.includes(raw) ? raw : 'legacy';
 }
 
-/** In-memory MemoryDbClient for environments without a database (dev/tests). */
-export function createInMemoryDbClient(): MemoryDbClient {
-  interface Row {
-    [key: string]: unknown;
-    ownerId: string | null;
-    archivedAt: Date | null;
-    deletedAt: Date | null;
-  }
-  const rows: Row[] = [];
-  let seq = 0;
-  return {
-    memoryRecord: {
-      create: async ({ data }: { data: Record<string, unknown> }) => {
-        const n = ++seq;
-        const now = new Date();
-        const row: Row = {
-          id: `row_${n}`,
-          logicalId: `mem_${n}`,
-          version: 1,
-          archivedAt: null,
-          deletedAt: null,
-          createdAt: now,
-          updatedAt: now,
-          ...data,
-        } as Row;
-        rows.push(row);
-        return row;
-      },
-      findMany: async ({ where }: { where?: Record<string, unknown> } = {}) =>
-        rows.filter((r) => {
-          const w = where ?? {};
-          if ('ownerId' in w && r.ownerId !== w['ownerId']) return false;
-          if ('archivedAt' in w && w['archivedAt'] === null && r.archivedAt !== null) return false;
-          if ('deletedAt' in w && w['deletedAt'] === null && r.deletedAt !== null) return false;
-          return true;
-        }),
-      updateMany: async ({
-        where,
-        data,
-      }: {
-        where?: Record<string, unknown>;
-        data?: Record<string, unknown>;
-      }) => {
-        let count = 0;
-        for (const r of rows) {
-          if (where?.['logicalId'] !== undefined && r['logicalId'] !== where['logicalId']) continue;
-          Object.assign(r, data ?? {});
-          count++;
-        }
-        return { count };
-      },
-    },
-  } as unknown as MemoryDbClient;
-}
+/**
+ * In-memory MemoryDbClient re-export (dev/tests). The implementation now
+ * lives in @quant/ai (createInMemoryMemoryDb) so every app shares one fake.
+ */
+export const createInMemoryDbClient = createInMemoryMemoryDb;
 
 /**
  * Build the QuantAI memory facade. ONE construction site (composition root):
@@ -144,7 +96,7 @@ export function createInMemoryDbClient(): MemoryDbClient {
 export function createQuantaiMemoryFacade(opts: QuantaiMemoryFacadeOptions): QuantaiMemoryFacade {
   const mode = opts.mode ?? resolveFacadeMode(opts.env);
   const legacy = new QuantaiLegacyBackend(opts.legacyService);
-  const next = createMemoryService({ prisma: opts.dbClient ?? createInMemoryDbClient() });
+  const next = createMemoryService({ prisma: opts.dbClient ?? createInMemoryMemoryDb() });
 
   const shadowReports: ShadowReport[] = [];
   let requestCounter = 0;

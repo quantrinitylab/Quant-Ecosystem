@@ -306,8 +306,15 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
   // ─── Conversational path (M11c: routed through the ADR-011 MemoryFacade) ──
   // Mode via QUANTAI_MEMORY_MODE (legacy default = byte-identical behavior).
   // Existing CRUD routes above are deliberately untouched.
+  // Composition rule (#27): with DATABASE_URL the real Prisma client persists
+  // memories durably; without it the shared in-memory client (inside the
+  // facade service) keeps the same orchestration path alive.
+  const realDb = process.env['DATABASE_URL']
+    ? ((fastify as unknown as { prisma?: unknown }).prisma as never)
+    : undefined;
   const { facade, mode, shadowReports } = createQuantaiMemoryFacade({
     legacyService: service,
+    ...(realDb ? { dbClient: realDb } : {}),
   });
 
   // POST /observe - record a conversation turn (writes per facade mode)
