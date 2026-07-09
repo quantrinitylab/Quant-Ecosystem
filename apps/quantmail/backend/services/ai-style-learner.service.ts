@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import type { AIEngine } from '@quant/ai';
+import type { AIEngine, MemoryBackend, RememberRequest } from '@quant/ai';
+
+/** A MemoryBackend that also supports explicit writes (MemoryService does). */
+export interface RememberingMemoryBackend extends MemoryBackend {
+  remember?(input: RememberRequest): Promise<void>;
+}
 import { createAppError } from '@quant/server-core';
 
 export const SentEmailSchema = z.object({
@@ -31,14 +36,85 @@ export type SentEmail = z.infer<typeof SentEmailSchema>;
 export type StyleProfile = z.infer<typeof StyleProfileSchema>;
 export type StyledDraft = z.infer<typeof StyledDraftSchema>;
 
-export class AIStyleLearnerService {
-  /**
-   * In-memory store for user style profiles. This is ephemeral and will be lost on
-   * process restart. Will be replaced with database persistence in production.
-   */
-  private styleProfiles: Map<string, StyleProfile> = new Map();
+// ─── Style profile persistence port (M11c flagship integration) ─────────────
+// The user's writing style IS a user memory. The port lets the profile live in
+// the memory subsystem without coupling this service to any backend (Law 4/5).
 
-  constructor(private readonly ai: AIEngine) {}
+export interface StyleProfileStore {
+  get(userId: string): Promise<StyleProfile | null>;
+  set(userId: string, profile: StyleProfile): Promise<void>;
+}
+
+/** Default store: the original ephemeral Map. Byte-identical behavior. */
+export class InMemoryStyleStore implements StyleProfileStore {
+  private profiles = new Map<string, StyleProfile>();
+  async get(userId: string): Promise<StyleProfile | null> {
+    return this.profiles.get(userId) ?? null;
+  }
+  async set(userId: string, profile: StyleProfile): Promise<void> {
+    this.profiles.set(userId, profile);
+  }
+}
+
+const STYLE_MEMORY_PREFIX = 'quantmail-style-profile';
+
+/**
+ * Memory-subsystem-backed store: persists the profile as a user memory via any
+ * MemoryBackend (the facade or MemoryService both satisfy it). Survives
+ * restarts; recallable and exportable like every other user memory.
+ */
+export class MemoryBackedStyleStore implements StyleProfileStore {
+  constructor(private readonly memory: RememberingMemoryBackend) {}
+
+  async get(userId: string): Promise<StyleProfile | null> {
+    const results = await this.memory.recall({ actor: userId, query: STYLE_MEMORY_PREFIX });
+    // Newest-first not guaranteed across backends — scan for the latest valid payload.
+    for (const r of results) {
+      const idx = r.content.indexOf('{');
+      if (idx < 0) continue;
+      try {
+        const parsed = StyleProfileSchema.safeParse(JSON.parse(r.content.slice(idx)));
+        if (parsed.success && parsed.data.userId === userId) return parsed.data;
+      } catch {
+        /* skip malformed row */
+      }
+    }
+    return null;
+  }
+
+  async set(userId: string, profile: StyleProfile): Promise<void> {
+    const content = `${STYLE_MEMORY_PREFIX} ${JSON.stringify(profile)}`;
+    if (this.memory.remember) {
+      // Explicit write path (bypasses extraction — we KNOW this is worth storing).
+      await this.memory.remember({
+        actor: userId,
+        content,
+        kind: 'preference',
+        level: 'user',
+        session: 'quantmail-style',
+      });
+    } else {
+      // Facade path: observe (extraction-mediated) — best effort.
+      await this.memory.observe({
+        actor: userId,
+        session: 'quantmail-style',
+        role: 'system',
+        content,
+      });
+    }
+  }
+}
+
+export class AIStyleLearnerService {
+  /** Style persistence port. Default preserves the original in-memory behavior. */
+  private readonly store: StyleProfileStore;
+
+  constructor(
+    private readonly ai: AIEngine,
+    store?: StyleProfileStore,
+  ) {
+    this.store = store ?? new InMemoryStyleStore();
+  }
 
   async analyzeSentItems(sentEmails: SentEmail[], userId: string): Promise<StyleProfile> {
     const validated = sentEmails.map((e) => SentEmailSchema.parse(e));
@@ -87,12 +163,12 @@ Respond ONLY with valid JSON:
       throw createAppError('AI returned invalid style profile', 500, 'AI_VALIDATION_ERROR');
     }
 
-    this.styleProfiles.set(userId, result.data);
+    await this.store.set(userId, result.data);
     return result.data;
   }
 
   async getStyleProfile(userId: string): Promise<StyleProfile> {
-    const profile = this.styleProfiles.get(userId);
+    const profile = await this.store.get(userId);
     if (!profile) {
       throw createAppError(
         'No style profile found. Analyze sent items first.',
@@ -104,7 +180,7 @@ Respond ONLY with valid JSON:
   }
 
   async generateStyledDraft(content: string, userId: string): Promise<StyledDraft> {
-    const profile = this.styleProfiles.get(userId);
+    const profile = await this.store.get(userId);
     const styleContext = profile
       ? `User's style: ${profile.tone} tone, ${profile.vocabularyLevel} vocabulary, formality: ${profile.formality}, greeting: "${profile.greetingStyle}", closing: "${profile.closingStyle}"`
       : 'No style profile available. Use professional defaults.';
