@@ -11,6 +11,7 @@
     "test": "vitest run",
     "memory:eval": "vitest run src/__tests__/memory-eval.test.ts --reporter=verbose",
     "routing:eval": "vitest run src/__tests__/routing-eval.test.ts --reporter=verbose",
+    "safety:eval": "vitest run src/__tests__/safety-eval.test.ts --reporter=verbose",
     "lint": "eslint ."
   },
   "dependencies": {
