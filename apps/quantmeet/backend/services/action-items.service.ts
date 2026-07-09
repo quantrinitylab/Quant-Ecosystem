@@ -37,6 +37,37 @@ export interface ActionItem {
   status: 'pending' | 'in_progress' | 'completed';
 }
 
+// ---------------------------------------------------------------------------
+// Cross-app commitment bridge (issue #29). A meeting action item assigned to a
+// known participant ALSO becomes a user commitment in the shared memory
+// channel - so it surfaces in QuantMail follow-ups. Best-effort by design.
+// ---------------------------------------------------------------------------
+
+/** The narrow slice of UserCommitmentMemory the bridge needs. */
+export interface CommitmentChannel {
+  add(commitment: {
+    id: string;
+    userId: string;
+    description: string;
+    dueDate: string | null;
+    source: string;
+    status: 'active' | 'completed' | 'dismissed';
+    createdAt: string;
+  }): Promise<void>;
+}
+
+/** Resolves a room's participants for assignee -> userId mapping. */
+export interface ParticipantResolver {
+  getRoom(roomId: string): Promise<{
+    participants: Array<{ id: string; userId: string; displayName: string }>;
+  }>;
+}
+
+export interface CommitmentBridge {
+  channel: CommitmentChannel;
+  rooms: ParticipantResolver;
+}
+
 /**
  * Local AIInference interface for scaffold purposes.
  * This interface mirrors the patterns in @quant/ai and should be aligned
@@ -87,7 +118,36 @@ export class ActionItemsService {
   constructor(
     private readonly prisma: ActionItemsPrisma,
     private readonly ai: AIInference,
+    private readonly commitmentBridge?: CommitmentBridge,
   ) {}
+
+  /**
+   * Best-effort: mirror an assigned action item into the shared commitments
+   * channel when the assignee resolves to a room participant. Resolution is
+   * by participant id OR case-insensitive display name. Never throws.
+   */
+  private async bridgeCommitment(roomId: string, item: ActionItem): Promise<void> {
+    if (!this.commitmentBridge || !item.assignee) return;
+    try {
+      const room = await this.commitmentBridge.rooms.getRoom(roomId);
+      const needle = item.assignee.trim().toLowerCase();
+      const participant = room.participants.find(
+        (p) => p.id === item.assignee || p.displayName.trim().toLowerCase() === needle,
+      );
+      if (!participant) return;
+      await this.commitmentBridge.channel.add({
+        id: item.id,
+        userId: participant.userId,
+        description: item.title + (item.description ? ` - ${item.description}` : ''),
+        dueDate: item.dueDate,
+        source: 'quantmeet',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      });
+    } catch {
+      /* best-effort by design - never fail the meeting flow */
+    }
+  }
 
   /**
    * Pure compute: extract action items from transcript segments. Returns the
@@ -167,6 +227,7 @@ export class ActionItemsService {
 
     const persisted: ActionItem[] = [];
     for (const item of items) {
+      await this.bridgeCommitment(roomId, item);
       const row = await this.prisma.meetingActionItem.create({
         data: {
           roomId,
