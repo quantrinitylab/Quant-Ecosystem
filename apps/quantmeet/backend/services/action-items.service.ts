@@ -163,21 +163,76 @@ export class ActionItemsService {
 
     const transcriptText = transcript.map((s) => `[${s.participantId}]: ${s.text}`).join('\n');
 
-    const prompt = `Extract action items from the following meeting transcript. For each item, identify the title, description, assignee, due date, and priority.\n\nTranscript:\n${transcriptText}`;
+    // Experiment MEET-T-001 (issue #29): request a STRUCTURED line format and
+    // parse it, instead of discarding assignee/due info in freeform prose.
+    // Baseline (meet-extract-v1): title 100%, assignee 0%, dueDate 0%.
+    const prompt =
+      'Extract action items from the following meeting transcript. ' +
+      'Return ONE line per item in EXACTLY this format:\n' +
+      'Title: <short title> | Assignee: <participant display name or none> | ' +
+      'Due: <date phrase or none> | Priority: <low|medium|high|urgent>\n\n' +
+      `Transcript:\n${transcriptText}`;
     const result = await this.ai.generateText(prompt);
 
     const lines = result.split('\n').filter((l) => l.trim().length > 0);
-    const items: ActionItem[] = lines.map((line) => ({
+    const items: ActionItem[] = lines.map((line) => this.parseActionItemLine(line.trim()));
+
+    return items;
+  }
+
+  /** Parse one model-output line into an ActionItem (structured or prose). */
+  private parseActionItemLine(line: string): ActionItem {
+    const base: ActionItem = {
       id: randomUUID(),
-      title: line.trim(),
+      title: line,
       description: '',
       assignee: null,
       dueDate: null,
-      priority: 'medium' as const,
-      status: 'pending' as const,
-    }));
+      priority: 'medium',
+      status: 'pending',
+    };
 
-    return items;
+    const norm = (v: string | undefined): string | null => {
+      const t = (v ?? '').trim();
+      return t.length === 0 || /^(none|null|n\/a|-)$/i.test(t) ? null : t;
+    };
+
+    // 1. Structured: "Title: X | Assignee: Y | Due: Z | Priority: P"
+    if (/\btitle\s*:/i.test(line) && line.includes('|')) {
+      const fields = new Map<string, string>();
+      for (const part of line.split('|')) {
+        const m = part.match(/^\s*([a-z ]+?)\s*:\s*(.+?)\s*$/i);
+        if (m) fields.set(m[1]!.trim().toLowerCase(), m[2]!.trim());
+      }
+      const title = norm(fields.get('title'));
+      if (title) {
+        const rawPriority = (fields.get('priority') ?? '').toLowerCase();
+        const priority = (['low', 'medium', 'high', 'urgent'] as const).find(
+          (p) => p === rawPriority,
+        );
+        return {
+          ...base,
+          title,
+          assignee: norm(fields.get('assignee')),
+          dueDate: norm(fields.get('due') ?? fields.get('due date')),
+          priority: priority ?? 'medium',
+        };
+      }
+    }
+
+    // 2. Prose: "- Name will <do something> by <date>"
+    const prose = line.match(/^[-*•]?\s*(\w[\w .'-]*?)\s+will\s+(.+?)(?:\s+by\s+(.+?))?[.]?$/i);
+    if (prose) {
+      return {
+        ...base,
+        title: line.replace(/^[-*•]\s*/, ''),
+        assignee: prose[1]!.trim(),
+        dueDate: norm(prose[3]),
+      };
+    }
+
+    // 3. Fallback: original behavior (whole line as title).
+    return { ...base, title: line.replace(/^[-*•]\s*/, '') };
   }
 
   /** Load a room's persisted action items, oldest first. */
