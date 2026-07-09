@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import type { AIEngine } from '@quant/ai';
+import { UserCommitmentMemory } from '@quant/ai';
+import type { UserCommitment } from '@quant/ai';
 import type { RememberingMemoryBackend } from './ai-style-learner.service';
 import { createAppError } from '@quant/server-core';
 
@@ -54,50 +56,40 @@ export class InMemoryReminderStore implements ReminderStore {
   }
 }
 
-const REMINDER_MEMORY_PREFIX = 'quantmail-reminder';
-
-/** Persists reminders as episodic user memories via the memory subsystem. */
+/**
+ * Persists reminders through the SHARED UserCommitmentMemory channel
+ * (@quant/ai): commitments made in mail live beside commitments made in
+ * meetings (QuantMeet) and are consumable by any surface. Append-only
+ * status semantics are provided by the channel itself.
+ */
 export class MemoryBackedReminderStore implements ReminderStore {
-  constructor(private readonly memory: RememberingMemoryBackend) {}
+  private readonly channel: UserCommitmentMemory;
+  constructor(memory: RememberingMemoryBackend) {
+    this.channel = new UserCommitmentMemory(memory);
+  }
 
   async save(reminder: Reminder): Promise<void> {
-    const content = `${REMINDER_MEMORY_PREFIX} ${reminder.id} ${JSON.stringify(reminder)}`;
-    if (this.memory.remember) {
-      await this.memory.remember({
-        actor: reminder.userId,
-        content,
-        kind: 'episodic',
-        level: 'user',
-        session: 'quantmail-followups',
-      });
-    } else {
-      await this.memory.observe({
-        actor: reminder.userId,
-        session: 'quantmail-followups',
-        role: 'system',
-        content,
-      });
-    }
+    await this.channel.add({
+      id: reminder.id,
+      userId: reminder.userId,
+      description: reminder.commitmentDescription,
+      dueDate: reminder.dueDate,
+      source: 'quantmail',
+      status: reminder.status,
+      createdAt: reminder.createdAt,
+    });
   }
 
   async listActive(userId: string): Promise<Reminder[]> {
-    const results = await this.memory.recall({ actor: userId, query: REMINDER_MEMORY_PREFIX });
-    // Multiple rows per reminder id possible (status updates append — Law 2).
-    // The LAST occurrence per id wins; then filter to active.
-    const latest = new Map<string, Reminder>();
-    for (const r of results) {
-      const idx = r.content.indexOf('{');
-      if (idx < 0) continue;
-      try {
-        const parsed = ReminderSchema.safeParse(JSON.parse(r.content.slice(idx)));
-        if (parsed.success && parsed.data.userId === userId) {
-          latest.set(parsed.data.id, parsed.data);
-        }
-      } catch {
-        /* skip malformed row */
-      }
-    }
-    return Array.from(latest.values()).filter((r) => r.status === 'active');
+    const commitments = await this.channel.listActive(userId);
+    return commitments.map((c: UserCommitment) => ({
+      id: c.id,
+      commitmentDescription: c.description,
+      dueDate: c.dueDate ?? '',
+      userId: c.userId,
+      status: c.status,
+      createdAt: c.createdAt,
+    }));
   }
 }
 

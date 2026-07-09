@@ -168,6 +168,12 @@ export {
   USER_CONTACT_MEMORY_PREFIX,
 } from './adapters/user-contact-memory';
 export type { UserContactContext, ContactMemoryBackend } from './adapters/user-contact-memory';
+export {
+  UserCommitmentMemory,
+  UserCommitmentSchema,
+  USER_COMMITMENT_MEMORY_PREFIX,
+} from './adapters/user-commitment-memory';
+export type { UserCommitment, CommitmentMemoryBackend } from './adapters/user-commitment-memory';
 export type { QdrantConfig } from './adapters/qdrant-vector-backend';
 export { LlmExtractionModel } from './adapters/llm-extraction-model';
 export type { LlmExtractionConfig } from './adapters/llm-extraction-model';
