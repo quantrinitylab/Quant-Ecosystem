@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { AIEngine } from '@quant/ai';
 import { createAppError } from '@quant/server-core';
+import { UserContactMemory } from '@quant/ai';
 import type { RememberingMemoryBackend } from './ai-style-learner.service';
 
 export const InteractionSchema = z.object({
@@ -33,48 +34,23 @@ export interface ContactContextStore {
   set(userId: string, context: ContactContext): Promise<void>;
 }
 
-const CONTACT_MEMORY_PREFIX = 'quantmail-contact-context';
-
-/** Persists contact context as a user memory via the memory subsystem. */
+/**
+ * Persists contact context through the SHARED UserContactMemory channel
+ * (@quant/ai) so every app - chat replies, meeting prep, scheduling - reads
+ * the same durable relationship memory that QuantMail analyzes.
+ */
 export class MemoryBackedContactStore implements ContactContextStore {
-  constructor(private readonly memory: RememberingMemoryBackend) {}
+  private readonly channel: UserContactMemory;
+  constructor(memory: RememberingMemoryBackend) {
+    this.channel = new UserContactMemory(memory);
+  }
 
   async get(userId: string, contactEmail: string): Promise<ContactContext | null> {
-    const results = await this.memory.recall({
-      actor: userId,
-      query: `${CONTACT_MEMORY_PREFIX} ${contactEmail}`,
-    });
-    for (const r of results) {
-      const idx = r.content.indexOf('{');
-      if (idx < 0) continue;
-      try {
-        const parsed = ContactContextSchema.safeParse(JSON.parse(r.content.slice(idx)));
-        if (parsed.success && parsed.data.contactEmail === contactEmail) return parsed.data;
-      } catch {
-        /* skip malformed row */
-      }
-    }
-    return null;
+    return this.channel.get(userId, contactEmail);
   }
 
   async set(userId: string, context: ContactContext): Promise<void> {
-    const content = `${CONTACT_MEMORY_PREFIX} ${context.contactEmail} ${JSON.stringify(context)}`;
-    if (this.memory.remember) {
-      await this.memory.remember({
-        actor: userId,
-        content,
-        kind: 'entity',
-        level: 'user',
-        session: 'quantmail-contacts',
-      });
-    } else {
-      await this.memory.observe({
-        actor: userId,
-        session: 'quantmail-contacts',
-        role: 'system',
-        content,
-      });
-    }
+    await this.channel.set(userId, context);
   }
 }
 
