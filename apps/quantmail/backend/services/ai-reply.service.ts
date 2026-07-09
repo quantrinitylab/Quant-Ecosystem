@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import type { AIEngine } from '@quant/ai';
+import { UserStyleMemory } from '@quant/ai';
+import type { AIEngine, UserStyleProfile } from '@quant/ai';
 import { createAppError } from '@quant/server-core';
 
 export const ReplyInputSchema = z.object({
@@ -25,8 +26,21 @@ export type ReplyInput = z.infer<typeof ReplyInputSchema>;
 export type ReplyOptions = z.infer<typeof ReplyOptionsSchema>;
 export type ReplyResult = z.infer<typeof ReplyResultSchema>;
 
+/** Anything that can produce the user's cross-app style profile. */
+export interface StyleSource {
+  get(userId: string): Promise<UserStyleProfile | null>;
+}
+
 export class AIReplyService {
-  constructor(private readonly ai: AIEngine) {}
+  /** Optional style memory - the home-app loop: mail learns, mail replies use it. */
+  private readonly style: StyleSource | undefined;
+
+  constructor(
+    private readonly ai: AIEngine,
+    style?: StyleSource,
+  ) {
+    this.style = style;
+  }
 
   async draftReply(
     originalEmail: ReplyInput,
@@ -36,8 +50,20 @@ export class AIReplyService {
     const validated = ReplyInputSchema.parse(originalEmail);
     const opts = options ? ReplyOptionsSchema.parse(options) : {};
 
-    const toneInstruction = opts.tone ? `Use a ${opts.tone} tone.` : 'Use a professional tone.';
+    let toneInstruction = opts.tone ? `Use a ${opts.tone} tone.` : 'Use a professional tone.';
     const lengthInstruction = opts.maxLength ? `Keep the reply under ${opts.maxLength} words.` : '';
+
+    // The system prompt promises "matching the user writing style" - now it
+    // actually can. Explicit tone wins; remembered style replaces only the
+    // generic professional default. Best-effort.
+    if (!opts.tone && this.style) {
+      try {
+        const hints = UserStyleMemory.toPromptHints(await this.style.get(userId));
+        if (hints) toneInstruction = hints;
+      } catch {
+        /* best-effort by design */
+      }
+    }
 
     const response = await this.ai.infer({
       prompt: `Draft a reply to this email. ${toneInstruction} ${lengthInstruction}
