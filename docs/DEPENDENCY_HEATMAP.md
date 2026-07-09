@@ -22,13 +22,13 @@ Two independent signals per package:
 
 Scoring rubric:
 
-| Score | Criteria | Meaning if deleted |
-|-------|----------|--------------------|
-| **CRITICAL** | D ≥ 8 or I ≥ 50 | Platform-wide build failure; most apps dead |
-| **HIGH** | D ≥ 3 or I ≥ 10 | Multiple apps/features break |
-| **MEDIUM** | D = 2 or I in 4–9 | One or two features break |
-| **LOW** | D = 1 or I in 1–3 | Single consumer breaks; contained |
-| **DEAD** | D = 0 and I = 0 | Nothing breaks. Nothing calls it. |
+| Score        | Criteria          | Meaning if deleted                          |
+| ------------ | ----------------- | ------------------------------------------- |
+| **CRITICAL** | D ≥ 8 or I ≥ 50   | Platform-wide build failure; most apps dead |
+| **HIGH**     | D ≥ 3 or I ≥ 10   | Multiple apps/features break                |
+| **MEDIUM**   | D = 2 or I in 4–9 | One or two features break                   |
+| **LOW**      | D = 1 or I in 1–3 | Single consumer breaks; contained           |
+| **DEAD**     | D = 0 and I = 0   | Nothing breaks. Nothing calls it.           |
 
 > Note: D and I disagree sometimes (declared but never imported, or imported via
 > transitive re-export). Disagreements are flagged in §6 — they are tech-debt signals.
@@ -37,42 +37,42 @@ Scoring rubric:
 
 ## 2. CRITICAL — deleting these kills the platform (10)
 
-| Package | D | I (files) | Role (organ, per QUANT_FOUNDATION) |
-|---------|---|-----------|------------------------------------|
-| `@quant/common` | 62 | 54 | Shared types/contracts — the protocol layer itself (Law 4) |
-| `@quant/server-core` | 14 | 337 | Fastify runtime — the Heart |
-| `@quant/shared-ui` | 15 | 188 | UI component system — every frontend |
-| `@quant/brand` | 16 | 156 | Design tokens/brand — every frontend |
-| `@quant/api-client` | 15 | 117 | Typed client — every frontend↔backend edge |
-| `@quant/ai` | 19 | 76 | AI engine + memory subsystem — Frontal Cortex |
-| `@quant/database` | 20 | 6 | Prisma schema/client — single source of persistence truth |
-| `@quant/auth` | 18 | 13 | Identity root — DNA (Law 1) |
-| `@quant/realtime` | 14 | 7 | Realtime plumbing — Nervous System |
-| `@quant/queue` | 8 | 15 | BullMQ jobs/outbox — Blood Circulation |
+| Package              | D   | I (files) | Role (organ, per QUANT_FOUNDATION)                         |
+| -------------------- | --- | --------- | ---------------------------------------------------------- |
+| `@quant/common`      | 62  | 54        | Shared types/contracts — the protocol layer itself (Law 4) |
+| `@quant/server-core` | 14  | 337       | Fastify runtime — the Heart                                |
+| `@quant/shared-ui`   | 15  | 188       | UI component system — every frontend                       |
+| `@quant/brand`       | 16  | 156       | Design tokens/brand — every frontend                       |
+| `@quant/api-client`  | 15  | 117       | Typed client — every frontend↔backend edge                 |
+| `@quant/ai`          | 19  | 76        | AI engine + memory subsystem — Frontal Cortex              |
+| `@quant/database`    | 20  | 6         | Prisma schema/client — single source of persistence truth  |
+| `@quant/auth`        | 18  | 13        | Identity root — DNA (Law 1)                                |
+| `@quant/realtime`    | 14  | 7         | Realtime plumbing — Nervous System                         |
+| `@quant/queue`       | 8   | 15        | BullMQ jobs/outbox — Blood Circulation                     |
 
 > `database`, `auth`, `realtime` have low I but very high D: they are imported in
-> few *files* but those files are every backend's spine. D is the truthful signal here.
+> few _files_ but those files are every backend's spine. D is the truthful signal here.
 
 ## 3. HIGH — deleting these breaks multiple apps/features (16)
 
-| Package | D | I | Notes |
-|---------|---|---|-------|
-| `@quant/agentic` | 5 | 22 | agent framework used by AI features |
-| `@quant/search` | 3 | 22 | search across mail/drive/sync |
-| `@quant/moderation` | 3 | 14 | trust pipeline (Law 7) — chat, sync, ads |
-| `@quant/encryption` | 3 | 13 | Immune System component |
-| `@quant/credits` | 4 | 11 | AI metering — gating for inference |
-| `@quant/health-server` | 6 | 6 | liveness/readiness for services |
-| `@quant/ml-runtime` | 5 | 4 | model serving glue |
-| `@quant/notifications` | 4 | 6 | Hormones — cross-app fan-out |
-| `@quant/quant-tools` | 3 | 8 | AI tool registry (dep of `@quant/ai`) |
-| `@quant/quant-economy` | 2 | 8 | credits/economy flows |
-| `@quant/triton-client` | 4 | 5 | GPU inference client |
-| `@quant/ranking` | 3 | 6 | feed/search ranking |
-| `@quant/recommendations` | 3 | 3 | recommendation surface |
-| `@quant/federation` | 3 | 3 | cross-instance protocol |
-| `@quant/payments` | 3 | 3 | billing edge |
-| `@quant/storage` | 3 | 4 | object-storage abstraction |
+| Package                  | D   | I   | Notes                                    |
+| ------------------------ | --- | --- | ---------------------------------------- |
+| `@quant/agentic`         | 5   | 22  | agent framework used by AI features      |
+| `@quant/search`          | 3   | 22  | search across mail/drive/sync            |
+| `@quant/moderation`      | 3   | 14  | trust pipeline (Law 7) — chat, sync, ads |
+| `@quant/encryption`      | 3   | 13  | Immune System component                  |
+| `@quant/credits`         | 4   | 11  | AI metering — gating for inference       |
+| `@quant/health-server`   | 6   | 6   | liveness/readiness for services          |
+| `@quant/ml-runtime`      | 5   | 4   | model serving glue                       |
+| `@quant/notifications`   | 4   | 6   | Hormones — cross-app fan-out             |
+| `@quant/quant-tools`     | 3   | 8   | AI tool registry (dep of `@quant/ai`)    |
+| `@quant/quant-economy`   | 2   | 8   | credits/economy flows                    |
+| `@quant/triton-client`   | 4   | 5   | GPU inference client                     |
+| `@quant/ranking`         | 3   | 6   | feed/search ranking                      |
+| `@quant/recommendations` | 3   | 3   | recommendation surface                   |
+| `@quant/federation`      | 3   | 3   | cross-instance protocol                  |
+| `@quant/payments`        | 3   | 3   | billing edge                             |
+| `@quant/storage`         | 3   | 4   | object-storage abstraction               |
 
 ## 4. MEDIUM — one or two features break (14)
 
@@ -109,12 +109,12 @@ voice-input, wearables
 
 **Flagged discrepancies (declared-but-never-imported — remove the declaration or the package):**
 
-| Package | D | I | Verdict |
-|---------|---|---|---------|
-| `@quant/security` | 1 | 0 | declared somewhere, imported nowhere → effectively DEAD |
-| `@quant/observability` | 1 | 0 | same |
-| `@quant/data-plane` | 1 | 0 | outbox concept lives in DB schema, package unused |
-| `@quant/quant-orchestrator` | 0 | 0 | name suggests core; reality: dead |
+| Package                     | D   | I   | Verdict                                                 |
+| --------------------------- | --- | --- | ------------------------------------------------------- |
+| `@quant/security`           | 1   | 0   | declared somewhere, imported nowhere → effectively DEAD |
+| `@quant/observability`      | 1   | 0   | same                                                    |
+| `@quant/data-plane`         | 1   | 0   | outbox concept lives in DB schema, package unused       |
+| `@quant/quant-orchestrator` | 0   | 0   | name suggests core; reality: dead                       |
 
 \* `social-graph` shows D=0 here but is referenced in QuantSync roadmap — verify before deletion.
 
@@ -140,9 +140,11 @@ voice-input, wearables
 ## 8. Regeneration
 
 ```bash
-# Declared dependents: scan all workspace package.jsons for @quant/* deps
-# Import reach: grep -rlE "from [\"']<pkg>[\"'/]" apps packages services
-node scripts/dependency-heatmap.mjs   # (add script when cleanup milestone starts)
+node scripts/dependency-heatmap.mjs          # markdown tables + summary + flags
+node scripts/dependency-heatmap.mjs --json   # machine-readable
 ```
+
+The script is the canonical method; if its output and this document disagree,
+regenerate the document.
 
 **Owner:** Kiro · **Approved by:** CEO · **Version:** 1.0 (snapshot aa1fc92) · **Date:** 2026-07-09
