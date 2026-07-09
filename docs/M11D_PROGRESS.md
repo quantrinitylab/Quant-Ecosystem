@@ -32,6 +32,24 @@ memory hit rate: 100% · avg recall: 7.7ms
 This confirms the write path (Postgres), rule extraction, and keyword retrieval
 work end-to-end on real infrastructure. These are real measurements, not fakes.
 
+## Qdrant backend integration: PROVEN — no mocks
+
+`scripts/qdrant-smoke.mts` ran the REAL `QdrantVectorBackend` adapter against live
+Qdrant (deterministic test vectors, NOT OpenAI embeddings — this verifies the
+transport + owner-scoping, not semantic quality):
+
+```
+point id mapping (cuid → uuid): mem_a1 → b9707091-77c5-906e-8d29-1157a6b91b20
+alice query hits: ["mem_a1","mem_a2"]
+bob query hits:   ["mem_b1"]
+owner isolation:  OK — no cross-owner leak
+self-recall:      alice sees mem_a1=true
+```
+
+Confirms: collection create, point upsert (cuid→UUID id mapping), owner-scoped
+vector query, and cross-owner isolation all work end-to-end on live Qdrant. The
+semantic quality (real embeddings) is gated on the OpenAI key below.
+
 ## Blocker for the FULL baseline: OPENAI_API_KEY
 
 The OpenAI-dependent half — real embeddings (→ Qdrant vector retrieval) and LLM
@@ -60,6 +78,7 @@ gates) and archives `docs/baselines/baseline-<ts>.{json,md}` (see
 
 - [x] Stack up (Docker/Postgres/Qdrant) + migrations + schema verified
 - [x] Real storage + retrieval proven on live Postgres (smoke)
+- [x] Qdrant backend integration proven on live Qdrant (upsert/query/owner-isolation)
 - [x] OpenAI integration wired via configuration (`composeLiveBaselineDeps`)
 - [ ] **Provide `OPENAI_API_KEY`** → run `pnpm memory:baseline`
 - [ ] Archive the frozen baseline + fill `docs/baselines/README.md`
