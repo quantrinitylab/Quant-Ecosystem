@@ -1,0 +1,11 @@
+{
+  "capturedAt": "2026-07-09T17:56:03.980Z",
+  "extractionModel": "gpt-4o-mini",
+  "embeddingModel": "text-embedding-3-small",
+  "promptRevision": "b5a6df97ec7fc046",
+  "policyVersion": "v1",
+  "corpusVersion": "real-conv-v1",
+  "commitSha": "dc9e65da668ca3164861f332c85e3ff638595a32",
+  "workingTreeDirty": false,
+  "lockfileHash": "403437024d92b617"
+}
