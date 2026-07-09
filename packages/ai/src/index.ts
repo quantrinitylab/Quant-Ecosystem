@@ -161,6 +161,12 @@ export {
   USER_STYLE_MEMORY_PREFIX,
 } from './adapters/user-style-memory';
 export type { UserStyleProfile, StyleMemoryBackend } from './adapters/user-style-memory';
+export {
+  UserContactMemory,
+  UserContactContextSchema,
+  USER_CONTACT_MEMORY_PREFIX,
+} from './adapters/user-contact-memory';
+export type { UserContactContext, ContactMemoryBackend } from './adapters/user-contact-memory';
 export type { QdrantConfig } from './adapters/qdrant-vector-backend';
 export { LlmExtractionModel } from './adapters/llm-extraction-model';
 export type { LlmExtractionConfig } from './adapters/llm-extraction-model';

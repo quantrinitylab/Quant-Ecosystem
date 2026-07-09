@@ -1,5 +1,5 @@
-import { UserStyleMemory } from '@quant/ai';
-import type { AIEngine, UserStyleProfile } from '@quant/ai';
+import { UserStyleMemory, UserContactMemory } from '@quant/ai';
+import type { AIEngine, UserStyleProfile, UserContactContext } from '@quant/ai';
 import { z } from 'zod';
 
 export const SmartReplyInputSchema = z.object({
@@ -11,6 +11,8 @@ export const SmartReplyInputSchema = z.object({
     }),
   ),
   count: z.number().int().min(1).max(10).optional().default(3),
+  /** Optional: the other participant's email for relationship-aware replies. */
+  participantEmail: z.string().email().optional(),
 });
 
 export const SmartReplyResultSchema = z.object({
@@ -25,15 +27,24 @@ export interface StyleSource {
   get(userId: string): Promise<UserStyleProfile | null>;
 }
 
+/** Anything that can produce cross-app relationship context for a contact. */
+export interface ContactSource {
+  get(userId: string, contactEmail: string): Promise<UserContactContext | null>;
+}
+
 export class AISmartRepliesService {
   /** Optional cross-app style memory (learned in QuantMail, used here). */
   private readonly style: StyleSource | undefined;
+  /** Optional cross-app relationship memory (analyzed in QuantMail). */
+  private readonly contacts: ContactSource | undefined;
 
   constructor(
     private readonly ai: AIEngine,
     style?: StyleSource,
+    contacts?: ContactSource,
   ) {
     this.style = style;
+    this.contacts = contacts;
   }
 
   async generateReplies(input: SmartReplyInput, userId: string): Promise<SmartReplyResult> {
@@ -53,12 +64,23 @@ export class AISmartRepliesService {
         /* best-effort by design */
       }
     }
+    let contactHints = '';
+    if (this.contacts && validated.participantEmail) {
+      try {
+        contactHints = UserContactMemory.toPromptHints(
+          await this.contacts.get(userId, validated.participantEmail),
+        );
+      } catch {
+        /* best-effort by design */
+      }
+    }
 
     const response = await this.ai.infer({
       prompt: `Here is a recent conversation:\n\n${conversationText}\n\nSuggest ${validated.count} short, contextual reply options that the user could send next. Each suggestion should be on its own line without numbering or bullet points.`,
       systemPrompt:
         'You are a helpful chat assistant that writes short, natural reply suggestions.' +
-        (styleHints ? ` ${styleHints}` : ''),
+        (styleHints ? ` ${styleHints}` : '') +
+        (contactHints ? ` ${contactHints}` : ''),
       userId,
       app: 'quantchat',
       feature: 'smart-replies',
