@@ -16,12 +16,12 @@ AIEngine (and app backends)
 
 ## Memory entry points (current, from grep)
 
-| Entry point              | File                                                                   | Memory used today         | Facade status                              |
-| ------------------------ | ---------------------------------------------------------------------- | ------------------------- | ------------------------------------------ |
-| AI inference context     | `packages/ai/src/core/engine.ts` (`enrichPrompt`, `addToHistory`)      | legacy `ContextManager`   | **NOT yet behind facade** (see wiring gap) |
-| QuantAI facts API        | `apps/quantai/backend/services/memory.service.ts` → `routes/memory.ts` | in-memory `AIMemoryStore` | candidate first cutover target             |
-| QuantChat media memories | `apps/quantchat/backend/services/memory.service.ts`                    | Prisma `Memory` (media)   | separate domain — out of scope             |
-| Identity app-memory      | `packages/identity-permissions/.../memory-manager.ts`                  | in-memory `MemoryManager` | unused (dead) — out of scope               |
+| Entry point              | File                                                                   | Memory used today         | Facade status                                                                                                                                        |
+| ------------------------ | ---------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AI inference context     | `packages/ai/src/core/engine.ts` (`enrichPrompt`, `addToHistory`)      | legacy `ContextManager`   | ✅ behind facade in `legacy` mode (#549)                                                                                                             |
+| QuantAI facts API        | `apps/quantai/backend/services/memory.service.ts` → `routes/memory.ts` | in-memory `AIMemoryStore` | ✅ conversational path behind facade — `QUANTAI_MEMORY_MODE` (legacy default), observe/recall/status routes, mode-cycle reversibility proven by test |
+| QuantChat media memories | `apps/quantchat/backend/services/memory.service.ts`                    | Prisma `Memory` (media)   | separate domain — out of scope                                                                                                                       |
+| Identity app-memory      | `packages/identity-permissions/.../memory-manager.ts`                  | in-memory `MemoryManager` | unused (dead) — out of scope                                                                                                                         |
 
 ## Wiring gap (the risky step — staged, not done)
 

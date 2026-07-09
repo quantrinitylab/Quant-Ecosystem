@@ -7,6 +7,17 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { MemoryService } from '../services/memory.service';
+import { createQuantaiMemoryFacade } from '../services/memory-facade.service';
+
+const observeSchema = z.object({
+  session: z.string().min(1),
+  role: z.string().min(1).default('user'),
+  content: z.string().min(1),
+});
+
+const recallQuerySchema = z.object({
+  query: z.string().min(1),
+});
 
 const categoryEnum = z.enum([
   'people',
@@ -290,5 +301,57 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
 
     const disclosure = service.getFullDisclosure(userId);
     return reply.send({ success: true, data: disclosure });
+  });
+
+  // ─── Conversational path (M11c: routed through the ADR-011 MemoryFacade) ──
+  // Mode via QUANTAI_MEMORY_MODE (legacy default = byte-identical behavior).
+  // Existing CRUD routes above are deliberately untouched.
+  const { facade, mode, shadowReports } = createQuantaiMemoryFacade({
+    legacyService: service,
+  });
+
+  // POST /observe - record a conversation turn (writes per facade mode)
+  fastify.post('/observe', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const parsed = observeSchema.safeParse(request.body);
+    if (!parsed.success) {
+      throw parsed.error;
+    }
+
+    await facade.observe({
+      actor: userId,
+      session: parsed.data.session,
+      role: parsed.data.role,
+      content: parsed.data.content,
+    });
+    return reply.status(202).send({ success: true, data: { mode } });
+  });
+
+  // GET /recall?query= - retrieve memories (reads per facade mode)
+  fastify.get('/recall', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const parsed = recallQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      throw parsed.error;
+    }
+
+    const results = await facade.recall({ actor: userId, query: parsed.data.query });
+    return reply.send({ success: true, data: { mode, results } });
+  });
+
+  // GET /facade/status - migration observability (mode + shadow evidence count)
+  fastify.get('/facade/status', async (_request, reply) => {
+    return reply.send({
+      success: true,
+      data: { mode, shadowReportCount: shadowReports.length },
+    });
   });
 }
