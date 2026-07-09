@@ -96,7 +96,7 @@ describe('MemoryBackedStyleStore', () => {
     };
     const store = new MemoryBackedStyleStore(backend);
     await store.set('u1', profile);
-    expect(turns[0]).toContain('quantmail-style-profile');
+    expect(turns[0]).toContain('user-style-profile');
 
     const loaded = await store.get('u1');
     expect(loaded?.closingStyle).toBe('Best, S');
@@ -106,10 +106,10 @@ describe('MemoryBackedStyleStore', () => {
     const backend: MemoryBackend = {
       observe: async () => {},
       recall: async () => [
-        { id: '1', content: 'quantmail-style-profile {not json', source: 'f', relevance: 1 },
+        { id: '1', content: 'user-style-profile {not json', source: 'f', relevance: 1 },
         {
           id: '2',
-          content: `quantmail-style-profile ${JSON.stringify({ ...profile, userId: 'someone_else' })}`,
+          content: `user-style-profile ${JSON.stringify({ ...profile, userId: 'someone_else' })}`,
           source: 'f',
           relevance: 1,
         },
