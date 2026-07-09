@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import type { AIEngine } from '@quant/ai';
+import { UserStyleMemory } from '@quant/ai';
+import type { AIEngine, UserStyleProfile } from '@quant/ai';
 import { createAppError } from '@quant/server-core';
 
 export const WriteFromOutlineResultSchema = z.object({
@@ -23,8 +24,21 @@ export type WriteFromOutlineResult = z.infer<typeof WriteFromOutlineResultSchema
 export type ExpandSectionResult = z.infer<typeof ExpandSectionResultSchema>;
 export type SimplifyResult = z.infer<typeof SimplifyResultSchema>;
 
+/** Anything that can produce the user's cross-app style profile. */
+export interface StyleSource {
+  get(userId: string): Promise<UserStyleProfile | null>;
+}
+
 export class AIWriteService {
-  constructor(private readonly ai: AIEngine) {}
+  /** Optional cross-app style memory (learned in QuantMail, applied to docs). */
+  private readonly style: StyleSource | undefined;
+
+  constructor(
+    private readonly ai: AIEngine,
+    style?: StyleSource,
+  ) {
+    this.style = style;
+  }
 
   async writeFromOutline(
     bullets: string[],
@@ -33,7 +47,17 @@ export class AIWriteService {
   ): Promise<WriteFromOutlineResult> {
     const bulletList = bullets.map((b) => `- ${b}`).join('\n');
     const toneInstruction = context.tone ? `Use a ${context.tone} tone.` : '';
-    const styleInstruction = context.style ? `Write in a ${context.style} style.` : '';
+    let styleInstruction = context.style ? `Write in a ${context.style} style.` : '';
+
+    // Cross-app personalization: explicit caller intent ALWAYS wins; the
+    // remembered style is only the fallback when none was given. Best-effort.
+    if (!context.tone && !context.style && this.style) {
+      try {
+        styleInstruction = UserStyleMemory.toPromptHints(await this.style.get(userId));
+      } catch {
+        /* best-effort by design */
+      }
+    }
 
     const response = await this.ai.infer({
       prompt: `Convert the following bullet point outline into a well-structured document. ${toneInstruction} ${styleInstruction}
