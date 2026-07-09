@@ -34,11 +34,19 @@ the version freeze — set them BEFORE freezing, never after).
 
 Exit criterion (protocol): **one end-to-end request succeeds.**
 
+> **STATUS: ✅ PASSED 2026-07-09** — real Postgres (prisma db push) + real Qdrant
+>
+> - deterministic embedder, full observe→store→index→recall→isolation chain.
+>   Artifact: `docs/baselines/environment-gate-2026-07-09T17-14-30-712Z.json`.
+>   One command re-runs it: `npx tsx scripts/m11d-environment-gate.ts`
+>   (needs `DATABASE_URL`; `QDRANT_URL` optional for the vector leg).
+
 ```bash
 pnpm install --frozen-lockfile
 docker compose -f docker-compose.dev.yml up -d postgres qdrant
 pnpm --filter @quant/database db:push        # apply schema (includes memory tables)
 pnpm --filter @quant/ai test                 # 517 tests must be green (verified 2026-07-09)
+DATABASE_URL=... QDRANT_URL=... npx tsx scripts/m11d-environment-gate.ts
 ```
 
 ## Phase 2 — Version freeze (MANDATORY before any run)
