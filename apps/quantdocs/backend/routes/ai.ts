@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import type { AIEngine } from '@quant/ai';
 import { AIWriteService } from '../services/ai-write.service';
+import { createMemoryService, createInMemoryMemoryDb, UserStyleMemory } from '@quant/ai';
 import { AIGrammarService } from '../services/ai-grammar.service';
 import { AITranslateService } from '../services/ai-translate.service';
 import { AIDiagramService } from '../services/ai-diagram.service';
@@ -47,7 +48,11 @@ const diagramFromTextSchema = z.object({
 
 export default async function aiRoutes(fastify: FastifyInstance) {
   const ai = (fastify as unknown as { ai: AIEngine }).ai;
-  const writeService = new AIWriteService(ai);
+  const memoryDb = process.env['DATABASE_URL']
+    ? ((fastify as unknown as { prisma?: unknown }).prisma ?? createInMemoryMemoryDb())
+    : createInMemoryMemoryDb();
+  const memoryBackend = createMemoryService({ prisma: memoryDb as never });
+  const writeService = new AIWriteService(ai, new UserStyleMemory(memoryBackend));
   const grammarService = new AIGrammarService(ai);
   const translateService = new AITranslateService(ai);
   const diagramService = new AIDiagramService(ai);

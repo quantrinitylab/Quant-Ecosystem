@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
-import { AIEngine } from '@quant/ai';
+import { AIEngine, createMemoryService, createInMemoryMemoryDb, UserStyleMemory } from '@quant/ai';
 import { TypedQueue } from '@quant/queue';
 
 // AI Services
@@ -10,7 +10,11 @@ import { AIReplyService, ReplyInputSchema, ReplyOptionsSchema } from '../service
 import { AISummarizeService, ThreadMessageSchema } from '../services/ai-summarize.service';
 import { AIComposeService, ComposeContextSchema } from '../services/ai-compose.service';
 import { AIUnsubscribeService, EmailMetadataSchema } from '../services/ai-unsubscribe.service';
-import { AIFollowupService, EmailInputSchema } from '../services/ai-followup.service';
+import {
+  AIFollowupService,
+  EmailInputSchema,
+  MemoryBackedReminderStore,
+} from '../services/ai-followup.service';
 import {
   AIMeetingExtractService,
   MeetingEmailSchema,
@@ -20,9 +24,20 @@ import {
   AIAttachmentSummaryService,
   AttachmentMetadataSchema,
 } from '../services/ai-attachment-summary.service';
-import { AIContactContextService } from '../services/ai-contact-context.service';
-import { SmartSendTimeService, RecipientPatternSchema } from '../services/smart-send-time.service';
-import { AIStyleLearnerService, SentEmailSchema } from '../services/ai-style-learner.service';
+import {
+  AIContactContextService,
+  MemoryBackedContactStore,
+} from '../services/ai-contact-context.service';
+import {
+  SmartSendTimeService,
+  RecipientPatternSchema,
+  MemoryBackedPatternStore,
+} from '../services/smart-send-time.service';
+import {
+  AIStyleLearnerService,
+  SentEmailSchema,
+  MemoryBackedStyleStore,
+} from '../services/ai-style-learner.service';
 
 // Infrastructure Services
 import { EmailAliasesService } from '../services/email-aliases.service';
@@ -43,18 +58,37 @@ function getUserId(request: unknown): string {
 export default async function aiServicesRoutes(fastify: FastifyInstance) {
   // Initialize AI services
   const engine = new AIEngine();
+
+  // ─── Memory composition root (the ONE place backends are chosen) ────────
+  // With DATABASE_URL the real Prisma client persists memories durably;
+  // without it (dev/tests) the in-memory client keeps the SAME orchestration
+  // path alive. Services only ever see ports.
+  const memoryDb = process.env['DATABASE_URL']
+    ? ((fastify as unknown as { prisma?: unknown }).prisma ?? createInMemoryMemoryDb())
+    : createInMemoryMemoryDb();
+  const memoryBackend = createMemoryService({ prisma: memoryDb as never });
+  const styleChannel = new UserStyleMemory(memoryBackend);
   const triageService = new AITriageService(engine);
-  const replyService = new AIReplyService(engine);
+  const replyService = new AIReplyService(engine, styleChannel);
   const summarizeService = new AISummarizeService(engine);
   const composeService = new AIComposeService(engine);
   const unsubscribeService = new AIUnsubscribeService(engine);
-  const followupService = new AIFollowupService(engine);
+  const followupService = new AIFollowupService(
+    engine,
+    new MemoryBackedReminderStore(memoryBackend),
+  );
   const meetingService = new AIMeetingExtractService(engine);
   const toneService = new AIToneShiftService(engine);
   const attachmentService = new AIAttachmentSummaryService(engine);
-  const contactService = new AIContactContextService(engine);
-  const sendTimeService = new SmartSendTimeService(engine);
-  const styleService = new AIStyleLearnerService(engine);
+  const contactService = new AIContactContextService(
+    engine,
+    new MemoryBackedContactStore(memoryBackend),
+  );
+  const sendTimeService = new SmartSendTimeService(
+    engine,
+    new MemoryBackedPatternStore(memoryBackend),
+  );
+  const styleService = new AIStyleLearnerService(engine, new MemoryBackedStyleStore(memoryBackend));
 
   // Initialize infrastructure services
   const aliasesService = new EmailAliasesService();
@@ -435,11 +469,15 @@ export default async function aiServicesRoutes(fastify: FastifyInstance) {
     signature: z.string(),
     publicKey: z.string(),
   });
-  fastify.post('/infra/pgp/verify', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request, reply) => {
-    const body = VerifySchema.parse(request.body);
-    const result = await pgpService.verifySignature(body.message, body.signature, body.publicKey);
-    return reply.send({ success: true, data: { valid: result } });
-  });
+  fastify.post(
+    '/infra/pgp/verify',
+    { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const body = VerifySchema.parse(request.body);
+      const result = await pgpService.verifySignature(body.message, body.signature, body.publicKey);
+      return reply.send({ success: true, data: { valid: result } });
+    },
+  );
 
   // POST /infra/undo-send
   const UndoSendSchema = z.object({
