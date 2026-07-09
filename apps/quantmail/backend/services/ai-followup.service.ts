@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AIEngine } from '@quant/ai';
+import type { RememberingMemoryBackend } from './ai-style-learner.service';
 import { createAppError } from '@quant/server-core';
 
 export const EmailInputSchema = z.object({
@@ -31,14 +32,85 @@ export type EmailInput = z.infer<typeof EmailInputSchema>;
 export type Commitment = z.infer<typeof CommitmentSchema>;
 export type Reminder = z.infer<typeof ReminderSchema>;
 
-export class AIFollowupService {
-  /**
-   * In-memory store for reminders. This is ephemeral and will be lost on process
-   * restart. Will be replaced with database persistence in production.
-   */
-  private reminders: Map<string, Reminder> = new Map();
+// ─── Reminder persistence port (flagship memory integration) ────────────────
+// A commitment ("I'll send X by Friday") is episodic user memory with a due
+// date. Losing reminders on restart defeats the entire follow-up feature.
 
-  constructor(private readonly ai: AIEngine) {}
+export interface ReminderStore {
+  save(reminder: Reminder): Promise<void>;
+  listActive(userId: string): Promise<Reminder[]>;
+}
+
+/** Default store: the original ephemeral Map. Byte-identical behavior. */
+export class InMemoryReminderStore implements ReminderStore {
+  private reminders = new Map<string, Reminder>();
+  async save(reminder: Reminder): Promise<void> {
+    this.reminders.set(reminder.id, reminder);
+  }
+  async listActive(userId: string): Promise<Reminder[]> {
+    return Array.from(this.reminders.values()).filter(
+      (r) => r.userId === userId && r.status === 'active',
+    );
+  }
+}
+
+const REMINDER_MEMORY_PREFIX = 'quantmail-reminder';
+
+/** Persists reminders as episodic user memories via the memory subsystem. */
+export class MemoryBackedReminderStore implements ReminderStore {
+  constructor(private readonly memory: RememberingMemoryBackend) {}
+
+  async save(reminder: Reminder): Promise<void> {
+    const content = `${REMINDER_MEMORY_PREFIX} ${reminder.id} ${JSON.stringify(reminder)}`;
+    if (this.memory.remember) {
+      await this.memory.remember({
+        actor: reminder.userId,
+        content,
+        kind: 'episodic',
+        level: 'user',
+        session: 'quantmail-followups',
+      });
+    } else {
+      await this.memory.observe({
+        actor: reminder.userId,
+        session: 'quantmail-followups',
+        role: 'system',
+        content,
+      });
+    }
+  }
+
+  async listActive(userId: string): Promise<Reminder[]> {
+    const results = await this.memory.recall({ actor: userId, query: REMINDER_MEMORY_PREFIX });
+    // Multiple rows per reminder id possible (status updates append — Law 2).
+    // The LAST occurrence per id wins; then filter to active.
+    const latest = new Map<string, Reminder>();
+    for (const r of results) {
+      const idx = r.content.indexOf('{');
+      if (idx < 0) continue;
+      try {
+        const parsed = ReminderSchema.safeParse(JSON.parse(r.content.slice(idx)));
+        if (parsed.success && parsed.data.userId === userId) {
+          latest.set(parsed.data.id, parsed.data);
+        }
+      } catch {
+        /* skip malformed row */
+      }
+    }
+    return Array.from(latest.values()).filter((r) => r.status === 'active');
+  }
+}
+
+export class AIFollowupService {
+  /** Reminder persistence port. Default preserves the original behavior. */
+  private readonly store: ReminderStore;
+
+  constructor(
+    private readonly ai: AIEngine,
+    store?: ReminderStore,
+  ) {
+    this.store = store ?? new InMemoryReminderStore();
+  }
 
   async detectCommitments(email: EmailInput, userId: string): Promise<Commitment[]> {
     const validated = EmailInputSchema.parse(email);
@@ -101,13 +173,11 @@ Respond ONLY with valid JSON array:
       createdAt: new Date().toISOString(),
     };
 
-    this.reminders.set(id, reminder);
+    await this.store.save(reminder);
     return reminder;
   }
 
   async getActiveReminders(userId: string): Promise<Reminder[]> {
-    return Array.from(this.reminders.values()).filter(
-      (r) => r.userId === userId && r.status === 'active',
-    );
+    return this.store.listActive(userId);
   }
 }
