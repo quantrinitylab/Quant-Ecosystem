@@ -64,6 +64,7 @@ export {
   NoopMemoryCompressor,
 } from './core/memory-composition';
 export type { MemoryCompositionOptions, MemoryDbClient } from './core/memory-composition';
+export { createInMemoryMemoryDb } from './core/in-memory-memory-db';
 export { VectorMemoryRetriever, DEFAULT_RETRIEVAL_WEIGHTS } from './core/vector-memory-retriever';
 export type {
   EmbeddingProvider,
