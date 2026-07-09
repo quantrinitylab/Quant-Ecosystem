@@ -1,0 +1,41 @@
+{
+  "kind": "m11d-environment-gate",
+  "capturedAt": "2026-07-09T17:14:30.712Z",
+  "commitSha": "20d1a1525e46b3579cd37b55ae16c3851fc4be4b",
+  "persistence": "postgres (real, prisma db push)",
+  "vectorBackend": "qdrant (real)",
+  "embedder": "deterministic/hashed-bow-v1 (deterministic plumbing probe)",
+  "checks": [
+    {
+      "name": "postgres",
+      "ok": true,
+      "detail": "SELECT 1 ok"
+    },
+    {
+      "name": "qdrant-collection",
+      "ok": true,
+      "detail": "create envgate_mrdro5sf: 200"
+    },
+    {
+      "name": "observe→postgres",
+      "ok": true,
+      "detail": "2 memory_records rows for envgate_mrdro5sf"
+    },
+    {
+      "name": "index→memory_embeddings",
+      "ok": true,
+      "detail": "2 rows total (delegate exercised)"
+    },
+    {
+      "name": "recall e2e",
+      "ok": true,
+      "detail": "top-2 contains \"Patna\": true"
+    },
+    {
+      "name": "owner isolation",
+      "ok": true,
+      "detail": "no cross-owner leakage"
+    }
+  ],
+  "passed": true
+}
