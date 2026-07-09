@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { UserStyleMemory } from '@quant/ai';
 import type { AIEngine, MemoryBackend, RememberRequest } from '@quant/ai';
 
 /** A MemoryBackend that also supports explicit writes (MemoryService does). */
@@ -56,52 +57,24 @@ export class InMemoryStyleStore implements StyleProfileStore {
   }
 }
 
-const STYLE_MEMORY_PREFIX = 'quantmail-style-profile';
-
 /**
- * Memory-subsystem-backed store: persists the profile as a user memory via any
- * MemoryBackend (the facade or MemoryService both satisfy it). Survives
- * restarts; recallable and exportable like every other user memory.
+ * Memory-subsystem-backed store: delegates to the SHARED UserStyleMemory
+ * channel (@quant/ai) so every app — QuantChat smart replies, QuantDocs
+ * compose, future surfaces — reads the same durable style memory that
+ * QuantMail learns. One agent, shared memory, across apps.
  */
 export class MemoryBackedStyleStore implements StyleProfileStore {
-  constructor(private readonly memory: RememberingMemoryBackend) {}
+  private readonly channel: UserStyleMemory;
+  constructor(memory: RememberingMemoryBackend) {
+    this.channel = new UserStyleMemory(memory);
+  }
 
   async get(userId: string): Promise<StyleProfile | null> {
-    const results = await this.memory.recall({ actor: userId, query: STYLE_MEMORY_PREFIX });
-    // Newest-first not guaranteed across backends — scan for the latest valid payload.
-    for (const r of results) {
-      const idx = r.content.indexOf('{');
-      if (idx < 0) continue;
-      try {
-        const parsed = StyleProfileSchema.safeParse(JSON.parse(r.content.slice(idx)));
-        if (parsed.success && parsed.data.userId === userId) return parsed.data;
-      } catch {
-        /* skip malformed row */
-      }
-    }
-    return null;
+    return this.channel.get(userId);
   }
 
   async set(userId: string, profile: StyleProfile): Promise<void> {
-    const content = `${STYLE_MEMORY_PREFIX} ${JSON.stringify(profile)}`;
-    if (this.memory.remember) {
-      // Explicit write path (bypasses extraction — we KNOW this is worth storing).
-      await this.memory.remember({
-        actor: userId,
-        content,
-        kind: 'preference',
-        level: 'user',
-        session: 'quantmail-style',
-      });
-    } else {
-      // Facade path: observe (extraction-mediated) — best effort.
-      await this.memory.observe({
-        actor: userId,
-        session: 'quantmail-style',
-        role: 'system',
-        content,
-      });
-    }
+    await this.channel.set(userId, profile);
   }
 }
 

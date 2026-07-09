@@ -155,6 +155,12 @@ export {
 } from './adapters/openai-embedding-provider';
 export type { OpenAIEmbeddingConfig } from './adapters/openai-embedding-provider';
 export { QdrantVectorBackend, loadQdrantConfig, toPointId } from './adapters/qdrant-vector-backend';
+export {
+  UserStyleMemory,
+  UserStyleProfileSchema,
+  USER_STYLE_MEMORY_PREFIX,
+} from './adapters/user-style-memory';
+export type { UserStyleProfile, StyleMemoryBackend } from './adapters/user-style-memory';
 export type { QdrantConfig } from './adapters/qdrant-vector-backend';
 export { LlmExtractionModel } from './adapters/llm-extraction-model';
 export type { LlmExtractionConfig } from './adapters/llm-extraction-model';
