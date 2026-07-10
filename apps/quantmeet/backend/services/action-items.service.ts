@@ -174,14 +174,25 @@ export class ActionItemsService {
       `Transcript:\n${transcriptText}`;
     const result = await this.ai.generateText(prompt);
 
-    const lines = result.split('\n').filter((l) => l.trim().length > 0);
-    const items: ActionItem[] = lines.map((line) => this.parseActionItemLine(line.trim()));
+    // MEET-T-002: chatter guard - an honest "no action items" preamble must
+    // not become a task (v2 baseline: 1 phantom item).
+    const lines = result
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !/^no action items?\b/i.test(l));
+    const items: ActionItem[] = lines.map((line) => this.parseActionItemLine(line));
 
     return items;
   }
 
   /** Parse one model-output line into an ActionItem (structured or prose). */
-  private parseActionItemLine(line: string): ActionItem {
+  private parseActionItemLine(rawLine: string): ActionItem {
+    // MEET-T-002 normalization: markdown bold wrappers and numbered bullets
+    // (v2 baseline: markdown-bold and prose-numbered known-hard failures).
+    const line = rawLine
+      .replace(/^\*\*(.+)\*\*$/, '$1')
+      .replace(/^\d+[.)]\s*/, '')
+      .trim();
     const base: ActionItem = {
       id: randomUUID(),
       title: line,
@@ -221,7 +232,10 @@ export class ActionItemsService {
     }
 
     // 2. Prose: "- Name will <do something> by <date>"
-    const prose = line.match(/^[-*•]?\s*(\w[\w .'-]*?)\s+will\s+(.+?)(?:\s+by\s+(.+?))?[.]?$/i);
+    // MEET-T-002: 'needs to' / 'should' commitments count too (v2 baseline).
+    const prose = line.match(
+      /^[-*•]?\s*(\w[\w .'-]*?)\s+(?:will|needs to|should)\s+(.+?)(?:\s+by\s+(.+?))?[.]?$/i,
+    );
     if (prose) {
       return {
         ...base,
