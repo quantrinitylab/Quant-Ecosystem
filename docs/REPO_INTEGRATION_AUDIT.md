@@ -1,5 +1,13 @@
 # Repository & Integration Audit (Agent A)
 
+> **STATUS UPDATE (2026-07-09, post-#17/#27/#28/#31):** The headline below is
+> now HISTORICAL. The island has been wired: engine.ts (#549), QuantAI facts
+> API behind the 4-mode facade (#17), composition roots at quantmail/quantchat/
+> quantdocs/quantai (#27/#28, DATABASE_URL → durable Prisma), and three shared
+> memory channels with cross-app consumers (#23/#26/#31). Current wiring truth
+> lives in `INTEGRATION_MAP.md`; migration evidence in `MIGRATION_SCOREBOARD.md`.
+> This document is preserved as the baseline evidence of what the gap WAS.
+
 > Execution phase, Milestone 1. Evidence-only; no code changed. Scope: memory/AI
 > integration reality, duplicate implementations, dead code, drift.
 > Method: grep/read across the repo (node_modules excluded).
