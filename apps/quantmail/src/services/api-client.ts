@@ -133,6 +133,13 @@ export class QuantMailApiClient {
     return this.post('/auth/password-reset/confirm', { token, newPassword });
   }
 
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<ApiResponse<{ message: string }>> {
+    return this.post('/auth/change-password', { currentPassword, newPassword });
+  }
+
   async getUserInfo(): Promise<
     ApiResponse<{ id: string; email: string; username: string; displayName: string; role: string }>
   > {

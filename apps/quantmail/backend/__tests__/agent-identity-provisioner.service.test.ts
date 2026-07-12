@@ -75,7 +75,7 @@ function createMockPrisma() {
         createdAt: now,
         updatedAt: now,
         ...(data as Partial<Row>),
-      } as Row;
+      } as unknown as Row;
       // Enforce the @@unique([address]) and @@unique([orgId, workerSlot]).
       if (rows.some((r) => r.address === row.address)) {
         throw new Error('Unique constraint failed on address');
@@ -134,12 +134,7 @@ describe('PrismaAgentIdentityProvisioner.provision', () => {
     await provisioner.provision(BASE_REQUEST);
 
     const [row] = prisma.agentMailboxIdentity.rows;
-    expect(row.scopes).toEqual([
-      AGENT_BUS_SCOPE,
-      'read_file',
-      'edit_file',
-      'open_pr',
-    ]);
+    expect(row.scopes).toEqual([AGENT_BUS_SCOPE, 'read_file', 'edit_file', 'open_pr']);
     // agent-bus is always present and always first.
     expect((row.scopes as string[])[0]).toBe(AGENT_BUS_SCOPE);
   });
@@ -190,9 +185,9 @@ describe('PrismaAgentIdentityProvisioner.provision', () => {
   });
 
   it('rejects an incomplete request (400 IDENTITY_REQUEST_INVALID)', async () => {
-    await expect(
-      provisioner.provision({ ...BASE_REQUEST, tenantId: '   ' }),
-    ).rejects.toMatchObject({ statusCode: 400, code: 'IDENTITY_REQUEST_INVALID' });
+    await expect(provisioner.provision({ ...BASE_REQUEST, tenantId: '   ' })).rejects.toMatchObject(
+      { statusCode: 400, code: 'IDENTITY_REQUEST_INVALID' },
+    );
   });
 });
 
@@ -256,10 +251,7 @@ describe('PrismaAgentIdentityProvisioner.revoke', () => {
 
 describe('buildAgentScopes (scope policy)', () => {
   it('always includes agent-bus first and de-duplicates', () => {
-    expect(buildAgentScopes(['read_file', 'read_file'])).toEqual([
-      AGENT_BUS_SCOPE,
-      'read_file',
-    ]);
+    expect(buildAgentScopes(['read_file', 'read_file'])).toEqual([AGENT_BUS_SCOPE, 'read_file']);
     expect(buildAgentScopes([])).toEqual([AGENT_BUS_SCOPE]);
     // An explicit agent-bus in the tool scope is tolerated and not duplicated.
     expect(buildAgentScopes([AGENT_BUS_SCOPE, 'edit_file'])).toEqual([
