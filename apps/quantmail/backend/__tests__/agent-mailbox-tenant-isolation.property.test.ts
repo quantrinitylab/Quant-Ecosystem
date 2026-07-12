@@ -79,9 +79,7 @@ function createMockPrisma() {
   const rows: Row[] = [];
   let seq = 0;
   const matches = (row: Row, where: Record<string, unknown>): boolean =>
-    Object.entries(where).every(
-      ([k, v]) => (row as never as Record<string, unknown>)[k] === v,
-    );
+    Object.entries(where).every(([k, v]) => (row as never as Record<string, unknown>)[k] === v);
 
   const delegate = {
     rows,
@@ -99,7 +97,7 @@ function createMockPrisma() {
         createdAt: now,
         updatedAt: now,
         ...(data as Partial<Row>),
-      } as Row;
+      } as unknown as Row;
       if (rows.some((r) => r.address === row.address)) {
         throw new Error('Unique constraint failed on address');
       }
@@ -213,13 +211,7 @@ const tenantIdArb = fc.constantFrom(...TENANT_POOL);
 const ORG_POOL = ['org-1', 'org-2', 'alpha', 'beta', 'gamma'] as const;
 const orgIdArb = fc.constantFrom(...ORG_POOL);
 
-const workerSlotArb = fc.constantFrom(
-  'coder-1',
-  'coder-3',
-  'reviewer-2',
-  'planner-1',
-  'tester-7',
-);
+const workerSlotArb = fc.constantFrom('coder-1', 'coder-3', 'reviewer-2', 'planner-1', 'tester-7');
 
 const roleKeyArb = fc.constantFrom(
   'planner',
@@ -238,9 +230,7 @@ const roleKeyArb = fc.constantFrom(
  */
 const legalScopeArb = fc
   .constantFrom(...LEGAL_TOOL_SCOPES)
-  .chain((s) =>
-    fc.constantFrom(s, s.toUpperCase(), `  ${s}  `),
-  );
+  .chain((s) => fc.constantFrom(s, s.toUpperCase(), `  ${s}  `));
 
 /** A (possibly empty) requested legal tool scope, may contain dupes/case noise. */
 const legalToolScopeArb = fc.array(legalScopeArb, { minLength: 0, maxLength: 6 });
@@ -249,7 +239,7 @@ const legalToolScopeArb = fc.array(legalScopeArb, { minLength: 0, maxLength: 6 }
 // P7-a — Scope confinement: granted ⊆ {agent-bus} ∪ requested, never human/global
 // ===========================================================================
 
-describe("Feature: quantmail-superhub, Property 7: agent mailbox authz never leaks across tenants", () => {
+describe('Feature: quantmail-superhub, Property 7: agent mailbox authz never leaks across tenants', () => {
   it('P7-a: granted scopes are always a subset of {agent-bus} ∪ requested tool scope and never a human-inbox/global scope (Req 11.3, 22.1)', async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -282,8 +272,7 @@ describe("Feature: quantmail-superhub, Property 7: agent mailbox authz never lea
           // Every granted scope is either the bus scope or one the worker
           // actually requested (normalized) — never anything broader.
           for (const scope of granted) {
-            const ok =
-              scope === AGENT_BUS_SCOPE || requestedNormalized.has(scope);
+            const ok = scope === AGENT_BUS_SCOPE || requestedNormalized.has(scope);
             expect(ok).toBe(true);
           }
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AIEngine } from '@quant/ai';
+import { asKind, asLevel } from '@quant/ai';
 import type { RememberingMemoryBackend } from './ai-style-learner.service';
 import { createAppError } from '@quant/server-core';
 
@@ -62,8 +63,8 @@ export class MemoryBackedPatternStore implements RecipientPatternStore {
       await this.memory.remember({
         actor: userId,
         content,
-        kind: 'entity',
-        level: 'user',
+        kind: asKind('entity'),
+        level: asLevel('user'),
         session: 'quantmail-sendtime',
       });
     } else {
