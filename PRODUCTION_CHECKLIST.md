@@ -73,6 +73,6 @@
 
 ---
 
-**Current Status**: Core foundation is **production-ready**. The system can handle real users with proper monitoring and backups in place.
+**Current Status**: Core foundation is **feature-complete and gate-green**, but NOT yet validated as production-ready: staging validation, TLS, secret rotation, E2E and load testing remain open below. Calling it production-ready before those close would contradict this very checklist (reviewer finding, 2026-07-09).
 
 **Next Recommended Action**: Deploy to a staging environment and run full load + E2E tests.

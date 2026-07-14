@@ -1,13 +1,12 @@
 # Quant Ecosystem
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/your-org/Quant-Ecosystem/ci.yml?branch=main&label=CI)](https://github.com/your-org/Quant-Ecosystem/actions)
-[![Coverage](https://img.shields.io/codecov/c/github/your-org/Quant-Ecosystem?label=coverage)](https://codecov.io/gh/your-org/Quant-Ecosystem)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/quantrinitylab/Quant-Ecosystem/ci.yml?branch=main&label=CI)](https://github.com/quantrinitylab/Quant-Ecosystem/actions)
+[![Coverage](https://img.shields.io/codecov/c/github/quantrinitylab/Quant-Ecosystem?label=coverage)](https://codecov.io/gh/quantrinitylab/Quant-Ecosystem)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org/)
 [![Node](https://img.shields.io/badge/Node.js-22-green.svg)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-10-orange.svg)](https://pnpm.io/)
 
-A production-grade, interconnected platform of **20 applications**, **100+ shared packages**, and **8 infrastructure services** built as a TypeScript monorepo. Covers email, messaging, social, video streaming, AI, file storage, calendar, video conferencing, advertising, gaming, and a unified credits economy - all unified by a single authentication layer (QuantMail OAuth2) and shared infrastructure, with QuantAI as an assistant woven through every app.
+A production-grade, interconnected platform of **18 applications**, **106 shared packages**, and **7 infrastructure services** built as a TypeScript monorepo. Covers email, messaging, social, video streaming, AI, file storage, calendar, video conferencing, advertising, gaming, and a unified credits economy - all unified by a single authentication layer (QuantMail OAuth2) and shared infrastructure, with QuantAI as an assistant woven through every app.
 
 ## Product Vision (north star)
 
@@ -30,7 +29,7 @@ The goal is one deeply interconnected ecosystem that out-features the incumbents
 ## Quick Start
 
 ```bash
-git clone https://github.com/your-org/Quant-Ecosystem.git && cd Quant-Ecosystem
+git clone https://github.com/quantrinitylab/Quant-Ecosystem.git && cd Quant-Ecosystem
 pnpm install
 pnpm dev:all
 ```

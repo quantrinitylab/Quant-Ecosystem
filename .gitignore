@@ -20,3 +20,5 @@ packages/*/src/**/*.js.map
 packages/*/src/**/*.d.ts.map
 !packages/*/src/**/*.test.js
 !packages/*/src/**/*.spec.js
+helm.zip
+helm-extracted/
