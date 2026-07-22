@@ -1,7 +1,15 @@
+---
+inclusion: manual
+doc_type: historical
+authority: non-authoritative
+status: archived-guidance
+---
+
 # Quant-Ecosystem → Production-Grade (Google/Meta Level) Master Prompt
 
-> **How to use this file**
-> Paste the contents below into a top-tier coding AI (Claude Opus, GPT-5, Gemini Ultra) along with the repository. Run it phase by phase. Each phase has hard acceptance criteria. Do not skip phases.
+> **Historical warning (2026-07-22):** this prompt describes an early repository baseline and its Phase-0-first sequence is superseded by the [canonical institutional-memory index](../../docs/README.md), [Current State](../../docs/CURRENT_STATE.md), and [Execution Queue](../../docs/EXECUTION_QUEUE.md). Keep it for provenance and timeless safety constraints; do not auto-include or execute its audit claims as current truth.
+>
+> **Original usage:** paste the contents below into a top-tier coding AI along with the repository and run it phase by phase.
 
 ---
 
