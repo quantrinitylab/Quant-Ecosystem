@@ -49,6 +49,12 @@ jobs:
       - name: Validate WU4 representative traffic manifest
         run: pnpm m11d:wu4 -- --plan
 
+      - name: Validate Memory rollback and release boundary
+        run: |
+          pnpm m11d:wu5:release-gate
+          pnpm test:wu5:policy
+          pnpm --filter @quant/quantai exec vitest run backend/__tests__/memory-facade.service.test.ts
+
       - name: Resolve change base
         id: base
         run: |
