@@ -41,6 +41,7 @@
     "guard:inline-fetch": "tsx scripts/check-inline-fetch.ts",
     "memory:validate": "tsx scripts/validate-project-memory.ts",
     "test:memory": "vitest run scripts/__tests__/validate-project-memory.test.ts",
+    "m11d:wu4": "tsx scripts/m11d-wu4-quantai-shadow.ts",
     "ci:gates": "turbo typecheck && turbo lint -- --max-warnings 0 && turbo test && turbo build"
   },
   "pnpm": {

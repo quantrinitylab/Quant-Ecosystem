@@ -34,6 +34,19 @@ function input(
 
 function sharedDelegate(): MemoryShadowReportDelegate {
   let rows: MemoryShadowReportRow[] = [];
+  const matches = (
+    row: MemoryShadowReportRow,
+    where: Parameters<MemoryShadowReportDelegate['count']>[0]['where'],
+  ): boolean =>
+    row.tenantId === where.tenantId &&
+    (!where.actorUserId || row.actorUserId === where.actorUserId) &&
+    (!where.severity || row.severity === where.severity) &&
+    (!where.commitSha || row.commitSha === where.commitSha) &&
+    (!where.policyVersion || row.policyVersion === where.policyVersion) &&
+    (!where.corpusVersion || row.corpusVersion === where.corpusVersion) &&
+    (!where.observedAt?.gte || row.observedAt >= where.observedAt.gte) &&
+    (!where.observedAt?.lte || row.observedAt <= where.observedAt.lte);
+
   return {
     async create({ data }) {
       if (rows.some((row) => row.tenantId === data.tenantId && row.requestId === data.requestId)) {
@@ -51,17 +64,12 @@ function sharedDelegate(): MemoryShadowReportDelegate {
     },
     async findMany({ where, take }) {
       return rows
-        .filter(
-          (row) =>
-            row.tenantId === where.tenantId &&
-            (!where.actorUserId || row.actorUserId === where.actorUserId) &&
-            (!where.severity || row.severity === where.severity),
-        )
+        .filter((row) => matches(row, where))
         .sort((a, b) => b.observedAt.getTime() - a.observedAt.getTime())
         .slice(0, take);
     },
     async count({ where }) {
-      return rows.filter((row) => row.tenantId === where.tenantId).length;
+      return rows.filter((row) => matches(row, where)).length;
     },
     async deleteMany({ where }) {
       const before = rows.length;
@@ -111,5 +119,39 @@ describe('MemoryShadowReportRepository', () => {
     expect(await repository.deleteExpiredForTenant('tenant-a', now)).toBe(1);
     expect(await repository.countForTenant('tenant-a')).toBe(0);
     expect(await repository.countForTenant('tenant-b')).toBe(1);
+  });
+
+  it('filters a tenant run by immutable metadata and observation window', async () => {
+    const repository = new MemoryShadowReportRepository({
+      memoryShadowReport: sharedDelegate(),
+    });
+    const future = new Date('2026-08-23T00:00:00.000Z');
+    const selected = input('tenant-a', 'selected', future);
+    selected.commitSha = 'b'.repeat(40);
+    selected.policyVersion = 'policy-v2';
+    selected.corpusVersion = 'real-conv-v1';
+    selected.observedAt = new Date('2026-07-23T00:10:00.000Z');
+    await repository.create(selected);
+
+    const outsideWindow = input('tenant-a', 'outside-window', future);
+    outsideWindow.commitSha = selected.commitSha;
+    outsideWindow.policyVersion = selected.policyVersion;
+    outsideWindow.corpusVersion = selected.corpusVersion;
+    outsideWindow.observedAt = new Date('2026-07-23T00:00:00.000Z');
+    await repository.create(outsideWindow);
+    await repository.create(input('tenant-b', 'other-tenant', future));
+
+    const options = {
+      actorUserId: 'tenant-a',
+      commitSha: selected.commitSha,
+      policyVersion: selected.policyVersion,
+      corpusVersion: selected.corpusVersion,
+      observedAfter: new Date('2026-07-23T00:05:00.000Z'),
+      observedBefore: new Date('2026-07-23T00:15:00.000Z'),
+    };
+    await expect(repository.listForTenant('tenant-a', options)).resolves.toMatchObject([
+      { requestId: 'selected' },
+    ]);
+    await expect(repository.countForTenant('tenant-a', options)).resolves.toBe(1);
   });
 });

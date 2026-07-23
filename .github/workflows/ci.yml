@@ -46,6 +46,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
 
+      - name: Validate WU4 representative traffic manifest
+        run: pnpm m11d:wu4 -- --plan
+
       - name: Resolve change base
         id: base
         run: |

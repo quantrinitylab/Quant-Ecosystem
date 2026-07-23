@@ -31,17 +31,27 @@ export type CreateMemoryShadowReportInput = Omit<
   divergence: Prisma.InputJsonValue;
 };
 
+export interface MemoryShadowReportWhere {
+  tenantId: string;
+  actorUserId?: string;
+  severity?: string;
+  commitSha?: string;
+  policyVersion?: string;
+  corpusVersion?: string;
+  observedAt?: { gte?: Date; lte?: Date };
+}
+
 export interface MemoryShadowReportDelegate {
   create(args: { data: CreateMemoryShadowReportInput }): Promise<MemoryShadowReportRow>;
   findFirst(args: {
     where: { tenantId: string; requestId: string };
   }): Promise<MemoryShadowReportRow | null>;
   findMany(args: {
-    where: { tenantId: string; actorUserId?: string; severity?: string };
+    where: MemoryShadowReportWhere;
     orderBy: { observedAt: 'desc' };
     take: number;
   }): Promise<MemoryShadowReportRow[]>;
-  count(args: { where: { tenantId: string } }): Promise<number>;
+  count(args: { where: MemoryShadowReportWhere }): Promise<number>;
   deleteMany(args: {
     where: { tenantId: string; expiresAt: { lte: Date } };
   }): Promise<{ count: number }>;
@@ -54,6 +64,11 @@ export interface MemoryShadowReportPrismaClient {
 export interface ListMemoryShadowReportsOptions {
   actorUserId?: string;
   severity?: string;
+  commitSha?: string;
+  policyVersion?: string;
+  corpusVersion?: string;
+  observedAfter?: Date;
+  observedBefore?: Date;
   limit?: number;
 }
 
@@ -82,19 +97,18 @@ export class MemoryShadowReportRepository {
     this.assertTenant(tenantId);
     const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
     return this.prisma.memoryShadowReport.findMany({
-      where: {
-        tenantId,
-        ...(options.actorUserId ? { actorUserId: options.actorUserId } : {}),
-        ...(options.severity ? { severity: options.severity } : {}),
-      },
+      where: this.scopedWhere(tenantId, options),
       orderBy: { observedAt: 'desc' },
       take: limit,
     });
   }
 
-  async countForTenant(tenantId: string): Promise<number> {
+  async countForTenant(
+    tenantId: string,
+    options: Omit<ListMemoryShadowReportsOptions, 'limit'> = {},
+  ): Promise<number> {
     this.assertTenant(tenantId);
-    return this.prisma.memoryShadowReport.count({ where: { tenantId } });
+    return this.prisma.memoryShadowReport.count({ where: this.scopedWhere(tenantId, options) });
   }
 
   async deleteExpiredForTenant(tenantId: string, now = new Date()): Promise<number> {
@@ -103,6 +117,28 @@ export class MemoryShadowReportRepository {
       where: { tenantId, expiresAt: { lte: now } },
     });
     return result.count;
+  }
+
+  private scopedWhere(
+    tenantId: string,
+    options: Omit<ListMemoryShadowReportsOptions, 'limit'>,
+  ): MemoryShadowReportWhere {
+    return {
+      tenantId,
+      ...(options.actorUserId ? { actorUserId: options.actorUserId } : {}),
+      ...(options.severity ? { severity: options.severity } : {}),
+      ...(options.commitSha ? { commitSha: options.commitSha } : {}),
+      ...(options.policyVersion ? { policyVersion: options.policyVersion } : {}),
+      ...(options.corpusVersion ? { corpusVersion: options.corpusVersion } : {}),
+      ...(options.observedAfter || options.observedBefore
+        ? {
+            observedAt: {
+              ...(options.observedAfter ? { gte: options.observedAfter } : {}),
+              ...(options.observedBefore ? { lte: options.observedBefore } : {}),
+            },
+          }
+        : {}),
+    };
   }
 
   private assertTenant(tenantId: string): void {
