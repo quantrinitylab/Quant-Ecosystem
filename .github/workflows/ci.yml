@@ -40,6 +40,12 @@ jobs:
           pnpm memory:validate
           pnpm test:memory
 
+      # @quant/database tests and downstream builds import the generated client.
+      # Generate once before Turbo fans package tasks out in parallel so no task
+      # can observe a missing client while database build/typecheck initializes it.
+      - name: Generate Prisma client
+        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+
       - name: Resolve change base
         id: base
         run: |
