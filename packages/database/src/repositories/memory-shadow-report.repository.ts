@@ -1,3 +1,5 @@
+import type { Prisma } from '@prisma/client';
+
 export interface MemoryShadowReportRow {
   id: string;
   tenantId: string;
@@ -20,7 +22,14 @@ export interface MemoryShadowReportRow {
   createdAt: Date;
 }
 
-export type CreateMemoryShadowReportInput = Omit<MemoryShadowReportRow, 'id' | 'createdAt'>;
+export type CreateMemoryShadowReportInput = Omit<
+  MemoryShadowReportRow,
+  'id' | 'createdAt' | 'legacy' | 'next' | 'divergence'
+> & {
+  legacy: Prisma.InputJsonValue;
+  next: Prisma.InputJsonValue;
+  divergence: Prisma.InputJsonValue;
+};
 
 export interface MemoryShadowReportDelegate {
   create(args: { data: CreateMemoryShadowReportInput }): Promise<MemoryShadowReportRow>;
