@@ -205,7 +205,9 @@ describe('MemoryFacade durable shadow sink', () => {
   });
 
   it('isolates an async sink rejection from the legacy response', async () => {
-    const onShadowError = vi.fn(async () => undefined);
+    const onShadowError = vi.fn<(error: unknown, report: ShadowReport) => Promise<void>>(
+      async () => undefined,
+    );
     const facade = new MemoryFacade({
       mode: 'shadow',
       legacy: backend({ recall: vi.fn(async () => [hit('legacy')]) }),

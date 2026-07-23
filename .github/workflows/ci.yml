@@ -44,14 +44,17 @@ jobs:
         id: base
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "filter=...[origin/${{ github.base_ref }}]" >> "$GITHUB_OUTPUT"
+            echo "filter=[origin/${{ github.base_ref }}]" >> "$GITHUB_OUTPUT"
           else
-            echo "filter=...[HEAD~1]" >> "$GITHUB_OUTPUT"
+            echo "filter=[HEAD~1]" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Typecheck, lint, test, build changed packages
+      - name: Typecheck, lint, test, build directly changed packages
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+        # `[base]` selects directly changed workspaces. The previous `...[base]`
+        # also selected every downstream app, duplicating full-sweep and making
+        # unrelated pre-existing failures blocking despite this gate's contract.
         run: npx turbo typecheck lint test build --concurrency=2 --continue --filter='${{ steps.base.outputs.filter }}'
 
   # Hard gate: Memory V2 shadow evidence must survive client reconstruction and

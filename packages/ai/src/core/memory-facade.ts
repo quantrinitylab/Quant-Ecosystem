@@ -45,12 +45,12 @@ export interface ShadowReport {
   at: number;
 }
 
-export type ShadowSink = (report: ShadowReport) => void | Promise<void>;
-export type ShadowSinkErrorSink = (err: unknown, report: ShadowReport) => void | Promise<void>;
-export type SecondaryWriteErrorSink = (
-  err: unknown,
-  turn: ConversationTurn,
-) => void | Promise<void>;
+// `void` is intentional for callback ergonomics: TypeScript permits both async
+// callbacks and synchronous callbacks with incidental return values. Runtime
+// thenables are still observed by dispatchShadow/writeSecondary.
+export type ShadowSink = (report: ShadowReport) => void;
+export type ShadowSinkErrorSink = (err: unknown, report: ShadowReport) => void;
+export type SecondaryWriteErrorSink = (err: unknown, turn: ConversationTurn) => void;
 
 export interface MemoryFacadeOptions {
   mode: FacadeMode;

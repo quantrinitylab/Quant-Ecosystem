@@ -55,9 +55,37 @@ const RECALL_QUERIES = [
 describe('quantai shadow evidence run (in-process, representative traffic)', () => {
   it('collects shadow reports, evaluates ADR-011 gates, archives the artifact', async () => {
     const service = new MemoryService();
+    // Explicit test doubles exercise the canary pipeline only; this historical
+    // in-process test does not claim production durability (the PostgreSQL CI
+    // job owns restart/isolation proof).
+    const { createInMemoryMemoryDb } = await import('@quant/ai');
     const { facade, shadowReports } = createQuantaiMemoryFacade({
       legacyService: service,
       mode: 'shadow',
+      database: { durability: 'durable', client: createInMemoryMemoryDb() },
+      vector: {
+        durability: 'durable',
+        config: {
+          embedder: {
+            provider: 'test',
+            model: 'deterministic',
+            dimension: 2,
+            embed: async () => [1, 0],
+          },
+          vectorBackend: {
+            name: 'test-vector',
+            upsert: async () => undefined,
+            query: async () => [],
+          },
+          embeddingClient: {
+            memoryEmbedding: { create: async () => ({}) },
+          },
+        },
+      },
+      shadowSink: {
+        durability: 'durable',
+        emit: async () => undefined,
+      },
     });
 
     const actor = 'shadow_user_1';

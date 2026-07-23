@@ -1,4 +1,4 @@
-import { UnifiedAIService } from '@quant/ai';
+import { UnifiedAIService } from '@quant/ai/unified-ai-service';
 import { AppController } from '../cross-app/app-controller.js';
 import { VoiceIntentParser, type ParsedIntent } from './voice-intent-parser.js';
 import type { CommandResult } from '../cross-app/command-bus.js';
