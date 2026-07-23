@@ -7,7 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { MemoryService } from '../services/memory.service';
-import { createQuantaiMemoryFacade } from '../services/memory-facade.service';
+import { createQuantaiMemoryFacade, resolveFacadeMode } from '../services/memory-facade.service';
 
 const observeSchema = z.object({
   session: z.string().min(1),
@@ -304,17 +304,17 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
   });
 
   // ─── Conversational path (M11c: routed through the ADR-011 MemoryFacade) ──
-  // Mode via QUANTAI_MEMORY_MODE (legacy default = byte-identical behavior).
-  // Existing CRUD routes above are deliberately untouched.
-  // Composition rule (#27): with DATABASE_URL the real Prisma client persists
-  // memories durably; without it the shared in-memory client (inside the
-  // facade service) keeps the same orchestration path alive.
+  // Legacy starts without new-memory infrastructure. Explicit non-legacy modes
+  // fail route registration unless every required durable dependency is present.
+  const facadeMode = resolveFacadeMode(process.env);
   const realDb = process.env['DATABASE_URL']
     ? ((fastify as unknown as { prisma?: unknown }).prisma as never)
     : undefined;
+
   const { facade, mode, shadowReports } = createQuantaiMemoryFacade({
     legacyService: service,
-    ...(realDb ? { dbClient: realDb } : {}),
+    mode: facadeMode,
+    ...(realDb ? { database: { durability: 'durable' as const, client: realDb } } : {}),
   });
 
   // POST /observe - record a conversation turn (writes per facade mode)
@@ -354,7 +354,7 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: { mode, results } });
   });
 
-  // GET /facade/status - migration observability (mode + shadow evidence count)
+  // GET /facade/status - migration observability (mode + diagnostic count)
   fastify.get('/facade/status', async (_request, reply) => {
     return reply.send({
       success: true,
