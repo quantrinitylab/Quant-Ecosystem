@@ -2141,6 +2141,39 @@ model MemoryEmbedding {
   @@map("memory_embeddings")
 }
 
+// Append-only-until-expiry evidence emitted while Memory V2 runs in shadow
+// mode. Relation-free by design: tenantId is the mandatory isolation boundary
+// and actorUserId is provenance. Raw recall payloads may contain user data, so
+// every row has an explicit expiry enforced by the tenant-scoped repository.
+model MemoryShadowReport {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  orgId               String?
+  actorUserId         String
+  requestId           String
+  mode                String
+  query               String
+  legacy              Json
+  next                Json
+  divergence          Json
+  severity            String
+  agreementRate       Float
+  infrastructureError Boolean  @default(false)
+  commitSha           String
+  policyVersion       String
+  corpusVersion       String
+  observedAt          DateTime
+  expiresAt           DateTime
+  createdAt           DateTime @default(now())
+
+  @@unique([tenantId, requestId])
+  @@index([tenantId, observedAt])
+  @@index([tenantId, actorUserId, observedAt])
+  @@index([tenantId, severity, observedAt])
+  @@index([expiresAt])
+  @@map("memory_shadow_reports")
+}
+
 // ==================== BILLING / CREDITS (Phase 7) ====================
 // quantmail-superhub Task 25.1 (Requirements 16.1-16.5).
 //

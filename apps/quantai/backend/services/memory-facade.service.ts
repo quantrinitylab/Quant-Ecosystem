@@ -177,22 +177,13 @@ export function createQuantaiMemoryFacade(opts: QuantaiMemoryFacadeOptions): Qua
     mode,
     legacy,
     next,
-    onShadow: (report) => {
+    onShadow: async (report) => {
       // This buffer is diagnostic only. The required sink is evidence authority.
       shadowReports.push(report);
       if (shadowReports.length > SHADOW_BUFFER_LIMIT) shadowReports.shift();
-
-      const sink = opts.shadowSink;
-      if (sink) {
-        void sink.emit(report).catch((error: unknown) => {
-          try {
-            void Promise.resolve(opts.onShadowSinkError?.(error, report)).catch(() => undefined);
-          } catch {
-            /* observability failures never affect the legacy-authoritative request */
-          }
-        });
-      }
+      await opts.shadowSink?.emit(report);
     },
+    onShadowError: opts.onShadowSinkError,
     onSecondaryWriteError: () => {
       /* best-effort by contract (ADR-011): never fails the request */
     },

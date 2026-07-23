@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -41,19 +40,79 @@ jobs:
           pnpm memory:validate
           pnpm test:memory
 
+      # @quant/database tests and downstream builds import the generated client.
+      # Generate once before Turbo fans package tasks out in parallel so no task
+      # can observe a missing client while database build/typecheck initializes it.
+      - name: Generate Prisma client
+        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+
       - name: Resolve change base
         id: base
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "filter=...[origin/${{ github.base_ref }}]" >> "$GITHUB_OUTPUT"
+            echo "filter=[origin/${{ github.base_ref }}]" >> "$GITHUB_OUTPUT"
           else
-            echo "filter=...[HEAD~1]" >> "$GITHUB_OUTPUT"
+            echo "filter=[HEAD~1]" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Typecheck, lint, test, build changed packages
+      - name: Typecheck, lint, test, build directly changed packages
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+        # `[base]` selects directly changed workspaces. The previous `...[base]`
+        # also selected every downstream app, duplicating full-sweep and making
+        # unrelated pre-existing failures blocking despite this gate's contract.
         run: npx turbo typecheck lint test build --concurrency=2 --continue --filter='${{ steps.base.outputs.filter }}'
+
+  # Hard gate: Memory V2 shadow evidence must survive client reconstruction and
+  # preserve tenant isolation against a real PostgreSQL instance.
+  memory-shadow-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_USER: quant
+          POSTGRES_PASSWORD: quant_secret
+          POSTGRES_DB: quant_memory_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quant -d quant_memory_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://quant:quant_secret@localhost:5432/quant_memory_test
+      MEMORY_SHADOW_TEST_DATABASE_URL: postgresql://quant:quant_secret@localhost:5432/quant_memory_test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+
+      - name: Apply isolated shadow-report migration
+        run: >-
+          pnpm --filter @quant/database exec prisma db execute
+          --schema=prisma/schema.prisma
+          --file=prisma/migrations/0050_memory_shadow_reports/migration.sql
+
+      - name: Prove restart durability and tenant isolation
+        run: >-
+          pnpm --filter @quant/database exec vitest run
+          src/__tests__/memory-shadow-report.postgres.test.ts
 
   # Hard gate: QuantChat must meet the >=50% coverage threshold (Requirement 18.1).
   # Thresholds live in apps/quantchat/vitest.config.ts; `vitest run --coverage` exits
