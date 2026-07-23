@@ -104,6 +104,7 @@ function report(over: Partial<ShadowReport>): ShadowReport {
   return {
     requestId: over.requestId ?? 'r',
     mode: 'shadow',
+    actorUserId: over.actorUserId ?? 'u1',
     query: 'q',
     legacy: over.legacy ?? { recalled: ['a'], latencyMs: 5 },
     next: over.next ?? { recalled: ['a'], latencyMs: 6 },

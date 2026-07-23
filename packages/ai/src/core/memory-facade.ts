@@ -32,6 +32,7 @@ export type DivergenceSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export interface ShadowReport {
   requestId: string;
   mode: FacadeMode;
+  actorUserId: string;
   query: string;
   legacy: { recalled: string[]; latencyMs: number };
   next: { recalled: string[]; latencyMs: number; error?: string };
@@ -44,8 +45,12 @@ export interface ShadowReport {
   at: number;
 }
 
-export type ShadowSink = (report: ShadowReport) => void;
-export type SecondaryWriteErrorSink = (err: unknown, turn: ConversationTurn) => void;
+export type ShadowSink = (report: ShadowReport) => void | Promise<void>;
+export type ShadowSinkErrorSink = (err: unknown, report: ShadowReport) => void | Promise<void>;
+export type SecondaryWriteErrorSink = (
+  err: unknown,
+  turn: ConversationTurn,
+) => void | Promise<void>;
 
 export interface MemoryFacadeOptions {
   mode: FacadeMode;
@@ -53,8 +58,10 @@ export interface MemoryFacadeOptions {
   legacy: MemoryBackend;
   /** The new subsystem (MemoryService satisfies MemoryBackend structurally). */
   next: MemoryBackend;
-  /** Observational sink for shadow reads (never influences runtime). */
+  /** Observational sink for shadow reads (never influences served output). */
   onShadow?: ShadowSink;
+  /** Operational sink for persistence failures; also isolated from user output. */
+  onShadowError?: ShadowSinkErrorSink;
   /** Sink for best-effort secondary write failures (dual_write/shadow). */
   onSecondaryWriteError?: SecondaryWriteErrorSink;
   /** Override severity classification (e.g. safety-critical slots). */
@@ -74,6 +81,7 @@ export class MemoryFacade {
   private readonly legacy: MemoryBackend;
   private readonly next: MemoryBackend;
   private readonly onShadow: ShadowSink | undefined;
+  private readonly onShadowError: ShadowSinkErrorSink | undefined;
   private readonly onSecondaryWriteError: SecondaryWriteErrorSink | undefined;
   private readonly classifySeverity: (a: string[], b: string[], agr: number) => DivergenceSeverity;
   private readonly requestId: () => string;
@@ -83,6 +91,7 @@ export class MemoryFacade {
     this.legacy = opts.legacy;
     this.next = opts.next;
     this.onShadow = opts.onShadow;
+    this.onShadowError = opts.onShadowError;
     this.onSecondaryWriteError = opts.onSecondaryWriteError;
     this.classifySeverity = opts.classifySeverity ?? defaultSeverity;
     this.requestId = opts.requestId ?? (() => `req_${Date.now().toString(36)}`);
@@ -133,7 +142,11 @@ export class MemoryFacade {
     try {
       await backend.observe(turn);
     } catch (err) {
-      this.onSecondaryWriteError?.(err, turn);
+      try {
+        await this.onSecondaryWriteError?.(err, turn);
+      } catch {
+        /* observability failures never affect the legacy-authoritative request */
+      }
     }
   }
 
@@ -164,9 +177,10 @@ export class MemoryFacade {
       const severity = nextError
         ? 'HIGH'
         : this.classifySeverity(onlyLegacy, onlyNew, agreementRate);
-      this.onShadow({
+      const report: ShadowReport = {
         requestId: this.requestId(),
         mode: this.mode,
+        actorUserId: ctx.actor,
         query: ctx.query,
         legacy: { recalled: legacyContents, latencyMs: legacyLatency },
         next: {
@@ -176,11 +190,34 @@ export class MemoryFacade {
         },
         divergence: { onlyLegacy, onlyNew, agreementRate, severity },
         at: Date.now(),
-      });
+      };
+      this.dispatchShadow(report);
     }
 
     // The user ALWAYS gets the legacy (authoritative) result in shadow mode.
     return legacyResults;
+  }
+  /**
+   * Dispatch persistence/telemetry outside the response path. Both synchronous
+   * throws and asynchronous rejections are observed, but neither can delay or
+   * alter the legacy-authoritative result.
+   */
+  private dispatchShadow(report: ShadowReport): void {
+    try {
+      void Promise.resolve(this.onShadow?.(report)).catch((error: unknown) => {
+        this.reportShadowError(error, report);
+      });
+    } catch (error) {
+      this.reportShadowError(error, report);
+    }
+  }
+
+  private reportShadowError(error: unknown, report: ShadowReport): void {
+    try {
+      void Promise.resolve(this.onShadowError?.(error, report)).catch(() => undefined);
+    } catch {
+      /* observability failures never affect the legacy-authoritative output */
+    }
   }
 }
 

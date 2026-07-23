@@ -8,3 +8,11 @@ export { PostRepository } from './post.repository';
 export { MediaRepository } from './media.repository';
 export { AISessionRepository } from './ai-session.repository';
 export { NotificationRepository } from './notification.repository';
+export { MemoryShadowReportRepository } from './memory-shadow-report.repository';
+export type {
+  MemoryShadowReportRow,
+  CreateMemoryShadowReportInput,
+  MemoryShadowReportDelegate,
+  MemoryShadowReportPrismaClient,
+  ListMemoryShadowReportsOptions,
+} from './memory-shadow-report.repository';

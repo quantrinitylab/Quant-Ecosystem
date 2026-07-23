@@ -174,3 +174,67 @@ describe('MemoryFacade constraints (ADR-011)', () => {
     expect(a).toEqual(b);
   });
 });
+
+describe('MemoryFacade durable shadow sink', () => {
+  it('dispatches async persistence without delaying the legacy response', async () => {
+    let release!: () => void;
+    let markStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    let captured: ShadowReport | undefined;
+    const facade = new MemoryFacade({
+      mode: 'shadow',
+      legacy: backend({ recall: vi.fn(async () => [hit('legacy')]) }),
+      next: backend({ recall: vi.fn(async () => [hit('next')]) }),
+      onShadow: (report) => {
+        captured = report;
+        markStarted();
+        return new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      },
+    });
+
+    const recall = facade.recall({ actor: 'tenant-user-1', query: 'q' });
+    await started;
+    await expect(recall).resolves.toEqual([hit('legacy')]);
+    expect(captured?.actorUserId).toBe('tenant-user-1');
+
+    release();
+  });
+
+  it('isolates an async sink rejection from the legacy response', async () => {
+    const onShadowError = vi.fn(async () => undefined);
+    const facade = new MemoryFacade({
+      mode: 'shadow',
+      legacy: backend({ recall: vi.fn(async () => [hit('legacy')]) }),
+      next: backend(),
+      onShadow: async () => {
+        throw new Error('postgres unavailable');
+      },
+      onShadowError,
+    });
+
+    await expect(facade.recall({ actor: 'u1', query: 'q' })).resolves.toEqual([hit('legacy')]);
+    await vi.waitFor(() => expect(onShadowError).toHaveBeenCalledOnce());
+    expect(onShadowError.mock.calls[0]?.[0]).toEqual(new Error('postgres unavailable'));
+  });
+
+  it('isolates a throwing secondary-error observer', async () => {
+    const facade = new MemoryFacade({
+      mode: 'dual_write',
+      legacy: backend(),
+      next: backend({
+        observe: vi.fn(async () => {
+          throw new Error('new store down');
+        }),
+      }),
+      onSecondaryWriteError: async () => {
+        throw new Error('metrics down');
+      },
+    });
+
+    await expect(facade.observe(turn)).resolves.toBeUndefined();
+  });
+});
