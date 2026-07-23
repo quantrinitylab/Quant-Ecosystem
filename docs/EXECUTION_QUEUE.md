@@ -4,9 +4,9 @@ doc_type: execution-queue
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-07-22
-verified_at_commit: 28f2ef50eec492c955a50fc6eb917aa51aa10739
-review_by: 2026-08-05
+last_verified: 2026-07-23
+verified_at_commit: 0d8c00de4fa5cf7beef16b3b74b699021bc40a45
+review_by: 2026-08-06
 supersedes: []
 superseded_by: []
 canonical_scope: execution-priority
@@ -29,8 +29,8 @@ This is the only canonical ordered work queue. Exactly one milestone may have `e
 | Order | Unit                                                          | State  | Required evidence                                                                                                                      |
 | ----- | ------------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
 | 1     | Capture current canary wiring and failure-mode baseline       | done   | [2026-07-22 baseline](./baselines/m11d-shadow-canary-wiring-baseline-2026-07-22.md): inventory, failure matrix, command outcomes, HOLD |
-| 2     | Fail closed for non-legacy modes without durable dependencies | active | Focused contract tests, structured startup errors, and committed implementation evidence                                               |
-| 3     | Persist tenant-scoped shadow reports across restart           | queued | Blocking PostgreSQL integration proof for restart durability and cross-tenant isolation                                                |
+| 2     | Fail closed for non-legacy modes without durable dependencies | done   | [Fail-closed contract](./baselines/m11d-fail-closed-contract-2026-07-22.md): structured errors and 15/15 focused tests                 |
+| 3     | Persist tenant-scoped shadow reports across restart           | active | Blocking PostgreSQL integration proof for restart durability and cross-tenant isolation                                                |
 | 4     | Exercise representative QuantAI shadow traffic                | queued | Versioned report artifact and divergence replay records                                                                                |
 | 5     | Prove rollback and release gate                               | queued | Mode-cycle test plus blocking CI/deploy check                                                                                          |
 | 6     | Update migration decision                                     | queued | Append-only scoreboard row: HOLD, ADVANCE, or ROLLBACK                                                                                 |
