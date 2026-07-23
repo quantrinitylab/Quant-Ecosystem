@@ -14,6 +14,9 @@ on:
       - 'packages/**'
       - 'infra/scripts/**'
       - 'infra/k8s/**'
+      - 'scripts/m11d-wu5-release-gate.ts'
+      - 'scripts/__tests__/m11d-wu5-release-gate.test.ts'
+      - 'docker-compose.shadow.yml'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
     inputs:
@@ -27,7 +30,6 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  id-token: write
   contents: read
 
 env:
@@ -37,7 +39,40 @@ env:
   NAMESPACE: quant-production
 
 jobs:
+  # This job has no cloud credentials. A memory authority-policy failure stops
+  # every matrix deployment before AWS authentication, image push, or rollout.
+  memory-release-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+
+      - name: Enforce Memory rollback and production authority boundary
+        run: |
+          pnpm m11d:wu5:release-gate
+          pnpm test:wu5:policy
+          pnpm --filter @quant/quantai exec vitest run backend/__tests__/memory-facade.service.test.ts
+
   build-deploy:
+    needs: memory-release-preflight
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
