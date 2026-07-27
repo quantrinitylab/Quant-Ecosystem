@@ -25,14 +25,18 @@ interface Message {
 }
 
 export function AIAssistant(props: AIAssistantProps): React.ReactElement {
-  const { isOpen, onClose, onCompose, onSummarize, onSuggestReplies, onAsk, currentContext } = props;
+  const { isOpen, onClose, onCompose, onSummarize, onSuggestReplies, onAsk, currentContext } =
+    props;
 
-  const [messages, setMessages] = useState<Message[]>([{
-    id: '1',
-    role: 'assistant',
-    content: 'Hi! I am your AI assistant. I can help you compose emails, summarize threads, suggest replies, and answer questions about your inbox or code.',
-    timestamp: new Date(),
-  }]);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: '1',
+      role: 'assistant',
+      content:
+        'Hi! I am your AI assistant. I can help you compose emails, summarize threads, suggest replies, and answer questions about your inbox or code.',
+      timestamp: new Date(),
+    },
+  ]);
   const [input, setInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [quickActions, setQuickActions] = useState(true);
@@ -43,13 +47,16 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
   }, [messages]);
 
   const addMessage = (role: 'user' | 'assistant', content: string, action?: string) => {
-    setMessages((prev) => [...prev, {
-      id: Date.now().toString(36) + Math.random().toString(36).substring(2),
-      role,
-      content,
-      timestamp: new Date(),
-      action,
-    }]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        role,
+        content,
+        timestamp: new Date(),
+        action,
+      },
+    ]);
   };
 
   const handleSend = async () => {
@@ -64,23 +71,37 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
       const lower = userMessage.toLowerCase();
       if (lower.includes('compose') || lower.includes('write') || lower.includes('draft')) {
         const result = await onCompose(userMessage, 'professional');
-        addMessage('assistant', `Here is a draft:\n\nSubject: ${result.subject}\n\n${result.body}`, 'compose');
+        addMessage(
+          'assistant',
+          `Here is a draft:\n\nSubject: ${result.subject}\n\n${result.body}`,
+          'compose',
+        );
       } else if (lower.includes('summarize') || lower.includes('summary')) {
         const summary = await onSummarize(currentContext?.content || userMessage);
         addMessage('assistant', `Summary: ${summary}`, 'summarize');
       } else if (lower.includes('reply') || lower.includes('respond')) {
         if (currentContext?.content) {
           const suggestions = await onSuggestReplies(currentContext.content);
-          addMessage('assistant', `Here are some reply options:\n\n${suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n\n')}`, 'suggest_replies');
+          addMessage(
+            'assistant',
+            `Here are some reply options:\n\n${suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n\n')}`,
+            'suggest_replies',
+          );
         } else {
-          addMessage('assistant', 'Please select an email first so I can suggest appropriate replies.');
+          addMessage(
+            'assistant',
+            'Please select an email first so I can suggest appropriate replies.',
+          );
         }
       } else {
         const response = await onAsk(userMessage, currentContext?.content);
         addMessage('assistant', response);
       }
     } catch (error) {
-      addMessage('assistant', 'Sorry, I encountered an error processing your request. Please try again.');
+      addMessage(
+        'assistant',
+        'Sorry, I encountered an error processing your request. Please try again.',
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -105,18 +126,28 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
           addMessage('user', 'Suggest replies');
           if (currentContext?.content) {
             const replies = await onSuggestReplies(currentContext.content);
-            addMessage('assistant', `Suggested replies:\n\n${replies.map((r, i) => `${i + 1}. "${r}"`).join('\n\n')}`, 'suggest_replies');
+            addMessage(
+              'assistant',
+              `Suggested replies:\n\n${replies.map((r, i) => `${i + 1}. "${r}"`).join('\n\n')}`,
+              'suggest_replies',
+            );
           } else {
             addMessage('assistant', 'Please select an email to get reply suggestions.');
           }
           break;
         case 'compose':
           addMessage('user', 'Help me compose an email');
-          addMessage('assistant', 'Sure! What would you like the email to be about? You can tell me the recipient, topic, and desired tone.');
+          addMessage(
+            'assistant',
+            'Sure! What would you like the email to be about? You can tell me the recipient, topic, and desired tone.',
+          );
           break;
         case 'prioritize':
           addMessage('user', 'Prioritize my inbox');
-          addMessage('assistant', 'I can analyze your unread emails and sort them by priority. This helps you focus on what matters most. Would you like me to proceed?');
+          addMessage(
+            'assistant',
+            'I can analyze your unread emails and sort them by priority. This helps you focus on what matters most. Would you like me to proceed?',
+          );
           break;
       }
     } catch {
@@ -143,7 +174,9 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
           <span className="ai-icon">AI</span>
           <h3>AI Assistant</h3>
         </div>
-        <button className="btn-icon" onClick={onClose}>X</button>
+        <button className="btn-icon" onClick={onClose}>
+          X
+        </button>
       </div>
 
       {/* Context indicator */}
@@ -158,9 +191,7 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
       <div className="ai-messages">
         {messages.map((msg) => (
           <div key={msg.id} className={`ai-message ai-message-${msg.role}`}>
-            <div className="message-avatar">
-              {msg.role === 'assistant' ? 'AI' : 'You'}
-            </div>
+            <div className="message-avatar">{msg.role === 'assistant' ? 'AI' : 'You'}</div>
             <div className="message-content">
               <p style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</p>
               <span className="message-time">
@@ -183,10 +214,18 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
       {/* Quick Actions */}
       {quickActions && messages.length <= 1 && (
         <div className="ai-quick-actions">
-          <button className="quick-action" onClick={() => handleQuickAction('summarize')}>Summarize email</button>
-          <button className="quick-action" onClick={() => handleQuickAction('replies')}>Suggest replies</button>
-          <button className="quick-action" onClick={() => handleQuickAction('compose')}>Compose email</button>
-          <button className="quick-action" onClick={() => handleQuickAction('prioritize')}>Prioritize inbox</button>
+          <button className="quick-action" onClick={() => handleQuickAction('summarize')}>
+            Summarize email
+          </button>
+          <button className="quick-action" onClick={() => handleQuickAction('replies')}>
+            Suggest replies
+          </button>
+          <button className="quick-action" onClick={() => handleQuickAction('compose')}>
+            Compose email
+          </button>
+          <button className="quick-action" onClick={() => handleQuickAction('prioritize')}>
+            Prioritize inbox
+          </button>
         </div>
       )}
 
@@ -200,7 +239,11 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
           rows={2}
           disabled={isProcessing}
         />
-        <button className="btn btn-primary btn-sm" onClick={handleSend} disabled={!input.trim() || isProcessing}>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={handleSend}
+          disabled={!input.trim() || isProcessing}
+        >
           Send
         </button>
       </div>

@@ -144,8 +144,8 @@ export default function SearchPage() {
   );
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <div className="flex flex-col h-full">
+    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+      <div className="workspace-page search-workspace flex flex-col h-full">
         {/* Search header */}
         <div className="p-4 border-b border-[var(--quant-border)]">
           <div className="flex items-center gap-2" onKeyDown={handleKeyDown}>

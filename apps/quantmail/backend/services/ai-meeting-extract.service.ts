@@ -87,7 +87,7 @@ Respond ONLY with valid JSON:
   }
 
   async createCalendarEvent(details: MeetingDetails, userId: string): Promise<CalendarEvent> {
-    const id = `evt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const id = `evt_${crypto.randomUUID()}`;
 
     const startTime = `${details.date}T${details.time}:00Z`;
     const durationHours = details.duration ? parseFloat(details.duration) || 1 : 1;

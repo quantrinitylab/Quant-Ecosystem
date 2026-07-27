@@ -31,7 +31,7 @@ export interface NotificationAction {
   requiresAuth?: boolean;
 }
 
-export type MailNotificationChannel = 
+export type MailNotificationChannel =
   | 'new_email'
   | 'reply'
   | 'mention'
@@ -61,7 +61,13 @@ export class PushNotificationService {
   private channels: Map<MailNotificationChannel, NotificationChannel> = new Map();
   private badgeCount: number = 0;
   private scheduledNotifications: ScheduledNotification[] = [];
-  private quietHours: QuietHoursConfig = { enabled: false, startHour: 22, endHour: 7, allowUrgent: true, allowedSenders: [] };
+  private quietHours: QuietHoursConfig = {
+    enabled: false,
+    startHour: 22,
+    endHour: 7,
+    allowUrgent: true,
+    allowedSenders: [],
+  };
   private groupedNotifications: Map<string, NotificationPayload[]> = new Map();
 
   constructor() {
@@ -70,14 +76,94 @@ export class PushNotificationService {
 
   private registerDefaultChannels(): void {
     const defaults: Array<[MailNotificationChannel, NotificationChannel]> = [
-      ['new_email', { id: 'new_email', name: 'New Emails', importance: 'high', sound: 'mail_received.wav', vibration: true, badge: true }],
-      ['reply', { id: 'reply', name: 'Replies', importance: 'high', sound: 'reply.wav', vibration: true, badge: true }],
-      ['mention', { id: 'mention', name: 'Mentions', importance: 'urgent', sound: 'mention_alert.wav', vibration: true, badge: true }],
-      ['calendar_invite', { id: 'calendar_invite', name: 'Calendar Invites', importance: 'default', sound: 'calendar.wav', vibration: false, badge: true }],
-      ['attachment_ready', { id: 'attachment_ready', name: 'Attachments Ready', importance: 'low', sound: null, vibration: false, badge: false }],
-      ['security_alert', { id: 'security_alert', name: 'Security Alerts', importance: 'urgent', sound: 'alert_critical.wav', vibration: true, badge: true }],
-      ['newsletter', { id: 'newsletter', name: 'Newsletters', importance: 'low', sound: null, vibration: false, badge: false }],
-      ['spam_digest', { id: 'spam_digest', name: 'Spam Digest', importance: 'low', sound: null, vibration: false, badge: false }],
+      [
+        'new_email',
+        {
+          id: 'new_email',
+          name: 'New Emails',
+          importance: 'high',
+          sound: 'mail_received.wav',
+          vibration: true,
+          badge: true,
+        },
+      ],
+      [
+        'reply',
+        {
+          id: 'reply',
+          name: 'Replies',
+          importance: 'high',
+          sound: 'reply.wav',
+          vibration: true,
+          badge: true,
+        },
+      ],
+      [
+        'mention',
+        {
+          id: 'mention',
+          name: 'Mentions',
+          importance: 'urgent',
+          sound: 'mention_alert.wav',
+          vibration: true,
+          badge: true,
+        },
+      ],
+      [
+        'calendar_invite',
+        {
+          id: 'calendar_invite',
+          name: 'Calendar Invites',
+          importance: 'default',
+          sound: 'calendar.wav',
+          vibration: false,
+          badge: true,
+        },
+      ],
+      [
+        'attachment_ready',
+        {
+          id: 'attachment_ready',
+          name: 'Attachments Ready',
+          importance: 'low',
+          sound: null,
+          vibration: false,
+          badge: false,
+        },
+      ],
+      [
+        'security_alert',
+        {
+          id: 'security_alert',
+          name: 'Security Alerts',
+          importance: 'urgent',
+          sound: 'alert_critical.wav',
+          vibration: true,
+          badge: true,
+        },
+      ],
+      [
+        'newsletter',
+        {
+          id: 'newsletter',
+          name: 'Newsletters',
+          importance: 'low',
+          sound: null,
+          vibration: false,
+          badge: false,
+        },
+      ],
+      [
+        'spam_digest',
+        {
+          id: 'spam_digest',
+          name: 'Spam Digest',
+          importance: 'low',
+          sound: null,
+          vibration: false,
+          badge: false,
+        },
+      ],
     ];
     defaults.forEach(([key, channel]) => this.channels.set(key, channel));
   }
@@ -85,15 +171,24 @@ export class PushNotificationService {
   public async routeDeepLink(payload: NotificationPayload): Promise<string> {
     const { channel, data } = payload;
     switch (channel) {
-      case 'new_email': return `/mail/inbox/${data.emailId}`;
-      case 'reply': return `/mail/thread/${data.threadId}#${data.messageId}`;
-      case 'mention': return `/mail/thread/${data.threadId}?highlight=${data.mentionId}`;
-      case 'calendar_invite': return `/calendar/event/${data.eventId}`;
-      case 'attachment_ready': return `/mail/inbox/${data.emailId}/attachments`;
-      case 'security_alert': return `/settings/security/alerts/${data.alertId}`;
-      case 'newsletter': return `/mail/newsletters/${data.emailId}`;
-      case 'spam_digest': return `/mail/spam`;
-      default: return `/mail/inbox`;
+      case 'new_email':
+        return `/mail/inbox/${data.emailId}`;
+      case 'reply':
+        return `/mail/thread/${data.threadId}#${data.messageId}`;
+      case 'mention':
+        return `/mail/thread/${data.threadId}?highlight=${data.mentionId}`;
+      case 'calendar_invite':
+        return `/calendar/event/${data.eventId}`;
+      case 'attachment_ready':
+        return `/mail/inbox/${data.emailId}/attachments`;
+      case 'security_alert':
+        return `/settings/security/alerts/${data.alertId}`;
+      case 'newsletter':
+        return `/mail/newsletters/${data.emailId}`;
+      case 'spam_digest':
+        return `/mail/spam`;
+      default:
+        return `/mail/inbox`;
     }
   }
 
@@ -115,9 +210,13 @@ export class PushNotificationService {
     return this.groupedNotifications.get(groupKey)!;
   }
 
-  public scheduleNotification(payload: NotificationPayload, triggerAt: number, repeatInterval?: 'daily' | 'weekly' | 'monthly'): ScheduledNotification {
+  public scheduleNotification(
+    payload: NotificationPayload,
+    triggerAt: number,
+    repeatInterval?: 'daily' | 'weekly' | 'monthly',
+  ): ScheduledNotification {
     const scheduled: ScheduledNotification = {
-      id: `sched_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `sched_${crypto.randomUUID()}`,
       payload,
       triggerAt,
       repeatInterval,
@@ -128,7 +227,7 @@ export class PushNotificationService {
   }
 
   public cancelScheduledNotification(id: string): boolean {
-    const notification = this.scheduledNotifications.find(n => n.id === id);
+    const notification = this.scheduledNotifications.find((n) => n.id === id);
     if (notification) {
       notification.cancelled = true;
       return true;
@@ -140,13 +239,24 @@ export class PushNotificationService {
     const actions: NotificationAction[] = [];
     switch (payload.channel) {
       case 'new_email':
-        actions.push({ id: 'reply', label: 'Reply' }, { id: 'archive', label: 'Archive' }, { id: 'delete', label: 'Delete', destructive: true });
+        actions.push(
+          { id: 'reply', label: 'Reply' },
+          { id: 'archive', label: 'Archive' },
+          { id: 'delete', label: 'Delete', destructive: true },
+        );
         break;
       case 'calendar_invite':
-        actions.push({ id: 'accept', label: 'Accept' }, { id: 'decline', label: 'Decline', destructive: true }, { id: 'tentative', label: 'Maybe' });
+        actions.push(
+          { id: 'accept', label: 'Accept' },
+          { id: 'decline', label: 'Decline', destructive: true },
+          { id: 'tentative', label: 'Maybe' },
+        );
         break;
       case 'security_alert':
-        actions.push({ id: 'review', label: 'Review Now', requiresAuth: true }, { id: 'dismiss', label: 'Dismiss' });
+        actions.push(
+          { id: 'review', label: 'Review Now', requiresAuth: true },
+          { id: 'dismiss', label: 'Dismiss' },
+        );
         break;
     }
     return { ...payload, actions };

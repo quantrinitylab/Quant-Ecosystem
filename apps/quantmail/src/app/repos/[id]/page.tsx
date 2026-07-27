@@ -48,8 +48,8 @@ export default function RepoDetailPage() {
   ];
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <PageTransition className="flex flex-col h-full">
+    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+      <PageTransition className="workspace-page repo-detail-workspace flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center gap-3 p-4 border-b border-[var(--quant-border)]">
           <Button variant="secondary" onClick={() => router.push('/repos')}>

@@ -19,7 +19,7 @@ const config: Config = {
         },
         quant: {
           primary: 'var(--quant-primary)',
-          secondary: '#8b5cf6',
+          secondary: '#138808',
           background: 'var(--quant-background)',
           foreground: 'var(--quant-foreground)',
           surface: 'var(--quant-surface)',

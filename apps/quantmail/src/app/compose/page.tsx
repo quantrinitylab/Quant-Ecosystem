@@ -6,6 +6,7 @@ import { AppShell } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { EmailComposer } from '../../components/EmailComposer';
+import type { ComposerMessageData } from '../../components/EmailComposer';
 import { apiClient } from '../../services/api-client';
 
 export default function ComposePage() {
@@ -14,16 +15,8 @@ export default function ComposePage() {
   const replyTo = searchParams?.get('replyTo') ?? null;
   const forwardId = searchParams?.get('forward') ?? null;
 
-  const handleSend = useCallback(
-    async (data: {
-      to: { email: string; name?: string }[];
-      cc: { email: string; name?: string }[];
-      bcc: { email: string; name?: string }[];
-      subject: string;
-      bodyText: string;
-      bodyHtml: string;
-      priority: 'high' | 'normal' | 'low';
-    }) => {
+  const composeDraft = useCallback(
+    async (data: ComposerMessageData) => {
       const response = await apiClient.composeEmail({
         to: data.to,
         cc: data.cc,
@@ -32,21 +25,43 @@ export default function ComposePage() {
         bodyText: data.bodyText,
         bodyHtml: data.bodyHtml,
         priority: data.priority,
+        scheduledAt: data.scheduledAt,
         inReplyTo: replyTo || undefined,
+        isDraft: true,
       });
-      if (!response.success) throw new Error(response.error?.message || 'Failed to compose');
-      const emailId = response.data!.id;
-      const sendResponse = await apiClient.sendEmail(emailId);
-      if (!sendResponse.success) throw new Error(sendResponse.error?.message || 'Failed to send');
-      router.push('/');
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || 'Draft could not be composed.');
+      }
+
+      return response.data;
     },
-    [replyTo, router],
+    [replyTo],
   );
 
-  const handleSaveDraft = useCallback(() => {
-    // Draft saving handled by triggering compose with isDraft
-    // For UX, show feedback
-  }, []);
+  const handleSend = useCallback(
+    async (data: ComposerMessageData) => {
+      const draft = await composeDraft(data);
+
+      // Scheduling currently persists an explicitly scheduled draft only.
+      if (data.scheduledAt) return;
+
+      const response = await apiClient.sendEmail(draft.id);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Message could not be sent.');
+      }
+
+      router.push('/');
+    },
+    [composeDraft, router],
+  );
+
+  const handleSaveDraft = useCallback(
+    async (data: ComposerMessageData) => {
+      await composeDraft(data);
+    },
+    [composeDraft],
+  );
 
   const handleDiscard = useCallback(() => {
     router.push('/');
@@ -59,20 +74,24 @@ export default function ComposePage() {
         tone: action === 'formalize' ? 'formal' : 'professional',
         length: action === 'shorten' ? 'short' : 'medium',
       });
-      if (!response.success) return text;
+
+      if (!response.success) {
+        throw new Error(response.error?.message || 'AI writing assistance is unavailable.');
+      }
+
       return response.data?.body || text;
     },
     [],
   );
 
-  const handleAttach = useCallback((file: { name: string; size: number; type: string }) => {
-    // File upload not wired to backend yet
-    console.log('Attachment selected:', file.name);
-  }, []);
-
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <PageTransition className="flex flex-col h-full">
+    <AppShell
+      sidebar={<AppSidebar />}
+      theme="dark"
+      className="quantmail-shell"
+      aria-label="Compose a QuantMail message"
+    >
+      <PageTransition className="compose-page">
         <EmailComposer
           initialSubject={forwardId ? 'Fwd: ' : replyTo ? 'Re: ' : undefined}
           inReplyTo={replyTo || undefined}
@@ -80,7 +99,6 @@ export default function ComposePage() {
           onSaveDraft={handleSaveDraft}
           onDiscard={handleDiscard}
           onAIAssist={handleAIAssist}
-          onAttach={handleAttach}
         />
       </PageTransition>
     </AppShell>

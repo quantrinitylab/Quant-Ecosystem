@@ -1,85 +1,100 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import {
-  ThemeProvider,
-  CommandPaletteUI,
-  QuantSidekickProvider,
-  QuantSidekick,
-} from '@quant/shared-ui';
+import { usePathname, useRouter } from 'next/navigation';
+import { CommandPaletteUI, QuantSidekickProvider, ThemeProvider } from '@quant/shared-ui';
 import type { CommandPaletteItem } from '@quant/shared-ui';
+import { MailCopilot } from '../components/MailCopilot';
+
+const PUBLIC_AUTH_PATHS = ['/login', '/register', '/forgot-password'];
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const pathname = usePathname();
   const router = useRouter();
+  const isPublicAuthRoute = PUBLIC_AUTH_PATHS.includes(pathname ?? '');
+
+  const navigate = (path: string) => {
+    router.push(path);
+    setCommandPaletteOpen(false);
+  };
 
   const commands: CommandPaletteItem[] = [
     {
       id: 'compose',
-      label: 'Compose Email',
+      label: 'Compose a new message',
       shortcut: 'C',
-      action: () => {
-        router.push('/compose');
-        setCommandPaletteOpen(false);
-      },
+      group: 'Create',
+      action: () => navigate('/compose'),
     },
     {
       id: 'search',
-      label: 'Search Emails',
+      label: 'Search mail and people',
       shortcut: '/',
-      action: () => {
-        router.push('/?search=true');
-        setCommandPaletteOpen(false);
-      },
+      group: 'Find',
+      action: () => navigate('/search'),
+    },
+    { id: 'inbox', label: 'Open priority inbox', group: 'Mail', action: () => navigate('/') },
+    { id: 'sent', label: 'Open sent mail', group: 'Mail', action: () => navigate('/sent') },
+    { id: 'drafts', label: 'Open drafts', group: 'Mail', action: () => navigate('/drafts') },
+    {
+      id: 'calendar',
+      label: 'Open calendar',
+      group: 'Workspace',
+      action: () => navigate('/calendar'),
     },
     {
-      id: 'inbox',
-      label: 'Go to Inbox',
-      action: () => {
-        router.push('/');
-        setCommandPaletteOpen(false);
-      },
+      id: 'contacts',
+      label: 'Open contacts',
+      group: 'Workspace',
+      action: () => navigate('/contacts'),
+    },
+    { id: 'drive', label: 'Open drive', group: 'Workspace', action: () => navigate('/drive') },
+    {
+      id: 'repos',
+      label: 'Open repositories',
+      group: 'Developer',
+      action: () => navigate('/repos'),
     },
     {
-      id: 'sent',
-      label: 'Go to Sent',
-      action: () => {
-        router.push('/?folder=sent');
-        setCommandPaletteOpen(false);
-      },
-    },
-    {
-      id: 'drafts',
-      label: 'Go to Drafts',
-      action: () => {
-        router.push('/?folder=drafts');
-        setCommandPaletteOpen(false);
-      },
+      id: 'security',
+      label: 'Review account security',
+      group: 'Account',
+      action: () => navigate('/security'),
     },
   ];
 
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
+    if (isPublicAuthRoute) {
+      setCommandPaletteOpen(false);
+      return;
+    }
+
+    const handler = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
         setCommandPaletteOpen(true);
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, []);
+  }, [isPublicAuthRoute]);
 
   return (
-    <ThemeProvider defaultTheme="system">
+    <ThemeProvider defaultTheme="dark">
       <QuantSidekickProvider>
         {children}
-        <CommandPaletteUI
-          isOpen={commandPaletteOpen}
-          onClose={() => setCommandPaletteOpen(false)}
-          commands={commands}
-        />
-        <QuantSidekick />
+        {!isPublicAuthRoute ? (
+          <>
+            <CommandPaletteUI
+              isOpen={commandPaletteOpen}
+              onClose={() => setCommandPaletteOpen(false)}
+              commands={commands}
+              placeholder="Search QuantMail commands…"
+            />
+            <MailCopilot />
+          </>
+        ) : null}
       </QuantSidekickProvider>
     </ThemeProvider>
   );

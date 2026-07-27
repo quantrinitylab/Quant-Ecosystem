@@ -264,8 +264,8 @@ export default function ThreadPage() {
   };
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <PageTransition className="flex flex-col h-full">
+    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+      <PageTransition className="workspace-page thread-workspace flex flex-col h-full">
         {/* Top bar */}
         <div className="flex items-center gap-2 p-4 border-b border-[var(--quant-border)]">
           <Button variant="secondary" onClick={() => router.push('/')}>
@@ -275,7 +275,7 @@ export default function ThreadPage() {
             <div className="flex items-center gap-2 ml-auto flex-wrap">
               {/* AI Summarize chip (gradient) */}
               <button
-                className="flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] text-xs font-medium rounded-full bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20 text-purple-600 hover:from-purple-500/20 hover:to-blue-500/20 transition-colors"
+                className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-[rgba(255,153,51,0.22)] bg-[rgba(255,153,51,0.08)] px-3 py-1.5 text-xs font-medium text-[var(--quant-primary)] transition-colors hover:bg-[rgba(255,153,51,0.16)]"
                 onClick={handleAISummarize}
                 disabled={aiSummarizing}
               >
@@ -307,11 +307,13 @@ export default function ThreadPage() {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ type: 'spring', ...spring.gentle }}
-              className="border-b border-[var(--quant-border)] bg-gradient-to-r from-purple-500/5 to-blue-500/5"
+              className="border-b border-[var(--quant-border)] bg-gradient-to-r from-[rgba(255,153,51,0.055)] to-[rgba(19,136,8,0.05)]"
             >
               <div className="p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-semibold text-purple-600">AI Summary</span>
+                  <span className="text-xs font-semibold text-[var(--quant-primary)]">
+                    AI Summary
+                  </span>
                   <button
                     className="text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] min-h-[44px] min-w-[44px] flex items-center justify-center"
                     onClick={() => setAiSummary(null)}

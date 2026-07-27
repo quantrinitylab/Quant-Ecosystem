@@ -70,7 +70,7 @@ export class SmartInboxService {
   }
 
   categorize(email: { from: string; subject: string; to: string; body: string }): CategorizedEmail {
-    const emailId = `email-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const emailId = `email-${crypto.randomUUID()}`;
 
     // Check user corrections first
     const correction = this.userCorrections.get(emailId);

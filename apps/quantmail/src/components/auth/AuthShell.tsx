@@ -1,22 +1,38 @@
-'use client';
+import type { CSSProperties, ReactNode } from 'react';
 
-import type { ReactNode } from 'react';
+interface AuthShellProps {
+  brand: ReactNode;
+  children: ReactNode;
+}
 
-/**
- * Premium split-screen auth layout: an immersive brand panel on the left (only
- * on large screens) and the form on the right. On mobile the brand collapses to
- * a slim gradient header so the form stays front-and-center.
- */
-export function AuthShell({ brand, children }: { brand: ReactNode; children: ReactNode }) {
+const darkTheme = {
+  '--quant-background': '#09090a',
+  '--quant-foreground': '#f7f7f2',
+  '--quant-surface': '#141416',
+  '--quant-surface-elevated': '#1b1b1f',
+  '--quant-muted': '#222226',
+  '--quant-muted-foreground': '#9b9b9f',
+  '--quant-border': '#303034',
+  '--quant-ring': '#ff9933',
+  '--quant-card': '#111113',
+  '--quant-card-foreground': '#f7f7f2',
+  '--quant-destructive': '#ff7b7b',
+  '--quant-success': '#54d46c',
+  '--brand-primary': '#ff9933',
+  '--brand-primary-hover': '#ffad5c',
+} as CSSProperties;
+
+/** Dark editorial access frame for the Quantrinity identity. */
+export function AuthShell({ brand, children }: AuthShellProps) {
   return (
-    <div className="min-h-screen w-full lg:grid lg:grid-cols-[1.05fr_1fr] bg-[var(--quant-background)]">
-      {/* Brand side */}
-      <div className="hidden lg:block relative overflow-hidden">{brand}</div>
-
-      {/* Form side */}
-      <div className="flex min-h-screen flex-col justify-center px-6 py-10 sm:px-10 lg:px-16">
-        {children}
-      </div>
-    </div>
+    <main className="auth-shell" style={darkTheme}>
+      <div className="auth-shell-mobile-brand">{brand}</div>
+      <div className="auth-shell-brand">{brand}</div>
+      <section className="auth-shell-form">
+        <div className="auth-shell-form-grid" aria-hidden="true" />
+        <div className="auth-shell-form-glow" aria-hidden="true" />
+        <div className="auth-shell-form-content">{children}</div>
+      </section>
+    </main>
   );
 }

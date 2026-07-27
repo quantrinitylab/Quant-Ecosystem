@@ -1,169 +1,285 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Sidebar } from '@quant/shared-ui';
-import type { SidebarItem } from '@quant/shared-ui';
-import { useRouter, usePathname } from 'next/navigation';
-import { spring } from '@quant/brand';
-import { useLabels, useCreateLabel } from '../hooks/useLabels';
-import { expandCollapseVariants } from '../lib/motion-variants';
+import { useCallback, useState, type ReactNode } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { usePathname, useRouter } from 'next/navigation';
+import { useCreateLabel, useLabels } from '../hooks/useLabels';
 import type { EmailLabel } from '../types';
+import { QuantrinityMark } from './QuantrinityMark';
 
 const PRESET_COLORS = [
   '#ef4444',
-  '#f97316',
+  '#ff9933',
   '#eab308',
-  '#22c55e',
+  '#138808',
   '#06b6d4',
   '#3b82f6',
-  '#8b5cf6',
+  '#6366f1',
   '#ec4899',
   '#6b7280',
   '#14b8a6',
 ];
 
-const systemFolders = [
-  { id: 'inbox', label: 'Inbox', icon: <span>&#128229;</span>, path: '/' },
-  { id: 'compose', label: 'Compose', icon: <span>&#9997;</span>, path: '/compose' },
-  { id: 'search', label: 'Search', icon: <span>&#128269;</span>, path: '/search' },
-  { id: 'sent', label: 'Sent', icon: <span>&#128228;</span>, path: '/sent' },
-  { id: 'drafts', label: 'Drafts', icon: <span>&#128221;</span>, path: '/drafts' },
-  { id: 'trash', label: 'Trash', icon: <span>&#128465;</span>, path: '/trash' },
-];
+type IconName =
+  | 'calendar'
+  | 'chevron'
+  | 'code'
+  | 'compose'
+  | 'contacts'
+  | 'drafts'
+  | 'drive'
+  | 'inbox'
+  | 'pipeline'
+  | 'search'
+  | 'security'
+  | 'sent'
+  | 'settings'
+  | 'trash';
 
-const appNavItems = [
-  { id: 'calendar', label: 'Calendar', icon: <span>&#128197;</span>, path: '/calendar' },
-  { id: 'contacts', label: 'Contacts', icon: <span>&#128101;</span>, path: '/contacts' },
-  { id: 'drive', label: 'Drive', icon: <span>&#128193;</span>, path: '/drive' },
-  { id: 'repos', label: 'Repos', icon: <span>&#128187;</span>, path: '/repos' },
-  { id: 'pipelines', label: 'Pipelines', icon: <span>&#9881;</span>, path: '/pipelines' },
-  { id: 'security', label: 'Security', icon: <span>&#128274;</span>, path: '/security' },
-  { id: 'settings', label: 'Settings', icon: <span>&#9881;&#65039;</span>, path: '/settings' },
+const ICON_PATHS: Record<IconName, ReactNode> = {
+  calendar: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M8 3v4M16 3v4M3 10h18" />
+    </>
+  ),
+  chevron: <path d="m9 18 6-6-6-6" />,
+  code: (
+    <>
+      <path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14" />
+    </>
+  ),
+  compose: (
+    <>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z" />
+    </>
+  ),
+  contacts: (
+    <>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 20c0-4 2-6 6-6s6 2 6 6M16 7a3 3 0 0 1 0 6M17 14c2.7.4 4 2.4 4 5" />
+    </>
+  ),
+  drafts: (
+    <>
+      <path d="M5 3h10l4 4v14H5z" />
+      <path d="M14 3v5h5M8 13h8M8 17h5" />
+    </>
+  ),
+  drive: (
+    <>
+      <path d="M3 7h7l2 2h9v10H3z" />
+      <path d="M3 7v12" />
+    </>
+  ),
+  inbox: (
+    <>
+      <path d="M4 4h16v16H4z" />
+      <path d="M4 14h5l2 3h2l2-3h5" />
+    </>
+  ),
+  pipeline: (
+    <>
+      <circle cx="6" cy="5" r="2" />
+      <circle cx="18" cy="12" r="2" />
+      <circle cx="6" cy="19" r="2" />
+      <path d="M8 5h3a3 3 0 0 1 3 3v1a3 3 0 0 0 3 3M8 19h3a3 3 0 0 0 3-3v-1a3 3 0 0 1 3-3" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4-4" />
+    </>
+  ),
+  security: (
+    <>
+      <path d="M12 3 4 6v5c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V6z" />
+      <path d="m9 12 2 2 4-4" />
+    </>
+  ),
+  sent: (
+    <>
+      <path d="m22 2-7 20-4-9-9-4z" />
+      <path d="M22 2 11 13" />
+    </>
+  ),
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6" />
+    </>
+  ),
+};
+
+function Icon({ name, className = 'h-4 w-4' }: { name: IconName; className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {ICON_PATHS[name]}
+    </svg>
+  );
+}
+
+const NAV_GROUPS: Array<{
+  label: string;
+  items: Array<{ id: string; label: string; icon: IconName; path: string }>;
+}> = [
+  {
+    label: 'Mail',
+    items: [
+      { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
+      { id: 'search', label: 'Search', icon: 'search', path: '/search' },
+      { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
+      { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
+      { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
+    ],
+  },
+  {
+    label: 'Workspace',
+    items: [
+      { id: 'calendar', label: 'Calendar', icon: 'calendar', path: '/calendar' },
+      { id: 'contacts', label: 'Contacts', icon: 'contacts', path: '/contacts' },
+      { id: 'drive', label: 'Drive', icon: 'drive', path: '/drive' },
+    ],
+  },
+  {
+    label: 'Developer',
+    items: [
+      { id: 'repos', label: 'Repos', icon: 'code', path: '/repos' },
+      { id: 'pipelines', label: 'Pipelines', icon: 'pipeline', path: '/pipelines' },
+      { id: 'security', label: 'Security', icon: 'security', path: '/security' },
+      { id: 'settings', label: 'Settings', icon: 'settings', path: '/settings' },
+    ],
+  },
 ];
 
 function LabelSection() {
   const { data: labels, isLoading } = useLabels();
   const createLabel = useCreateLabel();
+  const prefersReducedMotion = useReducedMotion();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
-  const [newLabelColor, setNewLabelColor] = useState(PRESET_COLORS[0]);
+  const [newLabelColor, setNewLabelColor] = useState(PRESET_COLORS[1]);
   const [labelsExpanded, setLabelsExpanded] = useState(true);
 
   const handleCreateLabel = useCallback(async () => {
-    if (!newLabelName.trim()) return;
+    const name = newLabelName.trim();
+    if (!name) return;
     try {
-      await createLabel.mutateAsync({ name: newLabelName.trim(), color: newLabelColor });
+      await createLabel.mutateAsync({ name, color: newLabelColor });
       setNewLabelName('');
-      setNewLabelColor(PRESET_COLORS[0]);
+      setNewLabelColor(PRESET_COLORS[1]);
       setShowCreateForm(false);
     } catch {
-      // Error handled by react-query
+      // The mutation hook exposes the failure state next to this form.
     }
-  }, [newLabelName, newLabelColor, createLabel]);
+  }, [createLabel, newLabelColor, newLabelName]);
 
   return (
-    <div className="px-3 py-2">
-      {/* Labels header */}
+    <section className="sidebar-labels" aria-labelledby="sidebar-labels-heading">
       <button
-        className="flex items-center justify-between w-full min-h-[44px] px-2 text-xs font-semibold uppercase text-[var(--quant-muted-foreground)] tracking-wider hover:text-[var(--quant-foreground)] transition-colors"
-        onClick={() => setLabelsExpanded(!labelsExpanded)}
+        type="button"
+        className="sidebar-section-trigger"
+        onClick={() => setLabelsExpanded((value) => !value)}
+        aria-expanded={labelsExpanded}
+        aria-controls="sidebar-labels-list"
       >
-        <span>Labels</span>
-        <span className="text-[10px]">{labelsExpanded ? '\u25B2' : '\u25BC'}</span>
+        <span id="sidebar-labels-heading">Labels</span>
+        <Icon
+          name="chevron"
+          className={`h-3.5 w-3.5 transition-transform motion-reduce:transition-none ${labelsExpanded ? 'rotate-90' : ''}`}
+        />
       </button>
-
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {labelsExpanded && (
           <motion.div
-            variants={expandCollapseVariants}
-            initial="collapsed"
-            animate="expanded"
-            exit="collapsed"
+            id="sidebar-labels-list"
+            initial={prefersReducedMotion ? false : { height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={prefersReducedMotion ? undefined : { height: 0, opacity: 0 }}
+            className="overflow-hidden"
           >
-            {/* Label list */}
-            {isLoading && (
-              <div className="space-y-1 px-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-8 bg-[var(--quant-muted)] rounded animate-pulse" />
-                ))}
-              </div>
-            )}
-
-            {labels && labels.length > 0 && (
-              <div className="space-y-0.5">
-                {labels.map((label: EmailLabel) => (
-                  <div
-                    key={label.id}
-                    className="flex items-center gap-2 px-2 py-1.5 min-h-[44px] rounded-md hover:bg-[var(--quant-muted)] transition-colors cursor-pointer"
-                  >
-                    <span
-                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: label.color }}
-                    />
-                    <span className="text-sm flex-1 truncate">{label.name}</span>
-                    {label.unreadCount > 0 && (
-                      <span className="text-xs text-[var(--quant-muted-foreground)] font-medium">
-                        {label.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Create label button / form */}
+            {isLoading && <div className="sidebar-label-skeleton" />}
+            {labels?.map((label: EmailLabel) => (
+              <button type="button" key={label.id} className="sidebar-label-item">
+                <span
+                  className="h-2 w-2 flex-none rounded-full"
+                  style={{ backgroundColor: label.color }}
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 flex-1 truncate">{label.name}</span>
+                {label.unreadCount > 0 && (
+                  <span className="sidebar-count">{label.unreadCount}</span>
+                )}
+              </button>
+            ))}
             {!showCreateForm ? (
               <button
-                className="flex items-center gap-2 w-full px-2 py-1.5 min-h-[44px] mt-1 text-sm text-[var(--quant-primary)] hover:bg-[var(--quant-muted)] rounded-md transition-colors"
+                type="button"
+                className="sidebar-create-label"
                 onClick={() => setShowCreateForm(true)}
               >
-                <span>+</span>
-                <span>Create Label</span>
+                <span aria-hidden="true">＋</span> New label
               </button>
             ) : (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mt-2 p-2 border border-[var(--quant-border)] rounded-lg bg-[var(--quant-background)]"
-              >
+              <div className="sidebar-label-form">
+                <label className="sr-only" htmlFor="new-label-name">
+                  Label name
+                </label>
                 <input
+                  id="new-label-name"
                   type="text"
-                  className="w-full px-2 py-1.5 min-h-[44px] text-sm border border-[var(--quant-border)] rounded-md bg-transparent focus:outline-none focus:ring-1 focus:ring-[var(--quant-primary)]"
                   placeholder="Label name"
                   value={newLabelName}
-                  onChange={(e) => setNewLabelName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleCreateLabel();
+                  onChange={(event) => setNewLabelName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void handleCreateLabel();
                   }}
                   autoFocus
                 />
-                {/* Color picker */}
-                <div className="flex flex-wrap gap-1.5 mt-2">
+                <div className="sidebar-color-grid" aria-label="Label color">
                   {PRESET_COLORS.map((color) => (
                     <button
                       key={color}
-                      className={`w-6 h-6 rounded-full border-2 transition-transform ${
-                        newLabelColor === color
-                          ? 'border-[var(--quant-foreground)] scale-110'
-                          : 'border-transparent'
-                      }`}
+                      type="button"
                       style={{ backgroundColor: color }}
                       onClick={() => setNewLabelColor(color)}
+                      aria-label={`Use color ${color}`}
+                      aria-pressed={newLabelColor === color}
+                      className={newLabelColor === color ? 'is-selected' : ''}
                     />
                   ))}
                 </div>
-                <div className="flex gap-2 mt-2">
+                {createLabel.isError && (
+                  <p className="sidebar-label-error" role="alert">
+                    Label could not be created.
+                  </p>
+                )}
+                <div className="sidebar-label-actions">
                   <button
-                    className="flex-1 px-2 py-1 min-h-[44px] text-xs font-medium bg-[var(--quant-primary)] text-white rounded-md hover:opacity-90 transition-opacity"
-                    onClick={handleCreateLabel}
+                    type="button"
+                    onClick={() => void handleCreateLabel()}
                     disabled={!newLabelName.trim() || createLabel.isPending}
                   >
-                    {createLabel.isPending ? 'Creating...' : 'Create'}
+                    {createLabel.isPending ? 'Creating…' : 'Create'}
                   </button>
                   <button
-                    className="px-2 py-1 min-h-[44px] text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+                    type="button"
                     onClick={() => {
                       setShowCreateForm(false);
                       setNewLabelName('');
@@ -172,55 +288,88 @@ function LabelSection() {
                     Cancel
                   </button>
                 </div>
-              </motion.div>
+              </div>
             )}
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </section>
   );
 }
 
 export function AppSidebar() {
   const router = useRouter();
-  const pathname = usePathname();
-  const [foldersExpanded, setFoldersExpanded] = useState(true);
-
-  const sidebarItems: SidebarItem[] = [
-    ...systemFolders.map((item) => ({
-      id: item.id,
-      label: item.label,
-      icon: item.icon,
-      active: item.path === '/' ? pathname === '/' : (pathname ?? '').startsWith(item.path),
-      onClick: () => router.push(item.path),
-    })),
-    ...appNavItems.map((item) => ({
-      id: item.id,
-      label: item.label,
-      icon: item.icon,
-      active: (pathname ?? '').startsWith(item.path),
-      onClick: () => router.push(item.path),
-    })),
-  ];
+  const pathname = usePathname() ?? '/';
+  const isActive = (path: string) => (path === '/' ? pathname === '/' : pathname.startsWith(path));
 
   return (
-    <Sidebar
-      items={sidebarItems}
-      header={
-        <motion.div
-          className="flex items-center gap-2"
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', ...spring.gentle }}
-        >
-          <div className="w-8 h-8 rounded-full bg-[var(--brand-app-color)] flex items-center justify-center text-white font-bold text-sm">
-            Q
-          </div>
-          <h2 className="text-lg font-semibold">QuantMail</h2>
-        </motion.div>
-      }
-      footer={<LabelSection />}
-      className="min-h-touch [&_button]:min-h-[44px] [&_a]:min-h-[44px]"
-    />
+    <nav className="quant-sidebar" aria-label="QuantMail navigation">
+      <header className="sidebar-brand">
+        <QuantrinityMark compact />
+        <div className="min-w-0">
+          <p className="sidebar-product">QuantMail</p>
+          <p className="sidebar-parent">by Quantrinity</p>
+        </div>
+        <span
+          className="sidebar-live-dot"
+          title="All systems operational"
+          aria-label="All systems operational"
+        />
+      </header>
+
+      <div className="sidebar-compose-wrap">
+        <button type="button" onClick={() => router.push('/compose')} className="sidebar-compose">
+          <Icon name="compose" className="h-[18px] w-[18px]" />
+          <span>New message</span>
+          <kbd>C</kbd>
+        </button>
+      </div>
+
+      <div className="sidebar-scroll">
+        {NAV_GROUPS.map((group) => (
+          <section
+            key={group.label}
+            className="sidebar-group"
+            aria-labelledby={`nav-${group.label.toLowerCase()}`}
+          >
+            <h2 id={`nav-${group.label.toLowerCase()}`}>{group.label}</h2>
+            <ul role="list">
+              {group.items.map((item) => {
+                const active = isActive(item.path);
+                return (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => router.push(item.path)}
+                      className={`sidebar-nav-item ${active ? 'is-active' : ''}`}
+                      aria-current={active ? 'page' : undefined}
+                    >
+                      <Icon name={item.icon} />
+                      <span>{item.label}</span>
+                      {item.id === 'inbox' && (
+                        <span className="sidebar-nav-spark" aria-hidden="true" />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+        <LabelSection />
+      </div>
+
+      <footer className="sidebar-footer">
+        <span className="sidebar-india" aria-hidden="true">
+          <i />
+          <i />
+          <i />
+        </span>
+        <span>Built in India</span>
+        <span className="ml-auto text-[9px] uppercase tracking-[0.16em] text-[var(--quant-muted-foreground)]">
+          Private beta
+        </span>
+      </footer>
+    </nav>
   );
 }

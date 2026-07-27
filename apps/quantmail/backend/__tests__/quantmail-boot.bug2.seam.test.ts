@@ -40,7 +40,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 
 // apps/quantmail/backend/__tests__  ->  repo root (../../../..)
 const here = dirname(fileURLToPath(import.meta.url));
@@ -123,7 +123,7 @@ describe('Bug 2 — quantmail buildApp() deep @quant/auth subpath resolution fai
       const { path, error } = resolveDeepSubpath(specifier);
       expect(error, `${specifier} should resolve, got: ${error}`).toBeNull();
       // Normalize to a repo-relative comparison.
-      const rel = path ? resolve(path).replace(`${resolve(repoRoot)}/`, '') : null;
+      const rel = path ? relative(repoRoot, resolve(path)).replaceAll('\\', '/') : null;
       expect(rel, `${specifier} resolved to unexpected path: ${path}`).toBe(expectedSrc);
     }
   });

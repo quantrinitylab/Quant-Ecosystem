@@ -5,11 +5,7 @@ import { AppShell, Card, Button, Modal, Input, FormField, Skeleton } from '@quan
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
-import {
-  useCalendarEvents,
-  useCreateEvent,
-  useDeleteEvent,
-} from '../../hooks/useCalendar';
+import { useCalendarEvents, useCreateEvent, useDeleteEvent } from '../../hooks/useCalendar';
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -79,8 +75,8 @@ export default function CalendarPage() {
   const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <PageTransition className="flex flex-col h-full">
+    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+      <PageTransition className="workspace-page calendar-workspace flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
           <div className="flex items-center gap-3">
@@ -186,10 +182,11 @@ export default function CalendarPage() {
                     : `${new Date(year, month, selectedDay).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`}
                 </h2>
                 {(() => {
-                  const dayEvents = events?.filter((e) => {
-                    const d = new Date(e.startTime).getDate();
-                    return d === selectedDay;
-                  }) ?? [];
+                  const dayEvents =
+                    events?.filter((e) => {
+                      const d = new Date(e.startTime).getDate();
+                      return d === selectedDay;
+                    }) ?? [];
                   if (dayEvents.length === 0) {
                     return (
                       <div className="text-center py-8">

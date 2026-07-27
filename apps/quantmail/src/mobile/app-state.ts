@@ -178,7 +178,7 @@ export class AppStateService {
     priority: number = 0,
   ): () => void {
     const entry: LifecycleHandler = {
-      id: `handler_${Date.now()}_${Math.random()}`,
+      id: `handler_${crypto.randomUUID()}`,
       event,
       priority,
       handler,

@@ -38,8 +38,8 @@ export default function ReposPage() {
   }, [newRepo, createRepo]);
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <PageTransition className="flex flex-col h-full">
+    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+      <PageTransition className="workspace-page repos-workspace flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
           <h1 className="text-lg font-semibold">Repositories</h1>

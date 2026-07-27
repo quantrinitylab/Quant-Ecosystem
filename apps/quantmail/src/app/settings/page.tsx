@@ -97,8 +97,8 @@ export default function SettingsPage() {
   }, []);
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <PageTransition className="flex flex-col h-full overflow-hidden">
+    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+      <PageTransition className="workspace-page settings-workspace flex flex-col h-full overflow-hidden">
         {/* Header */}
         <div className="shrink-0 px-6 pt-6 pb-0">
           <h1 className="text-xl font-semibold tracking-tight text-[var(--quant-foreground)]">
@@ -318,7 +318,10 @@ export default function SettingsPage() {
                         Permanently delete your account and all associated data.
                       </p>
                     </div>
-                    <Button variant="secondary" className="border-[var(--quant-destructive)]/50 text-[var(--quant-destructive)] hover:bg-[var(--quant-destructive)]/10">
+                    <Button
+                      variant="secondary"
+                      className="border-[var(--quant-destructive)]/50 text-[var(--quant-destructive)] hover:bg-[var(--quant-destructive)]/10"
+                    >
                       Delete account
                     </Button>
                   </div>
@@ -364,7 +367,10 @@ export default function SettingsPage() {
                       desc: 'Only notify when you are directly mentioned',
                     },
                   ].map((item) => (
-                    <label key={item.key} className="flex items-center justify-between py-2 cursor-pointer">
+                    <label
+                      key={item.key}
+                      className="flex items-center justify-between py-2 cursor-pointer"
+                    >
                       <div>
                         <p className="text-sm font-medium text-[var(--quant-foreground)]">
                           {item.label}
@@ -466,20 +472,24 @@ export default function SettingsPage() {
                 <Button variant="primary">+ New label</Button>
               </div>
               <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] divide-y divide-[var(--quant-border)]">
-                {['Inbox', 'Starred', 'Snoozed', 'Important', 'Sent', 'Drafts', 'Spam', 'Trash'].map(
-                  (label) => (
-                    <div
-                      key={label}
-                      className="flex items-center justify-between px-4 py-3"
-                    >
-                      <span className="text-sm text-[var(--quant-foreground)]">{label}</span>
-                      <div className="flex items-center gap-3 text-xs text-[var(--quant-muted-foreground)]">
-                        <button className="hover:text-[var(--brand-primary)]">show</button>
-                        <button className="hover:text-[var(--brand-primary)]">hide</button>
-                      </div>
+                {[
+                  'Inbox',
+                  'Starred',
+                  'Snoozed',
+                  'Important',
+                  'Sent',
+                  'Drafts',
+                  'Spam',
+                  'Trash',
+                ].map((label) => (
+                  <div key={label} className="flex items-center justify-between px-4 py-3">
+                    <span className="text-sm text-[var(--quant-foreground)]">{label}</span>
+                    <div className="flex items-center gap-3 text-xs text-[var(--quant-muted-foreground)]">
+                      <button className="hover:text-[var(--brand-primary)]">show</button>
+                      <button className="hover:text-[var(--brand-primary)]">hide</button>
                     </div>
-                  ),
-                )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -508,11 +518,10 @@ export default function SettingsPage() {
                   { keys: 'G then S', action: 'Go to Starred' },
                   { keys: '?', action: 'Show all shortcuts' },
                 ].map((shortcut) => (
-                  <div
-                    key={shortcut.keys}
-                    className="flex items-center justify-between px-4 py-3"
-                  >
-                    <span className="text-sm text-[var(--quant-foreground)]">{shortcut.action}</span>
+                  <div key={shortcut.keys} className="flex items-center justify-between px-4 py-3">
+                    <span className="text-sm text-[var(--quant-foreground)]">
+                      {shortcut.action}
+                    </span>
                     <kbd className="px-2 py-1 text-xs font-mono rounded bg-[var(--quant-muted)] border border-[var(--quant-border)] text-[var(--quant-muted-foreground)]">
                       {shortcut.keys}
                     </kbd>

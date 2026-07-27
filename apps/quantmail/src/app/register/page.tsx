@@ -1,250 +1,289 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { apiClient } from '../../services/api-client';
-import { PageTransition } from '../../components/PageTransition';
+import { useRouter } from 'next/navigation';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
 import { AuthShell } from '../../components/auth/AuthShell';
+import { PageTransition } from '../../components/PageTransition';
 import {
   QUANT_MAIL_DOMAIN,
-  normalizeUsername,
   isValidUsername,
+  normalizeUsername,
   toQuantAddress,
 } from '../../config/identity';
+import { apiClient } from '../../services/api-client';
+
+interface RegistrationErrors {
+  username?: string;
+  password?: string;
+  confirmPassword?: string;
+  terms?: string;
+}
 
 export default function RegisterPage() {
   const router = useRouter();
-
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<RegistrationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const normalized = useMemo(() => normalizeUsername(username), [username]);
   const address = normalized ? toQuantAddress(normalized) : '';
-
-  // Lightweight password-strength signal (length + variety), 0..4.
   const strength = useMemo(() => {
-    let s = 0;
-    if (password.length >= 8) s++;
-    if (password.length >= 12) s++;
-    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) s++;
-    if (/\d/.test(password) && /[^A-Za-z0-9]/.test(password)) s++;
-    return s;
+    let score = 0;
+    if (password.length >= 8) score += 1;
+    if (password.length >= 12) score += 1;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score += 1;
+    if (/\d/.test(password) && /[^A-Za-z0-9]/.test(password)) score += 1;
+    return score;
   }, [password]);
 
+  const strengthLabels = ['Too weak', 'Weak', 'Fair', 'Good', 'Strong'];
+  const strengthColors = ['#ef4444', '#f59e0b', '#f59e0b', '#3b82f6', '#22c55e'];
+
   function validate(): boolean {
-    const errors: Record<string, string> = {};
-    if (!normalized) errors.username = 'Choose a username';
-    else if (!isValidUsername(normalized))
-      errors.username = '3–30 chars: letters, numbers, dot, dash, underscore';
-    if (!password) errors.password = 'Password is required';
-    else if (password.length < 8) errors.password = 'At least 8 characters';
-    if (confirmPassword !== password) errors.confirmPassword = 'Passwords do not match';
+    const errors: RegistrationErrors = {};
+    if (!normalized) errors.username = 'Choose a handle.';
+    else if (!isValidUsername(normalized)) {
+      errors.username = 'Use 3–30 letters, numbers, dots, dashes, or underscores.';
+    }
+    if (!password) errors.password = 'Enter a password.';
+    else if (password.length < 8) errors.password = 'Use at least 8 characters.';
+    if (!confirmPassword) errors.confirmPassword = 'Confirm your password.';
+    else if (confirmPassword !== password) errors.confirmPassword = 'Passwords do not match.';
+    if (!termsAccepted) errors.terms = 'Acknowledge the required terms to continue.';
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setError(null);
     if (!validate()) return;
 
     setIsSubmitting(true);
     try {
-      const res = await apiClient.register({
+      const response = await apiClient.register({
         email: address,
         password,
         username: normalized,
         displayName: normalized,
-        acceptTerms: true,
+        acceptTerms: termsAccepted,
       });
-      if (res.success) {
+      if (response.success) {
         router.push(
           `/login?success=${encodeURIComponent(`Welcome to QuantMail. Sign in as ${address}`)}`,
         );
       } else {
-        setError(res.error?.message || 'Registration failed. Please try again.');
+        setError(response.error?.message || 'Registration failed. Try again.');
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error ? caughtError.message : 'Registration failed. Try again.',
+      );
     } finally {
       setIsSubmitting(false);
     }
   }
-
-  const strengthLabel = ['Too weak', 'Weak', 'Fair', 'Good', 'Strong'][strength];
-  const strengthColor = ['#ef4444', '#f59e0b', '#f59e0b', '#3b82f6', '#22c55e'][strength];
 
   return (
     <PageTransition>
       <AuthShell
         brand={
           <AuthBrandPanel
-            eyebrow="One identity for everything"
-            title="Your whole workflow, one address."
-            subtitle="Mail, code, calendar and AI — unified under a single QuantMail identity. Claim your handle."
+            eyebrow="Create your workspace identity"
+            title="Start with one clear address."
+            subtitle="Claim a QuantMail handle for a focused workspace across mail, scheduling, and assisted drafting."
           />
         }
       >
-        <div className="w-full max-w-sm mx-auto animate-slide-up">
-          <div className="mb-8">
-            <h1 className="text-[26px] font-semibold tracking-tight text-[var(--quant-foreground)]">
+        <div>
+          <div className="mb-7">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
+              New account
+            </p>
+            <h1 className="text-[28px] font-semibold tracking-[-0.035em] text-[var(--quant-foreground)] sm:text-[30px]">
               Create your QuantMail
             </h1>
-            <p className="text-sm text-[var(--quant-muted-foreground)] mt-1.5">
-              Pick a handle — it becomes your address across the ecosystem.
+            <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
+              Pick the handle for your QuantMail address.
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Username → live address */}
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div>
-              <label
-                htmlFor="reg-username"
-                className="block text-[13px] font-medium text-[var(--quant-foreground)] mb-1.5"
-              >
-                Choose your handle
+              <label htmlFor="reg-username" className="mb-2 block text-[13px] font-medium">
+                Account handle
               </label>
               <div
-                className={`flex items-stretch rounded-xl border bg-[var(--quant-surface)] overflow-hidden transition-shadow focus-within:ring-2 focus-within:ring-[var(--brand-primary)]/60 ${
-                  fieldErrors.username
-                    ? 'border-[var(--quant-destructive)]'
-                    : 'border-[var(--quant-border)]'
-                }`}
+                className={`flex overflow-hidden rounded-xl border bg-[var(--quant-surface)] transition-[border-color,box-shadow] focus-within:border-[var(--brand-primary)] focus-within:ring-2 focus-within:ring-[var(--brand-primary)]/20 motion-reduce:transition-none ${fieldErrors.username ? 'border-[var(--quant-destructive)]' : 'border-[var(--quant-border)]'}`}
               >
                 <input
                   id="reg-username"
                   type="text"
+                  required
                   inputMode="text"
                   autoComplete="username"
-                  placeholder="shivani454"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="yourname"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="flex-1 min-w-0 bg-transparent px-3.5 py-3 text-sm outline-none placeholder:text-[var(--quant-muted-foreground)]"
+                  onChange={(event) => setUsername(event.target.value)}
+                  aria-invalid={Boolean(fieldErrors.username)}
+                  aria-describedby="reg-username-help"
+                  className="min-w-0 flex-1 bg-transparent px-3.5 py-3 text-sm outline-none placeholder:text-[var(--quant-muted-foreground)]"
                 />
-                <span className="flex items-center px-3 text-sm text-[var(--quant-muted-foreground)] bg-[var(--quant-muted)] border-l border-[var(--quant-border)] select-none">
+                <span
+                  className="flex items-center border-l border-[var(--quant-border)] bg-[var(--quant-muted)] px-3 text-xs text-[var(--quant-muted-foreground)]"
+                  aria-hidden="true"
+                >
                   @{QUANT_MAIL_DOMAIN}
                 </span>
               </div>
-              {fieldErrors.username ? (
-                <p className="text-xs text-[var(--quant-destructive)] mt-1.5">
-                  {fieldErrors.username}
-                </p>
-              ) : (
-                <p className="text-xs text-[var(--quant-muted-foreground)] mt-1.5">
-                  {address ? (
-                    <>
-                      Your address:{' '}
-                      <span className="font-medium text-[var(--brand-primary)]">{address}</span>
-                    </>
-                  ) : (
-                    'Letters, numbers, dot, dash, underscore.'
-                  )}
-                </p>
-              )}
+              <p
+                id="reg-username-help"
+                className={`mt-1.5 text-xs ${fieldErrors.username ? 'text-[var(--quant-destructive)]' : 'text-[var(--quant-muted-foreground)]'}`}
+              >
+                {fieldErrors.username ||
+                  (address ? `Your address will be ${address}` : '3–30 supported characters.')}
+              </p>
             </div>
 
-            {/* Password */}
             <div>
-              <label
-                htmlFor="reg-password"
-                className="block text-[13px] font-medium text-[var(--quant-foreground)] mb-1.5"
-              >
+              <label htmlFor="reg-password" className="mb-2 block text-[13px] font-medium">
                 Password
               </label>
               <div
-                className={`flex items-stretch rounded-xl border bg-[var(--quant-surface)] overflow-hidden transition-shadow focus-within:ring-2 focus-within:ring-[var(--brand-primary)]/60 ${
-                  fieldErrors.password
-                    ? 'border-[var(--quant-destructive)]'
-                    : 'border-[var(--quant-border)]'
-                }`}
+                className={`flex overflow-hidden rounded-xl border bg-[var(--quant-surface)] transition-[border-color,box-shadow] focus-within:border-[var(--brand-primary)] focus-within:ring-2 focus-within:ring-[var(--brand-primary)]/20 motion-reduce:transition-none ${fieldErrors.password ? 'border-[var(--quant-destructive)]' : 'border-[var(--quant-border)]'}`}
               >
                 <input
                   id="reg-password"
                   type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
                   autoComplete="new-password"
-                  placeholder="Create a strong password"
+                  placeholder="At least 8 characters"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="flex-1 min-w-0 bg-transparent px-3.5 py-3 text-sm outline-none placeholder:text-[var(--quant-muted-foreground)]"
+                  onChange={(event) => setPassword(event.target.value)}
+                  aria-invalid={Boolean(fieldErrors.password)}
+                  aria-describedby="reg-password-help"
+                  className="min-w-0 flex-1 bg-transparent px-3.5 py-3 text-sm outline-none placeholder:text-[var(--quant-muted-foreground)]"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="px-3 text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  aria-label={showPassword ? 'Hide passwords' : 'Show passwords'}
+                  aria-pressed={showPassword}
+                  className="px-3.5 text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
                 >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
-              {password && (
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="flex-1 h-1.5 rounded-full bg-[var(--quant-muted)] overflow-hidden">
+              <div id="reg-password-help" className="mt-1.5">
+                {fieldErrors.password ? (
+                  <p className="text-xs text-[var(--quant-destructive)]">{fieldErrors.password}</p>
+                ) : password ? (
+                  <div className="flex items-center gap-2">
                     <div
-                      className="h-full rounded-full transition-all duration-300"
-                      style={{ width: `${(strength / 4) * 100}%`, background: strengthColor }}
-                    />
+                      className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--quant-muted)]"
+                      role="progressbar"
+                      aria-label="Password strength"
+                      aria-valuemin={0}
+                      aria-valuemax={4}
+                      aria-valuenow={strength}
+                      aria-valuetext={strengthLabels[strength]}
+                    >
+                      <div
+                        className="h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none"
+                        style={{
+                          width: `${(strength / 4) * 100}%`,
+                          backgroundColor: strengthColors[strength],
+                        }}
+                      />
+                    </div>
+                    <span className="text-[11px]" style={{ color: strengthColors[strength] }}>
+                      {strengthLabels[strength]}
+                    </span>
                   </div>
-                  <span className="text-[11px]" style={{ color: strengthColor }}>
-                    {strengthLabel}
-                  </span>
-                </div>
-              )}
-              {fieldErrors.password && (
-                <p className="text-xs text-[var(--quant-destructive)] mt-1.5">
-                  {fieldErrors.password}
-                </p>
-              )}
+                ) : (
+                  <p className="text-xs text-[var(--quant-muted-foreground)]">
+                    Use 8 or more characters.
+                  </p>
+                )}
+              </div>
             </div>
 
-            {/* Confirm */}
             <div>
-              <label
-                htmlFor="reg-confirm"
-                className="block text-[13px] font-medium text-[var(--quant-foreground)] mb-1.5"
-              >
+              <label htmlFor="reg-confirm" className="mb-2 block text-[13px] font-medium">
                 Confirm password
               </label>
               <input
                 id="reg-confirm"
                 type={showPassword ? 'text' : 'password'}
+                required
                 autoComplete="new-password"
-                placeholder="Re-enter password"
+                placeholder="Re-enter your password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className={`w-full rounded-xl border bg-[var(--quant-surface)] px-3.5 py-3 text-sm outline-none transition-shadow focus:ring-2 focus:ring-[var(--brand-primary)]/60 placeholder:text-[var(--quant-muted-foreground)] ${
-                  fieldErrors.confirmPassword
-                    ? 'border-[var(--quant-destructive)]'
-                    : 'border-[var(--quant-border)]'
-                }`}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                aria-invalid={Boolean(fieldErrors.confirmPassword)}
+                aria-describedby={fieldErrors.confirmPassword ? 'reg-confirm-error' : undefined}
+                className={`w-full rounded-xl border bg-[var(--quant-surface)] px-3.5 py-3 text-sm outline-none transition-[border-color,box-shadow] placeholder:text-[var(--quant-muted-foreground)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 motion-reduce:transition-none ${fieldErrors.confirmPassword ? 'border-[var(--quant-destructive)]' : 'border-[var(--quant-border)]'}`}
               />
-              {fieldErrors.confirmPassword && (
-                <p className="text-xs text-[var(--quant-destructive)] mt-1.5">
+              {fieldErrors.confirmPassword ? (
+                <p
+                  id="reg-confirm-error"
+                  className="mt-1.5 text-xs text-[var(--quant-destructive)]"
+                >
                   {fieldErrors.confirmPassword}
                 </p>
-              )}
+              ) : null}
             </div>
 
-            {error && (
+            <div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)]/50 p-3.5">
+                <input
+                  type="checkbox"
+                  required
+                  checked={termsAccepted}
+                  onChange={(event) => setTermsAccepted(event.target.checked)}
+                  aria-invalid={Boolean(fieldErrors.terms)}
+                  aria-describedby={fieldErrors.terms ? 'reg-terms-error' : undefined}
+                  className="mt-0.5 h-4 w-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#121215]"
+                />
+                <span className="text-xs leading-5 text-[var(--quant-muted-foreground)]">
+                  I acknowledge the terms required to create an account.
+                </span>
+              </label>
+              {fieldErrors.terms ? (
+                <p id="reg-terms-error" className="mt-1.5 text-xs text-[var(--quant-destructive)]">
+                  {fieldErrors.terms}
+                </p>
+              ) : null}
+            </div>
+
+            {error ? (
               <div
                 role="alert"
-                className="rounded-xl border border-[var(--quant-destructive)]/30 bg-[var(--quant-destructive)]/10 px-3.5 py-2.5 text-sm text-[var(--quant-destructive)]"
+                className="rounded-xl border border-[var(--quant-destructive)]/30 bg-[var(--quant-destructive)]/10 px-4 py-3 text-sm text-[var(--quant-destructive)]"
               >
                 {error}
               </div>
-            )}
+            ) : null}
 
+            <p className="sr-only" role="status" aria-live="polite">
+              {isSubmitting ? 'Creating your account.' : ''}
+            </p>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="group relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-[var(--brand-primary)] to-[var(--quant-secondary)] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-[var(--brand-primary)]/25 transition-all hover:shadow-xl hover:shadow-[var(--brand-primary)]/30 active:scale-[0.99] disabled:opacity-70"
+              className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
             >
-              {isSubmitting ? 'Creating your account…' : 'Claim your address'}
+              {isSubmitting ? 'Creating account…' : 'Create QuantMail account'}
             </button>
           </form>
 
@@ -252,7 +291,7 @@ export default function RegisterPage() {
             Already have an account?{' '}
             <Link
               href="/login"
-              className="font-medium text-[var(--brand-primary)] hover:underline underline-offset-4"
+              className="font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
               Sign in
             </Link>

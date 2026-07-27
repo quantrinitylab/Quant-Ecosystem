@@ -1,47 +1,46 @@
-// ============================================================================
-// QuantMail - Email Composer Component
-// Rich text editor with AI suggestions, schedule send, and undo send
-// ============================================================================
+'use client';
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { spring } from '@quant/brand';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { toastSlideUpVariants } from '../lib/motion-variants';
 import type { EmailAddress, EmailPriority } from '../types';
+
+export interface ComposerMessageData {
+  to: EmailAddress[];
+  cc: EmailAddress[];
+  bcc: EmailAddress[];
+  subject: string;
+  bodyText: string;
+  bodyHtml: string;
+  priority: EmailPriority;
+  scheduledAt?: string;
+}
 
 export interface EmailComposerProps {
   initialTo?: EmailAddress[];
   initialSubject?: string;
   initialBody?: string;
   inReplyTo?: string;
-  onSend: (data: {
-    to: EmailAddress[];
-    cc: EmailAddress[];
-    bcc: EmailAddress[];
-    subject: string;
-    bodyText: string;
-    bodyHtml: string;
-    priority: EmailPriority;
-    scheduledAt?: string;
-  }) => Promise<void>;
-  onSaveDraft: () => void;
+  onSend: (data: ComposerMessageData) => Promise<void>;
+  onSaveDraft: (data: ComposerMessageData) => Promise<void>;
   onDiscard: () => void;
   onAIAssist: (
     action: 'compose' | 'improve' | 'shorten' | 'formalize',
     text: string,
   ) => Promise<string>;
-  onAttach: (file: { name: string; size: number; type: string }) => void;
   isMinimized?: boolean;
   onToggleMinimize?: () => void;
 }
 
 type AITone = 'professional' | 'friendly' | 'concise' | 'expand';
+type LiveMessage = { kind: 'status' | 'error'; text: string } | null;
+type LocalAttachment = { id: string; name: string; size: number; type: string };
 
-const AI_TONES: {
+const AI_TONES: Array<{
   key: AITone;
   label: string;
   action: 'compose' | 'improve' | 'shorten' | 'formalize';
-}[] = [
+}> = [
   { key: 'professional', label: 'Professional', action: 'formalize' },
   { key: 'friendly', label: 'Friendly', action: 'improve' },
   { key: 'concise', label: 'Concise', action: 'shorten' },
@@ -51,150 +50,247 @@ const AI_TONES: {
 const SCHEDULE_OPTIONS = [
   { label: 'In 1 hour', hours: 1 },
   { label: 'In 2 hours', hours: 2 },
-  { label: 'Tomorrow morning (9 AM)', hours: 0, preset: 'tomorrow_9am' },
-  { label: 'Tomorrow afternoon (2 PM)', hours: 0, preset: 'tomorrow_2pm' },
-  { label: 'Monday morning (9 AM)', hours: 0, preset: 'monday_9am' },
-];
+  { label: 'Tomorrow morning, 9:00 AM', hours: 0, preset: 'tomorrow_9am' },
+  { label: 'Tomorrow afternoon, 2:00 PM', hours: 0, preset: 'tomorrow_2pm' },
+  { label: 'Monday morning, 9:00 AM', hours: 0, preset: 'monday_9am' },
+] as const;
 
 function getScheduledDate(option: (typeof SCHEDULE_OPTIONS)[number]): Date {
   const now = new Date();
-  if (option.hours > 0) {
-    return new Date(now.getTime() + option.hours * 60 * 60 * 1000);
-  }
+  if (option.hours > 0) return new Date(now.getTime() + option.hours * 60 * 60 * 1000);
+
   const result = new Date(now);
-  if (option.preset === 'tomorrow_9am') {
+  if ('preset' in option && option.preset === 'tomorrow_9am') {
     result.setDate(result.getDate() + 1);
     result.setHours(9, 0, 0, 0);
-  } else if (option.preset === 'tomorrow_2pm') {
+  } else if ('preset' in option && option.preset === 'tomorrow_2pm') {
     result.setDate(result.getDate() + 1);
     result.setHours(14, 0, 0, 0);
-  } else if (option.preset === 'monday_9am') {
+  } else {
     const dayOfWeek = result.getDay();
-    const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
-    result.setDate(result.getDate() + daysUntilMonday);
+    result.setDate(result.getDate() + (dayOfWeek === 0 ? 1 : 8 - dayOfWeek));
     result.setHours(9, 0, 0, 0);
   }
   return result;
 }
 
-export function EmailComposer(props: EmailComposerProps): React.ReactElement {
-  const {
-    initialTo,
-    initialSubject,
-    initialBody,
-    onSend,
-    onSaveDraft,
-    onDiscard,
-    onAIAssist,
-    onAttach,
-    isMinimized,
-    onToggleMinimize,
-  } = props;
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
-  const [to, setTo] = useState(initialTo?.map((a) => a.email).join(', ') || '');
+function parseEmails(value: string): EmailAddress[] {
+  return value
+    .split(',')
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .map((email) => ({ email }));
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+export function EmailComposer({
+  initialTo,
+  initialSubject,
+  initialBody,
+  onSend,
+  onSaveDraft,
+  onDiscard,
+  onAIAssist,
+  isMinimized,
+  onToggleMinimize,
+}: EmailComposerProps): React.ReactElement {
+  const fieldId = useId();
+  const [to, setTo] = useState(initialTo?.map((address) => address.email).join(', ') ?? '');
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
-  const [subject, setSubject] = useState(initialSubject || '');
-  const [body, setBody] = useState(initialBody || '');
+  const [subject, setSubject] = useState(initialSubject ?? '');
+  const [body, setBody] = useState(initialBody ?? '');
   const [priority, setPriority] = useState<EmailPriority>('normal');
   const [showCcBcc, setShowCcBcc] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [formatting, setFormatting] = useState({
-    bold: false,
-    italic: false,
-    underline: false,
-    orderedList: false,
-    unorderedList: false,
-    link: false,
-    code: false,
-  });
-  const [aiLoading, setAiLoading] = useState(false);
   const [showScheduleMenu, setShowScheduleMenu] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ to?: string; subject?: string }>({});
+  const [liveMessage, setLiveMessage] = useState<LiveMessage>(null);
+  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
   const [undoSendState, setUndoSendState] = useState<{
     countdown: number;
-    timer: ReturnType<typeof setInterval> | null;
+    payload: ComposerMessageData;
   } | null>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const scheduleButtonRef = useRef<HTMLButtonElement>(null);
+  const scheduleMenuRef = useRef<HTMLDivElement>(null);
+  const firstScheduleOptionRef = useRef<HTMLButtonElement>(null);
+  const busy = isSending || isSaving;
 
-  const parseEmails = (str: string): EmailAddress[] => {
-    return str
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s)
-      .map((email) => ({ email }));
-  };
+  useEffect(() => {
+    if (!showScheduleMenu) return;
 
-  const handleSend = useCallback(
-    async (scheduledAt?: string) => {
-      if (!to.trim() || !subject.trim()) return;
+    firstScheduleOptionRef.current?.focus();
+
+    const handleScheduleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
       setShowScheduleMenu(false);
+      scheduleButtonRef.current?.focus();
+    };
 
-      // Start undo-send countdown
-      setUndoSendState({ countdown: 5, timer: null });
-    },
-    [to, subject],
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (
+        scheduleMenuRef.current?.contains(target) ||
+        scheduleButtonRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setShowScheduleMenu(false);
+    };
+
+    document.addEventListener('keydown', handleScheduleKeyDown);
+    document.addEventListener('pointerdown', handleOutsidePointerDown);
+    return () => {
+      document.removeEventListener('keydown', handleScheduleKeyDown);
+      document.removeEventListener('pointerdown', handleOutsidePointerDown);
+    };
+  }, [showScheduleMenu]);
+
+  const buildMessage = useCallback(
+    (scheduledAt?: string): ComposerMessageData => ({
+      to: parseEmails(to),
+      cc: parseEmails(cc),
+      bcc: parseEmails(bcc),
+      subject: subject.trim(),
+      bodyText: body,
+      bodyHtml: `<div>${escapeHtml(body).replace(/\r?\n/g, '<br />')}</div>`,
+      priority,
+      ...(scheduledAt ? { scheduledAt } : {}),
+    }),
+    [to, cc, bcc, subject, body, priority],
   );
 
-  // Undo send countdown effect
+  const validateRequired = useCallback((): boolean => {
+    const nextErrors: { to?: string; subject?: string } = {};
+    if (!to.trim()) nextErrors.to = 'Add at least one recipient.';
+    if (!subject.trim()) nextErrors.subject = 'Add a subject before sending.';
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setLiveMessage({ kind: 'error', text: 'Add a recipient and subject before sending.' });
+      return false;
+    }
+    return true;
+  }, [subject, to]);
+
+  const completeSend = useCallback(
+    async (payload: ComposerMessageData) => {
+      setIsSending(true);
+      setLiveMessage({ kind: 'status', text: 'Sending message…' });
+      try {
+        await onSend(payload);
+        setLiveMessage({ kind: 'status', text: 'Message sent.' });
+      } catch (error) {
+        setLiveMessage({ kind: 'error', text: errorMessage(error, 'Message could not be sent.') });
+      } finally {
+        setIsSending(false);
+      }
+    },
+    [onSend],
+  );
+
+  const handleSend = useCallback(() => {
+    if (!validateRequired()) return;
+    setShowScheduleMenu(false);
+    setUndoSendState({ countdown: 5, payload: buildMessage() });
+    setLiveMessage({ kind: 'status', text: 'Message will send in 5 seconds.' });
+  }, [buildMessage, validateRequired]);
+
   useEffect(() => {
     if (!undoSendState) return;
-
     if (undoSendState.countdown <= 0) {
-      // Actually send
+      const payload = undoSendState.payload;
       setUndoSendState(null);
-      setIsSending(true);
-      onSend({
-        to: parseEmails(to),
-        cc: parseEmails(cc),
-        bcc: parseEmails(bcc),
-        subject,
-        bodyText: body,
-        bodyHtml: `<div>${body.replace(/\n/g, '<br>')}</div>`,
-        priority,
-      }).finally(() => setIsSending(false));
+      void completeSend(payload);
       return;
     }
-
-    const timer = setTimeout(() => {
-      setUndoSendState((prev) => (prev ? { ...prev, countdown: prev.countdown - 1 } : null));
+    const timer = window.setTimeout(() => {
+      setUndoSendState((current) =>
+        current ? { ...current, countdown: current.countdown - 1 } : null,
+      );
     }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [undoSendState, to, cc, bcc, subject, body, priority, onSend]);
+    return () => window.clearTimeout(timer);
+  }, [completeSend, undoSendState]);
 
   const handleUndoSend = useCallback(() => {
     setUndoSendState(null);
+    setLiveMessage({ kind: 'status', text: 'Send canceled. Your message is still open.' });
   }, []);
 
   const handleScheduleSend = useCallback(
-    (option: (typeof SCHEDULE_OPTIONS)[number]) => {
-      if (!to.trim() || !subject.trim()) return;
+    async (option: (typeof SCHEDULE_OPTIONS)[number]) => {
+      if (!validateRequired()) return;
+      const scheduledAt = getScheduledDate(option).toISOString();
       setShowScheduleMenu(false);
-      const scheduledDate = getScheduledDate(option);
+      scheduleButtonRef.current?.focus();
       setIsSending(true);
-      onSend({
-        to: parseEmails(to),
-        cc: parseEmails(cc),
-        bcc: parseEmails(bcc),
-        subject,
-        bodyText: body,
-        bodyHtml: `<div>${body.replace(/\n/g, '<br>')}</div>`,
-        priority,
-        scheduledAt: scheduledDate.toISOString(),
-      }).finally(() => setIsSending(false));
+      setLiveMessage({ kind: 'status', text: 'Saving scheduled draft…' });
+      try {
+        await onSend(buildMessage(scheduledAt));
+        setLiveMessage({
+          kind: 'status',
+          text: `Scheduled draft saved for ${new Date(scheduledAt).toLocaleString()}. It is not queued for delivery.`,
+        });
+      } catch (error) {
+        setLiveMessage({
+          kind: 'error',
+          text: errorMessage(error, 'Scheduled draft could not be saved.'),
+        });
+      } finally {
+        setIsSending(false);
+      }
     },
-    [to, cc, bcc, subject, body, priority, onSend],
+    [buildMessage, onSend, validateRequired],
   );
+
+  const handleSaveDraft = useCallback(async () => {
+    setIsSaving(true);
+    setLiveMessage({ kind: 'status', text: 'Saving draft…' });
+    try {
+      await onSaveDraft(buildMessage());
+      setLiveMessage({ kind: 'status', text: 'Draft saved.' });
+    } catch (error) {
+      setLiveMessage({ kind: 'error', text: errorMessage(error, 'Draft could not be saved.') });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [buildMessage, onSaveDraft]);
 
   const handleAITone = useCallback(
     async (tone: AITone) => {
-      const toneConfig = AI_TONES.find((t) => t.key === tone);
+      const toneConfig = AI_TONES.find((item) => item.key === tone);
       if (!toneConfig) return;
       setAiLoading(true);
+      setLiveMessage({ kind: 'status', text: `${toneConfig.label} AI assist is working…` });
       try {
         const result = await onAIAssist(toneConfig.action, body);
         setBody(result);
+        setLiveMessage({ kind: 'status', text: `${toneConfig.label} suggestion applied.` });
+      } catch (error) {
+        setLiveMessage({ kind: 'error', text: errorMessage(error, 'AI assist failed.') });
       } finally {
         setAiLoading(false);
       }
@@ -202,292 +298,400 @@ export function EmailComposer(props: EmailComposerProps): React.ReactElement {
     [body, onAIAssist],
   );
 
-  const handleKeyboardShortcut = (e: React.KeyboardEvent) => {
-    if (e.metaKey || e.ctrlKey) {
-      switch (e.key) {
-        case 'Enter':
-          e.preventDefault();
-          handleSend();
-          break;
-        case 'b':
-          e.preventDefault();
-          setFormatting((f) => ({ ...f, bold: !f.bold }));
-          break;
-        case 'i':
-          e.preventDefault();
-          setFormatting((f) => ({ ...f, italic: !f.italic }));
-          break;
-        case 'u':
-          e.preventDefault();
-          setFormatting((f) => ({ ...f, underline: !f.underline }));
-          break;
-        case 's':
-          e.preventDefault();
-          onSaveDraft();
-          break;
-      }
-    }
-  };
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
+  const reportFiles = useCallback((files: File[]) => {
+    if (files.length === 0) return;
+    setAttachments((current) => [
+      ...current,
+      ...files.map((file) => ({
+        id: `${file.name}-${file.size}-${file.lastModified}`,
+        name: file.name,
+        size: file.size,
+        type: file.type || 'Unknown type',
+      })),
+    ]);
+    setLiveMessage({
+      kind: 'status',
+      text: `${files.length} local ${files.length === 1 ? 'file' : 'files'} selected. Files are not uploaded or sent.`,
+    });
   }, []);
 
-  const handleDragLeave = useCallback(() => {
-    setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setIsDragOver(false);
-      const files = Array.from(e.dataTransfer.files);
-      for (const file of files) {
-        onAttach({ name: file.name, size: file.size, type: file.type });
+  const handleKeyboardShortcut = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        handleSend();
+      } else if (event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        void handleSaveDraft();
       }
     },
-    [onAttach],
+    [handleSaveDraft, handleSend],
   );
 
   if (isMinimized) {
     return (
-      <div className="composer-minimized" onClick={onToggleMinimize}>
-        <span className="composer-minimized-title">
-          {subject || 'New Message'} - {to || 'No recipients'}
-        </span>
+      <div className="composer-minimized">
         <button
-          className="btn-icon min-h-[44px] min-w-[44px]"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDiscard();
-          }}
+          type="button"
+          className="composer-minimized-trigger"
+          onClick={onToggleMinimize}
+          aria-label={`Expand composer: ${subject || 'New message'}`}
         >
-          X
+          <span className="composer-minimized-title">
+            {subject || 'New message'} <span aria-hidden="true">·</span> {to || 'No recipients'}
+          </span>
+        </button>
+        <button type="button" className="btn-icon" aria-label="Discard message" onClick={onDiscard}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
         </button>
       </div>
     );
   }
 
+  const toId = `${fieldId}-to`;
+  const ccId = `${fieldId}-cc`;
+  const bccId = `${fieldId}-bcc`;
+  const subjectId = `${fieldId}-subject`;
+  const bodyId = `${fieldId}-body`;
+  const priorityId = `${fieldId}-priority`;
+  const fileId = `${fieldId}-files`;
+
   return (
-    <div className="email-composer" onKeyDown={handleKeyboardShortcut}>
-      {/* Header */}
-      <div className="composer-header">
-        <span className="composer-title">New Message</span>
-        <div className="composer-header-actions">
-          {onToggleMinimize && (
-            <button
-              className="btn-icon min-h-[44px] min-w-[44px]"
-              onClick={onToggleMinimize}
-              title="Minimize"
-            >
-              _
-            </button>
-          )}
-          <button
-            className="btn-icon min-h-[44px] min-w-[44px]"
-            onClick={onDiscard}
-            title="Discard"
-          >
-            X
-          </button>
-        </div>
-      </div>
-
-      {/* Recipients */}
-      <div className="composer-fields">
-        <div className="composer-field">
-          <label>To</label>
-          <input
-            type="text"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            placeholder="Recipients"
-          />
-          <button className="btn-link min-h-[44px]" onClick={() => setShowCcBcc(!showCcBcc)}>
-            {showCcBcc ? 'Hide Cc/Bcc' : 'Cc Bcc'}
-          </button>
-        </div>
-        {showCcBcc && (
-          <>
-            <div className="composer-field">
-              <label>Cc</label>
-              <input type="text" value={cc} onChange={(e) => setCc(e.target.value)} />
-            </div>
-            <div className="composer-field">
-              <label>Bcc</label>
-              <input type="text" value={bcc} onChange={(e) => setBcc(e.target.value)} />
-            </div>
-          </>
-        )}
-        <div className="composer-field">
-          <label>Subject</label>
-          <input
-            type="text"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            placeholder="Subject"
-          />
-        </div>
-      </div>
-
-      {/* Formatting Toolbar */}
-      <div className="composer-toolbar">
-        <button
-          className={`toolbar-btn min-h-[44px] min-w-[44px] ${formatting.bold ? 'active' : ''}`}
-          onClick={() => setFormatting((f) => ({ ...f, bold: !f.bold }))}
-          title="Bold (Cmd+B)"
-        >
-          <strong>B</strong>
-        </button>
-        <button
-          className={`toolbar-btn min-h-[44px] min-w-[44px] ${formatting.italic ? 'active' : ''}`}
-          onClick={() => setFormatting((f) => ({ ...f, italic: !f.italic }))}
-          title="Italic (Cmd+I)"
-        >
-          <em>I</em>
-        </button>
-        <button
-          className={`toolbar-btn min-h-[44px] min-w-[44px] ${formatting.underline ? 'active' : ''}`}
-          onClick={() => setFormatting((f) => ({ ...f, underline: !f.underline }))}
-          title="Underline (Cmd+U)"
-        >
-          <u>U</u>
-        </button>
-        <span className="toolbar-divider" />
-        <button
-          className={`toolbar-btn min-h-[44px] min-w-[44px] ${formatting.orderedList ? 'active' : ''}`}
-          onClick={() => setFormatting((f) => ({ ...f, orderedList: !f.orderedList }))}
-          title="Numbered list"
-        >
-          1.
-        </button>
-        <button
-          className={`toolbar-btn min-h-[44px] min-w-[44px] ${formatting.unorderedList ? 'active' : ''}`}
-          onClick={() => setFormatting((f) => ({ ...f, unorderedList: !f.unorderedList }))}
-          title="Bullet list"
-        >
-          &#8226;
-        </button>
-        <button
-          className={`toolbar-btn min-h-[44px] min-w-[44px] ${formatting.link ? 'active' : ''}`}
-          onClick={() => setFormatting((f) => ({ ...f, link: !f.link }))}
-          title="Insert link"
-        >
-          Link
-        </button>
-        <button
-          className={`toolbar-btn min-h-[44px] min-w-[44px] ${formatting.code ? 'active' : ''}`}
-          onClick={() => setFormatting((f) => ({ ...f, code: !f.code }))}
-          title="Code"
-        >
-          &lt;/&gt;
-        </button>
-        <span className="toolbar-divider" />
-        <button
-          className="toolbar-btn min-h-[44px] min-w-[44px]"
-          onClick={() => onAttach({ name: 'file.pdf', size: 0, type: 'application/pdf' })}
-          title="Attach file"
-        >
-          Attach
-        </button>
-        <div className="toolbar-right">
-          <select
-            className="priority-select min-h-[44px]"
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as EmailPriority)}
-          >
-            <option value="low">Low priority</option>
-            <option value="normal">Normal</option>
-            <option value="high">High priority</option>
-          </select>
-        </div>
-      </div>
-
-      {/* AI Tone Buttons */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--quant-border)] bg-[var(--quant-muted)] overflow-x-auto">
-        <span className="text-xs font-medium text-[var(--quant-muted-foreground)] whitespace-nowrap">
-          AI Tone:
-        </span>
-        {AI_TONES.map((tone) => (
-          <button
-            key={tone.key}
-            className="px-3 py-1.5 min-h-[44px] text-xs rounded-full border border-[var(--quant-border)] hover:bg-[var(--quant-primary)] hover:text-white transition-colors whitespace-nowrap"
-            onClick={() => handleAITone(tone.key)}
-            disabled={aiLoading}
-          >
-            {aiLoading ? '...' : tone.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Body with drag-drop zone */}
-      <div
-        className={`relative flex-1 ${isDragOver ? 'ring-2 ring-[var(--quant-primary)] ring-inset bg-[var(--quant-primary)]/5' : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        {isDragOver && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[var(--quant-muted)]/80 z-10 pointer-events-none">
-            <p className="text-sm font-medium text-[var(--quant-primary)]">Drop files to attach</p>
+    <main className="email-composer" onKeyDown={handleKeyboardShortcut}>
+      <section className="composer-surface" aria-labelledby={`${fieldId}-title`}>
+        <header className="composer-header">
+          <div>
+            <p className="composer-eyebrow">Compose</p>
+            <h1 id={`${fieldId}-title`} className="composer-title">
+              New message
+            </h1>
           </div>
-        )}
-        <textarea
-          ref={textareaRef}
-          className="composer-body w-full h-full min-h-[200px]"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Compose your email..."
-          rows={12}
-        />
-      </div>
+          <div className="composer-header-actions">
+            {onToggleMinimize && (
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={onToggleMinimize}
+                aria-label="Minimize composer"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14" />
+                </svg>
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn-icon"
+              onClick={onDiscard}
+              aria-label="Discard message"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 6 12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </div>
+        </header>
 
-      {/* Footer */}
-      <div className="composer-footer">
-        <button
-          className="btn btn-primary min-h-[44px]"
-          onClick={() => handleSend()}
-          disabled={isSending || !to.trim()}
+        <div
+          className={`composer-live-message ${liveMessage?.kind === 'error' ? 'is-error' : ''}`}
+          role={liveMessage?.kind === 'error' ? 'alert' : 'status'}
+          aria-live={liveMessage?.kind === 'error' ? 'assertive' : 'polite'}
+          aria-atomic="true"
         >
-          {isSending ? 'Sending...' : 'Send'} <span className="shortcut">Cmd+Enter</span>
-        </button>
-        {/* Schedule Send */}
-        <div className="relative">
-          <button
-            className="btn btn-outline min-h-[44px]"
-            onClick={() => setShowScheduleMenu(!showScheduleMenu)}
-            disabled={isSending || !to.trim()}
-          >
-            Schedule Send
-          </button>
-          {showScheduleMenu && (
-            <div className="absolute bottom-full left-0 mb-2 w-64 bg-[var(--quant-background)] border border-[var(--quant-border)] rounded-lg shadow-lg z-20 py-1">
-              {SCHEDULE_OPTIONS.map((option) => (
-                <button
-                  key={option.label}
-                  className="w-full text-left px-4 py-2 min-h-[44px] text-sm hover:bg-[var(--quant-muted)] transition-colors"
-                  onClick={() => handleScheduleSend(option)}
-                >
-                  {option.label}
-                </button>
-              ))}
+          {liveMessage?.text ?? 'Ready to compose.'}
+        </div>
+
+        <div className="composer-fields">
+          <div className={`composer-field ${fieldErrors.to ? 'has-error' : ''}`}>
+            <label htmlFor={toId}>
+              To <span aria-hidden="true">*</span>
+            </label>
+            <input
+              id={toId}
+              type="text"
+              value={to}
+              required
+              aria-invalid={Boolean(fieldErrors.to)}
+              aria-describedby={fieldErrors.to ? `${toId}-error` : undefined}
+              autoComplete="email"
+              placeholder="name@example.com, teammate@example.com"
+              onChange={(event) => {
+                setTo(event.target.value);
+                if (fieldErrors.to) setFieldErrors((errors) => ({ ...errors, to: undefined }));
+              }}
+            />
+            <button
+              type="button"
+              className="btn-link"
+              aria-expanded={showCcBcc}
+              onClick={() => setShowCcBcc((visible) => !visible)}
+            >
+              {showCcBcc ? 'Hide Cc/Bcc' : 'Cc/Bcc'}
+            </button>
+          </div>
+          {fieldErrors.to && (
+            <p id={`${toId}-error`} className="field-error">
+              {fieldErrors.to}
+            </p>
+          )}
+
+          {showCcBcc && (
+            <div className="composer-secondary-fields">
+              <div className="composer-field">
+                <label htmlFor={ccId}>Cc</label>
+                <input
+                  id={ccId}
+                  type="text"
+                  value={cc}
+                  onChange={(event) => setCc(event.target.value)}
+                />
+              </div>
+              <div className="composer-field">
+                <label htmlFor={bccId}>Bcc</label>
+                <input
+                  id={bccId}
+                  type="text"
+                  value={bcc}
+                  onChange={(event) => setBcc(event.target.value)}
+                />
+              </div>
             </div>
           )}
-        </div>
-        <button className="btn btn-outline min-h-[44px]" onClick={onSaveDraft}>
-          Save draft
-        </button>
-        <button
-          className="btn btn-outline btn-icon min-h-[44px]"
-          onClick={onDiscard}
-          title="Discard"
-        >
-          Discard
-        </button>
-      </div>
 
-      {/* Undo Send Toast */}
+          <div
+            className={`composer-field composer-subject-field ${fieldErrors.subject ? 'has-error' : ''}`}
+          >
+            <label htmlFor={subjectId}>
+              Subject <span aria-hidden="true">*</span>
+            </label>
+            <input
+              id={subjectId}
+              type="text"
+              value={subject}
+              required
+              aria-invalid={Boolean(fieldErrors.subject)}
+              aria-describedby={fieldErrors.subject ? `${subjectId}-error` : undefined}
+              placeholder="A clear subject"
+              onChange={(event) => {
+                setSubject(event.target.value);
+                if (fieldErrors.subject) {
+                  setFieldErrors((errors) => ({ ...errors, subject: undefined }));
+                }
+              }}
+            />
+          </div>
+          {fieldErrors.subject && (
+            <p id={`${subjectId}-error`} className="field-error">
+              {fieldErrors.subject}
+            </p>
+          )}
+        </div>
+
+        <section className="composer-ai" aria-labelledby={`${fieldId}-ai-title`}>
+          <div className="composer-ai-copy">
+            <span className="composer-ai-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="m12 3 1.4 4.6L18 9l-4.6 1.4L12 15l-1.4-4.6L6 9l4.6-1.4L12 3Zm6 11 .8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8L18 14Z" />
+              </svg>
+            </span>
+            <div>
+              <h2 id={`${fieldId}-ai-title`}>Writing assistant</h2>
+              <p>Uses the current message body. Review changes before sending.</p>
+            </div>
+          </div>
+          <div className="composer-ai-actions" aria-label="AI writing actions">
+            {AI_TONES.map((tone) => (
+              <button
+                key={tone.key}
+                type="button"
+                className="ai-action"
+                onClick={() => void handleAITone(tone.key)}
+                disabled={aiLoading || busy}
+              >
+                {aiLoading ? 'Working…' : tone.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <div
+          className={`composer-writing-area ${isDragOver ? 'is-dragging' : ''}`}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDragOver(true);
+          }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setIsDragOver(false);
+            reportFiles(Array.from(event.dataTransfer.files));
+          }}
+        >
+          {isDragOver && (
+            <div className="composer-drop-message">Release to select files locally</div>
+          )}
+          <label className="composer-body-label" htmlFor={bodyId}>
+            Message
+          </label>
+          <textarea
+            id={bodyId}
+            className="composer-body"
+            ref={undefined}
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            placeholder="Write with clarity. Keep only what matters."
+            rows={14}
+          />
+        </div>
+
+        {attachments.length > 0 && (
+          <section className="local-attachments" aria-labelledby={`${fieldId}-attachments-title`}>
+            <div className="local-attachments-heading">
+              <h2 id={`${fieldId}-attachments-title`}>Local file selection</h2>
+              <span>Not uploaded or included when sent</span>
+            </div>
+            <ul>
+              {attachments.map((file) => (
+                <li key={file.id}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 12.5 14.5 6a3 3 0 0 1 4.2 4.2l-8.1 8.1a5 5 0 0 1-7.1-7.1l8-8" />
+                  </svg>
+                  <span>
+                    <strong>{file.name}</strong>
+                    <small>
+                      {formatFileSize(file.size)} · {file.type}
+                    </small>
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${file.name} from local selection`}
+                    onClick={() =>
+                      setAttachments((files) => files.filter((item) => item.id !== file.id))
+                    }
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <div className="composer-action-bar">
+          <div className="composer-tools">
+            <input
+              ref={fileInputRef}
+              id={fileId}
+              className="visually-hidden-file"
+              type="file"
+              multiple
+              onChange={(event) => {
+                reportFiles(Array.from(event.target.files ?? []));
+                event.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              className="tool-action"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8 12.5 14.5 6a3 3 0 0 1 4.2 4.2l-8.1 8.1a5 5 0 0 1-7.1-7.1l8-8" />
+              </svg>
+              Select local files
+            </button>
+            <span className="attachment-caveat">Upload is not available</span>
+          </div>
+          <div className="priority-control">
+            <label htmlFor={priorityId}>Priority</label>
+            <select
+              id={priorityId}
+              value={priority}
+              onChange={(event) => setPriority(event.target.value as EmailPriority)}
+            >
+              <option value="low">Low</option>
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        </div>
+
+        <footer className="composer-footer">
+          <div className="composer-send-group">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSend}
+              disabled={busy || Boolean(undoSendState)}
+            >
+              {isSending ? 'Sending…' : undoSendState ? 'Pending…' : 'Send'}
+              <span className="shortcut" aria-hidden="true">
+                ⌘ Enter
+              </span>
+            </button>
+            <div className="schedule-control">
+              <button
+                ref={scheduleButtonRef}
+                type="button"
+                className="btn btn-schedule"
+                aria-haspopup="menu"
+                aria-controls={`${fieldId}-schedule-menu`}
+                aria-expanded={showScheduleMenu}
+                onClick={() => setShowScheduleMenu((visible) => !visible)}
+                disabled={busy || Boolean(undoSendState)}
+              >
+                Schedule
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m8 10 4 4 4-4" />
+                </svg>
+              </button>
+              {showScheduleMenu && (
+                <div
+                  ref={scheduleMenuRef}
+                  id={`${fieldId}-schedule-menu`}
+                  className="schedule-menu"
+                  role="menu"
+                  aria-label="Save as scheduled draft"
+                >
+                  <p>Save a scheduled draft</p>
+                  <small>Delivery scheduling is not connected yet.</small>
+                  {SCHEDULE_OPTIONS.map((option, index) => (
+                    <button
+                      ref={index === 0 ? firstScheduleOptionRef : undefined}
+                      key={option.label}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => void handleScheduleSend(option)}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="composer-secondary-actions">
+            <button
+              type="button"
+              className="btn btn-quiet"
+              onClick={() => void handleSaveDraft()}
+              disabled={busy}
+            >
+              {isSaving ? 'Saving…' : 'Save draft'}
+              <span className="shortcut" aria-hidden="true">
+                ⌘ S
+              </span>
+            </button>
+            <button type="button" className="btn btn-quiet discard-action" onClick={onDiscard}>
+              Discard
+            </button>
+          </div>
+        </footer>
+      </section>
+
       <AnimatePresence>
         {undoSendState && (
           <motion.div
@@ -495,22 +699,21 @@ export function EmailComposer(props: EmailComposerProps): React.ReactElement {
             initial="hidden"
             animate="visible"
             exit="exit"
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 px-6 py-3 bg-[var(--quant-foreground)] text-[var(--quant-background)] rounded-lg shadow-xl"
+            className="undo-send-toast"
+            role="status"
+            aria-live="assertive"
           >
-            <span className="text-sm font-medium">Sending in {undoSendState.countdown}s...</span>
-            <div className="w-8 h-8 rounded-full border-2 border-[var(--quant-background)] flex items-center justify-center text-xs font-bold">
+            <span>Sending in {undoSendState.countdown}s</span>
+            <span className="undo-countdown" aria-hidden="true">
               {undoSendState.countdown}
-            </div>
-            <button
-              className="px-4 py-1.5 min-h-[44px] text-sm font-semibold bg-[var(--quant-destructive)] text-white rounded-md hover:opacity-90 transition-opacity"
-              onClick={handleUndoSend}
-            >
-              Undo
+            </span>
+            <button type="button" onClick={handleUndoSend}>
+              Undo send
             </button>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </main>
   );
 }
 

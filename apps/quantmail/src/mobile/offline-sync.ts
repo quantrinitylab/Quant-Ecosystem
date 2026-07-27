@@ -90,7 +90,7 @@ export class OfflineSyncService {
   ): SyncOperation {
     const op: SyncOperation = {
       ...operation,
-      id: `op_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `op_${crypto.randomUUID()}`,
       createdAt: Date.now(),
       retryCount: 0,
       status: 'pending',
