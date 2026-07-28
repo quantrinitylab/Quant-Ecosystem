@@ -10,7 +10,8 @@ import {
   useTransform,
   type PanInfo,
 } from 'framer-motion';
-import { AppShell, ErrorState, Skeleton } from '@quant/shared-ui';
+import { ErrorState, Skeleton } from '@quant/shared-ui';
+import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
 import { AppSidebar } from '../components/AppSidebar';

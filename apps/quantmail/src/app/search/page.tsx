@@ -3,7 +3,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AppShell, SearchInput, Card, Badge, Button, Skeleton } from '@quant/shared-ui';
+import { SearchInput, Card, Badge, Button, Skeleton } from '@quant/shared-ui';
+import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { AppSidebar } from '../../components/AppSidebar';

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { AppShell, Button, Input, FormField, Skeleton } from '@quant/shared-ui';
+import { Button, Input, FormField, Skeleton } from '@quant/shared-ui';
+import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { apiClient } from '../../services/api-client';
