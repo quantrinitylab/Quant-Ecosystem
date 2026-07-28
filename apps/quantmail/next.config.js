@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@quant/shared-ui', '@quant/common', '@quant/brand', '@quant/bharat-ai'],
+  experimental: {
+    optimizePackageImports: ['@quant/shared-ui'],
+  },
   typescript: {
     ignoreBuildErrors: true,
   },

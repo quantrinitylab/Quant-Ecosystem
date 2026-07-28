@@ -203,7 +203,7 @@ export class DeepLinkService {
   public async generateLink(metadata: LinkMetadata): Promise<GeneratedLink> {
     const path = `/share/${metadata.contentType}/${metadata.contentId}`;
     const url = `https://${this.universalLinkConfig.domain}${path}`;
-    const shortUrl = `https://qnt.link/${Math.random().toString(36).substr(2, 8)}`;
+    const shortUrl = `https://qnt.link/${crypto.randomUUID().replaceAll('-', '')}`;
     return { url, shortUrl, qrCodeData: url, metadata };
   }
 

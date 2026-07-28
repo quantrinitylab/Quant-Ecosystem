@@ -1,37 +1,55 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import { QueryProvider } from '../providers/query-provider';
-import { AuthProvider } from '../providers/auth-provider';
-import { AppProviders } from '../providers/app-providers';
-import { BrandProvider } from '../providers/brand-provider';
 import { AuthGuard } from '../components/AuthGuard';
+import { AppProviders } from '../providers/app-providers';
+import { AuthProvider } from '../providers/auth-provider';
+import { BrandProvider } from '../providers/brand-provider';
+import { QueryProvider } from '../providers/query-provider';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'QuantMail | Quant',
-  description: 'Central email and communication hub for the Quant Ecosystem',
+  title: {
+    default: 'QuantMail by Quantrinity',
+    template: '%s · QuantMail',
+  },
+  description: 'A focused, intelligent inbox by Quantrinity — built in India for the world.',
+  applicationName: 'QuantMail',
   icons: {
-    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="2" stroke="%233B82F6" stroke-width="2"/><path d="M2 7l10 6 10-6" stroke="%233B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    icon: '/quantrinity-mark.svg',
+    shortcut: '/quantrinity-mark.svg',
+    apple: '/quantrinity-mark.svg',
   },
 };
+
+const themeBootstrap = `
+(function () {
+  try {
+    var stored = localStorage.getItem('quant-theme');
+    var theme = stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'dark';
+    var resolved = theme === 'system'
+      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : theme;
+    var root = document.documentElement;
+    root.setAttribute('data-theme', resolved);
+    root.classList.toggle('dark', resolved === 'dark');
+    root.style.colorScheme = resolved;
+  } catch (error) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    document.documentElement.classList.add('dark');
+    document.documentElement.style.colorScheme = 'dark';
+  }
+})();
+`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Apply the saved theme before first paint to avoid a flash. QuantMail
-            defaults to DARK. Resolves 'system' against the OS preference. The
-            CSS variables live under the `.dark` class (see globals.css). */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "(function(){try{var t=localStorage.getItem('quant-theme')||'dark';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){document.documentElement.classList.add('dark');}})();",
-          }}
-        />
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
-      <body className={inter.className}>
+      <body className={`${inter.className} quantmail-root`}>
         <QueryProvider>
           <BrandProvider>
             <AuthProvider>

@@ -3,7 +3,6 @@
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  AppShell,
   Card,
   Button,
   Badge,
@@ -13,6 +12,7 @@ import {
   SearchInput,
   Skeleton,
 } from '@quant/shared-ui';
+import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
@@ -38,8 +38,8 @@ export default function ReposPage() {
   }, [newRepo, createRepo]);
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <PageTransition className="flex flex-col h-full">
+    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+      <PageTransition className="workspace-page repos-workspace flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
           <h1 className="text-lg font-semibold">Repositories</h1>

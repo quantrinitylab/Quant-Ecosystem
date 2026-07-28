@@ -3,7 +3,8 @@
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { AppShell, Card, Badge, Button, Skeleton } from '@quant/shared-ui';
+import { Card, Badge, Button, Skeleton } from '@quant/shared-ui';
+import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
@@ -33,8 +34,8 @@ export default function DraftsPage() {
   );
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <PageTransition className="flex flex-col h-full">
+    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+      <PageTransition className="workspace-page drafts-workspace flex flex-col h-full">
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
           <h1 className="text-lg font-semibold">Drafts</h1>
           <Button variant="secondary" onClick={() => void refetch()}>

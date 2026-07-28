@@ -194,9 +194,12 @@ describe('V1 — no hardcoded/weak JWT secret reachable in production (Req 2.1)'
     expect(src).toContain("process.env.NODE_ENV === 'production'");
     expect(/throw new Error\([^)]*must be set/.test(src)).toBe(true);
     expect(src).toMatch(/at least 32 characters/);
-    // Any literal secret present is explicitly a dev-only, non-production fallback.
+    expect(src).toContain('KNOWN_INSECURE_DEFAULTS.includes(value)');
+    // Every dev literal must carry the standard marker. The one legacy compose
+    // default remains explicitly allowlisted here because production rejects it
+    // through KNOWN_INSECURE_DEFAULTS before returning any secret.
     for (const literal of src.match(/'dev-only[^']*'/g) ?? []) {
-      expect(literal).toMatch(/not-for-production/);
+      expect(literal).toMatch(/not-for-production|^'dev-only-change-me-in-production!!!'$/);
     }
   });
 

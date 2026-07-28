@@ -3,7 +3,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AppShell, SearchInput, Card, Badge, Button, Skeleton } from '@quant/shared-ui';
+import { SearchInput, Card, Badge, Button, Skeleton } from '@quant/shared-ui';
+import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { AppSidebar } from '../../components/AppSidebar';
@@ -144,8 +145,8 @@ export default function SearchPage() {
   );
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <div className="flex flex-col h-full">
+    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+      <div className="workspace-page search-workspace flex flex-col h-full">
         {/* Search header */}
         <div className="p-4 border-b border-[var(--quant-border)]">
           <div className="flex items-center gap-2" onKeyDown={handleKeyDown}>

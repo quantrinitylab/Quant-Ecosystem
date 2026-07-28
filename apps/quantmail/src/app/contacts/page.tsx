@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import {
-  AppShell,
   Card,
   Button,
   Modal,
@@ -13,6 +12,7 @@ import {
   SearchInput,
   Skeleton,
 } from '@quant/shared-ui';
+import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
@@ -98,8 +98,8 @@ export default function ContactsPage() {
   );
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <PageTransition className="flex flex-col h-full">
+    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+      <PageTransition className="workspace-page contacts-workspace flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
           <h1 className="text-lg font-semibold">Contacts</h1>

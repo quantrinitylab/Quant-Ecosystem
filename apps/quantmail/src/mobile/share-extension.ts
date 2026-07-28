@@ -12,7 +12,14 @@ export interface SharedContent {
   receivedAt: number;
 }
 
-export type SharedContentType = 'text' | 'url' | 'image' | 'video' | 'file' | 'contact' | 'location';
+export type SharedContentType =
+  | 'text'
+  | 'url'
+  | 'image'
+  | 'video'
+  | 'file'
+  | 'contact'
+  | 'location';
 
 export interface SharedContentMetadata {
   title?: string;
@@ -59,7 +66,13 @@ export class ShareExtensionService {
   private shareTargets: Map<string, ShareTarget> = new Map();
   private shareHistory: ShareHistoryEntry[] = [];
   private processingQueue: SharedContent[] = [];
-  private mediaOptions: MediaProcessingOptions = { maxWidth: 2048, maxHeight: 2048, quality: 0.85, format: 'jpeg', stripMetadata: false };
+  private mediaOptions: MediaProcessingOptions = {
+    maxWidth: 2048,
+    maxHeight: 2048,
+    quality: 0.85,
+    format: 'jpeg',
+    stripMetadata: false,
+  };
 
   constructor() {
     this.registerDefaultTargets();
@@ -67,16 +80,28 @@ export class ShareExtensionService {
 
   private registerDefaultTargets(): void {
     const targets: ShareTarget[] = [
-      { id: 'compose_email', contentTypes: ['text', 'url', 'image', 'file'], maxFileSize: 52428800, maxFiles: 10, description: 'Compose Email' },
-      { id: 'quick_save', contentTypes: ['text', 'url', 'image', 'video', 'file'], maxFileSize: 104857600, maxFiles: 20, description: 'Save to quantmail' },
+      {
+        id: 'compose_email',
+        contentTypes: ['text', 'url', 'image', 'file'],
+        maxFileSize: 52428800,
+        maxFiles: 10,
+        description: 'Compose Email',
+      },
+      {
+        id: 'quick_save',
+        contentTypes: ['text', 'url', 'image', 'video', 'file'],
+        maxFileSize: 104857600,
+        maxFiles: 20,
+        description: 'Save to quantmail',
+      },
     ];
-    targets.forEach(t => this.shareTargets.set(t.id, t));
+    targets.forEach((t) => this.shareTargets.set(t.id, t));
   }
 
   public async receiveContent(rawData: unknown, mimeType: string): Promise<SharedContent> {
     const contentType = this.detectContentType(mimeType, rawData);
     const content: SharedContent = {
-      id: `share_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `share_${crypto.randomUUID()}`,
       type: contentType,
       data: rawData as string,
       mimeType,
@@ -164,12 +189,20 @@ export class ShareExtensionService {
     }
   }
 
-  public async processMedia(content: SharedContent, options?: Partial<MediaProcessingOptions>): Promise<SharedContent> {
+  public async processMedia(
+    content: SharedContent,
+    options?: Partial<MediaProcessingOptions>,
+  ): Promise<SharedContent> {
     const opts = { ...this.mediaOptions, ...options };
     const processed: SharedContent = {
       ...content,
       id: `processed_${content.id}`,
-      metadata: { ...content.metadata, processed: true, maxWidth: opts.maxWidth, maxHeight: opts.maxHeight } as unknown as SharedContentMetadata,
+      metadata: {
+        ...content.metadata,
+        processed: true,
+        maxWidth: opts.maxWidth,
+        maxHeight: opts.maxHeight,
+      } as unknown as SharedContentMetadata,
     };
     return processed;
   }
@@ -188,11 +221,19 @@ export class ShareExtensionService {
 
   public getSupportedMimeTypes(): string[] {
     return [
-      'text/plain', 'text/html', 'text/uri-list',
-      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-      'video/mp4', 'video/quicktime',
-      'application/pdf', 'application/json',
-      'text/vcard', 'application/geo+json',
+      'text/plain',
+      'text/html',
+      'text/uri-list',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'video/mp4',
+      'video/quicktime',
+      'application/pdf',
+      'application/json',
+      'text/vcard',
+      'application/geo+json',
     ];
   }
 

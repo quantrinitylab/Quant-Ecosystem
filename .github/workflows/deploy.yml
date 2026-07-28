@@ -1,33 +1,21 @@
-name: Build & Deploy (production)
+name: Deploy QuantMail (production)
 
-# Builds the deployable service images, pushes them to ECR, and rolls out the
-# quant-production EKS deployments. Auth to AWS is via GitHub OIDC assuming the
-# `quant-gha-deploy` IAM role (no static secrets). Runs on push to main when a
-# relevant path changes, or manually via the Actions tab.
-
+# Production is manual-only. The selected ref and release_sha must both identify
+# the exact protected main commit. Images are deployed by digest and a failed
+# rollout restores the previously running image.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/**'
-      - 'services/**'
-      - 'packages/**'
-      - 'infra/scripts/**'
-      - 'infra/k8s/**'
-      - '.github/workflows/deploy.yml'
   workflow_dispatch:
     inputs:
-      apps:
-        description: 'Comma-separated apps to deploy (default: all)'
-        required: false
-        default: 'all'
+      release_sha:
+        description: 'Exact 40-character commit SHA from protected main'
+        required: true
+        type: string
 
 concurrency:
-  group: deploy-production
+  group: quantmail-production
   cancel-in-progress: false
 
 permissions:
-  id-token: write
   contents: read
 
 env:
@@ -35,105 +23,185 @@ env:
   ACCOUNT_ID: '650708167640'
   CLUSTER: quant-production-eks
   NAMESPACE: quant-production
+  ECR_REPOSITORY: quant-quantmail
+  DEPLOYMENT: quant-platform-production-quantmail
 
 jobs:
-  build-deploy:
+  validate-release:
+    name: Validate immutable release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+    steps:
+      - name: Validate release identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          EVENT_SHA: ${{ github.sha }}
+          EVENT_REF: ${{ github.ref }}
+        run: |
+          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'release_sha must be one lowercase 40-character commit SHA' >&2
+            exit 1
+          fi
+          test "$EVENT_REF" = 'refs/heads/main' || {
+            echo 'Production dispatch must select main' >&2
+            exit 1
+          }
+          test "$RELEASE_SHA" = "$EVENT_SHA" || {
+            echo 'release_sha must equal the selected main workflow SHA' >&2
+            exit 1
+          }
+          MAIN_SHA="$(gh api "/repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          test "$RELEASE_SHA" = "$MAIN_SHA" || {
+            echo 'release_sha is not the current main commit' >&2
+            exit 1
+          }
+
+      - name: Require successful checks for release SHA
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          checks_file="$RUNNER_TEMP/release-checks.tsv"
+          gh api --method GET \
+            "/repos/$GITHUB_REPOSITORY/commits/$RELEASE_SHA/check-runs" \
+            -f filter=latest -f per_page=100 --paginate \
+            --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | @tsv' \
+            > "$checks_file"
+          required_checks=(
+            'gate'
+            'Analyze (actions)'
+            'Analyze (javascript-typescript)'
+            'Analyze (python)'
+          )
+          for required_check in "${required_checks[@]}"; do
+            if ! awk -F '\t' -v name="$required_check" \
+              '$1 == name && $2 == "completed" && $3 == "success" { found = 1 } END { exit !found }' \
+              "$checks_file"; then
+              echo "Required exact-SHA check is not successful: $required_check" >&2
+              exit 1
+            fi
+          done
+
+  build-and-deploy:
+    name: Build and deploy immutable QuantMail image
+    if: vars.ENABLE_QUANTMAIL_PRODUCTION_DEPLOY == 'true'
+    needs: validate-release
+    environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - app: quantmail
-            ecr: quant-quantmail
-            dockerfile: apps/quantmail/Dockerfile
-            deployment: quant-platform-production-quantmail
-          - app: quantmail-backend
-            ecr: quant-quantmail-backend
-            dockerfile: apps/quantmail/Dockerfile.backend
-            deployment: quant-platform-production-quantmail-backend
-          - app: quantchat
-            ecr: quant-quantchat
-            dockerfile: apps/quantchat/Dockerfile
-            deployment: quant-platform-production-quantchat
-          - app: quantchat-backend
-            ecr: quant-quantchat-backend
-            dockerfile: apps/quantchat/Dockerfile.backend
-            deployment: quant-platform-production-quantchat-backend
-            manifest: infra/k8s/quantchat-backend.yaml
-          - app: quantai
-            ecr: quant-quantai
-            dockerfile: apps/quantai/Dockerfile
-            deployment: quant-platform-production-quantai
-          - app: quantai-backend
-            ecr: quant-quantai-backend
-            dockerfile: apps/quantai/Dockerfile.backend
-            deployment: quant-platform-production-quantai-backend
-            manifest: infra/k8s/quantai-backend.yaml
-          - app: admin
-            ecr: quant-admin
-            dockerfile: apps/admin/Dockerfile
-            deployment: quant-platform-production-admin
-          - app: ws-gateway
-            ecr: quant-ws-gateway
-            dockerfile: services/ws-gateway/Dockerfile
-            deployment: quant-platform-production-ws-gateway
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.release_sha }}
 
-      - name: Free up runner disk
+      - name: Free runner disk
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL || true
           df -h
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
         with:
           role-to-assume: arn:aws:iam::650708167640:role/quant-gha-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
 
-      - name: Ensure ECR repository exists
-        run: |
-          aws ecr describe-repositories --repository-names "${{ matrix.ecr }}" \
-            || aws ecr create-repository --repository-name "${{ matrix.ecr }}" \
-                 --image-scanning-configuration scanOnPush=true
+      - name: Verify managed ECR repository
+        run: aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" >/dev/null
 
-      - name: Build & push image
+      - name: Build and push SHA-tagged image
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
         run: |
-          IMAGE="$REGISTRY/${{ matrix.ecr }}"
-          docker build -f "${{ matrix.dockerfile }}" \
-            -t "$IMAGE:${{ github.sha }}" \
-            -t "$IMAGE:latest" .
-          docker push "$IMAGE:${{ github.sha }}"
-          docker push "$IMAGE:latest"
+          IMAGE="$REGISTRY/$ECR_REPOSITORY:$RELEASE_SHA"
+          docker build -f apps/quantmail/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
 
-      - name: Deploy to EKS
+      - name: Resolve immutable image digest
+        id: image
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        shell: bash
+        run: |
+          DIGEST="$(aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids "imageTag=$RELEASE_SHA" \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)"
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Invalid ECR digest: $DIGEST" >&2
+            exit 1
+          fi
+          echo "uri=$REGISTRY/$ECR_REPOSITORY@$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy digest with automatic rollback
+        env:
+          IMMUTABLE_IMAGE: ${{ steps.image.outputs.uri }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        shell: bash
         run: |
           aws eks update-kubeconfig --name "$CLUSTER" --region "$AWS_REGION"
-          IMAGE="$REGISTRY/${{ matrix.ecr }}:${{ github.sha }}"
-          # Reap terminated (Evicted/Failed) pods before rolling out. Under node
-          # DiskPressure these tombstones accumulate by the hundreds, which
-          # cascades eviction churn and makes the rollout below time out even
-          # though the new ReplicaSet is healthy. Best-effort, never fatal.
-          kubectl delete pods -n "$NAMESPACE" --field-selector=status.phase=Failed --ignore-not-found=true || true
-          # Apply the k8s manifest first when provided (creates the deployment,
-          # service and ingress on first rollout; idempotent thereafter).
-          if [ -n "${{ matrix.manifest }}" ]; then
-            kubectl apply -f "${{ matrix.manifest }}" -n "$NAMESPACE"
+          kubectl get "deployment/$DEPLOYMENT" -n "$NAMESPACE" >/dev/null
+
+          deployment_json="$(kubectl get "deployment/$DEPLOYMENT" -n "$NAMESPACE" -o json)"
+          mapfile -t matches < <(
+            jq -r '.spec.template.spec.containers[] | select(.image | test("/quant-quantmail(?:[:@])")) | [.name, .image] | @tsv' \
+              <<< "$deployment_json"
+          )
+          if [ "${#matches[@]}" -ne 1 ]; then
+            echo "Expected exactly one QuantMail container, found ${#matches[@]}" >&2
+            exit 1
           fi
-          # Cap ReplicaSet history so stale RSs (and their evictable pods) don't
-          # pile up across many deploys and keep the nodes under disk pressure.
-          kubectl patch "deployment/${{ matrix.deployment }}" -n "$NAMESPACE" \
-            --type=merge -p '{"spec":{"revisionHistoryLimit":2}}' || true
-          kubectl set image "deployment/${{ matrix.deployment }}" "*=$IMAGE" -n "$NAMESPACE"
-          # Rollouts can briefly churn while nodes pull the (large) images and
-          # reclaim disk via image GC, so allow generous time to converge.
-          kubectl rollout status "deployment/${{ matrix.deployment }}" -n "$NAMESPACE" --timeout=600s
+
+          IFS=$'\t' read -r container previous_image <<< "${matches[0]}"
+          if [ -z "$container" ] || [ -z "$previous_image" ]; then
+            echo 'Could not determine QuantMail container or rollback image' >&2
+            exit 1
+          fi
+
+          echo "Previous image: $previous_image"
+          echo "Release image:  $IMMUTABLE_IMAGE"
+          kubectl set image "deployment/$DEPLOYMENT" "$container=$IMMUTABLE_IMAGE" -n "$NAMESPACE"
+
+          set +e
+          kubectl rollout status "deployment/$DEPLOYMENT" -n "$NAMESPACE" --timeout=600s
+          rollout_status=$?
+          set -e
+          if [ "$rollout_status" -ne 0 ]; then
+            echo 'Rollout failed; restoring previous image' >&2
+            kubectl set image "deployment/$DEPLOYMENT" "$container=$previous_image" -n "$NAMESPACE"
+            kubectl rollout status "deployment/$DEPLOYMENT" -n "$NAMESPACE" --timeout=600s
+            exit "$rollout_status"
+          fi
+
+          deployed_image="$(kubectl get "deployment/$DEPLOYMENT" -n "$NAMESPACE" \
+            -o "jsonpath={.spec.template.spec.containers[?(@.name=='$container')].image}")"
+          test "$deployed_image" = "$IMMUTABLE_IMAGE" || {
+            echo "Deployment image mismatch: $deployed_image" >&2
+            exit 1
+          }
+
+          {
+            echo '## QuantMail production rollout'
+            echo "- Release SHA: \`$RELEASE_SHA\`"
+            echo "- Image digest: \`$IMAGE_DIGEST\`"
+            echo "- Previous image: \`$previous_image\`"
+            echo "- Deployment: \`$DEPLOYMENT\`"
+          } >> "$GITHUB_STEP_SUMMARY"

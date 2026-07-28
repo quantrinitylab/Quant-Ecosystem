@@ -3,7 +3,8 @@
 import { useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AppShell, Card, Button, Skeleton } from '@quant/shared-ui';
+import { Card, Button, Skeleton } from '@quant/shared-ui';
+import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { AppSidebar } from '../../components/AppSidebar';
@@ -57,8 +58,8 @@ export default function TrashPage() {
   }, [selectedIds, refetch]);
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <PageTransition className="flex flex-col h-full">
+    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+      <PageTransition className="workspace-page trash-workspace flex flex-col h-full">
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
           <h1 className="text-lg font-semibold">Trash</h1>
           <div className="flex items-center gap-2">

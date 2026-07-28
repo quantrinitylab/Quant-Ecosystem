@@ -47,7 +47,7 @@ export class AttachmentService {
       throw createAppError('Filename is required', 400, 'INVALID_FILENAME');
     }
 
-    const attachmentId = `att_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+    const attachmentId = `att_${crypto.randomUUID()}`;
     const key = `${userId}/${attachmentId}/${filename}`;
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min expiry
 

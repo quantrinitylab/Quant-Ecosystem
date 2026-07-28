@@ -1,6 +1,7 @@
 'use client';
 
-import { AppShell, Card, Badge, Button, Skeleton } from '@quant/shared-ui';
+import { Card, Badge, Button, Skeleton } from '@quant/shared-ui';
+import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
@@ -60,8 +61,8 @@ export default function PipelinesPage() {
   };
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <PageTransition className="flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-8">
+    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+      <PageTransition className="workspace-page pipelines-workspace flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-8">
         {/* Workflows */}
         <section>
           <h2 className="text-lg font-semibold mb-3">Workflows</h2>

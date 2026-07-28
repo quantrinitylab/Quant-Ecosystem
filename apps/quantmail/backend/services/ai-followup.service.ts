@@ -155,7 +155,7 @@ Respond ONLY with valid JSON array:
   }
 
   async createReminder(commitment: Commitment, userId: string): Promise<Reminder> {
-    const id = `reminder_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const id = `reminder_${crypto.randomUUID()}`;
     const reminder: Reminder = {
       id,
       commitmentDescription: commitment.description,

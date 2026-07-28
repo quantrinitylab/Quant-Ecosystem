@@ -1,140 +1,168 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'framer-motion';
-import { AppShell, SearchInput, Button, Skeleton } from '@quant/shared-ui';
-import { ErrorState } from '@quant/shared-ui';
-import { spring } from '@quant/brand';
+import {
+  AnimatePresence,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useTransform,
+  type PanInfo,
+} from 'framer-motion';
+import { ErrorState, Skeleton } from '@quant/shared-ui';
+import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
 import { AppSidebar } from '../components/AppSidebar';
 import { IdentityAvatar } from '../components/IdentityAvatar';
+import { QuantrinityMark } from '../components/QuantrinityMark';
 import { apiClient } from '../services/api-client';
-import {
-  listContainerVariants,
-  listItemVariants,
-  swipeVariants,
-  readingPaneVariants,
-} from '../lib/motion-variants';
 import type { Email, EmailCategory } from '../types';
 
-const CATEGORIES: { key: EmailCategory; label: string }[] = [
-  { key: 'primary', label: 'Primary' },
-  { key: 'social', label: 'Social' },
-  { key: 'promotions', label: 'Promotions' },
+const CATEGORIES: Array<{ key: EmailCategory; label: string }> = [
+  { key: 'primary', label: 'Focus' },
   { key: 'updates', label: 'Updates' },
-  { key: 'forums', label: 'Forums' },
+  { key: 'social', label: 'People' },
+  { key: 'promotions', label: 'Offers' },
+  { key: 'forums', label: 'Groups' },
 ];
 
-function SwipeableEmailCard({
+type MailIconName = 'archive' | 'close' | 'compose' | 'mail' | 'search' | 'star';
+
+function MailIcon({ name, className = 'h-4 w-4' }: { name: MailIconName; className?: string }) {
+  const paths = {
+    archive: (
+      <>
+        <path d="M4 7h16" />
+        <path d="M5 7l1-3h12l1 3v12H5z" />
+        <path d="M9 11h6" />
+      </>
+    ),
+    close: <path d="m7 7 10 10M17 7 7 17" />,
+    compose: (
+      <>
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z" />
+      </>
+    ),
+    mail: (
+      <>
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m3 7 9 6 9-6" />
+      </>
+    ),
+    search: (
+      <>
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-4-4" />
+      </>
+    ),
+    star: <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />,
+  };
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
+
+function formatReceivedAt(value?: string | Date) {
+  if (!value) return '';
+  const date = new Date(value);
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) {
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+type EmailRowProps = {
+  email: Email;
+  isChecked: boolean;
+  isActive: boolean;
+  onToggleSelect: () => void;
+  onToggleStar: (event: React.MouseEvent) => void;
+  onOpen: () => void;
+  onArchive: () => void;
+};
+
+function EmailRow({
   email,
-  isSelected,
+  isChecked,
+  isActive,
   onToggleSelect,
   onToggleStar,
-  onClick,
+  onOpen,
   onArchive,
-}: {
-  email: Email;
-  isSelected: boolean;
-  onToggleSelect: () => void;
-  onToggleStar: (e: React.MouseEvent) => void;
-  onClick: () => void;
-  onArchive: () => void;
-}) {
+}: EmailRowProps) {
   const x = useMotionValue(0);
-  const archiveOpacity = useTransform(x, [-120, -60], [1, 0]);
-  const [swiping, setSwiping] = useState(false);
+  const archiveOpacity = useTransform(x, [-108, -44], [1, 0]);
+  const prefersReducedMotion = useReducedMotion();
+  const [isDragging, setIsDragging] = useState(false);
 
-  const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    setSwiping(false);
-    if (info.offset.x < -100) {
-      onArchive();
-    }
+  const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    setIsDragging(false);
+    if (info.offset.x < -96) void onArchive();
   };
 
   return (
-    <div className="relative overflow-hidden mx-4 my-2 rounded-lg">
-      {/* Archive action background */}
+    <div className="mail-row-shell">
       <motion.div
-        className="absolute inset-0 flex items-center justify-end px-6 bg-green-600 rounded-lg"
+        className="mail-archive-reveal"
         style={{ opacity: archiveOpacity }}
+        aria-hidden="true"
       >
-        <span className="text-white font-medium text-sm">Archive</span>
+        <MailIcon name="archive" /> <span>Archive</span>
       </motion.div>
-
-      <motion.div
+      <motion.article
         style={{ x }}
-        drag="x"
-        dragConstraints={{ left: -150, right: 0 }}
-        dragElastic={0.1}
-        onDragStart={() => setSwiping(true)}
+        drag={prefersReducedMotion ? false : 'x'}
+        dragConstraints={{ left: -128, right: 0 }}
+        dragElastic={0.08}
+        onDragStart={() => setIsDragging(true)}
         onDragEnd={handleDragEnd}
-        className="relative z-10"
+        className={`mail-row ${email.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''}`}
+        onClick={() => {
+          if (!isDragging) onOpen();
+        }}
       >
-        <div
-          className={`group relative flex items-start gap-3 rounded-xl border px-3.5 py-3 cursor-pointer transition-all ${
-            email.isRead
-              ? 'border-transparent hover:border-[var(--quant-border)] hover:bg-[var(--quant-muted)]'
-              : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:shadow-md'
-          }`}
-          onClick={() => {
-            if (!swiping) onClick();
-          }}
-        >
-          {/* Unread accent */}
-          {!email.isRead && (
-            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 rounded-r bg-gradient-to-b from-[var(--brand-primary)] to-[var(--quant-secondary)]" />
-          )}
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={onToggleSelect}
-            onClick={(e) => e.stopPropagation()}
-            className="mt-2.5 h-4 w-4 flex-none rounded border-[var(--quant-border)] opacity-0 group-hover:opacity-100 checked:opacity-100 transition-opacity"
-          />
-          <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="md" />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span
-                className={`truncate text-sm ${!email.isRead ? 'font-semibold text-[var(--quant-foreground)]' : 'text-[var(--quant-foreground)]'}`}
-              >
-                {email.from?.name || email.from?.email}
-              </span>
-              {!email.isRead && (
-                <span className="h-1.5 w-1.5 flex-none rounded-full bg-[var(--brand-primary)]" />
-              )}
-              <span className="ml-auto flex-none text-xs text-[var(--quant-muted-foreground)]">
-                {email.receivedAt
-                  ? new Date(email.receivedAt).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                    })
-                  : ''}
-              </span>
-            </div>
-            <h3
-              className={`truncate text-sm mt-0.5 ${!email.isRead ? 'font-medium text-[var(--quant-foreground)]' : 'text-[var(--quant-foreground)]'}`}
-            >
-              {email.subject || '(no subject)'}
-            </h3>
-            <p className="truncate text-xs text-[var(--quant-muted-foreground)] mt-0.5">
-              {email.snippet}
-            </p>
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={onToggleSelect}
+          onClick={(event) => event.stopPropagation()}
+          aria-label={`Select email from ${email.from?.name || email.from?.email}`}
+        />
+        <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="sm" />
+        <div className="mail-row-copy">
+          <div className="mail-row-meta">
+            <strong>{email.from?.name || email.from?.email}</strong>
+            {!email.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
+            <time>{formatReceivedAt(email.receivedAt)}</time>
           </div>
-          <button
-            className={`mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md text-base transition-colors ${
-              email.isStarred
-                ? 'text-amber-400'
-                : 'text-[var(--quant-muted-foreground)] opacity-0 group-hover:opacity-100 hover:text-amber-400'
-            }`}
-            onClick={onToggleStar}
-            title={email.isStarred ? 'Unstar' : 'Star'}
-          >
-            {email.isStarred ? '\u2605' : '\u2606'}
-          </button>
+          <h3>{email.subject || '(no subject)'}</h3>
+          <p>{email.snippet}</p>
         </div>
-      </motion.div>
+        <button
+          type="button"
+          className={`mail-star ${email.isStarred ? 'is-starred' : ''}`}
+          onClick={onToggleStar}
+          aria-label={email.isStarred ? 'Unstar email' : 'Star email'}
+          aria-pressed={email.isStarred}
+        >
+          <MailIcon name="star" />
+        </button>
+      </motion.article>
     </div>
   );
 }
@@ -144,85 +172,123 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
 
   if (!email) {
     return (
-      <div className="flex-1 hidden md:flex items-center justify-center text-[var(--quant-muted-foreground)]">
-        <div className="text-center">
-          <p className="text-lg font-medium">No email selected</p>
-          <p className="text-sm mt-1">Click an email to preview it here</p>
+      <section className="reading-pane reading-pane-empty" aria-label="Message preview">
+        <div className="reading-ambient" aria-hidden="true" />
+        <div className="reading-empty-content">
+          <QuantrinityMark className="reading-empty-mark" label="Quantrinity infinity" />
+          <p className="reading-eyebrow">Zero-noise workspace</p>
+          <h2>
+            Choose the signal.
+            <br />
+            We&apos;ll quiet the rest.
+          </h2>
+          <p>Select a message to preview it without leaving your flow.</p>
+          <div className="reading-shortcuts" aria-label="Keyboard hints">
+            <span>
+              <kbd>J</kbd>
+              <kbd>K</kbd> Move
+            </span>
+            <span>
+              <kbd>R</kbd> Reply
+            </span>
+            <span>
+              <kbd>E</kbd> Archive
+            </span>
+          </div>
         </div>
-      </div>
+      </section>
     );
   }
 
   return (
     <AnimatePresence mode="wait">
-      <motion.div
+      <motion.section
         key={email.id}
-        variants={readingPaneVariants}
-        initial="hidden"
-        animate="visible"
-        exit="exit"
-        className="flex-1 hidden md:flex flex-col border-l border-[var(--quant-border)] overflow-y-auto"
+        className="reading-pane"
+        aria-label={`Preview: ${email.subject}`}
+        initial={{ opacity: 0, x: 14 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -10 }}
+        transition={{ duration: 0.2 }}
       >
-        {/* Reading pane header */}
-        <div className="flex items-center gap-3 p-4 border-b border-[var(--quant-border)]">
+        <header className="reading-header">
           <button
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-sm text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+            type="button"
+            className="icon-button"
             onClick={onClose}
+            aria-label="Close preview"
           >
-            Close
+            <MailIcon name="close" />
           </button>
-          <Button variant="secondary" onClick={() => router.push(`/thread/${email.threadId}`)}>
-            Open Full Thread
-          </Button>
-        </div>
-
-        {/* Email content */}
-        <div className="p-6 flex-1">
-          <h2 className="text-lg font-semibold mb-3">{email.subject}</h2>
-          <div className="flex items-center gap-3 mb-4">
-            <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="md" />
-            <div>
-              <p className="text-sm font-medium">{email.from?.name || email.from?.email}</p>
-              <p className="text-xs text-[var(--quant-muted-foreground)]">
-                {email.receivedAt ? new Date(email.receivedAt).toLocaleString() : ''}
-              </p>
-            </div>
-          </div>
-          <div className="text-sm leading-relaxed whitespace-pre-wrap text-[var(--quant-foreground)]">
-            {email.bodyText || email.snippet}
-          </div>
-
-          {/* Attachments */}
-          {email.attachments && email.attachments.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {email.attachments.map((att) => (
-                <div
-                  key={att.id}
-                  className="flex items-center gap-2 px-3 py-2 rounded-md bg-[var(--quant-muted)] text-sm"
-                >
-                  <span>{att.filename}</span>
-                  <span className="text-xs text-[var(--quant-muted-foreground)]">
-                    ({(att.size / 1024).toFixed(1)} KB)
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Quick actions */}
-          <div className="flex gap-2 mt-6 pt-4 border-t border-[var(--quant-border)]">
-            <Button
-              variant="primary"
+          <div className="reading-header-actions">
+            <button
+              type="button"
+              className="quiet-button"
               onClick={() => router.push(`/compose?replyTo=${email.threadId}`)}
             >
               Reply
-            </Button>
-            <Button variant="secondary" onClick={() => router.push(`/compose?forward=${email.id}`)}>
-              Forward
-            </Button>
+            </button>
+            <button
+              type="button"
+              className="signal-button"
+              onClick={() => router.push(`/thread/${email.threadId}`)}
+            >
+              Open thread <span aria-hidden="true">↗</span>
+            </button>
           </div>
+        </header>
+        <div className="reading-content">
+          <p className="reading-eyebrow">
+            {email.category} · {email.priority} priority
+          </p>
+          <h1>{email.subject || '(no subject)'}</h1>
+          <div className="reading-sender">
+            <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="lg" />
+            <div>
+              <strong>{email.from?.name || email.from?.email}</strong>
+              <span>{email.from?.email}</span>
+            </div>
+            <time>{email.receivedAt ? new Date(email.receivedAt).toLocaleString() : ''}</time>
+          </div>
+          {email.aiSummary && (
+            <aside className="reading-ai-summary">
+              <span aria-hidden="true">✦</span>
+              <div>
+                <strong>QuantAI brief</strong>
+                <p>{email.aiSummary}</p>
+              </div>
+            </aside>
+          )}
+          <div className="reading-message">{email.bodyText || email.snippet}</div>
+          {email.attachments?.length > 0 && (
+            <section className="reading-attachments" aria-label="Attachments">
+              <h2>
+                {email.attachments.length} attachment{email.attachments.length === 1 ? '' : 's'}
+              </h2>
+              <div>
+                {email.attachments.map((attachment) => (
+                  <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer">
+                    <span>{attachment.filename}</span>
+                    <small>{(attachment.size / 1024).toFixed(1)} KB</small>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
-      </motion.div>
+        <footer className="reading-reply-bar">
+          <button type="button" onClick={() => router.push(`/compose?replyTo=${email.threadId}`)}>
+            Reply with clarity…
+          </button>
+          <button
+            type="button"
+            className="reading-send-shortcut"
+            onClick={() => router.push(`/compose?forward=${email.id}`)}
+          >
+            Forward <span aria-hidden="true">→</span>
+          </button>
+        </footer>
+      </motion.section>
     </AnimatePresence>
   );
 }
@@ -233,240 +299,244 @@ export default function InboxPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
-
   const { data: allEmails, isLoading, error, refetch } = useInbox({ category: activeCategory });
   const { data: searchResults, isLoading: isSearching } = useSearchEmails(
     debouncedQuery ? { query: debouncedQuery } : null,
   );
 
-  const handleSearch = useCallback(
-    (value: string) => {
-      setSearchQuery(value);
-      if (debounceTimer) clearTimeout(debounceTimer);
-      const timer = setTimeout(() => {
-        setDebouncedQuery(value);
-      }, 300);
-      setDebounceTimer(timer);
-    },
-    [debounceTimer],
-  );
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(searchQuery.trim()), 260);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
 
   const emails = debouncedQuery ? searchResults : allEmails;
-
-  const unreadCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    if (allEmails) {
-      for (const email of allEmails) {
-        if (!email.isRead) {
-          counts[email.category] = (counts[email.category] || 0) + 1;
-        }
-      }
-    }
+  const unreadCount = useMemo(
+    () => allEmails?.filter((email) => !email.isRead).length ?? 0,
+    [allEmails],
+  );
+  const categoryCounts = useMemo(() => {
+    const counts: Partial<Record<EmailCategory, number>> = {};
+    allEmails?.forEach((email) => {
+      if (!email.isRead) counts[email.category] = (counts[email.category] ?? 0) + 1;
+    });
     return counts;
   }, [allEmails]);
 
-  const handleToggleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
   }, []);
 
-  const handleBatchArchive = useCallback(async () => {
-    const ids = Array.from(selectedIds);
-    await Promise.all(ids.map((id) => apiClient.archiveEmail(id)));
-    setSelectedIds(new Set());
-    refetch();
-  }, [selectedIds, refetch]);
+  const batchAction = useCallback(
+    async (action: 'archive' | 'delete') => {
+      const requests = Array.from(selectedIds, (id) =>
+        action === 'archive' ? apiClient.archiveEmail(id) : apiClient.deleteEmail(id),
+      );
+      await Promise.all(requests);
+      setSelectedIds(new Set());
+      await refetch();
+    },
+    [refetch, selectedIds],
+  );
 
-  const handleBatchDelete = useCallback(async () => {
-    const ids = Array.from(selectedIds);
-    await Promise.all(ids.map((id) => apiClient.deleteEmail(id)));
-    setSelectedIds(new Set());
-    refetch();
-  }, [selectedIds, refetch]);
-
-  const handleToggleStar = useCallback(
-    async (e: React.MouseEvent, id: string) => {
-      e.stopPropagation();
+  const toggleStar = useCallback(
+    async (event: React.MouseEvent, id: string) => {
+      event.stopPropagation();
       await apiClient.toggleStar(id);
-      refetch();
+      await refetch();
     },
     [refetch],
   );
 
-  const handleEmailClick = useCallback(
+  const openEmail = useCallback(
     (email: Email) => {
-      // On desktop (md+), show in reading pane; on mobile, navigate to thread
-      if (typeof window !== 'undefined' && window.innerWidth >= 768) {
-        setSelectedEmail(email);
-      } else {
-        router.push(`/thread/${email.threadId}`);
-      }
+      if (window.matchMedia('(min-width: 900px)').matches) setSelectedEmail(email);
+      else router.push(`/thread/${email.threadId}`);
     },
     [router],
   );
 
-  const handleArchiveEmail = useCallback(
+  const archiveEmail = useCallback(
     async (id: string) => {
       await apiClient.archiveEmail(id);
       if (selectedEmail?.id === id) setSelectedEmail(null);
-      refetch();
+      await refetch();
     },
-    [selectedEmail, refetch],
+    [refetch, selectedEmail],
   );
 
   return (
-    <AppShell sidebar={<AppSidebar />}>
-      <motion.div
-        className="flex h-full"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.2 }}
-      >
-        {/* Email list pane */}
-        <div className="flex flex-col flex-1 md:max-w-[50%] lg:max-w-[45%] md:min-w-[320px] h-full">
-          {/* Header */}
-          <div className="flex items-center justify-between gap-3 px-4 pt-4">
-            <h1 className="text-xl font-semibold tracking-tight text-[var(--quant-foreground)]">
-              Inbox
-            </h1>
-            <button
-              onClick={() => router.push('/compose')}
-              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[var(--brand-primary)] to-[var(--quant-secondary)] px-3.5 py-2 text-sm font-semibold text-white shadow-md shadow-[var(--brand-primary)]/20 transition-all hover:shadow-lg active:scale-[0.99]"
-            >
-              <span className="text-base leading-none">&#9997;</span>
-              Compose
+    <AppShell
+      sidebar={<AppSidebar />}
+      theme="dark"
+      className="quantmail-shell"
+      mobileTitle={
+        <span className="mobile-brand">
+          <QuantrinityMark compact />
+          <span>
+            QuantMail <small>by Quantrinity</small>
+          </span>
+        </span>
+      }
+      mobileActions={
+        <button
+          type="button"
+          className="mobile-compose"
+          onClick={() => router.push('/compose')}
+          aria-label="Compose message"
+        >
+          <MailIcon name="compose" />
+        </button>
+      }
+      aria-label="QuantMail inbox"
+    >
+      <div className="inbox-workspace">
+        <section className="inbox-list-pane" aria-label="Inbox messages">
+          <header className="inbox-hero">
+            <div>
+              <p className="inbox-kicker">
+                <span /> Inbox intelligence
+              </p>
+              <h1>Your signal.</h1>
+              <p>
+                {unreadCount > 0
+                  ? `${unreadCount} unread message${unreadCount === 1 ? '' : 's'} need your attention.`
+                  : 'You are fully caught up.'}
+              </p>
+            </div>
+            <button type="button" className="hero-compose" onClick={() => router.push('/compose')}>
+              <MailIcon name="compose" /> Compose
             </button>
-          </div>
-          {/* Search */}
-          <div className="p-4">
-            <SearchInput
-              placeholder="Search mail — sender, subject, keywords…"
-              value={searchQuery}
-              onChange={handleSearch}
-            />
+          </header>
+
+          <div className="inbox-search-wrap">
+            <label htmlFor="inbox-search" className="inbox-search">
+              <MailIcon name="search" />
+              <input
+                id="inbox-search"
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search people, subjects, or meaning…"
+              />
+              <kbd>/</kbd>
+            </label>
           </div>
 
-          {/* Category tabs */}
-          <div className="flex items-center gap-1 px-4 py-2 border-b border-[var(--quant-border)] overflow-x-auto">
-            {CATEGORIES.map((cat) => (
+          <nav className="inbox-categories" aria-label="Inbox categories">
+            {CATEGORIES.map((category) => (
               <button
-                key={cat.key}
-                className={`px-3 py-1.5 min-h-[44px] text-sm rounded-md whitespace-nowrap transition-colors ${
-                  activeCategory === cat.key
-                    ? 'bg-[var(--quant-primary)] text-white'
-                    : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-muted)]'
-                }`}
-                onClick={() => setActiveCategory(cat.key)}
+                key={category.key}
+                type="button"
+                onClick={() => setActiveCategory(category.key)}
+                className={activeCategory === category.key ? 'is-active' : ''}
+                aria-current={activeCategory === category.key ? 'page' : undefined}
               >
-                {cat.label}
-                {unreadCounts[cat.key] ? (
-                  <span className="ml-1.5 inline-flex items-center justify-center w-5 h-5 text-xs rounded-full bg-[var(--quant-destructive)] text-white">
-                    {unreadCounts[cat.key]}
-                  </span>
-                ) : null}
+                {category.label}
+                {categoryCounts[category.key] ? <span>{categoryCounts[category.key]}</span> : null}
               </button>
             ))}
-          </div>
+          </nav>
 
-          {/* Batch toolbar */}
-          <AnimatePresence>
+          <AnimatePresence initial={false}>
             {selectedIds.size > 0 && (
               <motion.div
-                className="flex items-center gap-2 px-4 py-2 bg-[var(--quant-muted)] border-b border-[var(--quant-border)]"
+                className="batch-toolbar"
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                transition={{ type: 'spring', ...spring.snappy }}
               >
-                <span className="text-sm font-medium">{selectedIds.size} selected</span>
-                <Button variant="secondary" onClick={handleBatchArchive}>
-                  Archive All
-                </Button>
-                <Button variant="secondary" onClick={handleBatchDelete}>
-                  Delete All
-                </Button>
-                <Button variant="secondary" onClick={() => setSelectedIds(new Set())}>
-                  Clear
-                </Button>
+                <strong>{selectedIds.size} selected</strong>
+                <button type="button" onClick={() => void batchAction('archive')}>
+                  Archive
+                </button>
+                <button type="button" onClick={() => void batchAction('delete')}>
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  aria-label="Clear selection"
+                >
+                  <MailIcon name="close" />
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Email list */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="mail-list" aria-busy={isLoading || isSearching}>
             {(isLoading || isSearching) && (
-              <div className="p-4 space-y-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} variant="rect" width="100%" height="80px" />
+              <div className="mail-loading">
+                {Array.from({ length: 6 }, (_, index) => (
+                  <Skeleton key={index} variant="rect" width="100%" height="76px" />
                 ))}
               </div>
             )}
-            {error && <ErrorState message={error.message} onRetry={() => void refetch()} />}
+            {error && (
+              <div className="mail-error">
+                <ErrorState message={error.message} onRetry={() => void refetch()} />
+              </div>
+            )}
             {!isLoading && !isSearching && !error && (!emails || emails.length === 0) && (
-              <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
-                <div
-                  className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl text-white shadow-lg"
-                  style={{
-                    background:
-                      'linear-gradient(135deg, var(--brand-primary), var(--quant-secondary))',
-                  }}
-                >
-                  <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path
-                      d="M3 7l9 6 9-6M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M3 7a2 2 0 012-2h14a2 2 0 012 2"
-                      stroke="white"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-[var(--quant-foreground)]">
-                  {debouncedQuery ? 'No results found' : 'Your inbox is all clear'}
-                </h3>
-                <p className="mt-1.5 max-w-xs text-sm text-[var(--quant-muted-foreground)]">
+              <div className="mail-empty">
+                <span className="mail-empty-icon">
+                  <MailIcon name={debouncedQuery ? 'search' : 'mail'} />
+                </span>
+                <p className="reading-eyebrow">{debouncedQuery ? 'No match' : 'Inbox zero'}</p>
+                <h2>{debouncedQuery ? 'Nothing found.' : 'Nothing needs you.'}</h2>
+                <p>
                   {debouncedQuery
-                    ? 'Try a different search — sender, subject, or keywords.'
-                    : 'New mail will land here. Start a conversation or invite someone to QuantMail.'}
+                    ? 'Try a person, subject, or a simpler phrase.'
+                    : 'A clear inbox is not empty. It is space to think.'}
                 </p>
                 {!debouncedQuery && (
                   <button
+                    type="button"
+                    className="signal-button"
                     onClick={() => router.push('/compose')}
-                    className="mt-6 rounded-xl bg-gradient-to-r from-[var(--brand-primary)] to-[var(--quant-secondary)] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[var(--brand-primary)]/25 transition-all hover:shadow-xl active:scale-[0.99]"
                   >
-                    Compose your first email
+                    Start a conversation <span aria-hidden="true">→</span>
                   </button>
                 )}
               </div>
             )}
             {!isLoading && !isSearching && !error && emails && emails.length > 0 && (
-              <motion.div variants={listContainerVariants} initial="hidden" animate="visible">
+              <motion.div
+                initial="hidden"
+                animate="visible"
+                variants={{ visible: { transition: { staggerChildren: 0.025 } } }}
+              >
                 {emails.map((email) => (
-                  <motion.div key={email.id} variants={listItemVariants}>
-                    <SwipeableEmailCard
+                  <motion.div
+                    key={email.id}
+                    variants={{ hidden: { opacity: 0, y: 5 }, visible: { opacity: 1, y: 0 } }}
+                  >
+                    <EmailRow
                       email={email}
-                      isSelected={selectedIds.has(email.id)}
-                      onToggleSelect={() => handleToggleSelect(email.id)}
-                      onToggleStar={(e) => handleToggleStar(e, email.id)}
-                      onClick={() => handleEmailClick(email)}
-                      onArchive={() => handleArchiveEmail(email.id)}
+                      isChecked={selectedIds.has(email.id)}
+                      isActive={selectedEmail?.id === email.id}
+                      onToggleSelect={() => toggleSelect(email.id)}
+                      onToggleStar={(event) => void toggleStar(event, email.id)}
+                      onOpen={() => openEmail(email)}
+                      onArchive={() => void archiveEmail(email.id)}
                     />
                   </motion.div>
                 ))}
               </motion.div>
             )}
           </div>
-        </div>
-
-        {/* Reading pane (desktop only) */}
+          <footer className="inbox-list-footer">
+            <span>{emails?.length ?? 0} conversations</span>
+            <span>Protected by Quantrinity</span>
+          </footer>
+        </section>
         <ReadingPane email={selectedEmail} onClose={() => setSelectedEmail(null)} />
-      </motion.div>
+      </div>
     </AppShell>
   );
 }
