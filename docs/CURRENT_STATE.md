@@ -5,7 +5,7 @@ authority: canonical
 status: active
 owner: platform-architecture
 last_verified: 2026-07-23
-verified_at_commit: 076922c363285609842434a6a328c3af0d29020c
+verified_at_commit: 1f89e333e6ea685c3c35ad5493a361441c25ff20
 review_by: 2026-08-06
 supersedes: []
 superseded_by: []
@@ -14,7 +14,7 @@ canonical_scope: current-repository-state
 
 # Current State
 
-This is the canonical repository-truth snapshot, pinned to commit `076922c363285609842434a6a328c3af0d29020c`. Newer code and blocking CI evidence take precedence until this file is re-verified; the [Execution Queue](./EXECUTION_QUEUE.md) separately owns priority.
+This is the canonical repository-truth snapshot, pinned to rebased recovery commit `1f89e333e6ea685c3c35ad5493a361441c25ff20`. Newer code and blocking CI evidence take precedence until this file is re-verified; the [Execution Queue](./EXECUTION_QUEUE.md) separately owns priority.
 
 ## Active direction
 
