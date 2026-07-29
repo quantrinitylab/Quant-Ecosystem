@@ -20,3 +20,13 @@ packages/*/src/**/*.js.map
 packages/*/src/**/*.d.ts.map
 !packages/*/src/**/*.test.js
 !packages/*/src/**/*.spec.js
+
+Quant-Ecosystem.bundle
+*.postman.json
+quantmail-release-candidate/
+Quant-Ecosystem.bundle
+*.postman.json
+*.postman_collection.json
+.quantmail-release-candidate/
+.quant-latest-work/
+_bedrock-probe*.mts
