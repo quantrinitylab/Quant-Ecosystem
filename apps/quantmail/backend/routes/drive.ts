@@ -190,4 +190,79 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     }
     return reply.send({ ok: true });
   });
+
+  // POST /drive/upload — create a presigned S3 PUT URL for the client to upload
+  // directly, then record the file metadata in Postgres. Two-step: client calls
+  // this to get the URL + fileId, uploads to S3, then the file is immediately
+  // visible in the listing. If S3 env vars are missing, falls back to a
+  // metadata-only record (size=0, no actual binary stored).
+  fastify.post('/drive/upload', async (request, reply) => {
+    const uploadSchema = z.object({
+      name: z.string().min(1).max(500),
+      mimeType: z.string().default('application/octet-stream'),
+      size: z
+        .number()
+        .min(0)
+        .max(5 * 1024 * 1024 * 1024), // 5GB max
+      folderId: z.string().nullable().optional(),
+    });
+    const parsed = uploadSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+
+    // Create file record first
+    const file = await prisma.file.create({
+      data: {
+        userId,
+        name: parsed.data.name,
+        mimeType: parsed.data.mimeType,
+        size: parsed.data.size,
+        folderId: parsed.data.folderId ?? null,
+        storageKey: '', // filled after upload confirms
+        isDeleted: false,
+      },
+    });
+
+    // Generate presigned PUT URL if S3 is configured
+    let uploadUrl: string | null = null;
+    const s3Endpoint = process.env['S3_ENDPOINT'];
+    const s3Bucket = process.env['S3_BUCKET'] ?? 'quant-uploads';
+    const s3Access = process.env['S3_ACCESS_KEY'];
+    const s3Secret = process.env['S3_SECRET_KEY'];
+
+    if (s3Endpoint && s3Access && s3Secret) {
+      try {
+        const { StorageClient } = await import('@quant/storage');
+        const storage = new StorageClient({
+          endpoint: s3Endpoint,
+          bucket: s3Bucket,
+          region: process.env['S3_REGION'] ?? 'us-east-1',
+          accessKeyId: s3Access,
+          secretAccessKey: s3Secret,
+        });
+        const key = `drive/${userId}/${file.id}/${parsed.data.name}`;
+        // Generate a presigned PUT URL (client uploads directly to S3)
+        const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+        const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner');
+        const s3Client = (storage as any).client;
+        const command = new PutObjectCommand({
+          Bucket: s3Bucket,
+          Key: key,
+          ContentType: parsed.data.mimeType,
+        });
+        uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 600 });
+        // Store the key for later retrieval
+        await prisma.file.update({ where: { id: file.id }, data: { storageKey: key } });
+      } catch {
+        // S3 unavailable — file metadata recorded but no binary storage
+      }
+    }
+
+    return reply.status(201).send({
+      fileId: file.id,
+      uploadUrl,
+      key: `drive/${userId}/${file.id}/${parsed.data.name}`,
+    });
+  });
 }

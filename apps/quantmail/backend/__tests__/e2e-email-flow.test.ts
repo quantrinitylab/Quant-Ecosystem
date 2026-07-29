@@ -4,6 +4,13 @@ import { FolderService } from '../services/folder.service';
 
 function createMockPrisma() {
   return {
+    // EmailService.compose() stamps the sender's own address via
+    // prisma.user.findUnique — the double must provide it or compose throws.
+    user: {
+      findUnique: vi
+        .fn()
+        .mockResolvedValue({ email: 'sender@quantmail.test', displayName: 'Sender' }),
+    },
     email: {
       create: vi.fn(),
       findUnique: vi.fn(),

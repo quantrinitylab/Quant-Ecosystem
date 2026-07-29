@@ -122,8 +122,13 @@ describe('Bug 2 — quantmail buildApp() deep @quant/auth subpath resolution fai
     for (const { specifier, expectedSrc } of DEEP_SUBPATHS) {
       const { path, error } = resolveDeepSubpath(specifier);
       expect(error, `${specifier} should resolve, got: ${error}`).toBeNull();
-      // Normalize to a repo-relative comparison.
-      const rel = path ? resolve(path).replace(`${resolve(repoRoot)}/`, '') : null;
+      // Normalize to a repo-relative comparison. Normalize path separators to
+      // forward slashes first so the strip works on Windows (backslash) too —
+      // otherwise the replace no-ops and `rel` stays absolute (Windows-only fail).
+      const toPosix = (p: string): string => p.replace(/\\/g, '/');
+      const rel = path
+        ? toPosix(resolve(path)).replace(`${toPosix(resolve(repoRoot))}/`, '')
+        : null;
       expect(rel, `${specifier} resolved to unexpected path: ${path}`).toBe(expectedSrc);
     }
   });

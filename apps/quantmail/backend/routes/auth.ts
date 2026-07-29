@@ -137,4 +137,44 @@ export async function authRoutes(fastify: FastifyInstance) {
       },
     });
   });
+
+  // POST /auth/password/change — authenticated password change. Verifies the
+  // current password with argon2 before hashing + storing the new one. Protected
+  // by the global auth hook (req.auth.userId).
+  fastify.post(
+    '/auth/password/change',
+    { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
+      if (!userId) {
+        return fail(reply, 401, 'UNAUTHORIZED', 'Authentication required.');
+      }
+
+      const { currentPassword, newPassword } = (request.body ?? {}) as {
+        currentPassword?: string;
+        newPassword?: string;
+      };
+      if (!currentPassword || !newPassword) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Current and new passwords are required.');
+      }
+      if (newPassword.length < 8) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'New password must be at least 8 characters.');
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return fail(reply, 404, 'USER_NOT_FOUND', 'User not found.');
+      }
+
+      const valid = await argon2.verify(user.passwordHash, currentPassword);
+      if (!valid) {
+        return fail(reply, 401, 'INVALID_CREDENTIALS', 'Current password is incorrect.');
+      }
+
+      const passwordHash = await argon2.hash(newPassword);
+      await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+
+      return reply.send({ success: true, data: { message: 'Password updated.' } });
+    },
+  );
 }

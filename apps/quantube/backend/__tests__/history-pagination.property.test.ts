@@ -29,6 +29,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildApp, getConfig } from '../app';
 import type { AppConfig } from '@quant/server-core';
 import type { HistoryItem } from '../../src/pages/library';
+import { createWatchHistoryDouble } from './helpers/in-memory-watch-history';
 
 const testConfig: AppConfig = {
   ...getConfig(),
@@ -112,6 +113,9 @@ function installVideoStore(app: FastifyInstance): void {
     video: {
       findUnique: async ({ where }: { where: { id: string } }) => videoStore.get(where.id) ?? null,
     },
+    // HistoryService is Prisma-backed; provide the watchHistory delegate too so
+    // POST/GET /history exercise the real service against an in-memory store.
+    watchHistory: createWatchHistoryDouble(),
   };
 }
 
