@@ -4,7 +4,6 @@
 
 import type { SafetyResult, PiiEntity, SafetyCategory } from '../types';
 
-/** PII pattern definitions */
 const PII_PATTERNS: Array<{ type: PiiEntity['type']; regex: RegExp; replacement: string }> = [
   {
     type: 'email',
@@ -33,7 +32,6 @@ const PII_PATTERNS: Array<{ type: PiiEntity['type']; regex: RegExp; replacement:
   },
 ];
 
-/** Harmful content keywords by category */
 const HARMFUL_KEYWORDS: Record<string, string[]> = {
   violence: ['kill', 'murder', 'attack', 'bomb', 'weapon', 'shoot', 'stab', 'assault'],
   hate_speech: ['hate', 'racist', 'bigot', 'slur', 'supremacy', 'genocide'],
@@ -41,22 +39,36 @@ const HARMFUL_KEYWORDS: Record<string, string[]> = {
   illegal: ['illegal drugs', 'hack into', 'steal identity', 'launder money'],
 };
 
-/** Threshold for flagging content */
-const SAFETY_THRESHOLD = 0.6;
+/** Narrow suppressions for measured technical/news false positives. */
+const BENIGN_HARMFUL_CONTEXTS = [
+  /\bkill (?:the )?(?:stuck |hung )?process\b/gi,
+  /\bshoot me (?:the )?logs\b/gi,
+  /\battack (?:surface|vector)\b/gi,
+  /\b(?:bombing|attack) anniversary memorial\b/gi,
+];
 
 /**
- * Safety Pipeline
- *
- * Provides PII redaction and content moderation for AI inputs/outputs.
- * - Redacts emails, phone numbers, SSNs, credit cards, and IP addresses
- * - Scores content for harmful categories
- * - Returns safety assessment with detailed breakdown
+ * Deterministic, offline prompt-injection screen. Patterns require an
+ * instruction-boundary attack, privilege/role override, safety bypass, or
+ * sensitive-data exfiltration command rather than generic security words.
  */
+const PROMPT_INJECTION_PATTERNS = [
+  /\b(?:ignore|disregard|forget|override)\b.{0,80}\b(?:previous|prior|above|system|developer|all|your)?\s*(?:instructions?|rules?|prompts?)\b/i,
+  /\b(?:reveal|show|print|output|repeat|leak|expose)\b.{0,60}\b(?:system|developer|hidden|initial)\s+(?:prompts?|instructions?|messages?)\b/i,
+  /\b(?:you are now|act as|pretend to be|switch to)\b.{0,60}\b(?:unrestricted|unsafe|developer|admin|root|dan|no restrictions?)\b/i,
+  /\b(?:disable|bypass|remove|turn off|evade)\b.{0,50}\b(?:safety|guardrails?|filters?|restrictions?|policy|moderation)\b/i,
+  /\b(?:do not|don't|never)\s+(?:mention|tell|disclose|reveal)\b.{0,40}\b(?:this|these instructions?|that)\b/i,
+  /\b(?:forward|send|upload|exfiltrate|output)\b.{0,80}\b(?:emails?|memories|secrets?|tokens?|credentials?|private data)\b/i,
+  /\b(?:pichl[ei]|pehle ki|upar wali)\b.{0,60}\b(?:instructions?|hidayat|nirdesh)\b.{0,40}\b(?:ignore|bhool|mat mano)\b/i,
+  /\b(?:system|developer)\s*prompt\b.{0,40}\b(?:dikha|bata|print|reveal|show)\b/i,
+  /(?:पुराने|पिछले|ऊपर वाले).{0,40}(?:निर्देश|नियम).{0,40}(?:नज़रअंदाज़|भूल|मत मानो)/i,
+  /(?:सिस्टम|डेवलपर)\s*प्रॉम्प्ट.{0,40}(?:दिखाओ|बताओ|प्रिंट)/i,
+  /\b(?:ignora|ignorez?|olvida|oublie)\b.{0,80}\b(?:instrucciones|instructions|reglas|règles)\b/i,
+];
+
+const SAFETY_THRESHOLD = 0.6;
+
 export class SafetyPipeline {
-  /**
-   * Process input text before sending to AI provider.
-   * Redacts PII to prevent data leakage.
-   */
   processInput(text: string): SafetyResult {
     const { redactedText, entities } = this.redactPii(text);
     const { score, categories } = this.checkContent(text);
@@ -70,10 +82,6 @@ export class SafetyPipeline {
     };
   }
 
-  /**
-   * Process output text from AI provider.
-   * Checks for safety issues in the response.
-   */
   processOutput(text: string): SafetyResult {
     const { redactedText, entities } = this.redactPii(text);
     const { score, categories } = this.checkContent(text);
@@ -87,9 +95,6 @@ export class SafetyPipeline {
     };
   }
 
-  /**
-   * Redact PII patterns from text
-   */
   redactPii(text: string): { redactedText: string; entities: PiiEntity[] } {
     const entities: PiiEntity[] = [];
     let redactedText = text;
@@ -117,14 +122,9 @@ export class SafetyPipeline {
     return { redactedText, entities };
   }
 
-  /**
-   * Partially mask a PII value to avoid storing raw sensitive data.
-   * Shows just enough to identify the entity without exposing full data.
-   */
   private maskValue(value: string, type: PiiEntity['type']): string {
     switch (type) {
       case 'email': {
-        // Show first char and domain: t***@example.com
         const atIndex = value.indexOf('@');
         if (atIndex <= 0) return '***';
         const localPart = value.slice(0, atIndex);
@@ -133,25 +133,21 @@ export class SafetyPipeline {
         return localPart[0] + '***' + domain;
       }
       case 'ssn': {
-        // Show last 4 digits: ***-**-6789
         const digits = value.replace(/\D/g, '');
         if (digits.length < 4) return '***-**-****';
         return '***-**-' + digits.slice(-4);
       }
       case 'credit_card': {
-        // Show last 4 digits: ****-****-****-9012
         const ccDigits = value.replace(/\D/g, '');
         if (ccDigits.length < 4) return '****-****-****-****';
         return '****-****-****-' + ccDigits.slice(-4);
       }
       case 'phone': {
-        // Show last 4 digits: ***-***-4567
         const phoneDigits = value.replace(/\D/g, '');
         if (phoneDigits.length < 4) return '***-***-****';
         return '***-***-' + phoneDigits.slice(-4);
       }
       case 'ip_address': {
-        // Show last octet: ***.***.***.100
         const parts = value.split('.');
         if (parts.length < 4) return '***.***.***.***';
         return '***.***.***.' + parts[parts.length - 1];
@@ -161,35 +157,29 @@ export class SafetyPipeline {
     }
   }
 
-  /**
-   * Check content for harmful patterns
-   */
   checkContent(text: string): { score: number; categories: SafetyCategory[] } {
-    const textLower = text.toLowerCase();
+    let harmfulText = text.toLowerCase();
+    for (const context of BENIGN_HARMFUL_CONTEXTS) harmfulText = harmfulText.replace(context, ' ');
+
     const categories: SafetyCategory[] = [];
     let maxScore = 0;
 
     for (const [categoryName, keywords] of Object.entries(HARMFUL_KEYWORDS)) {
-      let matchCount = 0;
-      for (const keyword of keywords) {
-        if (textLower.includes(keyword)) {
-          matchCount++;
-        }
-      }
-
+      const matchCount = keywords.filter((keyword) => harmfulText.includes(keyword)).length;
       const score = Math.min(matchCount / 3, 1.0);
       const flagged = score >= SAFETY_THRESHOLD;
-
-      categories.push({
-        name: categoryName,
-        score,
-        flagged,
-      });
-
-      if (score > maxScore) {
-        maxScore = score;
-      }
+      categories.push({ name: categoryName, score, flagged });
+      maxScore = Math.max(maxScore, score);
     }
+
+    const injectionDetected = PROMPT_INJECTION_PATTERNS.some((pattern) => pattern.test(text));
+    const injectionScore = injectionDetected ? 1 : 0;
+    categories.push({
+      name: 'prompt_injection',
+      score: injectionScore,
+      flagged: injectionDetected,
+    });
+    maxScore = Math.max(maxScore, injectionScore);
 
     return { score: maxScore, categories };
   }
