@@ -1,184 +1,75 @@
 # Security Policy
 
+## Project Status and Supported Versions
+
+Quant Ecosystem is under active development. This repository does not currently publish a generally available, supported release or a production security service-level agreement.
+
+| Version | Security support |
+| --- | --- |
+| `main` | Best-effort fixes for reproducible issues in current code |
+| Tags and older commits | Not currently supported |
+
+This policy describes how to report issues in the repository. It does not claim that every documented product or infrastructure component is deployed.
+
 ## Reporting a Vulnerability
 
-We take security vulnerabilities seriously. If you discover a security issue, please report it responsibly.
+Please do not publish exploit details, credentials, personal data, or proof-of-concept payloads in a public issue.
 
-### How to Report
+1. Prefer GitHub's private vulnerability reporting for this repository: [Report a vulnerability privately](https://github.com/quantrinitylabsgo/Quant-Ecosystem/security/advisories/new).
+2. If private reporting is unavailable, open a minimal public issue asking the maintainers to establish a private channel. Include no sensitive technical details in that issue.
+3. Do not send reports to domains or email addresses unless the repository or organization profile currently verifies that contact. This project does not promise that previously documented security mailboxes are monitored.
 
-1. **Do NOT** open a public GitHub issue for security vulnerabilities
-2. Email: **security@quant-ecosystem.dev**
-3. PGP Key: Available at [https://quant.io/.well-known/security.txt](https://quant.io/.well-known/security.txt)
+Include, when safe to share privately:
 
-### What to Include
+- affected path, package, endpoint, or commit;
+- prerequisites and minimal reproduction steps;
+- expected and observed behavior;
+- likely impact and affected data or tenants;
+- suggested mitigation, if known;
+- whether the issue is already public or actively exploited.
 
-- Description of the vulnerability
-- Steps to reproduce
-- Potential impact assessment
-- Suggested fix (if any)
+## Response Expectations
 
-### Response Timeline
+Reports are handled on a best-effort basis. The project does not currently promise fixed acknowledgment, remediation, disclosure, or bounty timelines. Maintainers should prioritize credible reports by exploitability and impact, keep the reporter informed when practical, and avoid claiming resolution until a fix is merged and verified.
 
-| Action                         | Timeline                                                |
-| ------------------------------ | ------------------------------------------------------- |
-| Initial acknowledgment         | Within 24 hours                                         |
-| Triage and severity assessment | Within 72 hours                                         |
-| Fix development                | Within 7-30 days (based on severity)                    |
-| Public disclosure              | 90 days after report (or after fix, whichever is first) |
+## Safe Research Boundaries
 
-## Supported Versions
+Authorization to read this repository is not authorization to test any deployed system.
 
-| Version      | Supported                     |
-| ------------ | ----------------------------- |
-| 1.x (latest) | Yes - Active security updates |
-| 0.x          | No - End of life              |
+- Test only code, accounts, data, and infrastructure you own or have explicit permission to assess.
+- Do not perform denial-of-service testing, social engineering, phishing, credential attacks, persistence, destructive actions, or access to other users' data.
+- Use synthetic data and local or isolated environments.
+- Stop testing and report privately if you encounter credentials, personal data, or evidence of unauthorized access.
+- Preserve evidence without copying more sensitive data than necessary.
 
-## Security Scanning
+## Repository Security Controls
 
-### Automated Scanning
+The following controls are represented by checked-in workflows at the time of this policy update:
 
-The following security scans run automatically in CI/CD:
+- [CI](.github/workflows/ci.yml) runs on pull requests and pushes to `main`. It includes canonical-memory checks, Memory release gates, affected-package typecheck/lint/test/build, a PostgreSQL Memory isolation test, and a QuantChat coverage gate. The repository-wide full sweep is currently informational (`continue-on-error`).
+- [CodeQL](.github/workflows/codeql.yml) analyzes GitHub Actions, JavaScript/TypeScript, and Python on pull requests, pushes to `main`, and a weekly schedule.
+- [Production deployment](.github/workflows/deploy.yml) is manual-only and validates an exact current-`main` SHA, required checks, a Memory preflight without cloud credentials, immutable image digests, and rollback logic. A checked-in workflow is not proof that a production environment exists or that a deployment has run successfully.
 
-- **Trivy** - Container image vulnerability scanning on every build
-- **npm audit** - Dependency vulnerability detection on every PR
-- **CodeQL** - Static analysis for code-level security issues (weekly + on PR)
-- **OWASP ZAP** - Dynamic application security testing (weekly against staging)
-- **Secret scanning** - Prevents accidental credential commits
+This policy does **not** claim automatic Trivy container scanning, dependency auditing, OWASP ZAP testing, secret scanning, third-party penetration testing, annual architecture audits, or continuous compliance monitoring. Native GitHub security features may vary by repository settings and are not asserted here unless represented by verifiable evidence.
 
-### Manual Review
+## Security Posture Claims
 
-- Security-focused code review for authentication, authorization, and data handling changes
-- Periodic penetration testing by third-party security firms
-- Annual security architecture review
+No SOC 2, ISO 27001, PCI DSS, HIPAA, GDPR operational certification, external penetration-test attestation, private bug-bounty program, or guaranteed production incident-response capability is claimed by this repository.
 
-## Security Architecture
+Architecture documents, threat models, tests, and planned controls describe intent or partial implementation unless accompanied by current operational evidence. Security-sensitive changes should be reviewed against the code and final-SHA CI results rather than prose claims.
 
-### Authentication
+## Coordinated Disclosure
 
-- JWT-based authentication with RS256/HS256 signing
-- Token expiration: Access tokens (15 min), Refresh tokens (7 days)
-- Password hashing: argon2id with recommended parameters
-- Multi-factor authentication support
+Please allow a reasonable opportunity to investigate and fix a report before public disclosure when doing so does not increase user risk. If active exploitation or exposed credentials are involved, state that clearly in the private report so containment can be prioritized.
 
-### Authorization
+## Secrets and Credentials
 
-- Role-based access control (RBAC) with fine-grained permissions
-- Service-to-service authentication via signed JWTs
-- API key management for external integrations
+Never commit real credentials. If a secret is exposed:
 
-### Input Validation
+1. revoke or rotate it at the provider immediately;
+2. determine where it was used and review relevant logs;
+3. remove it from current code and configuration;
+4. assess whether history rewriting is necessary;
+5. add a safe placeholder and a regression control where appropriate.
 
-- All API inputs validated with Zod schemas at the boundary
-- SQL injection prevention via parameterized queries (Prisma ORM)
-- XSS prevention through output encoding and Content-Security-Policy headers
-- Request size limits enforced at the gateway level
-
-### Rate Limiting
-
-- Per-IP and per-user rate limiting on all endpoints
-- Configurable limits per service via environment variables
-- Redis-backed distributed rate limiting for horizontal scaling
-
-### Transport Security
-
-- TLS 1.2+ enforced on all external endpoints
-- Internal service mesh with mTLS (via Istio/Linkerd)
-- HSTS headers with preload
-- Certificate management via cert-manager with auto-renewal
-
-### Data Protection
-
-- Encryption at rest for all databases (AWS RDS encryption)
-- Encryption in transit for all inter-service communication
-- PII handling follows data minimization principles
-- Audit logging for all sensitive operations
-
-## Incident Response Process
-
-### Severity Levels
-
-| Level         | Description                                       | Response Time | Examples                                    |
-| ------------- | ------------------------------------------------- | ------------- | ------------------------------------------- |
-| P0 - Critical | Active exploitation, data breach                  | 15 minutes    | RCE, SQL injection in production, data leak |
-| P1 - High     | Exploitable vulnerability, no active exploitation | 4 hours       | Auth bypass, privilege escalation           |
-| P2 - Medium   | Vulnerability requiring specific conditions       | 24 hours      | CSRF, stored XSS in non-critical path       |
-| P3 - Low      | Minor issue, defense-in-depth improvement         | 1 week        | Information disclosure, missing headers     |
-
-### Response Process
-
-1. **Detection** - Automated alerts or manual report
-2. **Triage** - Assess severity, assign incident commander
-3. **Containment** - Isolate affected systems if necessary
-4. **Investigation** - Determine root cause and impact scope
-5. **Remediation** - Develop and deploy fix
-6. **Communication** - Notify affected users if data was compromised
-7. **Post-mortem** - Document lessons learned and prevention measures
-
-### Communication
-
-- Internal: Dedicated #security-incidents Slack channel
-- External: Status page updates for service-affecting incidents
-- Regulatory: GDPR breach notification within 72 hours if applicable
-
-## Compliance
-
-### SOC 2 Type II
-
-- Annual audit of security controls
-- Continuous monitoring of access controls
-- Change management procedures enforced
-
-### GDPR
-
-- Data Processing Agreement (DPA) available upon request
-- Right to erasure implemented across all services
-- Data portability endpoints available
-- Privacy impact assessments for new features
-
-### Additional Measures
-
-- Vendor security assessments for third-party integrations
-- Employee security awareness training
-- Background checks for team members with production access
-
-## Bug Bounty Program
-
-We maintain a private bug bounty program for qualified security researchers.
-
-### Scope
-
-- All production services (\*.quant.io)
-- API endpoints
-- Authentication and authorization flows
-- Data handling and storage
-
-### Out of Scope
-
-- Denial of service attacks
-- Social engineering
-- Physical security
-- Third-party services not controlled by Quant
-
-### Rewards
-
-Rewards are based on severity and impact. Contact security@quant-ecosystem.dev for program details and invitation.
-
-## Security Contacts
-
-- **Security Team Email**: security@quant-ecosystem.dev
-- **Security Lead**: Available via security email
-- **Emergency (P0 only)**: security-emergency@quant-ecosystem.dev
-
-## Security Headers
-
-All services enforce the following HTTP security headers:
-
-```
-Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-X-XSS-Protection: 0
-Content-Security-Policy: default-src 'self'
-Referrer-Policy: strict-origin-when-cross-origin
-Permissions-Policy: camera=(), microphone=(), geolocation=()
-```
+Removing a secret from Git history does not revoke it.
