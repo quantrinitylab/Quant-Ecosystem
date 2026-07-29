@@ -32,17 +32,27 @@ export type CreateMemoryShadowReportInput = Omit<
   divergence: Prisma.InputJsonValue;
 };
 
+export interface MemoryShadowReportWhere {
+  tenantId: string;
+  actorUserId?: string;
+  severity?: string;
+  commitSha?: string;
+  policyVersion?: string;
+  corpusVersion?: string;
+  observedAt?: { gte?: Date; lte?: Date };
+}
+
 export interface MemoryShadowReportDelegate {
   create(args: { data: CreateMemoryShadowReportInput }): Promise<MemoryShadowReportRow>;
   findFirst(args: {
     where: { tenantId: string; requestId: string };
   }): Promise<MemoryShadowReportRow | null>;
   findMany(args: {
-    where: { tenantId: string; actorUserId?: string; severity?: string };
+    where: MemoryShadowReportWhere;
     orderBy: { observedAt: 'desc' };
     take: number;
   }): Promise<MemoryShadowReportRow[]>;
-  count(args: { where: { tenantId: string } }): Promise<number>;
+  count(args: { where: MemoryShadowReportWhere }): Promise<number>;
   deleteMany(args: {
     where: { tenantId: string; expiresAt: { lte: Date } };
   }): Promise<{ count: number }>;
@@ -62,10 +72,16 @@ export interface MemoryShadowReportPrismaClient {
 export interface ListMemoryShadowReportsOptions {
   actorUserId?: string;
   severity?: string;
+  commitSha?: string;
+  policyVersion?: string;
+  corpusVersion?: string;
+  observedAfter?: Date;
+  observedBefore?: Date;
   limit?: number;
 }
 
 type CountRow = { count: number | bigint | string };
+type FilterOptions = Omit<ListMemoryShadowReportsOptions, 'limit'>;
 
 function hasDelegate(
   prisma: MemoryShadowReportPrismaClient,
@@ -105,63 +121,18 @@ export class MemoryShadowReportRepository {
     const rowId = randomUUID();
     const rows = await getRawClient(this.prisma).$queryRawUnsafe<MemoryShadowReportRow[]>(
       `INSERT INTO "memory_shadow_reports" (
-        "id",
-        "tenantId",
-        "orgId",
-        "actorUserId",
-        "requestId",
-        "mode",
-        "query",
-        "legacy",
-        "next",
-        "divergence",
-        "severity",
-        "agreementRate",
-        "infrastructureError",
-        "commitSha",
-        "policyVersion",
-        "corpusVersion",
-        "observedAt",
-        "expiresAt"
+        "id", "tenantId", "orgId", "actorUserId", "requestId", "mode", "query",
+        "legacy", "next", "divergence", "severity", "agreementRate",
+        "infrastructureError", "commitSha", "policyVersion", "corpusVersion",
+        "observedAt", "expiresAt"
       ) VALUES (
-        $1,
-        $2,
-        $3,
-        $4,
-        $5,
-        $6,
-        $7,
-        $8::jsonb,
-        $9::jsonb,
-        $10::jsonb,
-        $11,
-        $12,
-        $13,
-        $14,
-        $15,
-        $16,
-        $17,
-        $18
+        $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10::jsonb,
+        $11, $12, $13, $14, $15, $16, $17, $18
       ) RETURNING
-        "id",
-        "tenantId",
-        "orgId",
-        "actorUserId",
-        "requestId",
-        "mode",
-        "query",
-        "legacy",
-        "next",
-        "divergence",
-        "severity",
-        "agreementRate",
-        "infrastructureError",
-        "commitSha",
-        "policyVersion",
-        "corpusVersion",
-        "observedAt",
-        "expiresAt",
-        "createdAt"`,
+        "id", "tenantId", "orgId", "actorUserId", "requestId", "mode", "query",
+        "legacy", "next", "divergence", "severity", "agreementRate",
+        "infrastructureError", "commitSha", "policyVersion", "corpusVersion",
+        "observedAt", "expiresAt", "createdAt"`,
       rowId,
       input.tenantId,
       input.orgId,
@@ -191,28 +162,12 @@ export class MemoryShadowReportRepository {
     if (hasDelegate(this.prisma)) {
       return this.prisma.memoryShadowReport.findFirst({ where: { tenantId, requestId } });
     }
-
     const rows = await getRawClient(this.prisma).$queryRawUnsafe<MemoryShadowReportRow[]>(
       `SELECT
-        "id",
-        "tenantId",
-        "orgId",
-        "actorUserId",
-        "requestId",
-        "mode",
-        "query",
-        "legacy",
-        "next",
-        "divergence",
-        "severity",
-        "agreementRate",
-        "infrastructureError",
-        "commitSha",
-        "policyVersion",
-        "corpusVersion",
-        "observedAt",
-        "expiresAt",
-        "createdAt"
+        "id", "tenantId", "orgId", "actorUserId", "requestId", "mode", "query",
+        "legacy", "next", "divergence", "severity", "agreementRate",
+        "infrastructureError", "commitSha", "policyVersion", "corpusVersion",
+        "observedAt", "expiresAt", "createdAt"
       FROM "memory_shadow_reports"
       WHERE "tenantId" = $1 AND "requestId" = $2
       LIMIT 1`,
@@ -230,71 +185,39 @@ export class MemoryShadowReportRepository {
     const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
     if (hasDelegate(this.prisma)) {
       return this.prisma.memoryShadowReport.findMany({
-        where: {
-          tenantId,
-          ...(options.actorUserId ? { actorUserId: options.actorUserId } : {}),
-          ...(options.severity ? { severity: options.severity } : {}),
-        },
+        where: this.scopedWhere(tenantId, options),
         orderBy: { observedAt: 'desc' },
         take: limit,
       });
     }
 
-    const values: unknown[] = [tenantId];
-    const clauses = ['"tenantId" = $1'];
-    let position = 2;
-
-    if (options.actorUserId) {
-      clauses.push(`"actorUserId" = $${position}`);
-      values.push(options.actorUserId);
-      position += 1;
-    }
-    if (options.severity) {
-      clauses.push(`"severity" = $${position}`);
-      values.push(options.severity);
-      position += 1;
-    }
-
+    const { clauses, values } = this.rawScope(tenantId, options);
     values.push(limit);
-
     return getRawClient(this.prisma).$queryRawUnsafe<MemoryShadowReportRow[]>(
       `SELECT
-        "id",
-        "tenantId",
-        "orgId",
-        "actorUserId",
-        "requestId",
-        "mode",
-        "query",
-        "legacy",
-        "next",
-        "divergence",
-        "severity",
-        "agreementRate",
-        "infrastructureError",
-        "commitSha",
-        "policyVersion",
-        "corpusVersion",
-        "observedAt",
-        "expiresAt",
-        "createdAt"
+        "id", "tenantId", "orgId", "actorUserId", "requestId", "mode", "query",
+        "legacy", "next", "divergence", "severity", "agreementRate",
+        "infrastructureError", "commitSha", "policyVersion", "corpusVersion",
+        "observedAt", "expiresAt", "createdAt"
       FROM "memory_shadow_reports"
       WHERE ${clauses.join(' AND ')}
       ORDER BY "observedAt" DESC
-      LIMIT $${position}`,
+      LIMIT $${values.length}`,
       ...values,
     );
   }
 
-  async countForTenant(tenantId: string): Promise<number> {
+  async countForTenant(tenantId: string, options: FilterOptions = {}): Promise<number> {
     this.assertTenant(tenantId);
     if (hasDelegate(this.prisma)) {
-      return this.prisma.memoryShadowReport.count({ where: { tenantId } });
+      return this.prisma.memoryShadowReport.count({ where: this.scopedWhere(tenantId, options) });
     }
 
-    const rows = await getRawClient(this.prisma).$queryRawUnsafe<CountRow[]>((
-      'SELECT COUNT(*) AS count FROM "memory_shadow_reports" WHERE "tenantId" = $1'
-    ), tenantId);
+    const { clauses, values } = this.rawScope(tenantId, options);
+    const rows = await getRawClient(this.prisma).$queryRawUnsafe<CountRow[]>(
+      `SELECT COUNT(*) AS count FROM "memory_shadow_reports" WHERE ${clauses.join(' AND ')}`,
+      ...values,
+    );
     return normalizeCount(rows[0]?.count ?? 0);
   }
 
@@ -306,12 +229,50 @@ export class MemoryShadowReportRepository {
       });
       return result.count;
     }
-
     return getRawClient(this.prisma).$executeRawUnsafe(
       'DELETE FROM "memory_shadow_reports" WHERE "tenantId" = $1 AND "expiresAt" <= $2',
       tenantId,
       now,
     );
+  }
+
+  private scopedWhere(tenantId: string, options: FilterOptions): MemoryShadowReportWhere {
+    return {
+      tenantId,
+      ...(options.actorUserId ? { actorUserId: options.actorUserId } : {}),
+      ...(options.severity ? { severity: options.severity } : {}),
+      ...(options.commitSha ? { commitSha: options.commitSha } : {}),
+      ...(options.policyVersion ? { policyVersion: options.policyVersion } : {}),
+      ...(options.corpusVersion ? { corpusVersion: options.corpusVersion } : {}),
+      ...(options.observedAfter || options.observedBefore
+        ? {
+            observedAt: {
+              ...(options.observedAfter ? { gte: options.observedAfter } : {}),
+              ...(options.observedBefore ? { lte: options.observedBefore } : {}),
+            },
+          }
+        : {}),
+    };
+  }
+
+  private rawScope(
+    tenantId: string,
+    options: FilterOptions,
+  ): { clauses: string[]; values: unknown[] } {
+    const clauses = ['"tenantId" = $1'];
+    const values: unknown[] = [tenantId];
+    const add = (column: string, operator: string, value: unknown): void => {
+      values.push(value);
+      clauses.push(`"${column}" ${operator} $${values.length}`);
+    };
+    if (options.actorUserId) add('actorUserId', '=', options.actorUserId);
+    if (options.severity) add('severity', '=', options.severity);
+    if (options.commitSha) add('commitSha', '=', options.commitSha);
+    if (options.policyVersion) add('policyVersion', '=', options.policyVersion);
+    if (options.corpusVersion) add('corpusVersion', '=', options.corpusVersion);
+    if (options.observedAfter) add('observedAt', '>=', options.observedAfter);
+    if (options.observedBefore) add('observedAt', '<=', options.observedBefore);
+    return { clauses, values };
   }
 
   private assertTenant(tenantId: string): void {

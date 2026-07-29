@@ -41,6 +41,7 @@ export type {
   MemoryShadowReportRow,
   CreateMemoryShadowReportInput,
   MemoryShadowReportPrismaClient,
+  MemoryShadowReportWhere,
   ListMemoryShadowReportsOptions,
 } from './repositories';
 
