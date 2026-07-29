@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 
 export interface MemoryShadowReportRow {
@@ -101,8 +102,10 @@ export class MemoryShadowReportRepository {
       return this.prisma.memoryShadowReport.create({ data: input });
     }
 
+    const rowId = randomUUID();
     const rows = await getRawClient(this.prisma).$queryRawUnsafe<MemoryShadowReportRow[]>(
       `INSERT INTO "memory_shadow_reports" (
+        "id",
         "tenantId",
         "orgId",
         "actorUserId",
@@ -127,17 +130,18 @@ export class MemoryShadowReportRepository {
         $4,
         $5,
         $6,
-        $7::jsonb,
+        $7,
         $8::jsonb,
         $9::jsonb,
-        $10,
+        $10::jsonb,
         $11,
         $12,
         $13,
         $14,
         $15,
         $16,
-        $17
+        $17,
+        $18
       ) RETURNING
         "id",
         "tenantId",
@@ -158,6 +162,7 @@ export class MemoryShadowReportRepository {
         "observedAt",
         "expiresAt",
         "createdAt"`,
+      rowId,
       input.tenantId,
       input.orgId,
       input.actorUserId,
@@ -287,10 +292,9 @@ export class MemoryShadowReportRepository {
       return this.prisma.memoryShadowReport.count({ where: { tenantId } });
     }
 
-    const rows = await getRawClient(this.prisma).$queryRawUnsafe<CountRow[]>(
-      'SELECT COUNT(*) AS count FROM "memory_shadow_reports" WHERE "tenantId" = $1',
-      tenantId,
-    );
+    const rows = await getRawClient(this.prisma).$queryRawUnsafe<CountRow[]>((
+      'SELECT COUNT(*) AS count FROM "memory_shadow_reports" WHERE "tenantId" = $1'
+    ), tenantId);
     return normalizeCount(rows[0]?.count ?? 0);
   }
 
