@@ -70,7 +70,18 @@ jobs:
         run: pnpm test:dependency-heatmap
 
       - name: Guard new package wiring
-        run: node scripts/dependency-heatmap.mjs --assert-new-packages-wired --base="${{ steps.base.outputs.ref }}"
+        shell: bash
+        run: |
+          set +e
+          output="$(node scripts/dependency-heatmap.mjs --assert-new-packages-wired --base="${{ steps.base.outputs.ref }}" 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            escaped="$(printf '%s' "$output" | tr '\n' ' ' | sed 's/%/%25/g')"
+            echo "::error file=scripts/dependency-heatmap.mjs::$escaped"
+            exit "$status"
+          fi
 
       - name: Typecheck, lint, test, build directly changed packages
         env:
