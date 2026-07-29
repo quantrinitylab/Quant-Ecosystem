@@ -183,7 +183,7 @@ describe('legacy mode (default)', () => {
     const pending = service.getPendingCandidates('u1');
     expect(pending).toHaveLength(1);
     expect(pending[0]?.content).toBe('I prefer dark mode');
-    expect(service.listMemories('u1')).toHaveLength(0); // not active until approved
+    expect(service.listMemories('u1')).toHaveLength(0);
   });
 
   it('recall reads from the existing store only', async () => {
@@ -224,10 +224,8 @@ describe('dual_write mode', () => {
       role: 'user',
       content: 'I live in Patna',
     });
-    // Legacy store received it exactly as legacy mode would:
     expect(service.getPendingCandidates('u2')).toHaveLength(1);
 
-    // Read path stays legacy-authoritative:
     service.createMemory('u2', {
       category: 'preferences',
       content: 'chai over coffee',
@@ -261,7 +259,7 @@ describe('shadow mode', () => {
     });
 
     const results = await facade.recall({ actor: 'u3', query: 'summary' });
-    expect(results.map((r) => r.content)).toEqual(['weekly summary emails']); // legacy answer
+    expect(results.map((r) => r.content)).toEqual(['weekly summary emails']);
     expect(shadowReports).toHaveLength(1);
     expect(shadowReports[0]?.mode).toBe('shadow');
     expect(shadowReports[0]?.legacy.recalled).toEqual(['weekly summary emails']);
@@ -270,11 +268,12 @@ describe('shadow mode', () => {
 });
 
 describe('canary mode reversibility before cutover approval', () => {
-  it('LEGACY→DUAL_WRITE→SHADOW→DUAL_WRITE→LEGACY leaves legacy uncorrupted', async () => {
+  it('LEGACY→DUAL_WRITE→SHADOW→DUAL_WRITE→LEGACY reuses dependencies and preserves authority', async () => {
     const service = new MemoryService();
+    const dependencies = durableDependencies('shadow');
     const cycle: CanaryMode[] = ['legacy', 'dual_write', 'shadow', 'dual_write', 'legacy'];
+    expect(cycle).not.toContain('new');
 
-    // Seed one explicit memory that must survive the whole journey untouched.
     const seeded = service.createMemory('u4', {
       category: 'preferences',
       content: 'seeded memory',
@@ -285,25 +284,42 @@ describe('canary mode reversibility before cutover approval', () => {
       accessScopes: ['quantai'],
       tags: ['keep'],
     });
+    let shadowReportCount = 0;
 
     for (const mode of cycle) {
-      const { facade } = createQuantaiMemoryFacade(optionsFor(mode, service));
+      const { facade, shadowReports } = createQuantaiMemoryFacade({
+        legacyService: service,
+        mode,
+        ...(mode === 'legacy'
+          ? {}
+          : {
+              database: dependencies.database,
+              vector: dependencies.vector,
+              ...(mode === 'shadow' ? { shadowSink: dependencies.shadowSink } : {}),
+            }),
+      });
       await facade.observe({
         actor: 'u4',
         session: `s_${mode}`,
         role: 'user',
         content: `turn in ${mode}`,
       });
-      await facade.recall({ actor: 'u4', query: 'seeded' });
+      const recalled = await facade.recall({ actor: 'u4', query: 'seeded' });
+      expect(recalled.map(({ id, content }) => ({ id, content }))).toEqual([
+        { id: seeded.id, content: 'seeded memory' },
+      ]);
+      expect(shadowReports).toHaveLength(mode === 'shadow' ? 1 : 0);
+      shadowReportCount += shadowReports.length;
     }
 
-    // The seeded memory is intact — no corruption, no loss, no duplication.
     const survived = service.getMemory(seeded.id);
     expect(survived?.content).toBe('seeded memory');
     expect(service.listMemories('u4', { search: 'seeded' })).toHaveLength(1);
+    expect(shadowReportCount).toBe(1);
 
-    // Every approved canary mode remains legacy-writing, with no duplicate writes.
     const pending = service.getPendingCandidates('u4');
-    expect(pending.filter((p) => p.content.startsWith('turn in'))).toHaveLength(cycle.length);
+    expect(pending.filter((candidate) => candidate.content.startsWith('turn in'))).toHaveLength(
+      cycle.length,
+    );
   });
 });
