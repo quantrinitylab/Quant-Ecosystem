@@ -5,9 +5,9 @@
 //   1. legacy mode (default) touches ONLY the existing store — behavior today.
 //   2. dual_write never affects the user-visible result.
 //   3. shadow collects evidence (ShadowReports) without changing answers.
-//   4. Full mode cycle LEGACY→DUAL_WRITE→SHADOW→NEW→SHADOW→LEGACY is
-//      reversible with no state corruption of the legacy store.
-//   5. Unknown env values fall back to legacy (fail-safe).
+//   4. Canary modes remain reversible without enabling unapproved `new` authority.
+//   5. Unknown and unapproved explicit modes fail startup; only an absent value
+//      defaults to legacy.
 // ============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -15,31 +15,158 @@ import { MemoryService } from '../services/memory.service';
 import {
   createQuantaiMemoryFacade,
   resolveFacadeMode,
+  QuantaiMemoryConfigurationError,
   type QuantaiMemoryFacade,
+  type QuantaiMemoryFacadeOptions,
+  type QuantaiVectorConfig,
 } from '../services/memory-facade.service';
 import type { FacadeMode } from '@quant/ai';
+import { createInMemoryMemoryDb } from '../../../../packages/ai/src/core/in-memory-memory-db';
+
+type CanaryMode = Exclude<FacadeMode, 'new'>;
+
+const durableDependencies = (
+  mode: Exclude<CanaryMode, 'legacy'>,
+): Pick<QuantaiMemoryFacadeOptions, 'database' | 'vector' | 'shadowSink'> => {
+  const client = createInMemoryMemoryDb();
+  const vectorConfig: QuantaiVectorConfig = {
+    embedder: {
+      provider: 'test',
+      model: 'deterministic',
+      dimension: 2,
+      embed: async () => [1, 0],
+    },
+    vectorBackend: {
+      name: 'test-vector',
+      upsert: async () => undefined,
+      query: async () => [],
+    },
+    embeddingClient: {
+      memoryEmbedding: { create: async () => ({}) },
+    },
+  };
+
+  return {
+    database: { durability: 'durable', client },
+    vector: { durability: 'durable', config: vectorConfig },
+    ...(mode === 'shadow'
+      ? {
+          shadowSink: {
+            durability: 'durable' as const,
+            emit: async () => undefined,
+          },
+        }
+      : {}),
+  };
+};
+
+const optionsFor = (mode: CanaryMode, service: MemoryService): QuantaiMemoryFacadeOptions => ({
+  legacyService: service,
+  mode,
+  ...(mode === 'legacy' ? {} : durableDependencies(mode)),
+});
 
 const build = (
-  mode: FacadeMode,
+  mode: CanaryMode,
   service = new MemoryService(),
 ): QuantaiMemoryFacade & { service: MemoryService } => {
-  const f = createQuantaiMemoryFacade({ legacyService: service, mode });
+  const f = createQuantaiMemoryFacade(optionsFor(mode, service));
   return { ...f, service };
 };
 
 describe('resolveFacadeMode', () => {
-  it('defaults to legacy when env is unset or invalid (fail-safe)', () => {
+  it('defaults to legacy only when the env value is absent', () => {
     expect(resolveFacadeMode({} as NodeJS.ProcessEnv)).toBe('legacy');
-    expect(resolveFacadeMode({ QUANTAI_MEMORY_MODE: 'chaos' } as NodeJS.ProcessEnv)).toBe('legacy');
   });
 
-  it('honors valid modes case-insensitively', () => {
+  it('rejects an invalid explicit mode with a structured startup error', () => {
+    expect(() => resolveFacadeMode({ QUANTAI_MEMORY_MODE: 'chaos' } as NodeJS.ProcessEnv)).toThrow(
+      QuantaiMemoryConfigurationError,
+    );
+
+    try {
+      resolveFacadeMode({ QUANTAI_MEMORY_MODE: 'chaos' } as NodeJS.ProcessEnv);
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'MEMORY_CANARY_CONFIGURATION_INVALID',
+        requestedMode: 'chaos',
+        missing: ['valid_mode'],
+      });
+    }
+  });
+
+  it('honors canary modes case-insensitively', () => {
     expect(resolveFacadeMode({ QUANTAI_MEMORY_MODE: 'SHADOW' } as NodeJS.ProcessEnv)).toBe(
       'shadow',
     );
     expect(resolveFacadeMode({ QUANTAI_MEMORY_MODE: 'dual_write' } as NodeJS.ProcessEnv)).toBe(
       'dual_write',
     );
+  });
+
+  it('rejects new authority until the ADR-011 release gate is approved', () => {
+    expect(() => resolveFacadeMode({ QUANTAI_MEMORY_MODE: 'new' } as NodeJS.ProcessEnv)).toThrow(
+      /release gate/,
+    );
+
+    try {
+      resolveFacadeMode({ QUANTAI_MEMORY_MODE: 'new' } as NodeJS.ProcessEnv);
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'MEMORY_CANARY_CONFIGURATION_INVALID',
+        requestedMode: 'new',
+        missing: ['new_authority_approval'],
+      });
+    }
+  });
+});
+
+describe('fail-closed canary dependencies', () => {
+  it.each(['dual_write', 'shadow'] as const)(
+    'rejects %s without durable database/vector dependencies',
+    (mode) => {
+      expect(() => createQuantaiMemoryFacade({ legacyService: new MemoryService(), mode })).toThrow(
+        QuantaiMemoryConfigurationError,
+      );
+    },
+  );
+
+  it('rejects programmatic new authority even when durable dependencies are present', () => {
+    const dependencies = durableDependencies('shadow');
+    expect(() =>
+      createQuantaiMemoryFacade({
+        legacyService: new MemoryService(),
+        mode: 'new',
+        database: dependencies.database,
+        vector: dependencies.vector,
+      }),
+    ).toThrow(/release gate/);
+  });
+
+  it('reports every missing shadow dependency with a stable error code', () => {
+    try {
+      createQuantaiMemoryFacade({ legacyService: new MemoryService(), mode: 'shadow' });
+      expect.unreachable('shadow startup should fail closed');
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: 'MEMORY_CANARY_CONFIGURATION_INVALID',
+        requestedMode: 'shadow',
+        missing: ['database', 'vector', 'shadow_report_sink'],
+      });
+    }
+  });
+
+  it('requires the durable report sink only for shadow mode', () => {
+    const service = new MemoryService();
+    const dependencies = durableDependencies('shadow');
+    expect(() =>
+      createQuantaiMemoryFacade({
+        legacyService: service,
+        mode: 'shadow',
+        database: dependencies.database,
+        vector: dependencies.vector,
+      }),
+    ).toThrow(/shadow_report_sink/);
   });
 });
 
@@ -89,7 +216,7 @@ describe('dual_write mode', () => {
   it('user-visible result is identical to legacy; new subsystem write is best-effort', async () => {
     const service = new MemoryService();
     const legacyOnly = build('legacy', service);
-    const dual = createQuantaiMemoryFacade({ legacyService: service, mode: 'dual_write' });
+    const dual = createQuantaiMemoryFacade(optionsFor('dual_write', service));
 
     await dual.facade.observe({
       actor: 'u2',
@@ -120,10 +247,7 @@ describe('dual_write mode', () => {
 describe('shadow mode', () => {
   it('answers from legacy AND records a ShadowReport comparing both backends', async () => {
     const service = new MemoryService();
-    const { facade, shadowReports } = createQuantaiMemoryFacade({
-      legacyService: service,
-      mode: 'shadow',
-    });
+    const { facade, shadowReports } = createQuantaiMemoryFacade(optionsFor('shadow', service));
 
     service.createMemory('u3', {
       category: 'preferences',
@@ -145,10 +269,10 @@ describe('shadow mode', () => {
   });
 });
 
-describe('mode cycle reversibility (M11c Priority 3)', () => {
-  it('LEGACY→DUAL_WRITE→SHADOW→NEW→SHADOW→LEGACY leaves the legacy store uncorrupted', async () => {
+describe('canary mode reversibility before cutover approval', () => {
+  it('LEGACY→DUAL_WRITE→SHADOW→DUAL_WRITE→LEGACY leaves legacy uncorrupted', async () => {
     const service = new MemoryService();
-    const cycle: FacadeMode[] = ['legacy', 'dual_write', 'shadow', 'new', 'shadow', 'legacy'];
+    const cycle: CanaryMode[] = ['legacy', 'dual_write', 'shadow', 'dual_write', 'legacy'];
 
     // Seed one explicit memory that must survive the whole journey untouched.
     const seeded = service.createMemory('u4', {
@@ -163,7 +287,7 @@ describe('mode cycle reversibility (M11c Priority 3)', () => {
     });
 
     for (const mode of cycle) {
-      const { facade } = createQuantaiMemoryFacade({ legacyService: service, mode });
+      const { facade } = createQuantaiMemoryFacade(optionsFor(mode, service));
       await facade.observe({
         actor: 'u4',
         session: `s_${mode}`,
@@ -178,11 +302,8 @@ describe('mode cycle reversibility (M11c Priority 3)', () => {
     expect(survived?.content).toBe('seeded memory');
     expect(service.listMemories('u4', { search: 'seeded' })).toHaveLength(1);
 
-    // Legacy-writing modes (all except 'new') each produced exactly one pending
-    // candidate — nothing double-wrote.
+    // Every approved canary mode remains legacy-writing, with no duplicate writes.
     const pending = service.getPendingCandidates('u4');
-    expect(pending.filter((p) => p.content.startsWith('turn in'))).toHaveLength(
-      cycle.filter((m) => m !== 'new').length,
-    );
+    expect(pending.filter((p) => p.content.startsWith('turn in'))).toHaveLength(cycle.length);
   });
 });
