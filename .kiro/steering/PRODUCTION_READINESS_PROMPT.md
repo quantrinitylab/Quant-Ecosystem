@@ -1,7 +1,15 @@
+---
+inclusion: manual
+doc_type: historical
+authority: non-authoritative
+status: archived-guidance
+---
+
 # Quant-Ecosystem → Production-Grade (Google/Meta Level) Master Prompt
 
-> **How to use this file**
-> Paste the contents below into a top-tier coding AI (Claude Opus, GPT-5, Gemini Ultra) along with the repository. Run it phase by phase. Each phase has hard acceptance criteria. Do not skip phases.
+> **Historical warning (2026-07-22):** this prompt describes an early repository baseline and its Phase-0-first sequence is superseded by the [canonical institutional-memory index](../../docs/README.md), [Current State](../../docs/CURRENT_STATE.md), and [Execution Queue](../../docs/EXECUTION_QUEUE.md). Keep it for provenance and timeless safety constraints; do not auto-include or execute its audit claims as current truth.
+>
+> **Original usage:** paste the contents below into a top-tier coding AI along with the repository and run it phase by phase.
 
 ---
 
@@ -448,7 +456,7 @@ For each of the 9 apps, complete the production behavior. Below are non-negotiab
 ## NON-NEGOTIABLE GLOBAL RULES
 
 1. **Never** use `Math.random()` for anything that touches security, identity, billing, or content addressability. Use `crypto.randomBytes` / `crypto.randomUUID` / `crypto.randomInt`.
-2. **Never** roll your own crypto. Use `argon2`, `jose`, `crypto.subtle`, `libsignal`. Custom `((hash << 5) - hash)` is a fireable offense.
+2. **Never** roll your own crypto. Use `argon2`, `jose`, `crypto.subtle`, `libsignal`. Custom `((hash << 5) - hash + char)` is a fireable offense.
 3. **Never** store sensitive data in process memory. Use Postgres + Redis. Restarting any pod must not lose user state.
 4. **Never** commit secrets. `.env` files are gitignored; `.env.example` is the contract.
 5. **Never** trust a request header that crossed an untrusted boundary. Validate JWT signatures every hop.
