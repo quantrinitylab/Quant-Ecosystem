@@ -60,9 +60,16 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "filter=[origin/${{ github.base_ref }}]" >> "$GITHUB_OUTPUT"
+            echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
           else
             echo "filter=[HEAD~1]" >> "$GITHUB_OUTPUT"
+            echo "ref=HEAD~1" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Validate dependency heatmap and new-package wiring
+        run: |
+          pnpm test:dependency-heatmap
+          node scripts/dependency-heatmap.mjs --assert-new-packages-wired --base="${{ steps.base.outputs.ref }}"
 
       - name: Typecheck, lint, test, build directly changed packages
         env:
