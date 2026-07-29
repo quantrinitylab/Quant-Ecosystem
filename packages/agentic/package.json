@@ -17,6 +17,11 @@
       "import": "./dist/voice/use-voice-commands.js",
       "default": "./dist/voice/use-voice-commands.js"
     },
+    "./cross-app": {
+      "types": "./dist/cross-app/browser.d.ts",
+      "import": "./dist/cross-app/browser.js",
+      "default": "./dist/cross-app/browser.js"
+    },
     "./package.json": "./package.json"
   },
   "files": ["dist"],
