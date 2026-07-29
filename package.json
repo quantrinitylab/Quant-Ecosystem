@@ -82,6 +82,10 @@
       "fast-uri@>=4.0.0 <=4.1.0": "4.1.1",
       "@opentelemetry/propagator-jaeger@<2.9.0": "2.9.0",
       "axios@>=1.15.2 <1.18.0": "1.18.0"
+    },
+    "patchedDependencies": {
+      "minimatch@3.1.5": "patches/minimatch@3.1.5.patch",
+      "minimatch@8.0.7": "patches/minimatch@8.0.7.patch"
     }
   },
   "devDependencies": {
