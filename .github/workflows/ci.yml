@@ -73,7 +73,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          output="$(node scripts/dependency-heatmap.mjs --assert-new-packages-wired --base="${{ steps.base.outputs.ref }}" 2>&1)"
+          output="$(node scripts/dependency-heatmap.mjs --assert-new-packages-wired --base "${{ steps.base.outputs.ref }}" 2>&1)"
           status=$?
           set -e
           printf '%s\n' "$output"

@@ -93,7 +93,7 @@ describe('dependency heatmap scanner', () => {
     const workflow = readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
     const implementation = readFileSync(SCRIPT, 'utf8');
     expect(workflow).toContain('pnpm test:dependency-heatmap');
-    expect(workflow).toContain('--assert-new-packages-wired --base="${{ steps.base.outputs.ref }}"');
+    expect(workflow).toContain('--assert-new-packages-wired --base "${{ steps.base.outputs.ref }}"');
     expect(implementation).not.toContain('grep -');
     expect(implementation).toContain("execFileSync(\n      'git'");
   });
