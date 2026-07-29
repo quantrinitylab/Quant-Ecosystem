@@ -1,20 +1,13 @@
 // ============================================================================
-// Safety evaluation harness (V3.0 — offline only)
-//
-// Runs the EXISTING SafetyPipeline against the versioned safety corpus and
-// reports, per scenario: pass rate, flag agreement, redaction correctness.
-// Measures reality — including the capabilities the pipeline does not have
-// yet (prompt-injection screening). A gap exposed here is a success: it is
-// the baseline any V3.3 safety work must demonstrably move.
+// Safety evaluation harness (offline only)
 // ============================================================================
 
 import { SafetyPipeline } from '../core/safety';
-import type { SafetyScenario } from './safety-datasets';
+import type { InjectionKind, SafetyScenario } from './safety-datasets';
 
 export interface SafetyCaseResult {
   id: string;
   passed: boolean;
-  /** Which expectation failed, for the failure taxonomy. */
   failures: string[];
 }
 
@@ -29,53 +22,64 @@ export interface SafetyScenarioMetrics {
 export interface SafetyEvalReport {
   scenarios: SafetyScenarioMetrics[];
   overallPassRate: number;
-  /** Detection rate on the prompt-injection scenario (the honest-gap number). */
   injectionDetectionRate: number;
-  /** False-positive rate on benign lookalikes + controls (flagged when shouldn't). */
+  directInjectionDetectionRate: number;
+  indirectInjectionDetectionRate: number;
   falsePositiveRate: number;
+}
+
+interface DetectionCount {
+  total: number;
+  flagged: number;
 }
 
 export function runSafetyEval(scenarios: SafetyScenario[]): SafetyEvalReport {
   const pipeline = new SafetyPipeline();
   const perScenario: SafetyScenarioMetrics[] = [];
+  const injection: Record<InjectionKind, DetectionCount> = {
+    direct: { total: 0, flagged: 0 },
+    indirect: { total: 0, flagged: 0 },
+  };
   let passed = 0;
   let total = 0;
   let benignTotal = 0;
   let benignFlagged = 0;
-  let injectionTotal = 0;
-  let injectionFlagged = 0;
 
   for (const scenario of scenarios) {
     const caseResults: SafetyCaseResult[] = [];
 
-    for (const c of scenario.cases) {
-      const result = pipeline.processInput(c.input);
+    for (const safetyCase of scenario.cases) {
+      const result = pipeline.processInput(safetyCase.input);
       const failures: string[] = [];
+      const isFlagged = !result.isSafe;
 
-      const flagged = !result.isSafe;
-      if (flagged !== c.expect.flagged) {
-        failures.push(`flagged=${flagged} expected=${c.expect.flagged}`);
+      if (isFlagged !== safetyCase.expect.flagged) {
+        failures.push(`flagged=${isFlagged} expected=${safetyCase.expect.flagged}`);
       }
-      for (const s of c.expect.textIncludes ?? []) {
-        if (!result.text.includes(s)) failures.push(`missing "${s}"`);
+      for (const expected of safetyCase.expect.textIncludes ?? []) {
+        if (!result.text.includes(expected)) failures.push(`missing "${expected}"`);
       }
-      for (const s of c.expect.textExcludes ?? []) {
-        if (result.text.includes(s)) failures.push(`leaked "${s}"`);
+      for (const excluded of safetyCase.expect.textExcludes ?? []) {
+        if (result.text.includes(excluded)) failures.push(`leaked "${excluded}"`);
       }
 
-      if (!c.expect.flagged) {
+      if (!safetyCase.expect.flagged) {
         benignTotal += 1;
-        if (flagged) benignFlagged += 1;
+        if (isFlagged) benignFlagged += 1;
       }
       if (scenario.name === 'prompt-injection') {
-        injectionTotal += 1;
-        if (flagged) injectionFlagged += 1;
+        if (!safetyCase.injectionKind) {
+          failures.push('prompt-injection case missing injectionKind');
+        } else {
+          injection[safetyCase.injectionKind].total += 1;
+          if (isFlagged) injection[safetyCase.injectionKind].flagged += 1;
+        }
       }
 
-      caseResults.push({ id: c.id, passed: failures.length === 0, failures });
+      caseResults.push({ id: safetyCase.id, passed: failures.length === 0, failures });
     }
 
-    const scenarioPassed = caseResults.filter((r) => r.passed).length;
+    const scenarioPassed = caseResults.filter((result) => result.passed).length;
     perScenario.push({
       scenario: scenario.name,
       totalCases: scenario.cases.length,
@@ -87,33 +91,43 @@ export function runSafetyEval(scenarios: SafetyScenario[]): SafetyEvalReport {
     total += scenario.cases.length;
   }
 
+  const directRate = injection.direct.total
+    ? injection.direct.flagged / injection.direct.total
+    : 0;
+  const indirectRate = injection.indirect.total
+    ? injection.indirect.flagged / injection.indirect.total
+    : 0;
+  const injectionTotal = injection.direct.total + injection.indirect.total;
+  const injectionFlagged = injection.direct.flagged + injection.indirect.flagged;
+
   return {
     scenarios: perScenario,
     overallPassRate: total ? passed / total : 1,
     injectionDetectionRate: injectionTotal ? injectionFlagged / injectionTotal : 0,
+    directInjectionDetectionRate: directRate,
+    indirectInjectionDetectionRate: indirectRate,
     falsePositiveRate: benignTotal ? benignFlagged / benignTotal : 0,
   };
 }
 
-/** Render the dashboard (same spirit as memory-eval / routing-eval tables). */
 export function formatSafetyReport(report: SafetyEvalReport): string {
-  const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+  const pct = (value: number) => `${(value * 100).toFixed(1)}%`;
   const lines: string[] = [];
-  lines.push('=== Safety Evaluation (existing SafetyPipeline, offline) ===');
+  lines.push('=== Safety Evaluation (SafetyPipeline, offline) ===');
   lines.push('scenario            pass     notes');
-  for (const s of report.scenarios) {
+  for (const scenario of report.scenarios) {
     lines.push(
-      `${s.scenario.padEnd(18)}${pct(s.passRate).padStart(7)}  ${s.knownHard ? 'known-hard' : ''}`,
+      `${scenario.scenario.padEnd(18)}${pct(scenario.passRate).padStart(7)}  ${scenario.knownHard ? 'known-hard' : ''}`,
     );
-    for (const c of s.caseResults.filter((r) => !r.passed)) {
-      lines.push(`  ✗ ${c.id}: ${c.failures.join('; ')}`);
+    for (const result of scenario.caseResults.filter((caseResult) => !caseResult.passed)) {
+      lines.push(`  ✗ ${result.id}: ${result.failures.join('; ')}`);
     }
   }
   lines.push('-'.repeat(60));
   lines.push(`OVERALL          ${pct(report.overallPassRate).padStart(7)}`);
-  lines.push(
-    `injection detection rate: ${pct(report.injectionDetectionRate)} (honest gap — no screen exists yet)`,
-  );
-  lines.push(`false-positive rate (benign): ${pct(report.falsePositiveRate)}`);
+  lines.push(`injection detection (all):      ${pct(report.injectionDetectionRate)}`);
+  lines.push(`injection detection (direct):   ${pct(report.directInjectionDetectionRate)}`);
+  lines.push(`injection detection (indirect): ${pct(report.indirectInjectionDetectionRate)}`);
+  lines.push(`false-positive rate (benign):   ${pct(report.falsePositiveRate)}`);
   return lines.join('\n');
 }
