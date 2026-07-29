@@ -36,6 +36,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Several packages (including @quant/auth) import PrismaClient directly,
+      # so Turbo cannot infer a dependency edge to @quant/database. A fresh
+      # runner therefore needs an explicit schema-specific client generation
+      # before it can build any affected graph that reaches those packages.
+      - name: Build @quant/database (generates Prisma client + dist)
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npx turbo build --concurrency=2 --filter=@quant/database
+
       - name: Resolve change base
         id: base
         run: |
@@ -102,6 +111,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build @quant/database (generates Prisma client + dist)
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npx turbo build --concurrency=2 --filter=@quant/database
 
       - name: Full typecheck + lint + test + build
         env:
