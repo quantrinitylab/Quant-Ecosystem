@@ -22,3 +22,11 @@ packages/*/src/**/*.d.ts.map
 !packages/*/src/**/*.spec.js
 helm.zip
 helm-extracted/
+
+# Local scratch artifacts that must never be committed
+Quant-Ecosystem.bundle
+*.postman.json
+*.postman_collection.json
+.quant-latest-work/
+.quantmail-release-candidate/
+_bedrock-probe*.mts
