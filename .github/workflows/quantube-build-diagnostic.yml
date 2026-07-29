@@ -31,10 +31,12 @@ jobs:
           cache: 'pnpm'
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build database dependency
+      - name: Build QuantTube workspace dependencies
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        run: npx turbo build --concurrency=2 --filter=@quant/database
+        run: |
+          npx turbo build --concurrency=2 --filter=@quant/database
+          npx turbo build --concurrency=2 --filter=@quant/agentic
       - name: Build QuantTube and isolate webpack error
         shell: bash
         env:
