@@ -33,8 +33,16 @@ export {
   MediaRepository,
   AISessionRepository,
   NotificationRepository,
+  MemoryShadowReportRepository,
 } from './repositories';
-export type { PaginationOptions, PaginatedResult } from './repositories';
+export type {
+  PaginationOptions,
+  PaginatedResult,
+  MemoryShadowReportRow,
+  CreateMemoryShadowReportInput,
+  MemoryShadowReportPrismaClient,
+  ListMemoryShadowReportsOptions,
+} from './repositories';
 
 // Schema Types (kept as documentation/validation types)
 export * from './schemas/users';

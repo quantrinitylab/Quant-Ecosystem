@@ -1,5 +1,5 @@
 import { Agent } from '../core/agent.js';
-import { UnifiedAIService } from '@quant/ai';
+import { UnifiedAIService } from '@quant/ai/unified-ai-service';
 import { logger } from '@quant/common';
 import { VoiceOrchestrator } from '../voice/voice-orchestrator.js';
 
