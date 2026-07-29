@@ -36,6 +36,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate canonical project memory
+        run: |
+          pnpm memory:validate
+          pnpm test:memory
+
       # Several packages (including @quant/auth) import PrismaClient directly,
       # so Turbo cannot infer a dependency edge to @quant/database. A fresh
       # runner therefore needs an explicit schema-specific client generation
