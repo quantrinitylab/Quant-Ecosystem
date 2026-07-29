@@ -35,7 +35,7 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=4096
         run: npx turbo build --concurrency=2 --filter=@quant/database
-      - name: Build QuantTube and publish final failure
+      - name: Build QuantTube and isolate webpack error
         shell: bash
         env:
           NODE_OPTIONS: --max-old-space-size=4096
@@ -48,11 +48,11 @@ jobs:
 
           if [ "$status" -ne 0 ]; then
             echo "::error title=QuantTube build exit::next build exited with status $status"
-            tail -n 8 /tmp/quantube-build.log | while IFS= read -r line; do
+            grep -B 2 -A 5 -E "Module not found|Can't resolve|Error:|Import trace" /tmp/quantube-build.log | head -n 8 | while IFS= read -r line; do
               line=${line//'%'/'%25'}
               line=${line//$'\r'/'%0D'}
               line=${line//$'\n'/'%0A'}
-              echo "::error title=QuantTube final output::$line"
+              echo "::error title=QuantTube webpack error::$line"
             done
           fi
 
