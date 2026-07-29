@@ -45,6 +45,7 @@ import type { FastifyInstance } from 'fastify';
 import { buildApp, getConfig } from '../app';
 import type { AppConfig } from '@quant/server-core';
 import type { HistoryItem } from '../../src/pages/library';
+import { createWatchHistoryDouble } from './helpers/in-memory-watch-history';
 
 const testConfig: AppConfig = {
   ...getConfig(),
@@ -105,7 +106,7 @@ const videoStore = new Map<string, SeedVideo>();
 function seedVideo(v: Partial<SeedVideo> & { id: string }): void {
   videoStore.set(v.id, {
     title: `Title ${v.id}`,
-    thumbnailUrl: `https://cdn.example/${v.id}.jpg`,
+    thumbnailUrl: `{{https://cdn.example/${v.id}}}.jpg`,
     channelId: `channel-${v.id}`,
     duration: 120,
     viewCount: 0,
@@ -118,6 +119,9 @@ function installVideoStore(app: FastifyInstance): void {
     video: {
       findUnique: async ({ where }: { where: { id: string } }) => videoStore.get(where.id) ?? null,
     },
+    // HistoryService is Prisma-backed; provide the watchHistory delegate too so
+    // POST/GET /history exercise the real service against an in-memory store.
+    watchHistory: createWatchHistoryDouble(),
   };
 }
 

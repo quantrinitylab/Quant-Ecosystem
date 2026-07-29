@@ -1,5 +1,5 @@
-import { AppController, getGlobalCommandBus } from '@quant/agentic';
-import type { VoiceCommand, CommandResult } from '@quant/agentic';
+import { AppController, getGlobalCommandBus } from '@quant/agentic/cross-app';
+import type { VoiceCommand, CommandResult } from '@quant/agentic/cross-app';
 
 export interface VoiceActionContext {
   appId: string;

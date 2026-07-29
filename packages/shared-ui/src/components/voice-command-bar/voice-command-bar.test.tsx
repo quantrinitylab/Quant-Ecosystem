@@ -5,11 +5,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { useVoiceCommands } from '@quant/agentic';
-import type { UseVoiceCommandsReturn } from '@quant/agentic';
+import { useVoiceCommands } from '@quant/agentic/voice-commands';
+import type { UseVoiceCommandsReturn } from '@quant/agentic/voice-commands';
 import { VoiceCommandBar } from './voice-command-bar';
 
-vi.mock('@quant/agentic', () => ({
+vi.mock('@quant/agentic/voice-commands', () => ({
   useVoiceCommands: vi.fn(),
 }));
 

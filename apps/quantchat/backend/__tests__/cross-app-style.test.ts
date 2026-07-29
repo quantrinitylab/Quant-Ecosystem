@@ -50,7 +50,7 @@ function fakeDbClient(): MemoryDbClient {
           createdAt: now,
           updatedAt: now,
           ...data,
-        } as Row;
+        } as unknown as Row;
         rows.push(row);
         return row;
       },
@@ -123,7 +123,7 @@ describe('cross-app style memory (QuantMail learns → QuantChat uses)', () => {
     expect(result.suggestions).toEqual(['ok']);
   });
 
-  it('another user\u2019s style never leaks into this user\u2019s replies', async () => {
+  it('another user’s style never leaks into this user’s replies', async () => {
     const memory = createMemoryService({ prisma: fakeDbClient() });
     await new UserStyleMemory(memory).set('u1', profile);
 

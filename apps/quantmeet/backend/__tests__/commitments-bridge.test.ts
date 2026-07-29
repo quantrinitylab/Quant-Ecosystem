@@ -33,7 +33,7 @@ function fakeDbClient(): MemoryDbClient {
           createdAt: now,
           updatedAt: now,
           ...data,
-        } as Row;
+        } as unknown as Row;
         rows.push(row);
         return row;
       },
