@@ -5,7 +5,7 @@ authority: canonical
 status: active
 owner: platform-architecture
 last_verified: 2026-07-23
-verified_at_commit: 1f89e333e6ea685c3c35ad5493a361441c25ff20
+verified_at_commit: e2bf6643b21f4dc93a6fe9c7374b4d4401b4c848
 review_by: 2026-08-06
 supersedes: []
 superseded_by: []
