@@ -58,6 +58,9 @@ function normalizeAudit(report) {
   if (report.vulnerabilities && typeof report.vulnerabilities === 'object') {
     for (const [packageName, vulnerability] of Object.entries(report.vulnerabilities)) {
       if (!vulnerability || typeof vulnerability !== 'object') continue;
+      const nodes = Array.isArray(vulnerability.nodes)
+        ? vulnerability.nodes.filter((node) => typeof node === 'string')
+        : [];
       const via = Array.isArray(vulnerability.via)
         ? vulnerability.via.filter((entry) => entry && typeof entry === 'object')
         : [];
@@ -69,6 +72,7 @@ function normalizeAudit(report) {
           url: undefined,
           range: vulnerability.range,
           direct: Boolean(vulnerability.isDirect),
+          nodes,
         });
         continue;
       }
@@ -80,19 +84,24 @@ function normalizeAudit(report) {
           url: advisory.url,
           range: advisory.range ?? vulnerability.range,
           direct: Boolean(vulnerability.isDirect),
+          nodes,
         });
       }
     }
   } else if (report.advisories && typeof report.advisories === 'object') {
     for (const advisory of Object.values(report.advisories)) {
       if (!advisory || typeof advisory !== 'object') continue;
+      const paths = Array.isArray(advisory.findings)
+        ? advisory.findings.flatMap((finding) => Array.isArray(finding?.paths) ? finding.paths : [])
+        : [];
       findings.push({
         packageName: advisory.module_name ?? advisory.name ?? 'unknown-package',
         severity: String(advisory.severity ?? 'info').toLowerCase(),
         title: advisory.title ?? 'Dependency vulnerability',
         url: advisory.url,
         range: advisory.vulnerable_versions ?? advisory.range,
-        direct: Boolean(advisory.findings?.some?.((finding) => finding?.paths?.some?.((path) => !path.includes('>')))),
+        direct: Boolean(paths.some((path) => typeof path === 'string' && !path.includes('>'))),
+        nodes: paths.filter((path) => typeof path === 'string'),
       });
     }
   }
@@ -134,10 +143,12 @@ function escapeWorkflowCommand(value) {
 }
 
 function findingMessage(finding) {
+  const nodes = Array.isArray(finding.nodes) ? finding.nodes.slice(0, 5) : [];
   return [
     `${finding.packageName}: ${finding.title}`,
     finding.range ? `affected ${finding.range}` : undefined,
     finding.direct ? 'direct dependency' : 'transitive or unresolved path',
+    nodes.length > 0 ? `nodes ${nodes.join(', ')}` : undefined,
     finding.url,
   ].filter(Boolean).join(' | ');
 }
