@@ -196,6 +196,7 @@ export type {
   MemoryBackend,
   ShadowReport,
   ShadowSink,
+  ShadowSinkErrorSink,
   SecondaryWriteErrorSink,
   DivergenceSeverity,
   MemoryFacadeOptions,
