@@ -33,6 +33,10 @@ spec:
             - secretRef:
                 name: quant-platform-production-secrets
           env:
+            # Explicit release boundary: CI rejects missing/invalid/new modes while
+            # ADR-011 remains HOLD. This matches the runtime's safe legacy default.
+            - name: QUANTAI_MEMORY_MODE
+              value: 'legacy'
             - name: PORT
               value: '3004'
             - name: JWT_ISSUER

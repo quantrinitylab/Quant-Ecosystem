@@ -7,8 +7,8 @@
 #
 # What it adds on top of docker-compose.yml:
 #   - qdrant (vector backend for the semantic layer / H3, when keys exist)
-#   - QUANTAI_MEMORY_MODE (default: shadow) — the human-controlled ADR-011
-#     mode flag; flip via env, never in code
+#   - QUANTAI_MEMORY_MODE — explicit human-controlled ADR-011 mode flag;
+#     the overlay has no default and fails when the operator omits it
 #   - EXTRACTION_* passthrough for the OpenAI-compatible gateway
 #
 # Full procedure: docs/SHADOW_DEPLOY_RUNBOOK.md
@@ -31,9 +31,9 @@ services:
 
   quantai:
     environment:
-      # ADR-011 facade mode: legacy | dual_write | shadow | new.
-      # A HUMAN flips this after reviewing scoreboard rows — never automation.
-      QUANTAI_MEMORY_MODE: ${QUANTAI_MEMORY_MODE:-shadow}
+      # ADR-011 canary mode. Explicit operator input is mandatory; production
+      # remains legacy while the migration decision is HOLD.
+      QUANTAI_MEMORY_MODE: ${QUANTAI_MEMORY_MODE:?Set QUANTAI_MEMORY_MODE explicitly for the reviewed canary run}
       # Vector backend (semantic layer; used once embedding access exists).
       QDRANT_URL: http://qdrant:6333
       # OpenAI-compatible extraction gateway (optional; live LLM extraction).
