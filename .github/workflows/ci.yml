@@ -60,8 +60,27 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "filter=[origin/${{ github.base_ref }}]" >> "$GITHUB_OUTPUT"
+            echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
           else
             echo "filter=[HEAD~1]" >> "$GITHUB_OUTPUT"
+            echo "ref=HEAD~1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test dependency heatmap scanner
+        run: pnpm test:dependency-heatmap
+
+      - name: Guard new package wiring
+        shell: bash
+        run: |
+          set +e
+          output="$(node scripts/dependency-heatmap.mjs --assert-new-packages-wired --base "${{ steps.base.outputs.ref }}" 2>&1)"
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            escaped="$(printf '%s' "$output" | tr '\n' ' ' | sed 's/%/%25/g')"
+            echo "::error file=scripts/dependency-heatmap.mjs::$escaped"
+            exit "$status"
           fi
 
       - name: Typecheck, lint, test, build directly changed packages
