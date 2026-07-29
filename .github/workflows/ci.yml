@@ -66,10 +66,11 @@ jobs:
             echo "ref=HEAD~1" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Validate dependency heatmap and new-package wiring
-        run: |
-          pnpm test:dependency-heatmap
-          node scripts/dependency-heatmap.mjs --assert-new-packages-wired --base="${{ steps.base.outputs.ref }}"
+      - name: Test dependency heatmap scanner
+        run: pnpm test:dependency-heatmap
+
+      - name: Guard new package wiring
+        run: node scripts/dependency-heatmap.mjs --assert-new-packages-wired --base="${{ steps.base.outputs.ref }}"
 
       - name: Typecheck, lint, test, build directly changed packages
         env:
