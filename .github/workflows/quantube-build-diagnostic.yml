@@ -1,0 +1,66 @@
+name: QuantTube build diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/quantube/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/quantube-build-diagnostic.yml'
+
+concurrency:
+  group: quantube-build-diagnostic-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-quantube-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build database dependency
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npx turbo build --concurrency=2 --filter=@quant/database
+
+      - name: Build QuantTube and publish failure tail
+        shell: bash
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: |
+          set +e
+          pnpm --filter @quant/quantube run build 2>&1 | tee /tmp/quantube-build.log
+          status=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo '::group::QuantTube build failure tail'
+            tail -n 120 /tmp/quantube-build.log
+            echo '::endgroup::'
+
+            tail -n 40 /tmp/quantube-build.log | while IFS= read -r line; do
+              line=${line//'%'/'%25'}
+              line=${line//$'\r'/'%0D'}
+              line=${line//$'\n'/'%0A'}
+              echo "::error title=QuantTube build::$line"
+            done
+          fi
+
+          exit "$status"
