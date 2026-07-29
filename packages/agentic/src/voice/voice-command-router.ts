@@ -113,6 +113,7 @@ export class VoiceCommandRouter {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        // eslint-disable-next-line no-console
         console.warn(`[voice-command-router] pending-command store failed for ${commandId}: ${message}`);
       }
     }
