@@ -89,10 +89,44 @@ jobs:
             fi
           done
 
+  # No cloud credentials are available here. A failure blocks image build/push
+  # and rollout while preserving the existing immutable release controls.
+  memory-release-preflight:
+    name: Validate Memory release boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.release_sha }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+
+      - name: Enforce Memory rollback and production authority boundary
+        run: |
+          pnpm m11d:wu5:release-gate
+          pnpm test:wu5:policy
+          pnpm --filter @quant/quantai exec vitest run backend/__tests__/memory-facade.service.test.ts
+
   build-and-deploy:
     name: Build and deploy immutable QuantMail image
     if: vars.ENABLE_QUANTMAIL_PRODUCTION_DEPLOY == 'true'
-    needs: validate-release
+    needs: [validate-release, memory-release-preflight]
     environment: production
     runs-on: ubuntu-latest
     timeout-minutes: 60
