@@ -208,6 +208,21 @@ export {
   evaluateCutoverGates,
 } from './eval/shadow-replay';
 export type { ShadowAggregate, CutoverGateResult } from './eval/shadow-replay';
+export {
+  WU4_REQUIRED_RECALLS,
+  WU4_TRAFFIC_MANIFEST_VERSION,
+  buildQuantaiShadowTrafficPlan,
+  evaluateQuantaiShadowEvidence,
+} from './eval/quantai-shadow-evidence';
+export type {
+  PersistedShadowEvidence,
+  QuantaiShadowObservation,
+  QuantaiShadowRecall,
+  QuantaiShadowTrafficPlan,
+  WU4EvidenceExpectation,
+  WU4EvidenceSummary,
+  WU4GateSnapshot,
+} from './eval/quantai-shadow-evidence';
 export { asKind, asLevel } from './core/memory-port';
 export type {
   MemoryService,
