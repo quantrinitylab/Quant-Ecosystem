@@ -6,8 +6,16 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
+import {
+  OpenAIEmbeddingProvider,
+  QdrantVectorBackend,
+  loadOpenAIEmbeddingConfig,
+  loadQdrantConfig,
+} from '@quant/ai';
+import { MemoryShadowReportRepository } from '@quant/database';
 import { MemoryService } from '../services/memory.service';
 import { createQuantaiMemoryFacade, resolveFacadeMode } from '../services/memory-facade.service';
+import { PrismaShadowReportSink } from '../services/shadow-report.service';
 
 const observeSchema = z.object({
   session: z.string().min(1),
@@ -311,10 +319,44 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
     ? ((fastify as unknown as { prisma?: unknown }).prisma as never)
     : undefined;
 
+  const vector =
+    facadeMode !== 'legacy' && realDb && process.env['QDRANT_URL'] && process.env['OPENAI_API_KEY']
+      ? {
+          durability: 'durable' as const,
+          config: {
+            embedder: new OpenAIEmbeddingProvider(loadOpenAIEmbeddingConfig(process.env)),
+            vectorBackend: new QdrantVectorBackend(loadQdrantConfig(process.env)),
+            embeddingClient: realDb,
+          },
+        }
+      : undefined;
+
+  const shadowMetadataReady =
+    process.env['QUANT_COMMIT_SHA'] &&
+    process.env['MEMORY_POLICY_VERSION'] &&
+    process.env['MEMORY_CORPUS_VERSION'];
+  const shadowSink =
+    facadeMode === 'shadow' && realDb && shadowMetadataReady
+      ? new PrismaShadowReportSink(new MemoryShadowReportRepository(realDb), {
+          commitSha: process.env['QUANT_COMMIT_SHA']!,
+          policyVersion: process.env['MEMORY_POLICY_VERSION']!,
+          corpusVersion: process.env['MEMORY_CORPUS_VERSION']!,
+          retentionDays: Number(process.env['MEMORY_SHADOW_RETENTION_DAYS'] ?? 30),
+        })
+      : undefined;
+
   const { facade, mode, shadowReports } = createQuantaiMemoryFacade({
     legacyService: service,
     mode: facadeMode,
     ...(realDb ? { database: { durability: 'durable' as const, client: realDb } } : {}),
+    ...(vector ? { vector } : {}),
+    ...(shadowSink ? { shadowSink } : {}),
+    onShadowSinkError: (error, report) => {
+      fastify.log.error(
+        { err: error, requestId: report.requestId, actorUserId: report.actorUserId },
+        'memory shadow report persistence failed',
+      );
+    },
   });
 
   // POST /observe - record a conversation turn (writes per facade mode)
@@ -354,11 +396,17 @@ export default async function memoryRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: { mode, results } });
   });
 
-  // GET /facade/status - migration observability (mode + diagnostic count)
-  fastify.get('/facade/status', async (_request, reply) => {
+  // GET /facade/status - authenticated, personal-tenant observability only.
+  fastify.get('/facade/status', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const diagnosticCount = shadowReports.filter((report) => report.actorUserId === userId).length;
+    const persistedCount = shadowSink ? await shadowSink.countForActor(userId) : 0;
     return reply.send({
       success: true,
-      data: { mode, shadowReportCount: shadowReports.length },
+      data: { mode, diagnosticCount, persistedCount },
     });
   });
 }
