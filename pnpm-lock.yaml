@@ -28,6 +28,14 @@ overrides:
   '@opentelemetry/propagator-jaeger@<2.9.0': 2.9.0
   axios@>=1.15.2 <1.18.0: 1.18.0
 
+patchedDependencies:
+  minimatch@3.1.5:
+    hash: 566d03b949bc6651b72b90cabba14e4bd9ba8d1229de5ac4e7aa774552c62988
+    path: patches/minimatch@3.1.5.patch
+  minimatch@8.0.7:
+    hash: 31ce766a6c179fd62f56104267978b6883799b8ca51acfe56bc01d9c153153d1
+    path: patches/minimatch@8.0.7.patch
+
 importers:
 
   .:
@@ -10708,7 +10716,7 @@ snapshots:
     dependencies:
       '@eslint/object-schema': 2.1.7
       debug: 4.4.3
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=566d03b949bc6651b72b90cabba14e4bd9ba8d1229de5ac4e7aa774552c62988)
     transitivePeerDependencies:
       - supports-color
 
@@ -10729,7 +10737,7 @@ snapshots:
       ignore: 5.3.2
       import-fresh: 3.3.1
       js-yaml: 4.3.0
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=566d03b949bc6651b72b90cabba14e4bd9ba8d1229de5ac4e7aa774552c62988)
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
       - supports-color
@@ -13247,7 +13255,7 @@ snapshots:
       is-glob: 4.0.3
       json-stable-stringify-without-jsonify: 1.0.1
       lodash.merge: 4.6.2
-      minimatch: 3.1.5
+      minimatch: 3.1.5(patch_hash=566d03b949bc6651b72b90cabba14e4bd9ba8d1229de5ac4e7aa774552c62988)
       natural-compare: 1.4.0
       optionator: 0.9.4
     optionalDependencies:
@@ -13667,7 +13675,7 @@ snapshots:
   glob@9.3.5:
     dependencies:
       fs.realpath: 1.0.0
-      minimatch: 8.0.7
+      minimatch: 8.0.7(patch_hash=31ce766a6c179fd62f56104267978b6883799b8ca51acfe56bc01d9c153153d1)
       minipass: 4.2.8
       path-scurry: 1.11.1
 
@@ -14526,11 +14534,11 @@ snapshots:
     dependencies:
       brace-expansion: 5.0.8
 
-  minimatch@3.1.5:
+  minimatch@3.1.5(patch_hash=566d03b949bc6651b72b90cabba14e4bd9ba8d1229de5ac4e7aa774552c62988):
     dependencies:
       brace-expansion: 5.0.8
 
-  minimatch@8.0.7:
+  minimatch@8.0.7(patch_hash=31ce766a6c179fd62f56104267978b6883799b8ca51acfe56bc01d9c153153d1):
     dependencies:
       brace-expansion: 5.0.8
 
