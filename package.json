@@ -46,6 +46,8 @@
     "test:wu5:policy": "vitest run scripts/__tests__/m11d-wu5-release-gate.test.ts",
     "dependency:heatmap": "node scripts/dependency-heatmap.mjs --json",
     "test:dependency-heatmap": "vitest run scripts/__tests__/dependency-heatmap.test.ts",
+    "audit:dependencies": "node scripts/dependency-audit.mjs --level high",
+    "test:dependency-audit": "vitest run scripts/__tests__/dependency-audit.test.ts",
     "ci:gates": "turbo typecheck && turbo lint -- --max-warnings 0 && turbo test && turbo build"
   },
   "pnpm": {
