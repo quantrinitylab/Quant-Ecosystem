@@ -5,7 +5,9 @@ import { Button, Input, FormField, TextArea } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
+import { useCreateLabel, useLabels } from '../../hooks/useLabels';
 import { apiClient } from '../../services/api-client';
+import type { EmailLabel } from '../../types';
 
 // ---------------------------------------------------------------------------
 // Settings Tabs — GitHub/Gmail-quality tabbed navigation
@@ -18,6 +20,19 @@ const TABS: { key: SettingsTab; label: string; icon: string }[] = [
   { key: 'appearance', label: 'Appearance', icon: '🎨' },
   { key: 'labels', label: 'Labels', icon: '🏷' },
   { key: 'keyboard', label: 'Keyboard shortcuts', icon: '⌨' },
+];
+
+const PRESET_LABEL_COLORS = [
+  '#ef4444',
+  '#ff9933',
+  '#eab308',
+  '#138808',
+  '#06b6d4',
+  '#3b82f6',
+  '#6366f1',
+  '#ec4899',
+  '#6b7280',
+  '#14b8a6',
 ];
 
 export default function SettingsPage() {
@@ -42,7 +57,12 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('dark');
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'unavailable'>('idle');
+  const [showCreateLabelForm, setShowCreateLabelForm] = useState(false);
+  const [newLabelName, setNewLabelName] = useState('');
+  const [newLabelColor, setNewLabelColor] = useState(PRESET_LABEL_COLORS[1]);
 
+  const { data: labels = [], isLoading: labelsLoading, isError: labelsError } = useLabels();
+  const createLabel = useCreateLabel();
   const hasProfileChanges = profile.displayName.trim() !== loadedProfile.displayName;
 
   useEffect(() => {
@@ -83,6 +103,20 @@ export default function SettingsPage() {
     if (!hasProfileChanges) return;
     setSaveStatus('unavailable');
   }, [hasProfileChanges]);
+
+  const handleCreateLabel = useCallback(async () => {
+    const name = newLabelName.trim();
+    if (!name) return;
+
+    try {
+      await createLabel.mutateAsync({ name, color: newLabelColor });
+      setNewLabelName('');
+      setNewLabelColor(PRESET_LABEL_COLORS[1]);
+      setShowCreateLabelForm(false);
+    } catch {
+      // The mutation state renders the failure message inline.
+    }
+  }, [createLabel, newLabelColor, newLabelName]);
 
   const handleThemeChange = useCallback((newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
@@ -482,34 +516,122 @@ export default function SettingsPage() {
 
           {activeTab === 'labels' && (
             <div className="max-w-2xl space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-base font-semibold text-[var(--quant-foreground)]">Labels</h2>
                   <p className="text-sm text-[var(--quant-muted-foreground)]">
-                    Organize your email with custom labels.
+                    Live labels sync here from your account.
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">
+                    Visibility controls aren&apos;t connected yet, so this view focuses on real label data and creation.
                   </p>
                 </div>
-                <Button variant="primary">+ New label</Button>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setShowCreateLabelForm((value) => !value);
+                    if (showCreateLabelForm) {
+                      setNewLabelName('');
+                      setNewLabelColor(PRESET_LABEL_COLORS[1]);
+                    }
+                  }}
+                >
+                  {showCreateLabelForm ? 'Cancel' : '+ New label'}
+                </Button>
               </div>
-              <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] divide-y divide-[var(--quant-border)]">
-                {[
-                  'Inbox',
-                  'Starred',
-                  'Snoozed',
-                  'Important',
-                  'Sent',
-                  'Drafts',
-                  'Spam',
-                  'Trash',
-                ].map((label) => (
-                  <div key={label} className="flex items-center justify-between px-4 py-3">
-                    <span className="text-sm text-[var(--quant-foreground)]">{label}</span>
-                    <div className="flex items-center gap-3 text-xs text-[var(--quant-muted-foreground)]">
-                      <button className="hover:text-[var(--brand-primary)]">show</button>
-                      <button className="hover:text-[var(--brand-primary)]">hide</button>
+
+              {showCreateLabelForm && (
+                <div className="space-y-4 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
+                  <FormField label="Label name">
+                    <Input
+                      value={newLabelName}
+                      onChange={(event) => setNewLabelName(event.target.value)}
+                      placeholder="Enter a label name"
+                    />
+                  </FormField>
+                  <div>
+                    <p className="text-sm font-medium text-[var(--quant-foreground)]">Label color</p>
+                    <div className="mt-3 flex flex-wrap gap-2" aria-label="Label color choices">
+                      {PRESET_LABEL_COLORS.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => setNewLabelColor(color)}
+                          aria-label={`Use color ${color}`}
+                          aria-pressed={newLabelColor === color}
+                          className={`h-7 w-7 rounded-full border-2 transition-transform ${
+                            newLabelColor === color
+                              ? 'scale-110 border-white'
+                              : 'border-transparent hover:scale-105'
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
                     </div>
                   </div>
-                ))}
+                  {createLabel.isError && (
+                    <p className="text-xs text-[var(--quant-destructive)]" role="alert">
+                      Label could not be created right now.
+                    </p>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="primary"
+                      onClick={handleCreateLabel}
+                      disabled={!newLabelName.trim() || createLabel.isPending}
+                    >
+                      {createLabel.isPending ? 'Creating…' : 'Create label'}
+                    </Button>
+                    <span className="text-xs text-[var(--quant-muted-foreground)]">
+                      New labels are added to your live label list.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] divide-y divide-[var(--quant-border)]">
+                {labelsLoading ? (
+                  <div className="px-4 py-6 text-sm text-[var(--quant-muted-foreground)]">
+                    Loading labels…
+                  </div>
+                ) : labelsError ? (
+                  <div className="px-4 py-6 text-sm text-[var(--quant-muted-foreground)]">
+                    Labels couldn&apos;t be loaded right now.
+                  </div>
+                ) : labels.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-[var(--quant-muted-foreground)]">
+                    No labels have been created yet.
+                  </div>
+                ) : (
+                  labels.map((label: EmailLabel) => (
+                    <div key={label.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                      <div className="min-w-0 flex items-center gap-3">
+                        <span
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: label.color || PRESET_LABEL_COLORS[1] }}
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium text-[var(--quant-foreground)]">
+                              {label.name}
+                            </span>
+                            <span className="rounded-full border border-[var(--quant-border)] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-[var(--quant-muted-foreground)]">
+                              {label.isSystem ? 'System' : 'Custom'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-[var(--quant-muted-foreground)]">
+                            {label.messageCount} messages · {label.unreadCount} unread
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-[var(--quant-muted-foreground)]">
+                        <p>Visible in live mail</p>
+                        <p>Settings controls unavailable</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
