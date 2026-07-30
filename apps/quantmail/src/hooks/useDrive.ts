@@ -90,6 +90,26 @@ const apiRequest = async (url: string, options: RequestInit = {}): Promise<Respo
   });
 };
 
+const getDriveErrorMessage = (err: unknown, fallback: string): string => {
+  const message = err instanceof Error ? err.message : '';
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes('401') || normalized.includes('unauthorized')) {
+    return 'Your Drive session expired. Refresh or sign in again, then retry.';
+  }
+
+  if (
+    normalized.includes('failed to fetch') ||
+    normalized.includes('networkerror') ||
+    normalized.includes('load failed') ||
+    normalized.includes('fetch files')
+  ) {
+    return `${fallback} Your files are safe.`;
+  }
+
+  return message || fallback;
+};
+
 export function useDrive(): UseDriveReturn {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -116,7 +136,7 @@ export function useDrive(): UseDriveReturn {
         setFiles(data.files || []);
         if (data.quota) setQuota(data.quota);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load files');
+        setError(getDriveErrorMessage(err, 'Drive is temporarily unavailable. Retry in a moment.'));
       } finally {
         setLoading(false);
       }
@@ -396,14 +416,14 @@ export function useDrive(): UseDriveReturn {
 
   const searchFiles = useCallback(async (query: string) => {
     setLoading(true);
+    setError(null);
     try {
       const response = await apiRequest(`/api/drive/search?q=${encodeURIComponent(query)}`);
-      if (response.ok) {
-        const data = await response.json();
-        setFiles(data.files || []);
-      }
+      if (!response.ok) throw new Error('Search failed');
+      const data = await response.json();
+      setFiles(data.files || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Search failed');
+      setError(getDriveErrorMessage(err, 'Search is temporarily unavailable. Retry in a moment.'));
     } finally {
       setLoading(false);
     }
