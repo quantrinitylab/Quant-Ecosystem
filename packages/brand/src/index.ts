@@ -57,3 +57,15 @@ export type { CoreIconName } from './icons/core';
 export { generateAppIconSet, generateFaviconSvg } from './icons/app-icons';
 export type { AppIconSet } from './icons/app-icons';
 export { appLogos } from './logos/app-logos';
+export {
+  createEndorsedProductLockup,
+  foundationThemes,
+  generateFoundationCSS,
+  quantrinityMasterbrand,
+  quantrinityPrimitives,
+} from './foundation';
+export type {
+  EndorsedProductLockup,
+  FoundationMode,
+  FoundationTheme,
+} from './foundation';
