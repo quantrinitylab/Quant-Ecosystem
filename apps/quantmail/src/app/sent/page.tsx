@@ -25,7 +25,7 @@ export default function SentPage() {
   );
 
   return (
-    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+    <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page sent-workspace flex flex-col h-full">
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
           <h1 className="text-lg font-semibold">Sent</h1>

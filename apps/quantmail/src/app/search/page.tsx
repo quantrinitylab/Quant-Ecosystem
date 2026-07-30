@@ -64,7 +64,6 @@ export default function SearchPage() {
     setRecentSearches(getRecentSearches());
   }, []);
 
-  // Build search params from query + filters
   const searchParams: Partial<SearchEmailRequest> | null =
     hasSearched && query.trim()
       ? {
@@ -145,9 +144,8 @@ export default function SearchPage() {
   );
 
   return (
-    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+    <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <div className="workspace-page search-workspace flex flex-col h-full">
-        {/* Search header */}
         <div className="p-4 border-b border-[var(--quant-border)]">
           <div className="flex items-center gap-2" onKeyDown={handleKeyDown}>
             <div className="flex-1">
@@ -163,7 +161,6 @@ export default function SearchPage() {
           </div>
         </div>
 
-        {/* Filter chips */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--quant-border)] overflow-x-auto">
           {FILTER_CHIPS.map((chip) => {
             const isActive = activeFilters.some((f) => f.type === chip.type);
@@ -186,7 +183,6 @@ export default function SearchPage() {
           })}
         </div>
 
-        {/* Filter input form */}
         <AnimatePresence>
           {editingFilter && (
             <motion.div
@@ -220,7 +216,6 @@ export default function SearchPage() {
           )}
         </AnimatePresence>
 
-        {/* Active filter tags */}
         {activeFilters.length > 0 && (
           <div className="flex items-center gap-2 px-4 py-2 bg-[var(--quant-muted)]/30">
             <span className="text-xs text-[var(--quant-muted-foreground)]">Active filters:</span>
@@ -245,7 +240,6 @@ export default function SearchPage() {
           </div>
         )}
 
-        {/* Results / Recent searches */}
         <div className="flex-1 overflow-y-auto">
           {!hasSearched && (
             <div className="p-6">
