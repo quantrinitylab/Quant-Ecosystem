@@ -56,8 +56,10 @@ export default function DraftsPage() {
 
           {!isLoading && !error && (!emails || emails.length === 0) && (
             <EmptyState
-              title="No drafts"
-              description="Emails you start but don't send will be saved here"
+              title="Start a draft when a message needs shaping"
+              description="Drafts hold unfinished emails so you can return with the subject, recipients, and final details still in place."
+              actionLabel="Compose draft"
+              onAction={() => router.push('/compose')}
             />
           )}
 

@@ -1,15 +1,14 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Card, Badge, Button, Skeleton } from '@quant/shared-ui';
+import { Card, Button, Skeleton } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { useInbox } from '../../hooks/useInbox';
-import { apiClient } from '../../services/api-client';
 import { listContainerVariants, listItemVariants } from '../../lib/motion-variants';
 import type { Email } from '../../types';
 
@@ -46,7 +45,12 @@ export default function SentPage() {
           {error && <ErrorState message={error.message} onRetry={() => void refetch()} />}
 
           {!isLoading && !error && (!emails || emails.length === 0) && (
-            <EmptyState title="No sent emails" description="Emails you send will appear here" />
+            <EmptyState
+              title="Your sent conversations will show up here"
+              description="After you send a message, QuantMail keeps the delivery trail here so you can revisit what left your workspace and who received it."
+              actionLabel="Compose email"
+              onAction={() => router.push('/compose')}
+            />
           )}
 
           {!isLoading && !error && emails && emails.length > 0 && (
