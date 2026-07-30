@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useQuantSidekick } from '@quant/shared-ui';
+import { quantAiBrandLockup } from '../brand/identity';
 import { QuantrinityMark } from './QuantrinityMark';
 
 const STATUS_COPY = {
@@ -43,9 +44,9 @@ export function MailCopilot() {
         <section className="mail-copilot-panel" role="dialog" aria-label="Ask QuantAI">
           <header>
             <div className="mail-copilot-lockup">
-              <QuantrinityMark compact label="QuantAI by Quantrinity" />
+              <QuantrinityMark compact label={quantAiBrandLockup.accessibleName} />
               <div>
-                <strong>QuantAI</strong>
+                <strong>{quantAiBrandLockup.productName}</strong>
                 <span>
                   <i /> {STATUS_COPY[status]}
                 </span>
@@ -107,9 +108,9 @@ export function MailCopilot() {
         aria-label={isOpen ? 'Close QuantAI mail copilot' : 'Open QuantAI mail copilot'}
         aria-expanded={isOpen}
       >
-        <QuantrinityMark compact label="QuantAI" />
+        <QuantrinityMark compact label={quantAiBrandLockup.productName} />
         <span>
-          <strong>Ask QuantAI</strong>
+          <strong>Ask {quantAiBrandLockup.productName}</strong>
           <small>{STATUS_COPY[status]}</small>
         </span>
         <i className="mail-copilot-signal" aria-hidden="true" />
