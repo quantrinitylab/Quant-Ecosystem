@@ -181,7 +181,8 @@ jobs:
         run: pnpm --filter @quant/quantchat run test:coverage
 
   # Required full sweep: repo-wide typecheck, lint, test, and build must stay green.
-  # The earlier informational mode is removed now that the backlog has been re-evaluated.
+  # Generate the Prisma client first so workspace-wide typecheck sees the expected
+  # @prisma/client exports instead of failing on missing PrismaClient types.
   full-sweep:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -199,6 +200,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
 
       - name: Full typecheck + lint + test + build
         env:
