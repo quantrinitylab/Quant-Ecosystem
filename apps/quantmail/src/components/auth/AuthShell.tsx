@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { quantMailAuthTheme, quantMailAuthThemeName } from './auth-brand-contract';
 
 interface AuthShellProps {
@@ -12,7 +12,7 @@ export function AuthShell({ brand, children }: AuthShellProps) {
     <main
       className="auth-shell"
       data-quant-theme={quantMailAuthThemeName}
-      style={quantMailAuthTheme as CSSProperties}
+      style={quantMailAuthTheme}
     >
       <div className="auth-shell-mobile-brand">{brand}</div>
       <div className="auth-shell-brand">{brand}</div>

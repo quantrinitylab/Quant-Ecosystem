@@ -1,4 +1,7 @@
+import type { CSSProperties } from 'react';
 import { createEndorsedProductLockup, foundationThemes } from '@quant/brand';
+
+type SemanticStyle = CSSProperties & Record<`--${string}`, string>;
 
 const dark = foundationThemes.dark;
 
@@ -45,6 +48,6 @@ export const quantMailAuthTheme = Object.freeze({
   '--quant-success': dark.success,
   '--brand-primary': dark.actionPrimary,
   '--brand-primary-hover': dark.actionPrimaryHover,
-});
+} satisfies SemanticStyle);
 
 export const quantMailAuthThemeName = 'dark' as const;
