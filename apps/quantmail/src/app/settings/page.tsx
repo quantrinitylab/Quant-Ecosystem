@@ -166,9 +166,16 @@ export default function SettingsPage() {
                       <p className="text-xs text-[var(--quant-muted-foreground)]">
                         JPG, PNG or GIF. Max 2MB.
                       </p>
-                      <button className="mt-1 text-xs font-medium text-[var(--brand-primary)] hover:underline">
-                        Upload new photo
+                      <button
+                        type="button"
+                        disabled
+                        className="mt-1 cursor-not-allowed text-xs font-medium text-[var(--quant-muted-foreground)] opacity-70"
+                      >
+                        Photo uploads unavailable
                       </button>
+                      <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">
+                        Profile photo uploads aren&apos;t connected in QuantMail yet.
+                      </p>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
