@@ -29,6 +29,7 @@ export default function ReposPage() {
 
   const filteredRepos =
     repos?.filter((r) => r.name.toLowerCase().includes(searchQuery.toLowerCase())) ?? [];
+  const hasSearchQuery = searchQuery.trim().length > 0;
 
   const handleCreate = useCallback(async () => {
     if (!newRepo.name) return;
@@ -67,12 +68,22 @@ export default function ReposPage() {
             </div>
           )}
           {error && <ErrorState message={error.message} onRetry={() => void refetch()} />}
-          {!isLoading && !error && filteredRepos.length === 0 && (
-            <EmptyState
-              title="No repositories"
-              description="Create a new repository to get started"
-            />
-          )}
+          {!isLoading && !error && filteredRepos.length === 0 &&
+            (hasSearchQuery ? (
+              <EmptyState
+                title="No matching repositories"
+                description={`No repository matched “${searchQuery}”. Try another name or clear the filter to keep exploring.`}
+                actionLabel="Clear search"
+                onAction={() => setSearchQuery('')}
+              />
+            ) : (
+              <EmptyState
+                title="Create your first code workspace"
+                description="Start with a repository for a product, package, or experiment so pipelines, collaboration, and releases have one clear source of truth."
+                actionLabel="New repository"
+                onAction={() => setShowCreateModal(true)}
+              />
+            ))}
           {!isLoading &&
             !error &&
             filteredRepos.map((repo) => (

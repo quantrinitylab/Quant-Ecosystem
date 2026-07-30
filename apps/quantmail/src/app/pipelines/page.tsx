@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { Card, Badge, Button, Skeleton } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
@@ -30,6 +31,7 @@ function getStatusVariant(status: string): 'success' | 'warning' | 'danger' | 'i
 }
 
 export default function PipelinesPage() {
+  const router = useRouter();
   const {
     data: workflows,
     isLoading: loadingWorkflows,
@@ -49,6 +51,7 @@ export default function PipelinesPage() {
   } = useDeployments();
   const triggerWorkflow = useTriggerWorkflow();
   const cancelBuild = useCancelBuild();
+  const firstWorkflow = workflows?.[0];
 
   const handleTrigger = async (id: string) => {
     await triggerWorkflow.mutateAsync({ id });
@@ -71,7 +74,12 @@ export default function PipelinesPage() {
             <ErrorState message={workflowsError.message} onRetry={() => void refetchWorkflows()} />
           )}
           {!loadingWorkflows && !workflowsError && (!workflows || workflows.length === 0) && (
-            <EmptyState title="No workflows" description="No CI/CD workflows configured" />
+            <EmptyState
+              title="Connect your first workflow"
+              description="Workflows run checks, builds, and deployments for each repository. Create a repository or add a CI file so your Code workspace can start automating real work."
+              actionLabel="Open repositories"
+              onAction={() => router.push('/repos')}
+            />
           )}
           {!loadingWorkflows &&
             !workflowsError &&
@@ -107,9 +115,22 @@ export default function PipelinesPage() {
           {buildsError && (
             <ErrorState message={buildsError.message} onRetry={() => void refetchBuilds()} />
           )}
-          {!loadingBuilds && !buildsError && (!builds || builds.length === 0) && (
-            <EmptyState title="No builds" description="No builds have been run yet" />
-          )}
+          {!loadingBuilds && !buildsError && (!builds || builds.length === 0) &&
+            (firstWorkflow ? (
+              <EmptyState
+                title="Run your first build"
+                description={`Start ${firstWorkflow.name} to create the first build record and verify that your pipeline path is wired correctly.`}
+                actionLabel="Trigger first run"
+                onAction={() => void handleTrigger(firstWorkflow.id)}
+              />
+            ) : (
+              <EmptyState
+                title="Build history will appear here"
+                description="Builds show up after a workflow is configured and triggered. Set up a repository workflow first so the system has something real to run."
+                actionLabel="Open repositories"
+                onAction={() => router.push('/repos')}
+              />
+            ))}
           {!loadingBuilds &&
             !buildsError &&
             builds &&
@@ -143,11 +164,22 @@ export default function PipelinesPage() {
           <h2 className="text-lg font-semibold mb-3">Deployments</h2>
           {loadingDeployments && <Skeleton variant="rect" width="100%" height="120px" />}
           {deploymentsError && <ErrorState message={deploymentsError.message} />}
-          {!loadingDeployments &&
-            !deploymentsError &&
-            (!deployments || deployments.length === 0) && (
-              <EmptyState title="No deployments" description="No deployments have been made yet" />
-            )}
+          {!loadingDeployments && !deploymentsError && (!deployments || deployments.length === 0) &&
+            (firstWorkflow ? (
+              <EmptyState
+                title="Ship your first deployment"
+                description="Deployments appear after a workflow promotes a successful build. Run the pipeline to create the first release trail for this workspace."
+                actionLabel="Run a build"
+                onAction={() => void handleTrigger(firstWorkflow.id)}
+              />
+            ) : (
+              <EmptyState
+                title="Deployments need a release path"
+                description="Create a repository and add a deployment workflow so staging, preview, or production releases can appear here with real history."
+                actionLabel="Open repositories"
+                onAction={() => router.push('/repos')}
+              />
+            ))}
           {!loadingDeployments &&
             !deploymentsError &&
             deployments &&
