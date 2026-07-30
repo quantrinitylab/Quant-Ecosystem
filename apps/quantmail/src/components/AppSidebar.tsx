@@ -56,14 +56,16 @@ const NAV_GROUPS: Array<{
     { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
     { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
   ] },
-  { label: 'Workspace', items: [
+  { label: 'Context', items: [
     { id: 'calendar', label: 'Calendar', icon: 'calendar', path: '/calendar' },
     { id: 'contacts', label: 'Contacts', icon: 'contacts', path: '/contacts' },
     { id: 'drive', label: 'Drive', icon: 'drive', path: '/drive' },
   ] },
-  { label: 'Developer', items: [
+  { label: 'Code', items: [
     { id: 'repos', label: 'Repos', icon: 'code', path: '/repos' },
     { id: 'pipelines', label: 'Pipelines', icon: 'pipeline', path: '/pipelines' },
+  ] },
+  { label: 'Control', items: [
     { id: 'security', label: 'Security', icon: 'security', path: '/security' },
     { id: 'settings', label: 'Settings', icon: 'settings', path: '/settings' },
   ] },
