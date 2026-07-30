@@ -48,6 +48,13 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
+interface EmailSignaturePreference {
+  id: string;
+  name: string;
+  contentHtml: string;
+  isDefault: boolean;
+}
+
 // ============================================================================
 // API Client
 // ============================================================================
@@ -227,6 +234,27 @@ export class QuantMailApiClient {
 
   async createLabel(name: string, color: string): Promise<ApiResponse<EmailLabel>> {
     return this.post('/labels', { name, color });
+  }
+
+  async getEmailSignatures(): Promise<ApiResponse<EmailSignaturePreference[]>> {
+    return this.get('/email-signatures');
+  }
+
+  async getDefaultEmailSignature(): Promise<ApiResponse<EmailSignaturePreference | null>> {
+    return this.get('/email-signatures/default');
+  }
+
+  async createEmailSignature(
+    data: Pick<EmailSignaturePreference, 'name' | 'contentHtml'> & { isDefault?: boolean },
+  ): Promise<ApiResponse<EmailSignaturePreference>> {
+    return this.post('/email-signatures', data);
+  }
+
+  async updateEmailSignature(
+    id: string,
+    data: Partial<Pick<EmailSignaturePreference, 'name' | 'contentHtml' | 'isDefault'>>,
+  ): Promise<ApiResponse<EmailSignaturePreference>> {
+    return this.put(`/email-signatures/${id}`, data);
   }
 
   async getFilters(): Promise<ApiResponse<EmailFilter[]>> {
@@ -559,7 +587,7 @@ export class QuantMailApiClient {
         ([, v]) => v !== undefined && v !== null,
       );
       const qs = paramEntries.length
-        ? '?' +
+        ? '?'+
           paramEntries
             .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
             .join('&')

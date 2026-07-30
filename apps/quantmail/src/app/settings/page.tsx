@@ -57,6 +57,11 @@ export default function SettingsPage() {
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('dark');
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'unavailable'>('idle');
+  const [defaultSignatureId, setDefaultSignatureId] = useState<string | null>(null);
+  const [loadedSignature, setLoadedSignature] = useState('');
+  const [signatureStatus, setSignatureStatus] = useState<
+    'loading' | 'idle' | 'saving' | 'saved' | 'error'
+  >('loading');
   const [showCreateLabelForm, setShowCreateLabelForm] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState(PRESET_LABEL_COLORS[1]);
@@ -64,6 +69,12 @@ export default function SettingsPage() {
   const { data: labels = [], isLoading: labelsLoading, isError: labelsError } = useLabels();
   const createLabel = useCreateLabel();
   const hasProfileChanges = profile.displayName.trim() !== loadedProfile.displayName;
+  const hasSignatureChanges = emailPrefs.signature !== loadedSignature;
+  const canSaveSignature =
+    signatureStatus !== 'loading' &&
+    signatureStatus !== 'saving' &&
+    emailPrefs.signature.trim().length > 0 &&
+    hasSignatureChanges;
 
   useEffect(() => {
     try {
@@ -94,15 +105,64 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    const loadDefaultSignature = async () => {
+      const response = await apiClient.getDefaultEmailSignature();
+      if (response.success) {
+        const nextSignature = response.data?.contentHtml ?? '';
+        setEmailPrefs((prev) => ({ ...prev, signature: nextSignature }));
+        setLoadedSignature(nextSignature);
+        setDefaultSignatureId(response.data?.id ?? null);
+        setSignatureStatus('idle');
+        return;
+      }
+
+      setSignatureStatus('error');
+    };
+
+    loadDefaultSignature();
+  }, []);
+
+  useEffect(() => {
     if (!hasProfileChanges && saveStatus !== 'idle') {
       setSaveStatus('idle');
     }
   }, [hasProfileChanges, saveStatus]);
 
+  useEffect(() => {
+    if ((signatureStatus === 'saved' || signatureStatus === 'error') && hasSignatureChanges) {
+      setSignatureStatus('idle');
+    }
+  }, [hasSignatureChanges, signatureStatus]);
+
   const handleSaveProfile = useCallback(async () => {
     if (!hasProfileChanges) return;
     setSaveStatus('unavailable');
   }, [hasProfileChanges]);
+
+  const handleSaveSignature = useCallback(async () => {
+    const contentHtml = emailPrefs.signature.trim();
+    if (!contentHtml || !hasSignatureChanges) return;
+
+    setSignatureStatus('saving');
+
+    const response = defaultSignatureId
+      ? await apiClient.updateEmailSignature(defaultSignatureId, { contentHtml })
+      : await apiClient.createEmailSignature({
+          name: 'QuantMail signature',
+          contentHtml,
+          isDefault: true,
+        });
+
+    if (response.success && response.data) {
+      setDefaultSignatureId(response.data.id);
+      setLoadedSignature(response.data.contentHtml);
+      setEmailPrefs((prev) => ({ ...prev, signature: response.data?.contentHtml ?? contentHtml }));
+      setSignatureStatus('saved');
+      return;
+    }
+
+    setSignatureStatus('error');
+  }, [defaultSignatureId, emailPrefs.signature, hasSignatureChanges]);
 
   const handleCreateLabel = useCallback(async () => {
     const name = newLabelName.trim();
@@ -258,99 +318,126 @@ export default function SettingsPage() {
                       onChange={(e) =>
                         setEmailPrefs((prev) => ({ ...prev, signature: e.target.value }))
                       }
-                      placeholder="Your email signature..."
+                      placeholder="Add your default email signature..."
                       rows={3}
                     />
                   </FormField>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField label="Undo send delay">
-                      <select
-                        className="w-full h-9 px-3 rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] text-sm text-[var(--quant-foreground)]"
-                        value={emailPrefs.undoSendDelay}
-                        onChange={(e) =>
-                          setEmailPrefs((prev) => ({
-                            ...prev,
-                            undoSendDelay: Number(e.target.value),
-                          }))
-                        }
-                      >
-                        <option value={5}>5 seconds</option>
-                        <option value={10}>10 seconds</option>
-                        <option value={20}>20 seconds</option>
-                        <option value={30}>30 seconds</option>
-                      </select>
-                    </FormField>
-                    <FormField label="Default reply behavior">
-                      <select
-                        className="w-full h-9 px-3 rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] text-sm text-[var(--quant-foreground)]"
-                        value={emailPrefs.defaultReplyBehavior}
-                        onChange={(e) =>
-                          setEmailPrefs((prev) => ({
-                            ...prev,
-                            defaultReplyBehavior: e.target.value as 'reply' | 'reply-all',
-                          }))
-                        }
-                      >
-                        <option value="reply">Reply</option>
-                        <option value="reply-all">Reply all</option>
-                      </select>
-                    </FormField>
+                  <div className="flex items-center gap-3 pt-1">
+                    <Button variant="primary" onClick={handleSaveSignature} disabled={!canSaveSignature}>
+                      {signatureStatus === 'saving'
+                        ? 'Saving signature…'
+                        : signatureStatus === 'loading'
+                          ? 'Loading signature…'
+                          : hasSignatureChanges
+                            ? 'Save signature'
+                            : 'Signature up to date'}
+                    </Button>
+                    <span className="text-xs text-[var(--quant-muted-foreground)]">
+                      {signatureStatus === 'loading'
+                        ? 'Loading your live default signature.'
+                        : signatureStatus === 'saved'
+                          ? 'Your default signature now syncs to live mail.'
+                          : signatureStatus === 'error'
+                            ? 'The default signature could not be synced right now.'
+                            : defaultSignatureId
+                              ? 'This field edits your live default signature.'
+                              : 'Save here to create your live default signature.'}
+                    </span>
                   </div>
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={emailPrefs.conversationView}
-                      onChange={(e) =>
-                        setEmailPrefs((prev) => ({
-                          ...prev,
-                          conversationView: e.target.checked,
-                        }))
-                      }
-                      className="w-4 h-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)]"
-                    />
-                    <div>
-                      <span className="text-sm text-[var(--quant-foreground)]">
-                        Conversation view
-                      </span>
-                      <p className="text-xs text-[var(--quant-muted-foreground)]">
-                        Group related emails together in threads.
-                      </p>
+                  <fieldset disabled className="space-y-4 opacity-70">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <FormField label="Undo send delay">
+                        <select
+                          className="w-full h-9 px-3 rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] text-sm text-[var(--quant-foreground)]"
+                          value={emailPrefs.undoSendDelay}
+                          onChange={(e) =>
+                            setEmailPrefs((prev) => ({
+                              ...prev,
+                              undoSendDelay: Number(e.target.value),
+                            }))
+                          }
+                        >
+                          <option value={5}>5 seconds</option>
+                          <option value={10}>10 seconds</option>
+                          <option value={20}>20 seconds</option>
+                          <option value={30}>30 seconds</option>
+                        </select>
+                      </FormField>
+                      <FormField label="Default reply behavior">
+                        <select
+                          className="w-full h-9 px-3 rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] text-sm text-[var(--quant-foreground)]"
+                          value={emailPrefs.defaultReplyBehavior}
+                          onChange={(e) =>
+                            setEmailPrefs((prev) => ({
+                              ...prev,
+                              defaultReplyBehavior: e.target.value as 'reply' | 'reply-all',
+                            }))
+                          }
+                        >
+                          <option value="reply">Reply</option>
+                          <option value="reply-all">Reply all</option>
+                        </select>
+                      </FormField>
                     </div>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={emailPrefs.readReceipts}
-                      onChange={(e) =>
-                        setEmailPrefs((prev) => ({ ...prev, readReceipts: e.target.checked }))
-                      }
-                      className="w-4 h-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)]"
-                    />
-                    <div>
-                      <span className="text-sm text-[var(--quant-foreground)]">Read receipts</span>
-                      <p className="text-xs text-[var(--quant-muted-foreground)]">
-                        Let senders know when you&apos;ve read their email.
-                      </p>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={emailPrefs.autoReply}
-                      onChange={(e) =>
-                        setEmailPrefs((prev) => ({ ...prev, autoReply: e.target.checked }))
-                      }
-                      className="w-4 h-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)]"
-                    />
-                    <div>
-                      <span className="text-sm text-[var(--quant-foreground)]">
-                        Vacation auto-reply
-                      </span>
-                      <p className="text-xs text-[var(--quant-muted-foreground)]">
-                        Automatically respond to incoming messages while away.
-                      </p>
-                    </div>
-                  </label>
+                    <label className="flex items-center gap-3 cursor-not-allowed group">
+                      <input
+                        type="checkbox"
+                        checked={emailPrefs.conversationView}
+                        onChange={(e) =>
+                          setEmailPrefs((prev) => ({
+                            ...prev,
+                            conversationView: e.target.checked,
+                          }))
+                        }
+                        className="w-4 h-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)]"
+                      />
+                      <div>
+                        <span className="text-sm text-[var(--quant-foreground)]">
+                          Conversation view
+                        </span>
+                        <p className="text-xs text-[var(--quant-muted-foreground)]">
+                          Group related emails together in threads.
+                        </p>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-not-allowed group">
+                      <input
+                        type="checkbox"
+                        checked={emailPrefs.readReceipts}
+                        onChange={(e) =>
+                          setEmailPrefs((prev) => ({ ...prev, readReceipts: e.target.checked }))
+                        }
+                        className="w-4 h-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)]"
+                      />
+                      <div>
+                        <span className="text-sm text-[var(--quant-foreground)]">Read receipts</span>
+                        <p className="text-xs text-[var(--quant-muted-foreground)]">
+                          Let senders know when you&apos;ve read their email.
+                        </p>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-not-allowed group">
+                      <input
+                        type="checkbox"
+                        checked={emailPrefs.autoReply}
+                        onChange={(e) =>
+                          setEmailPrefs((prev) => ({ ...prev, autoReply: e.target.checked }))
+                        }
+                        className="w-4 h-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)]"
+                      />
+                      <div>
+                        <span className="text-sm text-[var(--quant-foreground)]">
+                          Vacation auto-reply
+                        </span>
+                        <p className="text-xs text-[var(--quant-muted-foreground)]">
+                          Automatically respond to incoming messages while away.
+                        </p>
+                      </div>
+                    </label>
+                  </fieldset>
+                  <p className="text-xs text-[var(--quant-muted-foreground)]">
+                    Signature is live here. Undo send, reply behavior, conversation view, read receipts, and vacation auto-reply aren&apos;t connected in Settings yet.
+                  </p>
                 </div>
               </section>
 
