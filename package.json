@@ -46,6 +46,8 @@
     "test:wu5:policy": "vitest run scripts/__tests__/m11d-wu5-release-gate.test.ts",
     "dependency:heatmap": "node scripts/dependency-heatmap.mjs --json",
     "test:dependency-heatmap": "vitest run scripts/__tests__/dependency-heatmap.test.ts",
+    "audit:dependencies": "node scripts/dependency-audit.mjs --level high",
+    "test:dependency-audit": "vitest run scripts/__tests__/dependency-audit.test.ts",
     "ci:gates": "turbo typecheck && turbo lint -- --max-warnings 0 && turbo test && turbo build"
   },
   "pnpm": {
@@ -62,10 +64,28 @@
       "@types/react-dom": "^19.0.0",
       "esbuild": ">=0.28.1",
       "vite": "^6.4.3",
-      "postcss": ">=8.5.10",
+      "postcss@<=8.5.17": "8.5.18",
       "uuid": ">=11.1.1",
-      "tar": ">=7.5.11",
-      "form-data": "^4.0.6"
+      "tar@<=7.5.18": "7.5.19",
+      "form-data": "^4.0.6",
+      "js-yaml@>=4.0.0 <4.3.0": "4.3.0",
+      "brace-expansion": "5.0.8",
+      "adm-zip@<0.6.0": "0.6.0",
+      "websocket-driver@<0.7.5": "0.7.5",
+      "linkify-it@<=5.0.1": "5.0.2",
+      "nodemailer@<=9.0.0": "9.0.1",
+      "find-my-way@<=9.6.0": "9.7.0",
+      "next@>=12.0.0 <15.5.21": "15.5.21",
+      "sharp@<0.35.0": "0.35.3",
+      "fast-uri@>=2.3.1 <=2.4.2": "2.4.3",
+      "fast-uri@>=3.0.0 <=3.1.3": "3.1.4",
+      "fast-uri@>=4.0.0 <=4.1.0": "4.1.1",
+      "@opentelemetry/propagator-jaeger@<2.9.0": "2.9.0",
+      "axios@>=1.15.2 <1.18.0": "1.18.0"
+    },
+    "patchedDependencies": {
+      "minimatch@3.1.5": "patches/minimatch@3.1.5.patch",
+      "minimatch@8.0.7": "patches/minimatch@8.0.7.patch"
     }
   },
   "devDependencies": {

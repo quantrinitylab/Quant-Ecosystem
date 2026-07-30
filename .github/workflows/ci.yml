@@ -35,6 +35,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Test dependency audit parser
+        run: pnpm test:dependency-audit
+
+      - name: Audit installed dependency graph (high/critical)
+        run: pnpm audit:dependencies
+
       - name: Validate canonical project memory
         run: |
           pnpm memory:validate
