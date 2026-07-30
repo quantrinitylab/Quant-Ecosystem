@@ -91,7 +91,7 @@ export default function SecurityPage() {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+    <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page security-workspace flex flex-col h-full overflow-hidden">
         {/* Header */}
         <div className="shrink-0 px-6 pt-6 pb-0">
