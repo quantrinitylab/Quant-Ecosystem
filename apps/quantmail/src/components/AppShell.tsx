@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { PageTransition } from '@quant/shared-ui';
+import {
+  quantMailDarkSemanticTheme,
+  quantMailDarkSemanticThemeName,
+} from '../brand/theme';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -93,12 +97,15 @@ export function AppShell({
   }, [closeSidebar, isSidebarOpen]);
 
   const showMobileBar = Boolean(sidebar || mobileTitle || mobileActions);
+  const semanticTheme = theme === 'dark' ? quantMailDarkSemanticTheme : undefined;
 
   return (
     <section
       className={`flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[var(--background)] text-[var(--foreground)] ${className}`}
       aria-label={ariaLabel}
       data-theme={theme}
+      data-quant-theme={theme === 'dark' ? quantMailDarkSemanticThemeName : undefined}
+      style={semanticTheme}
       role="application"
     >
       {sidebar && (
