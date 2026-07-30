@@ -1,54 +1,34 @@
-import type { CSSProperties } from 'react';
-import { foundationThemes } from '@quant/brand';
 import { quantMailBrandLockup } from '../../brand/identity';
-
-type SemanticStyle = CSSProperties & Record<`--${string}`, string>;
-
-const dark = foundationThemes.dark;
+import {
+  quantMailDarkSemanticTheme,
+  quantMailDarkSemanticThemeName,
+  type QuantMailSemanticStyle,
+} from '../../brand/theme';
 
 /** Backwards-compatible auth export of the canonical QuantMail identity. */
 export const quantMailAuthLockup = quantMailBrandLockup;
 
 /**
- * Reversible bridge from the new semantic foundation to existing auth CSS.
+ * Reversible bridge from the central semantic foundation to existing auth CSS.
  * New `--qt-*` roles and legacy `--quant-*` aliases intentionally coexist
  * until the auth stylesheet is migrated in a separate visual-review change.
  */
-export const quantMailAuthTheme: Readonly<SemanticStyle> = Object.freeze({
-  '--qt-canvas': dark.canvas,
-  '--qt-surface-1': dark.surface1,
-  '--qt-surface-2': dark.surface2,
-  '--qt-surface-3': dark.surface3,
-  '--qt-text-strong': dark.textStrong,
-  '--qt-text-default': dark.textDefault,
-  '--qt-text-muted': dark.textMuted,
-  '--qt-border-subtle': dark.borderSubtle,
-  '--qt-border-default': dark.borderDefault,
-  '--qt-border-strong': dark.borderStrong,
-  '--qt-action-primary': dark.actionPrimary,
-  '--qt-action-primary-hover': dark.actionPrimaryHover,
-  '--qt-action-primary-foreground': dark.actionPrimaryForeground,
-  '--qt-focus-ring': dark.focusRing,
-  '--qt-success': dark.success,
-  '--qt-warning': dark.warning,
-  '--qt-danger': dark.danger,
-  '--qt-info': dark.info,
-  '--qt-ai-context': dark.aiContext,
-
-  '--quant-background': dark.canvas,
-  '--quant-foreground': dark.textStrong,
-  '--quant-surface': dark.surface1,
-  '--quant-surface-elevated': dark.surface2,
-  '--quant-muted': dark.surface3,
-  '--quant-muted-foreground': dark.textMuted,
-  '--quant-border': dark.borderDefault,
-  '--quant-ring': dark.focusRing,
-  '--quant-card': dark.surface1,
-  '--quant-card-foreground': dark.textDefault,
-  '--quant-destructive': dark.danger,
-  '--quant-success': dark.success,
-  '--brand-primary': dark.actionPrimary,
-  '--brand-primary-hover': dark.actionPrimaryHover,
+export const quantMailAuthTheme: Readonly<QuantMailSemanticStyle> = Object.freeze({
+  ...quantMailDarkSemanticTheme,
+  '--quant-background': quantMailDarkSemanticTheme['--qt-canvas'],
+  '--quant-foreground': quantMailDarkSemanticTheme['--qt-text-strong'],
+  '--quant-surface': quantMailDarkSemanticTheme['--qt-surface-1'],
+  '--quant-surface-elevated': quantMailDarkSemanticTheme['--qt-surface-2'],
+  '--quant-muted': quantMailDarkSemanticTheme['--qt-surface-3'],
+  '--quant-muted-foreground': quantMailDarkSemanticTheme['--qt-text-muted'],
+  '--quant-border': quantMailDarkSemanticTheme['--qt-border-default'],
+  '--quant-ring': quantMailDarkSemanticTheme['--qt-focus-ring'],
+  '--quant-card': quantMailDarkSemanticTheme['--qt-surface-1'],
+  '--quant-card-foreground': quantMailDarkSemanticTheme['--qt-text-default'],
+  '--quant-destructive': quantMailDarkSemanticTheme['--qt-danger'],
+  '--quant-success': quantMailDarkSemanticTheme['--qt-success'],
+  '--brand-primary': quantMailDarkSemanticTheme['--qt-action-primary'],
+  '--brand-primary-hover': quantMailDarkSemanticTheme['--qt-action-primary-hover'],
 });
 
-export const quantMailAuthThemeName = 'dark' as const;
+export const quantMailAuthThemeName = quantMailDarkSemanticThemeName;
