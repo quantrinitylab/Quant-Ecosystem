@@ -167,7 +167,7 @@ export function createEndorsedProductLockup(productName: string): EndorsedProduc
   return {
     productName: normalizedProductName,
     parentName: 'QUANTRINITY',
-    byline: `by QUANTRINITY`,
+    byline: 'by QUANTRINITY',
     accessibleName: `${normalizedProductName} by Quantrinity`,
     parentScale: 0.45,
     parentTrackingEm: 0.14,
@@ -198,11 +198,19 @@ const cssVariableMap: Record<keyof FoundationTheme, string> = {
   aiContext: '--qt-ai-context',
 };
 
-/** Generate a mode-scoped semantic CSS variable contract. */
-export function generateFoundationCSS(mode: FoundationMode): string {
+/** Generate semantic declarations for embedding in any scoped surface. */
+export function generateFoundationThemeDeclarations(mode: FoundationMode): string {
   const theme = foundationThemes[mode];
-  const declarations = (Object.keys(cssVariableMap) as Array<keyof FoundationTheme>)
-    .map((key) => `  ${cssVariableMap[key]}: ${theme[key]};`)
+  return (Object.keys(cssVariableMap) as Array<keyof FoundationTheme>)
+    .map((key) => `${cssVariableMap[key]}: ${theme[key]};`)
+    .join('\n');
+}
+
+/** Generate a root-scoped semantic CSS variable contract. */
+export function generateFoundationCSS(mode: FoundationMode): string {
+  const declarations = generateFoundationThemeDeclarations(mode)
+    .split('\n')
+    .map((line) => `  ${line}`)
     .join('\n');
 
   return `:root[data-quant-theme="${mode}"] {\n${declarations}\n}`;
