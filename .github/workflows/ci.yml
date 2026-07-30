@@ -180,8 +180,9 @@ jobs:
       - name: QuantChat coverage gate (>=50%)
         run: pnpm --filter @quant/quantchat run test:coverage
 
-  # Informational full sweep: tracks repo-wide health without blocking merges.
-  # Make this required once the pre-existing failure backlog is cleared.
+  # Informational full sweep: keep tracking the remaining repo-wide backlog.
+  # Prisma generation removes one known false failure; promote this job only
+  # after the residual failures are cleared and a complete run is green.
   full-sweep:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -200,6 +201,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
 
       - name: Full typecheck + lint + test + build
         env:

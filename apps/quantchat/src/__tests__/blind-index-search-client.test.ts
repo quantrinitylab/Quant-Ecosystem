@@ -146,12 +146,15 @@ describe('indexMessageTokens (upload-on-send, Req 14.1, 14.2)', () => {
     expect(upload.conversationId).toBe('c1');
     expect(upload.tokenHashes).toEqual(hashes);
     // Nothing sensitive crosses the seam: the uploaded token hashes contain
-    // neither the plaintext words nor the Search_Key. (Checked against the
-    // hashes themselves — message/conversation ids are non-secret routing data.)
-    const wire = JSON.stringify(upload.tokenHashes);
-    expect(wire).not.toContain(key);
+    // neither the plaintext words nor the Search_Key. Check exact uploaded hash
+    // elements rather than substring matches so random hex digests cannot trip
+    // false positives when they coincidentally contain a token fragment.
+    expect(upload.tokenHashes).not.toContain(key);
+    for (const hash of upload.tokenHashes) {
+      expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    }
     for (const token of tokenize(plaintext)) {
-      expect(wire).not.toContain(token);
+      expect(upload.tokenHashes).not.toContain(token);
     }
   });
 
@@ -188,10 +191,15 @@ describe('searchEncryptedMessages (query-on-search, Req 15.1)', () => {
 
     expect(result).toEqual(candidates);
     expect(sentHashes).toEqual(computeTokenHashes(key, 'cafe'));
-    // The query plaintext and the Search_Key never reach the transport.
-    const wire = JSON.stringify(sentHashes);
-    expect(wire).not.toContain('cafe');
-    expect(wire).not.toContain(key);
+    // The query plaintext and the Search_Key never reach the transport. Check
+    // exact uploaded hash elements rather than substring matches so random hex
+    // digests cannot coincidentally contain token fragments.
+    const queryHashes = sentHashes as unknown as string[];
+    expect(queryHashes).not.toContain('cafe');
+    expect(queryHashes).not.toContain(key);
+    for (const hash of queryHashes) {
+      expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    }
   });
 
   it('does not hit the network for an empty/symbol-only query', async () => {
