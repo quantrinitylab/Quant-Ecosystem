@@ -23,6 +23,7 @@ const TABS: { key: SettingsTab; label: string; icon: string }[] = [
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [profile, setProfile] = useState({ displayName: '', email: '', username: '' });
+  const [loadedProfile, setLoadedProfile] = useState({ displayName: '', email: '', username: '' });
   const [emailPrefs, setEmailPrefs] = useState({
     signature: '',
     autoReply: false,
@@ -40,7 +41,9 @@ export default function SettingsPage() {
   });
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('dark');
   const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable');
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'unavailable'>('idle');
+
+  const hasProfileChanges = profile.displayName.trim() !== loadedProfile.displayName;
 
   useEffect(() => {
     try {
@@ -58,21 +61,28 @@ export default function SettingsPage() {
     const loadProfile = async () => {
       const response = await apiClient.getUserInfo();
       if (response.success && response.data) {
-        setProfile({
+        const nextProfile = {
           displayName: response.data.displayName || '',
           email: response.data.email || '',
           username: (response.data as any).username || '',
-        });
+        };
+        setProfile(nextProfile);
+        setLoadedProfile(nextProfile);
       }
     };
     loadProfile();
   }, []);
 
+  useEffect(() => {
+    if (!hasProfileChanges && saveStatus !== 'idle') {
+      setSaveStatus('idle');
+    }
+  }, [hasProfileChanges, saveStatus]);
+
   const handleSaveProfile = useCallback(async () => {
-    setSaveStatus('saving');
-    setTimeout(() => setSaveStatus('saved'), 600);
-    setTimeout(() => setSaveStatus('idle'), 2400);
-  }, []);
+    if (!hasProfileChanges) return;
+    setSaveStatus('unavailable');
+  }, [hasProfileChanges]);
 
   const handleThemeChange = useCallback((newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
@@ -179,15 +189,17 @@ export default function SettingsPage() {
                     <Input value={profile.email} readOnly disabled />
                   </FormField>
                   <div className="flex items-center gap-3 pt-2">
-                    <Button variant="primary" onClick={handleSaveProfile}>
-                      {saveStatus === 'saving'
-                        ? 'Saving…'
-                        : saveStatus === 'saved'
-                          ? '✓ Saved'
-                          : 'Save changes'}
+                    <Button variant="primary" onClick={handleSaveProfile} disabled={!hasProfileChanges}>
+                      {hasProfileChanges ? 'Save changes' : 'No changes to save'}
                     </Button>
-                    {saveStatus === 'saved' && (
-                      <span className="text-xs text-green-500">Profile updated successfully.</span>
+                    {saveStatus === 'unavailable' ? (
+                      <span className="text-xs text-[var(--quant-muted-foreground)]">
+                        Profile updates aren&apos;t connected yet, so your display name can&apos;t be saved from QuantMail right now.
+                      </span>
+                    ) : (
+                      <span className="text-xs text-[var(--quant-muted-foreground)]">
+                        Email and username come from your account identity.
+                      </span>
                     )}
                   </div>
                 </div>
