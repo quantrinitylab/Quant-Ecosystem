@@ -3,6 +3,7 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { usePathname, useRouter } from 'next/navigation';
+import { quantMailBrandLockup } from '../brand/identity';
 import { useCreateLabel, useLabels } from '../hooks/useLabels';
 import type { EmailLabel } from '../types';
 import { AccountBadge } from './AccountBadge';
@@ -156,10 +157,10 @@ export function AppSidebar() {
   return (
     <nav className="quant-sidebar" aria-label="QuantMail navigation">
       <header className="sidebar-brand">
-        <QuantrinityMark compact />
-        <div className="min-w-0">
-          <p className="sidebar-product">QuantMail</p>
-          <p className="sidebar-parent">by Quantrinity</p>
+        <QuantrinityMark compact label={quantMailBrandLockup.accessibleName} />
+        <div className="min-w-0" aria-hidden="true">
+          <p className="sidebar-product">{quantMailBrandLockup.productName}</p>
+          <p className="sidebar-parent">{quantMailBrandLockup.byline}</p>
         </div>
         <span className="sidebar-live-dot" title="All systems operational" aria-label="All systems operational" />
       </header>
