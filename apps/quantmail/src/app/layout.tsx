@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { quantMailBrandMetadata } from '../brand/identity';
 import { AuthGuard } from '../components/AuthGuard';
 import { AppProviders } from '../providers/app-providers';
 import { AuthProvider } from '../providers/auth-provider';
@@ -11,11 +12,11 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: {
-    default: 'QuantMail by Quantrinity',
-    template: '%s · QuantMail',
+    default: quantMailBrandMetadata.title,
+    template: `%s · ${quantMailBrandMetadata.applicationName}`,
   },
-  description: 'A focused, intelligent inbox by Quantrinity — built in India for the world.',
-  applicationName: 'QuantMail',
+  description: quantMailBrandMetadata.description,
+  applicationName: quantMailBrandMetadata.applicationName,
   icons: {
     icon: '/quantrinity-mark.svg',
     shortcut: '/quantrinity-mark.svg',

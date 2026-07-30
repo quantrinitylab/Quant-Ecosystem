@@ -1,12 +1,13 @@
 import type { CSSProperties } from 'react';
-import { createEndorsedProductLockup, foundationThemes } from '@quant/brand';
+import { foundationThemes } from '@quant/brand';
+import { quantMailBrandLockup } from '../../brand/identity';
 
 type SemanticStyle = CSSProperties & Record<`--${string}`, string>;
 
 const dark = foundationThemes.dark;
 
-/** Canonical endorsed identity for every QuantMail authentication surface. */
-export const quantMailAuthLockup = Object.freeze(createEndorsedProductLockup('QuantMail'));
+/** Backwards-compatible auth export of the canonical QuantMail identity. */
+export const quantMailAuthLockup = quantMailBrandLockup;
 
 /**
  * Reversible bridge from the new semantic foundation to existing auth CSS.
