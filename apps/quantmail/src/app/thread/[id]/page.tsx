@@ -358,7 +358,7 @@ export default function ThreadPage() {
                           </div>
 
                           {parsed.quoted && <QuotedText text={parsed.quoted} />}
-                          <AttachmentGallery attachments={message.attachments} />}
+                          <AttachmentGallery attachments={message.attachments} />
 
                           <div className="flex gap-2 mt-4">
                             <Button variant="secondary" onClick={handleOpenReplyComposer}>
