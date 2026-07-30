@@ -90,7 +90,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
               isOpen={commandPaletteOpen}
               onClose={() => setCommandPaletteOpen(false)}
               commands={commands}
-              placeholder="Search QuantMail commands…"
+              placeholder="Search commands, views, and workflows…"
             />
             <MailCopilot />
           </>

@@ -13,6 +13,14 @@ const STATUS_COPY = {
   acting: 'Working',
 } as const;
 
+const STATUS_DETAIL_COPY = {
+  idle: 'Use a focused next step here, or open commands for the full workspace.',
+  listening: 'Describe the task in plain language and QuantAI will turn it into the next move.',
+  thinking: 'Reviewing workspace context and preparing the clearest next action.',
+  speaking: 'Sharing the next recommendation for your current flow.',
+  acting: 'Carrying out the action you chose inside QuantMail.',
+} as const;
+
 /** QuantMail-specific presentation for the shared QuantAI sidekick state. */
 export function MailCopilot() {
   const router = useRouter();
@@ -33,6 +41,16 @@ export function MailCopilot() {
     },
     { id: 'focus', label: 'Review priority inbox', hint: 'I', action: () => router.push('/') },
   ];
+
+  const hasSuggestions = suggestions.length > 0;
+  const actionItems = hasSuggestions
+    ? suggestions.map((item) => ({
+        id: item.id,
+        label: item.label,
+        hint: 'AI',
+        action: item.onSelect,
+      }))
+    : quickActions;
 
   return (
     <aside
@@ -65,21 +83,14 @@ export function MailCopilot() {
           <div className="mail-copilot-body">
             <p className="mail-copilot-eyebrow">Signal copilot</p>
             <h2>{message ?? 'What should we move forward?'}</h2>
-            <p className="mail-copilot-description">
-              Compose, retrieve and prioritize without leaving your mail flow.
-            </p>
+            <p className="mail-copilot-description">{STATUS_DETAIL_COPY[status]}</p>
           </div>
 
-          <div className="mail-copilot-actions">
-            {(suggestions.length > 0
-              ? suggestions.map((item) => ({
-                  id: item.id,
-                  label: item.label,
-                  hint: 'AI',
-                  action: item.onSelect,
-                }))
-              : quickActions
-            ).map((item) => (
+          <div className="mail-copilot-actions" aria-label="QuantAI actions">
+            <div className="mail-copilot-actions-heading">
+              {hasSuggestions ? 'Suggested next steps' : 'Common actions'}
+            </div>
+            {actionItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -95,8 +106,8 @@ export function MailCopilot() {
           </div>
 
           <footer>
-            <span>Private workspace context</span>
-            <span>⌘ K for commands</span>
+            <span>{hasSuggestions ? 'Workspace-aware suggestions' : 'Focused workflow shortcuts'}</span>
+            <span>⌘ K opens all commands</span>
           </footer>
         </section>
       )}
