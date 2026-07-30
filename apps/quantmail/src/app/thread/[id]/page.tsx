@@ -265,16 +265,14 @@ export default function ThreadPage() {
   };
 
   return (
-    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+    <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page thread-workspace flex flex-col h-full">
-        {/* Top bar */}
         <div className="flex items-center gap-2 p-4 border-b border-[var(--quant-border)]">
           <Button variant="secondary" onClick={() => router.push('/')}>
             Back
           </Button>
           {thread && (
             <div className="flex items-center gap-2 ml-auto flex-wrap">
-              {/* AI Summarize chip (gradient) */}
               <button
                 className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-[rgba(255,153,51,0.22)] bg-[rgba(255,153,51,0.08)] px-3 py-1.5 text-xs font-medium text-[var(--quant-primary)] transition-colors hover:bg-[rgba(255,153,51,0.16)]"
                 onClick={handleAISummarize}
@@ -283,7 +281,6 @@ export default function ThreadPage() {
                 <span>{aiSummarizing ? '\u2699\uFE0F' : '\u2728'}</span>
                 {aiSummarizing ? 'Summarizing...' : 'AI Summarize'}
               </button>
-              {/* Standard Summarize button */}
               <Button variant="secondary" onClick={handleSummarize} disabled={isSummarizing}>
                 {isSummarizing ? 'Summarizing...' : 'Summarize'}
               </Button>
@@ -300,7 +297,6 @@ export default function ThreadPage() {
           )}
         </div>
 
-        {/* AI Summary banner */}
         <AnimatePresence>
           {aiSummary && (
             <motion.div
@@ -328,7 +324,6 @@ export default function ThreadPage() {
           )}
         </AnimatePresence>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
           {isLoading && (
             <div className="space-y-4">
@@ -343,13 +338,11 @@ export default function ThreadPage() {
           )}
           {!isLoading && !error && thread && (
             <>
-              {/* Summarize error */}
               {summarizeError && (
                 <Card padding="md" className="mb-4 bg-red-50 border-red-200">
                   <p className="text-sm text-red-600">{summarizeError}</p>
                 </Card>
               )}
-              {/* AI Summary Card from main */}
               {summary && (
                 <Card padding="md" className="mb-4 bg-[var(--quant-muted)]">
                   <div className="flex items-center justify-between mb-2">
@@ -414,10 +407,7 @@ export default function ThreadPage() {
                             {parsed.regular}
                           </div>
 
-                          {/* Collapsible quoted text */}
                           {parsed.quoted && <QuotedText text={parsed.quoted} />}
-
-                          {/* Attachment gallery */}
                           <AttachmentGallery attachments={message.attachments} />
 
                           <div className="flex gap-2 mt-4">
@@ -435,10 +425,8 @@ export default function ThreadPage() {
                 })}
               </div>
 
-              {/* Inline quick-reply */}
               <InlineReply threadId={threadId} onSent={() => refetch()} />
 
-              {/* Inline Reply Form (toggleable with more features) */}
               {showReplyForm && (
                 <div className="mt-4">
                   <Card padding="md">
@@ -465,7 +453,6 @@ export default function ThreadPage() {
                 </div>
               )}
 
-              {/* Reply footer */}
               {!showReplyForm && (
                 <div className="mt-6 pt-4 border-t border-[var(--quant-border)]">
                   <Button variant="primary" onClick={handleReply}>
