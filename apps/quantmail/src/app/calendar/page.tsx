@@ -45,6 +45,7 @@ export default function CalendarPage() {
     }
     return map;
   }, [events]);
+  const hasEvents = (events?.length ?? 0) > 0;
 
   const handlePrevMonth = useCallback(() => {
     setCurrentDate(new Date(year, month - 1, 1));
@@ -173,70 +174,72 @@ export default function CalendarPage() {
                 })}
               </div>
 
-              {/* Selected day events */}
-              <div>
-                <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-3">
-                  {selectedDay === new Date().getDate() &&
-                  month === new Date().getMonth() &&
-                  year === new Date().getFullYear()
-                    ? 'Today'
-                    : `${new Date(year, month, selectedDay).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`}
-                </h2>
-                {(() => {
-                  const dayEvents =
-                    events?.filter((e) => {
-                      const d = new Date(e.startTime).getDate();
-                      return d === selectedDay;
-                    }) ?? [];
-                  if (dayEvents.length === 0) {
-                    return (
-                      <div className="text-center py-8">
-                        <div className="w-12 h-12 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-3">
-                          <span className="text-xl opacity-50">📅</span>
+              {!hasEvents ? (
+                <EmptyState
+                  title="Plan your first event"
+                  description="Calendar becomes useful once meetings, deadlines, or follow-ups land on the timeline. Start with one event so QuantMail can connect time back to conversations and commitments."
+                  actionLabel="Create event"
+                  onAction={() => setShowCreateModal(true)}
+                />
+              ) : (
+                <div>
+                  <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-3">
+                    {selectedDay === new Date().getDate() &&
+                    month === new Date().getMonth() &&
+                    year === new Date().getFullYear()
+                      ? 'Today'
+                      : `${new Date(year, month, selectedDay).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}`}
+                  </h2>
+                  {(() => {
+                    const dayEvents =
+                      events?.filter((e) => {
+                        const d = new Date(e.startTime).getDate();
+                        return d === selectedDay;
+                      }) ?? [];
+                    if (dayEvents.length === 0) {
+                      return (
+                        <EmptyState
+                          title="No events on this day"
+                          description="Use this date for a meeting, reminder, or follow-up so your calendar stays connected to active conversations and commitments."
+                          actionLabel="Add event"
+                          onAction={() => setShowCreateModal(true)}
+                        />
+                      );
+                    }
+                    return dayEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className="mb-2 flex items-center gap-3 p-3 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-muted)] transition-colors"
+                      >
+                        <div className="w-1 h-10 rounded-full bg-[var(--brand-primary)]" />
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-sm text-[var(--quant-foreground)] truncate">
+                            {event.title}
+                          </h3>
+                          <p className="text-xs text-[var(--quant-muted-foreground)]">
+                            {new Date(event.startTime).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                            {' – '}
+                            {new Date(event.endTime).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                            {event.location ? ` · ${event.location}` : ''}
+                          </p>
                         </div>
-                        <p className="text-sm text-[var(--quant-muted-foreground)]">No events</p>
                         <button
-                          className="mt-2 text-xs font-medium text-[var(--brand-primary)] hover:underline"
-                          onClick={() => setShowCreateModal(true)}
+                          className="text-xs text-[var(--quant-destructive)] hover:underline"
+                          onClick={() => handleDeleteEvent(event.id)}
                         >
-                          + Add event for this day
+                          Delete
                         </button>
                       </div>
-                    );
-                  }
-                  return dayEvents.map((event) => (
-                    <div
-                      key={event.id}
-                      className="mb-2 flex items-center gap-3 p-3 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-muted)] transition-colors"
-                    >
-                      <div className="w-1 h-10 rounded-full bg-[var(--brand-primary)]" />
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-sm text-[var(--quant-foreground)] truncate">
-                          {event.title}
-                        </h3>
-                        <p className="text-xs text-[var(--quant-muted-foreground)]">
-                          {new Date(event.startTime).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                          {' – '}
-                          {new Date(event.endTime).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                          {event.location ? ` · ${event.location}` : ''}
-                        </p>
-                      </div>
-                      <button
-                        className="text-xs text-[var(--quant-destructive)] hover:underline"
-                        onClick={() => handleDeleteEvent(event.id)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  ));
-                })()}
-              </div>
+                    ));
+                  })()}
+                </div>
+              )}
             </>
           )}
         </div>
