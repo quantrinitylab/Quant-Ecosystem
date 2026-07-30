@@ -1,31 +1,19 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { quantMailAuthTheme, quantMailAuthThemeName } from './auth-brand-contract';
 
 interface AuthShellProps {
   brand: ReactNode;
   children: ReactNode;
 }
 
-const darkTheme = {
-  '--quant-background': '#09090a',
-  '--quant-foreground': '#f7f7f2',
-  '--quant-surface': '#141416',
-  '--quant-surface-elevated': '#1b1b1f',
-  '--quant-muted': '#222226',
-  '--quant-muted-foreground': '#9b9b9f',
-  '--quant-border': '#303034',
-  '--quant-ring': '#ff9933',
-  '--quant-card': '#111113',
-  '--quant-card-foreground': '#f7f7f2',
-  '--quant-destructive': '#ff7b7b',
-  '--quant-success': '#54d46c',
-  '--brand-primary': '#ff9933',
-  '--brand-primary-hover': '#ffad5c',
-} as CSSProperties;
-
-/** Dark editorial access frame for the Quantrinity identity. */
+/** Dark editorial access frame backed by the canonical Quantrinity foundation. */
 export function AuthShell({ brand, children }: AuthShellProps) {
   return (
-    <main className="auth-shell" style={darkTheme}>
+    <main
+      className="auth-shell"
+      data-quant-theme={quantMailAuthThemeName}
+      style={quantMailAuthTheme}
+    >
       <div className="auth-shell-mobile-brand">{brand}</div>
       <div className="auth-shell-brand">{brand}</div>
       <section className="auth-shell-form">
