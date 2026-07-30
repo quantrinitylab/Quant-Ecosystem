@@ -46,11 +46,11 @@ Authorization to read this repository is not authorization to test any deployed 
 
 The following controls are represented by checked-in workflows at the time of this policy update:
 
-- [CI](.github/workflows/ci.yml) runs on pull requests and pushes to `main`. It includes canonical-memory checks, Memory release gates, affected-package typecheck/lint/test/build, a PostgreSQL Memory isolation test, and a QuantChat coverage gate. The repository-wide full sweep is currently informational (`continue-on-error`).
+- [CI](.github/workflows/ci.yml) runs on pull requests and pushes to `main`. It includes dependency-audit parser tests, a live installed-dependency high/critical audit gate, canonical-memory checks, Memory release gates, affected-package typecheck/lint/test/build, a PostgreSQL Memory isolation test, and a QuantChat coverage gate. The repository-wide full sweep is currently informational (`continue-on-error`).
 - [CodeQL](.github/workflows/codeql.yml) analyzes GitHub Actions, JavaScript/TypeScript, and Python on pull requests, pushes to `main`, and a weekly schedule.
 - [Production deployment](.github/workflows/deploy.yml) is manual-only and validates an exact current-`main` SHA, required checks, a Memory preflight without cloud credentials, immutable image digests, and rollback logic. A checked-in workflow is not proof that a production environment exists or that a deployment has run successfully.
 
-This policy does **not** claim automatic Trivy container scanning, dependency auditing, OWASP ZAP testing, secret scanning, third-party penetration testing, annual architecture audits, or continuous compliance monitoring. Native GitHub security features may vary by repository settings and are not asserted here unless represented by verifiable evidence.
+This policy does **not** claim automatic Trivy container scanning, repository-settings Dependabot enforcement, OWASP ZAP testing, secret scanning, third-party penetration testing, annual architecture audits, or continuous compliance monitoring. The checked-in dependency-audit gate is limited to the current pnpm-installed dependency graph and the enforced high/critical threshold described in CI. Native GitHub security features may vary by repository settings and are not asserted here unless represented by verifiable evidence.
 
 ## Security Posture Claims
 
