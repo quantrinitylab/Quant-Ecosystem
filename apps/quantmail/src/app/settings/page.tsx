@@ -179,7 +179,6 @@ export default function SettingsPage() {
         <div className="flex-1 overflow-y-auto px-6 py-6">
           {activeTab === 'general' && (
             <div className="max-w-2xl space-y-8">
-              {/* Profile section */}
               <section>
                 <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-1">
                   Profile
@@ -188,7 +187,6 @@ export default function SettingsPage() {
                   Your public display information.
                 </p>
                 <div className="space-y-4 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
-                  {/* Avatar placeholder */}
                   <div className="flex items-center gap-4">
                     <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[var(--brand-primary)] to-[var(--quant-secondary)] flex items-center justify-center text-white text-xl font-bold">
                       {profile.displayName?.charAt(0)?.toUpperCase() || 'Q'}
@@ -246,7 +244,6 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              {/* Email preferences */}
               <section>
                 <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-1">
                   Email preferences
@@ -332,7 +329,7 @@ export default function SettingsPage() {
                     <div>
                       <span className="text-sm text-[var(--quant-foreground)]">Read receipts</span>
                       <p className="text-xs text-[var(--quant-muted-foreground)]">
-                        Let senders know when you've read their email.
+                        Let senders know when you&apos;ve read their email.
                       </p>
                     </div>
                   </label>
@@ -357,28 +354,31 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              {/* Danger zone */}
               <section>
                 <h2 className="text-base font-semibold text-[var(--quant-destructive)] mb-1">
                   Danger zone
                 </h2>
                 <div className="rounded-lg border border-[var(--quant-destructive)]/30 p-5 space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-[var(--quant-foreground)]">
                         Delete account
                       </p>
                       <p className="text-xs text-[var(--quant-muted-foreground)]">
-                        Permanently delete your account and all associated data.
+                        Account deletion isn&apos;t connected in QuantMail yet, so this control stays unavailable for now.
                       </p>
                     </div>
                     <Button
                       variant="secondary"
-                      className="border-[var(--quant-destructive)]/50 text-[var(--quant-destructive)] hover:bg-[var(--quant-destructive)]/10"
+                      disabled
+                      className="cursor-not-allowed border-[var(--quant-destructive)]/30 text-[var(--quant-muted-foreground)] hover:bg-transparent"
                     >
-                      Delete account
+                      Account deletion unavailable
                     </Button>
                   </div>
+                  <p className="text-xs text-[var(--quant-muted-foreground)]">
+                    This section will only become active after a verified deletion workflow is wired end to end.
+                  </p>
                 </div>
               </section>
             </div>
