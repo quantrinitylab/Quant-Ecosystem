@@ -10,7 +10,7 @@ import {
   useTransform,
   type PanInfo,
 } from 'framer-motion';
-import { ErrorState, Skeleton } from '@quant/shared-ui';
+import { ErrorState, Skeleton, Button } from '@quant/shared-ui';
 import { quantMailBrandLockup } from '../brand/identity';
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
@@ -488,22 +488,37 @@ export default function InboxPage() {
                 <span className="mail-empty-icon">
                   <MailIcon name={debouncedQuery ? 'search' : 'mail'} />
                 </span>
-                <p className="reading-eyebrow">{debouncedQuery ? 'No match' : 'Inbox zero'}</p>
-                <h2>{debouncedQuery ? 'Nothing found.' : 'Nothing needs you.'}</h2>
+                <p className="reading-eyebrow">
+                  {debouncedQuery ? 'Search needs a clearer signal' : 'Inbox ready'}
+                </p>
+                <h2>{debouncedQuery ? 'No inbox match yet.' : 'Your inbox is clear.'}</h2>
                 <p>
                   {debouncedQuery
-                    ? 'Try a person, subject, or a simpler phrase.'
-                    : 'A clear inbox is not empty. It is space to think.'}
+                    ? `Nothing matched “${debouncedQuery}”. Try a sender, subject, or simpler phrase, or clear the search to return to your live inbox flow.`
+                    : 'New conversations, replies, and priority updates will collect here first so you can triage the next important thread from one focused surface.'}
                 </p>
-                {!debouncedQuery && (
-                  <button
-                    type="button"
-                    className="signal-button"
-                    onClick={() => router.push('/compose')}
-                  >
-                    Start a conversation <span aria-hidden="true">→</span>
-                  </button>
-                )}
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  {debouncedQuery ? (
+                    <>
+                      <Button
+                        variant="primary"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setDebouncedQuery('');
+                        }}
+                      >
+                        Clear search
+                      </Button>
+                      <Button variant="secondary" onClick={() => router.push('/search')}>
+                        Open advanced search
+                      </Button>
+                    </>
+                  ) : (
+                    <Button variant="primary" onClick={() => router.push('/compose')}>
+                      Start a conversation
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
             {!isLoading && !isSearching && !error && emails && emails.length > 0 && (

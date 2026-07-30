@@ -14,6 +14,7 @@ import type { Email, SearchEmailRequest } from '../../types';
 
 const RECENT_SEARCHES_KEY = 'quantmail_recent_searches';
 const MAX_RECENT_SEARCHES = 5;
+const EXAMPLE_SEARCHES = ['invoice', 'design feedback', 'meeting follow-up'];
 
 interface SearchFilter {
   type: 'from' | 'to' | 'has' | 'in' | 'date';
@@ -78,12 +79,18 @@ export default function SearchPage() {
 
   const { data: results, isLoading, error } = useSearchEmails(searchParams);
 
-  const handleSearch = useCallback(() => {
-    if (!query.trim()) return;
+  const runSearchString = useCallback((search: string) => {
+    const trimmed = search.trim();
+    if (!trimmed) return;
+    setQuery(trimmed);
     setHasSearched(true);
-    saveRecentSearch(query.trim());
+    saveRecentSearch(trimmed);
     setRecentSearches(getRecentSearches());
-  }, [query]);
+  }, []);
+
+  const handleSearch = useCallback(() => {
+    runSearchString(query);
+  }, [query, runSearchString]);
 
   const handleSearchInput = useCallback((value: string) => {
     setQuery(value);
@@ -129,11 +136,19 @@ export default function SearchPage() {
     setActiveFilters((prev) => prev.filter((f) => f.type !== type));
   }, []);
 
-  const handleRecentSearch = useCallback((search: string) => {
-    setQuery(search);
-    setHasSearched(true);
-    saveRecentSearch(search);
-    setRecentSearches(getRecentSearches());
+  const handleRecentSearch = useCallback(
+    (search: string) => {
+      runSearchString(search);
+    },
+    [runSearchString],
+  );
+
+  const handleResetSearch = useCallback(() => {
+    setQuery('');
+    setHasSearched(false);
+    setActiveFilters([]);
+    setEditingFilter(null);
+    setFilterInput('');
   }, []);
 
   const handleEmailClick = useCallback(
@@ -242,7 +257,7 @@ export default function SearchPage() {
 
         <div className="flex-1 overflow-y-auto">
           {!hasSearched && (
-            <div className="p-6">
+            <div className="p-6 space-y-6">
               {recentSearches.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-[var(--quant-muted-foreground)] mb-3">
@@ -262,12 +277,32 @@ export default function SearchPage() {
                   </div>
                 </div>
               )}
+
               {recentSearches.length === 0 && (
                 <EmptyState
-                  title="Search your email"
-                  description="Use the search bar above to find emails by content, sender, or subject"
+                  title="Search every conversation"
+                  description="Look across senders, subjects, attachments, and labels to jump back into the exact thread you need without digging through folders first."
+                  actionLabel="Try “invoice”"
+                  onAction={() => runSearchString('invoice')}
                 />
               )}
+
+              <div>
+                <h3 className="text-sm font-medium text-[var(--quant-muted-foreground)] mb-3">
+                  Quick starts
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {EXAMPLE_SEARCHES.map((example) => (
+                    <Button
+                      key={example}
+                      variant="secondary"
+                      onClick={() => runSearchString(example)}
+                    >
+                      {example}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -283,8 +318,10 @@ export default function SearchPage() {
 
           {hasSearched && !isLoading && !error && (!results || results.length === 0) && (
             <EmptyState
-              title="No results found"
-              description={`No emails match "${query}". Try different keywords or adjust your filters.`}
+              title="No search results yet"
+              description={`Nothing matched “${query}”. Try a broader phrase, remove filters, or search by sender, subject, or attachment keyword instead.`}
+              actionLabel="Reset search"
+              onAction={handleResetSearch}
             />
           )}
 
