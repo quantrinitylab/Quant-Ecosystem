@@ -13,7 +13,7 @@ export const quantMailAuthLockup = Object.freeze(createEndorsedProductLockup('Qu
  * New `--qt-*` roles and legacy `--quant-*` aliases intentionally coexist
  * until the auth stylesheet is migrated in a separate visual-review change.
  */
-export const quantMailAuthTheme = Object.freeze({
+export const quantMailAuthTheme: Readonly<SemanticStyle> = Object.freeze({
   '--qt-canvas': dark.canvas,
   '--qt-surface-1': dark.surface1,
   '--qt-surface-2': dark.surface2,
@@ -48,6 +48,6 @@ export const quantMailAuthTheme = Object.freeze({
   '--quant-success': dark.success,
   '--brand-primary': dark.actionPrimary,
   '--brand-primary-hover': dark.actionPrimaryHover,
-} satisfies SemanticStyle);
+});
 
 export const quantMailAuthThemeName = 'dark' as const;
