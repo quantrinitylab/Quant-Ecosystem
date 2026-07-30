@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Card, Button, SearchInput, Skeleton } from '@quant/shared-ui';
+import { Card, Button, SearchInput, Skeleton, EmptyState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
-import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { useDrive } from '../../hooks/useDrive';
@@ -51,6 +50,11 @@ export default function DrivePage() {
     input.click();
   }, [uploadFiles]);
 
+  const handleResetToRoot = useCallback(() => {
+    setSearchQuery('');
+    navigateToFolder(null, 'My Drive');
+  }, [navigateToFolder]);
+
   const formatSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -60,12 +64,15 @@ export default function DrivePage() {
   };
 
   const getFileIcon = (type: string, mimeType: string): string => {
-    if (type === 'folder') return '\uD83D\uDCC1';
-    if (mimeType?.startsWith('image/')) return '\uD83D\uDDBC\uFE0F';
-    if (mimeType?.includes('pdf')) return '\uD83D\uDCC4';
-    if (mimeType?.includes('spreadsheet') || mimeType?.includes('excel')) return '\uD83D\uDCCA';
-    return '\uD83D\uDCC4';
+    if (type === 'folder') return '📁';
+    if (mimeType?.startsWith('image/')) return '🖼️';
+    if (mimeType?.includes('pdf')) return '📄';
+    if (mimeType?.includes('spreadsheet') || mimeType?.includes('excel')) return '📊';
+    return '📄';
   };
+
+  const showRecoveryBanner = Boolean(error && files.length > 0);
+  const showRecoveryPanel = Boolean(!loading && error && files.length === 0);
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
@@ -114,6 +121,28 @@ export default function DrivePage() {
 
         {/* File list */}
         <div className="flex-1 overflow-y-auto p-4">
+          {showRecoveryBanner && (
+            <Card className="mb-4 border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold">Drive couldn’t refresh right now</p>
+                  <p className="text-sm text-[var(--quant-muted-foreground)]">{error}</p>
+                  <p className="text-xs text-[var(--quant-muted-foreground)]">
+                    Showing your last loaded files so you can keep context while Drive reconnects.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" onClick={handleResetToRoot}>
+                    Back to My Drive
+                  </Button>
+                  <Button variant="primary" onClick={() => void fetchFiles()}>
+                    Retry
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {loading && (
             <div className="space-y-3">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -121,15 +150,38 @@ export default function DrivePage() {
               ))}
             </div>
           )}
-          {error && <ErrorState message={error} onRetry={() => void fetchFiles()} />}
+
+          {showRecoveryPanel && (
+            <Card className="mx-auto mt-12 max-w-2xl border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-6">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--quant-muted-foreground)]">
+                  Drive recovery
+                </p>
+                <h2 className="text-xl font-semibold">Drive couldn’t load right now</h2>
+                <p className="text-sm text-[var(--quant-muted-foreground)]">{error}</p>
+                <p className="text-sm text-[var(--quant-muted-foreground)]">
+                  Your files are safe. Retry the connection or return to the root folder and try again.
+                </p>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button variant="primary" onClick={() => void fetchFiles()}>
+                  Retry
+                </Button>
+                <Button variant="secondary" onClick={handleResetToRoot}>
+                  Back to My Drive
+                </Button>
+              </div>
+            </Card>
+          )}
+
           {!loading && !error && files.length === 0 && (
             <EmptyState
               title="No files"
               description="Upload files or create a folder to get started"
             />
           )}
+
           {!loading &&
-            !error &&
             files.length > 0 &&
             (viewMode === 'list' ? (
               <div className="space-y-1">
