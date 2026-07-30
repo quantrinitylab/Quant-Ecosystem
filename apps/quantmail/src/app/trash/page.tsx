@@ -12,7 +12,6 @@ import { PageTransition } from '../../components/PageTransition';
 import { useInbox } from '../../hooks/useInbox';
 import { apiClient } from '../../services/api-client';
 import { listContainerVariants, listItemVariants } from '../../lib/motion-variants';
-import type { Email } from '../../types';
 
 export default function TrashPage() {
   const router = useRouter();
@@ -105,8 +104,10 @@ export default function TrashPage() {
 
           {!isLoading && !error && (!emails || emails.length === 0) && (
             <EmptyState
-              title="Trash is empty"
-              description="Deleted emails will appear here and be permanently removed after 30 days"
+              title="Trash is clear"
+              description="Deleted emails pause here for 30 days before permanent removal, giving you a recovery window if something was removed by mistake."
+              actionLabel="Go to inbox"
+              onAction={() => router.push('/')}
             />
           )}
 
