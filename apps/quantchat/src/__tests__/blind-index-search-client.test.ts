@@ -194,7 +194,7 @@ describe('searchEncryptedMessages (query-on-search, Req 15.1)', () => {
     // The query plaintext and the Search_Key never reach the transport. Check
     // exact uploaded hash elements rather than substring matches so random hex
     // digests cannot coincidentally contain token fragments.
-    const queryHashes = sentHashes as string[];
+    const queryHashes = sentHashes as unknown as string[];
     expect(queryHashes).not.toContain('cafe');
     expect(queryHashes).not.toContain(key);
     for (const hash of queryHashes) {
