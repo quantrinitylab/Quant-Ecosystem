@@ -11,6 +11,7 @@ import {
   type PanInfo,
 } from 'framer-motion';
 import { ErrorState, Skeleton } from '@quant/shared-ui';
+import { quantMailBrandLockup } from '../brand/identity';
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
@@ -377,9 +378,9 @@ export default function InboxPage() {
       className="quantmail-shell"
       mobileTitle={
         <span className="mobile-brand">
-          <QuantrinityMark compact />
-          <span>
-            QuantMail <small>by Quantrinity</small>
+          <QuantrinityMark compact label={quantMailBrandLockup.accessibleName} />
+          <span aria-hidden="true">
+            {quantMailBrandLockup.productName} <small>{quantMailBrandLockup.byline}</small>
           </span>
         </span>
       }
@@ -532,7 +533,7 @@ export default function InboxPage() {
           </div>
           <footer className="inbox-list-footer">
             <span>{emails?.length ?? 0} conversations</span>
-            <span>Protected by Quantrinity</span>
+            <span>Protected {quantMailBrandLockup.byline}</span>
           </footer>
         </section>
         <ReadingPane email={selectedEmail} onClose={() => setSelectedEmail(null)} />
