@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, Avatar, Badge, Button, Skeleton } from '@quant/shared-ui';
@@ -11,11 +11,7 @@ import { AppSidebar } from '../../../components/AppSidebar';
 import { PageTransition } from '../../../components/PageTransition';
 import { useThread } from '../../../hooks/useThread';
 import { apiClient } from '../../../services/api-client';
-import {
-  expandCollapseVariants,
-  attachmentItemVariants,
-  listContainerVariants,
-} from '../../../lib/motion-variants';
+import { expandCollapseVariants, attachmentItemVariants } from '../../../lib/motion-variants';
 import type { Email, EmailAttachment } from '../../../types';
 
 function QuotedText({ text }: { text: string }) {
@@ -114,57 +110,19 @@ function AttachmentGallery({ attachments }: { attachments: EmailAttachment[] }) 
   );
 }
 
-function InlineReply({ threadId, onSent }: { threadId: string; onSent: () => void }) {
-  const [replyText, setReplyText] = useState('');
-  const [sending, setSending] = useState(false);
-
-  const handleSendReply = useCallback(async () => {
-    if (!replyText.trim()) return;
-    setSending(true);
-    try {
-      await apiClient.replyToEmail(threadId, replyText);
-      setReplyText('');
-      onSent();
-    } finally {
-      setSending(false);
-    }
-  }, [replyText, threadId, onSent]);
-
-  return (
-    <div className="mt-4 p-4 border border-[var(--quant-border)] rounded-lg bg-[var(--quant-muted)]/50">
-      <textarea
-        className="w-full min-h-[80px] p-3 text-sm bg-[var(--quant-background)] border border-[var(--quant-border)] rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-[var(--quant-primary)]"
-        placeholder="Write a quick reply..."
-        value={replyText}
-        onChange={(e) => setReplyText(e.target.value)}
-      />
-      <div className="flex items-center gap-2 mt-2">
-        <Button variant="primary" onClick={handleSendReply} disabled={sending || !replyText.trim()}>
-          {sending ? 'Sending...' : 'Send Reply'}
-        </Button>
-        <span className="text-xs text-[var(--quant-muted-foreground)]">
-          Press Enter to type, Cmd+Enter to send
-        </span>
-      </div>
-    </div>
-  );
-}
-
 export default function ThreadPage() {
   const params = useParams();
   const router = useRouter();
   const threadId = (params?.id as string) || '';
   const { data: thread, isLoading, error, refetch } = useThread(threadId);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [aiSummarizing, setAiSummarizing] = useState(false);
-  const [showReplyForm, setShowReplyForm] = useState(false);
+  const [threadSummary, setThreadSummary] = useState<string | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [isSummaryVisible, setIsSummaryVisible] = useState(true);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [showReplyComposer, setShowReplyComposer] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
-  const [summary, setSummary] = useState<string | null>(null);
-  const [isSummarizing, setIsSummarizing] = useState(false);
-  const [showSummary, setShowSummary] = useState(true);
-  const [summarizeError, setSummarizeError] = useState<string | null>(null);
   const [replyError, setReplyError] = useState<string | null>(null);
 
   const toggleMessage = useCallback((index: number) => {
@@ -194,8 +152,13 @@ export default function ThreadPage() {
     router.push('/');
   }, [thread, router]);
 
-  const handleReply = useCallback(() => {
-    setShowReplyForm((prev) => !prev);
+  const handleOpenReplyComposer = useCallback(() => {
+    setShowReplyComposer(true);
+  }, []);
+
+  const handleCloseReplyComposer = useCallback(() => {
+    setShowReplyComposer(false);
+    setReplyError(null);
   }, []);
 
   const handleSendReply = useCallback(async () => {
@@ -209,7 +172,7 @@ export default function ThreadPage() {
         return;
       }
       setReplyText('');
-      setShowReplyForm(false);
+      setShowReplyComposer(false);
       refetch();
     } catch {
       setReplyError('Failed to send reply');
@@ -221,23 +184,27 @@ export default function ThreadPage() {
   const handleSummarize = useCallback(async () => {
     if (!thread?.messages?.[0] || isSummarizing) return;
     setIsSummarizing(true);
-    setSummarizeError(null);
+    setSummaryError(null);
     try {
-      const res = await apiClient.aiSummarize(thread.messages[0].id);
-      if (!res.success) {
-        setSummarizeError(res.error?.message || 'Failed to summarize thread');
+      const response = await apiClient.aiSummarize(thread.messages[0].id);
+      if (!response.success) {
+        setSummaryError(response.error?.message || 'Failed to summarize thread');
         return;
       }
-      if (res.data?.summary) {
-        setSummary(res.data.summary);
-        setShowSummary(true);
+      if (response.data?.summary) {
+        setThreadSummary(response.data.summary);
+        setIsSummaryVisible(true);
       }
     } catch {
-      setSummarizeError('Failed to summarize thread');
+      setSummaryError('Failed to summarize thread');
     } finally {
       setIsSummarizing(false);
     }
   }, [thread, isSummarizing]);
+
+  const handleDismissSummary = useCallback(() => {
+    setThreadSummary(null);
+  }, []);
 
   const handleForward = useCallback(
     (emailId: string) => {
@@ -245,19 +212,6 @@ export default function ThreadPage() {
     },
     [router],
   );
-
-  const handleAISummarize = useCallback(async () => {
-    if (!thread?.messages?.[0]) return;
-    setAiSummarizing(true);
-    try {
-      const response = await apiClient.aiSummarize(thread.messages[0].id);
-      if (response.success && response.data) {
-        setAiSummary(response.data.summary);
-      }
-    } finally {
-      setAiSummarizing(false);
-    }
-  }, [thread]);
 
   const isExpanded = (index: number, total: number) => {
     if (index === total - 1) return true;
@@ -275,15 +229,12 @@ export default function ThreadPage() {
             <div className="flex items-center gap-2 ml-auto flex-wrap">
               <button
                 className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-[rgba(255,153,51,0.22)] bg-[rgba(255,153,51,0.08)] px-3 py-1.5 text-xs font-medium text-[var(--quant-primary)] transition-colors hover:bg-[rgba(255,153,51,0.16)]"
-                onClick={handleAISummarize}
-                disabled={aiSummarizing}
+                onClick={handleSummarize}
+                disabled={isSummarizing}
               >
-                <span>{aiSummarizing ? '\u2699\uFE0F' : '\u2728'}</span>
-                {aiSummarizing ? 'Summarizing...' : 'AI Summarize'}
+                <span>{isSummarizing ? '\u2699\uFE0F' : '\u2728'}</span>
+                {isSummarizing ? 'Summarizing...' : 'Summarize thread'}
               </button>
-              <Button variant="secondary" onClick={handleSummarize} disabled={isSummarizing}>
-                {isSummarizing ? 'Summarizing...' : 'Summarize'}
-              </Button>
               <Button variant="secondary" onClick={handleArchive}>
                 Archive
               </Button>
@@ -296,33 +247,6 @@ export default function ThreadPage() {
             </div>
           )}
         </div>
-
-        <AnimatePresence>
-          {aiSummary && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ type: 'spring', ...spring.gentle }}
-              className="border-b border-[var(--quant-border)] bg-gradient-to-r from-[rgba(255,153,51,0.055)] to-[rgba(19,136,8,0.05)]"
-            >
-              <div className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-semibold text-[var(--quant-primary)]">
-                    AI Summary
-                  </span>
-                  <button
-                    className="text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] min-h-[44px] min-w-[44px] flex items-center justify-center"
-                    onClick={() => setAiSummary(null)}
-                  >
-                    Dismiss
-                  </button>
-                </div>
-                <p className="text-sm text-[var(--quant-foreground)]">{aiSummary}</p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
           {isLoading && (
@@ -338,32 +262,58 @@ export default function ThreadPage() {
           )}
           {!isLoading && !error && thread && (
             <>
-              {summarizeError && (
+              {summaryError && (
                 <Card padding="md" className="mb-4 bg-red-50 border-red-200">
-                  <p className="text-sm text-red-600">{summarizeError}</p>
-                </Card>
-              )}
-              {summary && (
-                <Card padding="md" className="mb-4 bg-[var(--quant-muted)]">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold">AI Summary</span>
-                    <Button variant="secondary" onClick={() => setShowSummary((s) => !s)}>
-                      {showSummary ? 'Hide' : 'Show'}
-                    </Button>
-                  </div>
-                  {showSummary && (
-                    <p className="text-sm text-[var(--quant-muted-foreground)] leading-relaxed">
-                      {summary}
-                    </p>
-                  )}
+                  <p className="text-sm text-red-600">{summaryError}</p>
                 </Card>
               )}
 
-              <h1 className="text-xl md:text-2xl font-bold mb-4">{thread.subject}</h1>
-              <div className="flex items-center gap-2 mb-6 text-sm text-[var(--quant-muted-foreground)]">
-                <span>{thread.messageCount} messages</span>
-                <span>-</span>
-                <span>{thread.participants?.map((p) => p.name || p.email).join(', ')}</span>
+              <AnimatePresence>
+                {threadSummary && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ type: 'spring', ...spring.gentle }}
+                    className="overflow-hidden"
+                  >
+                    <Card padding="md" className="mb-4 bg-[var(--quant-muted)]">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <div>
+                          <span className="text-sm font-semibold">AI Summary</span>
+                          <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
+                            Read the thread signal first, then reply, archive, or forward.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="secondary"
+                            onClick={() => setIsSummaryVisible((visible) => !visible)}
+                          >
+                            {isSummaryVisible ? 'Hide' : 'Show'}
+                          </Button>
+                          <Button variant="secondary" onClick={handleDismissSummary}>
+                            Dismiss
+                          </Button>
+                        </div>
+                      </div>
+                      {isSummaryVisible && (
+                        <p className="text-sm text-[var(--quant-muted-foreground)] leading-relaxed">
+                          {threadSummary}
+                        </p>
+                      )}
+                    </Card>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <div className="mb-6">
+                <h1 className="text-xl md:text-2xl font-bold mb-4">{thread.subject}</h1>
+                <div className="flex items-center gap-2 text-sm text-[var(--quant-muted-foreground)]">
+                  <span>{thread.messageCount} messages</span>
+                  <span>-</span>
+                  <span>{thread.participants?.map((p) => p.name || p.email).join(', ')}</span>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -411,7 +361,7 @@ export default function ThreadPage() {
                           <AttachmentGallery attachments={message.attachments} />
 
                           <div className="flex gap-2 mt-4">
-                            <Button variant="secondary" onClick={handleReply}>
+                            <Button variant="secondary" onClick={handleOpenReplyComposer}>
                               Reply
                             </Button>
                             <Button variant="secondary" onClick={() => handleForward(message.id)}>
@@ -425,11 +375,26 @@ export default function ThreadPage() {
                 })}
               </div>
 
-              <InlineReply threadId={threadId} onSent={() => refetch()} />
-
-              {showReplyForm && (
-                <div className="mt-4">
+              <div className="mt-6 pt-4 border-t border-[var(--quant-border)]">
+                {!showReplyComposer ? (
+                  <Button variant="primary" onClick={handleOpenReplyComposer}>
+                    Reply to thread
+                  </Button>
+                ) : (
                   <Card padding="md">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div>
+                        <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+                          Reply to thread
+                        </h2>
+                        <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
+                          Write one clear response, then send or cancel.
+                        </p>
+                      </div>
+                      <Button variant="secondary" onClick={handleCloseReplyComposer}>
+                        Cancel
+                      </Button>
+                    </div>
                     {replyError && <p className="text-sm text-red-600 mb-2">{replyError}</p>}
                     <textarea
                       className="w-full min-h-[120px] p-3 rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] text-sm resize-y focus:outline-none focus:ring-2 focus:ring-[var(--quant-primary)]"
@@ -437,7 +402,7 @@ export default function ThreadPage() {
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
                     />
-                    <div className="flex gap-2 mt-3">
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
                       <Button
                         variant="primary"
                         onClick={handleSendReply}
@@ -445,21 +410,13 @@ export default function ThreadPage() {
                       >
                         {isSendingReply ? 'Sending...' : 'Send Reply'}
                       </Button>
-                      <Button variant="secondary" onClick={() => setShowReplyForm(false)}>
-                        Cancel
-                      </Button>
+                      <span className="text-xs text-[var(--quant-muted-foreground)]">
+                        Keep the reply focused on the next action.
+                      </span>
                     </div>
                   </Card>
-                </div>
-              )}
-
-              {!showReplyForm && (
-                <div className="mt-6 pt-4 border-t border-[var(--quant-border)]">
-                  <Button variant="primary" onClick={handleReply}>
-                    Reply to thread
-                  </Button>
-                </div>
-              )}
+                )}
+              </div>
             </>
           )}
         </div>
