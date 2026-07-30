@@ -126,12 +126,8 @@ export default function SecurityPage() {
 
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
-          {/* ═══════════════════════════════════════════════════════════════════
-              PASSWORD & AUTH TAB
-              ═══════════════════════════════════════════════════════════════════ */}
           {activeTab === 'password-auth' && (
             <div className="max-w-2xl space-y-8">
-              {/* ─── Two-Factor Authentication ─────────────────────────────── */}
               <section>
                 <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-1">
                   Two-Factor Authentication
@@ -251,7 +247,6 @@ export default function SecurityPage() {
                 </div>
               </section>
 
-              {/* ─── Change Password ──────────────────────────────────────── */}
               <section>
                 <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-1">
                   Change Password
@@ -317,9 +312,6 @@ export default function SecurityPage() {
             </div>
           )}
 
-          {/* ═══════════════════════════════════════════════════════════════════
-              SESSIONS TAB
-              ═══════════════════════════════════════════════════════════════════ */}
           {activeTab === 'sessions' && (
             <div className="max-w-2xl space-y-8">
               <section>
@@ -327,10 +319,9 @@ export default function SecurityPage() {
                   Active Sessions
                 </h2>
                 <p className="text-sm text-[var(--quant-muted-foreground)] mb-4">
-                  Manage devices and locations where your account is currently signed in.
+                  Review where your account is signed in and revoke other devices when they appear.
                 </p>
                 <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-6">
-                  {/* Current session indicator */}
                   <div className="flex items-center gap-3 pb-5 border-b border-[var(--quant-border)]">
                     <div className="w-10 h-10 rounded-full bg-[var(--brand-primary)]/10 flex items-center justify-center">
                       <span className="text-[var(--brand-primary)] text-lg">●</span>
@@ -348,38 +339,36 @@ export default function SecurityPage() {
                     </span>
                   </div>
 
-                  {/* Empty state for other sessions */}
                   <div className="pt-5 text-center py-8">
                     <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4">
                       <span className="text-2xl opacity-50">🖥</span>
                     </div>
                     <p className="text-sm font-medium text-[var(--quant-foreground)] mb-1">
-                      No other active sessions
+                      Only this device is active
                     </p>
                     <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto">
-                      Session tracking for other devices is not yet available. When enabled, you'll
-                      see all signed-in devices here.
+                      When QuantMail detects other sessions, you&apos;ll review the device, location,
+                      and last active time here before revoking access.
                     </p>
                   </div>
                 </div>
               </section>
 
-              {/* Revoke all sessions */}
               <section>
                 <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-1">
                   Session Management
                 </h2>
                 <p className="text-sm text-[var(--quant-muted-foreground)] mb-4">
-                  Sign out of all other devices at once.
+                  End access on other devices once additional sessions appear here.
                 </p>
                 <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-[var(--quant-foreground)]">
-                        Revoke all other sessions
+                        Revoke other sessions
                       </p>
                       <p className="text-xs text-[var(--quant-muted-foreground)]">
-                        Sign out of all devices except this one
+                        Sign out of every device except the one you&apos;re using now.
                       </p>
                     </div>
                     <div className="relative group">
@@ -387,7 +376,7 @@ export default function SecurityPage() {
                         Revoke All
                       </Button>
                       <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 text-xs font-medium text-[var(--quant-foreground)] bg-[var(--quant-muted)] border border-[var(--quant-border)] rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                        Coming soon
+                        Available when another session is active
                       </div>
                     </div>
                   </div>
@@ -396,9 +385,6 @@ export default function SecurityPage() {
             </div>
           )}
 
-          {/* ═══════════════════════════════════════════════════════════════════
-              CONNECTED APPS TAB
-              ═══════════════════════════════════════════════════════════════════ */}
           {activeTab === 'connected-apps' && (
             <div className="max-w-2xl space-y-8">
               <section>
@@ -409,7 +395,6 @@ export default function SecurityPage() {
                   Third-party applications that have access to your QuantMail account.
                 </p>
                 <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-6">
-                  {/* Empty state */}
                   <div className="text-center py-8">
                     <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4">
                       <span className="text-2xl opacity-50">🔗</span>
@@ -425,7 +410,6 @@ export default function SecurityPage() {
                 </div>
               </section>
 
-              {/* OAuth Management Section */}
               <section>
                 <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-1">
                   Manage OAuth Apps
@@ -434,7 +418,6 @@ export default function SecurityPage() {
                   Control which apps can access your data through OAuth 2.0.
                 </p>
                 <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5 space-y-4">
-                  {/* Permission scopes info */}
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5">
                       <span className="text-sm">📧</span>
