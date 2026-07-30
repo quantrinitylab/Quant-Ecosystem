@@ -54,6 +54,7 @@ export default function ContactsPage() {
     if (!contacts) return [];
     return contacts;
   }, [contacts]);
+  const hasSearchQuery = searchQuery.trim().length > 0;
 
   const handleOpenCreate = useCallback(() => {
     setFormData({ name: '', email: '', phone: '', company: '', tags: '' });
@@ -97,6 +98,11 @@ export default function ContactsPage() {
     [deleteContact],
   );
 
+  const handleClearFilters = useCallback(() => {
+    setSearchQuery('');
+    setFavoritesOnly(false);
+  }, []);
+
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page contacts-workspace flex flex-col h-full">
@@ -135,9 +141,26 @@ export default function ContactsPage() {
             </div>
           )}
           {error && <ErrorState message={error.message} onRetry={() => void refetch()} />}
-          {!isLoading && !error && filteredContacts.length === 0 && (
-            <EmptyState title="No contacts yet" description="Add contacts to get started" />
-          )}
+          {!isLoading && !error && filteredContacts.length === 0 &&
+            (hasSearchQuery || favoritesOnly ? (
+              <EmptyState
+                title={favoritesOnly && !hasSearchQuery ? 'No favorite contacts yet' : 'No matching contacts'}
+                description={
+                  favoritesOnly && !hasSearchQuery
+                    ? 'Star the people you rely on most so priority contacts stay easy to reach from anywhere in QuantMail.'
+                    : `Nothing matched “${searchQuery}”. Try another name, email, or company, or clear filters to browse your full contact list.`
+                }
+                actionLabel={favoritesOnly && !hasSearchQuery ? 'Show all contacts' : 'Clear filters'}
+                onAction={handleClearFilters}
+              />
+            ) : (
+              <EmptyState
+                title="Build your contact circle"
+                description="Add the people you work with most so compose, search, and relationship context can move faster across QuantMail."
+                actionLabel="Add contact"
+                onAction={handleOpenCreate}
+              />
+            ))}
           {!isLoading &&
             !error &&
             filteredContacts.map((contact) => (
