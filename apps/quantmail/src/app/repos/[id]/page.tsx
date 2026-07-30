@@ -49,7 +49,7 @@ export default function RepoDetailPage() {
   ];
 
   return (
-    <AppShell sidebar={<AppSidebar />} className="quantmail-shell">
+    <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page repo-detail-workspace flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center gap-3 p-4 border-b border-[var(--quant-border)]">
@@ -138,8 +138,7 @@ export default function RepoDetailPage() {
                   <ErrorState
                     message={contentError.message}
                     onRetry={() => void refetchContent()}
-                  />
-                )}
+                  />}
                 {selectedFile && !loadingContent && !contentError && fileContent && (
                   <CodeEditor filename={selectedFile} content={fileContent.content} />
                 )}
