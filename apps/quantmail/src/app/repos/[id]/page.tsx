@@ -138,7 +138,8 @@ export default function RepoDetailPage() {
                   <ErrorState
                     message={contentError.message}
                     onRetry={() => void refetchContent()}
-                  />}
+                  />
+                )}
                 {selectedFile && !loadingContent && !contentError && fileContent && (
                   <CodeEditor filename={selectedFile} content={fileContent.content} />
                 )}
