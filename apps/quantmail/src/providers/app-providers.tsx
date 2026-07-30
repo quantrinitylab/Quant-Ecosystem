@@ -37,30 +37,43 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     { id: 'inbox', label: 'Open priority inbox', group: 'Mail', action: () => navigate('/') },
     { id: 'sent', label: 'Open sent mail', group: 'Mail', action: () => navigate('/sent') },
     { id: 'drafts', label: 'Open drafts', group: 'Mail', action: () => navigate('/drafts') },
+    { id: 'trash', label: 'Open trash', group: 'Mail', action: () => navigate('/trash') },
     {
       id: 'calendar',
       label: 'Open calendar',
-      group: 'Workspace',
+      group: 'Context',
       action: () => navigate('/calendar'),
     },
     {
       id: 'contacts',
       label: 'Open contacts',
-      group: 'Workspace',
+      group: 'Context',
       action: () => navigate('/contacts'),
     },
-    { id: 'drive', label: 'Open drive', group: 'Workspace', action: () => navigate('/drive') },
+    { id: 'drive', label: 'Open drive', group: 'Context', action: () => navigate('/drive') },
     {
       id: 'repos',
       label: 'Open repositories',
-      group: 'Developer',
+      group: 'Code',
       action: () => navigate('/repos'),
+    },
+    {
+      id: 'pipelines',
+      label: 'Open pipelines',
+      group: 'Code',
+      action: () => navigate('/pipelines'),
     },
     {
       id: 'security',
       label: 'Review account security',
-      group: 'Account',
+      group: 'Control',
       action: () => navigate('/security'),
+    },
+    {
+      id: 'settings',
+      label: 'Open settings',
+      group: 'Control',
+      action: () => navigate('/settings'),
     },
   ];
 
