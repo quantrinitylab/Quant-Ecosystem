@@ -121,6 +121,7 @@ export function EmailComposer({
   const [priority, setPriority] = useState<EmailPriority>('normal');
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [showScheduleMenu, setShowScheduleMenu] = useState(false);
+  const [showAssistantTools, setShowAssistantTools] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -128,6 +129,7 @@ export function EmailComposer({
   const [liveMessage, setLiveMessage] = useState<LiveMessage>(null);
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [lastDraftSavedAt, setLastDraftSavedAt] = useState<string | null>(null);
   const [undoSendState, setUndoSendState] = useState<{
     countdown: number;
     payload: ComposerMessageData;
@@ -137,6 +139,14 @@ export function EmailComposer({
   const scheduleMenuRef = useRef<HTMLDivElement>(null);
   const firstScheduleOptionRef = useRef<HTMLButtonElement>(null);
   const busy = isSending || isSaving;
+  const hasRecipients = to.trim().length > 0;
+  const hasSubject = subject.trim().length > 0;
+  const hasMessageBody = body.trim().length > 0;
+  const draftStatusLabel = isSaving
+    ? 'Saving draft…'
+    : lastDraftSavedAt
+      ? `Saved at ${lastDraftSavedAt}`
+      : 'Not saved yet';
 
   useEffect(() => {
     if (!showScheduleMenu) return;
@@ -250,6 +260,9 @@ export function EmailComposer({
       setLiveMessage({ kind: 'status', text: 'Saving scheduled draft…' });
       try {
         await onSend(buildMessage(scheduledAt));
+        setLastDraftSavedAt(
+          new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        );
         setLiveMessage({
           kind: 'status',
           text: `Scheduled draft saved for ${new Date(scheduledAt).toLocaleString()}. It is not queued for delivery.`,
@@ -271,6 +284,9 @@ export function EmailComposer({
     setLiveMessage({ kind: 'status', text: 'Saving draft…' });
     try {
       await onSaveDraft(buildMessage());
+      setLastDraftSavedAt(
+        new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+      );
       setLiveMessage({ kind: 'status', text: 'Draft saved.' });
     } catch (error) {
       setLiveMessage({ kind: 'error', text: errorMessage(error, 'Draft could not be saved.') });
@@ -401,8 +417,54 @@ export function EmailComposer({
           aria-live={liveMessage?.kind === 'error' ? 'assertive' : 'polite'}
           aria-atomic="true"
         >
-          {liveMessage?.text ?? 'Ready to compose.'}
+          {liveMessage?.text ??
+            'Build the message first, then choose whether to send now or save a draft.'}
         </div>
+
+        <section
+          aria-label="Compose readiness"
+          className="mx-5 mt-4 rounded-[0.95rem] border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] px-4 py-3"
+        >
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 ${
+                hasRecipients
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                  : 'border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)] text-[var(--quant-muted-foreground)]'
+              }`}
+            >
+              {hasRecipients ? '✓' : '•'} Recipients {hasRecipients ? 'ready' : 'needed'}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 ${
+                hasSubject
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                  : 'border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)] text-[var(--quant-muted-foreground)]'
+              }`}
+            >
+              {hasSubject ? '✓' : '•'} Subject {hasSubject ? 'ready' : 'needed'}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 ${
+                hasMessageBody
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+                  : 'border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)] text-[var(--quant-muted-foreground)]'
+              }`}
+            >
+              {hasMessageBody ? '✓' : '•'} Message {hasMessageBody ? 'started' : 'empty'}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)] px-2.5 py-1 text-[var(--quant-muted-foreground)]">
+              {attachments.length > 0 ? '↗' : '•'} {attachments.length > 0 ? `${attachments.length} local file${attachments.length === 1 ? '' : 's'}` : 'No local files'}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)] px-2.5 py-1 text-[var(--quant-muted-foreground)]">
+              Draft status: {draftStatusLabel}
+            </span>
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-[var(--quant-muted-foreground)]">
+            Send stays primary. Schedule saves a draft only, and local file selection stays on this
+            device until upload is connected.
+          </p>
+        </section>
 
         <div className="composer-fields">
           <div className={`composer-field ${fieldErrors.to ? 'has-error' : ''}`}>
@@ -499,23 +561,48 @@ export function EmailComposer({
             </span>
             <div>
               <h2 id={`${fieldId}-ai-title`}>Writing assistant</h2>
-              <p>Uses the current message body. Review changes before sending.</p>
+              <p>Optional rewrite tools. Review every change before sending.</p>
             </div>
           </div>
           <div className="composer-ai-actions" aria-label="AI writing actions">
-            {AI_TONES.map((tone) => (
-              <button
-                key={tone.key}
-                type="button"
-                className="ai-action"
-                onClick={() => void handleAITone(tone.key)}
-                disabled={aiLoading || busy}
-              >
-                {aiLoading ? 'Working…' : tone.label}
-              </button>
-            ))}
+            <button
+              type="button"
+              className="ai-action"
+              onClick={() => setShowAssistantTools((visible) => !visible)}
+              disabled={busy}
+              aria-expanded={showAssistantTools}
+              aria-controls={`${fieldId}-assistant-tools`}
+            >
+              {showAssistantTools ? 'Hide tools' : 'Show tools'}
+            </button>
           </div>
         </section>
+
+        {showAssistantTools && (
+          <section
+            id={`${fieldId}-assistant-tools`}
+            className="mx-5 mt-[-0.1rem] mb-4 rounded-[0.95rem] border border-[rgba(255,153,51,0.14)] bg-[rgba(255,153,51,0.04)] px-4 py-3"
+            aria-label="Expanded writing assistant tools"
+          >
+            <div className="flex flex-wrap gap-2" aria-label="AI writing actions">
+              {AI_TONES.map((tone) => (
+                <button
+                  key={tone.key}
+                  type="button"
+                  className="ai-action"
+                  onClick={() => void handleAITone(tone.key)}
+                  disabled={aiLoading || busy}
+                >
+                  {aiLoading ? 'Working…' : tone.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-[11px] leading-5 text-[var(--quant-muted-foreground)]">
+              AI uses the current message body only and never sends on its own. Keep the original
+              meaning, then review the rewrite before delivery.
+            </p>
+          </section>
+        )}
 
         <div
           className={`composer-writing-area ${isDragOver ? 'is-dragging' : ''}`}
@@ -643,7 +730,7 @@ export function EmailComposer({
                 onClick={() => setShowScheduleMenu((visible) => !visible)}
                 disabled={busy || Boolean(undoSendState)}
               >
-                Schedule
+                Schedule draft
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="m8 10 4 4 4-4" />
                 </svg>
