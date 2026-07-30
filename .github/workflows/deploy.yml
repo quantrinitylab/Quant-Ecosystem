@@ -76,6 +76,7 @@ jobs:
             > "$checks_file"
           required_checks=(
             'gate'
+            'Verify immutable action pins'
             'memory-shadow-postgres'
             'quantchat-coverage'
             'Dependency audit (moderate+)'
