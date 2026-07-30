@@ -1,3 +1,5 @@
+# Keep routine dependency maintenance bounded for this large monorepo.
+# Security updates remain eligible while breaking majors require deliberate review.
 version: 2
 updates:
   - package-ecosystem: npm
