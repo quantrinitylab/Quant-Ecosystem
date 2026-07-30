@@ -61,6 +61,7 @@ export {
   createEndorsedProductLockup,
   foundationThemes,
   generateFoundationCSS,
+  generateFoundationThemeDeclarations,
   quantrinityMasterbrand,
   quantrinityPrimitives,
 } from './foundation';
@@ -69,3 +70,4 @@ export type {
   FoundationMode,
   FoundationTheme,
 } from './foundation';
+export { generateFoundationPreviewDocument } from './preview';
