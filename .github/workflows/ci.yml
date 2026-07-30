@@ -180,12 +180,11 @@ jobs:
       - name: QuantChat coverage gate (>=50%)
         run: pnpm --filter @quant/quantchat run test:coverage
 
-  # Informational full sweep: tracks repo-wide health without blocking merges.
-  # Make this required once the pre-existing failure backlog is cleared.
+  # Required full sweep: repo-wide typecheck, lint, test, and build must stay green.
+  # The earlier informational mode is removed now that the backlog has been re-evaluated.
   full-sweep:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
