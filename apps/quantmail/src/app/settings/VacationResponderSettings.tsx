@@ -95,7 +95,7 @@ export function VacationResponderSettings() {
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="flex items-center gap-3 text-sm text-[var(--quant-foreground)]"><input type="checkbox" checked={draft.onlyContacts} disabled={status === 'saving'} onChange={(event) => setDraft((value) => ({ ...value, onlyContacts: event.target.checked }))} className="h-4 w-4 rounded accent-[var(--brand-primary)]" />Reply only to known contacts</label>
-        <FormField label="Reply interval (days)"><Input type="number" min={0} step={1} value={String(draft.intervalDays)} disabled={status === 'saving'} onChange={(event) => setDraft((value) => ({ ...value, intervalDays: Number(event.target.value) }))} /></FormField>
+        <FormField label="Reply interval (days)"><Input type="number" min="0" step="1" value={String(draft.intervalDays)} disabled={status === 'saving'} onChange={(event) => setDraft((value) => ({ ...value, intervalDays: Number(event.target.value) }))} /></FormField>
       </div>
       {(validationError || requestError) && <p className="text-xs text-[var(--quant-destructive)]" role="alert">{requestError || validationError}</p>}
       <div className="flex items-center gap-3"><Button variant="primary" onClick={save} disabled={busy || !changed || Boolean(validationError)}>{status === 'saving' ? 'Saving vacation responder…' : changed ? 'Save vacation responder' : 'Vacation responder up to date'}</Button><span className="text-xs text-[var(--quant-muted-foreground)]">{status === 'saved' ? 'Your live vacation responder is synced.' : 'Changes apply to live incoming mail.'}</span></div>
