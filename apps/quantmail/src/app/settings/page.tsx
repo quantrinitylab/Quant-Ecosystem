@@ -36,11 +36,9 @@ const PRESET_LABEL_COLORS = [
 ];
 
 const SHORTCUTS = [
-  ['C', 'Compose new email'], ['R', 'Reply'], ['A', 'Reply all'], ['F', 'Forward'],
-  ['E', 'Archive'], ['#', 'Delete / Move to trash'], ['/', 'Search'],
-  ['Ctrl+Enter', 'Send email'], ['Ctrl+S', 'Save draft'],
-  ['J / K', 'Newer / older conversation'], ['G then I', 'Go to Inbox'],
-  ['G then S', 'Go to Starred'], ['?', 'Show all shortcuts'],
+  ['Ctrl/Cmd + K', 'Open command palette (global)'],
+  ['Ctrl/Cmd + Enter', 'Send email (compose only)'],
+  ['Ctrl/Cmd + S', 'Save draft (compose only)'],
 ] as const;
 
 export default function SettingsPage() {
