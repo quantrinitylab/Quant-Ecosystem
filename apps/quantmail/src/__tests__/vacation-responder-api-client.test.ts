@@ -39,7 +39,11 @@ describe('QuantMailApiClient vacation responder', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       'https://mail.test/vacation-responder',
-      expect.objectContaining({ method: 'PUT', body: JSON.stringify(payload) }),
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify(payload),
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
     );
   });
 
