@@ -30,16 +30,21 @@ export function MailCopilot() {
     {
       id: 'compose',
       label: 'Draft a clear message',
-      hint: 'C',
+      badge: 'Open',
       action: () => router.push('/compose'),
     },
     {
       id: 'search',
       label: 'Find anything in mail',
-      hint: '/',
+      badge: 'Open',
       action: () => router.push('/search'),
     },
-    { id: 'focus', label: 'Review priority inbox', hint: 'I', action: () => router.push('/') },
+    {
+      id: 'focus',
+      label: 'Review priority inbox',
+      badge: 'Open',
+      action: () => router.push('/'),
+    },
   ];
 
   const hasSuggestions = suggestions.length > 0;
@@ -47,7 +52,7 @@ export function MailCopilot() {
     ? suggestions.map((item) => ({
         id: item.id,
         label: item.label,
-        hint: 'AI',
+        badge: 'AI',
         action: item.onSelect,
       }))
     : quickActions;
@@ -100,14 +105,19 @@ export function MailCopilot() {
                 }}
               >
                 <span>{item.label}</span>
-                <kbd>{item.hint}</kbd>
+                <span
+                  aria-hidden="true"
+                  className="rounded border border-[var(--quant-border)] px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.08em] text-[var(--quant-muted-foreground)]"
+                >
+                  {item.badge}
+                </span>
               </button>
             ))}
           </div>
 
           <footer>
-            <span>{hasSuggestions ? 'Workspace-aware suggestions' : 'Focused workflow shortcuts'}</span>
-            <span>⌘ K opens all commands</span>
+            <span>{hasSuggestions ? 'Workspace-aware suggestions' : 'On-screen navigation actions'}</span>
+            <span>Ctrl / Cmd + K opens all commands</span>
           </footer>
         </section>
       )}
