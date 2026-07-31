@@ -1,0 +1,48 @@
+name: Apply shortcut truthfulness patch
+
+on:
+  push:
+    branches:
+      - design/quantmail-settings-shortcut-truthfulness
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: design/quantmail-settings-shortcut-truthfulness
+      - name: Apply exact source correction
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('apps/quantmail/src/app/settings/page.tsx')
+          source = path.read_text()
+          old = """const SHORTCUTS = [
+            ['C', 'Compose new email'], ['R', 'Reply'], ['A', 'Reply all'], ['F', 'Forward'],
+            ['E', 'Archive'], ['#', 'Delete / Move to trash'], ['/', 'Search'],
+            ['Ctrl+Enter', 'Send email'], ['Ctrl+S', 'Save draft'],
+            ['J / K', 'Newer / older conversation'], ['G then I', 'Go to Inbox'],
+            ['G then S', 'Go to Starred'], ['?', 'Show all shortcuts'],
+          ] as const;"""
+          new = """const SHORTCUTS = [
+            ['Ctrl/Cmd + K', 'Open command palette (global)'],
+            ['Ctrl/Cmd + Enter', 'Send email (compose only)'],
+            ['Ctrl/Cmd + S', 'Save draft (compose only)'],
+          ] as const;"""
+          if source.count(old) != 1:
+              raise SystemExit('Expected shortcut block was not found exactly once')
+          path.write_text(source.replace(old, new))
+      - name: Remove temporary workflow and commit
+        run: |
+          rm .github/workflows/apply-shortcut-truthfulness.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/quantmail/src/app/settings/page.tsx .github/workflows/apply-shortcut-truthfulness.yml
+          git commit -m "fix(quantmail): make settings shortcuts honest"
+          git push origin HEAD:design/quantmail-settings-shortcut-truthfulness
