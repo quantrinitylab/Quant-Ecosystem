@@ -184,17 +184,10 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
             We&apos;ll quiet the rest.
           </h2>
           <p>Select a message to preview it without leaving your flow.</p>
-          <div className="reading-shortcuts" aria-label="Keyboard hints">
-            <span>
-              <kbd>J</kbd>
-              <kbd>K</kbd> Move
-            </span>
-            <span>
-              <kbd>R</kbd> Reply
-            </span>
-            <span>
-              <kbd>E</kbd> Archive
-            </span>
+          <div className="reading-shortcuts" aria-label="Preview guidance">
+            <span>Select a thread to preview it.</span>
+            <span>Reply once a message is open.</span>
+            <span>Archive from the inbox list.</span>
           </div>
         </div>
       </section>
@@ -425,7 +418,6 @@ export default function InboxPage() {
                 onChange={(event) => setSearchQuery(event.target.value)}
                 placeholder="Search people, subjects, or meaning…"
               />
-              <kbd>/</kbd>
             </label>
           </div>
 
