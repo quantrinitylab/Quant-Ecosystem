@@ -105,14 +105,19 @@ export function MailCopilot() {
                 }}
               >
                 <span>{item.label}</span>
-                <span aria-hidden="true">{item.badge}</span>
+                <span
+                  aria-hidden="true"
+                  className="rounded border border-[var(--quant-border)] px-1.5 py-0.5 text-[0.55rem] uppercase tracking-[0.08em] text-[var(--quant-muted-foreground)]"
+                >
+                  {item.badge}
+                </span>
               </button>
             ))}
           </div>
 
           <footer>
             <span>{hasSuggestions ? 'Workspace-aware suggestions' : 'On-screen navigation actions'}</span>
-            <span>Choose an action above</span>
+            <span>Ctrl / Cmd + K opens all commands</span>
           </footer>
         </section>
       )}
