@@ -5,6 +5,7 @@ import { Button, Input, FormField, TextArea } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
+import { VacationResponderSettings } from './VacationResponderSettings';
 import { useCreateLabel, useLabels } from '../../hooks/useLabels';
 import { apiClient } from '../../services/api-client';
 import type { EmailLabel } from '../../types';
@@ -41,7 +42,6 @@ export default function SettingsPage() {
   const [loadedProfile, setLoadedProfile] = useState({ displayName: '', email: '', username: '' });
   const [emailPrefs, setEmailPrefs] = useState({
     signature: '',
-    autoReply: false,
     undoSendDelay: 5,
     defaultReplyBehavior: 'reply' as 'reply' | 'reply-all',
     conversationView: true,
@@ -416,27 +416,10 @@ export default function SettingsPage() {
                         </p>
                       </div>
                     </label>
-                    <label className="flex items-center gap-3 cursor-not-allowed group">
-                      <input
-                        type="checkbox"
-                        checked={emailPrefs.autoReply}
-                        onChange={(e) =>
-                          setEmailPrefs((prev) => ({ ...prev, autoReply: e.target.checked }))
-                        }
-                        className="w-4 h-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)]"
-                      />
-                      <div>
-                        <span className="text-sm text-[var(--quant-foreground)]">
-                          Vacation auto-reply
-                        </span>
-                        <p className="text-xs text-[var(--quant-muted-foreground)]">
-                          Automatically respond to incoming messages while away.
-                        </p>
-                      </div>
-                    </label>
                   </fieldset>
+                  <VacationResponderSettings />
                   <p className="text-xs text-[var(--quant-muted-foreground)]">
-                    Signature is live here. Undo send, reply behavior, conversation view, read receipts, and vacation auto-reply aren&apos;t connected in Settings yet.
+                    Signature and vacation auto-reply are live here. Undo send, reply behavior, conversation view, and read receipts aren&apos;t connected in Settings yet.
                   </p>
                 </div>
               </section>

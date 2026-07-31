@@ -55,6 +55,29 @@ interface EmailSignaturePreference {
   isDefault: boolean;
 }
 
+export interface VacationResponderPreference {
+  id: string;
+  enabled: boolean;
+  subject: string;
+  message: string;
+  startAt: string | null;
+  endAt: string | null;
+  onlyContacts: boolean;
+  intervalDays: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertVacationResponderPreference {
+  enabled?: boolean;
+  subject: string;
+  message: string;
+  startAt?: string | null;
+  endAt?: string | null;
+  onlyContacts?: boolean;
+  intervalDays?: number;
+}
+
 // ============================================================================
 // API Client
 // ============================================================================
@@ -255,6 +278,24 @@ export class QuantMailApiClient {
     data: Partial<Pick<EmailSignaturePreference, 'name' | 'contentHtml' | 'isDefault'>>,
   ): Promise<ApiResponse<EmailSignaturePreference>> {
     return this.put(`/email-signatures/${id}`, data);
+  }
+
+  async getVacationResponder(): Promise<ApiResponse<VacationResponderPreference | null>> {
+    return this.get('/vacation-responder');
+  }
+
+  async upsertVacationResponder(
+    data: UpsertVacationResponderPreference,
+  ): Promise<ApiResponse<VacationResponderPreference>> {
+    return this.put('/vacation-responder', data);
+  }
+
+  async enableVacationResponder(): Promise<ApiResponse<VacationResponderPreference>> {
+    return this.post('/vacation-responder/enable', {});
+  }
+
+  async disableVacationResponder(): Promise<ApiResponse<VacationResponderPreference>> {
+    return this.post('/vacation-responder/disable', {});
   }
 
   async getFilters(): Promise<ApiResponse<EmailFilter[]>> {
