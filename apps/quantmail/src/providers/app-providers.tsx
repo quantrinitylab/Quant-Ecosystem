@@ -23,14 +23,12 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     {
       id: 'compose',
       label: 'Compose a new message',
-      shortcut: 'C',
       group: 'Create',
       action: () => navigate('/compose'),
     },
     {
       id: 'search',
       label: 'Search mail and people',
-      shortcut: '/',
       group: 'Find',
       action: () => navigate('/search'),
     },
