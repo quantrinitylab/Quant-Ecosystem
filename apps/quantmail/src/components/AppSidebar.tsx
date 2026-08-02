@@ -171,7 +171,6 @@ export function AppSidebar() {
         <button type="button" onClick={() => router.push('/compose')} className="sidebar-compose">
           <Icon name="compose" className="h-[18px] w-[18px]" />
           <span>New message</span>
-          <kbd>C</kbd>
         </button>
       </div>
 
