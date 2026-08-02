@@ -79,7 +79,7 @@ function escapeHtml(value: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+    .replace(/\"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
 
@@ -716,7 +716,7 @@ export function EmailComposer({
             >
               {isSending ? 'Sending…' : undoSendState ? 'Pending…' : 'Send'}
               <span className="shortcut" aria-hidden="true">
-                ⌘ Enter
+                Ctrl/Cmd + Enter
               </span>
             </button>
             <div className="schedule-control">
@@ -769,7 +769,7 @@ export function EmailComposer({
             >
               {isSaving ? 'Saving…' : 'Save draft'}
               <span className="shortcut" aria-hidden="true">
-                ⌘ S
+                Ctrl/Cmd + S
               </span>
             </button>
             <button type="button" className="btn btn-quiet discard-action" onClick={onDiscard}>
