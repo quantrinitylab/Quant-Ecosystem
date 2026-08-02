@@ -39,7 +39,7 @@ export default function Error({
           id="global-error-description"
           className="mb-6 max-w-md text-[var(--quant-muted-foreground)]"
         >
-          Your work has not been intentionally changed. Try loading the view again.
+          We couldn&apos;t finish loading this view. Try again. If the problem continues, report it with the reference below when available.
         </p>
         {error.digest ? (
           <p className="mb-4 font-mono text-xs text-[var(--quant-muted-foreground)]">
