@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Button } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 
@@ -11,28 +11,48 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const prefersReducedMotion = useReducedMotion();
+
   return (
-    <div className="flex flex-col items-center justify-center h-screen p-6 text-center">
+    <div
+      className="flex h-screen flex-col items-center justify-center p-6 text-center"
+      role="alert"
+      aria-labelledby="global-error-title"
+      aria-describedby="global-error-description"
+    >
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
+        initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ type: 'spring', ...spring.gentle }}
+        transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', ...spring.gentle }}
         className="flex flex-col items-center"
       >
-        <div className="text-5xl mb-4 text-[var(--quant-destructive)]">&#x26A0;</div>
-        <h2 className="text-xl font-semibold mb-2 text-[var(--quant-foreground)]">
-          Something went wrong
-        </h2>
-        <p className="text-[var(--quant-muted-foreground)] mb-6 max-w-md">
-          {error.message || 'An unexpected error occurred. Please try again.'}
+        <div className="mb-4 text-5xl text-[var(--quant-destructive)]" aria-hidden="true">
+          &#x26A0;
+        </div>
+        <h1
+          id="global-error-title"
+          className="mb-2 text-xl font-semibold text-[var(--quant-foreground)]"
+        >
+          QuantMail couldn&apos;t open this view
+        </h1>
+        <p
+          id="global-error-description"
+          className="mb-6 max-w-md text-[var(--quant-muted-foreground)]"
+        >
+          We couldn&apos;t finish loading this view. Try again. If the problem continues, report it with the reference below when available.
         </p>
+        {error.digest ? (
+          <p className="mb-4 font-mono text-xs text-[var(--quant-muted-foreground)]">
+            Reference: {error.digest}
+          </p>
+        ) : null}
         <motion.div
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          transition={{ type: 'spring', ...spring.snappy }}
+          whileHover={prefersReducedMotion ? undefined : { scale: 1.02 }}
+          whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
+          transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', ...spring.snappy }}
         >
           <Button onClick={reset} variant="primary">
-            Try Again
+            Try again
           </Button>
         </motion.div>
       </motion.div>
