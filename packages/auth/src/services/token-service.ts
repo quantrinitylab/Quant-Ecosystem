@@ -3,6 +3,7 @@
 // ============================================================================
 
 import * as jose from 'jose';
+import { createHash } from 'node:crypto';
 import type { AuthConfig, TokenPair, TokenPayload, RefreshTokenPayload } from '../types';
 import type { PermissionScope, QuantApp } from '@quant/common';
 import { generateId } from '../crypto/secure-random';
@@ -15,6 +16,9 @@ interface JWKSKeyPair {
   privateKey: CryptoKey;
   publicKey: CryptoKey;
 }
+
+const hashRefreshToken = (token: string): string =>
+  createHash('sha256').update(token).digest('hex');
 
 export interface TokenServiceOptions {
   /**
@@ -93,10 +97,11 @@ export class TokenService {
     userInfo: { email: string; username: string; role: string },
     scopes: PermissionScope[],
     app: QuantApp,
+    familyId?: string,
   ): Promise<TokenPair> {
     const tokenId = generateId('tok');
     const refreshTokenId = generateId('tok');
-    const familyId = generateId('fam');
+    const activeFamilyId = familyId ?? generateId('fam');
     const now = Math.floor(Date.now() / 1000);
 
     // Resolve the active signing keys from the KMS at sign time (Requirement
@@ -124,7 +129,7 @@ export class TokenService {
     const refreshPayload: RefreshTokenPayload = {
       sub: userId,
       jti: refreshTokenId,
-      family: familyId,
+      family: activeFamilyId,
       iat: now,
       exp: now + this.config.refreshTokenExpiresIn,
     };
@@ -143,8 +148,11 @@ export class TokenService {
       data: {
         id: refreshTokenId,
         userId,
-        token: refreshToken,
-        family: familyId,
+        // Persist only a one-way digest. The bearer credential itself is
+        // returned to the caller once and must never be recoverable from the
+        // database after an application or backup compromise.
+        token: hashRefreshToken(refreshToken),
+        family: activeFamilyId,
         expiresAt: new Date((now + this.config.refreshTokenExpiresIn) * 1000),
       },
     });
@@ -206,6 +214,7 @@ export class TokenService {
       },
       scopes,
       (payload.app || 'quantmail') as any,
+      existingToken.family,
     );
   }
 
