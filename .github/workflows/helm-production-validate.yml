@@ -1,0 +1,76 @@
+name: Helm production validation
+
+on:
+  pull_request:
+    paths:
+      - 'infra/helm/quant-platform/**'
+      - '.github/workflows/helm-production-validate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/helm/quant-platform/**'
+      - '.github/workflows/helm-production-validate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-production-chart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.18.4
+
+      - name: Lint production chart
+        shell: bash
+        run: |
+          helm lint infra/helm/quant-platform \
+            --values infra/helm/quant-platform/values-production.yaml \
+            --set-string services.ws-gateway.image.tag="$GITHUB_SHA" \
+            --set-string services.quantmail.image.tag="$GITHUB_SHA" \
+            --set-string services.quantchat.image.tag="$GITHUB_SHA" \
+            --set-string services.quantai.image.tag="$GITHUB_SHA" \
+            --set-string services.admin.image.tag="$GITHUB_SHA"
+
+      - name: Render production manifests
+        shell: bash
+        run: |
+          helm template quant-platform-production infra/helm/quant-platform \
+            --namespace quant-platform-production \
+            --values infra/helm/quant-platform/values-production.yaml \
+            --set-string services.ws-gateway.image.tag="$GITHUB_SHA" \
+            --set-string services.quantmail.image.tag="$GITHUB_SHA" \
+            --set-string services.quantchat.image.tag="$GITHUB_SHA" \
+            --set-string services.quantai.image.tag="$GITHUB_SHA" \
+            --set-string services.admin.image.tag="$GITHUB_SHA" \
+            > /tmp/quant-platform-production.yaml
+
+      - name: Assert production safety invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest=/tmp/quant-platform-production.yaml
+          active_account='266176113726'
+          closed_account='650708167640'
+
+          grep -Fq 'AI_PROVIDER: "cloudflare"' "$manifest"
+          grep -Fq 'CLOUDFLARE_AI_MODEL: "@cf/meta/llama-3.2-1b-instruct"' "$manifest"
+          grep -Fq 'secretKey: CLOUDFLARE_ACCOUNT_ID' "$manifest"
+          grep -Fq 'key: quant-platform/production/CLOUDFLARE_ACCOUNT_ID' "$manifest"
+          grep -Fq 'secretKey: CLOUDFLARE_API_TOKEN' "$manifest"
+          grep -Fq 'key: quant-platform/production/CLOUDFLARE_API_TOKEN' "$manifest"
+          grep -Fq 'optional: false' "$manifest"
+
+          if grep -Fq "$closed_account" "$manifest"; then
+            echo "Closed AWS account appears in rendered production manifests" >&2
+            exit 1
+          fi
+
+          for repository in quant-ws-gateway quant-quantmail quant-quantchat quant-quantai quant-admin; do
+            grep -Fq "image: ${active_account}.dkr.ecr.us-east-1.amazonaws.com/${repository}:${GITHUB_SHA}" "$manifest"
+          done
