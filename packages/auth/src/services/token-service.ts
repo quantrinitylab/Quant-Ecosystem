@@ -166,12 +166,23 @@ export class TokenService {
   }
 
   async refreshToken(oldRefreshToken: string): Promise<TokenPair> {
-    let payload: any;
+    let payload: jose.JWTPayload;
 
     try {
-      const verified = await this.verifyWithKms(oldRefreshToken, 'refresh');
+      const verified = await this.verifyWithKms(oldRefreshToken, 'refresh', {
+        issuer: this.config.issuer,
+        audience: this.config.audience,
+      });
       payload = verified.payload;
     } catch {
+      throw new Error('Invalid refresh token');
+    }
+
+    if (
+      typeof payload.jti !== 'string' ||
+      typeof payload.sub !== 'string' ||
+      typeof payload['family'] !== 'string'
+    ) {
       throw new Error('Invalid refresh token');
     }
 
@@ -179,20 +190,39 @@ export class TokenService {
       where: { id: payload.jti },
     });
 
-    if (!existingToken || existingToken.isRevoked) {
-      if (existingToken?.family) {
-        await this.prisma.refreshToken.updateMany({
-          where: { family: existingToken.family },
-          data: { isRevoked: true },
-        });
-      }
+    if (!existingToken) {
       throw new Error('Refresh token reuse detected or token revoked');
     }
 
-    await this.prisma.refreshToken.update({
-      where: { id: payload.jti },
+    const presentedDigest = hashRefreshToken(oldRefreshToken);
+    const bindingIsValid =
+      existingToken.token === presentedDigest &&
+      existingToken.userId === payload.sub &&
+      existingToken.family === payload['family'];
+
+    if (existingToken.isRevoked || !bindingIsValid) {
+      await this.prisma.refreshToken.updateMany({
+        where: { family: existingToken.family },
+        data: { isRevoked: true },
+      });
+      throw new Error('Refresh token reuse detected or token revoked');
+    }
+
+    // Compare-and-set closes the concurrent refresh race: exactly one caller
+    // may rotate an active token. Every loser is treated as reuse and revokes
+    // the complete family, including any descendant issued by the winner.
+    const revoked = await this.prisma.refreshToken.updateMany({
+      where: { id: payload.jti, isRevoked: false },
       data: { isRevoked: true },
     });
+
+    if (revoked.count !== 1) {
+      await this.prisma.refreshToken.updateMany({
+        where: { family: existingToken.family },
+        data: { isRevoked: true },
+      });
+      throw new Error('Refresh token reuse detected or token revoked');
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
@@ -203,7 +233,11 @@ export class TokenService {
     }
 
     // Use original scopes if available, otherwise default
-    const scopes: PermissionScope[] = payload.scopes || ['openid', 'profile', 'email'];
+    const scopes: PermissionScope[] = (payload['scopes'] as PermissionScope[] | undefined) || [
+      'openid',
+      'profile',
+      'email',
+    ];
 
     return this.generateTokenPair(
       payload.sub,
@@ -213,7 +247,7 @@ export class TokenService {
         role: user.role,
       },
       scopes,
-      (payload.app || 'quantmail') as any,
+      (payload['app'] || 'quantmail') as QuantApp,
       existingToken.family,
     );
   }
