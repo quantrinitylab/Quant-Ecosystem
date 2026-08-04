@@ -1,44 +1,63 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-REGISTRY="650708167640.dkr.ecr.us-east-1.amazonaws.com"
+AWS_REGION="${AWS_REGION:-us-east-1}"
+ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+RELEASE_SHA="${RELEASE_SHA:-$(git rev-parse HEAD)}"
+
+if [[ ! "$ACCOUNT_ID" =~ ^[0-9]{12}$ ]]; then
+  echo "Could not resolve a valid AWS account ID" >&2
+  exit 1
+fi
+
+if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "RELEASE_SHA must be an immutable 40-character lowercase commit SHA" >&2
+  exit 1
+fi
+
+services=(
+  "quant-ws-gateway|services/ws-gateway/Dockerfile"
+  "quant-quantchat|apps/quantchat/Dockerfile"
+  "quant-quantmail|apps/quantmail/Dockerfile"
+  "quant-quantai|apps/quantai/Dockerfile"
+  "quant-admin|apps/admin/Dockerfile"
+)
+
+echo "AWS account: $ACCOUNT_ID"
+echo "AWS region:  $AWS_REGION"
+echo "Release SHA: $RELEASE_SHA"
+echo "Registry:    $REGISTRY"
 
 echo "Logging in to ECR..."
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REGISTRY
+aws ecr get-login-password --region "$AWS_REGION" \
+  | docker login --username AWS --password-stdin "$REGISTRY"
 
-echo "Building and pushing quant-ws-gateway..."
-docker build -t $REGISTRY/quant-ws-gateway:latest -f services/ws-gateway/Dockerfile .
-docker push $REGISTRY/quant-ws-gateway:latest
-echo "Cleaning up docker space..."
-docker system prune -a --volumes -f
-df -h
+for service in "${services[@]}"; do
+  IFS='|' read -r repository dockerfile <<< "$service"
 
-echo "Building and pushing quantchat..."
-docker build -t $REGISTRY/quant-quantchat:latest -f apps/quantchat/Dockerfile .
-docker push $REGISTRY/quant-quantchat:latest
-echo "Cleaning up docker space..."
-docker system prune -a --volumes -f
-df -h
+  aws ecr describe-repositories \
+    --region "$AWS_REGION" \
+    --repository-names "$repository" >/dev/null
 
-echo "Building and pushing quantmail..."
-docker build -t $REGISTRY/quant-quantmail:latest -f apps/quantmail/Dockerfile .
-docker push $REGISTRY/quant-quantmail:latest
-echo "Cleaning up docker space..."
-docker system prune -a --volumes -f
-df -h
+  image="$REGISTRY/$repository:$RELEASE_SHA"
+  echo "Building $image from $dockerfile..."
+  docker build --pull -t "$image" -f "$dockerfile" .
+  docker push "$image"
 
-echo "Building and pushing quantai..."
-docker build -t $REGISTRY/quant-quantai:latest -f apps/quantai/Dockerfile .
-docker push $REGISTRY/quant-quantai:latest
-echo "Cleaning up docker space..."
-docker system prune -a --volumes -f
-df -h
+  digest="$(aws ecr describe-images \
+    --region "$AWS_REGION" \
+    --repository-name "$repository" \
+    --image-ids "imageTag=$RELEASE_SHA" \
+    --query 'imageDetails[0].imageDigest' \
+    --output text)"
 
-echo "Building and pushing admin..."
-docker build -t $REGISTRY/quant-admin:latest -f apps/admin/Dockerfile .
-docker push $REGISTRY/quant-admin:latest
-echo "Cleaning up docker space..."
-docker system prune -a --volumes -f
-df -h
+  if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "Invalid digest returned for $repository: $digest" >&2
+    exit 1
+  fi
 
-echo "All images built, pushed, and space cleaned successfully!"
+  echo "$repository=$REGISTRY/$repository@$digest"
+done
+
+echo "All release images were pushed with immutable SHA tags."
