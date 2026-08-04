@@ -25,6 +25,7 @@ jobs:
           - cookie-tests
           - legacy-storage-contract
           - credentialed-login-contract
+          - registration-contract
           - cookie-session-restore-contract
           - single-retry-contract
     name: browser-auth-${{ matrix.stage }}
@@ -89,6 +90,18 @@ jobs:
           grep -F 'browserAuthSession.login(email, password)' "$provider" >/dev/null
           grep -F 'apiClient.setTokens(session.data.accessToken)' "$provider" >/dev/null
           ! grep -F 'localStorage.setItem' "$provider"
+
+      - name: Validate credentialed cookie-backed registration contract
+        if: matrix.stage == 'registration-contract'
+        run: |
+          set -euo pipefail
+          registration='apps/quantmail/src/app/register/page.tsx'
+          session='apps/quantmail/src/services/browser-auth-session.ts'
+          grep -F "import { browserAuthSession } from '../../services/browser-auth-session';" "$registration" >/dev/null
+          grep -F 'browserAuthSession.register({' "$registration" >/dev/null
+          ! grep -F 'apiClient.register(' "$registration"
+          grep -F "'/auth/register'" "$session" >/dev/null
+          grep -F "credentials: 'include'" "$session" >/dev/null
 
       - name: Validate cookie-only session restoration contract
         if: matrix.stage == 'cookie-session-restore-contract'
