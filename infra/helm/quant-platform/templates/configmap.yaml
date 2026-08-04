@@ -12,6 +12,18 @@ data:
   JWT_AUDIENCE: {{ .Values.configmap.JWT_AUDIENCE | quote }}
   ENVIRONMENT: {{ .Values.global.environment | quote }}
   DOMAIN: {{ .Values.global.domain | quote }}
+  {{- if .Values.configmap.AI_PROVIDER }}
+  AI_PROVIDER: {{ .Values.configmap.AI_PROVIDER | quote }}
+  {{- end }}
+  {{- if .Values.configmap.AI_DEFAULT_MODEL }}
+  AI_DEFAULT_MODEL: {{ .Values.configmap.AI_DEFAULT_MODEL | quote }}
+  {{- end }}
+  {{- if .Values.configmap.CLOUDFLARE_AI_MODEL }}
+  CLOUDFLARE_AI_MODEL: {{ .Values.configmap.CLOUDFLARE_AI_MODEL | quote }}
+  {{- end }}
+  {{- if .Values.configmap.CLOUDFLARE_AI_BASE_URL }}
+  CLOUDFLARE_AI_BASE_URL: {{ .Values.configmap.CLOUDFLARE_AI_BASE_URL | quote }}
+  {{- end }}
   {{- if .Values.configmap.QUANTCHAT_BACKEND_URL }}
   QUANTCHAT_BACKEND_URL: {{ .Values.configmap.QUANTCHAT_BACKEND_URL | quote }}
   {{- end }}
