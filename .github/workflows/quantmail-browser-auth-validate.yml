@@ -23,7 +23,9 @@ jobs:
           - base-backend-typecheck
           - current-backend-typecheck
           - cookie-tests
-          - frontend-session-tests
+          - legacy-storage-cleanup
+          - credentialed-login
+          - cookie-session-restore
     name: browser-auth-${{ matrix.stage }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -62,8 +64,23 @@ jobs:
           pnpm --filter @quant/quantmail exec vitest run
           backend/__tests__/browser-refresh-cookie.test.ts
 
-      - name: Validate memory-only browser session
-        if: matrix.stage == 'frontend-session-tests'
+      - name: Validate legacy token cleanup
+        if: matrix.stage == 'legacy-storage-cleanup'
         run: >-
           pnpm --filter @quant/quantmail exec vitest run
           src/services/__tests__/browser-auth-session.test.ts
+          -t 'deletes every legacy JavaScript-readable token key'
+
+      - name: Validate credentialed memory-only login
+        if: matrix.stage == 'credentialed-login'
+        run: >-
+          pnpm --filter @quant/quantmail exec vitest run
+          src/services/__tests__/browser-auth-session.test.ts
+          -t 'uses credentialed login without persisting returned access state'
+
+      - name: Validate cookie-only session restoration
+        if: matrix.stage == 'cookie-session-restore'
+        run: >-
+          pnpm --filter @quant/quantmail exec vitest run
+          src/services/__tests__/browser-auth-session.test.ts
+          -t 'restores through the cookie-only refresh endpoint'
