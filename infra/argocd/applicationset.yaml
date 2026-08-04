@@ -10,49 +10,39 @@ spec:
           - environment: staging
             namespace: quant-staging
             targetRevision: main
-            autoSync: "true"
-            values_file: values-staging.yaml
-            syncWave: "1"
-            progressiveSync: "true"
-            canaryEnabled: "false"
+            valuesFile: values-staging.yaml
+            syncWave: '1'
           - environment: production
             namespace: quant-production
             targetRevision: main
-            autoSync: "false"
-            values_file: values-production.yaml
-            syncWave: "2"
-            progressiveSync: "true"
-            canaryEnabled: "true"
+            valuesFile: values-production.yaml
+            syncWave: '2'
   template:
     metadata:
-      name: "quant-platform-{{environment}}"
+      name: 'quant-platform-{{environment}}'
       namespace: argocd
       labels:
         app.kubernetes.io/part-of: quant-platform
-        environment: "{{environment}}"
+        environment: '{{environment}}'
       annotations:
-        argocd.argoproj.io/sync-wave: "{{syncWave}}"
+        argocd.argoproj.io/sync-wave: '{{syncWave}}'
         notifications.argoproj.io/subscribe.on-sync-succeeded.slack: quant-deployments
         notifications.argoproj.io/subscribe.on-sync-failed.slack: quant-deployments
         notifications.argoproj.io/subscribe.on-health-degraded.slack: quant-alerts
     spec:
       project: quant-platform
       source:
-        repoURL: https://github.com/quantmailteamsupport-dev/Quant-Ecosystem.git
-        targetRevision: "{{targetRevision}}"
+        repoURL: https://github.com/quantrinitylabsgo/Quant-Ecosystem.git
+        targetRevision: '{{targetRevision}}'
         path: infra/helm/quant-platform
         helm:
           valueFiles:
             - values.yaml
-            - "{{values_file}}"
+            - '{{valuesFile}}'
       destination:
         server: https://kubernetes.default.svc
-        namespace: "{{namespace}}"
+        namespace: '{{namespace}}'
       syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
-          allowEmpty: false
         syncOptions:
           - CreateNamespace=true
           - PruneLast=true
@@ -61,7 +51,7 @@ spec:
           - RespectIgnoreDifferences=true
         managedNamespaceMetadata:
           labels:
-            environment: "{{environment}}"
+            environment: '{{environment}}'
             managed-by: argocd
         retry:
           limit: 5
@@ -85,67 +75,5 @@ spec:
               values:
                 - production
           maxUpdate: 1
-  syncPolicy:
-    preserveResourcesOnDeletion: true
----
-apiVersion: argoproj.io/v1alpha1
-kind: ApplicationSet
-metadata:
-  name: quant-platform-multi-region
-  namespace: argocd
-spec:
-  generators:
-    - list:
-        elements:
-          - region: us-east-1
-            cluster: quant-production-us
-            clusterServer: https://eks-us-east-1.quant.internal
-            isPrimary: "true"
-          - region: eu-west-1
-            cluster: quant-production-eu
-            clusterServer: https://eks-eu-west-1.quant.internal
-            isPrimary: "false"
-  template:
-    metadata:
-      name: "quant-platform-production-{{region}}"
-      namespace: argocd
-      labels:
-        app.kubernetes.io/part-of: quant-platform
-        environment: production
-        region: "{{region}}"
-      annotations:
-        argocd.argoproj.io/sync-wave: "{{#if isPrimary}}1{{else}}2{{/if}}"
-        notifications.argoproj.io/subscribe.on-sync-succeeded.slack: quant-deployments
-        notifications.argoproj.io/subscribe.on-sync-failed.slack: quant-alerts
-    spec:
-      project: quant-platform
-      source:
-        repoURL: https://github.com/quantmailteamsupport-dev/Quant-Ecosystem.git
-        targetRevision: main
-        path: infra/helm/quant-platform
-        helm:
-          valueFiles:
-            - values.yaml
-            - values-production.yaml
-          parameters:
-            - name: global.multiRegion.region
-              value: "{{region}}"
-            - name: global.multiRegion.isPrimary
-              value: "{{isPrimary}}"
-      destination:
-        server: "{{clusterServer}}"
-        namespace: quant-production
-      syncPolicy:
-        syncOptions:
-          - CreateNamespace=true
-          - PruneLast=true
-          - ApplyOutOfSyncOnly=true
-          - ServerSideApply=true
-        retry:
-          limit: 5
-          backoff:
-            duration: 10s
-            factor: 2
-            maxDuration: 5m
   syncPolicy:
     preserveResourcesOnDeletion: true
