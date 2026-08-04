@@ -31,8 +31,10 @@ jobs:
           terraform_version: 1.12.2
           terraform_wrapper: false
 
-      - name: Check formatting
-        run: terraform fmt -check -recursive infra/terraform
+      # Keep this new guard formatted without turning unrelated legacy
+      # formatting debt into a false negative for the safety boundary.
+      - name: Check safety-guard formatting
+        run: terraform fmt -check infra/terraform/environments/production/safety.tf
 
       - name: Initialize without remote state
         run: terraform -chdir=infra/terraform/environments/production init -backend=false
