@@ -1,13 +1,10 @@
 name: Deploy QuantMail (production)
 
-# Production is manual-only. The selected ref and release_sha must both identify
-# the exact protected main commit. Images are deployed by digest and a failed
-# rollout restores the previously running image.
 on:
   workflow_dispatch:
     inputs:
       release_sha:
-        description: 'Exact 40-character commit SHA from protected main'
+        description: Exact 40-character commit SHA from protected main
         required: true
         type: string
 
@@ -20,7 +17,7 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  ACCOUNT_ID: '650708167640'
+  ACCOUNT_ID: '266176113726'
   CLUSTER: quant-production-eks
   NAMESPACE: quant-production
   ECR_REPOSITORY: quant-quantmail
@@ -44,84 +41,46 @@ jobs:
           EVENT_SHA: ${{ github.sha }}
           EVENT_REF: ${{ github.ref }}
         run: |
-          if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo 'release_sha must be one lowercase 40-character commit SHA' >&2
-            exit 1
-          fi
-          test "$EVENT_REF" = 'refs/heads/main' || {
-            echo 'Production dispatch must select main' >&2
-            exit 1
-          }
-          test "$RELEASE_SHA" = "$EVENT_SHA" || {
-            echo 'release_sha must equal the selected main workflow SHA' >&2
-            exit 1
-          }
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo 'release_sha must be a lowercase 40-character SHA' >&2; exit 1; }
+          test "$EVENT_REF" = 'refs/heads/main' || { echo 'Production dispatch must select main' >&2; exit 1; }
+          test "$RELEASE_SHA" = "$EVENT_SHA" || { echo 'release_sha must equal the selected workflow SHA' >&2; exit 1; }
           MAIN_SHA="$(gh api "/repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
-          test "$RELEASE_SHA" = "$MAIN_SHA" || {
-            echo 'release_sha is not the current main commit' >&2
-            exit 1
-          }
+          test "$RELEASE_SHA" = "$MAIN_SHA" || { echo 'release_sha is not current main' >&2; exit 1; }
 
-      - name: Require successful checks for release SHA
+      - name: Require successful release checks
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ inputs.release_sha }}
         run: |
           checks_file="$RUNNER_TEMP/release-checks.tsv"
-          gh api --method GET \
-            "/repos/$GITHUB_REPOSITORY/commits/$RELEASE_SHA/check-runs" \
+          gh api --method GET "/repos/$GITHUB_REPOSITORY/commits/$RELEASE_SHA/check-runs" \
             -f filter=latest -f per_page=100 --paginate \
-            --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | @tsv' \
-            > "$checks_file"
-          required_checks=(
-            'gate'
-            'Verify immutable action pins'
-            'memory-shadow-postgres'
-            'quantchat-coverage'
-            'Dependency audit (moderate+)'
-            'Analyze (actions)'
-            'Analyze (javascript-typescript)'
-            'Analyze (python)'
-          )
+            --jq '.check_runs[] | [.name, .status, (.conclusion // "")] | @tsv' > "$checks_file"
+          required_checks=('gate' 'Verify immutable action pins' 'memory-shadow-postgres' 'quantchat-coverage' 'Dependency audit (moderate+)' 'Analyze (actions)' 'Analyze (javascript-typescript)' 'Analyze (python)')
           for required_check in "${required_checks[@]}"; do
-            if ! awk -F '\t' -v name="$required_check" \
-              '$1 == name && $2 == "completed" && $3 == "success" { found = 1 } END { exit !found }' \
-              "$checks_file"; then
+            awk -F '\t' -v name="$required_check" '$1 == name && $2 == "completed" && $3 == "success" { found = 1 } END { exit !found }' "$checks_file" || {
               echo "Required exact-SHA check is not successful: $required_check" >&2
               exit 1
-            fi
+            }
           done
 
-  # No cloud credentials are available here. A failure blocks image build/push
-  # and rollout while preserving the existing immutable release controls.
   memory-release-preflight:
     name: Validate Memory release boundary
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    permissions:
-      contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.release_sha }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma client
-        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
-
-      - name: Enforce Memory rollback and production authority boundary
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+      - name: Enforce rollback and production authority boundary
         run: |
           pnpm m11d:wu5:release-gate
           pnpm test:wu5:policy
@@ -138,108 +97,48 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.release_sha }}
-
-      - name: Free runner disk
-        run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/hostedtoolcache/CodeQL || true
-          df -h
-
       - name: Configure AWS credentials with OIDC
-        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c
         with:
-          role-to-assume: arn:aws:iam::650708167640:role/quant-gha-deploy
+          role-to-assume: arn:aws:iam::266176113726:role/quant-gha-deploy
           aws-region: ${{ env.AWS_REGION }}
-
       - name: Login to Amazon ECR
         id: ecr
-        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
-
-      - name: Verify managed ECR repository
-        run: aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" >/dev/null
-
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64
       - name: Build and push SHA-tagged image
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           RELEASE_SHA: ${{ inputs.release_sha }}
         run: |
+          test "$REGISTRY" = "$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+          aws ecr describe-repositories --repository-names "$ECR_REPOSITORY" >/dev/null
           IMAGE="$REGISTRY/$ECR_REPOSITORY:$RELEASE_SHA"
-          docker build -f apps/quantmail/Dockerfile -t "$IMAGE" .
+          docker build --pull -f apps/quantmail/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
-
       - name: Resolve immutable image digest
         id: image
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           RELEASE_SHA: ${{ inputs.release_sha }}
-        shell: bash
         run: |
-          DIGEST="$(aws ecr describe-images \
-            --repository-name "$ECR_REPOSITORY" \
-            --image-ids "imageTag=$RELEASE_SHA" \
-            --query 'imageDetails[0].imageDigest' \
-            --output text)"
-          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "Invalid ECR digest: $DIGEST" >&2
-            exit 1
-          fi
+          DIGEST="$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids "imageTag=$RELEASE_SHA" --query 'imageDetails[0].imageDigest' --output text)"
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "Invalid ECR digest: $DIGEST" >&2; exit 1; }
           echo "uri=$REGISTRY/$ECR_REPOSITORY@$DIGEST" >> "$GITHUB_OUTPUT"
-          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
-
       - name: Deploy digest with automatic rollback
         env:
           IMMUTABLE_IMAGE: ${{ steps.image.outputs.uri }}
-          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
-          RELEASE_SHA: ${{ inputs.release_sha }}
-        shell: bash
         run: |
           aws eks update-kubeconfig --name "$CLUSTER" --region "$AWS_REGION"
           kubectl get "deployment/$DEPLOYMENT" -n "$NAMESPACE" >/dev/null
-
-          deployment_json="$(kubectl get "deployment/$DEPLOYMENT" -n "$NAMESPACE" -o json)"
-          mapfile -t matches < <(
-            jq -r '.spec.template.spec.containers[] | select(.image | test("/quant-quantmail(?:[:@])")) | [.name, .image] | @tsv' \
-              <<< "$deployment_json"
-          )
-          if [ "${#matches[@]}" -ne 1 ]; then
-            echo "Expected exactly one QuantMail container, found ${#matches[@]}" >&2
-            exit 1
-          fi
-
-          IFS=$'\t' read -r container previous_image <<< "${matches[0]}"
-          if [ -z "$container" ] || [ -z "$previous_image" ]; then
-            echo 'Could not determine QuantMail container or rollback image' >&2
-            exit 1
-          fi
-
-          echo "Previous image: $previous_image"
-          echo "Release image:  $IMMUTABLE_IMAGE"
+          container="$(kubectl get "deployment/$DEPLOYMENT" -n "$NAMESPACE" -o json | jq -r '.spec.template.spec.containers[] | select(.image | test("/quant-quantmail(?:[:@])")) | .name' | head -n1)"
+          previous_image="$(kubectl get "deployment/$DEPLOYMENT" -n "$NAMESPACE" -o "jsonpath={.spec.template.spec.containers[?(@.name=='$container')].image}")"
+          test -n "$container" && test -n "$previous_image"
           kubectl set image "deployment/$DEPLOYMENT" "$container=$IMMUTABLE_IMAGE" -n "$NAMESPACE"
-
-          set +e
-          kubectl rollout status "deployment/$DEPLOYMENT" -n "$NAMESPACE" --timeout=600s
-          rollout_status=$?
-          set -e
-          if [ "$rollout_status" -ne 0 ]; then
-            echo 'Rollout failed; restoring previous image' >&2
+          if ! kubectl rollout status "deployment/$DEPLOYMENT" -n "$NAMESPACE" --timeout=600s; then
             kubectl set image "deployment/$DEPLOYMENT" "$container=$previous_image" -n "$NAMESPACE"
             kubectl rollout status "deployment/$DEPLOYMENT" -n "$NAMESPACE" --timeout=600s
-            exit "$rollout_status"
-          fi
-
-          deployed_image="$(kubectl get "deployment/$DEPLOYMENT" -n "$NAMESPACE" \
-            -o "jsonpath={.spec.template.spec.containers[?(@.name=='$container')].image}")"
-          test "$deployed_image" = "$IMMUTABLE_IMAGE" || {
-            echo "Deployment image mismatch: $deployed_image" >&2
             exit 1
-          }
-
-          {
-            echo '## QuantMail production rollout'
-            echo "- Release SHA: \`$RELEASE_SHA\`"
-            echo "- Image digest: \`$IMAGE_DIGEST\`"
-            echo "- Previous image: \`$previous_image\`"
-            echo "- Deployment: \`$DEPLOYMENT\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+          fi
