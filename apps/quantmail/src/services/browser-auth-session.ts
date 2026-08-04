@@ -1,6 +1,6 @@
 // Browser-only authentication boundary.
 // Refresh credentials never enter JavaScript; only the short-lived access token
-// returned by /auth/login or /auth/refresh is held in module memory.
+// returned by /auth/login, /auth/register, or /auth/refresh is held in module memory.
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -28,6 +28,14 @@ export interface BrowserAccessSession {
   accessToken: string;
   expiresIn: number;
   tokenType?: string;
+}
+
+export interface BrowserRegistration {
+  email: string;
+  username: string;
+  displayName: string;
+  password: string;
+  acceptTerms: boolean;
 }
 
 let accessToken: string | null = null;
@@ -94,6 +102,10 @@ const refreshOnce = async (): Promise<AuthResponse<BrowserAccessSession>> => {
 export const browserAuthSession = {
   async login(email: string, password: string): Promise<AuthResponse<BrowserAccessSession>> {
     return rememberAccess(await post<BrowserAccessSession>('/auth/login', { email, password }));
+  },
+
+  async register(data: BrowserRegistration): Promise<AuthResponse<BrowserAccessSession>> {
+    return rememberAccess(await post<BrowserAccessSession>('/auth/register', data));
   },
 
   async refresh(): Promise<AuthResponse<BrowserAccessSession>> {
