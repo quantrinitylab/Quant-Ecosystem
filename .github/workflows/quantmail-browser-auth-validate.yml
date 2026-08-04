@@ -25,6 +25,7 @@ jobs:
           - legacy-storage-contract
           - credentialed-login-contract
           - cookie-session-restore-contract
+          - single-retry-contract
     name: browser-auth-${{ matrix.stage }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -98,3 +99,13 @@ jobs:
           grep -F 'browserAuthSession.refresh()' "$provider" >/dev/null
           grep -F 'cleanupLegacyBrowserTokens()' "$provider" >/dev/null
           ! grep -F 'refresh_token:' "$session" "$provider"
+
+      - name: Validate single refresh-and-retry contract
+        if: matrix.stage == 'single-retry-contract'
+        run: |
+          set -euo pipefail
+          session='apps/quantmail/src/services/browser-auth-session.ts'
+          grep -F 'response.status !== 401 || !allowRefreshRetry' "$session" >/dev/null
+          grep -F 'const refreshed = await refreshOnce()' "$session" >/dev/null
+          grep -F 'if (!refreshed.success || !accessToken) return response' "$session" >/dev/null
+          test "$(grep -c "return fetch(input" "$session")" -eq 1

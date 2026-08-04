@@ -1,6 +1,6 @@
 // Browser-only authentication boundary.
 // Refresh credentials never enter JavaScript; only the short-lived access token
-// returned by /auth/login or /auth/refresh is handed to the in-memory API client.
+// returned by /auth/login or /auth/refresh is held in module memory.
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -29,6 +29,9 @@ export interface BrowserAccessSession {
   expiresIn: number;
   tokenType?: string;
 }
+
+let accessToken: string | null = null;
+let refreshInFlight: Promise<AuthResponse<BrowserAccessSession>> | null = null;
 
 const endpoint = (path: string): string => `${API_BASE_URL}${path}`;
 
@@ -64,6 +67,11 @@ const post = async <T>(path: string, body?: unknown): Promise<AuthResponse<T>> =
   }
 };
 
+const rememberAccess = (response: AuthResponse<BrowserAccessSession>) => {
+  accessToken = response.success && response.data?.accessToken ? response.data.accessToken : null;
+  return response;
+};
+
 export const cleanupLegacyBrowserTokens = (): void => {
   if (typeof window === 'undefined') return;
   for (const key of LEGACY_TOKEN_KEYS) {
@@ -72,16 +80,67 @@ export const cleanupLegacyBrowserTokens = (): void => {
   }
 };
 
+const refreshOnce = async (): Promise<AuthResponse<BrowserAccessSession>> => {
+  if (!refreshInFlight) {
+    refreshInFlight = post<BrowserAccessSession>('/auth/refresh')
+      .then(rememberAccess)
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+  return refreshInFlight;
+};
+
 export const browserAuthSession = {
   async login(email: string, password: string): Promise<AuthResponse<BrowserAccessSession>> {
-    return post<BrowserAccessSession>('/auth/login', { email, password });
+    return rememberAccess(await post<BrowserAccessSession>('/auth/login', { email, password }));
   },
 
   async refresh(): Promise<AuthResponse<BrowserAccessSession>> {
-    return post<BrowserAccessSession>('/auth/refresh');
+    return refreshOnce();
   },
 
   async logout(): Promise<void> {
-    await post<{ message: string }>('/auth/logout');
+    try {
+      await post<{ message: string }>('/auth/logout');
+    } finally {
+      accessToken = null;
+    }
+  },
+
+  clearAccessToken(): void {
+    accessToken = null;
+  },
+
+  getAccessToken(): string | null {
+    return accessToken;
+  },
+
+  async authenticatedFetch(
+    input: RequestInfo | URL,
+    init: RequestInit = {},
+    allowRefreshRetry = true,
+  ): Promise<Response> {
+    const headers = new Headers(init.headers);
+    if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+
+    const response = await fetch(input, {
+      ...init,
+      headers,
+      credentials: 'include',
+    });
+
+    if (response.status !== 401 || !allowRefreshRetry) return response;
+
+    const refreshed = await refreshOnce();
+    if (!refreshed.success || !accessToken) return response;
+
+    const retryHeaders = new Headers(init.headers);
+    retryHeaders.set('Authorization', `Bearer ${accessToken}`);
+    return fetch(input, {
+      ...init,
+      headers: retryHeaders,
+      credentials: 'include',
+    });
   },
 };
