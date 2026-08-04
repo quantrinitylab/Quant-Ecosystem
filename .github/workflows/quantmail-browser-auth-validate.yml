@@ -6,6 +6,7 @@ on:
       - 'apps/quantmail/backend/routes/auth.ts'
       - 'apps/quantmail/backend/app.ts'
       - 'apps/quantmail/backend/__tests__/browser-refresh-cookie.test.ts'
+      - 'apps/quantmail/src/app/register/page.tsx'
       - 'apps/quantmail/src/providers/auth-provider.tsx'
       - 'apps/quantmail/src/services/browser-auth-session.ts'
       - '.github/workflows/quantmail-browser-auth-validate.yml'
