@@ -12,7 +12,7 @@ import {
   normalizeUsername,
   toQuantAddress,
 } from '../../config/identity';
-import { apiClient } from '../../services/api-client';
+import { browserAuthSession } from '../../services/browser-auth-session';
 
 interface RegistrationErrors {
   username?: string;
@@ -68,7 +68,7 @@ export default function RegisterPage() {
 
     setIsSubmitting(true);
     try {
-      const response = await apiClient.register({
+      const response = await browserAuthSession.register({
         email: address,
         password,
         username: normalized,
