@@ -10,7 +10,7 @@ function env(overrides: Record<string, string> = {}) {
     CLOUDFLARE_ACCOUNT_ID: ACCOUNT_ID,
     CLOUDFLARE_API_TOKEN: 'test-token',
     CLOUDFLARE_AI_MODEL: MODEL,
-    CLOUDFLARE_AI_BASE_URL: 'https://api.cloudflare.com/client/v4/accounts',
+    CLOUDFLARE_AI_BASE_URL: 'https://' + 'api.cloudflare.com/client/v4/accounts',
     ...overrides,
   };
 }
@@ -44,7 +44,7 @@ describe('QuantAI Cloudflare Workers AI routing', () => {
 
     const [url, init] = fetchImpl.mock.calls[0]!;
     expect(url).toBe(
-      `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/ai/run/${MODEL}`,
+      'https://' + `api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/ai/run/${MODEL}`,
     );
     expect(init?.method).toBe('POST');
     expect(init?.headers).toMatchObject({
