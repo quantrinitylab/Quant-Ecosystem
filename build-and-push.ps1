@@ -1,26 +1,57 @@
-$REGISTRY="650708167640.dkr.ecr.us-east-1.amazonaws.com"
+$ErrorActionPreference = 'Stop'
 
-Write-Host "Logging in to ECR..."
-cmd /c "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REGISTRY"
+$AWS_REGION = if ($env:AWS_REGION) { $env:AWS_REGION } else { 'us-east-1' }
+$ACCOUNT_ID = (aws sts get-caller-identity --query Account --output text).Trim()
+$REGISTRY = "$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+$RELEASE_SHA = if ($env:RELEASE_SHA) { $env:RELEASE_SHA } else { (git rev-parse HEAD).Trim() }
 
-Write-Host "Building and pushing quant-ws-gateway..."
-docker build -t $REGISTRY/quant-ws-gateway:latest -f services/ws-gateway/Dockerfile .
-docker push $REGISTRY/quant-ws-gateway:latest
+if ($ACCOUNT_ID -notmatch '^\d{12}$') {
+  throw 'Could not resolve a valid AWS account ID.'
+}
 
-Write-Host "Building and pushing quantchat..."
-docker build -t $REGISTRY/quant-quantchat:latest -f apps/quantchat/Dockerfile .
-docker push $REGISTRY/quant-quantchat:latest
+if ($RELEASE_SHA -notmatch '^[0-9a-f]{40}$') {
+  throw 'RELEASE_SHA must be an immutable 40-character lowercase commit SHA.'
+}
 
-Write-Host "Building and pushing quantmail..."
-docker build -t $REGISTRY/quant-quantmail:latest -f apps/quantmail/Dockerfile .
-docker push $REGISTRY/quant-quantmail:latest
+$services = @(
+  @{ Repository = 'quant-ws-gateway'; Dockerfile = 'services/ws-gateway/Dockerfile' },
+  @{ Repository = 'quant-quantchat'; Dockerfile = 'apps/quantchat/Dockerfile' },
+  @{ Repository = 'quant-quantmail'; Dockerfile = 'apps/quantmail/Dockerfile' },
+  @{ Repository = 'quant-quantai'; Dockerfile = 'apps/quantai/Dockerfile' },
+  @{ Repository = 'quant-admin'; Dockerfile = 'apps/admin/Dockerfile' }
+)
 
-Write-Host "Building and pushing quantai..."
-docker build -t $REGISTRY/quant-quantai:latest -f apps/quantai/Dockerfile .
-docker push $REGISTRY/quant-quantai:latest
+Write-Host "AWS account: $ACCOUNT_ID"
+Write-Host "AWS region:  $AWS_REGION"
+Write-Host "Release SHA: $RELEASE_SHA"
+Write-Host "Registry:    $REGISTRY"
 
-Write-Host "Building and pushing admin..."
-docker build -t $REGISTRY/quant-admin:latest -f apps/admin/Dockerfile .
-docker push $REGISTRY/quant-admin:latest
+Write-Host 'Logging in to ECR...'
+$loginPassword = aws ecr get-login-password --region $AWS_REGION
+$loginPassword | docker login --username AWS --password-stdin $REGISTRY
+if ($LASTEXITCODE -ne 0) { throw 'ECR login failed.' }
 
-Write-Host "All images built and pushed successfully!"
+foreach ($service in $services) {
+  $repository = $service.Repository
+  $dockerfile = $service.Dockerfile
+
+  aws ecr describe-repositories --region $AWS_REGION --repository-names $repository | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "ECR repository is unavailable: $repository" }
+
+  $image = "$REGISTRY/${repository}:$RELEASE_SHA"
+  Write-Host "Building $image from $dockerfile..."
+  docker build --pull -t $image -f $dockerfile .
+  if ($LASTEXITCODE -ne 0) { throw "Docker build failed: $repository" }
+
+  docker push $image
+  if ($LASTEXITCODE -ne 0) { throw "Docker push failed: $repository" }
+
+  $digest = (aws ecr describe-images --region $AWS_REGION --repository-name $repository --image-ids "imageTag=$RELEASE_SHA" --query 'imageDetails[0].imageDigest' --output text).Trim()
+  if ($digest -notmatch '^sha256:[0-9a-f]{64}$') {
+    throw "Invalid digest returned for ${repository}: $digest"
+  }
+
+  Write-Host "$repository=$REGISTRY/$repository@$digest"
+}
+
+Write-Host 'All release images were pushed with immutable SHA tags.'
