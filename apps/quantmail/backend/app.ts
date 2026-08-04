@@ -44,12 +44,11 @@ export function getConfig(): AppConfig {
     jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
     jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantmail',
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
-    // Pre-authentication endpoints that must bypass the global auth hook so
-    // users can sign in / sign up / run OAuth without a token. `/oauth/authorize`
-    // stays protected (it needs a logged-in user for the consent screen).
     publicPaths: [
       '/auth/login',
       '/auth/register',
+      '/auth/refresh',
+      '/auth/logout',
       '/oauth/token',
       '/oauth/revoke',
       '/oauth/register',
@@ -64,7 +63,6 @@ export async function buildApp(config?: AppConfig) {
   const appConfig = config ?? getConfig();
   const app = await createApp(appConfig);
 
-  // Auth routes (Login, Register, OAuth2)
   await app.register(authRoutes);
   await app.register(oauthRoutes);
 
@@ -73,54 +71,24 @@ export async function buildApp(config?: AppConfig) {
   await app.register(threadsRoutes, { prefix: '/threads' });
   await app.register(foldersRoutes, { prefix: '/folders' });
   await app.register(contactsRoutes, { prefix: '/contacts' });
-  // Product-surface repositories API (id-based, list-my-repos) consumed by the
-  // Repos page. Complements the QuantCode owner/name git API under /api/code.
   await app.register(reposRoutes, { prefix: '/repos' });
-  // CI/CD product surface (/ci/*) for the Pipelines page — builds backed by the
-  // CiRun model; workflows/deployments are empty until those are modelled.
   await app.register(ciRoutes);
-  // Calendar (/events, /calendars) and Drive (/drive/*) product surfaces,
-  // backed by the Event/Calendar and File/Folder models respectively.
   await app.register(calendarRoutes);
   await app.register(driveRoutes);
-  // AI compose (/ai/compose) for the composer's AI assist — real @quant/ai
-  // engine; degrades to 503 when no provider key is configured.
   await app.register(aiComposeRoutes, { prefix: '/ai' });
   await app.register(aiRoutes, { prefix: '/emails' });
   await app.register(aiServicesRoutes, { prefix: '/api/v1' });
 
-  // QuantMail productivity features (Gmail/Superhuman-class): server-side
-  // filters/rules, vacation auto-responder, reusable templates, signatures,
-  // and advanced (operator-based) search. Each sits behind the global auth hook.
   await app.register(mailFiltersRoutes, { prefix: '/mail-filters' });
   await app.register(vacationResponderRoutes, { prefix: '/vacation-responder' });
   await app.register(emailTemplatesRoutes, { prefix: '/email-templates' });
   await app.register(emailSignaturesRoutes, { prefix: '/email-signatures' });
   await app.register(searchRoutes, { prefix: '/search' });
 
-  // QuantCode developer-platform module (Pillar 2, SRP-extracted — Task 9.1).
-  // Mounts repo/PR/issue/review/branch-protection/CI under the canonical
-  // `/api/code/*` prefix (Requirement 6.1), plus a `/api/v1/*` backward-compat
-  // alias preserving the pre-extraction paths. The mail domain above does not
-  // import any QuantCode service and this module imports no mail service
-  // (Requirement 6.2).
   await registerQuantCodeModule(app);
-
   await app.register(aiDevtoolsRoutes, { prefix: '/api/v1' });
   await app.register(attachmentRoutes, { prefix: '/attachments' });
 
-  // encryption (E2EE) engine — per-app lane, Task 14.1. SECURITY CONTRACT (Req
-  // 7.5): the `@quant/encryption` engine runs CLIENT-SIDE — all key generation,
-  // encryption, and decryption happen in the browser (see
-  // `src/features/encryption/`). The backend is a zero-knowledge relay: it only
-  // registers PUBLIC pre-key bundles (for key distribution) and relays opaque
-  // CIPHERTEXT envelopes between users. Private keys, session/ratchet secrets,
-  // and plaintext NEVER reach this server (the `/e2ee` route schemas are
-  // `.strict()` and model public/ciphertext fields only). The relay is in-memory
-  // (no new persistent schema — Req 9.5) and decorated once at boot, never
-  // per-request. The global auth hook from createApp() stays intact; the `/e2ee`
-  // routes additionally declare encryption:read/write scopes (sensitive engine,
-  // Req 7.4).
   const e2eeRelay = new InMemoryE2EERelay();
   app.decorate('e2ee', e2eeRelay);
   app.addHook('onClose', async () => {
@@ -128,11 +96,6 @@ export async function buildApp(config?: AppConfig) {
   });
   await app.register(e2eeRoutes, { prefix: '/e2ee' });
 
-  // federation engine — per-app lane, Task 14.1 (Req 3.1, 3.2, 7.4). Composes
-  // the as-shipped `@quant/federation` exports (FederationModeration +
-  // APIKeyManager) into a decorated singleton constructed once at boot. Routes
-  // under `/federation` are SCOPED (federation:read/write) on top of the global
-  // auth hook. In-memory persistence (no new schema — Req 9.5).
   app.decorate('federation', createFederationService());
   await app.register(federationRoutes, { prefix: '/federation' });
 
