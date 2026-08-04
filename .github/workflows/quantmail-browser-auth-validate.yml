@@ -12,7 +12,12 @@ permissions:
   contents: read
 
 jobs:
-  validate-browser-refresh-boundary:
+  validate-browser-auth:
+    strategy:
+      fail-fast: false
+      matrix:
+        stage: [backend-typecheck, cookie-tests]
+    name: browser-auth-${{ matrix.stage }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -37,9 +42,11 @@ jobs:
         run: pnpm --filter @quant/common build
 
       - name: Typecheck QuantMail backend
+        if: matrix.stage == 'backend-typecheck'
         run: pnpm --filter @quant/quantmail build:backend
 
       - name: Validate browser refresh-token boundary
+        if: matrix.stage == 'cookie-tests'
         run: >-
           pnpm --filter @quant/quantmail exec vitest run
           backend/__tests__/browser-refresh-cookie.test.ts
