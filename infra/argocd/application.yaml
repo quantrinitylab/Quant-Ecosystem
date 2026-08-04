@@ -1,17 +1,21 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: quant-ecosystem
+  name: quant-platform-production
   namespace: argocd
 spec:
-  project: default
+  project: quant-platform
   source:
     repoURL: https://github.com/quantrinitylabsgo/Quant-Ecosystem.git
     targetRevision: main
-    path: infra/k8s
+    path: infra/helm/quant-platform
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-production.yaml
   destination:
     server: https://kubernetes.default.svc
-    namespace: quant-ecosystem
+    namespace: quant-production
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
