@@ -2,10 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { apiClient } from '../services/api-client';
-
-// ============================================================================
-// Types
-// ============================================================================
+import { browserAuthSession, cleanupLegacyBrowserTokens } from '../services/browser-auth-session';
 
 export interface AuthUser {
   id: string;
@@ -24,105 +21,105 @@ interface AuthContextValue {
   logout: () => Promise<void>;
 }
 
-const STORAGE_KEY = 'quant_auth_tokens';
-
-// ============================================================================
-// Context
-// ============================================================================
-
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-// ============================================================================
-// Provider
-// ============================================================================
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Hydrate from localStorage on mount
+  const clearMemorySession = useCallback(() => {
+    apiClient.clearTokens();
+    setUser(null);
+  }, []);
+
+  const loadProfile = useCallback(async () => {
+    const profile = await apiClient.getUserInfo();
+    if (!profile.success || !profile.data) {
+      throw new Error(profile.error?.message || 'Could not load your profile.');
+    }
+    setUser(profile.data);
+  }, []);
+
+  // Fail closed on every load: erase all historical JavaScript-readable token
+  // formats, then restore only from the server-managed HttpOnly refresh cookie.
   useEffect(() => {
+    let active = true;
+
     async function hydrate() {
+      cleanupLegacyBrowserTokens();
+      apiClient.clearTokens();
       try {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (!stored) {
-          setIsLoading(false);
-          return;
-        }
-
-        const { accessToken, refreshToken } = JSON.parse(stored) as {
-          accessToken: string;
-          refreshToken: string;
-        };
-
-        apiClient.setTokens(accessToken, refreshToken);
-
-        const res = await apiClient.getUserInfo();
-        if (res.success && res.data) {
-          setUser(res.data);
-        } else {
-          // Tokens invalid, clear storage
-          localStorage.removeItem(STORAGE_KEY);
-          apiClient.clearTokens();
-        }
+        const session = await browserAuthSession.refresh();
+        if (!active || !session.success || !session.data?.accessToken) return;
+        apiClient.setTokens(session.data.accessToken);
+        await loadProfile();
       } catch {
-        localStorage.removeItem(STORAGE_KEY);
-        apiClient.clearTokens();
+        if (active) clearMemorySession();
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    }
+
+    void hydrate();
+    return () => {
+      active = false;
+    };
+  }, [clearMemorySession, loadProfile]);
+
+  // Rotate before the 15-minute access token expires. The rotated refresh token
+  // remains inside the HttpOnly cookie and is never included in this callback.
+  useEffect(() => {
+    if (!user) return;
+    const timer = window.setInterval(async () => {
+      const session = await browserAuthSession.refresh();
+      if (session.success && session.data?.accessToken) {
+        apiClient.setTokens(session.data.accessToken);
+      } else {
+        clearMemorySession();
+      }
+    }, 12 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [user, clearMemorySession]);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      setError(null);
+      setIsLoading(true);
+      cleanupLegacyBrowserTokens();
+      try {
+        const session = await browserAuthSession.login(email, password);
+        if (!session.success || !session.data?.accessToken) {
+          throw new Error(session.error?.message || 'Login failed');
+        }
+        apiClient.setTokens(session.data.accessToken);
+        await loadProfile();
+      } catch (caught) {
+        clearMemorySession();
+        const message = caught instanceof Error ? caught.message : 'Login failed';
+        setError(message);
+        throw caught;
       } finally {
         setIsLoading(false);
       }
-    }
-
-    hydrate();
-  }, []);
-
-  const login = useCallback(async (email: string, password: string) => {
-    setError(null);
-    setIsLoading(true);
-    try {
-      const res = await apiClient.login({ email, password });
-      if (res.success && res.data) {
-        const { accessToken, refreshToken } = res.data;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ accessToken, refreshToken }));
-
-        const userRes = await apiClient.getUserInfo();
-        if (userRes.success && userRes.data) {
-          setUser(userRes.data);
-        } else {
-          throw new Error(userRes.error?.message || 'Could not load your profile.');
-        }
-      } else {
-        const message = res.error?.message || 'Login failed';
-        setError(message);
-        // Surface to the caller (the login page) so it can render the reason,
-        // instead of silently redirecting on a failed sign-in.
-        throw new Error(message);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    },
+    [clearMemorySession, loadProfile],
+  );
 
   const logout = useCallback(async () => {
     try {
-      await apiClient.logout();
-    } catch {
-      // Proceed even if revocation fails
+      await browserAuthSession.logout();
+    } finally {
+      cleanupLegacyBrowserTokens();
+      clearMemorySession();
+      setError(null);
     }
-    localStorage.removeItem(STORAGE_KEY);
-    apiClient.clearTokens();
-    setUser(null);
-    setError(null);
-  }, []);
+  }, [clearMemorySession]);
 
   const value: AuthContextValue = {
     user,
     isLoading,
-    isAuthenticated: !!user,
+    isAuthenticated: Boolean(user),
     error,
     login,
     logout,
@@ -131,14 +128,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-// ============================================================================
-// Hook
-// ============================================================================
-
 export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (ctx === undefined) {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-  return ctx;
+  return context;
 }
