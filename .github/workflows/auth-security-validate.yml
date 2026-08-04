@@ -44,6 +44,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
 
+      - name: Build auth workspace dependencies
+        run: pnpm --filter @quant/common build
+
       - name: Typecheck auth package
         run: pnpm --filter @quant/auth typecheck
 
