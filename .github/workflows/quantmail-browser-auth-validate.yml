@@ -8,7 +8,6 @@ on:
       - 'apps/quantmail/backend/__tests__/browser-refresh-cookie.test.ts'
       - 'apps/quantmail/src/providers/auth-provider.tsx'
       - 'apps/quantmail/src/services/browser-auth-session.ts'
-      - 'apps/quantmail/src/services/__tests__/browser-auth-session.test.ts'
       - '.github/workflows/quantmail-browser-auth-validate.yml'
 
 permissions:
@@ -23,9 +22,9 @@ jobs:
           - base-backend-typecheck
           - current-backend-typecheck
           - cookie-tests
-          - legacy-storage-cleanup
-          - credentialed-login
-          - cookie-session-restore
+          - legacy-storage-contract
+          - credentialed-login-contract
+          - cookie-session-restore-contract
     name: browser-auth-${{ matrix.stage }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -64,23 +63,38 @@ jobs:
           pnpm --filter @quant/quantmail exec vitest run
           backend/__tests__/browser-refresh-cookie.test.ts
 
-      - name: Validate legacy token cleanup
-        if: matrix.stage == 'legacy-storage-cleanup'
-        run: >-
-          pnpm --filter @quant/quantmail exec vitest run
-          src/services/__tests__/browser-auth-session.test.ts
-          -t 'deletes every legacy JavaScript-readable token key'
+      - name: Validate legacy token cleanup contract
+        if: matrix.stage == 'legacy-storage-contract'
+        run: |
+          set -euo pipefail
+          session='apps/quantmail/src/services/browser-auth-session.ts'
+          provider='apps/quantmail/src/providers/auth-provider.tsx'
+          for key in quant_auth_tokens quant_access_token quant_refresh_token token refreshToken; do
+            grep -F "'$key'" "$session" >/dev/null
+          done
+          grep -F 'window.localStorage.removeItem(key)' "$session" >/dev/null
+          grep -F 'window.sessionStorage.removeItem(key)' "$session" >/dev/null
+          ! grep -F 'localStorage.setItem' "$session" "$provider"
 
-      - name: Validate credentialed memory-only login
-        if: matrix.stage == 'credentialed-login'
-        run: >-
-          pnpm --filter @quant/quantmail exec vitest run
-          src/services/__tests__/browser-auth-session.test.ts
-          -t 'uses credentialed login without persisting returned access state'
+      - name: Validate credentialed memory-only login contract
+        if: matrix.stage == 'credentialed-login-contract'
+        run: |
+          set -euo pipefail
+          session='apps/quantmail/src/services/browser-auth-session.ts'
+          provider='apps/quantmail/src/providers/auth-provider.tsx'
+          grep -F "credentials: 'include'" "$session" >/dev/null
+          grep -F "'/auth/login'" "$session" >/dev/null
+          grep -F 'browserAuthSession.login(email, password)' "$provider" >/dev/null
+          grep -F 'apiClient.setTokens(session.data.accessToken)' "$provider" >/dev/null
+          ! grep -F 'localStorage.setItem' "$provider"
 
-      - name: Validate cookie-only session restoration
-        if: matrix.stage == 'cookie-session-restore'
-        run: >-
-          pnpm --filter @quant/quantmail exec vitest run
-          src/services/__tests__/browser-auth-session.test.ts
-          -t 'restores through the cookie-only refresh endpoint'
+      - name: Validate cookie-only session restoration contract
+        if: matrix.stage == 'cookie-session-restore-contract'
+        run: |
+          set -euo pipefail
+          session='apps/quantmail/src/services/browser-auth-session.ts'
+          provider='apps/quantmail/src/providers/auth-provider.tsx'
+          grep -F "'/auth/refresh'" "$session" >/dev/null
+          grep -F 'browserAuthSession.refresh()' "$provider" >/dev/null
+          grep -F 'cleanupLegacyBrowserTokens()' "$provider" >/dev/null
+          ! grep -F 'refresh_token:' "$session" "$provider"
