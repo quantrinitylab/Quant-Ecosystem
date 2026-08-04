@@ -16,12 +16,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        stage: [backend-typecheck, cookie-tests]
+        stage: [base-backend-typecheck, current-backend-typecheck, cookie-tests]
     name: browser-auth-${{ matrix.stage }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check out stacked base for baseline comparison
+        if: matrix.stage == 'base-backend-typecheck'
+        run: git checkout e2a5b895ea310076557d960c7cd9f76810a2fcef
 
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -42,7 +46,7 @@ jobs:
         run: pnpm --filter @quant/common build
 
       - name: Typecheck QuantMail backend
-        if: matrix.stage == 'backend-typecheck'
+        if: matrix.stage != 'cookie-tests'
         run: pnpm --filter @quant/quantmail build:backend
 
       - name: Validate browser refresh-token boundary
