@@ -20,8 +20,25 @@ configmap:
   CORS_ORIGINS: 'https://quantrinity.in,https://www.quantrinity.in,https://quantmail.quantrinity.in,https://quantchat.quantrinity.in,https://quantai.quantrinity.in'
   JWT_ISSUER: 'https://quantmail.quantrinity.in'
   JWT_AUDIENCE: 'quant-platform'
+  AI_PROVIDER: cloudflare
+  AI_DEFAULT_MODEL: '@cf/meta/llama-3.2-1b-instruct'
+  CLOUDFLARE_AI_MODEL: '@cf/meta/llama-3.2-1b-instruct'
+  CLOUDFLARE_AI_BASE_URL: 'https://api.cloudflare.com/client/v4/accounts'
   QUANTCHAT_BACKEND_URL: 'http://quant-platform-production-quantchat-backend:3002'
   QUANTAI_BACKEND_URL: 'http://quant-platform-production-quantai-backend:3004'
+
+secrets:
+  keys:
+    - JWT_SECRET
+    - DATABASE_URL
+    - REDIS_URL
+    - AI_API_KEY
+    - SMTP_PASSWORD
+    - S3_ACCESS_KEY
+    - S3_SECRET_KEY
+    - MEILI_MASTER_KEY
+    - CLOUDFLARE_ACCOUNT_ID
+    - CLOUDFLARE_API_TOKEN
 
 ingress:
   enabled: true
