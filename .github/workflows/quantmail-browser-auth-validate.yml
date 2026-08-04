@@ -6,6 +6,9 @@ on:
       - 'apps/quantmail/backend/routes/auth.ts'
       - 'apps/quantmail/backend/app.ts'
       - 'apps/quantmail/backend/__tests__/browser-refresh-cookie.test.ts'
+      - 'apps/quantmail/src/providers/auth-provider.tsx'
+      - 'apps/quantmail/src/services/browser-auth-session.ts'
+      - 'apps/quantmail/src/services/__tests__/browser-auth-session.test.ts'
       - '.github/workflows/quantmail-browser-auth-validate.yml'
 
 permissions:
@@ -16,7 +19,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        stage: [base-backend-typecheck, current-backend-typecheck, cookie-tests]
+        stage:
+          - base-backend-typecheck
+          - current-backend-typecheck
+          - cookie-tests
+          - frontend-session-tests
     name: browser-auth-${{ matrix.stage }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -46,7 +53,7 @@ jobs:
         run: pnpm --filter @quant/common build
 
       - name: Typecheck QuantMail backend
-        if: matrix.stage != 'cookie-tests'
+        if: contains(matrix.stage, 'backend-typecheck')
         run: pnpm --filter @quant/quantmail build:backend
 
       - name: Validate browser refresh-token boundary
@@ -54,3 +61,9 @@ jobs:
         run: >-
           pnpm --filter @quant/quantmail exec vitest run
           backend/__tests__/browser-refresh-cookie.test.ts
+
+      - name: Validate memory-only browser session
+        if: matrix.stage == 'frontend-session-tests'
+        run: >-
+          pnpm --filter @quant/quantmail exec vitest run
+          src/services/__tests__/browser-auth-session.test.ts
