@@ -7,7 +7,7 @@ spec:
   description: Quant Platform - Production and Staging environments
 
   sourceRepos:
-    - "https://github.com/quantmailteamsupport-dev/Quant-Ecosystem.git"
+    - 'https://github.com/quantrinitylabsgo/Quant-Ecosystem.git'
 
   destinations:
     - namespace: quant-staging
@@ -18,24 +18,24 @@ spec:
       server: https://kubernetes.default.svc
 
   clusterResourceWhitelist:
-    - group: ""
+    - group: ''
       kind: Namespace
 
   namespaceResourceWhitelist:
-    - group: ""
-      kind: "*"
+    - group: ''
+      kind: '*'
     - group: apps
-      kind: "*"
+      kind: '*'
     - group: batch
-      kind: "*"
+      kind: '*'
     - group: networking.k8s.io
-      kind: "*"
+      kind: '*'
     - group: autoscaling
-      kind: "*"
+      kind: '*'
     - group: policy
-      kind: "*"
+      kind: '*'
     - group: external-secrets.io
-      kind: "*"
+      kind: '*'
 
   roles:
     - name: admin
