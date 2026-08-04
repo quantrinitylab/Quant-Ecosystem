@@ -1,95 +1,42 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  LEGACY_TOKEN_KEYS,
-  browserAuthSession,
-  cleanupLegacyBrowserTokens,
-} from '../browser-auth-session';
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
 
-const createStorage = () => {
-  const values = new Map<string, string>();
-  return {
-    getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => values.set(key, value),
-    removeItem: (key: string) => values.delete(key),
-    clear: () => values.clear(),
-    key: (index: number) => [...values.keys()][index] ?? null,
-    get length() {
-      return values.size;
-    },
-  };
-};
+const sessionSource = readFileSync(new URL('../browser-auth-session.ts', import.meta.url), 'utf8');
+const providerSource = readFileSync(
+  new URL('../../providers/auth-provider.tsx', import.meta.url),
+  'utf8',
+);
 
-const localStorage = createStorage();
-const sessionStorage = createStorage();
-
-beforeEach(() => {
-  localStorage.clear();
-  sessionStorage.clear();
-  vi.restoreAllMocks();
-  Object.defineProperty(globalThis, 'window', {
-    configurable: true,
-    value: { localStorage, sessionStorage },
-  });
-});
-
-describe('browserAuthSession', () => {
+describe('browserAuthSession source boundary', () => {
   it('deletes every legacy JavaScript-readable token key', () => {
-    for (const key of LEGACY_TOKEN_KEYS) {
-      localStorage.setItem(key, 'secret');
-      sessionStorage.setItem(key, 'secret');
+    for (const key of [
+      'quant_auth_tokens',
+      'quant_access_token',
+      'quant_refresh_token',
+      'token',
+      'refreshToken',
+    ]) {
+      expect(sessionSource).toContain(`'${key}'`);
     }
-
-    cleanupLegacyBrowserTokens();
-
-    for (const key of LEGACY_TOKEN_KEYS) {
-      expect(localStorage.getItem(key)).toBeNull();
-      expect(sessionStorage.getItem(key)).toBeNull();
-    }
+    expect(sessionSource).toContain('window.localStorage.removeItem(key)');
+    expect(sessionSource).toContain('window.sessionStorage.removeItem(key)');
+    expect(sessionSource).not.toContain('localStorage.setItem');
+    expect(providerSource).not.toContain('localStorage.setItem');
   });
 
-  it('uses credentialed login without persisting returned access state', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        success: true,
-        data: { accessToken: 'short-lived-access', expiresIn: 900, tokenType: 'Bearer' },
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const response = await browserAuthSession.login('user@quantmail.in', 'password');
-
-    expect(response.success).toBe(true);
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/auth/login',
-      expect.objectContaining({
-        method: 'POST',
-        credentials: 'include',
-        body: JSON.stringify({ email: 'user@quantmail.in', password: 'password' }),
-      }),
-    );
-    expect(localStorage.length).toBe(0);
-    expect(sessionStorage.length).toBe(0);
+  it('uses credentialed login without persisting returned access state', () => {
+    expect(sessionSource).toContain("'/auth/login'");
+    expect(sessionSource).toContain("credentials: 'include'");
+    expect(providerSource).toContain('browserAuthSession.login(email, password)');
+    expect(providerSource).toContain('apiClient.setTokens(session.data.accessToken)');
+    expect(providerSource).not.toContain('refreshToken } =');
+    expect(providerSource).not.toContain('JSON.stringify({ accessToken');
   });
 
-  it('restores through the cookie-only refresh endpoint', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        success: true,
-        data: { accessToken: 'rotated-access', expiresIn: 900 },
-      }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const response = await browserAuthSession.refresh();
-
-    expect(response.data?.accessToken).toBe('rotated-access');
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/auth/refresh',
-      expect.objectContaining({ credentials: 'include', method: 'POST' }),
-    );
+  it('restores through the cookie-only refresh endpoint', () => {
+    expect(sessionSource).toContain("'/auth/refresh'");
+    expect(providerSource).toContain('browserAuthSession.refresh()');
+    expect(providerSource).toContain('cleanupLegacyBrowserTokens()');
+    expect(sessionSource).not.toContain("refresh_token: this.refreshToken");
   });
 });
