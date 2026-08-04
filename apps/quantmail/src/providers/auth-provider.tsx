@@ -29,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const clearMemorySession = useCallback(() => {
+    browserAuthSession.clearAccessToken();
     apiClient.clearTokens();
     setUser(null);
   }, []);
@@ -48,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function hydrate() {
       cleanupLegacyBrowserTokens();
-      apiClient.clearTokens();
+      clearMemorySession();
       try {
         const session = await browserAuthSession.refresh();
         if (!active || !session.success || !session.data?.accessToken) return;
