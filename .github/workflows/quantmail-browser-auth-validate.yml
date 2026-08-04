@@ -1,0 +1,45 @@
+name: QuantMail browser auth validation
+
+on:
+  pull_request:
+    paths:
+      - 'apps/quantmail/backend/routes/auth.ts'
+      - 'apps/quantmail/backend/app.ts'
+      - 'apps/quantmail/backend/__tests__/browser-refresh-cookie.test.ts'
+      - '.github/workflows/quantmail-browser-auth-validate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-browser-refresh-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+
+      - name: Build workspace dependency
+        run: pnpm --filter @quant/common build
+
+      - name: Typecheck QuantMail backend
+        run: pnpm --filter @quant/quantmail build:backend
+
+      - name: Validate browser refresh-token boundary
+        run: >-
+          pnpm --filter @quant/quantmail exec vitest run
+          backend/__tests__/browser-refresh-cookie.test.ts
