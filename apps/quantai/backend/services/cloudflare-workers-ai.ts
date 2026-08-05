@@ -115,7 +115,7 @@ export class CloudflareWorkersAIClient {
     });
     const raw = await response.text();
     const envelope = this.parseEnvelope(raw);
-    this.assertSuccessfulResponse(response, envelope, raw);
+    this.assertSuccessfulResponse(response, envelope, raw, config.apiToken);
 
     const content = this.extractContent(envelope);
     if (!content) {
@@ -160,20 +160,20 @@ export class CloudflareWorkersAIClient {
           signal: controller.signal,
         });
       } catch (error) {
-        throw this.requestFailure(error);
+        throw this.requestFailure(error, config.apiToken);
       }
 
       if (!response.ok) {
         const raw = await this.safeReadText(response);
         const envelope = this.tryParseEnvelope(raw);
-        this.assertSuccessfulResponse(response, envelope, raw);
+        this.assertSuccessfulResponse(response, envelope, raw, config.apiToken);
       }
 
       const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
       if (!response.body || contentType.includes('application/json')) {
         const raw = await response.text();
         const envelope = this.parseEnvelope(raw);
-        this.assertSuccessfulResponse(response, envelope, raw);
+        this.assertSuccessfulResponse(response, envelope, raw, config.apiToken);
         const content = this.extractContent(envelope);
         if (!content) {
           throw new CloudflareWorkersAIError(
@@ -223,7 +223,16 @@ export class CloudflareWorkersAIClient {
     const baseUrl = this.validateBaseUrl(
       this.env['CLOUDFLARE_AI_BASE_URL'] ?? DEFAULT_CLOUDFLARE_AI_BASE_URL,
     );
+    const failClosed = this.env['QUANT_AI_FAIL_CLOSED']?.trim().toLowerCase() ?? '';
 
+    if (
+      this.env['NODE_ENV']?.trim().toLowerCase() === 'production' &&
+      failClosed !== 'true'
+    ) {
+      throw new CloudflareWorkersAIError(
+        'Production Cloudflare Workers AI requires QUANT_AI_FAIL_CLOSED=true.',
+      );
+    }
     if (!/^[a-f0-9]{32}$/i.test(accountId)) {
       throw new CloudflareWorkersAIError(
         'Cloudflare Workers AI requires a valid 32-character CLOUDFLARE_ACCOUNT_ID.',
@@ -308,7 +317,7 @@ export class CloudflareWorkersAIClient {
         signal: controller.signal,
       });
     } catch (error) {
-      throw this.requestFailure(error);
+      throw this.requestFailure(error, config.apiToken);
     } finally {
       clearTimeout(timer);
     }
@@ -358,13 +367,15 @@ export class CloudflareWorkersAIClient {
     response: Response,
     envelope: WorkersAIEnvelope | null,
     raw: string,
+    apiToken: string,
   ): void {
     if (response.ok && envelope?.success !== false) return;
-    const detail =
+    const rawDetail =
       envelope?.errors
         ?.map((error) => (typeof error.message === 'string' ? error.message : ''))
         .filter(Boolean)
-        .join('; ') || raw.slice(0, 300);
+        .join('; ') || raw;
+    const detail = this.sanitizeDetail(rawDetail, apiToken);
     throw new CloudflareWorkersAIError(
       `Cloudflare Workers AI request failed (${response.status})${detail ? `: ${detail}` : ''}`,
     );
@@ -464,9 +475,17 @@ export class CloudflareWorkersAIClient {
     }
   }
 
-  private requestFailure(error: unknown): CloudflareWorkersAIError {
-    const detail = error instanceof Error ? error.message : String(error);
-    return new CloudflareWorkersAIError(`Cloudflare Workers AI request failed: ${detail}`);
+  private requestFailure(error: unknown, apiToken: string): CloudflareWorkersAIError {
+    const rawDetail = error instanceof Error ? error.message : String(error);
+    const detail = this.sanitizeDetail(rawDetail, apiToken);
+    return new CloudflareWorkersAIError(
+      `Cloudflare Workers AI request failed${detail ? `: ${detail}` : ''}`,
+    );
+  }
+
+  private sanitizeDetail(detail: string, apiToken: string): string {
+    const redacted = apiToken ? detail.split(apiToken).join('[REDACTED]') : detail;
+    return redacted.slice(0, 300);
   }
 
   private requestId(): string {

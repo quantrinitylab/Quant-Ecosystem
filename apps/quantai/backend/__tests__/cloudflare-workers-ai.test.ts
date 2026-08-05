@@ -16,6 +16,7 @@ function env(overrides: CloudflareAIEnv = {}): CloudflareAIEnv {
     CLOUDFLARE_API_TOKEN: 'test-token-not-a-secret',
     CLOUDFLARE_AI_MODEL: DEFAULT_CLOUDFLARE_AI_MODEL,
     CLOUDFLARE_AI_BASE_URL: DEFAULT_CLOUDFLARE_AI_BASE_URL,
+    QUANT_AI_FAIL_CLOSED: 'true',
     ...overrides,
   };
 }
@@ -43,6 +44,19 @@ describe('CloudflareWorkersAIClient', () => {
     const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) => new Response());
     const client = new CloudflareWorkersAIClient({
       env: env({ CLOUDFLARE_API_TOKEN: '' }),
+      fetchImpl,
+    });
+
+    await expect(client.infer(request)).rejects.toMatchObject({
+      code: 'CLOUDFLARE_WORKERS_AI_UNAVAILABLE',
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('requires the explicit fail-closed invariant in production', async () => {
+    const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) => new Response());
+    const client = new CloudflareWorkersAIClient({
+      env: env({ NODE_ENV: 'production', QUANT_AI_FAIL_CLOSED: 'false' }),
       fetchImpl,
     });
 
@@ -136,10 +150,13 @@ describe('CloudflareWorkersAIClient', () => {
     expect(JSON.parse(fetchImpl.mock.calls[0]![1]?.body as string).stream).toBe(true);
   });
 
-  it('returns a typed error for an upstream failure without exposing credentials', async () => {
+  it('redacts the API token from upstream error details', async () => {
     const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) =>
       new Response(
-        JSON.stringify({ success: false, errors: [{ message: 'model unavailable' }] }),
+        JSON.stringify({
+          success: false,
+          errors: [{ message: 'model unavailable: test-token-not-a-secret' }],
+        }),
         { status: 503, headers: { 'Content-Type': 'application/json' } },
       ),
     );
@@ -148,6 +165,19 @@ describe('CloudflareWorkersAIClient', () => {
     const error = await client.infer(request).catch((value) => value);
     expect(error).toBeInstanceOf(CloudflareWorkersAIError);
     expect(error.message).toContain('503');
+    expect(error.message).toContain('[REDACTED]');
+    expect(error.message).not.toContain('test-token-not-a-secret');
+  });
+
+  it('redacts the API token from network failure details', async () => {
+    const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) => {
+      throw new Error('network failed with test-token-not-a-secret');
+    });
+    const client = new CloudflareWorkersAIClient({ env: env(), fetchImpl });
+
+    const error = await client.infer(request).catch((value) => value);
+    expect(error).toBeInstanceOf(CloudflareWorkersAIError);
+    expect(error.message).toContain('[REDACTED]');
     expect(error.message).not.toContain('test-token-not-a-secret');
   });
 });
