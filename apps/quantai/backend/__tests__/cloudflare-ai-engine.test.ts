@@ -21,7 +21,7 @@ function env(overrides: CloudflareAIEnv = {}): CloudflareAIEnv {
 
 describe('QuantAI Cloudflare Workers AI routing', () => {
   it('routes inference through Workers AI and exposes only the configured model', async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) =>
       new Response(
         JSON.stringify({ success: true, result: { response: 'CLOUDFLARE_AI_OK' } }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
@@ -50,7 +50,7 @@ describe('QuantAI Cloudflare Workers AI routing', () => {
   });
 
   it('does not silently fall back when Cloudflare is selected but unconfigured', async () => {
-    const fetchImpl = vi.fn();
+    const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) => new Response());
     const engine = new AIEngine({
       env: env({ CLOUDFLARE_API_TOKEN: '' }),
       fetchImpl,
@@ -75,7 +75,7 @@ describe('QuantAI Cloudflare Workers AI routing', () => {
         controller.close();
       },
     });
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) =>
       new Response(body, {
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },

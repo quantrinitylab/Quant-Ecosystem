@@ -104,7 +104,7 @@ export class AIEngine implements AIEngineInterface {
       this.checkWorkersBudget(request);
       const prepared = this.prepareWorkersRequest(request);
       let completion = '';
-      let model = this.workersAI.getConfiguredModel();
+      const model = this.workersAI.getConfiguredModel();
       for await (const chunk of this.workersAI.stream(prepared)) {
         completion += chunk.content;
         yield chunk;

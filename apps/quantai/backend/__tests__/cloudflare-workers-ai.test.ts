@@ -40,7 +40,7 @@ describe('CloudflareWorkersAIClient', () => {
   });
 
   it('fails closed before network access when the API token is absent', async () => {
-    const fetchImpl = vi.fn();
+    const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) => new Response());
     const client = new CloudflareWorkersAIClient({
       env: env({ CLOUDFLARE_API_TOKEN: '' }),
       fetchImpl,
@@ -53,7 +53,7 @@ describe('CloudflareWorkersAIClient', () => {
   });
 
   it('rejects non-Cloudflare base URLs before sending the bearer token', async () => {
-    const fetchImpl = vi.fn();
+    const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) => new Response());
     const client = new CloudflareWorkersAIClient({
       env: env({ CLOUDFLARE_AI_BASE_URL: 'https://example.invalid/client/v4/accounts' }),
       fetchImpl,
@@ -64,7 +64,7 @@ describe('CloudflareWorkersAIClient', () => {
   });
 
   it('sends context once to the official endpoint and parses usage', async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) =>
       new Response(
         JSON.stringify({
           success: true,
@@ -115,7 +115,7 @@ describe('CloudflareWorkersAIClient', () => {
         controller.close();
       },
     });
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) =>
       new Response(body, {
         status: 200,
         headers: { 'Content-Type': 'text/event-stream' },
@@ -137,7 +137,7 @@ describe('CloudflareWorkersAIClient', () => {
   });
 
   it('returns a typed error for an upstream failure without exposing credentials', async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = vi.fn(async (_input: string, _init?: RequestInit) =>
       new Response(
         JSON.stringify({ success: false, errors: [{ message: 'model unavailable' }] }),
         { status: 503, headers: { 'Content-Type': 'application/json' } },
