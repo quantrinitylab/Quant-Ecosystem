@@ -2,7 +2,9 @@
 // Refresh credentials never enter JavaScript; only the short-lived access token
 // returned by /auth/login, /auth/register, or /auth/refresh is held in module memory.
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+// Auth defaults to a same-origin /auth proxy instead of the regular /api proxy.
+// This keeps the backend cookie's narrow Path=/auth effective in the browser.
+const AUTH_BASE_URL = (process.env.NEXT_PUBLIC_AUTH_URL ?? '').replace(/\/$/, '');
 
 export const LEGACY_TOKEN_KEYS = [
   'quant_auth_tokens',
@@ -41,7 +43,7 @@ export interface BrowserRegistration {
 let accessToken: string | null = null;
 let refreshInFlight: Promise<AuthResponse<BrowserAccessSession>> | null = null;
 
-const endpoint = (path: string): string => `${API_BASE_URL}${path}`;
+const endpoint = (path: string): string => `${AUTH_BASE_URL}${path}`;
 
 const post = async <T>(path: string, body?: unknown): Promise<AuthResponse<T>> => {
   try {

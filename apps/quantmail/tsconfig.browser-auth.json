@@ -5,6 +5,7 @@
   },
   "include": [
     "next-env.d.ts",
+    "src/app/auth/[action]/route.ts",
     "src/app/register/page.tsx",
     "src/hooks/useDrive.ts",
     "src/hooks/useEmail.ts",

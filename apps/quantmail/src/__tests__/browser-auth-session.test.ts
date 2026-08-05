@@ -64,7 +64,7 @@ describe('browserAuthSession', () => {
     expect(result.success).toBe(true);
     expect(browserAuthSession.getAccessToken()).toBe('access-login');
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/auth/login',
+      '/auth/login',
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
@@ -100,7 +100,7 @@ describe('browserAuthSession', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/auth/refresh',
+      '/auth/refresh',
       expect.objectContaining({ method: 'POST', credentials: 'include' }),
     );
 
@@ -126,7 +126,7 @@ describe('browserAuthSession', () => {
 
     expect(response.status).toBe(401);
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/auth/refresh');
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/auth/refresh');
 
     const firstRequest = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const retryRequest = fetchMock.mock.calls[2]?.[1] as RequestInit;
@@ -163,7 +163,7 @@ describe('browserAuthSession', () => {
 
     expect(browserAuthSession.getAccessToken()).toBeNull();
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/auth/logout',
+      '/auth/logout',
       expect.objectContaining({ method: 'POST', credentials: 'include' }),
     );
   });

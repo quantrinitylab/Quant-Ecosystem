@@ -3,10 +3,13 @@ name: QuantMail browser auth validation
 on:
   pull_request:
     paths:
+      - 'apps/quantmail/.env.local.example'
       - 'apps/quantmail/backend/routes/auth.ts'
       - 'apps/quantmail/backend/app.ts'
       - 'apps/quantmail/backend/__tests__/browser-refresh-cookie.test.ts'
+      - 'apps/quantmail/src/__tests__/browser-auth-proxy.test.ts'
       - 'apps/quantmail/src/__tests__/browser-auth-session.test.ts'
+      - 'apps/quantmail/src/app/auth/[action]/route.ts'
       - 'apps/quantmail/src/app/register/page.tsx'
       - 'apps/quantmail/src/hooks/useDrive.ts'
       - 'apps/quantmail/src/hooks/useEmail.ts'
@@ -33,6 +36,7 @@ jobs:
           - current-frontend-typecheck
           - focused-frontend-typecheck
           - browser-session-tests
+          - browser-auth-proxy-tests
           - cookie-tests
           - legacy-storage-contract
           - credentialed-login-contract
@@ -95,6 +99,12 @@ jobs:
           pnpm --filter @quant/quantmail exec vitest run
           src/__tests__/browser-auth-session.test.ts
 
+      - name: Test same-origin browser auth proxy
+        if: matrix.stage == 'browser-auth-proxy-tests'
+        run: >-
+          pnpm --filter @quant/quantmail exec vitest run
+          src/__tests__/browser-auth-proxy.test.ts
+
       - name: Validate browser refresh-token boundary
         if: matrix.stage == 'cookie-tests'
         run: >-
@@ -120,6 +130,8 @@ jobs:
           set -euo pipefail
           session='apps/quantmail/src/services/browser-auth-session.ts'
           provider='apps/quantmail/src/providers/auth-provider.tsx'
+          grep -F "process.env.NEXT_PUBLIC_AUTH_URL" "$session" >/dev/null
+          ! grep -F "NEXT_PUBLIC_API_URL" "$session"
           grep -F "credentials: 'include'" "$session" >/dev/null
           grep -F "'/auth/login'" "$session" >/dev/null
           grep -F 'browserAuthSession.login(email, password)' "$provider" >/dev/null
