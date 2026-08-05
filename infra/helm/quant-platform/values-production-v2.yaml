@@ -25,6 +25,11 @@ configmap:
   CORS_ORIGINS: 'https://quantrinity.in'
   JWT_ISSUER: 'https://quantrinity.in'
   JWT_AUDIENCE: 'quant-platform'
+  AI_PROVIDER: cloudflare
+  AI_DEFAULT_MODEL: '@cf/meta/llama-3.2-1b-instruct'
+  CLOUDFLARE_AI_MODEL: '@cf/meta/llama-3.2-1b-instruct'
+  CLOUDFLARE_AI_BASE_URL: 'https://api.cloudflare.com/client/v4/accounts'
+  QUANT_AI_FAIL_CLOSED: 'true'
   QUANTCHAT_BACKEND_URL: 'http://quant-platform-production-quantchat-backend:3002'
   QUANTAI_BACKEND_URL: 'http://quant-platform-production-quantai-backend:3004'
 
@@ -48,12 +53,24 @@ meilisearch:
   enabled: false
 
 secrets:
+  required: true
   externalSecret:
     enabled: true
     secretStoreRef:
       name: aws-secrets-manager
       kind: ClusterSecretStore
     refreshInterval: 1h
+  keys:
+    - JWT_SECRET
+    - DATABASE_URL
+    - REDIS_URL
+    - AI_API_KEY
+    - SMTP_PASSWORD
+    - S3_ACCESS_KEY
+    - S3_SECRET_KEY
+    - MEILI_MASTER_KEY
+    - CLOUDFLARE_ACCOUNT_ID
+    - CLOUDFLARE_API_TOKEN
 
 services:
   ws-gateway:

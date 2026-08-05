@@ -44,6 +44,14 @@ jobs:
           grep -F 'ingressApproved: false' "$values"
           grep -F "CORS_ORIGINS: 'https://quantrinity.in'" "$values"
           grep -F "JWT_ISSUER: 'https://quantrinity.in'" "$values"
+          grep -F 'AI_PROVIDER: cloudflare' "$values"
+          grep -F "AI_DEFAULT_MODEL: '@cf/meta/llama-3.2-1b-instruct'" "$values"
+          grep -F "CLOUDFLARE_AI_MODEL: '@cf/meta/llama-3.2-1b-instruct'" "$values"
+          grep -F "CLOUDFLARE_AI_BASE_URL: 'https://api.cloudflare.com/client/v4/accounts'" "$values"
+          grep -F "QUANT_AI_FAIL_CLOSED: 'true'" "$values"
+          grep -F 'required: true' "$values"
+          grep -F -- '- CLOUDFLARE_ACCOUNT_ID' "$values"
+          grep -F -- '- CLOUDFLARE_API_TOKEN' "$values"
 
           test "$(grep -c 'repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/' "$values")" -eq 5
           test "$(grep -c 'tag: REPLACE_WITH_40_CHAR_GIT_SHA' "$values")" -eq 5
@@ -77,13 +85,28 @@ jobs:
             "${overrides[@]}" > "$rendered"
 
           test "$(grep -c '^kind: Deployment$' "$rendered")" -eq 5
+          test "$(grep -c 'optional: false' "$rendered")" -eq 5
           grep -F 'DOMAIN: "quantrinity.in"' "$rendered"
           grep -F 'CORS_ORIGINS: "https://quantrinity.in"' "$rendered"
           grep -F 'JWT_ISSUER: "https://quantrinity.in"' "$rendered"
+          grep -F 'AI_PROVIDER: "cloudflare"' "$rendered"
+          grep -F 'AI_DEFAULT_MODEL: "@cf/meta/llama-3.2-1b-instruct"' "$rendered"
+          grep -F 'CLOUDFLARE_AI_MODEL: "@cf/meta/llama-3.2-1b-instruct"' "$rendered"
+          grep -F 'CLOUDFLARE_AI_BASE_URL: "https://api.cloudflare.com/client/v4/accounts"' "$rendered"
+          grep -F 'QUANT_AI_FAIL_CLOSED: "true"' "$rendered"
+          grep -F 'secretKey: CLOUDFLARE_ACCOUNT_ID' "$rendered"
+          grep -F 'key: quant-platform/production/CLOUDFLARE_ACCOUNT_ID' "$rendered"
+          grep -F 'secretKey: CLOUDFLARE_API_TOKEN' "$rendered"
+          grep -F 'key: quant-platform/production/CLOUDFLARE_API_TOKEN' "$rendered"
           grep -F '266176113726.dkr.ecr.us-east-1.amazonaws.com/' "$rendered"
 
           if grep -n -E '650708167640|quant\.app|eu-west-1|external-dns|https://\*\.|:latest' "$rendered"; then
             echo '::error::Unsafe legacy or mutable configuration found in rendered production-v2 manifests.'
+            exit 1
+          fi
+
+          if grep -n 'CLOUDFLARE_API_TOKEN:' "$rendered"; then
+            echo '::error::Cloudflare API token must not be rendered into a ConfigMap or literal manifest value.'
             exit 1
           fi
 

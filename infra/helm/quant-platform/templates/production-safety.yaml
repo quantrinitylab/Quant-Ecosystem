@@ -5,6 +5,7 @@
 {{- $publicDNSProvider := default "" .Values.global.publicDNSProvider }}
 {{- $multiRegion := default (dict) .Values.global.multiRegion }}
 {{- $annotations := default (dict) .Values.ingress.annotations }}
+{{- $secretKeys := default (list) .Values.secrets.keys }}
 
 {{- if not $deploymentApproved }}
 {{- fail "Production Helm rendering is blocked. Enable global.deploymentApproved only in a separately reviewed deployment change." }}
@@ -26,6 +27,39 @@
 {{- end }}
 {{- if ne (default "" .Values.configmap.JWT_ISSUER) "https://quantrinity.in" }}
 {{- fail "The production JWT issuer must be https://quantrinity.in." }}
+{{- end }}
+{{- if ne (default "" .Values.configmap.AI_PROVIDER) "cloudflare" }}
+{{- fail "Cloudflare Workers AI must be the selected production inference provider while Bedrock is parked." }}
+{{- end }}
+{{- if ne (default "" .Values.configmap.AI_DEFAULT_MODEL) "@cf/meta/llama-3.2-1b-instruct" }}
+{{- fail "The production default model must remain the reviewed Workers AI model." }}
+{{- end }}
+{{- if ne (default "" .Values.configmap.CLOUDFLARE_AI_MODEL) "@cf/meta/llama-3.2-1b-instruct" }}
+{{- fail "The configured Workers AI model must match the reviewed model." }}
+{{- end }}
+{{- if ne (default "" .Values.configmap.CLOUDFLARE_AI_BASE_URL) "https://api.cloudflare.com/client/v4/accounts" }}
+{{- fail "Workers AI credentials may only be sent to the official Cloudflare accounts endpoint." }}
+{{- end }}
+{{- if ne (default "" .Values.configmap.QUANT_AI_FAIL_CLOSED) "true" }}
+{{- fail "Production AI must fail closed when its selected provider is unavailable." }}
+{{- end }}
+{{- if hasKey .Values.configmap "CLOUDFLARE_API_TOKEN" }}
+{{- fail "CLOUDFLARE_API_TOKEN must never be stored in the ConfigMap." }}
+{{- end }}
+{{- if hasKey .Values.configmap "CLOUDFLARE_ACCOUNT_ID" }}
+{{- fail "CLOUDFLARE_ACCOUNT_ID must be delivered through the reviewed Secret boundary." }}
+{{- end }}
+{{- if not .Values.secrets.externalSecret.enabled }}
+{{- fail "Production requires External Secrets; placeholder Kubernetes Secrets are forbidden." }}
+{{- end }}
+{{- if not (default false .Values.secrets.required) }}
+{{- fail "Production pods must require the generated application Secret." }}
+{{- end }}
+{{- if not (has "CLOUDFLARE_ACCOUNT_ID" $secretKeys) }}
+{{- fail "The ExternalSecret must map CLOUDFLARE_ACCOUNT_ID." }}
+{{- end }}
+{{- if not (has "CLOUDFLARE_API_TOKEN" $secretKeys) }}
+{{- fail "The ExternalSecret must map CLOUDFLARE_API_TOKEN." }}
 {{- end }}
 {{- if hasKey $annotations "external-dns.alpha.kubernetes.io/hostname" }}
 {{- fail "The chart must not publish production DNS; Cloudflare owns that boundary." }}
