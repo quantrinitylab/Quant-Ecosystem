@@ -12,6 +12,8 @@ vi.mock('@prisma/client', () => {
         const record = {
           id: args.data.id || 'tok-mock',
           ...args.data,
+          // Mirror the Prisma schema default used by compare-and-set rotation.
+          isRevoked: args.data.isRevoked ?? false,
           family,
           familyId: family,
         };
