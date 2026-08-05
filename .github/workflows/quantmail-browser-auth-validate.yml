@@ -7,6 +7,7 @@ on:
       - 'apps/quantmail/backend/app.ts'
       - 'apps/quantmail/backend/__tests__/browser-refresh-cookie.test.ts'
       - 'apps/quantmail/src/app/register/page.tsx'
+      - 'apps/quantmail/src/hooks/useDrive.ts'
       - 'apps/quantmail/src/hooks/useEmail.ts'
       - 'apps/quantmail/src/hooks/useGit.ts'
       - 'apps/quantmail/src/providers/auth-provider.tsx'
@@ -143,14 +144,19 @@ jobs:
         run: |
           set -euo pipefail
           helper='apps/quantmail/src/services/browser-api-request.ts'
+          drive='apps/quantmail/src/hooks/useDrive.ts'
           email='apps/quantmail/src/hooks/useEmail.ts'
           git='apps/quantmail/src/hooks/useGit.ts'
           grep -F "import { browserAuthSession } from './browser-auth-session';" "$helper" >/dev/null
           grep -F 'browserAuthSession.authenticatedFetch(input' "$helper" >/dev/null
-          grep -F "browserApiRequest as apiRequest" "$email" "$git" >/dev/null
-          ! grep -F 'localStorage' "$helper" "$email" "$git"
-          ! grep -F 'quant_auth_tokens' "$helper" "$email" "$git"
-          ! grep -F 'fetch(' "$helper" "$email" "$git"
+          grep -F "browserApiRequest as apiRequest" "$drive" "$email" "$git" >/dev/null
+          grep -F 'xhr.withCredentials = true' "$drive" >/dev/null
+          grep -F 'browserAuthSession.getAccessToken()' "$drive" >/dev/null
+          grep -F 'browserAuthSession.refresh()' "$drive" >/dev/null
+          grep -F 'uploadOnce(false)' "$drive" >/dev/null
+          ! grep -F 'localStorage' "$helper" "$drive" "$email" "$git"
+          ! grep -F 'quant_auth_tokens' "$helper" "$drive" "$email" "$git"
+          ! grep -F 'fetch(' "$helper" "$drive" "$email" "$git"
 
       - name: Validate cookie-only session restoration contract
         if: matrix.stage == 'cookie-session-restore-contract'

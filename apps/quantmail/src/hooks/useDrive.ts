@@ -5,6 +5,8 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { logger } from '@quant/common';
+import { browserApiRequest as apiRequest } from '../services/browser-api-request';
+import { browserAuthSession } from '../services/browser-auth-session';
 
 interface DriveFile {
   id: string;
@@ -68,27 +70,6 @@ interface UseDriveReturn {
   getDownloadUrl: (fileId: string) => string;
   cancelUpload: (uploadId: string) => void;
 }
-
-const apiRequest = async (url: string, options: RequestInit = {}): Promise<Response> => {
-  let token: string | null = null;
-  try {
-    const stored =
-      typeof localStorage !== 'undefined' ? localStorage.getItem('quant_auth_tokens') : null;
-    if (stored) {
-      token = JSON.parse(stored).accessToken || null;
-    }
-  } catch {
-    /* ignore parse errors */
-  }
-  return fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...((options.headers as Record<string, string>) || {}),
-    },
-  });
-};
 
 const getDriveErrorMessage = (err: unknown, fallback: string): string => {
   const message = err instanceof Error ? err.message : '';
@@ -169,36 +150,71 @@ export function useDrive(): UseDriveReturn {
           formData.append('file', file);
           if (currentFolderId) formData.append('folderId', currentFolderId);
 
-          let token: string | null = null;
-          try {
-            const stored =
-              typeof localStorage !== 'undefined'
-                ? localStorage.getItem('quant_auth_tokens')
-                : null;
-            if (stored) {
-              token = JSON.parse(stored).accessToken || null;
-            }
-          } catch {
-            /* ignore parse errors */
-          }
-          const xhr = new XMLHttpRequest();
-          await new Promise<void>((resolve, reject) => {
-            xhr.upload.onprogress = (e) => {
-              if (e.lengthComputable) {
-                const progress = Math.round((e.loaded / e.total) * 100);
-                setUploads((prev) =>
-                  prev.map((u) => (u.fileId === uploadId ? { ...u, progress } : u)),
-                );
+          const uploadOnce = async (allowRefreshRetry: boolean): Promise<void> => {
+            if (controller.signal.aborted) throw new Error('Upload cancelled');
+
+            const xhr = new XMLHttpRequest();
+            await new Promise<void>((resolve, reject) => {
+              const abortRequest = () => xhr.abort();
+              const detachAbort = () =>
+                controller.signal.removeEventListener('abort', abortRequest);
+              const rejectUpload = (uploadError: Error) => {
+                detachAbort();
+                reject(uploadError);
+              };
+
+              if (controller.signal.aborted) {
+                rejectUpload(new Error('Upload cancelled'));
+                return;
               }
-            };
-            xhr.onload = () =>
-              xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(xhr.statusText));
-            xhr.onerror = () => reject(new Error('Upload failed'));
-            xhr.onabort = () => reject(new Error('Upload cancelled'));
-            xhr.open('POST', '/api/drive/upload');
-            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-            xhr.send(formData);
-          });
+              controller.signal.addEventListener('abort', abortRequest, { once: true });
+
+              xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                  const progress = Math.round((event.loaded / event.total) * 100);
+                  setUploads((prev) =>
+                    prev.map((u) => (u.fileId === uploadId ? { ...u, progress } : u)),
+                  );
+                }
+              };
+              xhr.onload = () => {
+                detachAbort();
+                if (xhr.status === 401 && allowRefreshRetry) {
+                  void (async () => {
+                    const refreshed = await browserAuthSession.refresh();
+                    if (!refreshed.success || !browserAuthSession.getAccessToken()) {
+                      reject(new Error('Upload authorization failed'));
+                      return;
+                    }
+                    try {
+                      await uploadOnce(false);
+                      resolve();
+                    } catch (retryError) {
+                      reject(retryError);
+                    }
+                  })();
+                  return;
+                }
+
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  resolve();
+                } else {
+                  reject(
+                    new Error(xhr.statusText || `Upload failed with status ${xhr.status}`),
+                  );
+                }
+              };
+              xhr.onerror = () => rejectUpload(new Error('Upload failed'));
+              xhr.onabort = () => rejectUpload(new Error('Upload cancelled'));
+              xhr.open('POST', '/api/drive/upload');
+              xhr.withCredentials = true;
+              const accessToken = browserAuthSession.getAccessToken();
+              if (accessToken) xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+              xhr.send(formData);
+            });
+          };
+
+          await uploadOnce(true);
 
           setUploads((prev) =>
             prev.map((u) =>
