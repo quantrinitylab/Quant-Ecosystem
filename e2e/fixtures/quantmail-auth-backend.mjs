@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 
 const host = '127.0.0.1';
 const port = Number(process.env.QUANTMAIL_AUTH_E2E_PORT ?? '3010');
+const originBase = 'http://' + host + ':' + String(port);
 const cookieAttributes = 'Path=/auth; HttpOnly; SameSite=Strict; Max-Age=2592000';
 const user = {
   id: 'user-1',
@@ -48,7 +49,7 @@ async function readJson(request) {
 }
 
 const server = createServer(async (request, response) => {
-  const requestUrl = new URL(request.url ?? '/', `http://${host}:${port}`);
+  const requestUrl = new URL(request.url ?? '/', originBase);
   const origin = request.headers.origin ?? null;
   const cookie = request.headers.cookie ?? '';
 
@@ -149,7 +150,7 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`QuantMail auth E2E backend listening on http://${host}:${port}`);
+  console.log('QuantMail auth E2E backend listening on ' + originBase);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
