@@ -160,6 +160,35 @@ describe('QuantMail browser refresh-token boundary', () => {
     expect(reply.cookie.value).toBe('refresh-token');
   });
 
+  it('rejects login and registration from a missing or untrusted Origin', async () => {
+    const handlers = await loadHandlers();
+
+    for (const path of ['/auth/login', '/auth/register']) {
+      for (const headers of [{}, { origin: 'https://attacker.example' }]) {
+        const reply = makeReply();
+        await handlers.get(path)!(
+          {
+            headers,
+            body: {
+              email: 'blocked@quantmail.in',
+              username: 'blocked',
+              password: 'password',
+            },
+          },
+          reply,
+        );
+        expect(reply.statusCode).toBe(403);
+        expect(reply.body.error.code).toBe('UNTRUSTED_ORIGIN');
+        expect(reply.cookie).toBeUndefined();
+      }
+    }
+
+    expect(mocks.prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.findFirst).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.create).not.toHaveBeenCalled();
+    expect(mocks.generateTokenPair).not.toHaveBeenCalled();
+  });
+
   it('rejects refresh from a missing or untrusted Origin', async () => {
     const handlers = await loadHandlers();
 

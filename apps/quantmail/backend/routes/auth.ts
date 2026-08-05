@@ -69,6 +69,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     '/auth/login',
     { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
     async (request, reply) => {
+      if (!requireTrustedOrigin(request, reply)) return;
       const { email, password } = request.body as any;
 
       if (!email || !password) {
@@ -112,6 +113,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   );
 
   fastify.post('/auth/register', async (request, reply) => {
+    if (!requireTrustedOrigin(request, reply)) return;
     const { email, username, displayName, password } = request.body as any;
 
     if (!email || !username || !password) {
