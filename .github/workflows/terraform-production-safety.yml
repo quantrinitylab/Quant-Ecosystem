@@ -1,33 +1,32 @@
-name: Terraform Production Safety
+name: Terraform production safety
 
 on:
   pull_request:
     paths:
-      - "infra/terraform/environments/production/**"
-      - "infra/terraform/environments/production-v2/**"
-      - ".github/workflows/terraform-production-safety.yml"
+      - 'infra/terraform/**'
+      - '.github/workflows/terraform-production-safety.yml'
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
-      - "infra/terraform/environments/production/**"
-      - "infra/terraform/environments/production-v2/**"
-      - ".github/workflows/terraform-production-safety.yml"
+      - 'infra/terraform/**'
+      - '.github/workflows/terraform-production-safety.yml'
 
 permissions:
   contents: read
 
+concurrency:
+  group: terraform-production-safety-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-production-root:
-    name: validate-production-root
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e4423992e429da3f2e6d # v4.1.7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@633666f66e00661c1b89a2de1a9e38406186fda8 # v3.1.2
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: 1.12.2
           terraform_wrapper: false
@@ -37,16 +36,32 @@ jobs:
           terraform fmt -check infra/terraform/environments/production/safety.tf
           terraform fmt -check -recursive infra/terraform/environments/production-v2
 
+      # Keep validating the legacy fail-closed guard independently while its
+      # intentionally unsafe root remains blocked by issue #129.
       - name: Validate legacy production safety guard in isolation
+        shell: bash
         run: |
+          set -euo pipefail
           fixture="$(mktemp -d)"
-          cp infra/terraform/environments/production/safety.tf "$fixture/safety.tf"
+          cp infra/terraform/environments/production/safety.tf "$fixture/main.tf"
+          cat > "$fixture/versions.tf" <<'EOF'
+          terraform {
+            required_version = ">= 1.5.0"
+            required_providers {
+              aws = {
+                source  = "hashicorp/aws"
+                version = ">= 5.0"
+              }
+            }
+          }
+          EOF
           terraform -chdir="$fixture" init -backend=false -input=false
           terraform -chdir="$fixture" validate
 
       - name: Assert legacy production root remains blocked
         shell: bash
         run: |
+          set -euo pipefail
           guard="infra/terraform/environments/production/safety.tf"
           values="infra/terraform/environments/production/terraform.tfvars"
 
@@ -65,6 +80,11 @@ jobs:
           grep -F 'enable_multi_region           = false' "$values"
           grep -F 'production_root_redesigned    = false' "$values"
 
+          if grep -R --line-number --fixed-strings 'production_root_redesigned = true' infra/terraform/environments/production; then
+            echo '::error::Legacy production root must remain fail-closed until issue #129 redesign is complete.'
+            exit 1
+          fi
+
       - name: Validate complete production-v2 root
         run: |
           terraform -chdir=infra/terraform/environments/production-v2 init -backend=false -input=false
@@ -73,6 +93,7 @@ jobs:
       - name: Assert production-v2 safety boundaries
         shell: bash
         run: |
+          set -euo pipefail
           root="infra/terraform/environments/production-v2"
           main="$root/main.tf"
           variables="$root/variables.tf"
@@ -82,28 +103,28 @@ jobs:
           grep -F 'default     = "quantrinity.in"' "$variables"
           grep -F 'default     = "cloudflare"' "$variables"
           grep -F 'variable "eks_kubernetes_version"' "$variables"
-          grep -F 'enable_nat_gateway_per_az      = false' "$main"
+          grep -F 'enable_nat_gateway_per_az = false' "$main"
           grep -F 'endpoint_public_access     = false' "$main"
 
           approval_block="$(grep -A 5 'variable "bootstrap_root_approved"' "$variables")"
           grep -F 'default     = false' <<<"$approval_block"
 
           if grep -R -n --include='*.tf' -E 'aws\.secondary|vpc_secondary|cross_region|aws_route53|eu-west-1|quant\.app' "$root"; then
-            echo "Unsafe legacy multi-region, Route 53, or domain configuration found in production-v2" >&2
+            echo '::error::Unsafe legacy multi-region, Route 53, or domain configuration found in production-v2.'
             exit 1
           fi
 
           if grep -R -n --include='*.tf' -E 'https://\*\.' "$root"; then
-            echo "Wildcard browser origin found in production-v2" >&2
+            echo '::error::Wildcard browser origin found in production-v2.'
             exit 1
           fi
 
           if grep -R -n --include='*.tf' -E 'backend[[:space:]]+"s3"' "$root"; then
-            echo "Unreviewed remote-state backend found in production-v2" >&2
+            echo '::error::Unreviewed remote-state backend found in production-v2.'
             exit 1
           fi
 
           if grep -R -n --include='*.tf' -E 'default[[:space:]]*=[[:space:]]*"1\.29"' "$root"; then
-            echo "Legacy EKS 1.29 default found in production-v2" >&2
+            echo '::error::Legacy EKS 1.29 default found in production-v2.'
             exit 1
           fi

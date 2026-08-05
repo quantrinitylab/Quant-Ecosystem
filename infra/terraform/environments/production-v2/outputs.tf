@@ -30,9 +30,9 @@ output "rds_endpoint" {
   sensitive   = true
 }
 
-output "redis_primary_endpoint" {
-  description = "Redis primary endpoint"
-  value       = module.elasticache.primary_endpoint_address
+output "redis_configuration_endpoint" {
+  description = "Redis cluster configuration endpoint"
+  value       = module.elasticache.configuration_endpoint_address
   sensitive   = true
 }
 
