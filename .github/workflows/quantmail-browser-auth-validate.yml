@@ -14,6 +14,7 @@ on:
       - 'apps/quantmail/src/services/api-client.ts'
       - 'apps/quantmail/src/services/browser-api-request.ts'
       - 'apps/quantmail/src/services/browser-auth-session.ts'
+      - 'apps/quantmail/tsconfig.browser-auth.json'
       - '.github/workflows/quantmail-browser-auth-validate.yml'
 
 permissions:
@@ -27,7 +28,9 @@ jobs:
         stage:
           - base-backend-typecheck
           - current-backend-typecheck
+          - base-frontend-typecheck
           - current-frontend-typecheck
+          - focused-frontend-typecheck
           - cookie-tests
           - legacy-storage-contract
           - credentialed-login-contract
@@ -45,7 +48,7 @@ jobs:
           fetch-depth: 0
 
       - name: Check out stacked base for baseline comparison
-        if: matrix.stage == 'base-backend-typecheck'
+        if: startsWith(matrix.stage, 'base-')
         run: git checkout e2a5b895ea310076557d960c7cd9f76810a2fcef
 
       - name: Install pnpm
@@ -76,9 +79,13 @@ jobs:
         if: contains(matrix.stage, 'backend-typecheck')
         run: pnpm --filter @quant/quantmail build:backend
 
-      - name: Typecheck QuantMail frontend
-        if: matrix.stage == 'current-frontend-typecheck'
+      - name: Typecheck QuantMail frontend baseline/current
+        if: matrix.stage == 'base-frontend-typecheck' || matrix.stage == 'current-frontend-typecheck'
         run: pnpm --filter @quant/quantmail exec tsc --noEmit -p tsconfig.json
+
+      - name: Typecheck browser-auth frontend boundary
+        if: matrix.stage == 'focused-frontend-typecheck'
+        run: pnpm --filter @quant/quantmail exec tsc --noEmit -p tsconfig.browser-auth.json
 
       - name: Validate browser refresh-token boundary
         if: matrix.stage == 'cookie-tests'
