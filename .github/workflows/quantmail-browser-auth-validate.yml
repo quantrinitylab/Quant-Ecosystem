@@ -9,6 +9,7 @@ on:
       - 'apps/quantmail/backend/__tests__/browser-refresh-cookie.test.ts'
       - 'apps/quantmail/src/__tests__/browser-auth-proxy.test.ts'
       - 'apps/quantmail/src/__tests__/browser-auth-session.test.ts'
+      - 'apps/quantmail/src/app/api/oauth/userinfo/route.ts'
       - 'apps/quantmail/src/app/auth/[action]/route.ts'
       - 'apps/quantmail/src/app/register/page.tsx'
       - 'apps/quantmail/src/hooks/useDrive.ts'
