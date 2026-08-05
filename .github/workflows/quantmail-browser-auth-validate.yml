@@ -6,6 +6,7 @@ on:
       - 'apps/quantmail/backend/routes/auth.ts'
       - 'apps/quantmail/backend/app.ts'
       - 'apps/quantmail/backend/__tests__/browser-refresh-cookie.test.ts'
+      - 'apps/quantmail/src/__tests__/browser-auth-session.test.ts'
       - 'apps/quantmail/src/app/register/page.tsx'
       - 'apps/quantmail/src/hooks/useDrive.ts'
       - 'apps/quantmail/src/hooks/useEmail.ts'
@@ -31,6 +32,7 @@ jobs:
           - base-frontend-typecheck
           - current-frontend-typecheck
           - focused-frontend-typecheck
+          - browser-session-tests
           - cookie-tests
           - legacy-storage-contract
           - credentialed-login-contract
@@ -86,6 +88,12 @@ jobs:
       - name: Typecheck browser-auth frontend boundary
         if: matrix.stage == 'focused-frontend-typecheck'
         run: pnpm --filter @quant/quantmail exec tsc --noEmit -p tsconfig.browser-auth.json
+
+      - name: Test browser auth session behavior
+        if: matrix.stage == 'browser-session-tests'
+        run: >-
+          pnpm --filter @quant/quantmail exec vitest run
+          src/__tests__/browser-auth-session.test.ts
 
       - name: Validate browser refresh-token boundary
         if: matrix.stage == 'cookie-tests'
