@@ -1,0 +1,120 @@
+global:
+  environment: production
+  domain: quantrinity.in
+  expectedAwsAccountId: '266176113726'
+  publicDNSProvider: cloudflare
+  deploymentApproved: false
+  ingressApproved: false
+  imageRegistry: ''
+  imagePullSecrets: []
+  databaseCIDRs:
+    - 10.0.20.0/24
+    - 10.0.21.0/24
+    - 10.0.22.0/24
+  redisCIDRs:
+    - 10.0.10.0/24
+    - 10.0.11.0/24
+    - 10.0.12.0/24
+  multiRegion:
+    enabled: false
+    primary: us-east-1
+
+configmap:
+  NODE_ENV: production
+  LOG_LEVEL: warn
+  CORS_ORIGINS: 'https://quantrinity.in'
+  JWT_ISSUER: 'https://quantrinity.in'
+  JWT_AUDIENCE: 'quant-platform'
+  QUANTCHAT_BACKEND_URL: 'http://quant-platform-production-quantchat-backend:3002'
+  QUANTAI_BACKEND_URL: 'http://quant-platform-production-quantai-backend:3004'
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/hsts: 'true'
+    nginx.ingress.kubernetes.io/hsts-max-age: '31536000'
+  tls:
+    enabled: false
+    secretName: quant-platform-production-v2-tls
+
+canary:
+  enabled: false
+
+meilisearch:
+  enabled: false
+
+secrets:
+  externalSecret:
+    enabled: true
+    secretStoreRef:
+      name: aws-secrets-manager
+      kind: ClusterSecretStore
+    refreshInterval: 1h
+
+services:
+  ws-gateway:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-ws-gateway
+      tag: REPLACE_WITH_40_CHAR_GIT_SHA
+      pullPolicy: IfNotPresent
+    autoscaling:
+      enabled: false
+    pdb:
+      enabled: false
+
+  quantmail:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail
+      tag: REPLACE_WITH_40_CHAR_GIT_SHA
+      pullPolicy: IfNotPresent
+    autoscaling:
+      enabled: false
+    pdb:
+      enabled: false
+
+  quantchat:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat
+      tag: REPLACE_WITH_40_CHAR_GIT_SHA
+      pullPolicy: IfNotPresent
+    autoscaling:
+      enabled: false
+    pdb:
+      enabled: false
+
+  quantai:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantai
+      tag: REPLACE_WITH_40_CHAR_GIT_SHA
+      pullPolicy: IfNotPresent
+    autoscaling:
+      enabled: false
+    pdb:
+      enabled: false
+
+  admin:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-admin
+      tag: REPLACE_WITH_40_CHAR_GIT_SHA
+      pullPolicy: IfNotPresent
+    autoscaling:
+      enabled: false
+    pdb:
+      enabled: false
+
+  triton-inference-server:
+    enabled: false

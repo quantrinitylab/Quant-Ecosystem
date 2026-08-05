@@ -1,0 +1,93 @@
+name: Helm production v2 safety
+
+on:
+  pull_request:
+    paths:
+      - 'infra/helm/quant-platform/**'
+      - '.github/workflows/helm-production-v2-validate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/helm/quant-platform/**'
+      - '.github/workflows/helm-production-v2-validate.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helm-production-v2-safety-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-production-v2-helm:
+    name: validate-production-v2-helm
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Helm
+        uses: Azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.2.3
+
+      - name: Assert committed production-v2 boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          values="infra/helm/quant-platform/values-production-v2.yaml"
+
+          grep -F "expectedAwsAccountId: '266176113726'" "$values"
+          grep -F 'publicDNSProvider: cloudflare' "$values"
+          grep -F 'domain: quantrinity.in' "$values"
+          grep -F 'deploymentApproved: false' "$values"
+          grep -F 'ingressApproved: false' "$values"
+          grep -F "CORS_ORIGINS: 'https://quantrinity.in'" "$values"
+          grep -F "JWT_ISSUER: 'https://quantrinity.in'" "$values"
+
+          test "$(grep -c 'repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/' "$values")" -eq 5
+          test "$(grep -c 'tag: REPLACE_WITH_40_CHAR_GIT_SHA' "$values")" -eq 5
+
+          if grep -n -E '650708167640|quant\.app|eu-west-1|external-dns|https://\*\.|tag: latest' "$values"; then
+            echo '::error::Legacy account, domain, region, DNS, wildcard, or mutable tag found in production-v2 values.'
+            exit 1
+          fi
+
+      - name: Lint and render guarded production-v2 chart
+        shell: bash
+        run: |
+          set -euo pipefail
+          chart="infra/helm/quant-platform"
+          values="$chart/values-production-v2.yaml"
+          rendered="$(mktemp)"
+          render_tag='0000000000000000000000000000000000000000'
+          overrides=(
+            --set global.deploymentApproved=true
+            --set-string "services.ws-gateway.image.tag=$render_tag"
+            --set-string "services.quantmail.image.tag=$render_tag"
+            --set-string "services.quantchat.image.tag=$render_tag"
+            --set-string "services.quantai.image.tag=$render_tag"
+            --set-string "services.admin.image.tag=$render_tag"
+          )
+
+          helm lint "$chart" --values "$values" "${overrides[@]}"
+          helm template quant-platform-production "$chart" \
+            --namespace quant-platform-production \
+            --values "$values" \
+            "${overrides[@]}" > "$rendered"
+
+          test "$(grep -c '^kind: Deployment$' "$rendered")" -eq 5
+          grep -F 'DOMAIN: "quantrinity.in"' "$rendered"
+          grep -F 'CORS_ORIGINS: "https://quantrinity.in"' "$rendered"
+          grep -F 'JWT_ISSUER: "https://quantrinity.in"' "$rendered"
+          grep -F '266176113726.dkr.ecr.us-east-1.amazonaws.com/' "$rendered"
+
+          if grep -n -E '650708167640|quant\.app|eu-west-1|external-dns|https://\*\.|:latest' "$rendered"; then
+            echo '::error::Unsafe legacy or mutable configuration found in rendered production-v2 manifests.'
+            exit 1
+          fi
+
+          if grep -q '^kind: Ingress$' "$rendered"; then
+            echo '::error::Production-v2 ingress must remain disabled until separately reviewed.'
+            exit 1
+          fi

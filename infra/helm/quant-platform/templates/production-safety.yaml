@@ -1,0 +1,49 @@
+{{- if eq .Values.global.environment "production" }}
+{{- $deploymentApproved := default false .Values.global.deploymentApproved }}
+{{- $ingressApproved := default false .Values.global.ingressApproved }}
+{{- $expectedAccount := default "" .Values.global.expectedAwsAccountId }}
+{{- $publicDNSProvider := default "" .Values.global.publicDNSProvider }}
+{{- $multiRegion := default (dict) .Values.global.multiRegion }}
+{{- $annotations := default (dict) .Values.ingress.annotations }}
+
+{{- if not $deploymentApproved }}
+{{- fail "Production Helm rendering is blocked. Enable global.deploymentApproved only in a separately reviewed deployment change." }}
+{{- end }}
+{{- if ne $expectedAccount "266176113726" }}
+{{- fail "Production images and deployment approval are restricted to AWS account 266176113726." }}
+{{- end }}
+{{- if ne .Values.global.domain "quantrinity.in" }}
+{{- fail "The canonical production domain must be quantrinity.in." }}
+{{- end }}
+{{- if ne $publicDNSProvider "cloudflare" }}
+{{- fail "Cloudflare must remain authoritative for production public DNS." }}
+{{- end }}
+{{- if default false $multiRegion.enabled }}
+{{- fail "The production-v2 bootstrap must remain single-region." }}
+{{- end }}
+{{- if contains "*" (default "" .Values.configmap.CORS_ORIGINS) }}
+{{- fail "Wildcard browser origins are forbidden in production." }}
+{{- end }}
+{{- if ne (default "" .Values.configmap.JWT_ISSUER) "https://quantrinity.in" }}
+{{- fail "The production JWT issuer must be https://quantrinity.in." }}
+{{- end }}
+{{- if hasKey $annotations "external-dns.alpha.kubernetes.io/hostname" }}
+{{- fail "The chart must not publish production DNS; Cloudflare owns that boundary." }}
+{{- end }}
+{{- if and .Values.ingress.enabled (not $ingressApproved) }}
+{{- fail "Production ingress is blocked until exact hostnames, origin health, TLS, and rollback are reviewed." }}
+{{- end }}
+
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.enabled }}
+{{- $repository := default "" $svc.image.repository }}
+{{- $tag := default "" $svc.image.tag }}
+{{- if not (hasPrefix "266176113726.dkr.ecr.us-east-1.amazonaws.com/" $repository) }}
+{{- fail (printf "Production service %s must use the target-account ECR registry." $name) }}
+{{- end }}
+{{- if not (regexMatch "^[0-9a-f]{40}$" $tag) }}
+{{- fail (printf "Production service %s must use an immutable 40-character Git SHA image tag." $name) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
