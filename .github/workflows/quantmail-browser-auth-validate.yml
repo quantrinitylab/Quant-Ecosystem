@@ -20,6 +20,10 @@ on:
       - 'apps/quantmail/src/services/browser-api-request.ts'
       - 'apps/quantmail/src/services/browser-auth-session.ts'
       - 'apps/quantmail/tsconfig.browser-auth.json'
+      - 'e2e/fixtures/quantmail-auth-backend.mjs'
+      - 'e2e/playwright.quantmail-auth.config.ts'
+      - 'e2e/tests/quantmail-auth/browser-cookie-session.spec.ts'
+      - 'e2e/package.json'
       - '.github/workflows/quantmail-browser-auth-validate.yml'
 
 permissions:
@@ -38,6 +42,7 @@ jobs:
           - focused-frontend-typecheck
           - browser-session-tests
           - browser-auth-proxy-tests
+          - browser-e2e
           - cookie-tests
           - legacy-storage-contract
           - credentialed-login-contract
@@ -48,7 +53,7 @@ jobs:
           - single-retry-contract
     name: browser-auth-${{ matrix.stage }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -105,6 +110,16 @@ jobs:
         run: >-
           pnpm --filter @quant/quantmail exec vitest run
           src/__tests__/browser-auth-proxy.test.ts
+
+      - name: Install Chromium for browser acceptance
+        if: matrix.stage == 'browser-e2e'
+        run: pnpm --filter quant-e2e exec playwright install --with-deps chromium
+
+      - name: Run QuantMail browser acceptance
+        if: matrix.stage == 'browser-e2e'
+        run: >-
+          pnpm --filter quant-e2e exec playwright test
+          --config=playwright.quantmail-auth.config.ts
 
       - name: Validate browser refresh-token boundary
         if: matrix.stage == 'cookie-tests'
