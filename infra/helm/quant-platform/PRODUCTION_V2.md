@@ -1,6 +1,6 @@
 # Production v2 Helm profile
 
-## Status: validation-required and deployment-blocked
+## Status: render-validated and deployment-blocked
 
 `values-production-v2.yaml` is the only production profile aligned with the fresh single-region Terraform root. It is not approved for installation or upgrade.
 
