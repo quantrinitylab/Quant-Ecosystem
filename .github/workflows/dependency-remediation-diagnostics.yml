@@ -15,18 +15,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  affected-task:
-    name: affected-${{ matrix.task }}
+  workspace-task:
+    name: ${{ matrix.scope }}-${{ matrix.task }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
-        task:
-          - typecheck
-          - lint
-          - test
-          - build
+        include:
+          - scope: apps
+            filter: '{./apps/*}'
+            task: typecheck
+          - scope: packages
+            filter: '{./packages/*}'
+            task: typecheck
+          - scope: services
+            filter: '{./services/*}'
+            task: typecheck
+          - scope: apps
+            filter: '{./apps/*}'
+            task: test
+          - scope: packages
+            filter: '{./packages/*}'
+            task: test
+          - scope: services
+            filter: '{./services/*}'
+            task: test
+          - scope: apps
+            filter: '{./apps/*}'
+            task: build
+          - scope: packages
+            filter: '{./packages/*}'
+            task: build
+          - scope: services
+            filter: '{./services/*}'
+            task: build
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -47,7 +71,7 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
 
-      - name: Run affected ${{ matrix.task }} tasks
+      - name: Run ${{ matrix.scope }} ${{ matrix.task }} tasks
         env:
           NODE_OPTIONS: --max-old-space-size=4096
         run: >-
@@ -55,4 +79,4 @@ jobs:
           --concurrency=2
           --continue
           --output-logs=errors-only
-          --filter="[origin/${{ github.base_ref }}]"
+          --filter="${{ matrix.filter }}"
