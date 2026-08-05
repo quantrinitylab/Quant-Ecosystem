@@ -6,11 +6,14 @@ vi.mock('@prisma/client', () => {
   const mockPrisma = {
     refreshToken: {
       create: vi.fn().mockImplementation((args: { data: any }) => {
+        // `family` is the canonical persisted field. Preserve a `familyId`
+        // alias for older tests without overwriting a valid family with undefined.
+        const family = args.data.family ?? args.data.familyId;
         const record = {
           id: args.data.id || 'tok-mock',
           ...args.data,
-          family: args.data.familyId,
-          familyId: args.data.familyId,
+          family,
+          familyId: family,
         };
         store.set(record.id, record);
         return Promise.resolve(record);
