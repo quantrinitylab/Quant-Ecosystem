@@ -12,8 +12,8 @@
     "paths": {
       "@quant/common": ["../../packages/common/src/index.ts"],
       "@quant/common/*": ["../../packages/common/src/*"],
-      "@quant/auth": ["../../packages/auth/src/index.ts"],
-      "@quant/auth/*": ["../../packages/auth/src/*"],
+      "@quant/auth": ["../../packages/auth/dist/index.d.ts"],
+      "@quant/auth/*": ["../../packages/auth/dist/*"],
       "@quant/database": ["../../packages/database/dist/index.d.ts"],
       "@quant/database/*": ["../../packages/database/dist/*"],
       "@quant/realtime": ["../../packages/realtime/src/index.ts"],
