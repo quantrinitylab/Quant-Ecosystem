@@ -5,8 +5,10 @@ on:
     paths:
       - 'apps/quantmail/.env.local.example'
       - 'apps/quantmail/backend/routes/auth.ts'
+      - 'apps/quantmail/backend/routes/oauth.ts'
       - 'apps/quantmail/backend/app.ts'
       - 'apps/quantmail/backend/__tests__/browser-refresh-cookie.test.ts'
+      - 'apps/quantmail/backend/__tests__/oauth-non-browser-compat.test.ts'
       - 'apps/quantmail/src/__tests__/browser-auth-proxy.test.ts'
       - 'apps/quantmail/src/__tests__/browser-auth-session.test.ts'
       - 'apps/quantmail/src/app/api/oauth/userinfo/route.ts'
@@ -20,6 +22,9 @@ on:
       - 'apps/quantmail/src/services/browser-api-request.ts'
       - 'apps/quantmail/src/services/browser-auth-session.ts'
       - 'apps/quantmail/tsconfig.browser-auth.json'
+      - 'packages/auth/src/services/token-service.ts'
+      - 'packages/auth/src/__tests__/refresh-token-hardening.test.ts'
+      - 'packages/auth/src/__tests__/token-service.test.ts'
       - 'e2e/fixtures/quantmail-auth-backend.mjs'
       - 'e2e/playwright.quantmail-auth.config.ts'
       - 'e2e/tests/quantmail-auth/browser-cookie-session.spec.ts'
@@ -43,6 +48,8 @@ jobs:
           - browser-session-tests
           - browser-auth-proxy-tests
           - browser-e2e
+          - refresh-family-tests
+          - oauth-compat-tests
           - cookie-tests
           - legacy-storage-contract
           - credentialed-login-contract
@@ -87,6 +94,10 @@ jobs:
           pnpm --filter @quant/database build
           pnpm --filter @quant/auth build
 
+      - name: Build refresh-family test dependency
+        if: matrix.stage == 'refresh-family-tests'
+        run: pnpm --filter @quant/database build
+
       - name: Typecheck QuantMail backend
         if: contains(matrix.stage, 'backend-typecheck')
         run: pnpm --filter @quant/quantmail build:backend
@@ -120,6 +131,19 @@ jobs:
         run: >-
           pnpm --filter quant-e2e exec playwright test
           --config=playwright.quantmail-auth.config.ts
+
+      - name: Test refresh-token family hardening
+        if: matrix.stage == 'refresh-family-tests'
+        run: >-
+          pnpm --filter @quant/auth exec vitest run
+          src/__tests__/refresh-token-hardening.test.ts
+          src/__tests__/token-service.test.ts
+
+      - name: Test non-browser OAuth compatibility
+        if: matrix.stage == 'oauth-compat-tests'
+        run: >-
+          pnpm --filter @quant/quantmail exec vitest run
+          backend/__tests__/oauth-non-browser-compat.test.ts
 
       - name: Validate browser refresh-token boundary
         if: matrix.stage == 'cookie-tests'
