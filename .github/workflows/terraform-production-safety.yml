@@ -19,9 +19,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate-production-root:
+  format_production_v2:
+    name: terraform-format-production-v2
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -36,8 +37,19 @@ jobs:
           terraform fmt -check infra/terraform/environments/production/safety.tf
           terraform fmt -check -recursive infra/terraform/environments/production-v2
 
-      # Keep validating the legacy fail-closed guard independently while its
-      # intentionally unsafe root remains blocked by issue #129.
+  validate_legacy_guard:
+    name: terraform-validate-legacy-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.12.2
+          terraform_wrapper: false
+
       - name: Validate legacy production safety guard in isolation
         shell: bash
         run: |
@@ -57,6 +69,31 @@ jobs:
           EOF
           terraform -chdir="$fixture" init -backend=false -input=false
           terraform -chdir="$fixture" validate
+
+  validate_production_v2:
+    name: terraform-validate-production-v2
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.12.2
+          terraform_wrapper: false
+
+      - name: Validate complete production-v2 root
+        run: |
+          terraform -chdir=infra/terraform/environments/production-v2 init -backend=false -input=false
+          terraform -chdir=infra/terraform/environments/production-v2 validate
+
+  assert_safety_boundaries:
+    name: terraform-assert-production-safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Assert legacy production root remains blocked
         shell: bash
@@ -84,11 +121,6 @@ jobs:
             echo '::error::Legacy production root must remain fail-closed until issue #129 redesign is complete.'
             exit 1
           fi
-
-      - name: Validate complete production-v2 root
-        run: |
-          terraform -chdir=infra/terraform/environments/production-v2 init -backend=false -input=false
-          terraform -chdir=infra/terraform/environments/production-v2 validate
 
       - name: Assert production-v2 safety boundaries
         shell: bash
@@ -128,3 +160,32 @@ jobs:
             echo '::error::Legacy EKS 1.29 default found in production-v2.'
             exit 1
           fi
+
+  validate_production_root:
+    name: validate-production-root
+    if: ${{ always() }}
+    needs:
+      - format_production_v2
+      - validate_legacy_guard
+      - validate_production_v2
+      - assert_safety_boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every production Terraform diagnostic
+        env:
+          FORMAT_RESULT: ${{ needs.format_production_v2.result }}
+          LEGACY_GUARD_RESULT: ${{ needs.validate_legacy_guard.result }}
+          PRODUCTION_V2_RESULT: ${{ needs.validate_production_v2.result }}
+          SAFETY_BOUNDARY_RESULT: ${{ needs.assert_safety_boundaries.result }}
+        run: |
+          set -euo pipefail
+          printf 'format=%s\nlegacy_guard=%s\nproduction_v2=%s\nsafety_boundaries=%s\n' \
+            "$FORMAT_RESULT" \
+            "$LEGACY_GUARD_RESULT" \
+            "$PRODUCTION_V2_RESULT" \
+            "$SAFETY_BOUNDARY_RESULT"
+          test "$FORMAT_RESULT" = success
+          test "$LEGACY_GUARD_RESULT" = success
+          test "$PRODUCTION_V2_RESULT" = success
+          test "$SAFETY_BOUNDARY_RESULT" = success
