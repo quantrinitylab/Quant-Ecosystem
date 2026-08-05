@@ -1,0 +1,58 @@
+name: Dependency remediation diagnostics
+
+on:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/dependency-remediation-diagnostics.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-remediation-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  affected-task:
+    name: affected-${{ matrix.task }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - typecheck
+          - lint
+          - test
+          - build
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+
+      - name: Run affected ${{ matrix.task }} tasks
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: >-
+          npx turbo "${{ matrix.task }}"
+          --concurrency=2
+          --continue
+          --output-logs=errors-only
+          --filter="[origin/${{ github.base_ref }}]"
