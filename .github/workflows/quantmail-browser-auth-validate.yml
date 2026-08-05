@@ -7,8 +7,11 @@ on:
       - 'apps/quantmail/backend/app.ts'
       - 'apps/quantmail/backend/__tests__/browser-refresh-cookie.test.ts'
       - 'apps/quantmail/src/app/register/page.tsx'
+      - 'apps/quantmail/src/hooks/useEmail.ts'
+      - 'apps/quantmail/src/hooks/useGit.ts'
       - 'apps/quantmail/src/providers/auth-provider.tsx'
       - 'apps/quantmail/src/services/api-client.ts'
+      - 'apps/quantmail/src/services/browser-api-request.ts'
       - 'apps/quantmail/src/services/browser-auth-session.ts'
       - '.github/workflows/quantmail-browser-auth-validate.yml'
 
@@ -23,11 +26,13 @@ jobs:
         stage:
           - base-backend-typecheck
           - current-backend-typecheck
+          - current-frontend-typecheck
           - cookie-tests
           - legacy-storage-contract
           - credentialed-login-contract
           - registration-contract
           - api-client-cookie-transport-contract
+          - direct-browser-transport-contract
           - cookie-session-restore-contract
           - single-retry-contract
     name: browser-auth-${{ matrix.stage }}
@@ -69,6 +74,10 @@ jobs:
       - name: Typecheck QuantMail backend
         if: contains(matrix.stage, 'backend-typecheck')
         run: pnpm --filter @quant/quantmail build:backend
+
+      - name: Typecheck QuantMail frontend
+        if: matrix.stage == 'current-frontend-typecheck'
+        run: pnpm --filter @quant/quantmail exec tsc --noEmit -p tsconfig.json
 
       - name: Validate browser refresh-token boundary
         if: matrix.stage == 'cookie-tests'
@@ -128,6 +137,20 @@ jobs:
           ! grep -F 'fetch(' "$client"
           ! grep -F 'apiClient.setTokens' "$provider"
           ! grep -F 'apiClient.clearTokens' "$provider"
+
+      - name: Validate direct browser request transport
+        if: matrix.stage == 'direct-browser-transport-contract'
+        run: |
+          set -euo pipefail
+          helper='apps/quantmail/src/services/browser-api-request.ts'
+          email='apps/quantmail/src/hooks/useEmail.ts'
+          git='apps/quantmail/src/hooks/useGit.ts'
+          grep -F "import { browserAuthSession } from './browser-auth-session';" "$helper" >/dev/null
+          grep -F 'browserAuthSession.authenticatedFetch(input' "$helper" >/dev/null
+          grep -F "browserApiRequest as apiRequest" "$email" "$git" >/dev/null
+          ! grep -F 'localStorage' "$helper" "$email" "$git"
+          ! grep -F 'quant_auth_tokens' "$helper" "$email" "$git"
+          ! grep -F 'fetch(' "$helper" "$email" "$git"
 
       - name: Validate cookie-only session restoration contract
         if: matrix.stage == 'cookie-session-restore-contract'
