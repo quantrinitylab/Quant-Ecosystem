@@ -5,22 +5,73 @@ import type {
   AIInferenceResponse,
   StreamChunk,
 } from './chat.service';
+import {
+  CloudflareWorkersAIClient,
+  type CloudflareAIEnv,
+  type CloudflareFetch,
+} from './cloudflare-workers-ai';
+
+export interface AIEngineOptions {
+  env?: CloudflareAIEnv;
+  fetchImpl?: CloudflareFetch;
+  timeoutMs?: number;
+}
 
 export class AIEngine implements AIEngineInterface {
-  private engine: CoreAIEngine;
-  private modelRouter: ReturnType<CoreAIEngine['getModelRouter']>;
+  private readonly engine: CoreAIEngine;
+  private readonly modelRouter: ReturnType<CoreAIEngine['getModelRouter']>;
+  private readonly workersAI: CloudflareWorkersAIClient;
 
-  constructor() {
+  constructor(options: AIEngineOptions = {}) {
     this.engine = new CoreAIEngine();
     this.modelRouter = this.engine.getModelRouter();
+    this.workersAI = new CloudflareWorkersAIClient(options);
   }
 
-  /**
-   * AIEngineInterface.infer — context-preserving inference used by ChatService
-   * (persists multi-turn context). Delegates to the shared @quant/ai engine so
-   * circuit-breaker / cost-tracking state is shared with the rest of the app.
-   */
+  private prepareWorkersRequest(request: AIInferenceRequest): AIInferenceRequest {
+    const safeInput = this.engine.getSafetyPipeline().processInput(request.prompt);
+    return { ...request, prompt: safeInput.text };
+  }
+
+  private checkWorkersBudget(request: AIInferenceRequest): void {
+    const costs = this.engine.getCostTracker();
+    costs.checkBudget(request.userId);
+    costs.checkRateLimit(request.userId);
+  }
+
+  private trackWorkersUsage(
+    request: AIInferenceRequest,
+    model: string,
+    promptTokens: number,
+    completionTokens: number,
+    estimatedCost: number,
+  ): void {
+    this.engine
+      .getCostTracker()
+      .trackUsage(
+        request.userId,
+        model,
+        promptTokens,
+        completionTokens,
+        estimatedCost,
+      );
+  }
+
   async infer(request: AIInferenceRequest): Promise<AIInferenceResponse> {
+    if (this.workersAI.isSelected()) {
+      this.checkWorkersBudget(request);
+      const response = await this.workersAI.infer(this.prepareWorkersRequest(request));
+      const safeOutput = this.engine.getSafetyPipeline().processOutput(response.content);
+      this.trackWorkersUsage(
+        request,
+        response.model,
+        response.usage.promptTokens,
+        response.usage.completionTokens,
+        response.usage.estimatedCost,
+      );
+      return { ...response, content: safeOutput.text };
+    }
+
     const response = await this.engine.infer({
       prompt: request.prompt,
       systemPrompt: request.systemPrompt,
@@ -48,8 +99,22 @@ export class AIEngine implements AIEngineInterface {
     };
   }
 
-  /** AIEngineInterface.stream — token stream used by ChatService.streamMessage. */
   async *stream(request: AIInferenceRequest): AsyncGenerator<StreamChunk> {
+    if (this.workersAI.isSelected()) {
+      this.checkWorkersBudget(request);
+      const prepared = this.prepareWorkersRequest(request);
+      let completion = '';
+      let model = this.workersAI.getConfiguredModel();
+      for await (const chunk of this.workersAI.stream(prepared)) {
+        completion += chunk.content;
+        yield chunk;
+      }
+      const promptTokens = Math.ceil(prepared.prompt.length / 4);
+      const completionTokens = Math.ceil(completion.length / 4);
+      this.trackWorkersUsage(request, model, promptTokens, completionTokens, 0);
+      return;
+    }
+
     const source = this.engine.stream({
       prompt: request.prompt,
       systemPrompt: request.systemPrompt,
@@ -72,38 +137,28 @@ export class AIEngine implements AIEngineInterface {
   }
 
   async chat(messages: any[], options: any = {}) {
-    const userMessage = [...messages].reverse().find((m) => m.role === 'user');
-    const systemMessage = messages.find((m) => m.role === 'system');
-    const prompt = userMessage?.content || '';
-
-    const response = await this.engine.infer({
-      prompt,
+    const userMessage = [...messages].reverse().find((message) => message.role === 'user');
+    const systemMessage = messages.find((message) => message.role === 'system');
+    const response = await this.infer({
+      prompt: userMessage?.content || '',
       systemPrompt: systemMessage?.content || options.systemPrompt,
+      context: messages.filter((message) => message !== userMessage && message !== systemMessage),
       model: options.model,
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
       userId: options.userId || 'anonymous',
       app: 'quantai',
       feature: 'chat',
     });
-
-    return {
-      content: response.content,
-      model: response.model,
-      usage: response.usage,
-    };
+    return { content: response.content, model: response.model, usage: response.usage };
   }
 
   async streamChat(messages: any[], options: any = {}) {
-    const userMessage = [...messages].reverse().find((m) => m.role === 'user');
-    const systemMessage = messages.find((m) => m.role === 'system');
-    const prompt = userMessage?.content || '';
-
-    return this.engine.stream({
-      prompt,
+    const userMessage = [...messages].reverse().find((message) => message.role === 'user');
+    const systemMessage = messages.find((message) => message.role === 'system');
+    return this.stream({
+      prompt: userMessage?.content || '',
       systemPrompt: systemMessage?.content || options.systemPrompt,
+      context: messages.filter((message) => message !== userMessage && message !== systemMessage),
       model: options.model,
-      temperature: options.temperature,
       userId: options.userId || 'anonymous',
       app: 'quantai',
       feature: 'chat',
@@ -112,6 +167,9 @@ export class AIEngine implements AIEngineInterface {
   }
 
   async getAvailableModels() {
+    if (this.workersAI.isSelected()) {
+      return [this.workersAI.getModelDescriptor()];
+    }
     return this.modelRouter.getModels();
   }
 }
