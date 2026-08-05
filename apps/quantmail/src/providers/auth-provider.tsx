@@ -30,7 +30,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearMemorySession = useCallback(() => {
     browserAuthSession.clearAccessToken();
-    apiClient.clearTokens();
     setUser(null);
   }, []);
 
@@ -41,6 +40,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setUser(profile.data);
   }, []);
+
+  useEffect(() => {
+    apiClient.onAuthenticationError(clearMemorySession);
+    return () => apiClient.onAuthenticationError(undefined);
+  }, [clearMemorySession]);
 
   // Fail closed on every load: erase all historical JavaScript-readable token
   // formats, then restore only from the server-managed HttpOnly refresh cookie.
@@ -53,7 +57,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const session = await browserAuthSession.refresh();
         if (!active || !session.success || !session.data?.accessToken) return;
-        apiClient.setTokens(session.data.accessToken);
         await loadProfile();
       } catch {
         if (active) clearMemorySession();
@@ -69,14 +72,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [clearMemorySession, loadProfile]);
 
   // Rotate before the 15-minute access token expires. The rotated refresh token
-  // remains inside the HttpOnly cookie and is never included in this callback.
+  // remains inside the HttpOnly cookie and never enters this provider.
   useEffect(() => {
     if (!user) return;
     const timer = window.setInterval(async () => {
       const session = await browserAuthSession.refresh();
-      if (session.success && session.data?.accessToken) {
-        apiClient.setTokens(session.data.accessToken);
-      } else {
+      if (!session.success || !session.data?.accessToken) {
         clearMemorySession();
       }
     }, 12 * 60 * 1000);
@@ -93,7 +94,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!session.success || !session.data?.accessToken) {
           throw new Error(session.error?.message || 'Login failed');
         }
-        apiClient.setTokens(session.data.accessToken);
         await loadProfile();
       } catch (caught) {
         clearMemorySession();

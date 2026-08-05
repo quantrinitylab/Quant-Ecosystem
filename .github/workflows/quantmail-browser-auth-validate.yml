@@ -8,6 +8,7 @@ on:
       - 'apps/quantmail/backend/__tests__/browser-refresh-cookie.test.ts'
       - 'apps/quantmail/src/app/register/page.tsx'
       - 'apps/quantmail/src/providers/auth-provider.tsx'
+      - 'apps/quantmail/src/services/api-client.ts'
       - 'apps/quantmail/src/services/browser-auth-session.ts'
       - '.github/workflows/quantmail-browser-auth-validate.yml'
 
@@ -26,6 +27,7 @@ jobs:
           - legacy-storage-contract
           - credentialed-login-contract
           - registration-contract
+          - api-client-cookie-transport-contract
           - cookie-session-restore-contract
           - single-retry-contract
     name: browser-auth-${{ matrix.stage }}
@@ -96,7 +98,7 @@ jobs:
           grep -F "credentials: 'include'" "$session" >/dev/null
           grep -F "'/auth/login'" "$session" >/dev/null
           grep -F 'browserAuthSession.login(email, password)' "$provider" >/dev/null
-          grep -F 'apiClient.setTokens(session.data.accessToken)' "$provider" >/dev/null
+          ! grep -F 'apiClient.setTokens' "$provider"
           ! grep -F 'localStorage.setItem' "$provider"
 
       - name: Validate credentialed cookie-backed registration contract
@@ -110,6 +112,22 @@ jobs:
           ! grep -F 'apiClient.register(' "$registration"
           grep -F "'/auth/register'" "$session" >/dev/null
           grep -F "credentials: 'include'" "$session" >/dev/null
+
+      - name: Validate cookie-backed API client transport
+        if: matrix.stage == 'api-client-cookie-transport-contract'
+        run: |
+          set -euo pipefail
+          client='apps/quantmail/src/services/api-client.ts'
+          provider='apps/quantmail/src/providers/auth-provider.tsx'
+          grep -F "import { browserAuthSession } from './browser-auth-session';" "$client" >/dev/null
+          grep -F 'browserAuthSession.authenticatedFetch(urlStr' "$client" >/dev/null
+          grep -F 'apiClient.onAuthenticationError(clearMemorySession)' "$provider" >/dev/null
+          ! grep -F 'refreshToken' "$client"
+          ! grep -F 'onTokenRefreshed' "$client"
+          ! grep -F '/oauth/token' "$client"
+          ! grep -F 'fetch(' "$client"
+          ! grep -F 'apiClient.setTokens' "$provider"
+          ! grep -F 'apiClient.clearTokens' "$provider"
 
       - name: Validate cookie-only session restoration contract
         if: matrix.stage == 'cookie-session-restore-contract'
