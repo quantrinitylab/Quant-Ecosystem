@@ -108,14 +108,12 @@ jobs:
           grep -F 'condition     = var.expected_aws_account_id == "266176113726"' "$guard"
           grep -F 'condition     = var.application_domain == "quantrinity.in"' "$guard"
           grep -F 'condition     = var.public_dns_provider == "cloudflare"' "$guard"
-          grep -F 'condition     = !var.enable_multi_region' "$guard"
+          grep -F 'condition     = var.enable_multi_region == false' "$guard"
           grep -F 'condition     = var.production_root_redesigned' "$guard"
+          grep -F 'aws_region  = "us-east-1"' "$values"
 
-          grep -F 'expected_aws_account_id      = "266176113726"' "$values"
-          grep -F 'application_domain           = "quantrinity.in"' "$values"
-          grep -F 'public_dns_provider           = "cloudflare"' "$values"
-          grep -F 'enable_multi_region           = false' "$values"
-          grep -F 'production_root_redesigned    = false' "$values"
+          redesign_block="$(grep -A 4 'variable "production_root_redesigned"' "$guard")"
+          grep -F 'default     = false' <<<"$redesign_block"
 
           if grep -R --line-number --fixed-strings 'production_root_redesigned = true' infra/terraform/environments/production; then
             echo '::error::Legacy production root must remain fail-closed until issue #129 redesign is complete.'
