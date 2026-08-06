@@ -1,39 +1,69 @@
-name: Dependency remediation diagnostics
+name: Dependency remediation direct validation
 
 on:
   pull_request:
     paths:
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/dependency-remediation-diagnostics.yml'
-      - 'packages/data-plane/**'
-      - 'packages/social-graph/**'
-      - 'services/cdc-relay/**'
+      - package.json
+      - pnpm-lock.yaml
+      - packages/data-plane/**
+      - packages/social-graph/**
+      - services/cdc-relay/**
+      - services/moderation-worker/**
+      - .github/workflows/dependency-remediation-diagnostics.yml
 
 permissions:
   contents: read
-  checks: write
 
 concurrency:
-  group: dependency-remediation-diagnostics-${{ github.ref }}
+  group: dependency-remediation-validation-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  compiler-diagnostic:
-    name: capture-${{ matrix.target }}-diagnostics
+  direct-validation:
+    name: direct-${{ matrix.target }}-${{ matrix.task }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 4
       matrix:
         include:
           - target: data-plane
             dir: packages/data-plane
+            task: typecheck
+          - target: data-plane
+            dir: packages/data-plane
+            task: build
+          - target: data-plane
+            dir: packages/data-plane
+            task: test
           - target: social-graph
             dir: packages/social-graph
+            task: typecheck
+          - target: social-graph
+            dir: packages/social-graph
+            task: build
+          - target: social-graph
+            dir: packages/social-graph
+            task: test
           - target: cdc-relay
             dir: services/cdc-relay
+            task: typecheck
+          - target: cdc-relay
+            dir: services/cdc-relay
+            task: build
+          - target: cdc-relay
+            dir: services/cdc-relay
+            task: test
+          - target: moderation-worker
+            dir: services/moderation-worker
+            task: typecheck
+          - target: moderation-worker
+            dir: services/moderation-worker
+            task: build
+          - target: moderation-worker
+            dir: services/moderation-worker
+            task: test
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,57 +84,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
 
-      - name: Publish sanitized compiler coordinates
-        shell: bash
+      - name: Run direct validation
         env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          TARGET: ${{ matrix.target }}
           TARGET_DIR: ${{ matrix.dir }}
+          TASK: ${{ matrix.task }}
           NODE_OPTIONS: --max-old-space-size=4096
-        run: |
-          set +e
-          pnpm --dir "$TARGET_DIR" exec tsc --noEmit --pretty false > diagnostic.log 2>&1
-          status=$?
-          set -e
-
-          publish_check() {
-            local name="$1"
-            gh api --method POST "repos/$GITHUB_REPOSITORY/check-runs" \
-              -f name="$name" \
-              -f head_sha="$HEAD_SHA" \
-              -f status='completed' \
-              -f conclusion='neutral' >/dev/null
-          }
-
-          if [ "$status" -eq 0 ]; then
-            publish_check "diagnostic-$TARGET-unexpected-pass"
-            exit 0
-          fi
-
-          mapfile -t coordinates < <(
-            sed -nE 's#^(.+)\(([0-9]+),([0-9]+)\): error (TS[0-9]+):.*#\1|\2|\4#p' diagnostic.log \
-              | sort -u \
-              | head -n 20
-          )
-
-          if [ "${#coordinates[@]}" -gt 0 ]; then
-            for coordinate in "${coordinates[@]}"; do
-              IFS='|' read -r file line code <<< "$coordinate"
-              base="$(basename "$file")"
-              stem="${base%.*}"
-              slug="$(printf '%s' "$stem" | tr -cs '[:alnum:]' '-')"
-              publish_check "diagnostic-$TARGET-${slug}-L${line}-${code}"
-            done
-            exit 0
-          fi
-
-          mapfile -t codes < <(grep -oE 'TS[0-9]+' diagnostic.log | sort -u | head -n 20)
-          if [ "${#codes[@]}" -gt 0 ]; then
-            for code in "${codes[@]}"; do
-              publish_check "diagnostic-$TARGET-$code"
-            done
-            exit 0
-          fi
-
-          publish_check "diagnostic-$TARGET-non-ts-error"
+        run: pnpm --dir "$TARGET_DIR" run "$TASK"
