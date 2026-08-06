@@ -6,6 +6,9 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/dependency-remediation-diagnostics.yml'
+      - 'packages/data-plane/**'
+      - 'packages/social-graph/**'
+      - 'services/cdc-relay/**'
 
 permissions:
   contents: read
@@ -15,59 +18,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  package-task:
-    name: package-${{ matrix.package }}-${{ matrix.task }}
+  direct-typecheck:
+    name: direct-${{ matrix.target }}-typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 3
       matrix:
-        package:
-          - data-pipeline
-          - data-plane
-          - data-warehouse
-          - database
-          - dev-platform
-          - device-control
-          - edge-config
-          - encryption
-          - error-monitoring
-          - events
-          - feature-flags
-          - federation
-          - quant-automate
-          - quant-codex
-          - quant-commerce
-          - quant-economy
-          - quant-flow
-          - quant-health
-          - quant-live
-          - quant-notebook
-          - quant-orchestrator
-          - quant-studio
-          - quant-tools
-          - queue
-          - ranking
-          - realtime
-          - recommendation
-          - recommendations
-          - robotics-bridge
-          - scaling
-          - search
-          - security-advanced
-          - security
-          - server-core
-          - server
-          - service-discovery
-          - shared-ui
-          - social-graph
-          - spatial-ui
-          - storage
-          - sync-engine
-        task:
-          - typecheck
-          - build
+        include:
+          - target: data-plane
+            dir: packages/data-plane
+          - target: social-graph
+            dir: packages/social-graph
+          - target: cdc-relay
+            dir: services/cdc-relay
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -88,12 +53,241 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
 
-      - name: Run ${{ matrix.package }} ${{ matrix.task }} task
+      - name: Run direct typecheck
         env:
+          TARGET_DIR: ${{ matrix.dir }}
           NODE_OPTIONS: --max-old-space-size=4096
-        run: >-
-          npx turbo "${{ matrix.task }}"
-          --concurrency=2
-          --continue
-          --output-logs=errors-only
-          --filter="{./packages/${{ matrix.package }}}"
+        run: pnpm --dir "$TARGET_DIR" run typecheck
+
+  diagnostic-probe:
+    name: probe-${{ matrix.target }}-${{ matrix.probe }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        include:
+          - target: data-plane
+            dir: packages/data-plane
+            probe: test-data-retention
+            matcher: src/__tests__/data-retention.test.ts
+          - target: data-plane
+            dir: packages/data-plane
+            probe: test-idempotency
+            matcher: src/__tests__/idempotency.test.ts
+          - target: data-plane
+            dir: packages/data-plane
+            probe: audit-log
+            matcher: src/audit-log.ts
+          - target: data-plane
+            dir: packages/data-plane
+            probe: base-repository
+            matcher: src/base-repository.ts
+          - target: data-plane
+            dir: packages/data-plane
+            probe: data-retention
+            matcher: src/data-retention.ts
+          - target: data-plane
+            dir: packages/data-plane
+            probe: field-encryption
+            matcher: src/field-encryption.ts
+          - target: data-plane
+            dir: packages/data-plane
+            probe: idempotency
+            matcher: src/idempotency.ts
+          - target: data-plane
+            dir: packages/data-plane
+            probe: index
+            matcher: src/index.ts
+          - target: data-plane
+            dir: packages/data-plane
+            probe: optimistic-locking
+            matcher: src/optimistic-locking.ts
+          - target: data-plane
+            dir: packages/data-plane
+            probe: outbox
+            matcher: src/outbox.ts
+          - target: data-plane
+            dir: packages/data-plane
+            probe: replica-router
+            matcher: src/replica-router.ts
+          - target: data-plane
+            dir: packages/data-plane
+            probe: soft-delete
+            matcher: src/soft-delete.ts
+          - target: social-graph
+            dir: packages/social-graph
+            probe: community-detector
+            matcher: src/core/community-detector.ts
+          - target: social-graph
+            dir: packages/social-graph
+            probe: follower-manager
+            matcher: src/core/follower-manager.ts
+          - target: social-graph
+            dir: packages/social-graph
+            probe: graph-store
+            matcher: src/core/graph-store.ts
+          - target: social-graph
+            dir: packages/social-graph
+            probe: influence-scorer
+            matcher: src/core/influence-scorer.ts
+          - target: social-graph
+            dir: packages/social-graph
+            probe: path-finder
+            matcher: src/core/path-finder.ts
+          - target: social-graph
+            dir: packages/social-graph
+            probe: index
+            matcher: src/index.ts
+          - target: social-graph
+            dir: packages/social-graph
+            probe: service-test
+            matcher: src/services/social-graph.service.test.ts
+          - target: social-graph
+            dir: packages/social-graph
+            probe: service
+            matcher: src/services/social-graph.service.ts
+          - target: social-graph
+            dir: packages/social-graph
+            probe: types
+            matcher: src/types.ts
+          - target: cdc-relay
+            dir: services/cdc-relay
+            probe: index
+            matcher: src/index.ts
+          - target: cdc-relay
+            dir: services/cdc-relay
+            probe: kafka-producer
+            matcher: src/kafka-producer.ts
+          - target: cdc-relay
+            dir: services/cdc-relay
+            probe: outbox-poller
+            matcher: src/outbox-poller.ts
+          - target: data-plane
+            dir: packages/data-plane
+            probe: ts2307
+            matcher: TS2307
+          - target: data-plane
+            dir: packages/data-plane
+            probe: ts2322
+            matcher: TS2322
+          - target: data-plane
+            dir: packages/data-plane
+            probe: ts2339
+            matcher: TS2339
+          - target: data-plane
+            dir: packages/data-plane
+            probe: ts2345
+            matcher: TS2345
+          - target: data-plane
+            dir: packages/data-plane
+            probe: ts2769
+            matcher: TS2769
+          - target: data-plane
+            dir: packages/data-plane
+            probe: ts6133
+            matcher: TS6133
+          - target: data-plane
+            dir: packages/data-plane
+            probe: ts7006
+            matcher: TS7006
+          - target: social-graph
+            dir: packages/social-graph
+            probe: ts2307
+            matcher: TS2307
+          - target: social-graph
+            dir: packages/social-graph
+            probe: ts2322
+            matcher: TS2322
+          - target: social-graph
+            dir: packages/social-graph
+            probe: ts2339
+            matcher: TS2339
+          - target: social-graph
+            dir: packages/social-graph
+            probe: ts2345
+            matcher: TS2345
+          - target: social-graph
+            dir: packages/social-graph
+            probe: ts2769
+            matcher: TS2769
+          - target: social-graph
+            dir: packages/social-graph
+            probe: ts6133
+            matcher: TS6133
+          - target: social-graph
+            dir: packages/social-graph
+            probe: ts7006
+            matcher: TS7006
+          - target: cdc-relay
+            dir: services/cdc-relay
+            probe: ts2307
+            matcher: TS2307
+          - target: cdc-relay
+            dir: services/cdc-relay
+            probe: ts2322
+            matcher: TS2322
+          - target: cdc-relay
+            dir: services/cdc-relay
+            probe: ts2339
+            matcher: TS2339
+          - target: cdc-relay
+            dir: services/cdc-relay
+            probe: ts2345
+            matcher: TS2345
+          - target: cdc-relay
+            dir: services/cdc-relay
+            probe: ts2769
+            matcher: TS2769
+          - target: cdc-relay
+            dir: services/cdc-relay
+            probe: ts6133
+            matcher: TS6133
+          - target: cdc-relay
+            dir: services/cdc-relay
+            probe: ts7006
+            matcher: TS7006
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+
+      - name: Probe compiler diagnostic matcher
+        shell: bash
+        env:
+          TARGET_DIR: ${{ matrix.dir }}
+          MATCHER: ${{ matrix.matcher }}
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: |
+          set +e
+          pnpm --dir "$TARGET_DIR" run typecheck > diagnostic.log 2>&1
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "Target typecheck passed; no failing diagnostic to probe."
+            exit 0
+          fi
+
+          if grep -Fq -- "$MATCHER" diagnostic.log; then
+            echo "Compiler output matched probe: $MATCHER"
+            exit 1
+          fi
+
+          echo "Compiler output did not match probe: $MATCHER"
