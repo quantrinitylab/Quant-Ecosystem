@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  checks: write
 
 concurrency:
   group: dependency-remediation-validation-${{ github.ref }}
@@ -84,9 +85,57 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
 
-      - name: Run direct validation
+      - name: Run strict validation and publish sanitized failures
+        shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TARGET: ${{ matrix.target }}
           TARGET_DIR: ${{ matrix.dir }}
           TASK: ${{ matrix.task }}
           NODE_OPTIONS: --max-old-space-size=4096
-        run: pnpm --dir "$TARGET_DIR" run "$TASK"
+        run: |
+          set +e
+          pnpm --dir "$TARGET_DIR" run "$TASK" > validation.log 2>&1
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            exit 0
+          fi
+
+          publish_check() {
+            local name="$1"
+            gh api --method POST "repos/$GITHUB_REPOSITORY/check-runs" \
+              -f name="$name" \
+              -f head_sha="$HEAD_SHA" \
+              -f status='completed' \
+              -f conclusion='neutral' >/dev/null
+          }
+
+          mapfile -t coordinates < <(
+            sed -nE 's#^(.+)\(([0-9]+),([0-9]+)\): error (TS[0-9]+):.*#\1|\2|\4#p' validation.log \
+              | sort -u \
+              | head -n 20
+          )
+
+          if [ "${#coordinates[@]}" -gt 0 ]; then
+            for coordinate in "${coordinates[@]}"; do
+              IFS='|' read -r file line code <<< "$coordinate"
+              base="$(basename "$file")"
+              stem="${base%.*}"
+              slug="$(printf '%s' "$stem" | tr -cs '[:alnum:]' '-')"
+              publish_check "diagnostic-$TARGET-$TASK-${slug}-L${line}-${code}"
+            done
+          else
+            mapfile -t codes < <(grep -oE 'TS[0-9]+' validation.log | sort -u | head -n 20)
+            if [ "${#codes[@]}" -gt 0 ]; then
+              for code in "${codes[@]}"; do
+                publish_check "diagnostic-$TARGET-$TASK-$code"
+              done
+            else
+              publish_check "diagnostic-$TARGET-$TASK-non-ts-error"
+            fi
+          fi
+
+          exit "$status"
