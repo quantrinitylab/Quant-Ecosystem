@@ -2202,6 +2202,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
+      prisma:
+        specifier: ^6.19.3
+        version: 6.19.3(magicast@0.3.5)(typescript@5.5.4)
       typescript:
         specifier: ~5.5.0
         version: 5.5.4
@@ -3412,6 +3415,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
+      prisma:
+        specifier: ^6.19.3
+        version: 6.19.3(magicast@0.3.5)(typescript@5.5.4)
       typescript:
         specifier: ~5.5.0
         version: 5.5.4
@@ -3698,6 +3704,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
+      prisma:
+        specifier: ^6.19.3
+        version: 6.19.3(magicast@0.3.5)(typescript@5.5.4)
       ts-node:
         specifier: ^10.9.0
         version: 10.9.2(@types/node@22.19.19)(typescript@5.5.4)
@@ -15019,7 +15028,6 @@ snapshots:
       typescript: 5.5.4
     transitivePeerDependencies:
       - magicast
-    optional: true
 
   prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3):
     dependencies:
