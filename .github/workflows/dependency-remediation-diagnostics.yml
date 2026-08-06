@@ -82,8 +82,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma client
-        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+      - name: Build database dependency
+        run: pnpm --dir packages/database run build
 
       - name: Run strict validation and publish sanitized failures
         shell: bash
