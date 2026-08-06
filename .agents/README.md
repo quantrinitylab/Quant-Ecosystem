@@ -4,9 +4,9 @@ doc_type: agent-artifacts-policy
 authority: non-authoritative
 status: active
 owner: developer-experience
-last_verified: 2026-07-22
-verified_at_commit: 28f2ef50eec492c955a50fc6eb917aa51aa10739
-review_by: 2026-08-05
+last_verified: 2026-08-06
+verified_at_commit: 1162352cf094615136098d2675f169e886364e9f
+review_by: 2026-09-05
 supersedes: []
 superseded_by: []
 canonical_scope: agent-artifact-classification
