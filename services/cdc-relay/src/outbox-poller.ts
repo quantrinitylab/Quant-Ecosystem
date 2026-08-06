@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@quant/database';
 import pino from 'pino';
 import type { KafkaProducerClient } from './kafka-producer.js';
 
