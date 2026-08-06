@@ -4,9 +4,9 @@ doc_type: current-state
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-07-23
-verified_at_commit: e2bf6643b21f4dc93a6fe9c7374b4d4401b4c848
-review_by: 2026-08-06
+last_verified: 2026-08-06
+verified_at_commit: 1162352cf094615136098d2675f169e886364e9f
+review_by: 2026-09-05
 supersedes: []
 superseded_by: []
 canonical_scope: current-repository-state
@@ -14,35 +14,44 @@ canonical_scope: current-repository-state
 
 # Current State
 
-This is the canonical repository-truth snapshot, pinned to merged WU3 commit `e2bf6643b21f4dc93a6fe9c7374b4d4401b4c848`. Newer code and blocking CI evidence take precedence until this file is re-verified; the [Execution Queue](./EXECUTION_QUEUE.md) separately owns priority.
+This is the canonical repository-truth snapshot, pinned to the last explicitly reviewed merged-main checkpoint `1162352cf094615136098d2675f169e886364e9f` and supplemented by current open-PR/issue evidence. Newer code and blocking CI evidence take precedence; the [Execution Queue](./EXECUTION_QUEUE.md) separately owns priority.
 
 ## Active direction
 
-The active milestone is **M11D-SHADOW-CANARY**: produce durable, tenant-safe, release-gated evidence for Memory V2 shadow mode while legacy behavior remains authoritative. Its ordered units and exit gates live only in the Execution Queue. Identity hardening remains queued as **S-01** and must not displace it.
+The canonical active milestone remains **M11D-SHADOW-CANARY**, work unit 4: produce representative, durable, tenant-safe shadow evidence while legacy behavior remains authoritative. Its order and exit gates live only in the Execution Queue.
+
+Recent repository activity is concentrated on dependency remediation, S-01-style authentication hardening, QuantMail browser-session migration, Cloudflare Workers AI, and target-account deployment. This is a visible priority mismatch, not permission to silently replace the active milestone. The owner must either keep/finish/block WU4 or approve and record a queue change.
 
 ## Verified truth
 
-| Area            | Evidence                                                                                                                                                                                                                                                                               | Consequence                                                                                                                   |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Memory V2       | Ports, Prisma persistence, retrieval, policy, replay, and a four-mode facade exist; see [architecture](./MEMORY_ARCHITECTURE.md) and [ADR-011](./adr/011-memory-facade-shadow-migration.md).                                                                                           | Architecture exists; production activation is unproven.                                                                       |
-| Core AI         | [`AIEngine`](../packages/ai/src/core/engine.ts) constructs its facade in hardcoded `legacy` mode.                                                                                                                                                                                      | Memory V2 is not universal inference authority.                                                                               |
-| QuantAI canary  | [WU2 fail-closed evidence](./baselines/m11d-fail-closed-contract-2026-07-22.md) and [WU3 durable report evidence](./baselines/m11d-durable-shadow-report-2026-07-23.md) prove durable dependency gating, PostgreSQL report persistence, client-restart survival, and tenant isolation. | `shadow` can run only with real DB/vector/report dependencies; legacy output remains authoritative and `new` remains blocked. |
-| Cutover         | [Scoreboard](./MIGRATION_SCOREBOARD.md) records 14.3% agreement and five critical divergences.                                                                                                                                                                                         | Decision remains **HOLD**; no automatic promotion.                                                                            |
-| Experiments     | [Decision Log](./M11D_DECISION_LOG.md) records two precision regressions that were reverted.                                                                                                                                                                                           | Measure-first and Law 7 gates are working.                                                                                    |
-| Realtime        | WebSockets send real frames, but connection/channel/presence state is node-local and JetStream durability is not end-to-end.                                                                                                                                                           | Multi-instance failover is not production-proven.                                                                             |
-| Auth            | Argon2id, JOSE, PKCE, and secure randomness exist; refresh rotation and RS256 key lifecycle still have durability/transaction gaps.                                                                                                                                                    | Security foundation is real but incomplete.                                                                                   |
-| CI              | [Final WU3 CI](https://github.com/quantrinitylabsgo/Quant-Ecosystem/actions/runs/29987010526) passed affected-package, PostgreSQL shadow, and QuantChat coverage gates; full sweep remains informational.                                                                              | WU3 has clean-environment proof; whole-repository health is not yet a blocking proof.                                         |
-| Deployment      | Production deployment is not proven to depend on successful CI, and deployment configuration contains stale assumptions.                                                                                                                                                               | A push to `main` is not sufficient release evidence.                                                                          |
-| Legacy guidance | The [production prompt](../.kiro/steering/PRODUCTION_READINESS_PROMPT.md) contains stale bootstrap findings.                                                                                                                                                                           | It is manual historical guidance, not current authority.                                                                      |
+| Area                    | Evidence                                                                                                                                                                                                                                                         | Consequence                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Memory V2               | Ports, durable persistence, retrieval, policy, replay, four-mode facade, durable shadow reports, representative WU4 runner, and release boundary exist; see [architecture](./MEMORY_ARCHITECTURE.md) and [ADR-011](./adr/011-memory-facade-shadow-migration.md). | WU4 live evidence remains active; `new` authority stays blocked.                                               |
+| Memory cutover          | [Scoreboard](./MIGRATION_SCOREBOARD.md) records 14.3% agreement and five critical divergences; two precision-regressing experiments were reverted in the [decision log](./M11D_DECISION_LOG.md).                                                                 | Decision remains **HOLD**; measurement and Law 7 gates are working.                                            |
+| QuantMail design        | Issue #71 and merged PRs #72–#107 plus #123/#124 established Quantrinity identity, semantic design roles, shell/state evolution, truthful settings, and verified shortcut copy.                                                                                  | Foundation is substantial; audited issues #108–#122 and editable Figma work remain.                            |
+| Refresh-family security | Open PR #125 persists one-way refresh digests, validates binding, rotates atomically, and revokes reused families; focused security evidence is green.                                                                                                           | Candidate implementation is not merged; dependency/aggregate gates still apply.                                |
+| Dependencies            | Draft PR #130 remediates high/critical findings without lowering thresholds; moderate+ audit and CodeQL are green, while main gate and full sweep are red.                                                                                                       | It remains intentionally non-mergeable and blocks stacked PRs.                                                 |
+| Browser auth            | Draft PR #132 removes browser refresh JSON/storage, uses an HttpOnly cookie, memory-only access token, bounded retry, exact-origin controls, same-origin proxies, OAuth compatibility, and Chromium acceptance.                                                  | Focused evidence is strong, but dependency/main/typecheck/full-sweep/review/deploy gates remain red or absent. |
+| AI provider             | Draft PR #135 isolates a fail-closed Cloudflare Workers AI runtime; focused tests, backend typecheck/lint, several security lanes, and secret scan are green.                                                                                                    | Dependency/aggregate gate and review block merge; no production activation occurred.                           |
+| Deployment              | PR #126 is superseded; Issue #127 tracks missing OIDC/EKS/images. Terraform audit found unsafe multi-region, cost, and stale-domain assumptions.                                                                                                                 | No production apply, release image rollout, or application DNS cutover is authorized.                          |
+| Realtime                | WebSockets send real frames, but connection/channel/presence state is node-local and JetStream durability is not end-to-end.                                                                                                                                     | Multi-instance failover is not production-proven.                                                              |
+| Project memory          | Canonical memory and validator exist; detailed owner/session context is proposed under [`.agents/project-memory`](../.agents/project-memory/README.md).                                                                                                          | Supporting memory must never override code, CI, ADRs, Current State, or Execution Queue.                       |
 
-## Working-tree boundary
+## Working-tree and PR boundary
 
-Uncommitted or merely staged code, tests, migrations, baselines, and agent reports are **candidate evidence**, not canonical fact. Before changing a work-unit state, commit its coherent implementation and evidence, run the required checks, then advance `verified_at_commit` to the reviewed commit. This prevents a dirty worktree from masquerading as durable Git memory.
+Uncommitted, staged, branch-only, or draft-PR code and evidence are candidates—not canonical implementation fact. Before changing a work-unit state, commit coherent implementation and evidence, run required checks, obtain review, merge, and advance `verified_at_commit` to a reviewed ancestor.
 
 ## Current release boundary
 
-Do not enable Memory V2 `new` mode or claim production readiness until ADR-011 gates have durable evidence. Do not tune retrieval before the canary baseline. Every behavior change uses one variable, an identical corpus, and an append-only Keep/Revert decision.
+- Do not enable Memory V2 `new` or change migration policy before ADR-011 evidence and human approval.
+- Do not merge PR #130, #125, #132, or #135 while required gates are red or review is absent.
+- Do not use superseded PR #126 as a deployment source.
+- Do not apply stale Terraform/Helm values, push mutable images, or change application DNS.
+- Do not claim production readiness from direct provider inference or focused tests alone.
 
-## Immediate next action
+## Immediate next actions
 
-Execute work unit 4 in the [Execution Queue](./EXECUTION_QUEUE.md): exercise representative QuantAI shadow traffic against a versioned corpus and persist divergence replay artifacts without changing retrieval behavior or acceptance policy.
+1. Land the project-memory refresh through a focused reviewed PR.
+2. Resolve the canonical queue-versus-recent-work discrepancy with the owner.
+3. If security is formally prioritized, reproduce PR #130's exact failing boundary, land it safely, then refresh PRs #125/#132/#135 in dependency order.
+4. If M11D remains active, execute WU4 with reviewed real dependencies and archive the required versioned evidence without tuning behavior.

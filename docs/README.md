@@ -4,9 +4,9 @@ doc_type: authority-index
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-07-22
-verified_at_commit: 28f2ef50eec492c955a50fc6eb917aa51aa10739
-review_by: 2026-08-05
+last_verified: 2026-08-06
+verified_at_commit: 1162352cf094615136098d2675f169e886364e9f
+review_by: 2026-09-05
 supersedes: []
 superseded_by: []
 canonical_scope: repository-authority
@@ -26,12 +26,13 @@ This index makes Git the durable memory for engineering state. It does not repla
 6. Active specs describe approved but potentially unimplemented work.
 7. Audits, baselines, scoreboards, and decision logs are dated evidence.
 8. [Agent artifacts](../.agents/README.md) are non-authoritative working material.
+9. [Detailed project memory](../.agents/project-memory/README.md) preserves owner intent, reconstructed history, and session continuity; verified claims must be promoted to the owning authority above.
 
 When claims conflict, prefer the higher authority and expose the discrepancy in Current State; never silently rewrite history.
 
 ## Resume protocol
 
-For a new session—especially a prompt containing only `continue`—read this index, Current State, Execution Queue, Quant Foundation, and the ADR index, then inspect the active work unit's linked evidence. Verify all implementation claims against the pinned commit or newer code.
+For a new session—especially a prompt containing only `continue`—read this index, Current State, Execution Queue, Quant Foundation, and the ADR index. Then read the detailed project-memory checkpoint and inspect the active work unit's linked evidence. Verify all implementation claims against the pinned commit or newer code.
 
 ## Document classes
 
@@ -47,4 +48,4 @@ For a new session—especially a prompt containing only `continue`—read this i
 
 ## Update protocol
 
-Update Current State when verified facts, risks, or gate decisions change. Update the Execution Queue when priority or milestone state changes, and update the ADR index with every ADR addition or supersession. Run `pnpm memory:validate` before review; CI enforces the validator and its focused tests.
+Update Current State when verified facts, risks, or gate decisions change. Update the Execution Queue when priority or milestone state changes, and update the ADR index with every ADR addition or supersession. Update `.agents/project-memory/` after substantial sessions, but never use it to bypass canonical promotion. Run `pnpm memory:validate` before review; CI enforces the validator and its focused tests.
