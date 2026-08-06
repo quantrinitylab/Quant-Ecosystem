@@ -21,35 +21,119 @@ jobs:
     timeout-minutes: 40
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 8
       matrix:
         include:
-          - scope: apps
-            filter: '{./apps/*}'
+          - scope: packages-a-c
+            filter: '{./packages/[a-c]*}'
             task: typecheck
-          - scope: packages
-            filter: '{./packages/*}'
-            task: typecheck
-          - scope: services
-            filter: '{./services/*}'
-            task: typecheck
-          - scope: apps
-            filter: '{./apps/*}'
-            task: test
-          - scope: packages
-            filter: '{./packages/*}'
-            task: test
-          - scope: services
-            filter: '{./services/*}'
-            task: test
-          - scope: apps
-            filter: '{./apps/*}'
+          - scope: packages-a-c
+            filter: '{./packages/[a-c]*}'
             task: build
-          - scope: packages
-            filter: '{./packages/*}'
+          - scope: packages-d-f
+            filter: '{./packages/[d-f]*}'
+            task: typecheck
+          - scope: packages-d-f
+            filter: '{./packages/[d-f]*}'
             task: build
-          - scope: services
-            filter: '{./services/*}'
+          - scope: packages-g-i
+            filter: '{./packages/[g-i]*}'
+            task: typecheck
+          - scope: packages-g-i
+            filter: '{./packages/[g-i]*}'
+            task: build
+          - scope: packages-j-m
+            filter: '{./packages/[j-m]*}'
+            task: typecheck
+          - scope: packages-j-m
+            filter: '{./packages/[j-m]*}'
+            task: build
+          - scope: packages-n-p
+            filter: '{./packages/[n-p]*}'
+            task: typecheck
+          - scope: packages-n-p
+            filter: '{./packages/[n-p]*}'
+            task: build
+          - scope: packages-q-s
+            filter: '{./packages/[q-s]*}'
+            task: typecheck
+          - scope: packages-q-s
+            filter: '{./packages/[q-s]*}'
+            task: build
+          - scope: packages-t-v
+            filter: '{./packages/[t-v]*}'
+            task: typecheck
+          - scope: packages-t-v
+            filter: '{./packages/[t-v]*}'
+            task: build
+          - scope: packages-w-z
+            filter: '{./packages/[w-z]*}'
+            task: typecheck
+          - scope: packages-w-z
+            filter: '{./packages/[w-z]*}'
+            task: build
+          - scope: service-cdc-relay
+            filter: '{./services/cdc-relay}'
+            task: typecheck
+          - scope: service-cdc-relay
+            filter: '{./services/cdc-relay}'
+            task: test
+          - scope: service-cdc-relay
+            filter: '{./services/cdc-relay}'
+            task: build
+          - scope: service-ci-runner
+            filter: '{./services/ci-runner}'
+            task: typecheck
+          - scope: service-ci-runner
+            filter: '{./services/ci-runner}'
+            task: test
+          - scope: service-ci-runner
+            filter: '{./services/ci-runner}'
+            task: build
+          - scope: service-git-server
+            filter: '{./services/git-server}'
+            task: typecheck
+          - scope: service-git-server
+            filter: '{./services/git-server}'
+            task: test
+          - scope: service-git-server
+            filter: '{./services/git-server}'
+            task: build
+          - scope: service-moderation-worker
+            filter: '{./services/moderation-worker}'
+            task: typecheck
+          - scope: service-moderation-worker
+            filter: '{./services/moderation-worker}'
+            task: test
+          - scope: service-moderation-worker
+            filter: '{./services/moderation-worker}'
+            task: build
+          - scope: service-search-indexer
+            filter: '{./services/search-indexer}'
+            task: typecheck
+          - scope: service-search-indexer
+            filter: '{./services/search-indexer}'
+            task: test
+          - scope: service-search-indexer
+            filter: '{./services/search-indexer}'
+            task: build
+          - scope: service-smtp-inbound
+            filter: '{./services/smtp-inbound}'
+            task: typecheck
+          - scope: service-smtp-inbound
+            filter: '{./services/smtp-inbound}'
+            task: test
+          - scope: service-smtp-inbound
+            filter: '{./services/smtp-inbound}'
+            task: build
+          - scope: service-ws-gateway
+            filter: '{./services/ws-gateway}'
+            task: typecheck
+          - scope: service-ws-gateway
+            filter: '{./services/ws-gateway}'
+            task: test
+          - scope: service-ws-gateway
+            filter: '{./services/ws-gateway}'
             task: build
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
