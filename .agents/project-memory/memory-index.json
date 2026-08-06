@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "project": "Quant Ecosystem",
+  "repository": "quantrinitylabsgo/Quant-Ecosystem",
+  "memoryRoot": ".agents/project-memory",
+  "classification": "non-authoritative supporting project memory",
+  "lastReconstructedAt": "2026-08-06T12:11:20+05:30",
+  "privacy": {
+    "scope": "project-only",
+    "rawPrivateChats": false,
+    "personalData": false,
+    "secrets": false
+  },
+  "canonicalAuthorities": {
+    "index": "docs/README.md",
+    "currentState": "docs/CURRENT_STATE.md",
+    "executionPriority": "docs/EXECUTION_QUEUE.md",
+    "decisions": "docs/adr/README.md",
+    "constitution": "docs/QUANT_FOUNDATION.md"
+  },
+  "readOrder": [
+    "CURRENT_CHECKPOINT.md",
+    "OWNER_INTENT_AND_VISION.md",
+    "DECISIONS_AND_PRINCIPLES.md",
+    "WORKSTREAM_STATUS.md",
+    "ROADMAP_AND_OWNERSHIP.md",
+    "ENGINEERING_HISTORY.md",
+    "BRAND_DESIGN_UIUX.md",
+    "SECURITY_AUTH_TRUST.md",
+    "INFRA_DEPLOYMENT_ACCESS.md",
+    "RISKS_BLOCKERS_OPEN_QUESTIONS.md"
+  ],
+  "canonicalActiveMilestone": "M11D-SHADOW-CANARY",
+  "canonicalActiveWorkUnit": 4,
+  "priorityDiscrepancy": "Recent repository work is concentrated on dependency, auth, AI provider, and infrastructure streams; owner and canonical queue alignment are required.",
+  "openCriticalPullRequests": [125, 130, 132, 135],
+  "supersededPullRequests": [126],
+  "activeInfrastructureIssue": 127,
+  "lastExplicitlyReviewedMainCheckpoint": "1162352cf094615136098d2675f169e886364e9f",
+  "publishing": {
+    "scopeApproved": true,
+    "branch": "docs/project-memory-continuity-2026-08-06",
+    "committed": true,
+    "pullRequestOpened": false,
+    "blocker": "Pull request review and merge"
+  }
+}
