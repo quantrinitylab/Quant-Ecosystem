@@ -2,7 +2,7 @@
 
 ## P0 blockers
 
-- The dedicated project-memory branch still requires PR review and merge.
+- Project-memory PR #136 still requires required checks, review, and merge.
 - Canonical queue still says M11D WU4 while recent work is concentrated elsewhere.
 - PR #130 main gate/full sweep are red and exact failing commands are not available through the current integration.
 - PRs #125/#132/#135 inherit the dependency/gate block.
@@ -41,11 +41,10 @@
 ## Owner decisions needed
 
 1. Keep M11D WU4 active, or formally reprioritize the canonical queue to security/deployment.
-2. Approve project-only chat-derived memory for publication; keep unrelated/private content excluded.
-3. Confirm target account, single region, domains, exact origin list, and infrastructure budget before apply.
-4. Confirm Cloudflare Workers AI as the temporary production provider direction while Bedrock is parked.
-5. Decide when to provide edit-capable Figma access.
-6. Define the first beta workflow and target cohort.
+2. Confirm target account, single region, domains, exact origin list, and infrastructure budget before apply.
+3. Confirm Cloudflare Workers AI as the temporary production provider direction while Bedrock is parked.
+4. Decide when to provide edit-capable Figma access.
+5. Define the first beta workflow and target cohort.
 
 ## Risk controls
 

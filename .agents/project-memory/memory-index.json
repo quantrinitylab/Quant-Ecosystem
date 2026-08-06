@@ -41,7 +41,9 @@
     "scopeApproved": true,
     "branch": "docs/project-memory-continuity-2026-08-06",
     "committed": true,
-    "pullRequestOpened": false,
-    "blocker": "Pull request review and merge"
+    "pullRequestOpened": true,
+    "pullRequest": 136,
+    "pullRequestUrl": "https://github.com/quantrinitylabsgo/Quant-Ecosystem/pull/136",
+    "blocker": "Required checks, review, and merge"
   }
 }

@@ -50,11 +50,11 @@ No open security, AI-provider, or deployment PR below is merged or production-de
 - Full QuantMail frontend typecheck debt remains visible in PR #132 evidence.
 - GitHub OIDC deploy role, deployable EKS, images, production rollout, and application DNS cutover are not complete.
 - Editable Figma execution is not complete.
-- Project-only publication is approved and GitHub write authentication is restored; the dedicated memory branch still requires review and merge.
+- Project-only publication is approved, GitHub write authentication is restored, and draft PR #136 is open; CI, review, and merge remain.
 
 ## Immediate next actions
 
-1. Publish this project-safe memory update through a focused PR.
+1. Validate, review, and merge project-memory PR #136.
 2. Resolve the canonical queue-versus-active-work discrepancy with Tyccy.
 3. Reproduce the exact PR #130 gate/full-sweep failure without weakening policy.
 4. Land dependency remediation first, then refresh PR #125, PR #132, and PR #135.

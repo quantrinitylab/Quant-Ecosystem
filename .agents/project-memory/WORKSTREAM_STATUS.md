@@ -4,7 +4,7 @@ Status vocabulary: `LANDED`, `ACTIVE-DRAFT`, `BLOCKED`, `SUPERSEDED`, `QUEUED`, 
 
 | Workstream                 | State                  | Current truth                                                                                    |
 | -------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| Canonical project memory   | LANDED / REFRESHING    | Git-backed authority index and validator exist; dedicated memory branch awaits review/merge      |
+| Canonical project memory   | LANDED / REFRESHING    | Git-backed authority index and validator exist; draft PR #136 awaits checks/review/merge         |
 | M11D memory canary         | ACTIVE-CANONICAL       | WU4 remains active in Execution Queue; live archived evidence still required                     |
 | Quant strategy/foundation  | LANDED                 | Genome, laws, foundation, research, mathematics, and migration discipline exist                  |
 | Quantrinity identity       | LANDED FOUNDATION      | Brand architecture and semantic contracts exist; final editable visual execution remains         |

@@ -25,7 +25,7 @@ Historical labels such as CEO, CTO, Kiro, Claude, or Qwen describe prior session
 
 ## Immediate administrative priority
 
-1. Publish this project-memory folder and canonical pointers in a focused PR.
+1. Validate, review, and merge project-memory PR #136.
 2. Run `pnpm memory:validate`, formatting, local-link checks, and a targeted secret scan.
 3. Obtain review and merge through normal repository policy.
 4. Make memory refresh the final step of every substantial future session.

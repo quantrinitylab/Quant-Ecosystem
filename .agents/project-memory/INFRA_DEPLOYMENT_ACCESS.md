@@ -4,7 +4,7 @@
 
 - Native connector can read known files, issues, and PRs.
 - Write-capable GitHub MCP was reauthenticated successfully on 2026-08-06.
-- Dedicated branch `docs/project-memory-continuity-2026-08-06` was created from verified `main`; review and merge remain required.
+- Dedicated branch `docs/project-memory-continuity-2026-08-06` and draft PR #136 were created from verified `main`; CI, review, and merge remain required.
 
 ## AWS
 

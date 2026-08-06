@@ -43,11 +43,9 @@ The integrated memory PR draft is stored locally at `/data/quant-memory-pr/`.
 
 ## Publishing checkpoint
 
-The project-only boundary was approved. GitHub write MCP was reauthenticated, current `main` was verified at `1162352cf094615136098d2675f169e886364e9f`, duplicate memory-folder work was checked, and branch `docs/project-memory-continuity-2026-08-06` was created. Commits, PR review, and merge remain required.
+The project-only boundary was approved. GitHub write MCP was reauthenticated, current `main` was verified at `1162352cf094615136098d2675f169e886364e9f`, duplicate memory-folder work was checked, branch `docs/project-memory-continuity-2026-08-06` was created, and draft PR #136 was opened. Required checks, review, and merge remain.
 
 ## Remaining execution
 
-1. Push the complete validated memory file set.
-2. Open a PR using the repository template.
-3. Verify the branch diff, project-memory CI, formatting, links, and targeted secret scan.
-4. Request review and merge only under normal policy.
+1. Verify the branch diff, project-memory CI, formatting, links, and targeted secret scan.
+2. Request review and merge only under normal policy.
