@@ -37,7 +37,7 @@ services:
   ws-gateway:
     replicaCount: 2
     image:
-      repository: 650708167640.dkr.ecr.us-east-1.amazonaws.com/quant-ws-gateway
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-ws-gateway
     env:
       - name: WS_PORT
         value: '8080'
@@ -57,7 +57,7 @@ services:
   quantmail:
     replicaCount: 1
     image:
-      repository: 650708167640.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail
     resources:
       requests:
         cpu: 50m
@@ -74,7 +74,7 @@ services:
   quantchat:
     replicaCount: 1
     image:
-      repository: 650708167640.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat
     resources:
       requests:
         cpu: 50m
@@ -91,7 +91,7 @@ services:
   quantai:
     replicaCount: 1
     image:
-      repository: 650708167640.dkr.ecr.us-east-1.amazonaws.com/quant-quantai
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantai
     resources:
       requests:
         cpu: 100m
@@ -108,7 +108,7 @@ services:
   admin:
     replicaCount: 1
     image:
-      repository: 650708167640.dkr.ecr.us-east-1.amazonaws.com/quant-admin
+      repository: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-admin
     resources:
       requests:
         cpu: 50m
