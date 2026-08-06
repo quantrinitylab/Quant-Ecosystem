@@ -15,126 +15,59 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  workspace-task:
-    name: ${{ matrix.scope }}-${{ matrix.task }}
+  package-task:
+    name: package-${{ matrix.package }}-${{ matrix.task }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 10
       matrix:
-        include:
-          - scope: packages-a-c
-            filter: '{./packages/[a-c]*}'
-            task: typecheck
-          - scope: packages-a-c
-            filter: '{./packages/[a-c]*}'
-            task: build
-          - scope: packages-d-f
-            filter: '{./packages/[d-f]*}'
-            task: typecheck
-          - scope: packages-d-f
-            filter: '{./packages/[d-f]*}'
-            task: build
-          - scope: packages-g-i
-            filter: '{./packages/[g-i]*}'
-            task: typecheck
-          - scope: packages-g-i
-            filter: '{./packages/[g-i]*}'
-            task: build
-          - scope: packages-j-m
-            filter: '{./packages/[j-m]*}'
-            task: typecheck
-          - scope: packages-j-m
-            filter: '{./packages/[j-m]*}'
-            task: build
-          - scope: packages-n-p
-            filter: '{./packages/[n-p]*}'
-            task: typecheck
-          - scope: packages-n-p
-            filter: '{./packages/[n-p]*}'
-            task: build
-          - scope: packages-q-s
-            filter: '{./packages/[q-s]*}'
-            task: typecheck
-          - scope: packages-q-s
-            filter: '{./packages/[q-s]*}'
-            task: build
-          - scope: packages-t-v
-            filter: '{./packages/[t-v]*}'
-            task: typecheck
-          - scope: packages-t-v
-            filter: '{./packages/[t-v]*}'
-            task: build
-          - scope: packages-w-z
-            filter: '{./packages/[w-z]*}'
-            task: typecheck
-          - scope: packages-w-z
-            filter: '{./packages/[w-z]*}'
-            task: build
-          - scope: service-cdc-relay
-            filter: '{./services/cdc-relay}'
-            task: typecheck
-          - scope: service-cdc-relay
-            filter: '{./services/cdc-relay}'
-            task: test
-          - scope: service-cdc-relay
-            filter: '{./services/cdc-relay}'
-            task: build
-          - scope: service-ci-runner
-            filter: '{./services/ci-runner}'
-            task: typecheck
-          - scope: service-ci-runner
-            filter: '{./services/ci-runner}'
-            task: test
-          - scope: service-ci-runner
-            filter: '{./services/ci-runner}'
-            task: build
-          - scope: service-git-server
-            filter: '{./services/git-server}'
-            task: typecheck
-          - scope: service-git-server
-            filter: '{./services/git-server}'
-            task: test
-          - scope: service-git-server
-            filter: '{./services/git-server}'
-            task: build
-          - scope: service-moderation-worker
-            filter: '{./services/moderation-worker}'
-            task: typecheck
-          - scope: service-moderation-worker
-            filter: '{./services/moderation-worker}'
-            task: test
-          - scope: service-moderation-worker
-            filter: '{./services/moderation-worker}'
-            task: build
-          - scope: service-search-indexer
-            filter: '{./services/search-indexer}'
-            task: typecheck
-          - scope: service-search-indexer
-            filter: '{./services/search-indexer}'
-            task: test
-          - scope: service-search-indexer
-            filter: '{./services/search-indexer}'
-            task: build
-          - scope: service-smtp-inbound
-            filter: '{./services/smtp-inbound}'
-            task: typecheck
-          - scope: service-smtp-inbound
-            filter: '{./services/smtp-inbound}'
-            task: test
-          - scope: service-smtp-inbound
-            filter: '{./services/smtp-inbound}'
-            task: build
-          - scope: service-ws-gateway
-            filter: '{./services/ws-gateway}'
-            task: typecheck
-          - scope: service-ws-gateway
-            filter: '{./services/ws-gateway}'
-            task: test
-          - scope: service-ws-gateway
-            filter: '{./services/ws-gateway}'
-            task: build
+        package:
+          - data-pipeline
+          - data-plane
+          - data-warehouse
+          - database
+          - dev-platform
+          - device-control
+          - edge-config
+          - encryption
+          - error-monitoring
+          - events
+          - feature-flags
+          - federation
+          - quant-automate
+          - quant-codex
+          - quant-commerce
+          - quant-economy
+          - quant-flow
+          - quant-health
+          - quant-live
+          - quant-notebook
+          - quant-orchestrator
+          - quant-studio
+          - quant-tools
+          - queue
+          - ranking
+          - realtime
+          - recommendation
+          - recommendations
+          - robotics-bridge
+          - scaling
+          - search
+          - security-advanced
+          - security
+          - server-core
+          - server
+          - service-discovery
+          - shared-ui
+          - social-graph
+          - spatial-ui
+          - storage
+          - sync-engine
+        task:
+          - typecheck
+          - build
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -155,7 +88,7 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
 
-      - name: Run ${{ matrix.scope }} ${{ matrix.task }} tasks
+      - name: Run ${{ matrix.package }} ${{ matrix.task }} task
         env:
           NODE_OPTIONS: --max-old-space-size=4096
         run: >-
@@ -163,4 +96,4 @@ jobs:
           --concurrency=2
           --continue
           --output-logs=errors-only
-          --filter="${{ matrix.filter }}"
+          --filter="{./packages/${{ matrix.package }}}"
