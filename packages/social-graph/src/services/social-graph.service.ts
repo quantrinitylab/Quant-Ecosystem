@@ -2,7 +2,7 @@
 // Social Graph Service - Prisma + Redis backed social graph
 // ============================================================================
 
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@quant/database';
 import type { Redis } from 'ioredis';
 import { z } from 'zod';
 

@@ -4,9 +4,9 @@ doc_type: execution-queue
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-07-23
-verified_at_commit: e2bf6643b21f4dc93a6fe9c7374b4d4401b4c848
-review_by: 2026-08-06
+last_verified: 2026-08-06
+verified_at_commit: 1162352cf094615136098d2675f169e886364e9f
+review_by: 2026-09-05
 supersedes: []
 superseded_by: []
 canonical_scope: execution-priority
