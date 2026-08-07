@@ -38,7 +38,7 @@
 ## 5. Dependency and authentication hardening — 2026-08-07
 
 - A GitHub Actions major outage delayed all queued evidence; retriggers were intentionally held until service recovery.
-- A newly published `js-yaml` high advisory invalidated an otherwise clean dependency branch. A pinned, audit-verified runner regenerated the lockfile at 4.3.1; the temporary workflow was removed.
+- A newly published `js-yaml` high advisory invalidated an otherwise clean dependency branch. The override was advanced to 4.3.1, a pinned runner regenerated the lockfile, the audit verified it before commit, and the temporary workflow was removed.
 - PR #130 merged dependency remediation as `7fe3e25416348477c6790826b43f22ef675b5c0c`.
 - PR #125 merged atomic refresh-family integrity as `a5f2057887e1842368af4baaf65192c16b5f1c14`.
 - PR #132 exposed stale inherited tests after integration. Repairs changed only test expectations/harness wiring, including a per-request Fastify cookie getter; production cookie semantics were not weakened.
@@ -51,7 +51,7 @@
 - PR #131 locked the unsafe legacy production root and merged as `a05bcfc4249a0fc392418ee053e9a5799ad40cde`.
 - PR #133 added a single-region fail-closed production v2 Terraform root and merged as `04b9b0c845a1f32598bf2e8e70cdb5b89a9708c3`.
 - PR #134 added the fail-closed production v2 Helm profile and merged as `42133d98d73e31b4c70ca62c583ec64b7018a419`.
-- PR #135 added the fail-closed direct Cloudflare Workers AI runtime and merged as `8aa8fa5d9111632bdb4936224a1513a00fea355`.
+- PR #135 added the fail-closed direct Cloudflare Workers AI runtime and merged as `8aa8fa5d911ec306229a03bb9cad9a6124ea1c7b`.
 - Live verification found five empty ECR repositories, no GitHub OIDC deploy role, absent production Cloudflare secret paths, and EKS state unknown because the read role lacks permission.
 - Cloudflare verification found two active zones, zero Worker scripts, existing AWS/email DNS, and no application DNS cutover.
 - No Terraform apply, image push, production deployment, or placeholder-secret write occurred.
