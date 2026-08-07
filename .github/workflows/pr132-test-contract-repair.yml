@@ -30,6 +30,7 @@ jobs:
             const source = fs.readFileSync(path, 'utf8');
             const matches = source.split(from).length - 1;
             if (matches !== 1) {
+              console.error(`::error file=${path}::expected one exact match, found ${matches}`);
               throw new Error(path + ': expected one exact match, found ' + matches);
             }
             fs.writeFileSync(path, source.replace(from, to));
@@ -103,8 +104,15 @@ jobs:
           );
           replaceOnce(
             preservation,
-            "        refreshToken: 'mock-refresh-token',\n",
-            '',
+            lines(
+              "        accessToken: 'mock-access-token',",
+              "        refreshToken: 'mock-refresh-token',",
+              "        user: { id: 'u1', email: 'a@test.com', username: 'alice' },",
+            ),
+            lines(
+              "        accessToken: 'mock-access-token',",
+              "        user: { id: 'u1', email: 'a@test.com', username: 'alice' },",
+            ),
           );
           replaceOnce(
             preservation,
