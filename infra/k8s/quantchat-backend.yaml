@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: quantchat-backend
-          image: 650708167640.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat-backend:latest
+          image: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat-backend:latest
           ports:
             - containerPort: 3002
               name: http

@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import * as jose from 'jose';
 import { TokenService } from '../services/token-service';
 import type { AuthConfig } from '../types';
@@ -49,6 +50,24 @@ describe('TokenService', () => {
       expect(payload['role']).toBe('user');
       expect(payload['scopes']).toEqual(['profile:read', 'email:read']);
       expect(payload['app']).toBe('quantmail');
+    });
+
+    it('should store only a digest of the refresh bearer credential', async () => {
+      const create = vi.fn().mockResolvedValue({});
+      const isolatedService = new TokenService(TEST_CONFIG, {
+        refreshToken: { create },
+      } as never);
+
+      const pair = await isolatedService.generateTokenPair(
+        'user-hash',
+        { email: 'hash@quant.app', username: 'hashuser', role: 'user' },
+        ['profile:read'],
+        'quantmail',
+      );
+
+      const persisted = create.mock.calls[0]?.[0]?.data?.token;
+      expect(persisted).toBe(createHash('sha256').update(pair.refreshToken).digest('hex'));
+      expect(persisted).not.toBe(pair.refreshToken);
     });
 
     it('should include proper claims (iss, aud, jti, exp, iat)', async () => {
@@ -217,9 +236,10 @@ describe('TokenService', () => {
         'Refresh token reuse detected or token revoked',
       );
 
-      // The new legitimate token should still work (it has a new family)
-      const stillWorks = await tokenService.refreshToken(refreshed!.refreshToken);
-      expect(stillWorks).not.toBeNull();
+      // Reuse revokes the complete rotation family, including the latest token.
+      await expect(tokenService.refreshToken(refreshed!.refreshToken)).rejects.toThrow(
+        'Refresh token reuse detected or token revoked',
+      );
     });
   });
 
@@ -236,7 +256,10 @@ describe('TokenService', () => {
     });
 
     it('should sign with private key and verify with public key', async () => {
-      const signed = await tokenService.signWithPrivateKey({ sub: 'fed-user', data: 'test' });
+      const signed = await tokenService.signWithPrivateKey({
+        sub: 'fed-user',
+        data: 'test',
+      });
       expect(signed).toBeDefined();
 
       // Get the JWKS and import the public key

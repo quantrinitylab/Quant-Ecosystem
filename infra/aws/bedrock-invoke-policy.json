@@ -13,8 +13,8 @@
       "Resource": [
         "arn:aws:bedrock:*::foundation-model/amazon.nova-*",
         "arn:aws:bedrock:*::foundation-model/anthropic.claude-*",
-        "arn:aws:bedrock:*:650708167640:inference-profile/*",
-        "arn:aws:bedrock:*:650708167640:application-inference-profile/*"
+        "arn:aws:bedrock:*:266176113726:inference-profile/*",
+        "arn:aws:bedrock:*:266176113726:application-inference-profile/*"
       ]
     }
   ]
