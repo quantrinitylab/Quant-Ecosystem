@@ -1,0 +1,22 @@
+# production-v2 is validation-only. Do not copy this file into a live apply.
+# Never commit passwords or auth tokens.
+
+expected_aws_account_id = "266176113726"
+aws_region              = "us-east-1"
+application_domain      = "quantrinity.in"
+public_dns_provider     = "cloudflare"
+enable_multi_region     = false
+bootstrap_root_approved = false
+
+# Set only after checking which EKS minor is supported in account 266176113726.
+# Prefer a protected CI variable:
+# TF_VAR_eks_kubernetes_version=1.xx
+
+browser_origins = [
+  "https://quantrinity.in",
+]
+
+# Required secrets must come from protected CI/environment variables:
+# TF_VAR_db_master_username
+# TF_VAR_db_master_password
+# TF_VAR_redis_auth_token
