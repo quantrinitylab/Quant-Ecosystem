@@ -2,6 +2,7 @@
 // QuantMail - Frontend API Client
 // ============================================================================
 
+import { browserAuthSession } from './browser-auth-session';
 import type {
   Email,
   EmailThread,
@@ -21,8 +22,6 @@ import type {
   Calendar,
   Contact,
   ContactGroup,
-  LoginRequest,
-  RegisterRequest,
   AIComposeRequest,
   MeetingExtraction,
 } from '../types';
@@ -84,9 +83,6 @@ export interface UpsertVacationResponderPreference {
 
 export class QuantMailApiClient {
   private baseUrl: string;
-  private accessToken: string | null = null;
-  private refreshToken: string | null = null;
-  private onTokenRefresh?: (tokens: { accessToken: string; refreshToken: string }) => void;
   private onAuthError?: () => void;
 
   constructor(baseUrl: string = process.env.NEXT_PUBLIC_API_URL || '/api') {
@@ -97,56 +93,13 @@ export class QuantMailApiClient {
   // Configuration
   // --------------------------------------------------------------------------
 
-  setTokens(accessToken: string, refreshToken?: string): void {
-    this.accessToken = accessToken;
-    if (refreshToken) this.refreshToken = refreshToken;
-  }
-
-  clearTokens(): void {
-    this.accessToken = null;
-    this.refreshToken = null;
-  }
-
-  onTokenRefreshed(
-    callback: (tokens: { accessToken: string; refreshToken: string }) => void,
-  ): void {
-    this.onTokenRefresh = callback;
-  }
-
-  onAuthenticationError(callback: () => void): void {
+  onAuthenticationError(callback?: () => void): void {
     this.onAuthError = callback;
   }
 
   // --------------------------------------------------------------------------
   // Auth API
   // --------------------------------------------------------------------------
-
-  async register(data: RegisterRequest): Promise<ApiResponse<{ userId: string; message: string }>> {
-    return this.post('/auth/register', data);
-  }
-
-  async login(data: LoginRequest): Promise<
-    ApiResponse<{
-      userId: string;
-      accessToken: string;
-      refreshToken: string;
-      expiresIn: number;
-      requiresTwoFactor?: boolean;
-    }>
-  > {
-    const response = await this.post<any>('/auth/login', data);
-    if (response.success && response.data?.accessToken) {
-      this.setTokens(response.data.accessToken, response.data.refreshToken);
-    }
-    return response;
-  }
-
-  async logout(): Promise<void> {
-    if (this.accessToken) {
-      await this.post('/oauth/revoke', { token: this.accessToken });
-    }
-    this.clearTokens();
-  }
 
   async verifyEmail(token: string): Promise<ApiResponse<{ message: string }>> {
     return this.get('/auth/verify-email', { params: { token } });
@@ -628,7 +581,7 @@ export class QuantMailApiClient {
         ([, v]) => v !== undefined && v !== null,
       );
       const qs = paramEntries.length
-        ? '?'+
+        ? '?' +
           paramEntries
             .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
             .join('&')
@@ -640,42 +593,21 @@ export class QuantMailApiClient {
       'Content-Type': 'application/json',
       ...options?.headers,
     };
-
-    if (this.accessToken) {
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
-    }
+    const hadAccessToken = Boolean(browserAuthSession.getAccessToken());
 
     try {
-      const response = await fetch(urlStr, {
+      const response = await browserAuthSession.authenticatedFetch(urlStr, {
         method,
         headers,
-        body: body ? JSON.stringify(body) : undefined,
+        body: body === undefined ? undefined : JSON.stringify(body),
         signal: options?.signal,
       });
 
-      if (response.status === 401 && this.refreshToken) {
-        // Try to refresh the token
-        const refreshed = await this.tryRefreshToken();
-        if (refreshed) {
-          // Retry the original request
-          headers['Authorization'] = `Bearer ${this.accessToken}`;
-          const retryResponse = await fetch(urlStr, {
-            method,
-            headers,
-            body: body ? JSON.stringify(body) : undefined,
-          });
-          return (await retryResponse.json()) as ApiResponse<T>;
-        } else {
-          this.onAuthError?.();
-          return {
-            success: false,
-            error: { code: 'AUTH_ERROR', message: 'Authentication failed', statusCode: 401 },
-          };
-        }
+      if (response.status === 401 && hadAccessToken) {
+        this.onAuthError?.();
       }
 
-      const data = (await response.json()) as ApiResponse<T>;
-      return data;
+      return (await response.json()) as ApiResponse<T>;
     } catch (error) {
       return {
         success: false,
@@ -685,32 +617,6 @@ export class QuantMailApiClient {
           statusCode: 0,
         },
       };
-    }
-  }
-
-  private async tryRefreshToken(): Promise<boolean> {
-    if (!this.refreshToken) return false;
-
-    try {
-      const response = await fetch(`${this.baseUrl}/oauth/token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          grant_type: 'refresh_token',
-          refresh_token: this.refreshToken,
-          client_id: 'quantmail-web',
-        }),
-      });
-
-      if (!response.ok) return false;
-
-      const data = (await response.json()) as { access_token: string; refresh_token: string };
-      this.accessToken = data.access_token;
-      this.refreshToken = data.refresh_token;
-      this.onTokenRefresh?.({ accessToken: data.access_token, refreshToken: data.refresh_token });
-      return true;
-    } catch {
-      return false;
     }
   }
 }

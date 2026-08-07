@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { logger } from '@quant/common';
+import { browserApiRequest as apiRequest } from '../services/browser-api-request';
 
 interface Repository {
   id: string;
@@ -105,27 +106,6 @@ interface UseGitReturn {
   starRepo: (repoId: string) => Promise<void>;
   setCurrentBranch: (branch: string) => void;
 }
-
-const apiRequest = async (url: string, options: RequestInit = {}): Promise<Response> => {
-  let token: string | null = null;
-  try {
-    const stored =
-      typeof localStorage !== 'undefined' ? localStorage.getItem('quant_auth_tokens') : null;
-    if (stored) {
-      token = JSON.parse(stored).accessToken || null;
-    }
-  } catch {
-    /* ignore parse errors */
-  }
-  return fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...((options.headers as Record<string, string>) || {}),
-    },
-  });
-};
 
 export function useGit(options: UseGitOptions = {}): UseGitReturn {
   const { repoId, branch = 'main' } = options;

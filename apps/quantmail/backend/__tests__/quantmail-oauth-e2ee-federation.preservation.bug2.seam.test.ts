@@ -189,6 +189,22 @@ const PUBLIC_PATHS = ['/health', '/healthz', '/ready', '/readyz', '/live', '/liv
 async function buildBaselineHarness(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
 
+  // This isolated harness does not boot createApp(), so reproduce the cookie
+  // decorators that production registers before authRoutes.
+  app.decorateRequest('cookies', {
+    getter() {
+      return {};
+    },
+  });
+  app.decorateReply('setCookie', function (name: string, value: string) {
+    this.header('set-cookie', `${name}=${value}`);
+    return this;
+  });
+  app.decorateReply('clearCookie', function (name: string) {
+    this.header('set-cookie', `${name}=; Max-Age=0`);
+    return this;
+  });
+
   // REAL envelope mapper (ZodError -> 400 VALIDATION_ERROR; AppError -> code).
   await app.register(errorHandlerPlugin);
 
@@ -266,7 +282,10 @@ function signToken(scopes: string[], sub = 'user-1'): string {
 
 // A valid JWT that passes the GLOBAL auth hook (no specific scope needed for the
 // OAuth/auth routes, which carry no route-level scope requirement).
-const authedHeaders = () => ({ authorization: `Bearer ${signToken([])}` });
+const authedHeaders = () => ({
+  authorization: `Bearer ${signToken([])}`,
+  origin: 'http://localhost:3000',
+});
 
 let app: FastifyInstance;
 
@@ -631,7 +650,6 @@ describe('Bug 2 preservation baseline — POST /auth/login', () => {
       data: {
         userId: 'u1',
         accessToken: 'mock-access-token',
-        refreshToken: 'mock-refresh-token',
         user: { id: 'u1', email: 'a@test.com', username: 'alice' },
       },
     });
@@ -870,16 +888,16 @@ describe('Bug 2 preservation baseline — deep @quant/auth specifier dependency 
     }
   });
 
-  it('auth.ts depends on prisma (default), secure-random, token-service, and secrets', () => {
+  it('auth.ts depends on prisma (default), token-service, and secrets', () => {
     const src = read('../routes/auth.ts');
     for (const spec of [
       '@quant/auth/lib/prisma',
-      '@quant/auth/crypto/secure-random',
       '@quant/auth/services/token-service',
       '@quant/auth/lib/secrets',
     ]) {
       expect(src, `auth.ts must import ${spec}`).toContain(spec);
     }
+    expect(src).not.toContain('@quant/auth/crypto/secure-random');
   });
 
   it('oauth.ts and auth.ts import prisma as a DEFAULT import', () => {

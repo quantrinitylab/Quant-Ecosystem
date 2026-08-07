@@ -27,7 +27,7 @@
       "Sid": "EksDescribe",
       "Effect": "Allow",
       "Action": ["eks:DescribeCluster"],
-      "Resource": "arn:aws:eks:us-east-1:650708167640:cluster/quant-production-eks"
+      "Resource": "arn:aws:eks:us-east-1:266176113726:cluster/quant-production-eks"
     }
   ]
 }

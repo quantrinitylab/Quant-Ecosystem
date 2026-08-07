@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@quant/database';
 
 type TransactionClient = Omit<
   PrismaClient,

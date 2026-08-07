@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@quant/database';
 import { ReplicaRouter } from './replica-router.js';
 import { OutboxPublisher } from './outbox.js';
 import { FieldEncryption } from './field-encryption.js';

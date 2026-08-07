@@ -8,7 +8,7 @@ const mockFindMany = vi.fn();
 const mockUpdateMany = vi.fn().mockResolvedValue({ count: 0 });
 const mockTransaction = vi.fn();
 
-vi.mock('@prisma/client', () => ({
+vi.mock('@quant/database', () => ({
   PrismaClient: vi.fn().mockImplementation(function () {
     return {
       $transaction: mockTransaction,
