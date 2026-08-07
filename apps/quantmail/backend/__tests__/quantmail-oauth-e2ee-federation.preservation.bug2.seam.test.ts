@@ -191,7 +191,11 @@ async function buildBaselineHarness(): Promise<FastifyInstance> {
 
   // This isolated harness does not boot createApp(), so reproduce the cookie
   // decorators that production registers before authRoutes.
-  app.decorateRequest('cookies', null);
+  app.decorateRequest('cookies', {
+    getter() {
+      return {};
+    },
+  });
   app.decorateReply('setCookie', function (name: string, value: string) {
     this.header('set-cookie', `${name}=${value}`);
     return this;
