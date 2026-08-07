@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "project": "Quant Ecosystem",
+  "repository": "quantrinitylabsgo/Quant-Ecosystem",
+  "memoryRoot": ".agents/project-memory",
+  "classification": "non-authoritative supporting project memory",
+  "lastReconstructedAt": "2026-08-07T14:20:00+05:30",
+  "privacy": {
+    "scope": "project-only",
+    "rawPrivateChats": false,
+    "personalData": false,
+    "secrets": false
+  },
+  "canonicalAuthorities": {
+    "index": "docs/README.md",
+    "currentState": "docs/CURRENT_STATE.md",
+    "executionPriority": "docs/EXECUTION_QUEUE.md",
+    "decisions": "docs/adr/README.md",
+    "constitution": "docs/QUANT_FOUNDATION.md"
+  },
+  "readOrder": [
+    "CURRENT_CHECKPOINT.md",
+    "OWNER_INTENT_AND_VISION.md",
+    "DECISIONS_AND_PRINCIPLES.md",
+    "WORKSTREAM_STATUS.md",
+    "ROADMAP_AND_OWNERSHIP.md",
+    "ENGINEERING_HISTORY.md",
+    "BRAND_DESIGN_UIUX.md",
+    "SECURITY_AUTH_TRUST.md",
+    "INFRA_DEPLOYMENT_ACCESS.md",
+    "RISKS_BLOCKERS_OPEN_QUESTIONS.md",
+    "sessions/2026-08-07-production-hardening-and-cloud-truth.md"
+  ],
+  "canonicalActiveMilestone": "M11D-SHADOW-CANARY",
+  "canonicalActiveWorkUnit": 4,
+  "priorityDiscrepancy": "The hardening stack is merged, but M11D work unit 4 remains the one canonical active unit until an explicit owner-approved queue change.",
+  "openCriticalPullRequests": [],
+  "supersededPullRequests": [126],
+  "mergedHardeningPullRequests": {
+    "125": "a5f2057887e1842368af4baaf65192c16b5f1c14",
+    "130": "7fe3e25416348477c6790826b43f22ef675b5c0c",
+    "131": "a05bcfc4249a0fc392418ee053e9a5799ad40cde",
+    "132": "09a0a22e9aa5fe288d22987b90a6119a70f7c467",
+    "133": "04b9b0c845a1f32598bf2e8e70cdb5b89a9708c3",
+    "134": "42133d98d73e31b4c70ca62c583ec64b7018a419",
+    "135": "8aa8fa5d911ec306229a03bb9cad9a6124ea1c7b",
+    "137": "cf1797c510a5bff349220c8f0e680ca4536997ee"
+  },
+  "activeInfrastructureIssue": 127,
+  "lastExplicitlyReviewedMainCheckpoint": "09a0a22e9aa5fe288d22987b90a6119a70f7c467",
+  "deploymentState": {
+    "terraformApplied": false,
+    "productionDeployed": false,
+    "imagesPushed": false,
+    "applicationDnsCutover": false,
+    "placeholderSecretsWritten": false,
+    "eksState": "unknown-permission-denied"
+  },
+  "publishing": {
+    "scopeApproved": true,
+    "branch": "docs/project-memory-continuity-2026-08-06",
+    "committed": true,
+    "pullRequestOpened": true,
+    "pullRequest": 136,
+    "pullRequestUrl": "https://github.com/quantrinitylabsgo/Quant-Ecosystem/pull/136",
+    "statusAtReconstruction": "open-draft",
+    "note": "Verify the live GitHub merge state before relying on this dated publishing status."
+  }
+}
