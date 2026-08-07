@@ -42,9 +42,11 @@ describe('QuantMailApiClient vacation responder', () => {
       expect.objectContaining({
         method: 'PUT',
         body: JSON.stringify(payload),
-        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+        credentials: 'include',
       }),
     );
+    const secondRequest = fetchMock.mock.calls[1]?.[1] as RequestInit | undefined;
+    expect(new Headers(secondRequest?.headers).get('Content-Type')).toBe('application/json');
   });
 
   it('uses explicit enable and disable actions', async () => {
