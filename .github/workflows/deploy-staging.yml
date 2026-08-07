@@ -1,0 +1,299 @@
+name: Deploy staging (OIDC)
+
+# Notion may dispatch this workflow only for the current protected main commit.
+# AWS credentials are short-lived OIDC credentials; no static keys are used.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Staging workload to build and deploy
+        required: true
+        type: choice
+        options:
+          - quantmail
+          - quantchat
+          - quantai
+          - admin
+          - ws-gateway
+      release_sha:
+        description: Exact 40-character SHA of the current protected main commit
+        required: true
+        type: string
+
+concurrency:
+  group: staging-${{ inputs.target }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate-release:
+    name: Validate immutable main release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      checks: read
+      contents: read
+    outputs:
+      release_sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - name: Validate exact current main commit
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          EVENT_REF: ${{ github.ref }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo 'release_sha must be one lowercase 40-character commit SHA' >&2
+            exit 1
+          }
+          test "$EVENT_REF" = 'refs/heads/main' || {
+            echo 'Dispatch must select the main branch' >&2
+            exit 1
+          }
+          test "$RELEASE_SHA" = "$EVENT_SHA" || {
+            echo 'release_sha must equal the selected workflow commit' >&2
+            exit 1
+          }
+          main_sha="$(gh api "/repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          test "$RELEASE_SHA" = "$main_sha" || {
+            echo 'release_sha is not the current main commit' >&2
+            exit 1
+          }
+          echo "sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Require successful CI gate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+        run: |
+          set -euo pipefail
+          gate_count="$(gh api --method GET \
+            "/repos/$GITHUB_REPOSITORY/commits/$RELEASE_SHA/check-runs" \
+            -f filter=latest -f per_page=100 \
+            --jq '[.check_runs[] | select(.name == "gate" and .status == "completed" and .conclusion == "success")] | length')"
+          test "$gate_count" -ge 1 || {
+            echo 'The exact release SHA does not have a successful gate check' >&2
+            exit 1
+          }
+
+  build-and-deploy:
+    name: Build and deploy ${{ inputs.target }}
+    needs: validate-release
+    environment: staging
+    runs-on: [self-hosted, Linux, X64, quant-deploy, notion-aws]
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      EKS_CLUSTER: ${{ vars.EKS_CLUSTER }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+      AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      RELEASE_SHA: ${{ needs.validate-release.outputs.release_sha }}
+    steps:
+      - name: Checkout immutable release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.validate-release.outputs.release_sha }}
+          clean: true
+          persist-credentials: false
+
+      - name: Validate environment contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(AWS_REGION AWS_ACCOUNT_ID EKS_CLUSTER K8S_NAMESPACE AWS_DEPLOY_ROLE_ARN RELEASE_SHA)
+          for name in "${required[@]}"; do
+            test -n "${!name:-}" || { echo "Missing staging variable: $name" >&2; exit 1; }
+          done
+          test "$AWS_ACCOUNT_ID" = '266176113726'
+          test "$EKS_CLUSTER" = 'quant-staging-eks'
+          test "$K8S_NAMESPACE" = 'quant-staging'
+          test "$AWS_DEPLOY_ROLE_ARN" = 'arn:aws:iam::266176113726:role/quant-gha-deploy'
+
+      - name: Configure short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-staging-${{ github.run_id }}
+
+      - name: Verify assumed identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          caller_account="$(aws sts get-caller-identity --query Account --output text)"
+          caller_arn="$(aws sts get-caller-identity --query Arn --output text)"
+          expected_role="${AWS_DEPLOY_ROLE_ARN##*/}"
+          test "$caller_account" = "$AWS_ACCOUNT_ID"
+          [[ "$caller_arn" == *":assumed-role/$expected_role/"* ]] || {
+            echo "Unexpected AWS identity: $caller_arn" >&2
+            exit 1
+          }
+
+      - name: Resolve approved target
+        id: target
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          case "$TARGET" in
+            quantmail)
+              repository=quant-quantmail; dockerfile=apps/quantmail/Dockerfile
+              deployment=quant-platform-staging-quantmail; container=quantmail ;;
+            quantchat)
+              repository=quant-quantchat; dockerfile=apps/quantchat/Dockerfile
+              deployment=quant-platform-staging-quantchat; container=quantchat ;;
+            quantai)
+              repository=quant-quantai; dockerfile=apps/quantai/Dockerfile
+              deployment=quant-platform-staging-quantai; container=quantai ;;
+            admin)
+              repository=quant-admin; dockerfile=apps/admin/Dockerfile
+              deployment=quant-platform-staging-admin; container=admin ;;
+            ws-gateway)
+              repository=quant-ws-gateway; dockerfile=services/ws-gateway/Dockerfile
+              deployment=quant-platform-staging-ws-gateway; container=ws-gateway ;;
+            *) echo "Unsupported target: $TARGET" >&2; exit 1 ;;
+          esac
+          test -f "$dockerfile"
+          {
+            echo "repository=$repository"
+            echo "dockerfile=$dockerfile"
+            echo "deployment=$deployment"
+            echo "container=$container"
+            echo "registry=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify managed immutable ECR repository
+        shell: bash
+        env:
+          ECR_REPOSITORY: ${{ steps.target.outputs.repository }}
+        run: |
+          set -euo pipefail
+          mutability="$(aws ecr describe-repositories \
+            --repository-names "$ECR_REPOSITORY" \
+            --query 'repositories[0].imageTagMutability' --output text)"
+          scan_on_push="$(aws ecr describe-repositories \
+            --repository-names "$ECR_REPOSITORY" \
+            --query 'repositories[0].imageScanningConfiguration.scanOnPush' --output text)"
+          test "$mutability" = 'IMMUTABLE'
+          test "$scan_on_push" = 'True'
+
+      - name: Login to Amazon ECR
+        shell: bash
+        env:
+          REGISTRY: ${{ steps.target.outputs.registry }}
+        run: |
+          set -euo pipefail
+          aws ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY"
+
+      - name: Build and push SHA-tagged image
+        id: build
+        shell: bash
+        env:
+          DOCKERFILE: ${{ steps.target.outputs.dockerfile }}
+          ECR_REPOSITORY: ${{ steps.target.outputs.repository }}
+          REGISTRY: ${{ steps.target.outputs.registry }}
+        run: |
+          set -euo pipefail
+          image="$REGISTRY/$ECR_REPOSITORY:$RELEASE_SHA"
+          if aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
+            --image-ids "imageTag=$RELEASE_SHA" >/dev/null 2>&1; then
+            echo 'Immutable SHA image already exists; reusing it.'
+            echo 'reused=true' >> "$GITHUB_OUTPUT"
+          else
+            docker build --pull -f "$DOCKERFILE" -t "$image" .
+            docker push "$image"
+            echo 'reused=false' >> "$GITHUB_OUTPUT"
+          fi
+          echo "tagged_image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve immutable image digest
+        id: image
+        shell: bash
+        env:
+          ECR_REPOSITORY: ${{ steps.target.outputs.repository }}
+          REGISTRY: ${{ steps.target.outputs.registry }}
+        run: |
+          set -euo pipefail
+          digest="$(aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids "imageTag=$RELEASE_SHA" \
+            --query 'imageDetails[0].imageDigest' --output text)"
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "Invalid ECR digest: $digest" >&2
+            exit 1
+          }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "uri=$REGISTRY/$ECR_REPOSITORY@$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy digest with automatic rollback
+        shell: bash
+        env:
+          CONTAINER: ${{ steps.target.outputs.container }}
+          DEPLOYMENT: ${{ steps.target.outputs.deployment }}
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          IMMUTABLE_IMAGE: ${{ steps.image.outputs.uri }}
+        run: |
+          set -euo pipefail
+          aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+          kubectl auth can-i get deployments -n "$K8S_NAMESPACE" | grep -qx yes
+          kubectl auth can-i patch deployments -n "$K8S_NAMESPACE" | grep -qx yes
+          kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" >/dev/null
+
+          previous_image="$(kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" \
+            -o "jsonpath={.spec.template.spec.containers[?(@.name=='$CONTAINER')].image}")"
+          test -n "$previous_image" || {
+            echo "Container $CONTAINER not found in deployment $DEPLOYMENT" >&2
+            exit 1
+          }
+
+          kubectl set image "deployment/$DEPLOYMENT" \
+            "$CONTAINER=$IMMUTABLE_IMAGE" -n "$K8S_NAMESPACE"
+
+          set +e
+          kubectl rollout status "deployment/$DEPLOYMENT" \
+            -n "$K8S_NAMESPACE" --timeout=600s
+          rollout_status=$?
+          set -e
+          if [ "$rollout_status" -ne 0 ]; then
+            echo 'Rollout failed; restoring the previous image.' >&2
+            kubectl set image "deployment/$DEPLOYMENT" \
+              "$CONTAINER=$previous_image" -n "$K8S_NAMESPACE"
+            kubectl rollout status "deployment/$DEPLOYMENT" \
+              -n "$K8S_NAMESPACE" --timeout=600s
+            exit "$rollout_status"
+          fi
+
+          deployed_image="$(kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" \
+            -o "jsonpath={.spec.template.spec.containers[?(@.name=='$CONTAINER')].image}")"
+          test "$deployed_image" = "$IMMUTABLE_IMAGE"
+          {
+            echo '## Staging rollout'
+            echo "- Target: \`${{ inputs.target }}\`"
+            echo "- Release SHA: \`$RELEASE_SHA\`"
+            echo "- Image digest: \`$IMAGE_DIGEST\`"
+            echo "- Deployment: \`$DEPLOYMENT\`"
+            echo "- Previous image: \`$previous_image\`"
+            echo "- Reused existing image: \`${{ steps.build.outputs.reused }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Logout and remove local release image
+        if: always()
+        shell: bash
+        env:
+          REGISTRY: ${{ steps.target.outputs.registry }}
+          TAGGED_IMAGE: ${{ steps.build.outputs.tagged_image }}
+        run: |
+          if [ -n "${TAGGED_IMAGE:-}" ]; then docker image rm "$TAGGED_IMAGE" >/dev/null 2>&1 || true; fi
+          if [ -n "${REGISTRY:-}" ]; then docker logout "$REGISTRY" >/dev/null 2>&1 || true; fi
