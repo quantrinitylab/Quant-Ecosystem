@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@quant/database';
 import { z } from 'zod';
 
 export const OutboxEventPayloadSchema = z.record(z.string(), z.unknown());
