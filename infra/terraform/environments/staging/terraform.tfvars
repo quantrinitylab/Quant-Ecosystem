@@ -9,8 +9,10 @@ availability_zones = [
 ]
 
 cors_allowed_origins = [
-  "https://staging.quant.app",
-  "https://*.staging.quant.app"
+  "https://staging.quantrinity.in",
+  "https://staging.quantmail.quantrinity.in",
+  "https://staging.quantchat.quantrinity.in",
+  "https://staging.quantai.quantrinity.in"
 ]
 
 alert_email = ""

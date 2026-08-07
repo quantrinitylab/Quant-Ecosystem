@@ -42,8 +42,13 @@ variable "redis_auth_token" {
 
 variable "cors_allowed_origins" {
   type        = list(string)
-  description = "Allowed origins for CORS"
-  default     = ["https://staging.quant.app", "https://*.staging.quant.app"]
+  description = "Allowed origins for CORS (exact origins only; wildcard origins are banned by the #134 production guards)"
+  default = [
+    "https://staging.quantrinity.in",
+    "https://staging.quantmail.quantrinity.in",
+    "https://staging.quantchat.quantrinity.in",
+    "https://staging.quantai.quantrinity.in"
+  ]
 }
 
 variable "cdn_domain_aliases" {
