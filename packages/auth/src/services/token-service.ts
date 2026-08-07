@@ -3,6 +3,7 @@
 // ============================================================================
 
 import * as jose from 'jose';
+import { createHash } from 'node:crypto';
 import type { AuthConfig, TokenPair, TokenPayload, RefreshTokenPayload } from '../types';
 import type { PermissionScope, QuantApp } from '@quant/common';
 import { generateId } from '../crypto/secure-random';
@@ -15,6 +16,9 @@ interface JWKSKeyPair {
   privateKey: CryptoKey;
   publicKey: CryptoKey;
 }
+
+const hashRefreshToken = (token: string): string =>
+  createHash('sha256').update(token).digest('hex');
 
 export interface TokenServiceOptions {
   /**
@@ -93,10 +97,11 @@ export class TokenService {
     userInfo: { email: string; username: string; role: string },
     scopes: PermissionScope[],
     app: QuantApp,
+    familyId?: string,
   ): Promise<TokenPair> {
     const tokenId = generateId('tok');
     const refreshTokenId = generateId('tok');
-    const familyId = generateId('fam');
+    const activeFamilyId = familyId ?? generateId('fam');
     const now = Math.floor(Date.now() / 1000);
 
     // Resolve the active signing keys from the KMS at sign time (Requirement
@@ -124,7 +129,7 @@ export class TokenService {
     const refreshPayload: RefreshTokenPayload = {
       sub: userId,
       jti: refreshTokenId,
-      family: familyId,
+      family: activeFamilyId,
       iat: now,
       exp: now + this.config.refreshTokenExpiresIn,
     };
@@ -143,8 +148,11 @@ export class TokenService {
       data: {
         id: refreshTokenId,
         userId,
-        token: refreshToken,
-        family: familyId,
+        // Persist only a one-way digest. The bearer credential itself is
+        // returned to the caller once and must never be recoverable from the
+        // database after an application or backup compromise.
+        token: hashRefreshToken(refreshToken),
+        family: activeFamilyId,
         expiresAt: new Date((now + this.config.refreshTokenExpiresIn) * 1000),
       },
     });
@@ -158,12 +166,23 @@ export class TokenService {
   }
 
   async refreshToken(oldRefreshToken: string): Promise<TokenPair> {
-    let payload: any;
+    let payload: jose.JWTPayload;
 
     try {
-      const verified = await this.verifyWithKms(oldRefreshToken, 'refresh');
+      const verified = await this.verifyWithKms(oldRefreshToken, 'refresh', {
+        issuer: this.config.issuer,
+        audience: this.config.audience,
+      });
       payload = verified.payload;
     } catch {
+      throw new Error('Invalid refresh token');
+    }
+
+    if (
+      typeof payload.jti !== 'string' ||
+      typeof payload.sub !== 'string' ||
+      typeof payload['family'] !== 'string'
+    ) {
       throw new Error('Invalid refresh token');
     }
 
@@ -171,20 +190,39 @@ export class TokenService {
       where: { id: payload.jti },
     });
 
-    if (!existingToken || existingToken.isRevoked) {
-      if (existingToken?.family) {
-        await this.prisma.refreshToken.updateMany({
-          where: { family: existingToken.family },
-          data: { isRevoked: true },
-        });
-      }
+    if (!existingToken) {
       throw new Error('Refresh token reuse detected or token revoked');
     }
 
-    await this.prisma.refreshToken.update({
-      where: { id: payload.jti },
+    const presentedDigest = hashRefreshToken(oldRefreshToken);
+    const bindingIsValid =
+      existingToken.token === presentedDigest &&
+      existingToken.userId === payload.sub &&
+      existingToken.family === payload['family'];
+
+    if (existingToken.isRevoked || !bindingIsValid) {
+      await this.prisma.refreshToken.updateMany({
+        where: { family: existingToken.family },
+        data: { isRevoked: true },
+      });
+      throw new Error('Refresh token reuse detected or token revoked');
+    }
+
+    // Compare-and-set closes the concurrent refresh race: exactly one caller
+    // may rotate an active token. Every loser is treated as reuse and revokes
+    // the complete family, including any descendant issued by the winner.
+    const revoked = await this.prisma.refreshToken.updateMany({
+      where: { id: payload.jti, isRevoked: false },
       data: { isRevoked: true },
     });
+
+    if (revoked.count !== 1) {
+      await this.prisma.refreshToken.updateMany({
+        where: { family: existingToken.family },
+        data: { isRevoked: true },
+      });
+      throw new Error('Refresh token reuse detected or token revoked');
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
@@ -195,7 +233,11 @@ export class TokenService {
     }
 
     // Use original scopes if available, otherwise default
-    const scopes: PermissionScope[] = payload.scopes || ['openid', 'profile', 'email'];
+    const scopes: PermissionScope[] = (payload['scopes'] as PermissionScope[] | undefined) || [
+      'openid',
+      'profile',
+      'email',
+    ];
 
     return this.generateTokenPair(
       payload.sub,
@@ -205,7 +247,8 @@ export class TokenService {
         role: user.role,
       },
       scopes,
-      (payload.app || 'quantmail') as any,
+      (payload['app'] || 'quantmail') as QuantApp,
+      existingToken.family,
     );
   }
 

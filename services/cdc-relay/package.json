@@ -14,11 +14,11 @@
   },
   "dependencies": {
     "kafkajs": "^2.2.4",
-    "@prisma/client": "^6.19.3",
     "@quant/health-server": "workspace:*",
     "@quant/common": "workspace:*",
     "zod": "^3.24.2",
-    "pino": "^9.6.0"
+    "pino": "^9.6.0",
+    "@quant/database": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
