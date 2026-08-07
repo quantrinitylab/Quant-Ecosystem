@@ -8,6 +8,7 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json ./
+COPY patches/ ./patches/
 
 # Transitive @quant closure: common, health-server, queue, storage + the service
 COPY packages/common/ ./packages/common/
@@ -34,6 +35,7 @@ RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 quant
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json ./
+COPY patches/ ./patches/
 COPY --from=builder /app/packages/common/dist/ ./packages/common/dist/
 COPY --from=builder /app/packages/common/package.json ./packages/common/package.json
 COPY --from=builder /app/packages/health-server/dist/ ./packages/health-server/dist/

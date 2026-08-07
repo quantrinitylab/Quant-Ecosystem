@@ -1,0 +1,16 @@
+{
+  "commands": [
+    "set -eu",
+    "export KUBECONFIG=/root/.kube/config",
+    "kubectl get ns quant-staging 2>&1 || kubectl create ns quant-staging 2>&1",
+    "echo NS_READY",
+    "IMAGE=266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail:8b254c1947543559a52ce74f661467cc69b2679f",
+    "kubectl -n quant-staging get deployment quant-quantmail 2>/dev/null && kubectl -n quant-staging set image deployment/quant-quantmail quant-quantmail=$IMAGE 2>&1 || kubectl -n quant-staging create deployment quant-quantmail --image=$IMAGE --port=3010 2>&1",
+    "echo DEPLOYMENT_CREATED",
+    "kubectl -n quant-staging expose deployment quant-quantmail --port=80 --target-port=3010 --type=ClusterIP 2>&1 || echo SERVICE_EXISTS",
+    "kubectl -n quant-staging rollout status deployment/quant-quantmail --timeout=180s 2>&1 || true",
+    "kubectl -n quant-staging get pods -l app=quant-quantmail 2>&1",
+    "kubectl -n quant-staging get svc quant-quantmail 2>&1",
+    "echo QUANTMAIL_DEPLOYED"
+  ]
+}

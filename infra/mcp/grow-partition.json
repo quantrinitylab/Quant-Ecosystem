@@ -1,0 +1,7 @@
+{
+  "commands": [
+    "sudo growpart /dev/nvme0n1 1 2>&1",
+    "sudo resize2fs /dev/nvme0n1p1 2>&1",
+    "df -h / | tail -1"
+  ]
+}

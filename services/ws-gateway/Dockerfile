@@ -14,6 +14,7 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json ./
+COPY patches/ ./patches/
 COPY packages/common/ ./packages/common/
 COPY packages/realtime/ ./packages/realtime/
 COPY packages/health-server/ ./packages/health-server/

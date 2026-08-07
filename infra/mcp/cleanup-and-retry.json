@@ -1,0 +1,25 @@
+{
+  "commands": [
+    "set -eu",
+    "echo DISK_BEFORE=$(df -h / | tail -1 | awk '{print $4}')",
+    "docker system prune -af 2>&1 | tail -2",
+    "rm -rf /opt/actions-runner/_work/deploy-quantmail 2>/dev/null || true",
+    "rm -rf /tmp/mcp-deploy-src 2>/dev/null || true",
+    "echo DISK_AFTER=$(df -h / | tail -1 | awk '{print $4}')",
+    "cd /opt/actions-runner/_work",
+    "mkdir -p deploy-quantmail && cd deploy-quantmail",
+    "git clone --depth 1 --filter=blob:none --sparse https://github.com/quantrinitylabsgo/Quant-Ecosystem.git . 2>&1 | tail -3",
+    "git sparse-checkout set apps/quantmail packages/ pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.json turbo.json 2>&1",
+    "echo SPARSE_CLONE_DONE",
+    "RELEASE_SHA=$(git rev-parse HEAD)",
+    "echo SHA=$RELEASE_SHA",
+    "REGISTRY=266176113726.dkr.ecr.us-east-1.amazonaws.com",
+    "REPO=quant-quantmail",
+    "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REGISTRY 2>&1 | tail -2",
+    "docker build --memory=1g -f apps/quantmail/Dockerfile -t $REGISTRY/$REPO:$RELEASE_SHA . 2>&1 | tail -15",
+    "echo BUILD_STATUS=$?",
+    "docker images $REGISTRY/$REPO --format '{{.Tag}} {{.Size}}' 2>&1",
+    "docker push $REGISTRY/$REPO:$RELEASE_SHA 2>&1 | tail -5",
+    "echo FINAL_STATUS=$?"
+  ]
+}

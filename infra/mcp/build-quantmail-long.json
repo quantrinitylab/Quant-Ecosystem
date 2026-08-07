@@ -1,0 +1,20 @@
+{
+  "commands": [
+    "set -eu",
+    "export DOCKER_BUILDKIT=1",
+    "cd /opt/actions-runner/_work/deploy-quantmail",
+    "ls patches/minimatch* 2>&1 && echo PATCHES_OK",
+    "RELEASE_SHA=$(git rev-parse HEAD)",
+    "echo SHA=$RELEASE_SHA",
+    "REGISTRY=266176113726.dkr.ecr.us-east-1.amazonaws.com",
+    "REPO=quant-quantmail",
+    "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REGISTRY 2>&1 | tail -1",
+    "echo BUILD_START=$(date -u +%H:%M:%S)",
+    "DOCKER_BUILDKIT=1 docker build --progress=plain -f apps/quantmail/Dockerfile -t $REGISTRY/$REPO:$RELEASE_SHA . 2>&1 | tail -30",
+    "echo BUILD_END=$(date -u +%H:%M:%S) EXIT=$?",
+    "docker images $REGISTRY/$REPO --format '{{.Tag}} {{.Size}}'",
+    "docker push $REGISTRY/$REPO:$RELEASE_SHA 2>&1 | tail -10",
+    "echo PUSH_EXIT=$?",
+    "aws ecr describe-images --repository-name $REPO --image-ids imageTag=$RELEASE_SHA --region us-east-1 --query 'imageDetails[0].imageDigest' --output text 2>&1"
+  ]
+}
