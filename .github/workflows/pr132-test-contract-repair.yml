@@ -25,6 +25,7 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
 
+          const lines = (...values) => values.join('\n');
           function replaceOnce(path, from, to) {
             const source = fs.readFileSync(path, 'utf8');
             const matches = source.split(from).length - 1;
@@ -37,58 +38,68 @@ jobs:
           const vacation = 'apps/quantmail/src/__tests__/vacation-responder-api-client.test.ts';
           replaceOnce(
             vacation,
-            `    expect(fetchMock).toHaveBeenNthCalledWith(
-              2,
-              'https://mail.test/vacation-responder',
-              expect.objectContaining({
-                method: 'PUT',
-                body: JSON.stringify(payload),
-                headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
-              }),
-            );`,
-            `    expect(fetchMock).toHaveBeenNthCalledWith(
-              2,
-              'https://mail.test/vacation-responder',
-              expect.objectContaining({
-                method: 'PUT',
-                body: JSON.stringify(payload),
-                credentials: 'include',
-              }),
-            );
-            const secondRequest = fetchMock.mock.calls[1]?.[1] as RequestInit | undefined;
-            expect(new Headers(secondRequest?.headers).get('Content-Type')).toBe('application/json');`,
+            lines(
+              '    expect(fetchMock).toHaveBeenNthCalledWith(',
+              '      2,',
+              "      'https://mail.test/vacation-responder',",
+              '      expect.objectContaining({',
+              "        method: 'PUT',",
+              '        body: JSON.stringify(payload),',
+              "        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),",
+              '      }),',
+              '    );',
+            ),
+            lines(
+              '    expect(fetchMock).toHaveBeenNthCalledWith(',
+              '      2,',
+              "      'https://mail.test/vacation-responder',",
+              '      expect.objectContaining({',
+              "        method: 'PUT',",
+              '        body: JSON.stringify(payload),',
+              "        credentials: 'include',",
+              '      }),',
+              '    );',
+              '    const secondRequest = fetchMock.mock.calls[1]?.[1] as RequestInit | undefined;',
+              "    expect(new Headers(secondRequest?.headers).get('Content-Type')).toBe('application/json');",
+            ),
           );
 
           const preservation =
             'apps/quantmail/backend/__tests__/quantmail-oauth-e2ee-federation.preservation.bug2.seam.test.ts';
           replaceOnce(
             preservation,
-            `const authedHeaders = () => ({ authorization: \`Bearer \${signToken([])}\` });`,
-            `const authedHeaders = () => ({
-              authorization: \`Bearer \${signToken([])}\`,
-              origin: 'http://localhost:3000',
-            });`,
+            'const authedHeaders = () => ({ authorization: `Bearer ${signToken([])}` });',
+            lines(
+              'const authedHeaders = () => ({',
+              '  authorization: `Bearer ${signToken([])}`,',
+              "  origin: 'http://localhost:3000',",
+              '});',
+            ),
           );
           replaceOnce(
             preservation,
-            `  const app = Fastify({ logger: false });
-
-            // REAL envelope mapper (ZodError -> 400 VALIDATION_ERROR; AppError -> code).`,
-            `  const app = Fastify({ logger: false });
-
-            // This isolated harness does not boot createApp(), so reproduce the cookie
-            // decorators that production registers before authRoutes.
-            app.decorateRequest('cookies', null);
-            app.decorateReply('setCookie', function (name: string, value: string) {
-              this.header('set-cookie', \`\${name}=\${value}\`);
-              return this;
-            });
-            app.decorateReply('clearCookie', function (name: string) {
-              this.header('set-cookie', \`\${name}=; Max-Age=0\`);
-              return this;
-            });
-
-            // REAL envelope mapper (ZodError -> 400 VALIDATION_ERROR; AppError -> code).`,
+            lines(
+              '  const app = Fastify({ logger: false });',
+              '',
+              '  // REAL envelope mapper (ZodError -> 400 VALIDATION_ERROR; AppError -> code).',
+            ),
+            lines(
+              '  const app = Fastify({ logger: false });',
+              '',
+              "  // This isolated harness does not boot createApp(), so reproduce the cookie",
+              '  // decorators that production registers before authRoutes.',
+              "  app.decorateRequest('cookies', null);",
+              "  app.decorateReply('setCookie', function (name: string, value: string) {",
+              "    this.header('set-cookie', `${name}=${value}`);",
+              '    return this;',
+              '  });',
+              "  app.decorateReply('clearCookie', function (name: string) {",
+              "    this.header('set-cookie', `${name}=; Max-Age=0`);",
+              '    return this;',
+              '  });',
+              '',
+              '  // REAL envelope mapper (ZodError -> 400 VALIDATION_ERROR; AppError -> code).',
+            ),
           );
           replaceOnce(
             preservation,
@@ -97,28 +108,32 @@ jobs:
           );
           replaceOnce(
             preservation,
-            `  it('auth.ts depends on prisma (default), secure-random, token-service, and secrets', () => {
-              const src = read('../routes/auth.ts');
-              for (const spec of [
-                '@quant/auth/lib/prisma',
-                '@quant/auth/crypto/secure-random',
-                '@quant/auth/services/token-service',
-                '@quant/auth/lib/secrets',
-              ]) {
-                expect(src, \`auth.ts must import \${spec}\`).toContain(spec);
-              }
-            });`,
-            `  it('auth.ts depends on prisma (default), token-service, and secrets', () => {
-              const src = read('../routes/auth.ts');
-              for (const spec of [
-                '@quant/auth/lib/prisma',
-                '@quant/auth/services/token-service',
-                '@quant/auth/lib/secrets',
-              ]) {
-                expect(src, \`auth.ts must import \${spec}\`).toContain(spec);
-              }
-              expect(src).not.toContain('@quant/auth/crypto/secure-random');
-            });`,
+            lines(
+              "  it('auth.ts depends on prisma (default), secure-random, token-service, and secrets', () => {",
+              "    const src = read('../routes/auth.ts');",
+              '    for (const spec of [',
+              "      '@quant/auth/lib/prisma',",
+              "      '@quant/auth/crypto/secure-random',",
+              "      '@quant/auth/services/token-service',",
+              "      '@quant/auth/lib/secrets',",
+              '    ]) {',
+              '      expect(src, `auth.ts must import ${spec}`).toContain(spec);',
+              '    }',
+              '  });',
+            ),
+            lines(
+              "  it('auth.ts depends on prisma (default), token-service, and secrets', () => {",
+              "    const src = read('../routes/auth.ts');",
+              '    for (const spec of [',
+              "      '@quant/auth/lib/prisma',",
+              "      '@quant/auth/services/token-service',",
+              "      '@quant/auth/lib/secrets',",
+              '    ]) {',
+              '      expect(src, `auth.ts must import ${spec}`).toContain(spec);',
+              '    }',
+              "    expect(src).not.toContain('@quant/auth/crypto/secure-random');",
+              '  });',
+            ),
           );
           NODE
 
