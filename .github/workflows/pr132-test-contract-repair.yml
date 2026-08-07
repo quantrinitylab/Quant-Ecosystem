@@ -92,9 +92,8 @@ jobs:
           );
           replaceOnce(
             preservation,
-            `        refreshToken: 'mock-refresh-token',
-`,
-            ``,
+            "        refreshToken: 'mock-refresh-token',\n",
+            '',
           );
           replaceOnce(
             preservation,
@@ -124,7 +123,6 @@ jobs:
           NODE
 
           git diff --check
-          git diff --exit-code -- .github/workflows/pr132-test-contract-repair.yml || true
 
       - name: Commit deterministic test repair
         shell: bash
