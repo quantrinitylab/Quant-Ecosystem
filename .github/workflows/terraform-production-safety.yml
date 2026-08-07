@@ -113,10 +113,10 @@ jobs:
           grep -F 'aws_region  = "us-east-1"' "$values"
 
           redesign_block="$(grep -A 4 'variable "production_root_redesigned"' "$guard")"
-          grep -F 'default     = false' <<<"$redesign_block"
+          grep -F 'default     = true' <<<"$redesign_block"
 
-          if grep -R --line-number --fixed-strings 'production_root_redesigned = true' infra/terraform/environments/production; then
-            echo '::error::Legacy production root must remain fail-closed until issue #129 redesign is complete.'
+          if grep -R --line-number --fixed-strings 'production_root_redesigned = false' infra/terraform/environments/production; then
+            echo '::error::Legacy production root redesign flag must stay enabled after the reviewed #129 redesign (#140).'
             exit 1
           fi
 
