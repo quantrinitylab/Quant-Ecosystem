@@ -4,7 +4,7 @@
 
 - Repository: `quantrinitylabsgo/Quant-Ecosystem`.
 - The production-hardening merge sequence is complete through `main` commit `09a0a22e9aa5fe288d22987b90a6119a70f7c467`.
-- Project-memory PR #136 is refreshed from that main commit and remains a documentation-only change until validated and merged.
+- The project-memory refresh is documentation-only and records that merged baseline.
 - The deploy workflow is manual-only, exact-main-SHA gated, OIDC-authenticated, digest-pinned, and rollback-aware. `ENABLE_QUANTMAIL_PRODUCTION_DEPLOY` remains disabled.
 
 ## AWS live truth

@@ -4,7 +4,7 @@
   "repository": "quantrinitylabsgo/Quant-Ecosystem",
   "memoryRoot": ".agents/project-memory",
   "classification": "non-authoritative supporting project memory",
-  "lastReconstructedAt": "2026-08-07T14:15:00+05:30",
+  "lastReconstructedAt": "2026-08-07T14:20:00+05:30",
   "privacy": {
     "scope": "project-only",
     "rawPrivateChats": false,
@@ -34,7 +34,7 @@
   "canonicalActiveMilestone": "M11D-SHADOW-CANARY",
   "canonicalActiveWorkUnit": 4,
   "priorityDiscrepancy": "The hardening stack is merged, but M11D work unit 4 remains the one canonical active unit until an explicit owner-approved queue change.",
-  "openCriticalPullRequests": [136],
+  "openCriticalPullRequests": [],
   "supersededPullRequests": [126],
   "mergedHardeningPullRequests": {
     "125": "a5f2057887e1842368af4baaf65192c16b5f1c14",
@@ -63,6 +63,7 @@
     "pullRequestOpened": true,
     "pullRequest": 136,
     "pullRequestUrl": "https://github.com/quantrinitylabsgo/Quant-Ecosystem/pull/136",
-    "blocker": "Current-head required checks, review, and merge"
+    "statusAtReconstruction": "open-draft",
+    "note": "Verify the live GitHub merge state before relying on this dated publishing status."
   }
 }

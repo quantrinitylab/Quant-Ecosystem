@@ -6,9 +6,9 @@
 
 ## Executive summary
 
-The complete security, dependency, active-account infrastructure, production-v2 Helm/Terraform, Cloudflare Workers AI, and QuantMail browser-session hardening stack is now merged. The remaining project-memory PR is a continuity/documentation change, not an application or deployment change.
+The complete security, dependency, active-account infrastructure, production-v2 Helm/Terraform, Cloudflare Workers AI, and QuantMail browser-session hardening stack is merged. This project-memory refresh records that baseline; it does not change application or deployment state.
 
-This materially improves the repository's release boundary, but it is not a production launch. No Terraform apply, image push, production deployment, placeholder-secret write, or application DNS cutover occurred. External account access, EKS verification, real secrets, images, staging, rollback, and approvals remain blocking.
+The repository's release boundary is materially safer, but this is not a production launch. No Terraform apply, image push, production deployment, placeholder-secret write, or application DNS cutover occurred. External account access, EKS verification, real secrets, images, staging, rollback, and approvals remain blocking.
 
 ## Strategic north star
 
@@ -69,9 +69,9 @@ Product focus remains QuantMail, QuantChat, and QuantAI. Depth, real users, trus
 
 ## Immediate next actions
 
-1. Validate and land project-memory PR #136 without changing the canonical milestone.
+1. Execute M11D work unit 4 and preserve append-only evidence.
 2. Have an authorized administrator deploy the reviewed OIDC template from Issue #127.
 3. Verify actual EKS state and a supported Kubernetes version with authorized read access.
 4. Provision real production secrets only through an approved secure path.
 5. Review a Terraform plan; do not apply until every guard and approval passes.
-6. Execute M11D work unit 4 and preserve append-only evidence.
+6. Establish immutable images and origin-only staging proof before any production or DNS activation.

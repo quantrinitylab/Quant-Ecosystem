@@ -27,8 +27,11 @@ The product strategy is depth over breadth: prove QuantMail, QuantChat, and Quan
 | Area | Evidence | Consequence |
 | --- | --- | --- |
 | Memory V2 | Ports, persistence, retrieval, policy, replay, four modes, WU2/WU3 durable evidence, and the WU4 runner exist; see [architecture](./MEMORY_ARCHITECTURE.md) and [ADR-011](./adr/011-memory-facade-shadow-migration.md). | WU4 is still active. `legacy` remains authoritative and `new` remains blocked. |
+| Core AI | [`AIEngine`](../packages/ai/src/core/engine.ts) constructs its memory facade in hardcoded `legacy` mode. | Memory V2 is not universal inference authority. |
 | Cutover | The [Migration Scoreboard](./MIGRATION_SCOREBOARD.md) still records 14.3% agreement and five critical divergences. | Decision remains **HOLD**; no automatic promotion. |
-| Authentication | PR #125 merged as `a5f2057887e1842368af4baaf65192c16b5f1c14`; PR #132 merged as `09a0a22e9aa5fe288d22987b90a6119a70f7c467`. | Refresh families now rotate atomically with reuse revocation; browser refresh credentials are HttpOnly, exact-Origin guarded, host-only, and absent from JSON/storage. Non-browser OAuth remains compatible. |
+| Experiments | The [Decision Log](./M11D_DECISION_LOG.md) records two precision regressions that were reverted. | Measure-first and Law 7 gates are working. |
+| Realtime | WebSockets send real frames, but connection/channel/presence state is node-local and JetStream durability is not end-to-end. | Multi-instance failover remains unproven. |
+| Authentication | PR #125 merged as `a5f2057887e1842368af4baaf65192c16b5f1c14`; PR #132 merged as `09a0a22e9aa5fe288d22987b90a6119a70f7c467`. | Refresh families rotate atomically with reuse revocation; browser refresh credentials are HttpOnly, exact-Origin guarded, host-only, and absent from JSON/storage. Non-browser OAuth remains compatible. |
 | Dependency/supply chain | PR #130 merged as `7fe3e25416348477c6790826b43f22ef675b5c0c`, including the post-publication `js-yaml` 4.3.1 remediation. | High/critical policy remains enforced without advisory suppression or threshold reduction. |
 | AWS configuration | PRs #131, #133, #134, and #137 merged fail-closed roots/profiles and replaced legacy account `650708167640` with `266176113726` in active deployment references. | Merged configuration is safer, but merge is not an apply or deployment. |
 | AWS live state | The active read identity is in account `266176113726`; five immutable, scan-on-push ECR repositories exist and contain zero images. The GitHub OIDC deploy role and required production secret paths are absent. EKS could not be verified because the read role lacks `DescribeCluster`. | Production bootstrap remains blocked. Unknown EKS state must not be described as absent or ready. |
@@ -36,13 +39,14 @@ The product strategy is depth over breadth: prove QuantMail, QuantChat, and Quan
 | CI | The definitive PR #132 head passed gate, dependency audit, memory/PostgreSQL, QuantChat coverage, immutable action pins, all three CodeQL analyses, backend typecheck, focused auth typecheck, focused contracts, and real Chromium acceptance. | Required integration evidence passed. The informational repository-wide full sweep was still running at merge and remains distinct from hard-gate proof. |
 | Frontend debt | Base and current full QuantMail frontend typechecks had identical annotations for missing `@quant/agentic/voice-commands` types and three implicit-`any` parameters; the changed browser-auth boundary passed. | Inherited debt remains visible and must be fixed separately; it was not hidden or misclassified as a #132 regression. |
 | Deployment/cutover | No Terraform apply, image push, production deployment, placeholder-secret write, or application DNS cutover occurred in this hardening sequence. `ENABLE_QUANTMAIL_PRODUCTION_DEPLOY` remains disabled. | The repository is materially safer but is not production-proven. |
+| Legacy guidance | The [production prompt](../.kiro/steering/PRODUCTION_READINESS_PROMPT.md) contains historical bootstrap guidance. | It remains manual, non-authoritative, and must not auto-execute. |
 
 ## Merged hardening baseline
 
 - #125 `a5f2057887e1842368af4baaf65192c16b5f1c14` — refresh-token family integrity.
 - #130 `7fe3e25416348477c6790826b43f22ef675b5c0c` — dependency remediation.
 - #137 `cf1797c510a5bff349220c8f0e680ca4536997ee` — legacy AWS account replacement.
-- #131 `a05bcfc4249a0fc392418ee053e9a5799ad40cde` — unsafe legacy Terraform root locked.
+- #131 `a05bcfc4249a0fc392418ee053e9a5799ad40cde` — unsafe legacy production Terraform root locked.
 - #133 `04b9b0c845a1f32598bf2e8e70cdb5b89a9708c3` — fail-closed single-region production v2 root.
 - #134 `42133d98d73e31b4c70ca62c583ec64b7018a419` — fail-closed production v2 Helm profile.
 - #135 `8aa8fa5d911ec306229a03bb9cad9a6124ea1c7b` — fail-closed Workers AI runtime.

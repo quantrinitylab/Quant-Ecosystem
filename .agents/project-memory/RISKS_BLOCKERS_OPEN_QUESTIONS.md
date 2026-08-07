@@ -2,7 +2,6 @@
 
 ## P0 blockers
 
-- Project-memory PR #136 requires current-head memory validation, required CI, secret scanning, review where available, and merge.
 - M11D WU4 representative live evidence remains incomplete.
 - GitHub OIDC deploy role is absent.
 - EKS state/version is unknown to the read identity.

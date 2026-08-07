@@ -26,14 +26,15 @@ Historical labels such as CEO, CTO, Kiro, Claude, or Qwen describe prior session
 
 ## Immediate repository priority
 
-1. Validate the refreshed PR #136 with `pnpm memory:validate`, focused memory tests, required CI, and secret scanning.
-2. Mark it ready only after its current-head evidence is green.
-3. Merge through normal repository policy.
-4. Preserve this refresh as the final step of every substantial future session.
+1. Execute M11D WU4 representative evidence without changing retrieval behavior or acceptance policy.
+2. Preserve required current-head CI and append-only canary evidence.
+3. Keep production/bootstrap gates false while administrators satisfy external prerequisites.
+4. Fix inherited flagship frontend/type/coverage debt through narrow reviewed changes.
+5. Refresh canonical state and this project checkpoint after every material outcome.
 
 ## Canonical priority
 
-M11D-SHADOW-CANARY work unit 4 remains active. Security/dependency/provider/infrastructure hardening is now merged but did not rewrite the queue. Any reprioritization must be explicit, owner-approved, and committed to `docs/EXECUTION_QUEUE.md`.
+M11D-SHADOW-CANARY work unit 4 remains active. Security/dependency/provider/infrastructure hardening is merged but did not rewrite the queue. Any reprioritization must be explicit, owner-approved, and committed to `docs/EXECUTION_QUEUE.md`.
 
 ## Ninety-day product focus
 
