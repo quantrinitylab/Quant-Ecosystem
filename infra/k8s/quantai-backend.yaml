@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: quantai-backend
-          image: 650708167640.dkr.ecr.us-east-1.amazonaws.com/quant-quantai-backend:latest
+          image: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantai-backend:latest
           ports:
             - containerPort: 3004
               name: http

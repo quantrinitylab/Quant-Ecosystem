@@ -4,7 +4,7 @@
     {
       "Effect": "Allow",
       "Principal": {
-        "Federated": "arn:aws:iam::650708167640:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/8685E251115CA16D4FD8CB7DDC353481"
+        "Federated": "arn:aws:iam::266176113726:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/8685E251115CA16D4FD8CB7DDC353481"
       },
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
