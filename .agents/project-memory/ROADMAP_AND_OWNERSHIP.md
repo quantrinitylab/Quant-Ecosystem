@@ -4,69 +4,57 @@
 
 ### Tyccy — founder/owner
 
-- Sets vision, product priority, risk tolerance, and final trade-offs.
+- Sets vision, product priority, risk tolerance, budget, and final trade-offs.
 - Approves production, DNS, destructive changes, security-policy changes, spending, and sensitive access.
-- Resolves the mismatch between the canonical M11D queue and recent parallel work.
+- Approves any change to the one canonical active milestone.
 
 ### Execution agent
 
 - Reads canonical memory and this folder before acting.
-- Verifies current main, issue/PR state, source ownership, and acceptance evidence.
-- Implements one narrow boundary, tests it, scans for secrets, opens a PR, and updates memory.
-- Never invents logs, pass states, deployment, or review approval.
+- Verifies current main, issue/PR state, source ownership, live infrastructure evidence, and acceptance evidence.
+- Implements one reversible boundary, tests it, scans for secrets, opens or updates a PR, and refreshes memory.
+- Never invents logs, pass states, resources, deployment, or approval.
 
-### Reviewer
+### Reviewer/administrator
 
 - Reviews the diff and evidence, not the summary alone.
-- Confirms capability truth, regression risk, security, and required gates.
-- Blocks merge when evidence is incomplete.
+- Provides authorized cloud access only through approved paths.
+- Confirms capability truth, regression risk, security, cost, rollback, and required gates.
+- Blocks merge or deployment when evidence is incomplete.
 
 Historical labels such as CEO, CTO, Kiro, Claude, or Qwen describe prior sessions; do not assume a currently assigned human or agent without fresh confirmation.
 
-## Immediate administrative priority
+## Immediate repository priority
 
-1. Validate, review, and merge project-memory PR #136.
-2. Run `pnpm memory:validate`, formatting, local-link checks, and a targeted secret scan.
-3. Obtain review and merge through normal repository policy.
-4. Make memory refresh the final step of every substantial future session.
+1. Validate the refreshed PR #136 with `pnpm memory:validate`, focused memory tests, required CI, and secret scanning.
+2. Mark it ready only after its current-head evidence is green.
+3. Merge through normal repository policy.
+4. Preserve this refresh as the final step of every substantial future session.
 
-## Canonical priority decision
+## Canonical priority
 
-Before declaring security or deployment the active engineering milestone, Tyccy must choose one of these evidence-backed paths:
+M11D-SHADOW-CANARY work unit 4 remains active. Security/dependency/provider/infrastructure hardening is now merged but did not rewrite the queue. Any reprioritization must be explicit, owner-approved, and committed to `docs/EXECUTION_QUEUE.md`.
 
-- finish or explicitly block M11D WU4 and retain the existing queue; or
-- approve a queue change that moves S-01/dependency/auth work ahead and records why.
+## Ninety-day product focus
 
-Open PR activity alone must not silently rewrite the one active milestone.
+1. Complete M11D WU4/WU5 durable evidence without enabling `new` authority.
+2. Establish authorized OIDC/EKS access and a reviewed, costed production-v2 plan.
+3. Provision real secrets and immutable images; deploy an origin-only staging environment.
+4. Prove QuantMail's login → triage → draft → approval → send loop with observability and rollback.
+5. Deepen QuantChat and QuantAI only where they reinforce the shared platform loop.
+6. Fix flagship frontend/type/coverage debt before expanding product breadth.
 
-## If security becomes the approved next chain
+## Administrator-only infrastructure sequence
 
-1. Reproduce PR #130 gate/full-sweep failures.
-2. Fix the responsible source/config only.
-3. Land dependency remediation with approval.
-4. Refresh and land PR #125.
-5. Refresh, fully validate, review, and land PR #132.
-6. Close Issue #120 only after deployed browser/security evidence.
-
-## If M11D remains active
-
-1. Acquire real PostgreSQL/Qdrant/embedding dependencies and a synthetic actor.
-2. Run the versioned 500-recall WU4 plan.
-3. Persist and archive version freeze, report, and replay artifacts.
-4. Keep the decision `HOLD_PENDING_WU5` where pending agreement is not measured.
-5. Prove rollback/release gates in order.
-6. Append the migration decision; do not overwrite prior evidence.
-
-## Deployment sequence
-
-1. Keep PR #126 superseded.
-2. Use reviewed single-purpose application, Terraform, Helm/secrets, and deployment PRs.
-3. Confirm target account/region/domains/origins.
-4. Provision GitHub OIDC and cost-reviewed single-region infrastructure.
-5. Build, scan, sign, and push immutable-SHA images.
-6. Deploy staging first.
-7. Verify migrations, health, TLS, auth cookies, logs, and rollback.
-8. Change application DNS only after explicit approval and origin-health proof.
+1. Deploy the reviewed GitHub OIDC template linked from Issue #127 with named-IAM capability.
+2. Verify the actual EKS state and supported version in account `266176113726`.
+3. Review the production-v2 Terraform plan; keep approval false until accepted.
+4. Rebuild the EBS CSI trust against the actual EKS OIDC provider.
+5. Establish a secure execution path to the private EKS endpoint.
+6. Provision real database, Redis, and Cloudflare secrets through an approved secure path.
+7. Build, scan, sign, and push immutable-SHA images.
+8. Deploy staging first; prove migrations, health, TLS, auth cookies, logs, load, cost, and rollback.
+9. Enable the production deploy variable and change application DNS only after explicit final approval.
 
 ## Design sequence
 

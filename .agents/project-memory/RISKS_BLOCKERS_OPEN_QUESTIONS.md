@@ -2,19 +2,21 @@
 
 ## P0 blockers
 
-- Project-memory PR #136 still requires required checks, review, and merge.
-- Canonical queue still says M11D WU4 while recent work is concentrated elsewhere.
-- PR #130 main gate/full sweep are red and exact failing commands are not available through the current integration.
-- PRs #125/#132/#135 inherit the dependency/gate block.
-- No review approval is recorded on the open critical PRs.
+- Project-memory PR #136 requires current-head memory validation, required CI, secret scanning, review where available, and merge.
+- M11D WU4 representative live evidence remains incomplete.
+- GitHub OIDC deploy role is absent.
+- EKS state/version is unknown to the read identity.
+- Production secret paths and immutable images are absent.
+- No origin-only staging or rollback proof exists.
 
 ## Deployment blockers
 
-- OIDC deploy role and EKS are unverified.
-- Failed CloudFormation stack requires safe cleanup.
-- Images are not verified in target ECR.
-- Production Terraform needs single-region/cost/stale-domain remediation.
-- Origin health, rollback, TLS, exact CORS origins, and application DNS cutover remain unproven.
+- Administrator must deploy the reviewed OIDC template from Issue #127.
+- A supported EKS version and actual cluster state must be verified with authorized access.
+- The private EKS endpoint needs an approved runner/network path.
+- Terraform plan, cost, CSI trust, database/Redis/Cloudflare secrets, images, migrations, health, TLS, security, load, and rollback remain unproven.
+- `bootstrap_root_approved` and `ENABLE_QUANTMAIL_PRODUCTION_DEPLOY` must remain false.
+- Application DNS cutover remains unauthorized.
 
 ## Product blockers
 
@@ -23,6 +25,7 @@
 - Scheduled delivery is not a durable send contract.
 - Session/revoke-all inventory remains unproven.
 - Audited issues #108–#122 remain.
+- Full QuantMail frontend typecheck debt remains visible.
 
 ## Design blockers
 
@@ -36,25 +39,26 @@
 - Embedding-capable provider access for quality evidence.
 - 14.3% semantic agreement and five critical divergences keep migration on HOLD.
 - Prompt-injection baseline remains an acknowledged gap.
-- Cloudflare PR #135 is not merged or activated.
+- Workers AI runtime is merged but not production-activated.
 
-## Owner decisions needed
+## Owner/administrator decisions needed
 
-1. Keep M11D WU4 active, or formally reprioritize the canonical queue to security/deployment.
-2. Confirm target account, single region, domains, exact origin list, and infrastructure budget before apply.
-3. Confirm Cloudflare Workers AI as the temporary production provider direction while Bedrock is parked.
-4. Decide when to provide edit-capable Figma access.
-5. Define the first beta workflow and target cohort.
+1. Keep M11D WU4 active, or formally reprioritize the canonical queue.
+2. Approve the OIDC deployment path and Terraform plan after account/version/cost verification.
+3. Provide real secrets only through a secure authorized channel.
+4. Decide the first beta workflow and cohort after staging proof.
+5. Decide when to provide edit-capable Figma access.
 
 ## Risk controls
 
-| Risk                                      | Impact   | Control                                                     |
-| ----------------------------------------- | -------- | ----------------------------------------------------------- |
-| Merge security stack with red gates       | Critical | No bypass; current-head checks and approval                 |
-| Deploy stale account/domain topology      | Critical | Explicit target confirmation and split PRs                  |
-| Leak private context in repository memory | High     | Project-only summaries; no raw transcripts or personal data |
-| UI claims exceed capability               | High     | Source-backed capability-truth audits                       |
-| Broad agent change regresses repository   | High     | One narrow boundary and review-before-merge                 |
-| Wrong memory harms trust                  | Critical | Precision gates, supersession, human cutover                |
-| Provider lock-in                          | High     | Adapter contracts, routing, evaluation                      |
-| Priority drift                            | High     | Execution Queue remains the only active-milestone owner     |
+| Risk | Impact | Control |
+| --- | --- | --- |
+| Treat merged config as deployed | Critical | Live cloud reads, deployment run evidence, and explicit state labels |
+| Deploy stale account/domain topology | Critical | Fail-closed guards and target-account/origin verification |
+| Leak private context or secrets | High | Project-only summaries; no raw transcripts, personal data, or bearer values |
+| UI claims exceed capability | High | Source-backed capability-truth audits |
+| Broad agent change regresses repository | High | One narrow boundary and current-head CI |
+| Wrong memory harms trust | Critical | Precision gates, supersession, human cutover |
+| Provider lock-in | High | Adapter contracts, routing, evaluation |
+| Priority drift | High | Execution Queue remains the only active-milestone owner |
+| Unknown cloud state misreported | High | Preserve `unknown` until authorized verification |

@@ -4,7 +4,7 @@
   "repository": "quantrinitylabsgo/Quant-Ecosystem",
   "memoryRoot": ".agents/project-memory",
   "classification": "non-authoritative supporting project memory",
-  "lastReconstructedAt": "2026-08-06T12:11:20+05:30",
+  "lastReconstructedAt": "2026-08-07T14:15:00+05:30",
   "privacy": {
     "scope": "project-only",
     "rawPrivateChats": false,
@@ -28,15 +28,34 @@
     "BRAND_DESIGN_UIUX.md",
     "SECURITY_AUTH_TRUST.md",
     "INFRA_DEPLOYMENT_ACCESS.md",
-    "RISKS_BLOCKERS_OPEN_QUESTIONS.md"
+    "RISKS_BLOCKERS_OPEN_QUESTIONS.md",
+    "sessions/2026-08-07-production-hardening-and-cloud-truth.md"
   ],
   "canonicalActiveMilestone": "M11D-SHADOW-CANARY",
   "canonicalActiveWorkUnit": 4,
-  "priorityDiscrepancy": "Recent repository work is concentrated on dependency, auth, AI provider, and infrastructure streams; owner and canonical queue alignment are required.",
-  "openCriticalPullRequests": [125, 130, 132, 135],
+  "priorityDiscrepancy": "The hardening stack is merged, but M11D work unit 4 remains the one canonical active unit until an explicit owner-approved queue change.",
+  "openCriticalPullRequests": [136],
   "supersededPullRequests": [126],
+  "mergedHardeningPullRequests": {
+    "125": "a5f2057887e1842368af4baaf65192c16b5f1c14",
+    "130": "7fe3e25416348477c6790826b43f22ef675b5c0c",
+    "131": "a05bcfc4249a0fc392418ee053e9a5799ad40cde",
+    "132": "09a0a22e9aa5fe288d22987b90a6119a70f7c467",
+    "133": "04b9b0c845a1f32598bf2e8e70cdb5b89a9708c3",
+    "134": "42133d98d73e31b4c70ca62c583ec64b7018a419",
+    "135": "8aa8fa5d911ec306229a03bb9cad9a6124ea1c7b",
+    "137": "cf1797c510a5bff349220c8f0e680ca4536997ee"
+  },
   "activeInfrastructureIssue": 127,
-  "lastExplicitlyReviewedMainCheckpoint": "1162352cf094615136098d2675f169e886364e9f",
+  "lastExplicitlyReviewedMainCheckpoint": "09a0a22e9aa5fe288d22987b90a6119a70f7c467",
+  "deploymentState": {
+    "terraformApplied": false,
+    "productionDeployed": false,
+    "imagesPushed": false,
+    "applicationDnsCutover": false,
+    "placeholderSecretsWritten": false,
+    "eksState": "unknown-permission-denied"
+  },
   "publishing": {
     "scopeApproved": true,
     "branch": "docs/project-memory-continuity-2026-08-06",
@@ -44,6 +63,6 @@
     "pullRequestOpened": true,
     "pullRequest": 136,
     "pullRequestUrl": "https://github.com/quantrinitylabsgo/Quant-Ecosystem/pull/136",
-    "blocker": "Required checks, review, and merge"
+    "blocker": "Current-head required checks, review, and merge"
   }
 }

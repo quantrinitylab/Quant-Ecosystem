@@ -2,66 +2,68 @@
 
 ## GitHub
 
-- Native connector can read known files, issues, and PRs.
-- Write-capable GitHub MCP was reauthenticated successfully on 2026-08-06.
-- Dedicated branch `docs/project-memory-continuity-2026-08-06` and draft PR #136 were created from verified `main`; CI, review, and merge remain required.
+- Repository: `quantrinitylabsgo/Quant-Ecosystem`.
+- The production-hardening merge sequence is complete through `main` commit `09a0a22e9aa5fe288d22987b90a6119a70f7c467`.
+- Project-memory PR #136 is refreshed from that main commit and remains a documentation-only change until validated and merged.
+- The deploy workflow is manual-only, exact-main-SHA gated, OIDC-authenticated, digest-pinned, and rollback-aware. `ENABLE_QUANTMAIL_PRODUCTION_DEPLOY` remains disabled.
 
-## AWS
+## AWS live truth
 
-Target direction recorded in current work:
+- Active account: `266176113726`.
+- Region: `us-east-1`.
+- Connected identity is a read-only role.
+- Five repositories exist: `quant-admin`, `quant-quantmail`, `quant-quantchat`, `quant-quantai`, and `quant-ws-gateway`.
+- All five use immutable tags, scan on push, and AES256; all contain zero images.
+- The observed secret inventory contains only `quant/staging/redis/credentials`.
+- Required production Cloudflare secret paths are absent.
+- GitHub OIDC deploy role `quant-github-oidc-deploy` is absent.
+- EKS cluster state is unknown because the connected role cannot call `DescribeCluster`; permission denial does not prove absence.
 
-- account `266176113726`;
-- region `us-east-1`;
-- five release ECR repositories for admin, QuantMail, QuantChat, QuantAI, and ws-gateway.
+## Merged infrastructure configuration
 
-Current blockers:
+- #137 replaced active legacy-account references.
+- #131 made the unsafe legacy production root unusable.
+- #133 added a single-region production v2 root with account/provider/precondition guards and `bootstrap_root_approved=false` by default.
+- #134 added a production v2 Helm profile that rejects stale account/domain/region, wildcard origins, mutable tags, and unapproved deployment.
+- The planned cluster name remains `quant-production-eks`; namespace `quant-production`.
+- The EKS endpoint is private, so GitHub-hosted runners need an explicitly designed network path.
 
-- connected identity is restricted/read-only;
-- OIDC stack entered rollback;
-- named deploy role and deployable EKS are unverified;
-- ECR repositories were empty at the audited checkpoint;
-- production DNS still targets the old closed-account origin;
-- production Terraform root had unsafe always-on multi-region, high-cost, and stale-domain assumptions.
+## Cloudflare live truth
 
-Legacy/stale configuration includes account `650708167640` and `quant.app`; do not deploy it.
+- Account ID: `9af698848a5edd00e756c3a2c908ec8d`.
+- Active zones: `quantrinity.in` and `quantmail.in`.
+- Worker scripts: zero.
+- QuantAI uses direct Workers AI REST; no Worker script deployment is required.
+- Merged model contract: `@cf/meta/llama-3.2-1b-instruct`.
+- Existing `quantrinity.in` wildcard/`www` DNS targets a proxied AWS ELB; `mcp.quantrinity.in` targets the existing MCP host.
+- `quantmail.in` retains Titan mail and Amazon SES DKIM records; DMARC remains monitoring-only.
+- No application DNS cutover occurred.
 
-## Cloudflare
+## Required secure values
 
-- `quantrinity.in` and `quantmail.in` are active.
-- Direct Workers AI inference returned the expected marker.
-- Cloudflare Workers AI is the active provider direction while Bedrock is parked.
-- AI Gateway authentication previously failed.
-- No application-origin DNS cutover is authorized.
+Provision values only through an authorized secure path; never commit or paste real values into repository memory:
 
-PR #135 isolates the application runtime and fails closed on invalid provider configuration. It remains open/blocked and is not production activation.
-
-## Bedrock
-
-- Model discovery succeeded.
-- Invocation returned `AWS_REQUEST_FAILED`.
-- Agent state was `NOT_PREPARED` and knowledge base empty.
-- Bedrock is not a deployment prerequisite at this checkpoint.
-
-## Figma
-
-- Earlier identity exposed a View seat.
-- Full edit-capable execution remains blocked.
+- `quant-platform/production/CLOUDFLARE_ACCOUNT_ID`;
+- `quant-platform/production/CLOUDFLARE_API_TOKEN`;
+- `TF_VAR_db_master_username`;
+- `TF_VAR_db_master_password`;
+- `TF_VAR_redis_auth_token`.
 
 ## Safe deployment order
 
-1. Land application/security/dependency prerequisites.
-2. Confirm target account, region, domains, exact origins, and budget.
-3. Provision reviewed single-region OIDC/EKS/platform prerequisites.
-4. Store secrets outside Git.
-5. Build, scan, sign, and push immutable-SHA images.
-6. Deploy staging and run migrations, health, E2E, security, load, and rollback tests.
-7. Verify QuantMail cookie behavior through real TLS/origin boundaries.
-8. Change application DNS only with explicit owner approval and a tested rollback.
+1. Administrator deploys the reviewed OIDC template from Issue #127.
+2. Authorized read verifies actual EKS state and supported Kubernetes version.
+3. Review the Terraform plan and cost; keep bootstrap approval false until accepted.
+4. Rebuild CSI trust for the actual EKS OIDC provider and establish private-endpoint access.
+5. Provision real secrets through an approved path.
+6. Build, scan, sign, and push immutable-SHA images.
+7. Deploy staging and prove migrations, health, TLS, auth cookies, logs, load, cost, and rollback.
+8. Enable production deployment and change application DNS only with explicit final approval.
 
 ## Never claim
 
-- deployment when only manifests exist;
-- production AI when only direct inference succeeds;
-- AWS readiness while OIDC/EKS/images are missing;
-- a GitHub commit while the write connector returns 401;
+- deployment when only configuration merged;
+- production AI when only runtime code/direct inference exists;
+- AWS readiness while OIDC, authorized EKS proof, images, and secrets are missing;
+- EKS absence when the read request was denied;
 - a DNS cutover when application records were not changed.
