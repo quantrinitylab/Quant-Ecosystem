@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-REGISTRY="650708167640.dkr.ecr.us-east-1.amazonaws.com"
+REGISTRY="266176113726.dkr.ecr.us-east-1.amazonaws.com"
 
 echo "Logging in to ECR..."
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $REGISTRY
