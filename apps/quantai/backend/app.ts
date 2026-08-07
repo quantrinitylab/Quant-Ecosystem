@@ -50,7 +50,6 @@ import { CrossAppOrchestrator, allTools } from '@quant/quant-tools';
 import { SessionManager } from '@quant/browser-agent';
 import { CodeAnalyzer } from '@quant/code-agent';
 import { ModelRegistry } from '@quant/user-owned-ai';
-import { AIEngine as CoreAIEngine } from '@quant/ai';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -78,20 +77,15 @@ export async function buildApp(config?: AppConfig) {
   const appConfig = config ?? getConfig();
   const app = await createApp(appConfig);
 
-  // AI Engine
+  // One per-process AI engine owns provider selection, safety, rate/cost state,
+  // chat inference, and agent-runtime inference. Cloudflare mode therefore
+  // cannot silently diverge between the public chat and agent execution paths.
   const aiEngine = new AIEngine();
   (app as any).aiEngine = aiEngine;
 
-  // Agent runtime engine (per-app lane, Stage 2). The orchestrator's only
-  // construction dependency is an AI inference adapter, so we wire it to the
-  // shared @quant/ai engine (`infer(prompt) -> content`). `app.prisma` is the
-  // injected singleton available for engine collaborators that need it; the
-  // Orchestrator itself does not require database access (Req 1.3 is
-  // conditional). Constructed once at boot and decorated as a singleton.
-  const coreAi = new CoreAIEngine();
   const agentRuntime = new Orchestrator({
     infer: async (prompt: string): Promise<string> => {
-      const response = await coreAi.infer({
+      const response = await aiEngine.infer({
         prompt,
         userId: 'system',
         app: 'quantai',
