@@ -42,8 +42,8 @@ variable "redis_auth_token" {
 
 variable "cors_allowed_origins" {
   type        = list(string)
-  description = "Allowed origins for CORS"
-  default     = ["https://quant.app", "https://*.quant.app"]
+  description = "Allowed origins"
+  default     = ["https://quantrinity.in", "https://*.quantrinity.in"]
 }
 
 variable "cdn_domain_aliases" {

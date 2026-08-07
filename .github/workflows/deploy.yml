@@ -20,7 +20,7 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  ACCOUNT_ID: '650708167640'
+  ACCOUNT_ID: '266176113726'
   CLUSTER: quant-production-eks
   NAMESPACE: quant-production
   ECR_REPOSITORY: quant-quantmail
@@ -150,7 +150,7 @@ jobs:
       - name: Configure AWS credentials with OIDC
         uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
         with:
-          role-to-assume: arn:aws:iam::650708167640:role/quant-gha-deploy
+          role-to-assume: arn:aws:iam::266176113726:role/quant-gha-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
