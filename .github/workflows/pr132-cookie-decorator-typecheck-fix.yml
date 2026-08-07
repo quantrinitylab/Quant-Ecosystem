@@ -1,0 +1,54 @@
+name: Repair PR 132 cookie decorator typing
+
+on:
+  push:
+    branches:
+      - security/quantmail-browser-refresh-cookie
+
+permissions:
+  contents: write
+
+jobs:
+  repair-cookie-decorator-typing:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: security/quantmail-browser-refresh-cookie
+
+      - name: Use a per-request cookie getter in the isolated harness
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'apps/quantmail/backend/__tests__/quantmail-oauth-e2e-federation.preservation.bug2.seam.test.ts';
+          const from = "  app.decorateRequest('cookies', null);";
+          const to = [
+            "  app.decorateRequest('cookies', {",
+            '    getter() {',
+            '      return {};',
+            '    },',
+            '  });',
+          ].join('\n');
+          const source = fs.readFileSync(path, 'utf8');
+          const matches = source.split(from).length - 1;
+          if (matches !== 1) {
+            console.error(`::error file=${path}::expected one exact cookie decorator match, found ${matches}`);
+            process.exit(1);
+          }
+          fs.writeFileSync(path, source.replace(from, to));
+          NODE
+          git diff --check
+
+      - name: Commit deterministic typecheck repair
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/quantmail/backend/__tests__/quantmail-oauth-e2e-federation.preservation.bug2.seam.test.ts
+          git diff --cached --quiet && { echo 'Expected a typecheck repair diff' >&2; exit 1; }
+          git commit -m 'test(quantmail): type isolated cookie decorator safely'
+          git push origin HEAD:security/quantmail-browser-refresh-cookie
