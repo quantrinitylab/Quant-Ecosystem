@@ -4,9 +4,9 @@ doc_type: current-state
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-08-06
-verified_at_commit: 1162352cf094615136098d2675f169e886364e9f
-review_by: 2026-09-05
+last_verified: 2026-08-07
+verified_at_commit: 09a0a22e9aa5fe288d22987b90a6119a70f7c467
+review_by: 2026-09-06
 supersedes: []
 superseded_by: []
 canonical_scope: current-repository-state
@@ -14,44 +14,48 @@ canonical_scope: current-repository-state
 
 # Current State
 
-This is the canonical repository-truth snapshot, pinned to the last explicitly reviewed merged-main checkpoint `1162352cf094615136098d2675f169e886364e9f` and supplemented by current open-PR/issue evidence. Newer code and blocking CI evidence take precedence; the [Execution Queue](./EXECUTION_QUEUE.md) separately owns priority.
+This is the canonical repository-truth snapshot pinned to merged `main` commit `09a0a22e9aa5fe288d22987b90a6119a70f7c467`. Newer code and blocking CI evidence take precedence until this file is re-verified; the [Execution Queue](./EXECUTION_QUEUE.md) separately owns priority.
 
 ## Active direction
 
-The canonical active milestone remains **M11D-SHADOW-CANARY**, work unit 4: produce representative, durable, tenant-safe shadow evidence while legacy behavior remains authoritative. Its order and exit gates live only in the Execution Queue.
+The one canonical active milestone remains **M11D-SHADOW-CANARY**, work unit 4: produce representative, durable, tenant-safe replay evidence for Memory V2 shadow mode while legacy behavior remains authoritative. Recent security, provider, and deployment hardening is a merged parallel workstream; it did not silently replace the queue.
 
-Recent repository activity is concentrated on dependency remediation, S-01-style authentication hardening, QuantMail browser-session migration, Cloudflare Workers AI, and target-account deployment. This is a visible priority mismatch, not permission to silently replace the active milestone. The owner must either keep/finish/block WU4 or approve and record a queue change.
+The product strategy is depth over breadth: prove QuantMail, QuantChat, and QuantAI as trustworthy flagship surfaces over an indispensable abstraction layer—model-agnostic orchestration, OAuth2/SSO, credits, user-owned memory, trusted cross-app execution, and evaluation—before expanding the broader app portfolio.
 
 ## Verified truth
 
-| Area                    | Evidence                                                                                                                                                                                                                                                         | Consequence                                                                                                    |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Memory V2               | Ports, durable persistence, retrieval, policy, replay, four-mode facade, durable shadow reports, representative WU4 runner, and release boundary exist; see [architecture](./MEMORY_ARCHITECTURE.md) and [ADR-011](./adr/011-memory-facade-shadow-migration.md). | WU4 live evidence remains active; `new` authority stays blocked.                                               |
-| Memory cutover          | [Scoreboard](./MIGRATION_SCOREBOARD.md) records 14.3% agreement and five critical divergences; two precision-regressing experiments were reverted in the [decision log](./M11D_DECISION_LOG.md).                                                                 | Decision remains **HOLD**; measurement and Law 7 gates are working.                                            |
-| QuantMail design        | Issue #71 and merged PRs #72–#107 plus #123/#124 established Quantrinity identity, semantic design roles, shell/state evolution, truthful settings, and verified shortcut copy.                                                                                  | Foundation is substantial; audited issues #108–#122 and editable Figma work remain.                            |
-| Refresh-family security | Open PR #125 persists one-way refresh digests, validates binding, rotates atomically, and revokes reused families; focused security evidence is green.                                                                                                           | Candidate implementation is not merged; dependency/aggregate gates still apply.                                |
-| Dependencies            | Draft PR #130 remediates high/critical findings without lowering thresholds; moderate+ audit and CodeQL are green, while main gate and full sweep are red.                                                                                                       | It remains intentionally non-mergeable and blocks stacked PRs.                                                 |
-| Browser auth            | Draft PR #132 removes browser refresh JSON/storage, uses an HttpOnly cookie, memory-only access token, bounded retry, exact-origin controls, same-origin proxies, OAuth compatibility, and Chromium acceptance.                                                  | Focused evidence is strong, but dependency/main/typecheck/full-sweep/review/deploy gates remain red or absent. |
-| AI provider             | Draft PR #135 isolates a fail-closed Cloudflare Workers AI runtime; focused tests, backend typecheck/lint, several security lanes, and secret scan are green.                                                                                                    | Dependency/aggregate gate and review block merge; no production activation occurred.                           |
-| Deployment              | PR #126 is superseded; Issue #127 tracks missing OIDC/EKS/images. Terraform audit found unsafe multi-region, cost, and stale-domain assumptions.                                                                                                                 | No production apply, release image rollout, or application DNS cutover is authorized.                          |
-| Realtime                | WebSockets send real frames, but connection/channel/presence state is node-local and JetStream durability is not end-to-end.                                                                                                                                     | Multi-instance failover is not production-proven.                                                              |
-| Project memory          | Canonical memory and validator exist; detailed owner/session context is proposed under [`.agents/project-memory`](../.agents/project-memory/README.md).                                                                                                          | Supporting memory must never override code, CI, ADRs, Current State, or Execution Queue.                       |
+| Area | Evidence | Consequence |
+| --- | --- | --- |
+| Memory V2 | Ports, persistence, retrieval, policy, replay, four modes, WU2/WU3 durable evidence, and the WU4 runner exist; see [architecture](./MEMORY_ARCHITECTURE.md) and [ADR-011](./adr/011-memory-facade-shadow-migration.md). | WU4 is still active. `legacy` remains authoritative and `new` remains blocked. |
+| Cutover | The [Migration Scoreboard](./MIGRATION_SCOREBOARD.md) still records 14.3% agreement and five critical divergences. | Decision remains **HOLD**; no automatic promotion. |
+| Authentication | PR #125 merged as `a5f2057887e1842368af4baaf65192c16b5f1c14`; PR #132 merged as `09a0a22e9aa5fe288d22987b90a6119a70f7c467`. | Refresh families now rotate atomically with reuse revocation; browser refresh credentials are HttpOnly, exact-Origin guarded, host-only, and absent from JSON/storage. Non-browser OAuth remains compatible. |
+| Dependency/supply chain | PR #130 merged as `7fe3e25416348477c6790826b43f22ef675b5c0c`, including the post-publication `js-yaml` 4.3.1 remediation. | High/critical policy remains enforced without advisory suppression or threshold reduction. |
+| AWS configuration | PRs #131, #133, #134, and #137 merged fail-closed roots/profiles and replaced legacy account `650708167640` with `266176113726` in active deployment references. | Merged configuration is safer, but merge is not an apply or deployment. |
+| AWS live state | The active read identity is in account `266176113726`; five immutable, scan-on-push ECR repositories exist and contain zero images. The GitHub OIDC deploy role and required production secret paths are absent. EKS could not be verified because the read role lacks `DescribeCluster`. | Production bootstrap remains blocked. Unknown EKS state must not be described as absent or ready. |
+| Cloudflare | `quantrinity.in` and `quantmail.in` are active zones. PR #135 merged as `8aa8fa5d911ec306229a03bb9cad9a6124ea1c7b` with a fail-closed direct Workers AI REST client for `@cf/meta/llama-3.2-1b-instruct`; zero Worker scripts are deployed, as expected for this architecture. | Runtime code exists, but production credentials, origin validation, rollout, and monitoring remain incomplete. |
+| CI | The definitive PR #132 head passed gate, dependency audit, memory/PostgreSQL, QuantChat coverage, immutable action pins, all three CodeQL analyses, backend typecheck, focused auth typecheck, focused contracts, and real Chromium acceptance. | Required integration evidence passed. The informational repository-wide full sweep was still running at merge and remains distinct from hard-gate proof. |
+| Frontend debt | Base and current full QuantMail frontend typechecks had identical annotations for missing `@quant/agentic/voice-commands` types and three implicit-`any` parameters; the changed browser-auth boundary passed. | Inherited debt remains visible and must be fixed separately; it was not hidden or misclassified as a #132 regression. |
+| Deployment/cutover | No Terraform apply, image push, production deployment, placeholder-secret write, or application DNS cutover occurred in this hardening sequence. `ENABLE_QUANTMAIL_PRODUCTION_DEPLOY` remains disabled. | The repository is materially safer but is not production-proven. |
 
-## Working-tree and PR boundary
+## Merged hardening baseline
 
-Uncommitted, staged, branch-only, or draft-PR code and evidence are candidates—not canonical implementation fact. Before changing a work-unit state, commit coherent implementation and evidence, run required checks, obtain review, merge, and advance `verified_at_commit` to a reviewed ancestor.
+- #125 `a5f2057887e1842368af4baaf65192c16b5f1c14` — refresh-token family integrity.
+- #130 `7fe3e25416348477c6790826b43f22ef675b5c0c` — dependency remediation.
+- #137 `cf1797c510a5bff349220c8f0e680ca4536997ee` — legacy AWS account replacement.
+- #131 `a05bcfc4249a0fc392418ee053e9a5799ad40cde` — unsafe legacy Terraform root locked.
+- #133 `04b9b0c845a1f32598bf2e8e70cdb5b89a9708c3` — fail-closed single-region production v2 root.
+- #134 `42133d98d73e31b4c70ca62c583ec64b7018a419` — fail-closed production v2 Helm profile.
+- #135 `8aa8fa5d911ec306229a03bb9cad9a6124ea1c7b` — fail-closed Workers AI runtime.
+- #132 `09a0a22e9aa5fe288d22987b90a6119a70f7c467` — HttpOnly browser refresh session.
+
+## Working-tree boundary
+
+Uncommitted, staged, draft, or merely reviewed code and agent reports are candidate evidence, not canonical fact. Advance `verified_at_commit` only after the coherent implementation and evidence are merged.
 
 ## Current release boundary
 
-- Do not enable Memory V2 `new` or change migration policy before ADR-011 evidence and human approval.
-- Do not merge PR #130, #125, #132, or #135 while required gates are red or review is absent.
-- Do not use superseded PR #126 as a deployment source.
-- Do not apply stale Terraform/Helm values, push mutable images, or change application DNS.
-- Do not claim production readiness from direct provider inference or focused tests alone.
+Do not set `bootstrap_root_approved`, enable `ENABLE_QUANTMAIL_PRODUCTION_DEPLOY`, apply Terraform, push images, write placeholder secrets, or change application DNS until authorized OIDC/EKS access, real secrets, immutable images, origin-only staging health, rollback, security, load, cost, and owner approvals are evidenced.
 
-## Immediate next actions
+## Immediate next action
 
-1. Land the project-memory refresh through a focused reviewed PR.
-2. Resolve the canonical queue-versus-recent-work discrepancy with the owner.
-3. If security is formally prioritized, reproduce PR #130's exact failing boundary, land it safely, then refresh PRs #125/#132/#135 in dependency order.
-4. If M11D remains active, execute WU4 with reviewed real dependencies and archive the required versioned evidence without tuning behavior.
+Execute work unit 4 in the [Execution Queue](./EXECUTION_QUEUE.md). In parallel, administrators may satisfy external production prerequisites without changing the canonical milestone: deploy the reviewed OIDC template, verify supported EKS state/version, provision real secrets through an authorized path, and review a Terraform plan before any apply.

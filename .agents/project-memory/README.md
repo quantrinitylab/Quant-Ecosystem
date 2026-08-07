@@ -32,6 +32,8 @@ Verified conclusions must be promoted to the owning canonical file. Never let a 
 11. [`sessions/`](./sessions/) for dated reconstruction checkpoints
 12. [`memory-index.json`](./memory-index.json) for machine-readable bootstrap
 
+Latest checkpoint: [`2026-08-07 — production hardening and live cloud truth`](./sessions/2026-08-07-production-hardening-and-cloud-truth.md).
+
 ## Memory rules
 
 - Store project conclusions, decisions, evidence, ownership, progress, and next actions.
