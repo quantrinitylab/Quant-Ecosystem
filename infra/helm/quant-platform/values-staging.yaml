@@ -1,6 +1,6 @@
 global:
   environment: staging
-  domain: staging.quant.dev
+  domain: staging.quantrinity.in
   databaseCIDRs:
     - 10.1.20.0/24
     - 10.1.21.0/24
@@ -13,8 +13,8 @@ global:
 configmap:
   NODE_ENV: staging
   LOG_LEVEL: debug
-  CORS_ORIGINS: 'https://staging.quant.dev'
-  JWT_ISSUER: 'https://staging.quant.dev'
+  CORS_ORIGINS: 'https://staging.quantrinity.in'
+  JWT_ISSUER: 'https://staging.quantrinity.in'
   JWT_AUDIENCE: 'quant-platform-staging'
 
 ingress:
