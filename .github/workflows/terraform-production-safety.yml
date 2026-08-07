@@ -19,7 +19,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate-production-root:
+  format_production_v2:
+    name: terraform-format-production-v2
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.12.2
+          terraform_wrapper: false
+
+      - name: Check Terraform formatting
+        run: |
+          terraform fmt -check infra/terraform/environments/production/safety.tf
+          terraform fmt -check -recursive infra/terraform/environments/production-v2
+
+  validate_legacy_guard:
+    name: terraform-validate-legacy-guard
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -31,15 +50,7 @@ jobs:
           terraform_version: 1.12.2
           terraform_wrapper: false
 
-      # Keep this new guard formatted without turning unrelated legacy
-      # formatting debt into a false negative for the safety boundary.
-      - name: Check safety-guard formatting
-        run: terraform fmt -check infra/terraform/environments/production/safety.tf
-
-      # Validate the fail-closed guard independently. The legacy root itself is
-      # intentionally non-deployable and has pre-existing validation debt that
-      # issue #129 must remove during the full single-region redesign.
-      - name: Validate safety guard in isolation
+      - name: Validate legacy production safety guard in isolation
         shell: bash
         run: |
           set -euo pipefail
@@ -56,20 +67,123 @@ jobs:
             }
           }
           EOF
-          terraform -chdir="$fixture" init -backend=false
+          terraform -chdir="$fixture" init -backend=false -input=false
           terraform -chdir="$fixture" validate
 
-      - name: Assert fail-closed production invariants
+  validate_production_v2:
+    name: terraform-validate-production-v2
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.12.2
+          terraform_wrapper: false
+
+      - name: Validate complete production-v2 root
+        run: |
+          terraform -chdir=infra/terraform/environments/production-v2 init -backend=false -input=false
+          terraform -chdir=infra/terraform/environments/production-v2 validate
+
+  assert_safety_boundaries:
+    name: terraform-assert-production-safety
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Assert legacy production root remains blocked
         shell: bash
         run: |
           set -euo pipefail
-          root='infra/terraform/environments/production'
-          grep -F 'default     = "266176113726"' "$root/safety.tf"
-          grep -F 'default     = "quantrinity.in"' "$root/safety.tf"
-          grep -F 'default     = "cloudflare"' "$root/safety.tf"
-          grep -F 'default     = false' "$root/safety.tf"
-          grep -F 'condition     = var.production_root_redesigned' "$root/safety.tf"
-          if grep -R --line-number --fixed-strings 'production_root_redesigned = true' "$root"; then
-            echo '::error::Production root must remain fail-closed until issue #129 redesign is complete.'
+          guard="infra/terraform/environments/production/safety.tf"
+          values="infra/terraform/environments/production/terraform.tfvars"
+
+          grep -F 'default     = "266176113726"' "$guard"
+          grep -F 'default     = "quantrinity.in"' "$guard"
+          grep -F 'default     = "cloudflare"' "$guard"
+          grep -F 'condition     = var.expected_aws_account_id == "266176113726"' "$guard"
+          grep -F 'condition     = var.application_domain == "quantrinity.in"' "$guard"
+          grep -F 'condition     = var.public_dns_provider == "cloudflare"' "$guard"
+          grep -F 'condition     = var.enable_multi_region == false' "$guard"
+          grep -F 'condition     = var.production_root_redesigned' "$guard"
+          grep -F 'aws_region  = "us-east-1"' "$values"
+
+          redesign_block="$(grep -A 4 'variable "production_root_redesigned"' "$guard")"
+          grep -F 'default     = false' <<<"$redesign_block"
+
+          if grep -R --line-number --fixed-strings 'production_root_redesigned = true' infra/terraform/environments/production; then
+            echo '::error::Legacy production root must remain fail-closed until issue #129 redesign is complete.'
             exit 1
           fi
+
+      - name: Assert production-v2 safety boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="infra/terraform/environments/production-v2"
+          main="$root/main.tf"
+          variables="$root/variables.tf"
+
+          grep -F 'default     = "266176113726"' "$variables"
+          grep -F 'default     = "us-east-1"' "$variables"
+          grep -F 'default     = "quantrinity.in"' "$variables"
+          grep -F 'default     = "cloudflare"' "$variables"
+          grep -F 'variable "eks_kubernetes_version"' "$variables"
+          grep -F 'enable_nat_gateway_per_az = false' "$main"
+          grep -F 'endpoint_public_access     = false' "$main"
+
+          approval_block="$(grep -A 5 'variable "bootstrap_root_approved"' "$variables")"
+          grep -F 'default     = false' <<<"$approval_block"
+
+          if grep -R -n --include='*.tf' -E 'aws\.secondary|vpc_secondary|cross_region|aws_route53|eu-west-1|quant\.app' "$root"; then
+            echo '::error::Unsafe legacy multi-region, Route 53, or domain configuration found in production-v2.'
+            exit 1
+          fi
+
+          if grep -R -n --include='*.tf' -E 'https://\*\.' "$root"; then
+            echo '::error::Wildcard browser origin found in production-v2.'
+            exit 1
+          fi
+
+          if grep -R -n --include='*.tf' -E 'backend[[:space:]]+"s3"' "$root"; then
+            echo '::error::Unreviewed remote-state backend found in production-v2.'
+            exit 1
+          fi
+
+          if grep -R -n --include='*.tf' -E 'default[[:space:]]*=[[:space:]]*"1\.29"' "$root"; then
+            echo '::error::Legacy EKS 1.29 default found in production-v2.'
+            exit 1
+          fi
+
+  validate_production_root:
+    name: validate-production-root
+    if: ${{ always() }}
+    needs:
+      - format_production_v2
+      - validate_legacy_guard
+      - validate_production_v2
+      - assert_safety_boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every production Terraform diagnostic
+        env:
+          FORMAT_RESULT: ${{ needs.format_production_v2.result }}
+          LEGACY_GUARD_RESULT: ${{ needs.validate_legacy_guard.result }}
+          PRODUCTION_V2_RESULT: ${{ needs.validate_production_v2.result }}
+          SAFETY_BOUNDARY_RESULT: ${{ needs.assert_safety_boundaries.result }}
+        run: |
+          set -euo pipefail
+          printf 'format=%s\nlegacy_guard=%s\nproduction_v2=%s\nsafety_boundaries=%s\n' \
+            "$FORMAT_RESULT" \
+            "$LEGACY_GUARD_RESULT" \
+            "$PRODUCTION_V2_RESULT" \
+            "$SAFETY_BOUNDARY_RESULT"
+          test "$FORMAT_RESULT" = success
+          test "$LEGACY_GUARD_RESULT" = success
+          test "$PRODUCTION_V2_RESULT" = success
+          test "$SAFETY_BOUNDARY_RESULT" = success
