@@ -4,7 +4,7 @@
   "repository": "quantrinitylabsgo/Quant-Ecosystem",
   "memoryRoot": ".agents/project-memory",
   "classification": "non-authoritative supporting project memory",
-  "lastReconstructedAt": "2026-08-07T14:20:00+05:30",
+  "lastReconstructedAt": "2026-08-07T21:30:00+05:30",
   "privacy": {
     "scope": "project-only",
     "rawPrivateChats": false,
@@ -29,11 +29,12 @@
     "SECURITY_AUTH_TRUST.md",
     "INFRA_DEPLOYMENT_ACCESS.md",
     "RISKS_BLOCKERS_OPEN_QUESTIONS.md",
-    "sessions/2026-08-07-production-hardening-and-cloud-truth.md"
+    "sessions/2026-08-07-production-hardening-and-cloud-truth.md",
+    "sessions/2026-08-07-evening-staging-bootstrap-coordination.md"
   ],
   "canonicalActiveMilestone": "M11D-SHADOW-CANARY",
   "canonicalActiveWorkUnit": 4,
-  "priorityDiscrepancy": "The hardening stack is merged, but M11D work unit 4 remains the one canonical active unit until an explicit owner-approved queue change.",
+  "priorityDiscrepancy": "The hardening stack and evening staging tooling are merged, but M11D work unit 4 remains the one canonical active unit until an explicit owner-approved queue change.",
   "openCriticalPullRequests": [],
   "supersededPullRequests": [126],
   "mergedHardeningPullRequests": {
@@ -44,17 +45,33 @@
     "133": "04b9b0c845a1f32598bf2e8e70cdb5b89a9708c3",
     "134": "42133d98d73e31b4c70ca62c583ec64b7018a419",
     "135": "8aa8fa5d911ec306229a03bb9cad9a6124ea1c7b",
-    "137": "cf1797c510a5bff349220c8f0e680ca4536997ee"
+    "136": "fda63ecd6961737ec1236878efd78107b1aad782",
+    "137": "cf1797c510a5bff349220c8f0e680ca4536997ee",
+    "139": "05d9af59b10c33a1d1534273c38775500b756dc0",
+    "140": "b724c09e62cca905afc98db6a0283dc6389cbf04",
+    "141": "f90a4505c9235ee5d45a2b55e55d0917e1dbc714",
+    "142": "8b254c1947543559a52ce74f661467cc69b2679f",
+    "147": "82a0af5d4311f048179a16c33de6b6e17e35c6ac"
   },
-  "activeInfrastructureIssue": 127,
-  "lastExplicitlyReviewedMainCheckpoint": "09a0a22e9aa5fe288d22987b90a6119a70f7c467",
+  "activeInfrastructureIssue": null,
+  "activeCoordinationIssue": 138,
+  "followUpIssues": {
+    "stagingBootstrap": 143,
+    "workersAiEndToEnd": 144,
+    "sesProductionAccess": 145,
+    "quantchatRefreshCookie": 146,
+    "quantaiDeployPathDrift": 148
+  },
+  "lastExplicitlyReviewedMainCheckpoint": "82a0af5d4311f048179a16c33de6b6e17e35c6ac",
   "deploymentState": {
     "terraformApplied": false,
     "productionDeployed": false,
-    "imagesPushed": false,
+    "imagesPushed": true,
+    "firstImage": "quant-quantmail digest sha256:bf36e8004d914af5594827fd2a23a86a50fd7fccc9cae66e98d62efdb70db575, tag 8b254c1947543559a52ce74f661467cc69b2679f, pushed 2026-08-07T14:37:06Z",
     "applicationDnsCutover": false,
     "placeholderSecretsWritten": false,
-    "eksState": "unknown-permission-denied"
+    "eksState": "staging-active-v1.34; production-intentionally-uncreated",
+    "oidcState": "provider-and-role-exist; assume-role-blocked-by-aws-account-verification"
   },
   "publishing": {
     "scopeApproved": true,
@@ -63,7 +80,9 @@
     "pullRequestOpened": true,
     "pullRequest": 136,
     "pullRequestUrl": "https://github.com/quantrinitylabsgo/Quant-Ecosystem/pull/136",
-    "statusAtReconstruction": "open-draft",
+    "statusAtReconstruction": "merged",
+    "mergedAt": "2026-08-07T08:56:33Z",
+    "squashSha": "fda63ecd6961737ec1236878efd78107b1aad782",
     "note": "Verify the live GitHub merge state before relying on this dated publishing status."
   }
 }
