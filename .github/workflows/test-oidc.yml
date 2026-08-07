@@ -1,0 +1,26 @@
+name: Test OIDC (GitHub-hosted)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  test-oidc:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::266176113726:role/quant-gha-deploy
+          aws-region: us-east-1
+          role-session-name: oidc-test-${{ github.run_id }}
+
+      - name: Verify identity
+        run: aws sts get-caller-identity --output json
+
+      - name: List ECR repos
+        run: aws ecr describe-repositories --query "repositories[].repositoryName" --output table
