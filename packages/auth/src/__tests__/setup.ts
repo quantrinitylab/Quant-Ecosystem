@@ -8,9 +8,14 @@ vi.mock('@prisma/client', () => {
       create: vi.fn().mockImplementation((args: { data: any }) => {
         const record = {
           id: args.data.id || 'tok-mock',
+          // Real Prisma applies the schema default; tests may override via data.
+          isRevoked: false,
           ...args.data,
-          family: args.data.familyId,
-          familyId: args.data.familyId,
+          // Preserve whichever alias the caller provided. The previous
+          // implementation unconditionally overwrote `family` with the
+          // (usually undefined) `familyId`, which broke family binding.
+          family: args.data.family ?? args.data.familyId,
+          familyId: args.data.familyId ?? args.data.family,
         };
         store.set(record.id, record);
         return Promise.resolve(record);
