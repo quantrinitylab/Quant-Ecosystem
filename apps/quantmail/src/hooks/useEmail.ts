@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { browserApiRequest as apiRequest } from '../services/browser-api-request';
 
 interface EmailAddress {
   name?: string;
@@ -74,25 +75,6 @@ interface UseEmailReturn {
   setPage: (page: number) => void;
   refresh: () => Promise<void>;
 }
-
-const apiRequest = async (url: string, options: RequestInit = {}): Promise<Response> => {
-  let token: string | null = null;
-  try {
-    const stored =
-      typeof localStorage !== 'undefined' ? localStorage.getItem('quant_auth_tokens') : null;
-    if (stored) {
-      token = JSON.parse(stored).accessToken || null;
-    }
-  } catch {
-    /* ignore parse errors */
-  }
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` }),
-    ...((options.headers as Record<string, string>) || {}),
-  };
-  return fetch(url, { ...options, headers });
-};
 
 export function useEmail(options: UseEmailOptions = {}): UseEmailReturn {
   const {

@@ -1,0 +1,247 @@
+name: QuantMail browser auth validation
+
+on:
+  pull_request:
+    paths:
+      - 'apps/quantmail/.env.local.example'
+      - 'apps/quantmail/backend/routes/auth.ts'
+      - 'apps/quantmail/backend/routes/oauth.ts'
+      - 'apps/quantmail/backend/app.ts'
+      - 'apps/quantmail/backend/__tests__/browser-refresh-cookie.test.ts'
+      - 'apps/quantmail/backend/__tests__/oauth-non-browser-compat.test.ts'
+      - 'apps/quantmail/src/__tests__/browser-auth-proxy.test.ts'
+      - 'apps/quantmail/src/__tests__/browser-auth-session.test.ts'
+      - 'apps/quantmail/src/app/api/oauth/userinfo/route.ts'
+      - 'apps/quantmail/src/app/auth/[action]/route.ts'
+      - 'apps/quantmail/src/app/register/page.tsx'
+      - 'apps/quantmail/src/hooks/useDrive.ts'
+      - 'apps/quantmail/src/hooks/useEmail.ts'
+      - 'apps/quantmail/src/hooks/useGit.ts'
+      - 'apps/quantmail/src/providers/auth-provider.tsx'
+      - 'apps/quantmail/src/services/api-client.ts'
+      - 'apps/quantmail/src/services/browser-api-request.ts'
+      - 'apps/quantmail/src/services/browser-auth-session.ts'
+      - 'apps/quantmail/tsconfig.browser-auth.json'
+      - 'packages/auth/src/services/token-service.ts'
+      - 'packages/auth/src/__tests__/refresh-token-hardening.test.ts'
+      - 'packages/auth/src/__tests__/token-service.test.ts'
+      - 'e2e/fixtures/quantmail-auth-backend.mjs'
+      - 'e2e/playwright.quantmail-auth.config.ts'
+      - 'e2e/tests/quantmail-auth/browser-cookie-session.spec.ts'
+      - 'e2e/package.json'
+      - '.github/workflows/quantmail-browser-auth-validate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-browser-auth:
+    strategy:
+      fail-fast: false
+      matrix:
+        stage:
+          - base-backend-typecheck
+          - current-backend-typecheck
+          - base-frontend-typecheck
+          - current-frontend-typecheck
+          - focused-frontend-typecheck
+          - browser-session-tests
+          - browser-auth-proxy-tests
+          - browser-e2e
+          - refresh-family-tests
+          - oauth-compat-tests
+          - cookie-tests
+          - legacy-storage-contract
+          - credentialed-login-contract
+          - registration-contract
+          - api-client-cookie-transport-contract
+          - direct-browser-transport-contract
+          - cookie-session-restore-contract
+          - single-retry-contract
+    name: browser-auth-${{ matrix.stage }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Check out stacked base for baseline comparison
+        if: startsWith(matrix.stage, 'base-')
+        run: git checkout e2a5b895ea310076557d960c7cd9f76810a2fcef
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+
+      - name: Build workspace dependency
+        run: pnpm --filter @quant/common build
+
+      - name: Build backend typecheck dependencies
+        if: contains(matrix.stage, 'backend-typecheck')
+        run: |
+          pnpm --filter @quant/database build
+          pnpm --filter @quant/auth build
+
+      - name: Build refresh-family test dependency
+        if: matrix.stage == 'refresh-family-tests'
+        run: pnpm --filter @quant/database build
+
+      - name: Typecheck QuantMail backend
+        if: contains(matrix.stage, 'backend-typecheck')
+        run: pnpm --filter @quant/quantmail build:backend
+
+      - name: Typecheck QuantMail frontend baseline/current
+        if: matrix.stage == 'base-frontend-typecheck' || matrix.stage == 'current-frontend-typecheck'
+        run: pnpm --filter @quant/quantmail exec tsc --noEmit -p tsconfig.json
+
+      - name: Typecheck browser-auth frontend boundary
+        if: matrix.stage == 'focused-frontend-typecheck'
+        run: pnpm --filter @quant/quantmail exec tsc --noEmit -p tsconfig.browser-auth.json
+
+      - name: Test browser auth session behavior
+        if: matrix.stage == 'browser-session-tests'
+        run: >-
+          pnpm --filter @quant/quantmail exec vitest run
+          src/__tests__/browser-auth-session.test.ts
+
+      - name: Test same-origin browser auth proxy
+        if: matrix.stage == 'browser-auth-proxy-tests'
+        run: >-
+          pnpm --filter @quant/quantmail exec vitest run
+          src/__tests__/browser-auth-proxy.test.ts
+
+      - name: Install Chromium for browser acceptance
+        if: matrix.stage == 'browser-e2e'
+        run: pnpm --filter quant-e2e exec playwright install --with-deps chromium
+
+      - name: Run QuantMail browser acceptance
+        if: matrix.stage == 'browser-e2e'
+        run: >-
+          pnpm --filter quant-e2e exec playwright test
+          --config=playwright.quantmail-auth.config.ts
+
+      - name: Test refresh-token family hardening
+        if: matrix.stage == 'refresh-family-tests'
+        run: >-
+          pnpm --filter @quant/auth exec vitest run
+          src/__tests__/refresh-token-hardening.test.ts
+          src/__tests__/token-service.test.ts
+
+      - name: Test non-browser OAuth compatibility
+        if: matrix.stage == 'oauth-compat-tests'
+        run: >-
+          pnpm --filter @quant/quantmail exec vitest run
+          backend/__tests__/oauth-non-browser-compat.test.ts
+
+      - name: Validate browser refresh-token boundary
+        if: matrix.stage == 'cookie-tests'
+        run: >-
+          pnpm --filter @quant/quantmail exec vitest run
+          backend/__tests__/browser-refresh-cookie.test.ts
+
+      - name: Validate legacy token cleanup contract
+        if: matrix.stage == 'legacy-storage-contract'
+        run: |
+          set -euo pipefail
+          session='apps/quantmail/src/services/browser-auth-session.ts'
+          provider='apps/quantmail/src/providers/auth-provider.tsx'
+          for key in quant_auth_tokens quant_access_token quant_refresh_token token refreshToken; do
+            grep -F "'$key'" "$session" >/dev/null
+          done
+          grep -F 'window.localStorage.removeItem(key)' "$session" >/dev/null
+          grep -F 'window.sessionStorage.removeItem(key)' "$session" >/dev/null
+          ! grep -F 'localStorage.setItem' "$session" "$provider"
+
+      - name: Validate credentialed memory-only login contract
+        if: matrix.stage == 'credentialed-login-contract'
+        run: |
+          set -euo pipefail
+          session='apps/quantmail/src/services/browser-auth-session.ts'
+          provider='apps/quantmail/src/providers/auth-provider.tsx'
+          grep -F "process.env.NEXT_PUBLIC_AUTH_URL" "$session" >/dev/null
+          ! grep -F "NEXT_PUBLIC_API_URL" "$session"
+          grep -F "credentials: 'include'" "$session" >/dev/null
+          grep -F "'/auth/login'" "$session" >/dev/null
+          grep -F 'browserAuthSession.login(email, password)' "$provider" >/dev/null
+          ! grep -F 'apiClient.setTokens' "$provider"
+          ! grep -F 'localStorage.setItem' "$provider"
+
+      - name: Validate credentialed cookie-backed registration contract
+        if: matrix.stage == 'registration-contract'
+        run: |
+          set -euo pipefail
+          registration='apps/quantmail/src/app/register/page.tsx'
+          session='apps/quantmail/src/services/browser-auth-session.ts'
+          grep -F "import { browserAuthSession } from '../../services/browser-auth-session';" "$registration" >/dev/null
+          grep -F 'browserAuthSession.register({' "$registration" >/dev/null
+          ! grep -F 'apiClient.register(' "$registration"
+          grep -F "'/auth/register'" "$session" >/dev/null
+          grep -F "credentials: 'include'" "$session" >/dev/null
+
+      - name: Validate cookie-backed API client transport
+        if: matrix.stage == 'api-client-cookie-transport-contract'
+        run: |
+          set -euo pipefail
+          client='apps/quantmail/src/services/api-client.ts'
+          provider='apps/quantmail/src/providers/auth-provider.tsx'
+          grep -F "import { browserAuthSession } from './browser-auth-session';" "$client" >/dev/null
+          grep -F 'browserAuthSession.authenticatedFetch(urlStr' "$client" >/dev/null
+          grep -F 'apiClient.onAuthenticationError(clearMemorySession)' "$provider" >/dev/null
+          ! grep -F 'refreshToken' "$client"
+          ! grep -F 'onTokenRefreshed' "$client"
+          ! grep -F '/oauth/token' "$client"
+          ! grep -F 'fetch(' "$client"
+          ! grep -F 'apiClient.setTokens' "$provider"
+          ! grep -F 'apiClient.clearTokens' "$provider"
+
+      - name: Validate direct browser request transport
+        if: matrix.stage == 'direct-browser-transport-contract'
+        run: |
+          set -euo pipefail
+          helper='apps/quantmail/src/services/browser-api-request.ts'
+          drive='apps/quantmail/src/hooks/useDrive.ts'
+          email='apps/quantmail/src/hooks/useEmail.ts'
+          git='apps/quantmail/src/hooks/useGit.ts'
+          grep -F "import { browserAuthSession } from './browser-auth-session';" "$helper" >/dev/null
+          grep -F 'browserAuthSession.authenticatedFetch(input' "$helper" >/dev/null
+          grep -F "browserApiRequest as apiRequest" "$drive" "$email" "$git" >/dev/null
+          grep -F 'xhr.withCredentials = true' "$drive" >/dev/null
+          grep -F 'browserAuthSession.getAccessToken()' "$drive" >/dev/null
+          grep -F 'browserAuthSession.refresh()' "$drive" >/dev/null
+          grep -F 'uploadOnce(false)' "$drive" >/dev/null
+          ! grep -F 'localStorage' "$helper" "$drive" "$email" "$git"
+          ! grep -F 'quant_auth_tokens' "$helper" "$drive" "$email" "$git"
+          ! grep -F 'fetch(' "$helper" "$drive" "$email" "$git"
+
+      - name: Validate cookie-only session restoration contract
+        if: matrix.stage == 'cookie-session-restore-contract'
+        run: |
+          set -euo pipefail
+          session='apps/quantmail/src/services/browser-auth-session.ts'
+          provider='apps/quantmail/src/providers/auth-provider.tsx'
+          grep -F "'/auth/refresh'" "$session" >/dev/null
+          grep -F 'browserAuthSession.refresh()' "$provider" >/dev/null
+          grep -F 'cleanupLegacyBrowserTokens()' "$provider" >/dev/null
+          ! grep -F 'refresh_token:' "$session" "$provider"
+
+      - name: Validate single refresh-and-retry contract
+        if: matrix.stage == 'single-retry-contract'
+        run: |
+          set -euo pipefail
+          session='apps/quantmail/src/services/browser-auth-session.ts'
+          grep -F 'response.status !== 401 || !allowRefreshRetry' "$session" >/dev/null
+          grep -F 'const refreshed = await refreshOnce()' "$session" >/dev/null
+          grep -F 'if (!refreshed.success || !accessToken) return response' "$session" >/dev/null
+          test "$(grep -c "return fetch(input" "$session")" -eq 1

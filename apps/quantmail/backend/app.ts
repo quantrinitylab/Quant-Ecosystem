@@ -50,6 +50,8 @@ export function getConfig(): AppConfig {
     publicPaths: [
       '/auth/login',
       '/auth/register',
+      '/auth/refresh',
+      '/auth/logout',
       '/oauth/token',
       '/oauth/revoke',
       '/oauth/register',

@@ -1,22 +1,41 @@
+import { createHash } from 'node:crypto';
 import { FastifyInstance } from 'fastify';
 import prisma from '@quant/auth/lib/prisma';
-import { generateId } from '@quant/auth/crypto/secure-random';
 import * as argon2 from 'argon2';
 import { TokenService } from '@quant/auth/services/token-service';
 import { getJwtSecret, getJwtRefreshSecret } from '@quant/auth/lib/secrets';
 
+const REFRESH_COOKIE_NAME = 'quantmail_refresh';
+const REFRESH_COOKIE_PATH = '/auth';
+const REFRESH_TOKEN_TTL_SECONDS = 2_592_000;
+
+const refreshCookieOptions = () => ({
+  httpOnly: true,
+  secure: process.env['NODE_ENV'] === 'production',
+  sameSite: 'strict' as const,
+  path: REFRESH_COOKIE_PATH,
+  maxAge: REFRESH_TOKEN_TTL_SECONDS,
+});
+
+const configuredOrigins = (): Set<string> =>
+  new Set(
+    (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000')
+      .split(',')
+      .map((origin) => origin.trim().replace(/\/$/, ''))
+      .filter(Boolean),
+  );
+
+const hasTrustedOrigin = (request: { headers: Record<string, unknown> }): boolean => {
+  const origin = request.headers['origin'];
+  return typeof origin === 'string' && configuredOrigins().has(origin.replace(/\/$/, ''));
+};
+
 export async function authRoutes(fastify: FastifyInstance) {
-  // CRITICAL: the issuer/audience used to SIGN tokens here MUST match what the
-  // global auth hook (@quant/server-core) uses to VERIFY them. That hook reads
-  // JWT_ISSUER / JWT_AUDIENCE from the environment (getConfig()), so we sign
-  // with the same values. Hardcoding 'quantmail' / 'quant-ecosystem' previously
-  // caused every authenticated request to fail jwtVerify (issuer/audience
-  // mismatch) even though the signature + secret were correct.
   const tokenService = new TokenService({
     jwtSecret: getJwtSecret(),
     jwtRefreshSecret: getJwtRefreshSecret(),
     accessTokenExpiresIn: 900,
-    refreshTokenExpiresIn: 2592000,
+    refreshTokenExpiresIn: REFRESH_TOKEN_TTL_SECONDS,
     issuer: process.env['JWT_ISSUER'] ?? 'quantmail',
     audience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
     bcryptRounds: 12,
@@ -24,19 +43,33 @@ export async function authRoutes(fastify: FastifyInstance) {
     lockoutDuration: 900,
   });
 
-  // Standard response envelope helpers. The frontend api-client (and the rest
-  // of the platform) expect `{ success, data }` on success and
-  // `{ success: false, error: { code, message, statusCode } }` on failure.
-  // Returning raw objects here silently broke the login/register UI (success
-  // was read as `undefined`), so every auth response now uses these.
   const fail = (reply: any, statusCode: number, code: string, message: string) =>
     reply.code(statusCode).send({ success: false, error: { code, message, statusCode } });
 
-  // POST /auth/login
+  const setRefreshCookie = (reply: any, token: string) =>
+    reply.setCookie(REFRESH_COOKIE_NAME, token, refreshCookieOptions());
+
+  const clearRefreshCookie = (reply: any) =>
+    reply.clearCookie(REFRESH_COOKIE_NAME, {
+      path: REFRESH_COOKIE_PATH,
+      httpOnly: true,
+      secure: process.env['NODE_ENV'] === 'production',
+      sameSite: 'strict',
+    });
+
+  const requireTrustedOrigin = (request: any, reply: any): boolean => {
+    if (hasTrustedOrigin(request)) return true;
+    fail(reply, 403, 'UNTRUSTED_ORIGIN', 'The request origin is not allowed.');
+    return false;
+  };
+
+  // Browser login: the access token remains memory-scoped in JavaScript while
+  // the refresh credential is delivered only as an HttpOnly host-only cookie.
   fastify.post(
     '/auth/login',
     { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
     async (request, reply) => {
+      if (!requireTrustedOrigin(request, reply)) return;
       const { email, password } = request.body as any;
 
       if (!email || !password) {
@@ -60,12 +93,12 @@ export async function authRoutes(fastify: FastifyInstance) {
         'quantmail' as any,
       );
 
+      setRefreshCookie(reply, tokens.refreshToken);
       return reply.send({
         success: true,
         data: {
           userId: user.id,
           accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
           expiresIn: tokens.expiresIn,
           tokenType: tokens.tokenType,
           user: {
@@ -79,8 +112,8 @@ export async function authRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // POST /auth/register
   fastify.post('/auth/register', async (request, reply) => {
+    if (!requireTrustedOrigin(request, reply)) return;
     const { email, username, displayName, password } = request.body as any;
 
     if (!email || !username || !password) {
@@ -102,7 +135,6 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
 
     const passwordHash = await argon2.hash(password);
-
     const user = await prisma.user.create({
       data: {
         email,
@@ -121,12 +153,12 @@ export async function authRoutes(fastify: FastifyInstance) {
       'quantmail' as any,
     );
 
+    setRefreshCookie(reply, tokens.refreshToken);
     return reply.send({
       success: true,
       data: {
         userId: user.id,
         accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
         expiresIn: tokens.expiresIn,
         tokenType: tokens.tokenType,
         user: {
@@ -138,10 +170,59 @@ export async function authRoutes(fastify: FastifyInstance) {
     });
   });
 
-  // POST /auth/change-password (authenticated)
-  // The security page has called this since it shipped; the route never
-  // existed (frontend tsc error was the only witness). Same envelope +
-  // argon2 flow as login/register.
+  // Cookie-only browser rotation endpoint. Requiring an allowlisted Origin in
+  // addition to SameSite=Strict prevents cross-site refresh and logout CSRF.
+  fastify.post(
+    '/auth/refresh',
+    { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      if (!requireTrustedOrigin(request, reply)) return;
+      const oldRefreshToken = request.cookies[REFRESH_COOKIE_NAME];
+      if (!oldRefreshToken) {
+        clearRefreshCookie(reply);
+        return fail(reply, 401, 'REFRESH_REQUIRED', 'No browser refresh session is available.');
+      }
+
+      try {
+        const tokens = await tokenService.refreshToken(oldRefreshToken);
+        setRefreshCookie(reply, tokens.refreshToken);
+        return reply.send({
+          success: true,
+          data: {
+            accessToken: tokens.accessToken,
+            expiresIn: tokens.expiresIn,
+            tokenType: tokens.tokenType,
+          },
+        });
+      } catch {
+        clearRefreshCookie(reply);
+        return fail(reply, 401, 'INVALID_REFRESH_SESSION', 'The browser session is invalid.');
+      }
+    },
+  );
+
+  fastify.post('/auth/logout', async (request, reply) => {
+    if (!requireTrustedOrigin(request, reply)) return;
+    const refreshToken = request.cookies[REFRESH_COOKIE_NAME];
+
+    if (refreshToken) {
+      // Possession-bound family revocation without persisting or decoding the
+      // bearer value: locate the exact one-way digest already stored by
+      // TokenService, then revoke every descendant in that rotation family.
+      const digest = createHash('sha256').update(refreshToken).digest('hex');
+      const stored = await prisma.refreshToken.findFirst({ where: { token: digest } });
+      if (stored) {
+        await prisma.refreshToken.updateMany({
+          where: { family: stored.family },
+          data: { isRevoked: true },
+        });
+      }
+    }
+
+    clearRefreshCookie(reply);
+    return reply.send({ success: true, data: { message: 'Signed out.' } });
+  });
+
   fastify.post(
     '/auth/change-password',
     { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
