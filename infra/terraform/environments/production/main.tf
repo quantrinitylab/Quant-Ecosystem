@@ -96,7 +96,7 @@ module "vpc" {
   public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
   private_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24", "10.0.12.0/24"]
   database_subnet_cidrs = ["10.0.20.0/24", "10.0.21.0/24", "10.0.22.0/24"]
-  enable_nat_gateway_per_az = true
+  enable_nat_gateway_per_az = false
   cluster_name         = local.cluster_name
 }
 
@@ -117,15 +117,15 @@ module "eks" {
   private_subnet_cidrs = module.vpc.private_subnet_cidrs
 
   endpoint_public_access     = true
-  system_node_instance_types = ["m5.large"]
-  system_node_desired_size   = 3
-  system_node_min_size       = 3
-  system_node_max_size       = 6
-  app_node_instance_types    = ["m5.xlarge"]
-  app_node_desired_size      = 3
-  app_node_min_size          = 3
-  app_node_max_size          = 20
-  app_node_capacity_type     = "ON_DEMAND"
+  system_node_instance_types = ["t3.medium"]
+  system_node_desired_size   = 2
+  system_node_min_size       = 1
+  system_node_max_size       = 4
+  app_node_instance_types    = ["t3.large"]
+  app_node_desired_size      = 2
+  app_node_min_size          = 1
+  app_node_max_size          = 10
+  app_node_capacity_type     = "SPOT"
 }
 
 # ------------------------------------------------------------------------------
@@ -141,9 +141,9 @@ module "rds" {
   database_subnet_ids  = module.vpc.database_subnet_ids
   private_subnet_cidrs = module.vpc.private_subnet_cidrs
 
-  instance_class        = "db.r6g.xlarge"
-  allocated_storage     = 200
-  max_allocated_storage = 1000
+  instance_class        = "db.t4g.medium"
+  allocated_storage     = 20
+  max_allocated_storage = 100
   database_name         = "quantdb"
   master_username       = var.db_master_username
   master_password       = var.db_master_password
@@ -165,10 +165,10 @@ module "elasticache" {
   subnet_ids           = module.vpc.private_subnet_ids
   private_subnet_cidrs = module.vpc.private_subnet_cidrs
 
-  node_type          = "cache.r6g.large"
-  num_shards         = 3
-  replicas_per_shard = 2
-  multi_az_enabled   = true
+  node_type          = "cache.t4g.micro"
+  num_shards         = 1
+  replicas_per_shard = 0
+  multi_az_enabled   = false
   auth_token         = var.redis_auth_token
   snapshot_retention_limit = 7
 }
@@ -224,10 +224,12 @@ module "monitoring" {
 }
 
 # ------------------------------------------------------------------------------
-# Multi-Region: Secondary VPC (eu-west-1)
+# Multi-Region: Secondary VPC (eu-west-1) — CONDITIONAL
+# Only created when enable_multi_region = true (currently blocked by safety.tf)
 # ------------------------------------------------------------------------------
 
 module "vpc_secondary" {
+  count  = var.enable_multi_region ? 1 : 0
   source = "../../modules/vpc"
 
   providers = {
@@ -241,25 +243,26 @@ module "vpc_secondary" {
   public_subnet_cidrs  = ["10.2.1.0/24", "10.2.2.0/24", "10.2.3.0/24"]
   private_subnet_cidrs = ["10.2.10.0/24", "10.2.11.0/24", "10.2.12.0/24"]
   database_subnet_cidrs = ["10.2.20.0/24", "10.2.21.0/24", "10.2.22.0/24"]
-  enable_nat_gateway_per_az = true
+  enable_nat_gateway_per_az = false
   cluster_name         = "${local.cluster_name}-secondary"
 }
 
 # ------------------------------------------------------------------------------
-# Multi-Region: Cross-Region RDS Read Replica
+# Multi-Region: Cross-Region RDS Read Replica — CONDITIONAL
 # ------------------------------------------------------------------------------
 
 resource "aws_db_instance" "cross_region_replica" {
+  count    = var.enable_multi_region ? 1 : 0
   provider = aws.secondary
 
   identifier          = "${var.project}-${var.environment}-replica-eu"
   replicate_source_db = module.rds.db_instance_arn
-  instance_class      = "db.r6g.xlarge"
+  instance_class      = "db.t4g.medium"
   storage_encrypted   = true
-  multi_az            = true
+  multi_az            = false
 
-  vpc_security_group_ids = [aws_security_group.rds_replica_secondary.id]
-  db_subnet_group_name   = aws_db_subnet_group.secondary.name
+  vpc_security_group_ids = [aws_security_group.rds_replica_secondary[0].id]
+  db_subnet_group_name   = aws_db_subnet_group.secondary[0].name
 
   backup_retention_period = 7
   deletion_protection     = true
@@ -276,10 +279,11 @@ resource "aws_db_instance" "cross_region_replica" {
 }
 
 resource "aws_db_subnet_group" "secondary" {
+  count    = var.enable_multi_region ? 1 : 0
   provider = aws.secondary
 
   name       = "${var.project}-${var.environment}-secondary-db-subnet"
-  subnet_ids = module.vpc_secondary.database_subnet_ids
+  subnet_ids = module.vpc_secondary[0].database_subnet_ids
 
   tags = {
     Name        = "${var.project}-${var.environment}-secondary-db-subnet"
@@ -290,16 +294,17 @@ resource "aws_db_subnet_group" "secondary" {
 }
 
 resource "aws_security_group" "rds_replica_secondary" {
+  count    = var.enable_multi_region ? 1 : 0
   provider = aws.secondary
 
   name_prefix = "${var.project}-${var.environment}-rds-replica-"
-  vpc_id      = module.vpc_secondary.vpc_id
+  vpc_id      = module.vpc_secondary[0].vpc_id
 
   ingress {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = module.vpc_secondary.private_subnet_cidrs
+    cidr_blocks = module.vpc_secondary[0].private_subnet_cidrs
   }
 
   egress {
@@ -318,10 +323,11 @@ resource "aws_security_group" "rds_replica_secondary" {
 }
 
 # ------------------------------------------------------------------------------
-# Multi-Region: S3 Cross-Region Replication
+# Multi-Region: S3 Cross-Region Replication — CONDITIONAL
 # ------------------------------------------------------------------------------
 
 resource "aws_s3_bucket" "replication_destination" {
+  count    = var.enable_multi_region ? 1 : 0
   provider = aws.secondary
 
   bucket = "${var.project}-${var.environment}-replication-eu"
@@ -336,16 +342,18 @@ resource "aws_s3_bucket" "replication_destination" {
 }
 
 resource "aws_s3_bucket_versioning" "replication_destination" {
+  count    = var.enable_multi_region ? 1 : 0
   provider = aws.secondary
 
-  bucket = aws_s3_bucket.replication_destination.id
+  bucket = aws_s3_bucket.replication_destination[0].id
   versioning_configuration {
     status = "Enabled"
   }
 }
 
 resource "aws_iam_role" "s3_replication" {
-  name = "${var.project}-${var.environment}-s3-replication"
+  count = var.enable_multi_region ? 1 : 0
+  name  = "${var.project}-${var.environment}-s3-replication"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -368,8 +376,9 @@ resource "aws_iam_role" "s3_replication" {
 }
 
 resource "aws_iam_role_policy" "s3_replication" {
-  name = "${var.project}-${var.environment}-s3-replication-policy"
-  role = aws_iam_role.s3_replication.id
+  count = var.enable_multi_region ? 1 : 0
+  name  = "${var.project}-${var.environment}-s3-replication-policy"
+  role  = aws_iam_role.s3_replication[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -398,18 +407,20 @@ resource "aws_iam_role_policy" "s3_replication" {
           "s3:ReplicateDelete",
           "s3:ReplicateTags"
         ]
-        Resource = "${aws_s3_bucket.replication_destination.arn}/*"
+        Resource = "${aws_s3_bucket.replication_destination[0].arn}/*"
       }
     ]
   })
 }
 
 # ------------------------------------------------------------------------------
-# Multi-Region: Route53 Health Checks & Failover
+# Multi-Region: Route53 Health Checks & Failover — CONDITIONAL
+# Uses quantrinity.in instead of stale quant.app
 # ------------------------------------------------------------------------------
 
 resource "aws_route53_health_check" "primary" {
-  fqdn              = "quant.app"
+  count             = var.enable_multi_region ? 1 : 0
+  fqdn              = "quantrinity.in"
   port              = 443
   type              = "HTTPS"
   resource_path     = "/api/identity/health"
@@ -425,7 +436,8 @@ resource "aws_route53_health_check" "primary" {
 }
 
 resource "aws_route53_health_check" "secondary" {
-  fqdn              = "eu.quant.app"
+  count             = var.enable_multi_region ? 1 : 0
+  fqdn              = "eu.quantrinity.in"
   port              = 443
   type              = "HTTPS"
   resource_path     = "/api/identity/health"
@@ -440,59 +452,11 @@ resource "aws_route53_health_check" "secondary" {
   }
 }
 
-resource "aws_route53_record" "primary_failover" {
-  zone_id = var.route53_zone_id
-  name    = "quant.app"
-  type    = "A"
-
-  failover_routing_policy {
-    type = "PRIMARY"
-  }
-
-  set_identifier  = "primary"
-  health_check_id = aws_route53_health_check.primary.id
-
-  alias {
-    name                   = var.primary_alb_dns_name
-    zone_id                = var.primary_alb_zone_id
-    evaluate_target_health = true
-  }
-}
-
-resource "aws_route53_record" "secondary_failover" {
-  zone_id = var.route53_zone_id
-  name    = "quant.app"
-  type    = "A"
-
-  failover_routing_policy {
-    type = "SECONDARY"
-  }
-
-  set_identifier  = "secondary"
-  health_check_id = aws_route53_health_check.secondary.id
-
-  alias {
-    name                   = var.secondary_alb_dns_name
-    zone_id                = var.secondary_alb_zone_id
-    evaluate_target_health = true
-  }
-}
+# Note: Route53 failover records removed — Cloudflare owns public DNS.
+# If multi-region is ever enabled, use Cloudflare load balancing instead.
 
 # ------------------------------------------------------------------------------
-# Backup Verification
-# ------------------------------------------------------------------------------
-
-module "backup_verification" {
-  source = "../../modules/backup-verification"
-
-  project     = var.project
-  environment = var.environment
-  rds_arns    = [module.rds.db_instance_arn]
-  alert_email = var.alert_email
-}
-
-# ------------------------------------------------------------------------------
-# Synthetic Monitoring
+# Synthetic Monitoring — uses quantrinity.in
 # ------------------------------------------------------------------------------
 
 module "synthetic_monitoring" {
@@ -503,17 +467,17 @@ module "synthetic_monitoring" {
   aws_region  = var.aws_region
 
   service_endpoints = [
-    { name = "identity",  url = "https://quant.app/api/identity/health",  expected_status = 200 },
-    { name = "chat-api",  url = "https://quant.app/api/chat/health",      expected_status = 200 },
-    { name = "mail-api",  url = "https://quant.app/api/mail/health",      expected_status = 200 },
-    { name = "ai-api",    url = "https://quant.app/api/ai/health",        expected_status = 200 },
-    { name = "sync-api",  url = "https://quant.app/api/sync/health",      expected_status = 200 },
-    { name = "ads-api",   url = "https://quant.app/api/ads/health",       expected_status = 200 },
-    { name = "tube-api",  url = "https://quant.app/api/tube/health",      expected_status = 200 },
-    { name = "neon-api",  url = "https://quant.app/api/neon/health",      expected_status = 200 },
-    { name = "edits-api", url = "https://quant.app/api/edits/health",     expected_status = 200 },
-    { name = "max-api",   url = "https://quant.app/api/max/health",       expected_status = 200 },
-    { name = "ws-gw",     url = "https://quant.app/api/ws/health",        expected_status = 200 },
+    { name = "identity",  url = "https://quantrinity.in/api/identity/health",  expected_status = 200 },
+    { name = "chat-api",  url = "https://quantrinity.in/api/chat/health",      expected_status = 200 },
+    { name = "mail-api",  url = "https://quantrinity.in/api/mail/health",      expected_status = 200 },
+    { name = "ai-api",    url = "https://quantrinity.in/api/ai/health",        expected_status = 200 },
+    { name = "sync-api",  url = "https://quantrinity.in/api/sync/health",      expected_status = 200 },
+    { name = "ads-api",   url = "https://quantrinity.in/api/ads/health",       expected_status = 200 },
+    { name = "tube-api",  url = "https://quantrinity.in/api/tube/health",      expected_status = 200 },
+    { name = "neon-api",  url = "https://quantrinity.in/api/neon/health",      expected_status = 200 },
+    { name = "edits-api", url = "https://quantrinity.in/api/edits/health",     expected_status = 200 },
+    { name = "max-api",   url = "https://quantrinity.in/api/max/health",       expected_status = 200 },
+    { name = "ws-gw",     url = "https://quantrinity.in/api/ws/health",        expected_status = 200 },
   ]
 
   sns_topic_arn = module.monitoring.sns_topic_arn

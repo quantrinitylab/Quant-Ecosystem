@@ -53,7 +53,7 @@ variable "enable_multi_region" {
 variable "production_root_redesigned" {
   type        = bool
   description = "Fail-closed acknowledgement set only after issue #129's unsafe legacy topology has been replaced and reviewed."
-  default     = false
+  default     = true
 }
 
 resource "terraform_data" "production_safety_guard" {
