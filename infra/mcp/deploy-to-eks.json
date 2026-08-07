@@ -1,0 +1,14 @@
+{
+  "commands": [
+    "set -eu",
+    "aws eks update-kubeconfig --name quant-staging-eks --region us-east-1 --role-arn arn:aws:iam::266176113726:role/quant-gha-deploy 2>&1",
+    "kubectl get namespace quant-staging 2>&1 || kubectl create namespace quant-staging 2>&1",
+    "echo NAMESPACE_READY",
+    "IMAGE=266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail:8b254c1947543559a52ce74f661467cc69b2679f",
+    "kubectl -n quant-staging get deployment quant-quantmail 2>&1 || kubectl -n quant-staging create deployment quant-quantmail --image=$IMAGE --port=3010 2>&1",
+    "kubectl -n quant-staging set image deployment/quant-quantmail quant-quantmail=$IMAGE 2>&1",
+    "kubectl -n quant-staging rollout status deployment/quant-quantmail --timeout=120s 2>&1",
+    "kubectl -n quant-staging get pods -l app=quant-quantmail 2>&1",
+    "echo DEPLOY_COMPLETE"
+  ]
+}

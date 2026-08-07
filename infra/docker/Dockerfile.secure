@@ -15,6 +15,7 @@ RUN corepack enable
 
 # Copy dependency manifests only (for layer caching)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY patches/ ./patches/
 COPY packages/ ./packages/
 
 # Install production dependencies only
@@ -29,6 +30,7 @@ RUN corepack enable
 
 # Copy all files for build
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
+COPY patches/ ./patches/
 COPY packages/ ./packages/
 COPY src/ ./src/
 

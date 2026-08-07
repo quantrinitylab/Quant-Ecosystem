@@ -15,6 +15,7 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json ./
+COPY patches/ ./patches/
 
 # Transitive @quant closure for moderation-worker:
 #   common, data-plane, health-server, moderation, queue, security + the service
@@ -45,6 +46,7 @@ RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 quant
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json ./
+COPY patches/ ./patches/
 COPY --from=builder /app/packages/common/dist/ ./packages/common/dist/
 COPY --from=builder /app/packages/common/package.json ./packages/common/package.json
 COPY --from=builder /app/packages/data-plane/dist/ ./packages/data-plane/dist/

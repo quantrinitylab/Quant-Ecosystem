@@ -1,0 +1,11 @@
+{
+  "commands": [
+    "rm -f /root/.kube/config",
+    "aws eks update-kubeconfig --name quant-staging-eks --region us-east-1 2>&1",
+    "cat /root/.kube/config | grep server",
+    "export KUBECONFIG=/root/.kube/config",
+    "kubectl version --client 2>&1",
+    "kubectl cluster-info 2>&1",
+    "echo KUBECTL_CHECK_DONE"
+  ]
+}

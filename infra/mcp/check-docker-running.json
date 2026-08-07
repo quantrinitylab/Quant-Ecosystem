@@ -1,0 +1,7 @@
+{
+  "commands": [
+    "docker ps --format '{{.Names}} {{.Status}} {{.Image}}' 2>&1",
+    "docker images --format '{{.Repository}}:{{.Tag}} {{.Size}} {{.CreatedAt}}' 2>&1 | grep quant-quantmail || echo NO_QUANTMAIL_IMAGE",
+    "df -h / | tail -1"
+  ]
+}
