@@ -3966,3 +3966,66 @@ body {
 .translate-result-header button { border: none; background: transparent; color: #60a5fa; font-size: 0.58rem; cursor: pointer; }
 .translate-result-text { font-size: 0.72rem; color: #ddd; line-height: 1.5; }
 .translate-original { font-size: 0.66rem; color: #777; margin-top: 0.4rem; padding-top: 0.3rem; border-top: 1px solid rgba(255,255,255,0.04); font-style: italic; }
+
+/* ========================================================================== */
+/* Repo Activity Feed                                                         */
+/* ========================================================================== */
+.repo-activity-feed { border-radius: 0.6rem; border: 1px solid #2a2a2e; overflow: hidden; }
+.activity-feed-header { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.85rem; background: rgba(255,255,255,0.02); border-bottom: 1px solid #1c1c20; }
+.activity-feed-header strong { font-size: 0.72rem; font-weight: 650; color: #e5e5e7; }
+.activity-feed-repo { font-size: 0.6rem; color: #666; font-family: monospace; }
+.activity-feed-list { max-height: 280px; overflow-y: auto; }
+.activity-feed-item { display: flex; align-items: center; gap: 0.45rem; padding: 0.45rem 0.85rem; border-bottom: 1px solid #151517; transition: background 80ms; }
+.activity-feed-item:hover { background: rgba(255,255,255,0.02); }
+.activity-feed-item:last-child { border-bottom: none; }
+.activity-dot { font-size: 0.55rem; width: 1rem; text-align: center; flex-shrink: 0; }
+.activity-content { display: flex; align-items: center; gap: 0.25rem; flex: 1; min-width: 0; overflow: hidden; }
+.activity-actor { font-size: 0.64rem; font-weight: 600; color: #ccc; white-space: nowrap; }
+.activity-verb { font-size: 0.62rem; color: #777; white-space: nowrap; }
+.activity-ref { font-size: 0.58rem; color: #60a5fa; background: rgba(96,165,250,0.08); padding: 0.1rem 0.3rem; border-radius: 0.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-time { font-size: 0.56rem; color: #555; white-space: nowrap; flex-shrink: 0; }
+
+/* ========================================================================== */
+/* Calendar Mini Widget                                                       */
+/* ========================================================================== */
+.cal-mini-widget { padding: 0.6rem 0.75rem; border-radius: 0.55rem; background: rgba(99,102,241,0.03); border: 1px solid rgba(99,102,241,0.1); margin-bottom: 0.5rem; }
+.cal-mini-header { display: flex; align-items: center; gap: 0.35rem; cursor: pointer; margin-bottom: 0.4rem; }
+.cal-mini-icon { font-size: 0.7rem; }
+.cal-mini-header strong { font-size: 0.7rem; font-weight: 650; color: #e5e5e7; }
+.cal-mini-count { margin-left: auto; font-size: 0.56rem; color: #777; }
+.cal-mini-alert { font-size: 0.62rem; color: #fbbf24; padding: 0.25rem 0.5rem; border-radius: 0.35rem; background: rgba(251,191,36,0.06); border: 1px solid rgba(251,191,36,0.15); margin-bottom: 0.35rem; animation: pulse-ring 2s ease infinite; }
+.cal-mini-events { display: flex; flex-direction: column; gap: 0.25rem; }
+.cal-mini-event { display: flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0; }
+.cal-mini-time-bar { width: 2px; height: 1.2rem; border-radius: 1px; background: #6366f1; flex-shrink: 0; }
+.cal-mini-event-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.cal-mini-event-time { font-size: 0.56rem; color: #888; font-weight: 600; }
+.cal-mini-event-title { font-size: 0.64rem; color: #ccc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-mini-join { border: 1px solid rgba(74,222,128,0.25); background: rgba(74,222,128,0.06); color: #4ade80; font-size: 0.58rem; font-weight: 600; padding: 0.2rem 0.45rem; border-radius: 0.3rem; cursor: pointer; flex-shrink: 0; }
+.cal-mini-join:hover { background: rgba(74,222,128,0.12); }
+
+/* ========================================================================== */
+/* Drive File Preview Panel                                                   */
+/* ========================================================================== */
+.drive-preview-panel { display: flex; flex-direction: column; height: 100%; background: #111113; border-left: 1px solid #2a2a2e; }
+.drive-preview-header { display: flex; align-items: center; justify-content: space-between; padding: 0.85rem 1rem; border-bottom: 1px solid #1c1c20; }
+.drive-preview-title { font-size: 0.82rem; font-weight: 650; color: #f0f0f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drive-preview-close { border: none; background: transparent; color: #666; font-size: 1.3rem; cursor: pointer; }
+.drive-preview-content { flex: 1; display: grid; place-items: center; overflow: hidden; padding: 1rem; min-height: 200px; }
+.drive-preview-image { max-width: 100%; max-height: 100%; }
+.drive-preview-image img { max-width: 100%; max-height: 300px; object-fit: contain; border-radius: 0.4rem; }
+.drive-preview-pdf { width: 100%; height: 100%; min-height: 300px; }
+.drive-preview-pdf iframe { width: 100%; height: 100%; border: none; border-radius: 0.4rem; }
+.drive-preview-placeholder { text-align: center; color: #666; }
+.drive-preview-placeholder .drive-preview-icon { font-size: 2.5rem; margin-bottom: 0.5rem; display: block; }
+.drive-preview-placeholder p { font-size: 0.72rem; }
+.drive-preview-meta { padding: 0.75rem 1rem; border-top: 1px solid #1c1c20; }
+.drive-meta-row { display: flex; justify-content: space-between; padding: 0.25rem 0; }
+.drive-meta-label { font-size: 0.62rem; color: #666; }
+.drive-meta-value { font-size: 0.62rem; color: #bbb; }
+.drive-preview-actions { display: flex; gap: 0.4rem; padding: 0.75rem 1rem; border-top: 1px solid #1c1c20; }
+.drive-action-btn { flex: 1; padding: 0.4rem 0.6rem; border-radius: 0.4rem; border: 1px solid #2d2d32; background: transparent; color: #bbb; font-size: 0.66rem; font-weight: 550; cursor: pointer; text-align: center; transition: all 100ms; }
+.drive-action-btn:hover { background: rgba(255,255,255,0.04); border-color: #3a3a3e; }
+.drive-action-primary { border-color: rgba(255,153,51,0.3); color: #ff9933; }
+.drive-action-primary:hover { background: rgba(255,153,51,0.08); }
+.drive-action-danger { border-color: rgba(248,113,113,0.2); color: #888; }
+.drive-action-danger:hover { border-color: rgba(248,113,113,0.4); color: #f87171; background: rgba(248,113,113,0.05); }
