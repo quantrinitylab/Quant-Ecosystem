@@ -3929,3 +3929,40 @@ body {
 .timeline-event-name { font-size: 0.66rem; font-weight: 600; color: #ccc; }
 .timeline-event-action { font-size: 0.62rem; color: #777; }
 .timeline-event-time { font-size: 0.56rem; color: #555; margin-left: auto; }
+
+/* ========================================================================== */
+/* Send Later Picker                                                          */
+/* ========================================================================== */
+.send-later-picker { padding: 1rem; background: #111113; border: 1px solid #2a2a2e; border-radius: 0.65rem; box-shadow: 0 4px 20px rgba(0,0,0,0.5); max-width: 320px; }
+.send-later-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+.send-later-header h3 { font-size: 0.82rem; font-weight: 650; color: #f0f0f0; }
+.send-later-header button { border: none; background: transparent; color: #666; font-size: 1.2rem; cursor: pointer; }
+.send-later-presets { display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.75rem; }
+.send-later-preset { display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left; padding: 0.45rem 0.6rem; border: none; background: transparent; border-radius: 0.4rem; cursor: pointer; transition: background 80ms; }
+.send-later-preset:hover { background: rgba(255,255,255,0.04); }
+.preset-label { font-size: 0.7rem; font-weight: 550; color: #ccc; }
+.preset-hint { font-size: 0.58rem; color: #666; }
+.send-later-custom { padding-top: 0.6rem; border-top: 1px solid #1c1c20; }
+.send-later-custom-label { font-size: 0.62rem; font-weight: 600; color: #888; margin-bottom: 0.35rem; }
+.send-later-custom-inputs { display: flex; gap: 0.3rem; }
+.send-later-date, .send-later-time { flex: 1; padding: 0.35rem 0.5rem; border-radius: 0.35rem; border: 1px solid #2a2a2e; background: #0d0d0f; color: #e5e5e7; font-size: 0.66rem; outline: none; }
+.send-later-confirm { padding: 0.35rem 0.6rem; border-radius: 0.35rem; border: 1px solid rgba(255,153,51,0.3); background: rgba(255,153,51,0.08); color: #ff9933; font-size: 0.64rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.send-later-confirm:hover { background: rgba(255,153,51,0.15); }
+
+/* ========================================================================== */
+/* Email Translate                                                            */
+/* ========================================================================== */
+.email-translate { margin: 0.5rem 0; }
+.translate-prompt { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.6rem; border-radius: 0.5rem; background: rgba(96,165,250,0.04); border: 1px solid rgba(96,165,250,0.12); }
+.translate-icon { font-size: 0.75rem; }
+.translate-text { font-size: 0.66rem; color: #999; flex: 1; }
+.translate-text strong { color: #ccc; }
+.translate-select { padding: 0.2rem 0.4rem; border-radius: 0.3rem; border: 1px solid #2a2a2e; background: #0d0d0f; color: #ccc; font-size: 0.62rem; }
+.translate-btn { padding: 0.25rem 0.5rem; border-radius: 0.35rem; border: 1px solid rgba(96,165,250,0.3); background: rgba(96,165,250,0.08); color: #60a5fa; font-size: 0.62rem; font-weight: 600; cursor: pointer; }
+.translate-btn:hover { background: rgba(96,165,250,0.15); }
+.translate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.translate-result { padding: 0.6rem; border-radius: 0.5rem; background: rgba(96,165,250,0.03); border: 1px solid rgba(96,165,250,0.1); margin-top: 0.3rem; overflow: hidden; }
+.translate-result-header { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.3rem; font-size: 0.6rem; color: #888; }
+.translate-result-header button { border: none; background: transparent; color: #60a5fa; font-size: 0.58rem; cursor: pointer; }
+.translate-result-text { font-size: 0.72rem; color: #ddd; line-height: 1.5; }
+.translate-original { font-size: 0.66rem; color: #777; margin-top: 0.4rem; padding-top: 0.3rem; border-top: 1px solid rgba(255,255,255,0.04); font-style: italic; }
