@@ -3861,3 +3861,71 @@ body {
 .inbox-zero-stat-number { font-size: 1.2rem; }
 .inbox-zero-stat-label { font-size: 0.6rem; color: #666; font-weight: 550; }
 .inbox-zero-cta { font-size: 0.68rem; color: #555; margin-top: 0.5rem; }
+
+/* ========================================================================== */
+/* Email Analytics Dashboard                                                  */
+/* ========================================================================== */
+.email-analytics { padding: 0.85rem 1rem; border-radius: 0.65rem; background: linear-gradient(135deg, rgba(96,165,250,0.03), rgba(168,85,247,0.03)); border: 1px solid rgba(96,165,250,0.1); margin-bottom: 0.75rem; }
+.analytics-header { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.6rem; }
+.analytics-icon { font-size: 0.75rem; }
+.analytics-header strong { font-size: 0.72rem; font-weight: 650; color: #e5e5e7; }
+.analytics-period { margin-left: auto; font-size: 0.58rem; color: #666; }
+.analytics-chart { display: flex; align-items: flex-end; gap: 0.3rem; height: 3rem; margin-bottom: 0.6rem; padding: 0 0.2rem; }
+.analytics-bar-col { display: flex; flex-direction: column; align-items: center; flex: 1; height: 100%; justify-content: flex-end; }
+.analytics-bar { width: 100%; min-height: 2px; border-radius: 2px 2px 0 0; background: linear-gradient(to top, #3b82f6, #60a5fa); transition: height 300ms ease; }
+.analytics-bar-label { font-size: 0.5rem; color: #555; margin-top: 0.2rem; }
+.analytics-stats { display: flex; gap: 0.5rem; justify-content: space-between; padding: 0.4rem 0; border-top: 1px solid rgba(255,255,255,0.04); }
+.analytics-stat { display: flex; flex-direction: column; align-items: center; }
+.analytics-stat-value { font-size: 0.8rem; font-weight: 700; color: #e5e5e7; }
+.analytics-stat-label { font-size: 0.52rem; color: #666; margin-top: 0.1rem; }
+.analytics-insight { font-size: 0.6rem; color: #888; margin-top: 0.4rem; padding-top: 0.3rem; border-top: 1px solid rgba(255,255,255,0.04); }
+.analytics-insight strong { color: #bbb; }
+
+/* ========================================================================== */
+/* Smart Filter Builder                                                       */
+/* ========================================================================== */
+.smart-filter { margin-bottom: 0.5rem; }
+.smart-filter-trigger { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.7rem; border-radius: 1.5rem; border: 1px solid #2a2a2e; background: transparent; color: #888; font-size: 0.66rem; font-weight: 550; cursor: pointer; transition: all 120ms; }
+.smart-filter-trigger:hover { border-color: #3a3a3e; color: #bbb; }
+.smart-filter-panel { padding: 1rem; border-radius: 0.6rem; background: #111113; border: 1px solid #2a2a2e; margin-top: 0.5rem; overflow: hidden; }
+.sf-section { margin-bottom: 0.75rem; }
+.sf-label { display: block; font-size: 0.64rem; font-weight: 650; color: #999; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.35rem; }
+.sf-input { width: 100%; padding: 0.4rem 0.6rem; border-radius: 0.4rem; border: 1px solid #2a2a2e; background: #0d0d0f; color: #e5e5e7; font-size: 0.7rem; outline: none; transition: border-color 150ms; }
+.sf-input:focus { border-color: rgba(255,153,51,0.4); }
+.sf-input-sm { flex: 1; }
+.sf-select { padding: 0.35rem 0.5rem; border-radius: 0.35rem; border: 1px solid #2a2a2e; background: #0d0d0f; color: #ccc; font-size: 0.66rem; outline: none; }
+.sf-condition-row { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.3rem; }
+.sf-remove { border: none; background: transparent; color: #666; font-size: 0.9rem; cursor: pointer; padding: 0.1rem 0.3rem; }
+.sf-remove:hover { color: #f87171; }
+.sf-add { border: none; background: transparent; color: #ff9933; font-size: 0.62rem; font-weight: 600; cursor: pointer; padding: 0.2rem 0; }
+.sf-add:hover { text-decoration: underline; }
+.sf-footer { display: flex; justify-content: flex-end; gap: 0.4rem; padding-top: 0.5rem; border-top: 1px solid #1c1c20; }
+.sf-cancel { padding: 0.35rem 0.7rem; border-radius: 0.4rem; border: 1px solid #2d2d32; background: transparent; color: #bbb; font-size: 0.68rem; cursor: pointer; }
+.sf-create { padding: 0.35rem 0.7rem; border-radius: 0.4rem; border: 1px solid rgba(255,153,51,0.3); background: rgba(255,153,51,0.08); color: #ff9933; font-size: 0.68rem; font-weight: 600; cursor: pointer; }
+.sf-create:hover { background: rgba(255,153,51,0.15); }
+
+/* ========================================================================== */
+/* Email Signature Block                                                      */
+/* ========================================================================== */
+.email-signature-block { margin-top: 1rem; opacity: 0.7; transition: opacity 200ms; }
+.email-signature-block:hover { opacity: 1; }
+.signature-divider { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.signature-divider span:first-child, .signature-divider span:last-child { flex: 1; height: 1px; background: #2a2a2e; }
+.signature-label { font-size: 0.55rem; color: #555; text-transform: uppercase; letter-spacing: 0.05em; }
+.signature-content { font-size: 0.7rem; color: #888; line-height: 1.5; }
+.signature-content a { color: #60a5fa; text-decoration: none; }
+.signature-content a:hover { text-decoration: underline; }
+
+/* ========================================================================== */
+/* Thread Activity Timeline                                                   */
+/* ========================================================================== */
+.thread-timeline { padding: 1rem 0; border-top: 1px solid var(--quant-border-subtle, #1c1c20); margin-top: 1rem; }
+.thread-timeline-title { font-size: 0.72rem; font-weight: 650; color: #ddd; margin-bottom: 0.6rem; }
+.thread-timeline-track { display: flex; flex-direction: column; gap: 0; padding-left: 0.6rem; border-left: 2px solid #2a2a2e; }
+.thread-timeline-event { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.4rem 0; position: relative; }
+.timeline-event-dot { position: absolute; left: -0.95rem; top: 0.6rem; width: 0.5rem; height: 0.5rem; border-radius: 50%; border: 2px solid; background: #111; }
+.timeline-event-content { padding-left: 0.3rem; }
+.timeline-event-header { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.timeline-event-name { font-size: 0.66rem; font-weight: 600; color: #ccc; }
+.timeline-event-action { font-size: 0.62rem; color: #777; }
+.timeline-event-time { font-size: 0.56rem; color: #555; margin-left: auto; }
