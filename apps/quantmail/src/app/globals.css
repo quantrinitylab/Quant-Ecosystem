@@ -3805,3 +3805,59 @@ body {
   background: #1a1a1d;
   font-family: monospace;
 }
+
+/* ========================================================================== */
+/* Email Forward Chain Visualization                                          */
+/* ========================================================================== */
+.forward-chain { padding: 0.6rem 0; border-top: 1px solid var(--quant-border-subtle, #1c1c20); margin-top: 0.5rem; }
+.forward-chain-label { font-size: 0.6rem; font-weight: 600; color: #777; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.forward-chain-track { display: flex; flex-direction: column; gap: 0.3rem; padding-left: 0.5rem; border-left: 2px solid #2a2a2e; }
+.forward-chain-hop { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
+.forward-chain-detail { display: flex; align-items: center; gap: 0.25rem; flex: 1; min-width: 0; }
+.forward-chain-sender { font-size: 0.64rem; font-weight: 600; color: #ccc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.forward-chain-arrow { font-size: 0.6rem; color: #555; flex-shrink: 0; }
+.forward-chain-receiver { font-size: 0.64rem; color: #999; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.forward-chain-time { font-size: 0.56rem; color: #555; white-space: nowrap; }
+
+/* ========================================================================== */
+/* Email Bounce Alert                                                         */
+/* ========================================================================== */
+.bounce-alert { display: flex; align-items: flex-start; gap: 0.55rem; padding: 0.65rem 0.85rem; border-radius: 0.55rem; border: 1px solid; margin-bottom: 0.5rem; }
+.bounce-icon { font-size: 0.9rem; flex-shrink: 0; margin-top: 0.1rem; }
+.bounce-content { flex: 1; min-width: 0; }
+.bounce-content strong { font-size: 0.72rem; font-weight: 650; display: block; }
+.bounce-content p { font-size: 0.66rem; color: #999; margin-top: 0.15rem; line-height: 1.4; }
+.bounce-detail { font-family: monospace; font-size: 0.6rem; color: #777; margin-top: 0.3rem; }
+.bounce-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+.bounce-retry, .bounce-remove { border: 1px solid #2d2d32; background: transparent; color: #bbb; font-size: 0.62rem; font-weight: 550; padding: 0.25rem 0.55rem; border-radius: 0.35rem; cursor: pointer; transition: all 100ms; }
+.bounce-retry:hover { border-color: rgba(74,222,128,0.3); color: #4ade80; }
+.bounce-remove:hover { border-color: rgba(248,113,113,0.3); color: #f87171; }
+
+/* ========================================================================== */
+/* Follow-up Reminder                                                         */
+/* ========================================================================== */
+.followup-reminder { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.45rem 0.75rem; border-radius: 0.5rem; background: rgba(251,191,36,0.04); border: 1px solid rgba(251,191,36,0.12); margin-top: 0.4rem; }
+.followup-content { display: flex; align-items: center; gap: 0.35rem; flex: 1; }
+.followup-icon { font-size: 0.7rem; }
+.followup-text { font-size: 0.64rem; color: #bbb; }
+.followup-actions { display: flex; align-items: center; gap: 0.3rem; }
+.followup-btn { border: 1px solid rgba(255,153,51,0.25); background: rgba(255,153,51,0.06); color: #ff9933; font-size: 0.62rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 0.35rem; cursor: pointer; }
+.followup-btn:hover { background: rgba(255,153,51,0.12); }
+.followup-dismiss { border: none; background: transparent; color: #666; font-size: 0.9rem; cursor: pointer; }
+.followup-options { display: flex; flex-wrap: wrap; gap: 0.2rem; width: 100%; padding-top: 0.3rem; }
+.followup-options button { border: 1px solid #2a2a2e; background: #0f0f11; color: #bbb; font-size: 0.6rem; padding: 0.2rem 0.5rem; border-radius: 1rem; cursor: pointer; transition: all 80ms; }
+.followup-options button:hover { border-color: #ff9933; color: #ff9933; }
+
+/* ========================================================================== */
+/* Inbox Zero Celebration                                                     */
+/* ========================================================================== */
+.inbox-zero { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4rem 2rem; text-align: center; position: relative; }
+.inbox-zero-glow { position: absolute; width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, rgba(255,153,51,0.08) 0%, transparent 70%); filter: blur(40px); pointer-events: none; }
+.inbox-zero-mark { margin-bottom: 1.5rem; }
+.inbox-zero-title { font-size: 1.8rem; font-weight: 720; letter-spacing: -0.04em; color: #f5f5f0; margin-bottom: 0.4rem; }
+.inbox-zero-subtitle { font-size: 0.8rem; color: #888; max-width: 280px; line-height: 1.5; }
+.inbox-zero-stats { display: flex; gap: 1.5rem; margin-top: 1.5rem; margin-bottom: 1.2rem; }
+.inbox-zero-stat { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; }
+.inbox-zero-stat-number { font-size: 1.2rem; }
+.inbox-zero-stat-label { font-size: 0.6rem; color: #666; font-weight: 550; }
+.inbox-zero-cta { font-size: 0.68rem; color: #555; margin-top: 0.5rem; }
