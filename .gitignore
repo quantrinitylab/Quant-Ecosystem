@@ -30,3 +30,11 @@ Quant-Ecosystem.bundle
 .quant-latest-work/
 .quantmail-release-candidate/
 _bedrock-probe*.mts
+
+.quant-latest-clone-*
+.quant-fresh-clone-*
+
+# Secrets
+.kiro/settings/mcp.json
+infra/scripts/patch-secret.json
+infra/scripts/patch-cf.json

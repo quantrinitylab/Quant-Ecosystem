@@ -32,6 +32,38 @@ spec:
                 name: {{ include "quant-platform.fullname" . }}-ws-gateway
                 port:
                   number: 8080
+    {{- if .Values.global.appSubdomains }}
+    - host: {{ .Values.global.appSubdomains.quantmail }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "quant-platform.fullname" . }}-quantmail
+                port:
+                  number: 3000
+    - host: {{ .Values.global.appSubdomains.quantchat }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "quant-platform.fullname" . }}-quantchat
+                port:
+                  number: 3000
+    - host: {{ .Values.global.appSubdomains.quantai }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "quant-platform.fullname" . }}-quantai
+                port:
+                  number: 3000
+    {{- end }}
     - host: ws.{{ .Values.global.domain }}
       http:
         paths:

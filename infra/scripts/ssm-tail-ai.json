@@ -1,0 +1,8 @@
+{
+  "InstanceIds": ["i-04331c285e901cc2d"],
+  "DocumentName": "AWS-RunShellScript",
+  "TimeoutSeconds": 30,
+  "Parameters": {
+    "commands": ["tail -5 /tmp/ai-build.log 2>/dev/null || echo NO_LOG; ps aux | grep docker | grep -v grep | head -2"]
+  }
+}

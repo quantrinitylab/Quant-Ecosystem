@@ -241,6 +241,10 @@ export default function RegisterPage() {
                 >
                   {fieldErrors.confirmPassword}
                 </p>
+              ) : confirmPassword && password ? (
+                <p className={`mt-1.5 text-xs ${confirmPassword === password ? 'text-emerald-400' : 'text-[var(--quant-destructive)]'}`}>
+                  {confirmPassword === password ? '✓ Passwords match' : '✗ Passwords do not match'}
+                </p>
               ) : null}
             </div>
 

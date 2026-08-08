@@ -38,6 +38,7 @@ export default function TrashPage() {
 
   const handlePermanentDelete = useCallback(
     async (id: string) => {
+      if (!window.confirm('Permanently delete this email? This cannot be undone.')) return;
       await apiClient.deleteEmail(id);
       setSelectedIds((prev) => {
         const next = new Set(prev);
@@ -49,9 +50,30 @@ export default function TrashPage() {
     [refetch],
   );
 
+  const handleRestore = useCallback(
+    async (id: string) => {
+      await apiClient.archiveEmail(id); // moves out of trash back to inbox/archive
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      refetch();
+    },
+    [refetch],
+  );
+
   const handleBatchDelete = useCallback(async () => {
+    if (!window.confirm(`Permanently delete ${selectedIds.size} email(s)? This cannot be undone.`)) return;
     const ids = Array.from(selectedIds);
     await Promise.all(ids.map((id) => apiClient.deleteEmail(id)));
+    setSelectedIds(new Set());
+    refetch();
+  }, [selectedIds, refetch]);
+
+  const handleBatchRestore = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    await Promise.all(ids.map((id) => apiClient.archiveEmail(id)));
     setSelectedIds(new Set());
     refetch();
   }, [selectedIds, refetch]);
@@ -60,8 +82,26 @@ export default function TrashPage() {
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page trash-workspace flex flex-col h-full">
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
-          <h1 className="text-lg font-semibold">Trash</h1>
+          <div>
+            <h1 className="text-lg font-semibold">Trash</h1>
+            <p className="text-xs text-[var(--quant-muted-foreground)]">
+              Messages here will be permanently deleted after 30 days
+            </p>
+          </div>
           <div className="flex items-center gap-2">
+            {emails && emails.length > 0 && (
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  if (!window.confirm(`Permanently delete all ${emails.length} items in trash? This cannot be undone.`)) return;
+                  await Promise.all(emails.map((e) => apiClient.deleteEmail(e.id)));
+                  setSelectedIds(new Set());
+                  refetch();
+                }}
+              >
+                Empty Trash
+              </Button>
+            )}
             <Button variant="secondary" onClick={handleSelectAll}>
               {selectedIds.size === emails?.length ? 'Deselect All' : 'Select All'}
             </Button>
@@ -81,6 +121,9 @@ export default function TrashPage() {
               transition={{ type: 'spring', ...spring.snappy }}
             >
               <span className="text-sm font-medium">{selectedIds.size} selected</span>
+              <Button variant="secondary" onClick={handleBatchRestore}>
+                Restore
+              </Button>
               <Button variant="secondary" onClick={handleBatchDelete}>
                 Delete Permanently
               </Button>
@@ -149,9 +192,18 @@ export default function TrashPage() {
                           {email.receivedAt ? new Date(email.receivedAt).toLocaleDateString() : ''}
                         </span>
                         <button
+                          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-[var(--quant-foreground)] hover:opacity-80"
+                          onClick={() => handleRestore(email.id)}
+                          title="Restore to inbox"
+                          aria-label="Restore to inbox"
+                        >
+                          ↩
+                        </button>
+                        <button
                           className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-[var(--quant-destructive)] hover:opacity-80"
                           onClick={() => handlePermanentDelete(email.id)}
                           title="Delete permanently"
+                          aria-label="Delete permanently"
                         >
                           &#128465;
                         </button>

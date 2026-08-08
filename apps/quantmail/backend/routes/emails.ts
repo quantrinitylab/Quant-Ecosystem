@@ -256,6 +256,42 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: { message: 'Email archived' } });
   });
 
+  // POST /emails/:id/unarchive - move back to inbox.
+  fastify.post<{ Params: { id: string } }>('/:id/unarchive', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email) throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    await prisma.email.update({ where: { id: request.params.id }, data: { isTrash: false } });
+    return reply.send({ success: true, data: { message: 'Email moved to inbox' } });
+  });
+
+  // POST /emails/:id/read - mark as read.
+  fastify.post<{ Params: { id: string } }>('/:id/read', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email) throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    await prisma.email.update({ where: { id: request.params.id }, data: { isRead: true } });
+    return reply.send({ success: true, data: { message: 'Marked as read' } });
+  });
+
+  // POST /emails/:id/unread - mark as unread.
+  fastify.post<{ Params: { id: string } }>('/:id/unread', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email) throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    await prisma.email.update({ where: { id: request.params.id }, data: { isRead: false } });
+    return reply.send({ success: true, data: { message: 'Marked as unread' } });
+  });
+
   // GET /emails - List emails (requires folderId or search)
   fastify.get('/', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;

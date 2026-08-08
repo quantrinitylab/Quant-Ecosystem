@@ -14,6 +14,9 @@ bootstrap_root_approved = false
 
 browser_origins = [
   "https://quantrinity.in",
+  "https://quantmail.quantrinity.in",
+  "https://quantchat.quantrinity.in",
+  "https://quantai.quantrinity.in",
 ]
 
 # Required secrets must come from protected CI/environment variables:

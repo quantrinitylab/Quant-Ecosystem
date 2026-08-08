@@ -1,8 +1,16 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Skeleton } from '@quant/shared-ui';
 
 export default function Loading() {
+  const [showSlowMessage, setShowSlowMessage] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSlowMessage(true), 5000);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <div
       className="flex h-screen animate-fade-in motion-reduce:animate-none"
@@ -33,6 +41,19 @@ export default function Loading() {
         {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} variant="rect" width="100%" height="72px" />
         ))}
+        {showSlowMessage && (
+          <div className="mt-6 text-center">
+            <p className="text-sm text-[var(--quant-muted-foreground)]">
+              Taking longer than expected…
+            </p>
+            <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">
+              Check your connection or{' '}
+              <a href="/" className="text-[var(--brand-primary)] hover:underline">
+                reload the page
+              </a>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
