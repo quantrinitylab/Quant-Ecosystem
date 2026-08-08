@@ -44,6 +44,8 @@ export interface Email extends BaseEntity {
   headers: Record<string, string>;
   receivedAt: Date;
   scheduledAt?: Date;
+  snoozedUntil?: Date;
+  trashedAt?: Date;
   aiSummary?: string;
   aiCategory?: EmailCategory;
   phishingScore?: number;

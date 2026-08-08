@@ -1,0 +1,8 @@
+{
+  "InstanceIds": ["i-04331c285e901cc2d"],
+  "DocumentName": "AWS-RunShellScript",
+  "TimeoutSeconds": 60,
+  "Parameters": {
+    "commands": ["docker system prune -af && docker volume prune -af && rm -rf /tmp/Quant-Ecosystem && df -h / && echo CLEANUP_DONE"]
+  }
+}

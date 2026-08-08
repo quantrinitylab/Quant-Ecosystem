@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useMemo } from 'react';
+import { SyntaxHighlighter } from './SyntaxHighlighter';
 
 export interface CodeEditorProps {
   filename: string;
@@ -138,26 +139,12 @@ export function CodeEditor(props: CodeEditorProps): React.ReactElement {
             />
           </div>
         ) : (
-          <div className="editor-view-mode">
-            {lineNumbers && (
-              <div className="line-numbers">
-                {lines.map((_, i) => (
-                  <span key={i + 1} className={`line-number ${highlightedLines.includes(i + 1) ? 'highlighted' : ''}`}>
-                    {i + 1}
-                  </span>
-                ))}
-              </div>
-            )}
-            <pre className="editor-content">
-              <code className={`language-${detectedLanguage}`}>
-                {lines.map((line, i) => (
-                  <div key={i} className={getLineClass(i + 1)}>
-                    {line || ' '}
-                  </div>
-                ))}
-              </code>
-            </pre>
-          </div>
+          <SyntaxHighlighter
+            code={content}
+            language={detectedLanguage}
+            lineNumbers={lineNumbers}
+            highlightedLines={highlightedLines}
+          />
         )}
       </div>
 

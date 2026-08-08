@@ -5,6 +5,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { usePathname, useRouter } from 'next/navigation';
 import { quantMailBrandLockup } from '../brand/identity';
 import { useCreateLabel, useLabels } from '../hooks/useLabels';
+import { useInbox } from '../hooks/useInbox';
+import { NotificationBell } from './NotificationBell';
 import type { EmailLabel } from '../types';
 import { AccountBadge } from './AccountBadge';
 import { QuantrinityMark } from './QuantrinityMark';
@@ -155,6 +157,10 @@ export function AppSidebar() {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
   const isActive = (path: string) => (path === '/' ? pathname === '/' : pathname.startsWith(path));
+  const { data: inboxEmails } = useInbox();
+  const { data: draftEmails } = useInbox({ folderType: 'DRAFTS' });
+  const unreadCount = inboxEmails?.filter((e) => !e.isRead).length ?? 0;
+  const draftCount = draftEmails?.length ?? 0;
 
   return (
     <nav className="quant-sidebar" aria-label="QuantMail navigation">
@@ -164,6 +170,7 @@ export function AppSidebar() {
           <p className="sidebar-product">{quantMailBrandLockup.productName}</p>
           <p className="sidebar-parent">{quantMailBrandLockup.byline}</p>
         </div>
+        <NotificationBell />
         <span className="sidebar-live-dot" title="All systems operational" aria-label="All systems operational" />
       </header>
 
@@ -171,6 +178,7 @@ export function AppSidebar() {
         <button type="button" onClick={() => router.push('/compose')} className="sidebar-compose">
           <Icon name="compose" className="h-[18px] w-[18px]" />
           <span>New message</span>
+          <kbd>C</kbd>
         </button>
       </div>
 
@@ -188,6 +196,8 @@ export function AppSidebar() {
                       aria-current={active ? 'page' : undefined}>
                       <Icon name={item.icon} />
                       <span>{item.label}</span>
+                      {item.id === 'inbox' && unreadCount > 0 && <span className="sidebar-count">{unreadCount}</span>}
+                      {item.id === 'drafts' && draftCount > 0 && <span className="sidebar-count sidebar-count-muted">{draftCount}</span>}
                       {item.id === 'inbox' && <span className="sidebar-nav-spark" aria-hidden="true" />}
                     </button>
                   </li>

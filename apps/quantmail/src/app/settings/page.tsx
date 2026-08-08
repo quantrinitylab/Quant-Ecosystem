@@ -39,6 +39,19 @@ const SHORTCUTS = [
   ['Ctrl/Cmd + K', 'Open command palette (global)'],
   ['Ctrl/Cmd + Enter', 'Send email (compose only)'],
   ['Ctrl/Cmd + S', 'Save draft (compose only)'],
+  ['J / ↓', 'Next email in inbox'],
+  ['K / ↑', 'Previous email in inbox'],
+  ['E', 'Archive selected email'],
+  ['#', 'Delete selected email'],
+  ['S', 'Star / unstar email'],
+  ['U', 'Toggle read / unread'],
+  ['X', 'Select / deselect email'],
+  ['R', 'Reply to email'],
+  ['F', 'Forward email'],
+  ['C', 'Compose new message'],
+  ['/', 'Focus search'],
+  ['?', 'Show keyboard shortcuts help'],
+  ['Escape', 'Close / deselect'],
 ] as const;
 
 export default function SettingsPage() {

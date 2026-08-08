@@ -17,6 +17,13 @@ export function useInbox(options?: {
       }
       return response.data ?? [];
     },
+    // Live updates: refetch every 30 seconds when window is focused
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    // Refetch when user tabs back into QuantMail
+    refetchOnWindowFocus: true,
+    // Keep showing stale data while refetching
+    staleTime: 15_000,
   });
 }
 

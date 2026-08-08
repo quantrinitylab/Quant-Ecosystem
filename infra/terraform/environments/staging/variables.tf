@@ -44,10 +44,10 @@ variable "cors_allowed_origins" {
   type        = list(string)
   description = "Allowed origins for CORS (exact origins only; wildcard origins are banned by the #134 production guards)"
   default = [
-    "https://staging.quantrinity.in",
-    "https://staging.quantmail.quantrinity.in",
-    "https://staging.quantchat.quantrinity.in",
-    "https://staging.quantai.quantrinity.in"
+    "https://quantrinity.in",
+    "https://quantmail.quantrinity.in",
+    "https://quantchat.quantrinity.in",
+    "https://quantai.quantrinity.in"
   ]
 }
 

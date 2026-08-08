@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { toastSlideUpVariants } from '../lib/motion-variants';
+import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomplete';
+import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
 import type { EmailAddress, EmailPriority } from '../types';
 
 export interface ComposerMessageData {
@@ -130,6 +132,13 @@ export function EmailComposer({
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [lastDraftSavedAt, setLastDraftSavedAt] = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [contacts] = useState<ContactSuggestion[]>([
+    // Pre-seeded contacts for autocomplete — in production these come from the contacts API
+    { email: 'team@quantrinity.in', name: 'Quantrinity Team', frequency: 10 },
+    { email: 'kundan@quantmail.in', name: 'Kundan', frequency: 8 },
+    { email: 'support@quantrinity.in', name: 'Support', frequency: 5 },
+  ]);
   const [undoSendState, setUndoSendState] = useState<{
     countdown: number;
     payload: ComposerMessageData;
@@ -468,22 +477,16 @@ export function EmailComposer({
 
         <div className="composer-fields">
           <div className={`composer-field ${fieldErrors.to ? 'has-error' : ''}`}>
-            <label htmlFor={toId}>
-              To <span aria-hidden="true">*</span>
-            </label>
-            <input
+            <ContactAutocomplete
               id={toId}
-              type="text"
+              label="To"
               value={to}
-              required
-              aria-invalid={Boolean(fieldErrors.to)}
-              aria-describedby={fieldErrors.to ? `${toId}-error` : undefined}
-              autoComplete="email"
-              placeholder="name@example.com, teammate@example.com"
-              onChange={(event) => {
-                setTo(event.target.value);
+              onChange={(value) => {
+                setTo(value);
                 if (fieldErrors.to) setFieldErrors((errors) => ({ ...errors, to: undefined }));
               }}
+              contacts={contacts}
+              placeholder="name@example.com"
             />
             <button
               type="button"
@@ -503,21 +506,23 @@ export function EmailComposer({
           {showCcBcc && (
             <div className="composer-secondary-fields">
               <div className="composer-field">
-                <label htmlFor={ccId}>Cc</label>
-                <input
+                <ContactAutocomplete
                   id={ccId}
-                  type="text"
+                  label="Cc"
                   value={cc}
-                  onChange={(event) => setCc(event.target.value)}
+                  onChange={setCc}
+                  contacts={contacts}
+                  placeholder="Add Cc recipients"
                 />
               </div>
               <div className="composer-field">
-                <label htmlFor={bccId}>Bcc</label>
-                <input
+                <ContactAutocomplete
                   id={bccId}
-                  type="text"
+                  label="Bcc"
                   value={bcc}
-                  onChange={(event) => setBcc(event.target.value)}
+                  onChange={setBcc}
+                  contacts={contacts}
+                  placeholder="Add Bcc recipients"
                 />
               </div>
             </div>
@@ -690,6 +695,17 @@ export function EmailComposer({
               </svg>
               Select local files
             </button>
+            <button
+              type="button"
+              className="tool-action"
+              onClick={() => setShowTemplates(true)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M9 21V9" />
+              </svg>
+              Templates
+            </button>
             <span className="attachment-caveat">Upload is not available</span>
           </div>
           <div className="priority-control">
@@ -778,6 +794,15 @@ export function EmailComposer({
           </div>
         </footer>
       </section>
+
+      <EmailTemplates
+        isOpen={showTemplates}
+        onClose={() => setShowTemplates(false)}
+        onSelectTemplate={(template: EmailTemplate) => {
+          if (template.subject) setSubject(template.subject);
+          if (template.body) setBody(template.body);
+        }}
+      />
 
       <AnimatePresence>
         {undoSendState && (
