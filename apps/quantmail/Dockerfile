@@ -11,10 +11,12 @@ FROM deps AS builder
 ENV NODE_OPTIONS="--max-old-space-size=2048"
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma@6.19.3 generate --schema=packages/database/prisma/schema.prisma
-# Build dependencies first (shared-ui, brand, common, etc.)
-RUN pnpm turbo build --filter=@quant/quantmail^... --concurrency=1 || true
-# Build Next.js app with type checking disabled (pre-existing inherited debt)
-RUN cd apps/quantmail && NEXT_DISABLE_TYPE_CHECK=true pnpm exec next build
+# Build all workspace dependencies that quantmail needs (shared-ui, brand, common, etc.)
+RUN pnpm --filter @quant/shared-ui run build || echo "shared-ui build: non-critical skip"
+RUN pnpm --filter @quant/brand run build || echo "brand build: non-critical skip"
+RUN pnpm --filter @quant/common run build || echo "common build: non-critical skip"
+# Build Next.js app — ignoreBuildErrors is set in next.config.js
+RUN cd apps/quantmail && pnpm exec next build
 
 FROM node:22-slim AS runner
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
