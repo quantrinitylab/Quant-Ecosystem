@@ -8,6 +8,8 @@ import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../../components/AppSidebar';
 import { PageTransition } from '../../../components/PageTransition';
 import { CodeEditor } from '../../../components/CodeEditor';
+import { AICodeReview } from '../../../components/AICodeReview';
+import { FileTree } from '../../../components/FileTree';
 import {
   useRepo,
   useBranches,
@@ -96,30 +98,11 @@ export default function RepoDetailPage() {
                   <EmptyState title="No files" description="This repository is empty" />
                 )}
                 {!loadingTree && fileTree && fileTree.length > 0 && (
-                  <div className="space-y-1">
-                    {fileTree.map((path) => {
-                      const isFolder = path.endsWith('/');
-                      const isActive = selectedFile === path;
-                      return (
-                        <button
-                          key={path}
-                          type="button"
-                          disabled={isFolder}
-                          onClick={() => !isFolder && setSelectedFile(path)}
-                          className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                            isActive
-                              ? 'bg-[var(--quant-primary)] text-white'
-                              : 'hover:bg-[var(--quant-muted)]'
-                          } ${isFolder ? 'cursor-default opacity-80' : 'cursor-pointer'}`}
-                        >
-                          <span className={isActive ? '' : 'text-[var(--quant-muted-foreground)]'}>
-                            {isFolder ? '\uD83D\uDCC1' : '\uD83D\uDCC4'}
-                          </span>
-                          <span className="truncate">{path}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <FileTree
+                    paths={fileTree}
+                    selectedFile={selectedFile}
+                    onSelectFile={setSelectedFile}
+                  />
                 )}
               </div>
 
@@ -159,31 +142,40 @@ export default function RepoDetailPage() {
               )}
               {!loadingPRs &&
                 prs &&
-                prs.map((pr) => (
-                  <Card key={pr.id} className="mb-2 p-3">
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={
-                          pr.status === 'open'
-                            ? 'success'
-                            : pr.status === 'merged'
-                              ? 'info'
-                              : 'default'
-                        }
-                      >
-                        {pr.status}
-                      </Badge>
-                      <span className="font-medium text-sm">{pr.title}</span>
-                      <span className="text-xs text-[var(--quant-muted-foreground)] ml-auto">
-                        #{pr.number}
-                      </span>
-                    </div>
-                    <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
-                      {pr.sourceBranch} → {pr.targetBranch} by{' '}
-                      {pr.author?.name || pr.author?.username}
-                    </p>
-                  </Card>
-                ))}
+                prs.length > 0 && (
+                  <div className="space-y-3">
+                    {/* AI Code Review — GitHub doesn't have this */}
+                    <AICodeReview
+                      prId={prs[0].id}
+                      prTitle={prs[0].title}
+                    />
+                    {prs.map((pr) => (
+                      <Card key={pr.id} className="p-3">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={
+                              pr.status === 'open'
+                                ? 'success'
+                                : pr.status === 'merged'
+                                  ? 'info'
+                                  : 'default'
+                            }
+                          >
+                            {pr.status}
+                          </Badge>
+                          <span className="font-medium text-sm">{pr.title}</span>
+                          <span className="text-xs text-[var(--quant-muted-foreground)] ml-auto">
+                            #{pr.number}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
+                          {pr.sourceBranch} → {pr.targetBranch} by{' '}
+                          {pr.author?.name || pr.author?.username}
+                        </p>
+                      </Card>
+                    ))}
+                  </div>
+                )}
             </>
           )}
 

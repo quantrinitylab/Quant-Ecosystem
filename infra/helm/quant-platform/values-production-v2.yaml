@@ -1,6 +1,10 @@
 global:
   environment: production
   domain: quantrinity.in
+  appSubdomains:
+    quantmail: quantmail.quantrinity.in
+    quantchat: quantchat.quantrinity.in
+    quantai: quantai.quantrinity.in
   expectedAwsAccountId: '266176113726'
   publicDNSProvider: cloudflare
   deploymentApproved: false
@@ -22,7 +26,7 @@ global:
 configmap:
   NODE_ENV: production
   LOG_LEVEL: warn
-  CORS_ORIGINS: 'https://quantrinity.in'
+  CORS_ORIGINS: 'https://quantrinity.in,https://quantmail.quantrinity.in,https://quantchat.quantrinity.in,https://quantai.quantrinity.in'
   JWT_ISSUER: 'https://quantrinity.in'
   JWT_AUDIENCE: 'quant-platform'
   AI_PROVIDER: cloudflare

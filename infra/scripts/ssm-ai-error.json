@@ -1,0 +1,8 @@
+{
+  "InstanceIds": ["i-04331c285e901cc2d"],
+  "DocumentName": "AWS-RunShellScript",
+  "TimeoutSeconds": 30,
+  "Parameters": {
+    "commands": ["grep -A5 'error\\|Error\\|ERROR' /tmp/ai-build.log | tail -30"]
+  }
+}

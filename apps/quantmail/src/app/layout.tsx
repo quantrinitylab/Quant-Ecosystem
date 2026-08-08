@@ -3,6 +3,11 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { quantMailBrandMetadata } from '../brand/identity';
 import { AuthGuard } from '../components/AuthGuard';
+import { CommandPalette } from '../components/CommandPalette';
+import { GlobalShortcutsProvider } from '../components/GlobalShortcutsProvider';
+import { InboxToastContainer } from '../components/InboxToast';
+import { KeyboardShortcutsHelp } from '../components/KeyboardShortcutsHelp';
+import { OfflineBar } from '../components/OfflineBar';
 import { AppProviders } from '../providers/app-providers';
 import { AuthProvider } from '../providers/auth-provider';
 import { BrandProvider } from '../providers/brand-provider';
@@ -51,11 +56,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
       <body className={`${inter.className} quantmail-root`}>
+        <a href="#main-content" className="skip-to-content">
+          Skip to content
+        </a>
+        <OfflineBar />
         <QueryProvider>
           <BrandProvider>
             <AuthProvider>
               <AppProviders>
-                <AuthGuard>{children}</AuthGuard>
+                <AuthGuard>
+                  <GlobalShortcutsProvider>
+                    <main id="main-content">
+                      {children}
+                    </main>
+                  </GlobalShortcutsProvider>
+                  <CommandPalette />
+                  <KeyboardShortcutsHelp />
+                  <InboxToastContainer />
+                </AuthGuard>
               </AppProviders>
             </AuthProvider>
           </BrandProvider>

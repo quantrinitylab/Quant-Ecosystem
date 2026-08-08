@@ -1,0 +1,1 @@
+{"commands":["cd /tmp && rm -rf Quant-Ecosystem && git clone --depth 1 https://github.com/quantrinitylabsgo/Quant-Ecosystem.git && cd Quant-Ecosystem && bash infra/scripts/build-backends-ec2.sh > /tmp/build.log 2>&1"]}

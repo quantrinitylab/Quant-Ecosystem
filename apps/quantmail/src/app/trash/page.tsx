@@ -82,8 +82,26 @@ export default function TrashPage() {
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page trash-workspace flex flex-col h-full">
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
-          <h1 className="text-lg font-semibold">Trash</h1>
+          <div>
+            <h1 className="text-lg font-semibold">Trash</h1>
+            <p className="text-xs text-[var(--quant-muted-foreground)]">
+              Messages here will be permanently deleted after 30 days
+            </p>
+          </div>
           <div className="flex items-center gap-2">
+            {emails && emails.length > 0 && (
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  if (!window.confirm(`Permanently delete all ${emails.length} items in trash? This cannot be undone.`)) return;
+                  await Promise.all(emails.map((e) => apiClient.deleteEmail(e.id)));
+                  setSelectedIds(new Set());
+                  refetch();
+                }}
+              >
+                Empty Trash
+              </Button>
+            )}
             <Button variant="secondary" onClick={handleSelectAll}>
               {selectedIds.size === emails?.length ? 'Deselect All' : 'Select All'}
             </Button>

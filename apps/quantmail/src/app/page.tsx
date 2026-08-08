@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AnimatePresence,
@@ -16,8 +16,16 @@ import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
 import { AppSidebar } from '../components/AppSidebar';
+import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
+import { EmailSnooze } from '../components/EmailSnooze';
+import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
+import { InboxToastContainer, showToast } from '../components/InboxToast';
+import { KeyboardShortcutsHelp } from '../components/KeyboardShortcutsHelp';
+import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
 import { QuantrinityMark } from '../components/QuantrinityMark';
+import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
+import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { apiClient } from '../services/api-client';
 import type { Email, EmailCategory } from '../types';
 
@@ -91,25 +99,36 @@ type EmailRowProps = {
   email: Email;
   isChecked: boolean;
   isActive: boolean;
+  isFocused: boolean;
   onToggleSelect: () => void;
   onToggleStar: (event: React.MouseEvent) => void;
   onOpen: () => void;
   onArchive: () => void;
+  onDelete: () => void;
+  onMarkRead: () => void;
+  onMarkUnread: () => void;
+  onSnooze: (emailId: string, snoozeUntil: Date) => void;
 };
 
 function EmailRow({
   email,
   isChecked,
   isActive,
+  isFocused,
   onToggleSelect,
   onToggleStar,
   onOpen,
   onArchive,
+  onDelete,
+  onMarkRead,
+  onMarkUnread,
+  onSnooze,
 }: EmailRowProps) {
   const x = useMotionValue(0);
   const archiveOpacity = useTransform(x, [-108, -44], [1, 0]);
   const prefersReducedMotion = useReducedMotion();
   const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
   const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     setIsDragging(false);
@@ -132,7 +151,9 @@ function EmailRow({
         dragElastic={0.08}
         onDragStart={() => setIsDragging(true)}
         onDragEnd={handleDragEnd}
-        className={`mail-row ${email.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''}`}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`mail-row ${email.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''}`}
         onClick={() => {
           if (!isDragging) onOpen();
         }}
@@ -154,15 +175,35 @@ function EmailRow({
           <h3>{email.subject || '(no subject)'}</h3>
           <p>{email.snippet}</p>
         </div>
-        <button
-          type="button"
-          className={`mail-star ${email.isStarred ? 'is-starred' : ''}`}
-          onClick={onToggleStar}
-          aria-label={email.isStarred ? 'Unstar email' : 'Star email'}
-          aria-pressed={email.isStarred}
-        >
-          <MailIcon name="star" />
-        </button>
+        {/* Hover actions bar — Gmail-style quick actions on hover */}
+        <AnimatePresence>
+          {isHovered && !isDragging && (
+            <HoverActions
+              emailId={email.id}
+              isRead={email.isRead}
+              onArchive={onArchive}
+              onDelete={onDelete}
+              onMarkRead={onMarkRead}
+              onMarkUnread={onMarkUnread}
+              onSnooze={() => onSnooze(email.id, new Date(Date.now() + 3 * 3600 * 1000))}
+            />
+          )}
+        </AnimatePresence>
+        {/* Star + Snooze only visible when NOT hovered (hover shows actions bar instead) */}
+        {!isHovered && (
+          <>
+            <button
+              type="button"
+              className={`mail-star ${email.isStarred ? 'is-starred' : ''}`}
+              onClick={onToggleStar}
+              aria-label={email.isStarred ? 'Unstar email' : 'Star email'}
+              aria-pressed={email.isStarred}
+            >
+              <MailIcon name="star" />
+            </button>
+            <EmailSnooze emailId={email.id} onSnooze={onSnooze} />
+          </>
+        )}
       </motion.article>
     </div>
   );
@@ -234,6 +275,9 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
         <div className="reading-content">
           <p className="reading-eyebrow">
             {email.category} · {email.priority} priority
+            {(email.bodyText || email.snippet) && (
+              <ReadTimeEstimate text={email.bodyText || email.snippet} className="ml-2" />
+            )}
           </p>
           <h1>{email.subject || '(no subject)'}</h1>
           <div className="reading-sender">
@@ -253,6 +297,7 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
               </div>
             </aside>
           )}
+          <EmailSafetyBanner email={email} />
           <div className="reading-message">{email.bodyText || email.snippet}</div>
           {email.attachments?.length > 0 && (
             <section className="reading-attachments" aria-label="Attachments">
@@ -271,6 +316,10 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
           )}
         </div>
         <footer className="reading-reply-bar">
+          <SmartReplySuggestions
+            emailId={email.id}
+            onSelectReply={(text) => router.push(`/compose?replyTo=${email.threadId}&body=${encodeURIComponent(text)}`)}
+          />
           <button type="button" onClick={() => router.push(`/compose?replyTo=${email.threadId}`)}>
             Reply with clarity…
           </button>
@@ -294,6 +343,7 @@ export default function InboxPage() {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
+  const lastSelectedIndex = useRef<number>(-1);
   const { data: allEmails, isLoading, error, refetch } = useInbox({ category: activeCategory });
   const { data: searchResults, isLoading: isSearching } = useSearchEmails(
     debouncedQuery ? { query: debouncedQuery } : null,
@@ -317,52 +367,134 @@ export default function InboxPage() {
     return counts;
   }, [allEmails]);
 
-  const toggleSelect = useCallback((id: string) => {
+  const toggleSelect = useCallback((id: string, event?: React.MouseEvent) => {
     setSelectedIds((current) => {
       const next = new Set(current);
+      // Shift+Click range selection
+      if (event?.shiftKey && emails && lastSelectedIndex.current >= 0) {
+        const currentIndex = emails.findIndex((e) => e.id === id);
+        if (currentIndex >= 0) {
+          const start = Math.min(lastSelectedIndex.current, currentIndex);
+          const end = Math.max(lastSelectedIndex.current, currentIndex);
+          for (let i = start; i <= end; i++) {
+            next.add(emails[i].id);
+          }
+          return next;
+        }
+      }
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      // Track last selected for shift+click
+      if (emails) {
+        const idx = emails.findIndex((e) => e.id === id);
+        if (idx >= 0) lastSelectedIndex.current = idx;
+      }
       return next;
     });
-  }, []);
+  }, [emails]);
 
   const batchAction = useCallback(
     async (action: 'archive' | 'delete') => {
+      const count = selectedIds.size;
       const requests = Array.from(selectedIds, (id) =>
         action === 'archive' ? apiClient.archiveEmail(id) : apiClient.deleteEmail(id),
       );
       await Promise.all(requests);
       setSelectedIds(new Set());
+      showToast({ text: `${count} conversation${count === 1 ? '' : 's'} ${action === 'archive' ? 'archived' : 'deleted'}`, type: 'success' });
       await refetch();
     },
     [refetch, selectedIds],
   );
 
   const toggleStar = useCallback(
-    async (event: React.MouseEvent, id: string) => {
-      event.stopPropagation();
+    async (event: React.MouseEvent | null, id: string) => {
+      event?.stopPropagation();
       await apiClient.toggleStar(id);
       await refetch();
     },
     [refetch],
   );
 
+  const archiveEmail = useCallback(
+    async (id: string) => {
+      await apiClient.archiveEmail(id);
+      if (selectedEmail?.id === id) setSelectedEmail(null);
+      showToast({
+        text: 'Conversation archived',
+        type: 'success',
+        undoAction: async () => {
+          // Undo: unarchive (move back to inbox)
+          await apiClient.unarchiveEmail?.(id).catch(() => {});
+          await refetch();
+        },
+      });
+      await refetch();
+    },
+    [refetch, selectedEmail],
+  );
+
+  const deleteEmail = useCallback(
+    async (id: string) => {
+      await apiClient.deleteEmail(id);
+      if (selectedEmail?.id === id) setSelectedEmail(null);
+      showToast({ text: 'Conversation moved to trash', type: 'success' });
+      await refetch();
+    },
+    [refetch, selectedEmail],
+  );
+
+  const markRead = useCallback(
+    async (id: string) => {
+      await apiClient.markAsRead?.(id).catch(() => {});
+      await refetch();
+    },
+    [refetch],
+  );
+
+  const markUnread = useCallback(
+    async (id: string) => {
+      await apiClient.markAsUnread?.(id).catch(() => {});
+      showToast({ text: 'Marked as unread', type: 'info' });
+      await refetch();
+    },
+    [refetch],
+  );
+
+  const snoozeEmail = useCallback(
+    async (emailId: string, _snoozeUntil: Date) => {
+      await apiClient.archiveEmail(emailId);
+      if (selectedEmail?.id === emailId) setSelectedEmail(null);
+      showToast({ text: 'Email snoozed', type: 'info' });
+      await refetch();
+    },
+    [refetch, selectedEmail],
+  );
+
   const openEmail = useCallback(
-    (email: Email) => {
+    (email: Email | null) => {
+      if (!email) {
+        setSelectedEmail(null);
+        return;
+      }
       if (window.matchMedia('(min-width: 900px)').matches) setSelectedEmail(email);
       else router.push(`/thread/${email.threadId}`);
     },
     [router],
   );
 
-  const archiveEmail = useCallback(
-    async (id: string) => {
-      await apiClient.archiveEmail(id);
-      if (selectedEmail?.id === id) setSelectedEmail(null);
-      await refetch();
-    },
-    [refetch, selectedEmail],
-  );
+  // Superhuman-style keyboard navigation
+  const { focusedIndex, listRef } = useInboxKeyboard({
+    emails,
+    selectedEmail,
+    onSelectEmail: openEmail,
+    onArchive: (id) => void archiveEmail(id),
+    onDelete: (id) => void deleteEmail(id),
+    onToggleStar: (id) => void toggleStar(null, id),
+    onToggleSelect: (id) => toggleSelect(id),
+    onMarkRead: (id) => void markRead(id),
+    onMarkUnread: (id) => void markUnread(id),
+  });
 
   return (
     <AppShell
@@ -453,6 +585,28 @@ export default function InboxPage() {
                 </button>
                 <button
                   type="button"
+                  onClick={async () => {
+                    await Promise.all(Array.from(selectedIds, (id) => apiClient.markAsRead(id)));
+                    setSelectedIds(new Set());
+                    showToast({ text: `${selectedIds.size} marked as read`, type: 'info' });
+                    await refetch();
+                  }}
+                >
+                  Mark read
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await Promise.all(Array.from(selectedIds, (id) => apiClient.markAsUnread(id)));
+                    setSelectedIds(new Set());
+                    showToast({ text: `${selectedIds.size} marked as unread`, type: 'info' });
+                    await refetch();
+                  }}
+                >
+                  Mark unread
+                </button>
+                <button
+                  type="button"
                   onClick={() => setSelectedIds(new Set())}
                   aria-label="Clear selection"
                 >
@@ -462,7 +616,7 @@ export default function InboxPage() {
             )}
           </AnimatePresence>
 
-          <div className="mail-list" aria-busy={isLoading || isSearching}>
+          <div className="mail-list" ref={listRef} aria-busy={isLoading || isSearching}>
             {(isLoading || isSearching) && (
               <div className="mail-loading">
                 {Array.from({ length: 6 }, (_, index) => (
@@ -519,7 +673,7 @@ export default function InboxPage() {
                 animate="visible"
                 variants={{ visible: { transition: { staggerChildren: 0.025 } } }}
               >
-                {emails.map((email) => (
+                {emails.map((email, index) => (
                   <motion.div
                     key={email.id}
                     variants={{ hidden: { opacity: 0, y: 5 }, visible: { opacity: 1, y: 0 } }}
@@ -528,10 +682,15 @@ export default function InboxPage() {
                       email={email}
                       isChecked={selectedIds.has(email.id)}
                       isActive={selectedEmail?.id === email.id}
+                      isFocused={focusedIndex === index}
                       onToggleSelect={() => toggleSelect(email.id)}
                       onToggleStar={(event) => void toggleStar(event, email.id)}
                       onOpen={() => openEmail(email)}
                       onArchive={() => void archiveEmail(email.id)}
+                      onDelete={() => void deleteEmail(email.id)}
+                      onMarkRead={() => void markRead(email.id)}
+                      onMarkUnread={() => void markUnread(email.id)}
+                      onSnooze={snoozeEmail}
                     />
                   </motion.div>
                 ))}
@@ -545,6 +704,8 @@ export default function InboxPage() {
         </section>
         <ReadingPane email={selectedEmail} onClose={() => setSelectedEmail(null)} />
       </div>
+      <InboxToastContainer />
+      <KeyboardShortcutsHelp />
     </AppShell>
   );
 }

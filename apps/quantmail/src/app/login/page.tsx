@@ -21,6 +21,7 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
 
@@ -176,6 +177,17 @@ export default function LoginPage() {
             <p className="sr-only" role="status" aria-live="polite">
               {isLoading ? 'Signing in.' : ''}
             </p>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)]"
+              />
+              <span className="text-sm text-[var(--quant-muted-foreground)]">Keep me signed in</span>
+            </label>
+
             <button
               type="submit"
               disabled={isLoading}

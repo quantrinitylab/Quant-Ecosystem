@@ -46,15 +46,29 @@ export default function Error({
             Reference: {error.digest}
           </p>
         ) : null}
-        <motion.div
-          whileHover={prefersReducedMotion ? undefined : { scale: 1.02 }}
-          whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
-          transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', ...spring.snappy }}
-        >
-          <Button onClick={reset} variant="primary">
-            Try again
-          </Button>
-        </motion.div>
+        <div className="flex items-center gap-3">
+          <motion.div
+            whileHover={prefersReducedMotion ? undefined : { scale: 1.02 }}
+            whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
+            transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', ...spring.snappy }}
+          >
+            <Button onClick={reset} variant="primary">
+              Try again
+            </Button>
+          </motion.div>
+          <a
+            href="/"
+            className="inline-flex items-center gap-1 rounded-lg border border-[var(--quant-border)] px-4 py-2 text-sm font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)]"
+          >
+            Go to Inbox
+          </a>
+        </div>
+        <p className="mt-6 text-xs text-[var(--quant-muted-foreground)]">
+          If this keeps happening,{' '}
+          <a href="mailto:support@quantrinity.in" className="text-[var(--brand-primary)] hover:underline">
+            contact support
+          </a>
+        </p>
       </motion.div>
     </div>
   );

@@ -1,0 +1,8 @@
+{
+  "InstanceIds": ["i-04331c285e901cc2d"],
+  "DocumentName": "AWS-RunShellScript",
+  "TimeoutSeconds": 900,
+  "Parameters": {
+    "commands": ["cd /tmp/Quant-Ecosystem && aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 266176113726.dkr.ecr.us-east-1.amazonaws.com && docker build -f apps/quantchat/Dockerfile.backend -t 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat-backend:latest . && docker push 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat-backend:latest && docker build -f apps/quantai/Dockerfile.backend -t 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantai-backend:latest . && docker push 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantai-backend:latest && docker build -f services/ws-gateway/Dockerfile -t 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-ws-gateway:latest . && docker push 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-ws-gateway:latest && echo ALL_BUILDS_COMPLETE"]
+  }
+}

@@ -3,15 +3,30 @@
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Card, Badge, Button, Skeleton } from '@quant/shared-ui';
+import { Button, Skeleton } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { useInbox } from '../../hooks/useInbox';
 import { apiClient } from '../../services/api-client';
-import { listContainerVariants, listItemVariants } from '../../lib/motion-variants';
 import type { Email } from '../../types';
+
+function relativeTime(value?: string | Date): string {
+  if (!value) return '';
+  const date = new Date(value);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin} min ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
 
 export default function DraftsPage() {
   const router = useRouter();
@@ -36,18 +51,26 @@ export default function DraftsPage() {
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page drafts-workspace flex flex-col h-full">
-        <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
-          <h1 className="text-lg font-semibold">Drafts</h1>
-          <Button variant="secondary" onClick={() => void refetch()}>
-            Refresh
+        <header className="sent-header">
+          <div>
+            <p className="sent-kicker"><span /> Work in progress</p>
+            <h1>Drafts</h1>
+            <p className="sent-subtitle">
+              {emails?.length
+                ? `${emails.length} unfinished message${emails.length !== 1 ? 's' : ''}`
+                : 'Drafts hold messages until you're ready to send'}
+            </p>
+          </div>
+          <Button variant="primary" onClick={() => router.push('/compose')}>
+            New draft
           </Button>
-        </div>
+        </header>
 
         <div className="flex-1 overflow-y-auto">
           {isLoading && (
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-2">
               {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} variant="rect" width="100%" height="80px" />
+                <Skeleton key={i} variant="rect" width="100%" height="72px" />
               ))}
             </div>
           )}
@@ -65,49 +88,58 @@ export default function DraftsPage() {
 
           {!isLoading && !error && emails && emails.length > 0 && (
             <motion.div
-              variants={listContainerVariants}
               initial="hidden"
               animate="visible"
-              className="p-4"
+              variants={{ visible: { transition: { staggerChildren: 0.02 } } }}
+              className="sent-list"
             >
               {emails.map((email) => (
-                <motion.div key={email.id} variants={listItemVariants}>
-                  <Card
-                    padding="none"
-                    className="my-2 p-4 cursor-pointer hover:bg-[var(--quant-muted)] transition-colors border-l-4 border-l-yellow-500"
-                    onClick={() => handleDraftClick(email)}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="warning">Draft</Badge>
-                          <span className="text-sm text-[var(--quant-muted-foreground)]">
-                            To:{' '}
-                            {email.to?.map((t) => t.name || t.email).join(', ') || '(no recipient)'}
-                          </span>
-                        </div>
-                        <h3 className="text-sm mt-1 font-medium">
-                          {email.subject || '(no subject)'}
-                        </h3>
-                        <p className="text-xs text-[var(--quant-muted-foreground)] mt-1 truncate">
-                          {email.snippet || email.bodyText?.slice(0, 100) || ''}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 ml-4">
-                        <span className="text-xs text-[var(--quant-muted-foreground)] whitespace-nowrap">
-                          {email.receivedAt ? new Date(email.receivedAt).toLocaleDateString() : ''}
-                        </span>
-                        <button
-                          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-destructive)]"
-                          onClick={(e) => handleDeleteDraft(e, email.id)}
-                          title="Delete draft"
-                        >
-                          &#128465;
-                        </button>
-                      </div>
+                <motion.article
+                  key={email.id}
+                  variants={{ hidden: { opacity: 0, y: 4 }, visible: { opacity: 1, y: 0 } }}
+                  className="draft-row"
+                  onClick={() => handleDraftClick(email)}
+                >
+                  <div className="draft-indicator" aria-hidden="true" />
+                  <div className="sent-row-content">
+                    <div className="sent-row-meta">
+                      <span className="draft-badge">Draft</span>
+                      <span className="sent-row-recipients">
+                        {email.to?.length
+                          ? `To: ${email.to.map((t) => t.name || t.email).join(', ')}`
+                          : 'No recipient yet'}
+                      </span>
+                      <time className="sent-row-time">{relativeTime(email.receivedAt)}</time>
                     </div>
-                  </Card>
-                </motion.div>
+                    <h3 className="sent-row-subject">
+                      {email.subject || '(no subject)'}
+                    </h3>
+                    <p className="sent-row-snippet">
+                      {email.snippet || email.bodyText?.slice(0, 120) || 'Empty draft'}
+                    </p>
+                  </div>
+                  <div className="draft-actions">
+                    <button
+                      type="button"
+                      className="draft-resume"
+                      onClick={(e) => { e.stopPropagation(); handleDraftClick(email); }}
+                      aria-label="Resume editing"
+                    >
+                      Resume
+                    </button>
+                    <button
+                      type="button"
+                      className="draft-delete"
+                      onClick={(e) => void handleDeleteDraft(e, email.id)}
+                      aria-label="Delete draft"
+                      title="Delete draft"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6" />
+                      </svg>
+                    </button>
+                  </div>
+                </motion.article>
               ))}
             </motion.div>
           )}

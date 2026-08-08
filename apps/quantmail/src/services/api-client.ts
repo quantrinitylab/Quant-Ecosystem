@@ -192,12 +192,24 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/archive`, {});
   }
 
+  async unarchiveEmail(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/unarchive`, {});
+  }
+
   async deleteEmail(id: string): Promise<ApiResponse<{ message: string }>> {
     return this.delete(`/emails/${id}`);
   }
 
   async toggleStar(id: string): Promise<ApiResponse<{ message: string }>> {
     return this.post(`/emails/${id}/star`, {});
+  }
+
+  async markAsRead(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/read`, {});
+  }
+
+  async markAsUnread(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/unread`, {});
   }
 
   async addLabel(emailId: string, label: string): Promise<ApiResponse<{ message: string }>> {
