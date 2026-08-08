@@ -42,6 +42,7 @@ const appAbs = path.resolve(appDir);
 // published entry (which the Next frontends' transpile config depends on).
 const srcEntryAliases = {
   '@quant/agentic': path.resolve('packages/agentic/src/index.ts'),
+  '@quant/database': path.resolve('packages/database/src/index.ts'),
 };
 
 // The deprecated `request` lib imports non-existent `uuid/v4` / `uuid/v1`
