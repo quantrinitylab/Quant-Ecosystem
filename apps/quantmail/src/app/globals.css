@@ -3704,3 +3704,60 @@ body {
   background: #1a1a1d;
   font-family: inherit;
 }
+
+/* ========================================================================== */
+/* Scheduled Email Timeline                                                   */
+/* ========================================================================== */
+.schedule-timeline { padding: 0.75rem 1rem; border-radius: 0.6rem; background: rgba(99, 102, 241, 0.03); border: 1px solid rgba(99, 102, 241, 0.1); margin-bottom: 0.75rem; }
+.schedule-timeline-header { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem; }
+.schedule-timeline-icon { font-size: 0.75rem; }
+.schedule-timeline-header strong { font-size: 0.72rem; font-weight: 650; color: #e5e5e7; }
+.schedule-timeline-count { margin-left: auto; font-size: 0.6rem; color: #888; background: rgba(255,255,255,0.06); padding: 0.1rem 0.4rem; border-radius: 1rem; }
+.schedule-timeline-group { margin-bottom: 0.5rem; }
+.schedule-timeline-date { font-size: 0.6rem; font-weight: 650; color: #888; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.3rem; padding-left: 1rem; }
+.schedule-timeline-item { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.3rem 0; }
+.schedule-timeline-dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: #6366f1; margin-top: 0.35rem; flex-shrink: 0; }
+.schedule-timeline-content { flex: 1; min-width: 0; }
+.schedule-timeline-meta { display: flex; align-items: center; gap: 0.3rem; }
+.schedule-timeline-time { font-size: 0.62rem; font-weight: 600; color: #bbb; }
+.schedule-timeline-to { font-size: 0.6rem; color: #777; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-timeline-subject { font-size: 0.64rem; color: #999; margin-top: 0.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schedule-timeline-actions { display: flex; gap: 0.3rem; margin-top: 0.2rem; }
+.schedule-timeline-actions button { border: none; background: transparent; color: #666; font-size: 0.58rem; cursor: pointer; padding: 0.1rem 0.3rem; border-radius: 0.2rem; transition: color 80ms; }
+.schedule-timeline-actions button:hover { color: #ff9933; }
+
+/* ========================================================================== */
+/* Thread Mute Button                                                         */
+/* ========================================================================== */
+.thread-mute-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.6rem; border-radius: 1.5rem; border: 1px solid #2a2a2e; background: transparent; color: #888; font-size: 0.64rem; font-weight: 550; cursor: pointer; transition: all 120ms; }
+.thread-mute-btn:hover { border-color: #3a3a3e; color: #bbb; }
+.thread-mute-btn.is-muted { border-color: rgba(239, 68, 68, 0.25); background: rgba(239, 68, 68, 0.05); color: #f87171; }
+.thread-mute-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ========================================================================== */
+/* Writing Metrics                                                            */
+/* ========================================================================== */
+.writing-metrics { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0; font-size: 0.6rem; color: #666; }
+.wm-divider { color: #444; }
+.wm-item { white-space: nowrap; }
+.wm-tone--good { color: #4ade80; }
+.wm-tone--warning { color: #fbbf24; }
+
+/* ========================================================================== */
+/* Label Quick Apply                                                          */
+/* ========================================================================== */
+.label-quick-apply { position: relative; display: inline-block; }
+.label-trigger-btn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.6rem; border-radius: 1.5rem; border: 1px solid #2a2a2e; background: transparent; color: #888; font-size: 0.64rem; font-weight: 550; cursor: pointer; transition: all 120ms; }
+.label-trigger-btn:hover { border-color: #3a3a3e; color: #bbb; }
+.label-dropdown { position: absolute; top: calc(100% + 4px); left: 0; width: 200px; max-height: 240px; background: #141416; border: 1px solid #2a2a2e; border-radius: 0.55rem; box-shadow: 0 4px 20px rgba(0,0,0,0.5); overflow: hidden; z-index: 100; }
+.label-dropdown-search { padding: 0.4rem; border-bottom: 1px solid #1c1c20; }
+.label-dropdown-search input { width: 100%; padding: 0.3rem 0.5rem; border-radius: 0.35rem; border: 1px solid #2a2a2e; background: #0d0d0f; color: #e5e5e7; font-size: 0.66rem; outline: none; }
+.label-dropdown-search input:focus { border-color: rgba(255,153,51,0.4); }
+.label-dropdown-list { max-height: 180px; overflow-y: auto; padding: 0.2rem; }
+.label-dropdown-empty { text-align: center; padding: 1rem; font-size: 0.64rem; color: #666; }
+.label-dropdown-item { display: flex; align-items: center; gap: 0.4rem; width: 100%; text-align: left; padding: 0.35rem 0.5rem; border: none; background: transparent; color: #bbb; font-size: 0.66rem; cursor: pointer; border-radius: 0.3rem; transition: background 80ms; }
+.label-dropdown-item:hover { background: rgba(255,255,255,0.04); }
+.label-dropdown-item.is-applied { background: rgba(255,153,51,0.06); color: #ff9933; }
+.label-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; flex-shrink: 0; }
+.label-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.label-check { font-size: 0.6rem; color: #4ade80; }
