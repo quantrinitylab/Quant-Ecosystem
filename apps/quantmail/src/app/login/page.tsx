@@ -43,7 +43,8 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      router.push('/');
+      const returnTo = searchParams?.get('returnTo');
+      router.push(returnTo || '/');
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Sign-in failed. Try again.');
     }

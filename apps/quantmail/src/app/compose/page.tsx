@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
@@ -14,6 +14,34 @@ export default function ComposePage() {
   const searchParams = useSearchParams();
   const replyTo = searchParams?.get('replyTo') ?? null;
   const forwardId = searchParams?.get('forward') ?? null;
+  const draftId = searchParams?.get('draftId') ?? null;
+
+  const [draftData, setDraftData] = useState<{
+    to?: Array<{ email: string }>;
+    subject?: string;
+    body?: string;
+  } | null>(null);
+  const [draftLoading, setDraftLoading] = useState(Boolean(draftId));
+
+  useEffect(() => {
+    if (!draftId) return;
+    let active = true;
+    setDraftLoading(true);
+    apiClient.getEmail(draftId).then((response) => {
+      if (!active) return;
+      if (response.success && response.data) {
+        setDraftData({
+          to: response.data.to,
+          subject: response.data.subject ?? '',
+          body: response.data.bodyText ?? response.data.snippet ?? '',
+        });
+      }
+      setDraftLoading(false);
+    }).catch(() => {
+      if (active) setDraftLoading(false);
+    });
+    return () => { active = false; };
+  }, [draftId]);
 
   const composeDraft = useCallback(
     async (data: ComposerMessageData) => {
@@ -92,14 +120,22 @@ export default function ComposePage() {
       aria-label="Compose a QuantMail message"
     >
       <PageTransition className="compose-page">
-        <EmailComposer
-          initialSubject={forwardId ? 'Fwd: ' : replyTo ? 'Re: ' : undefined}
-          inReplyTo={replyTo || undefined}
-          onSend={handleSend}
-          onSaveDraft={handleSaveDraft}
-          onDiscard={handleDiscard}
-          onAIAssist={handleAIAssist}
-        />
+        {draftLoading ? (
+          <div className="flex h-full items-center justify-center">
+            <p className="text-sm text-[var(--quant-muted-foreground)]">Loading draft…</p>
+          </div>
+        ) : (
+          <EmailComposer
+            initialTo={draftData?.to}
+            initialSubject={draftData?.subject ?? (forwardId ? 'Fwd: ' : replyTo ? 'Re: ' : undefined)}
+            initialBody={draftData?.body}
+            inReplyTo={replyTo || undefined}
+            onSend={handleSend}
+            onSaveDraft={handleSaveDraft}
+            onDiscard={handleDiscard}
+            onAIAssist={handleAIAssist}
+          />
+        )}
       </PageTransition>
     </AppShell>
   );
