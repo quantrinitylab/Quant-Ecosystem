@@ -1,0 +1,121 @@
+name: Deploy feature branch to staging
+
+# Manual trigger for deploying feature branches to staging.
+# This bypasses the main-only gate for rapid iteration.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: App to build and deploy
+        required: true
+        type: choice
+        options:
+          - quantmail
+          - quantmail-backend
+          - quantchat
+          - quantai
+          - ws-gateway
+      branch:
+        description: Branch to deploy (defaults to current)
+        required: false
+        type: string
+
+concurrency:
+  group: feature-staging-${{ inputs.target }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: "266176113726"
+  ECR_REGISTRY: 266176113726.dkr.ecr.us-east-1.amazonaws.com
+  EKS_CLUSTER: quant-staging-eks
+  K8S_NAMESPACE: quant-staging
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy ${{ inputs.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.branch || github.ref }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        with:
+          role-to-assume: arn:aws:iam::266176113726:role/quant-gha-deploy
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: feature-staging-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        run: aws ecr get-login-password | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+
+      - name: Resolve target config
+        id: target
+        run: |
+          case "${{ inputs.target }}" in
+            quantmail)
+              echo "repository=quant-quantmail" >> "$GITHUB_OUTPUT"
+              echo "dockerfile=apps/quantmail/Dockerfile" >> "$GITHUB_OUTPUT"
+              echo "deployment=quant-quantmail" >> "$GITHUB_OUTPUT"
+              echo "container=quant-quantmail" >> "$GITHUB_OUTPUT"
+              ;;
+            quantmail-backend)
+              echo "repository=quant-quantmail-backend" >> "$GITHUB_OUTPUT"
+              echo "dockerfile=apps/quantmail/Dockerfile.backend" >> "$GITHUB_OUTPUT"
+              echo "deployment=quant-quantmail-backend" >> "$GITHUB_OUTPUT"
+              echo "container=quant-quantmail-backend" >> "$GITHUB_OUTPUT"
+              ;;
+            quantchat)
+              echo "repository=quant-quantchat" >> "$GITHUB_OUTPUT"
+              echo "dockerfile=apps/quantchat/Dockerfile" >> "$GITHUB_OUTPUT"
+              echo "deployment=quant-quantchat" >> "$GITHUB_OUTPUT"
+              echo "container=quant-quantchat" >> "$GITHUB_OUTPUT"
+              ;;
+            quantai)
+              echo "repository=quant-quantai" >> "$GITHUB_OUTPUT"
+              echo "dockerfile=apps/quantai/Dockerfile" >> "$GITHUB_OUTPUT"
+              echo "deployment=quant-quantai" >> "$GITHUB_OUTPUT"
+              echo "container=quant-quantai" >> "$GITHUB_OUTPUT"
+              ;;
+            ws-gateway)
+              echo "repository=quant-ws-gateway" >> "$GITHUB_OUTPUT"
+              echo "dockerfile=services/ws-gateway/Dockerfile" >> "$GITHUB_OUTPUT"
+              echo "deployment=quant-ws-gateway" >> "$GITHUB_OUTPUT"
+              echo "container=quant-ws-gateway" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Build Docker image
+        run: |
+          TAG="${GITHUB_SHA::8}-$(date +%s)"
+          IMAGE="${{ env.ECR_REGISTRY }}/${{ steps.target.outputs.repository }}:$TAG"
+          docker build --pull -f ${{ steps.target.outputs.dockerfile }} -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Deploy to EKS staging
+        run: |
+          aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER }} --region ${{ env.AWS_REGION }}
+          kubectl set image deployment/${{ steps.target.outputs.deployment }} \
+            ${{ steps.target.outputs.container }}=${{ env.IMAGE }} \
+            -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout status deployment/${{ steps.target.outputs.deployment }} \
+            -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+
+      - name: Deployment summary
+        run: |
+          echo "## 🚀 Feature Deploy Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Target:** ${{ inputs.target }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Branch:** ${{ inputs.branch || github.ref }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Image:** \`${{ env.IMAGE }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Cluster:** ${{ env.EKS_CLUSTER }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Namespace:** ${{ env.K8S_NAMESPACE }}" >> "$GITHUB_STEP_SUMMARY"
