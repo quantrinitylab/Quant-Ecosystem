@@ -4082,3 +4082,86 @@ body {
 
 /* Read Receipt */
 .read-receipt { font-size: 0.7rem; font-weight: 600; letter-spacing: -0.05em; }
+
+/* ========================================================================== */
+/* QuantCode IDE — GitHub Copilot + Claude Code + Codex Killer                */
+/* ========================================================================== */
+.code-ide { display: flex; flex-direction: column; height: 100vh; background: #0a0a0c; }
+.ide-topbar { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 1rem; background: #111113; border-bottom: 1px solid #1c1c20; flex-shrink: 0; }
+.ide-topbar-left { display: flex; align-items: center; gap: 0.6rem; }
+.ide-topbar-right { display: flex; align-items: center; gap: 0.5rem; }
+.ide-repo-name { font-size: 0.76rem; font-weight: 650; color: #e5e5e7; }
+.ide-file-path { font-size: 0.68rem; color: #888; font-family: monospace; }
+.ide-modified { color: #ff9933; font-size: 0.9rem; }
+.ide-toggle-btn { padding: 0.3rem 0.6rem; border-radius: 0.4rem; border: 1px solid #2a2a2e; background: transparent; color: #888; font-size: 0.64rem; font-weight: 550; cursor: pointer; transition: all 100ms; }
+.ide-toggle-btn:hover { border-color: #3a3a3e; color: #ccc; }
+.ide-toggle-btn.is-active { border-color: rgba(255,153,51,0.3); background: rgba(255,153,51,0.06); color: #ff9933; }
+.ide-body { display: flex; flex: 1; overflow: hidden; }
+.ide-sidebar { width: 240px; border-right: 1px solid #1c1c20; overflow-y: auto; flex-shrink: 0; background: #0d0d0f; }
+.ide-empty-tree { padding: 2rem 1rem; text-align: center; font-size: 0.7rem; color: #555; }
+.ide-editor-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.ide-welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; padding: 2rem; }
+.ide-welcome h2 { font-size: 1.2rem; font-weight: 650; color: #e5e5e7; margin-bottom: 0.5rem; }
+.ide-welcome p { font-size: 0.76rem; color: #888; max-width: 300px; }
+.ide-welcome-shortcuts { display: flex; gap: 1rem; margin-top: 1.5rem; font-size: 0.62rem; color: #666; }
+.ide-welcome-shortcuts kbd { display: inline-block; padding: 0.15rem 0.4rem; border-radius: 0.25rem; border: 1px solid #333; background: #1a1a1d; color: #aaa; font-family: monospace; margin-right: 0.3rem; }
+.ide-editor-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.ide-editor-with-lines { display: flex; flex: 1; overflow: auto; }
+.ide-line-numbers { display: flex; flex-direction: column; padding: 0.75rem 0; min-width: 3.5rem; text-align: right; padding-right: 0.75rem; background: #0a0a0c; border-right: 1px solid #1c1c20; user-select: none; position: sticky; left: 0; }
+.ide-line-numbers span { font-size: 0.68rem; line-height: 1.6; color: #444; font-family: 'JetBrains Mono', monospace; }
+.ide-textarea { flex: 1; padding: 0.75rem 1rem; background: #0a0a0c; color: #abb2bf; border: none; outline: none; resize: none; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.76rem; line-height: 1.6; tab-size: 2; white-space: pre; overflow: auto; }
+.ide-textarea::placeholder { color: #333; }
+.ide-statusbar { display: flex; align-items: center; gap: 1rem; padding: 0.3rem 1rem; background: #111113; border-top: 1px solid #1c1c20; font-size: 0.6rem; color: #666; flex-shrink: 0; }
+.ide-status-modified { color: #ff9933; font-weight: 600; }
+
+/* Terminal */
+.ide-terminal { border-top: 1px solid #1c1c20; background: #0a0a0c; display: flex; flex-direction: column; overflow: hidden; }
+.ide-terminal-header { display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0.75rem; background: #111113; border-bottom: 1px solid #1c1c20; }
+.ide-terminal-header span { font-size: 0.66rem; font-weight: 600; color: #999; }
+.ide-terminal-header button { border: none; background: transparent; color: #666; font-size: 1rem; cursor: pointer; }
+.ide-terminal-output { flex: 1; overflow-y: auto; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.68rem; color: #4ade80; }
+.ide-terminal-output pre { margin: 0; white-space: pre-wrap; line-height: 1.5; }
+.ide-terminal-input { display: flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.75rem; border-top: 1px solid #1c1c20; }
+.ide-prompt { color: #ff9933; font-family: monospace; font-size: 0.7rem; font-weight: 700; }
+.ide-terminal-input input { flex: 1; border: none; background: transparent; color: #e5e5e7; font-family: monospace; font-size: 0.7rem; outline: none; }
+
+/* AI Chat Panel */
+.ide-ai-panel { border-left: 1px solid #1c1c20; overflow: hidden; flex-shrink: 0; background: #0d0d0f; }
+.ai-coding-chat { display: flex; flex-direction: column; height: 100%; }
+.ai-chat-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.75rem; border-bottom: 1px solid #1c1c20; background: #111113; }
+.ai-chat-title { display: flex; align-items: center; gap: 0.3rem; }
+.ai-chat-spark { color: #ff9933; font-size: 0.8rem; }
+.ai-chat-title strong { font-size: 0.76rem; font-weight: 650; color: #e5e5e7; }
+.ai-chat-context { margin-left: auto; }
+.ai-chat-file { font-size: 0.6rem; color: #888; font-family: monospace; background: rgba(255,255,255,0.04); padding: 0.15rem 0.4rem; border-radius: 0.25rem; }
+.ai-chat-no-file { font-size: 0.6rem; color: #555; }
+.ai-chat-close { border: none; background: transparent; color: #666; font-size: 1rem; cursor: pointer; }
+.ai-chat-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.5rem 0.6rem; border-bottom: 1px solid #1c1c20; overflow-x: auto; }
+.ai-quick-action { display: inline-flex; align-items: center; gap: 0.2rem; padding: 0.25rem 0.45rem; border-radius: 1rem; border: 1px solid #2a2a2e; background: transparent; color: #999; font-size: 0.58rem; cursor: pointer; white-space: nowrap; transition: all 80ms; }
+.ai-quick-action:hover { border-color: #3a3a3e; color: #ccc; background: rgba(255,255,255,0.02); }
+.ai-quick-action:disabled { opacity: 0.4; cursor: not-allowed; }
+.ai-chat-messages { flex: 1; overflow-y: auto; padding: 0.5rem; }
+.ai-chat-msg { display: flex; gap: 0.4rem; padding: 0.5rem 0.4rem; border-radius: 0.4rem; margin-bottom: 0.3rem; }
+.ai-chat-msg--user { background: rgba(255,255,255,0.02); }
+.ai-chat-msg--system { background: rgba(99,102,241,0.03); }
+.ai-msg-avatar { font-size: 0.7rem; width: 1.2rem; text-align: center; flex-shrink: 0; margin-top: 0.1rem; }
+.ai-msg-content { flex: 1; min-width: 0; }
+.ai-msg-content p { font-size: 0.7rem; color: #ccc; line-height: 1.55; white-space: pre-wrap; }
+.ai-code-block { margin-top: 0.4rem; border-radius: 0.4rem; border: 1px solid #2a2a2e; overflow: hidden; }
+.ai-code-header { display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0.6rem; background: #141416; border-bottom: 1px solid #1c1c20; }
+.ai-code-header span { font-size: 0.58rem; color: #888; }
+.ai-apply-btn { border: 1px solid rgba(74,222,128,0.3); background: rgba(74,222,128,0.06); color: #4ade80; font-size: 0.58rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 0.3rem; cursor: pointer; }
+.ai-apply-btn:hover { background: rgba(74,222,128,0.12); }
+.ai-code-content { padding: 0.5rem 0.6rem; background: #0a0a0c; font-family: monospace; font-size: 0.66rem; color: #abb2bf; line-height: 1.5; overflow-x: auto; margin: 0; }
+.ai-typing { display: flex; gap: 0.2rem; padding: 0.3rem 0; }
+.ai-typing span { width: 5px; height: 5px; border-radius: 50%; background: #ff9933; animation: ai-dot-pulse 1s ease infinite; }
+.ai-typing span:nth-child(2) { animation-delay: 0.15s; }
+.ai-typing span:nth-child(3) { animation-delay: 0.3s; }
+.ai-chat-input-area { display: flex; gap: 0.3rem; padding: 0.5rem; border-top: 1px solid #1c1c20; }
+.ai-chat-input { flex: 1; padding: 0.4rem 0.6rem; border-radius: 0.4rem; border: 1px solid #2a2a2e; background: #0a0a0c; color: #e5e5e7; font-size: 0.7rem; font-family: inherit; outline: none; resize: none; transition: border-color 150ms; }
+.ai-chat-input:focus { border-color: rgba(255,153,51,0.4); }
+.ai-chat-input::placeholder { color: #444; }
+.ai-chat-send { padding: 0.4rem 0.7rem; border-radius: 0.4rem; border: 1px solid rgba(255,153,51,0.3); background: rgba(255,153,51,0.08); color: #ff9933; font-size: 0.66rem; font-weight: 600; cursor: pointer; align-self: flex-end; }
+.ai-chat-send:hover { background: rgba(255,153,51,0.15); }
+.ai-chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+.ai-chat-hint { text-align: center; padding: 0.3rem; font-size: 0.52rem; color: #444; }

@@ -59,11 +59,14 @@ export default function RepoDetailPage() {
             Back
           </Button>
           {repo && (
-            <div>
+            <div className="flex-1">
               <h1 className="text-lg font-semibold">{repo.name}</h1>
               <p className="text-xs text-[var(--quant-muted-foreground)]">{repo.description}</p>
             </div>
           )}
+          <Button variant="primary" onClick={() => router.push(`/repos/${repoId}/editor`)}>
+            ✦ Open in AI Editor
+          </Button>
         </div>
 
         {/* Tabs — GitHub-style underline */}
