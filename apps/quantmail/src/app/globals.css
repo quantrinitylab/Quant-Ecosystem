@@ -4029,3 +4029,43 @@ body {
 .drive-action-primary:hover { background: rgba(255,153,51,0.08); }
 .drive-action-danger { border-color: rgba(248,113,113,0.2); color: #888; }
 .drive-action-danger:hover { border-color: rgba(248,113,113,0.4); color: #f87171; background: rgba(248,113,113,0.05); }
+
+/* ========================================================================== */
+/* Email Share Link                                                           */
+/* ========================================================================== */
+.email-share-link { position: relative; display: inline-block; }
+.share-link-trigger { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.6rem; border-radius: 1.5rem; border: 1px solid #2a2a2e; background: transparent; color: #888; font-size: 0.64rem; font-weight: 550; cursor: pointer; transition: all 120ms; }
+.share-link-trigger:hover { border-color: #3a3a3e; color: #bbb; }
+.share-link-panel { position: absolute; top: calc(100% + 6px); right: 0; width: 280px; padding: 0.85rem; background: #141416; border: 1px solid #2a2a2e; border-radius: 0.6rem; box-shadow: 0 4px 20px rgba(0,0,0,0.5); z-index: 100; }
+.share-link-title { font-size: 0.74rem; font-weight: 650; color: #e5e5e7; margin-bottom: 0.5rem; }
+.share-link-expiry { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.5rem; }
+.share-link-expiry > span { font-size: 0.62rem; color: #888; }
+.share-link-expiry button { padding: 0.2rem 0.4rem; border-radius: 0.3rem; border: 1px solid #2a2a2e; background: transparent; color: #999; font-size: 0.6rem; cursor: pointer; transition: all 80ms; }
+.share-link-expiry button.is-active { border-color: rgba(255,153,51,0.3); background: rgba(255,153,51,0.08); color: #ff9933; }
+.share-link-generate { width: 100%; padding: 0.4rem; border-radius: 0.4rem; border: 1px solid rgba(255,153,51,0.25); background: rgba(255,153,51,0.06); color: #ff9933; font-size: 0.68rem; font-weight: 600; cursor: pointer; }
+.share-link-generate:hover { background: rgba(255,153,51,0.12); }
+.share-link-result { display: flex; gap: 0.3rem; }
+.share-link-input { flex: 1; padding: 0.35rem 0.5rem; border-radius: 0.35rem; border: 1px solid #2a2a2e; background: #0d0d0f; color: #ccc; font-size: 0.6rem; font-family: monospace; }
+.share-link-copy { padding: 0.35rem 0.55rem; border-radius: 0.35rem; border: 1px solid rgba(74,222,128,0.25); background: rgba(74,222,128,0.06); color: #4ade80; font-size: 0.62rem; font-weight: 600; cursor: pointer; }
+.share-link-note { font-size: 0.56rem; color: #555; margin-top: 0.4rem; }
+
+/* ========================================================================== */
+/* AI Summary Card                                                            */
+/* ========================================================================== */
+.ai-summary-trigger { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.65rem; border-radius: 1.5rem; border: 1px dashed rgba(255,153,51,0.25); background: rgba(255,153,51,0.03); color: #ff9933; font-size: 0.66rem; font-weight: 550; cursor: pointer; transition: all 120ms; }
+.ai-summary-trigger:hover { background: rgba(255,153,51,0.07); border-color: rgba(255,153,51,0.4); }
+.ai-spark { font-size: 0.7rem; }
+.ai-summary-card { border-radius: 0.55rem; border: 1px solid rgba(255,153,51,0.12); background: rgba(255,153,51,0.02); overflow: hidden; margin: 0.5rem 0; }
+.ai-summary-loading { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 0.85rem; font-size: 0.68rem; color: #999; }
+.ai-loading-dots { display: flex; gap: 0.15rem; }
+.ai-loading-dots span { width: 4px; height: 4px; border-radius: 50%; background: #ff9933; animation: ai-dot-pulse 1s ease infinite; }
+.ai-loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+.ai-loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes ai-dot-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+.ai-summary-error { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; font-size: 0.66rem; color: #f87171; }
+.ai-summary-error button { border: 1px solid rgba(255,153,51,0.25); background: transparent; color: #ff9933; font-size: 0.6rem; padding: 0.2rem 0.45rem; border-radius: 0.3rem; cursor: pointer; }
+.ai-summary-result { padding: 0.7rem 0.85rem; }
+.ai-summary-result-header { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.35rem; }
+.ai-summary-result-header strong { font-size: 0.68rem; font-weight: 650; color: #e5e5e7; }
+.ai-summary-result-header button { margin-left: auto; border: none; background: transparent; color: #666; font-size: 1rem; cursor: pointer; }
+.ai-summary-text { font-size: 0.72rem; color: #bbb; line-height: 1.55; }
