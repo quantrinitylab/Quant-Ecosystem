@@ -13,6 +13,12 @@ export async function proxyToBackend(
   };
   const authHeader = request.headers.get('Authorization');
   if (authHeader) headers['Authorization'] = authHeader;
+  // Forward Origin header for auth routes that require trusted origin validation
+  const originHeader = request.headers.get('Origin');
+  if (originHeader) headers['Origin'] = originHeader;
+  // Forward cookies for refresh token
+  const cookieHeader = request.headers.get('Cookie');
+  if (cookieHeader) headers['Cookie'] = cookieHeader;
 
   const url = new URL(backendPath, base);
   // Forward search params for GET requests
@@ -37,7 +43,13 @@ export async function proxyToBackend(
   const res = await fetch(url.toString(), fetchOptions);
   try {
     const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
+    const response = NextResponse.json(data, { status: res.status });
+    // Forward Set-Cookie headers from backend (for auth refresh tokens)
+    const setCookie = res.headers.get('set-cookie');
+    if (setCookie) {
+      response.headers.set('Set-Cookie', setCookie);
+    }
+    return response;
   } catch {
     return NextResponse.json(
       {
