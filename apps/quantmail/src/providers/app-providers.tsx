@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { CommandPaletteUI, QuantSidekickProvider, ThemeProvider } from '@quant/shared-ui';
 import type { CommandPaletteItem } from '@quant/shared-ui';
 import { MailCopilot } from '../components/MailCopilot';
+import { useAuth } from './auth-provider';
 
 const PUBLIC_AUTH_PATHS = ['/login', '/register', '/forgot-password'];
 
@@ -12,7 +13,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
   const isPublicAuthRoute = PUBLIC_AUTH_PATHS.includes(pathname ?? '');
+  // Only show AI copilot and command palette when user is actually logged in
+  const showTools = isAuthenticated && !isPublicAuthRoute && !isLoading;
 
   const navigate = (path: string) => {
     router.push(path);
@@ -48,7 +52,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   ];
 
   useEffect(() => {
-    if (isPublicAuthRoute) {
+    if (!showTools) {
       setCommandPaletteOpen(false);
       return;
     }
@@ -61,13 +65,13 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isPublicAuthRoute]);
+  }, [showTools]);
 
   return (
     <ThemeProvider defaultTheme="dark">
       <QuantSidekickProvider>
         {children}
-        {!isPublicAuthRoute ? (
+        {showTools ? (
           <>
             <CommandPaletteUI
               isOpen={commandPaletteOpen}

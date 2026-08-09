@@ -55,10 +55,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cleanupLegacyBrowserTokens();
       clearMemorySession();
       try {
-        const session = await browserAuthSession.refresh();
+        // Timeout after 5 seconds — don't hang forever on auth check
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Auth timeout')), 5000),
+        );
+        const session = await Promise.race([browserAuthSession.refresh(), timeout]);
         if (!active || !session.success || !session.data?.accessToken) return;
         await loadProfile();
       } catch {
+        // Auth failed or timed out — go to login
         if (active) clearMemorySession();
       } finally {
         if (active) setIsLoading(false);

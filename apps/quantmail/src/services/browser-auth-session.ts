@@ -2,9 +2,10 @@
 // Refresh credentials never enter JavaScript; only the short-lived access token
 // returned by /auth/login, /auth/register, or /auth/refresh is held in module memory.
 
-// Auth defaults to a same-origin /auth proxy instead of the regular /api proxy.
-// This keeps the backend cookie's narrow Path=/auth effective in the browser.
-const AUTH_BASE_URL = (process.env.NEXT_PUBLIC_AUTH_URL ?? '').replace(/\/$/, '');
+// Auth defaults to the /api proxy routes in the Next.js app.
+// Calls like post('/auth/login') become fetch('/api/auth/login') which
+// the Next.js API route at app/api/auth/login/route.ts proxies to backend.
+const AUTH_BASE_URL = (process.env.NEXT_PUBLIC_AUTH_URL ?? '/api').replace(/\/$/, '');
 
 export const LEGACY_TOKEN_KEYS = [
   'quant_auth_tokens',
