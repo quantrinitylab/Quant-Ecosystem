@@ -12,7 +12,7 @@ interface SmartReplySuggestionsProps {
 const FALLBACK_REPLIES = [
   'Thanks, got it!',
   'Sounds good, let me take a look.',
-  'I'll get back to you on this shortly.',
+  'I\'ll get back to you on this shortly.',
 ];
 
 export function SmartReplySuggestions({ emailId, onSelectReply }: SmartReplySuggestionsProps) {

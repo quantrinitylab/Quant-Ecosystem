@@ -58,7 +58,7 @@ export default function DraftsPage() {
             <p className="sent-subtitle">
               {emails?.length
                 ? `${emails.length} unfinished message${emails.length !== 1 ? 's' : ''}`
-                : 'Drafts hold messages until you're ready to send'}
+                : 'Drafts hold messages until you\'re ready to send'}
             </p>
           </div>
           <Button variant="primary" onClick={() => router.push('/compose')}>
