@@ -4291,3 +4291,81 @@ body {
 .ai-commit-option:hover { border-color: #3a3a3e; background: rgba(255,255,255,0.02); }
 .ai-commit-option.is-selected { border-color: rgba(255,153,51,0.4); background: rgba(255,153,51,0.04); }
 .ai-commit-option code { font-family: monospace; font-size: 0.64rem; }
+
+/* ========================================================================== */
+/* Git Commit Panel                                                           */
+/* ========================================================================== */
+.git-commit-panel { display: flex; flex-direction: column; height: 100%; }
+.git-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; border-bottom: 1px solid #1c1c20; }
+.git-panel-title { font-size: 0.72rem; font-weight: 650; color: #e5e5e7; }
+.git-panel-count { font-size: 0.6rem; color: #888; background: rgba(255,255,255,0.06); padding: 0.1rem 0.4rem; border-radius: 1rem; }
+.git-panel-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #4ade80; }
+.git-panel-empty span { font-size: 1.5rem; margin-bottom: 0.3rem; }
+.git-panel-empty p { font-size: 0.68rem; color: #666; }
+.git-commit-input { padding: 0.5rem; border-bottom: 1px solid #1c1c20; }
+.git-commit-input textarea { width: 100%; padding: 0.4rem; border-radius: 0.35rem; border: 1px solid #2a2a2e; background: #0a0a0c; color: #e5e5e7; font-size: 0.68rem; resize: none; outline: none; }
+.git-commit-actions { display: flex; gap: 0.3rem; margin-top: 0.3rem; }
+.git-commit-btn { flex: 1; padding: 0.35rem; border-radius: 0.35rem; border: 1px solid rgba(74,222,128,0.3); background: rgba(74,222,128,0.06); color: #4ade80; font-size: 0.64rem; font-weight: 600; cursor: pointer; }
+.git-push-btn { padding: 0.35rem 0.6rem; border-radius: 0.35rem; border: 1px solid rgba(96,165,250,0.3); background: rgba(96,165,250,0.06); color: #60a5fa; font-size: 0.64rem; font-weight: 600; cursor: pointer; }
+.git-file-list { flex: 1; overflow-y: auto; }
+.git-file-item { display: flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.5rem; border-bottom: 1px solid #151517; transition: background 80ms; }
+.git-file-item:hover { background: rgba(255,255,255,0.02); }
+.git-file-item.is-staged { background: rgba(74,222,128,0.02); }
+.git-file-check { width: 0.8rem; height: 0.8rem; accent-color: #4ade80; }
+.git-file-status { font-size: 0.7rem; width: 1rem; text-align: center; font-weight: 700; }
+.git-file-path { flex: 1; font-size: 0.64rem; color: #ccc; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.git-file-diff { font-size: 0.56rem; display: flex; gap: 0.2rem; }
+.git-diff-add { color: #4ade80; }
+.git-diff-del { color: #f87171; }
+.git-file-discard { border: none; background: transparent; color: #555; font-size: 0.8rem; cursor: pointer; opacity: 0; transition: opacity 80ms; }
+.git-file-item:hover .git-file-discard { opacity: 1; }
+
+/* ========================================================================== */
+/* Collaborative Cursors                                                      */
+/* ========================================================================== */
+.collab-cursors { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10; }
+.collab-cursor { position: absolute; }
+.collab-cursor-line { width: 2px; height: 1.4em; animation: cursor-blink 1s ease infinite; }
+@keyframes cursor-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.collab-cursor-label { position: absolute; top: -1.2em; left: 0; font-size: 0.5rem; padding: 0.05rem 0.3rem; border-radius: 0.2rem; color: white; white-space: nowrap; font-weight: 600; }
+.collab-selection { position: absolute; left: 0; right: 0; pointer-events: none; }
+.collab-presence { display: flex; align-items: center; gap: -0.2rem; }
+.collab-avatar { width: 1.4rem; height: 1.4rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: 700; color: white; border: 2px solid #0a0a0c; margin-left: -0.3rem; }
+.collab-avatar:first-child { margin-left: 0; }
+.collab-more { font-size: 0.55rem; color: #888; margin-left: 0.3rem; }
+
+/* ========================================================================== */
+/* Git Branch Selector                                                        */
+/* ========================================================================== */
+.git-branch-selector { position: relative; }
+.branch-current { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.5rem; border-radius: 0.35rem; border: 1px solid #2a2a2e; background: transparent; color: #ccc; font-size: 0.66rem; font-weight: 550; cursor: pointer; font-family: monospace; }
+.branch-chevron { font-size: 0.5rem; color: #666; }
+.branch-dropdown { position: absolute; top: calc(100% + 4px); left: 0; width: 260px; background: #141416; border: 1px solid #2a2a2e; border-radius: 0.55rem; box-shadow: 0 4px 20px rgba(0,0,0,0.5); z-index: 100; overflow: hidden; }
+.branch-search { padding: 0.4rem; border-bottom: 1px solid #1c1c20; }
+.branch-search input { width: 100%; padding: 0.3rem 0.5rem; border-radius: 0.3rem; border: 1px solid #2a2a2e; background: #0a0a0c; color: #e5e5e7; font-size: 0.66rem; outline: none; }
+.branch-list { max-height: 200px; overflow-y: auto; }
+.branch-item { display: flex; align-items: center; gap: 0.3rem; width: 100%; text-align: left; padding: 0.35rem 0.6rem; border: none; background: transparent; color: #ccc; font-size: 0.64rem; cursor: pointer; transition: background 80ms; }
+.branch-item:hover { background: rgba(255,255,255,0.04); }
+.branch-item.is-current { background: rgba(255,153,51,0.06); color: #ff9933; }
+.branch-name { flex: 1; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.branch-badge { font-size: 0.5rem; padding: 0.1rem 0.3rem; border-radius: 0.2rem; background: rgba(255,255,255,0.06); color: #888; }
+.branch-ahead-behind { font-size: 0.54rem; display: flex; gap: 0.15rem; }
+.branch-ahead { color: #4ade80; }
+.branch-behind { color: #f87171; }
+.branch-check { color: #ff9933; font-size: 0.7rem; }
+.branch-create-btn { width: 100%; text-align: left; padding: 0.4rem 0.6rem; border: none; border-top: 1px solid #1c1c20; background: transparent; color: #ff9933; font-size: 0.64rem; cursor: pointer; }
+.branch-create-inline { width: 100%; text-align: left; padding: 0.4rem 0.6rem; border: none; background: rgba(255,153,51,0.04); color: #ff9933; font-size: 0.64rem; cursor: pointer; }
+.branch-create-form { display: flex; gap: 0.3rem; padding: 0.4rem; border-top: 1px solid #1c1c20; }
+.branch-create-form input { flex: 1; padding: 0.3rem 0.4rem; border-radius: 0.3rem; border: 1px solid #2a2a2e; background: #0a0a0c; color: #e5e5e7; font-size: 0.64rem; font-family: monospace; outline: none; }
+.branch-create-form button { padding: 0.3rem 0.5rem; border-radius: 0.3rem; border: 1px solid rgba(255,153,51,0.3); background: rgba(255,153,51,0.06); color: #ff9933; font-size: 0.62rem; font-weight: 600; cursor: pointer; }
+
+/* ========================================================================== */
+/* AI Code Explainer                                                          */
+/* ========================================================================== */
+.ai-explainer { margin: 0.3rem 0; }
+.ai-explainer-controls { display: flex; gap: 0.3rem; align-items: center; }
+.ai-explainer-detail { padding: 0.2rem 0.4rem; border-radius: 0.3rem; border: 1px solid #2a2a2e; background: #0d0d0f; color: #ccc; font-size: 0.62rem; }
+.ai-explainer-btn { padding: 0.25rem 0.5rem; border-radius: 0.35rem; border: 1px solid rgba(255,153,51,0.25); background: rgba(255,153,51,0.04); color: #ff9933; font-size: 0.62rem; font-weight: 600; cursor: pointer; }
+.ai-explainer-result { position: relative; margin-top: 0.3rem; padding: 0.5rem; border-radius: 0.4rem; background: rgba(255,153,51,0.03); border: 1px solid rgba(255,153,51,0.1); overflow: hidden; }
+.ai-explainer-text { font-size: 0.66rem; color: #ccc; line-height: 1.5; white-space: pre-wrap; margin: 0; }
+.ai-explainer-dismiss { position: absolute; top: 0.3rem; right: 0.3rem; border: none; background: transparent; color: #666; font-size: 0.9rem; cursor: pointer; }
