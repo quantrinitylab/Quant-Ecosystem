@@ -4069,3 +4069,16 @@ body {
 .ai-summary-result-header strong { font-size: 0.68rem; font-weight: 650; color: #e5e5e7; }
 .ai-summary-result-header button { margin-left: auto; border: none; background: transparent; color: #666; font-size: 1rem; cursor: pointer; }
 .ai-summary-text { font-size: 0.72rem; color: #bbb; line-height: 1.55; }
+
+/* ========================================================================== */
+/* Smart Nudge                                                                */
+/* ========================================================================== */
+.email-nudge { display: flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.7rem; border-radius: 0.5rem; border: 1px solid; margin-bottom: 0.3rem; }
+.nudge-icon { font-size: 0.7rem; flex-shrink: 0; }
+.nudge-message { font-size: 0.64rem; color: #bbb; flex: 1; }
+.nudge-action { border: none; background: transparent; font-size: 0.62rem; font-weight: 600; cursor: pointer; padding: 0.15rem 0.4rem; border-radius: 0.3rem; transition: opacity 80ms; }
+.nudge-action:hover { opacity: 0.8; }
+.nudge-dismiss { border: none; background: transparent; color: #555; font-size: 0.9rem; cursor: pointer; flex-shrink: 0; }
+
+/* Read Receipt */
+.read-receipt { font-size: 0.7rem; font-weight: 600; letter-spacing: -0.05em; }
