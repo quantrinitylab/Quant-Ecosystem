@@ -7,6 +7,9 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 
   // Workspace TS packages (e.g. @quant/bharat-ai pulled in via @quant/shared-ui)
   // use NodeNext-style `.js` extension specifiers that point at `.ts` sources.

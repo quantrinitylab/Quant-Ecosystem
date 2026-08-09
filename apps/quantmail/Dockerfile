@@ -11,13 +11,10 @@ FROM deps AS builder
 ENV NODE_OPTIONS="--max-old-space-size=3072"
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma@6.19.3 generate --schema=packages/database/prisma/schema.prisma
-# Use turbo to build all dependencies in the correct order. The --continue flag
-# ensures one package failure doesn't block others. TypeScript errors in deps
-# are tolerated because quantmail's next.config.js has ignoreBuildErrors:true.
-RUN npx turbo build --filter=@quant/quantmail... --concurrency=1 --continue 2>&1 || true
-# If turbo's full pipeline failed, ensure at minimum the Next.js app built.
-# next build respects ignoreBuildErrors in next.config.js.
-RUN test -d apps/quantmail/.next || (cd apps/quantmail && pnpm exec next build)
+# Next.js transpilePackages compiles workspace deps from source directly.
+# No need to pre-build them with turbo — just run next build.
+# ignoreBuildErrors:true + extensionAlias in next.config.js handles everything.
+RUN cd apps/quantmail && pnpm exec next build
 
 FROM node:22-slim AS runner
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
