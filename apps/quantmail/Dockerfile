@@ -11,9 +11,13 @@ FROM deps AS builder
 ENV NODE_OPTIONS="--max-old-space-size=3072"
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma@6.19.3 generate --schema=packages/database/prisma/schema.prisma
-# Next.js transpilePackages compiles workspace deps from source directly.
-# No need to pre-build them with turbo — just run next build.
-# ignoreBuildErrors:true + extensionAlias in next.config.js handles everything.
+# Build critical workspace packages that quantmail imports.
+# shared-ui exports from src/ which transpilePackages handles, but its own
+# deps (brand, common) may need dist/ for their CJS/ESM exports.
+RUN pnpm --filter @quant/common exec tsc --project tsconfig.json --noEmit false --outDir dist --declaration || true
+RUN pnpm --filter @quant/brand exec tsc --project tsconfig.json --noEmit false --outDir dist --declaration || true
+# Now run next build — transpilePackages handles shared-ui from source,
+# and brand/common have dist/ for any CJS imports.
 RUN cd apps/quantmail && pnpm exec next build
 
 FROM node:22-slim AS runner
