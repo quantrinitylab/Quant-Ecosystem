@@ -4453,3 +4453,38 @@ body {
 .search-result-badge--exact { background: rgba(74,222,128,0.1); color: #4ade80; }
 .search-result-badge--regex { background: rgba(167,139,250,0.1); color: #a78bfa; }
 .search-result-content { font-family: monospace; font-size: 0.6rem; color: #999; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ========================================================================== */
+/* AI API Generator                                                           */
+/* ========================================================================== */
+.ai-api-gen { margin: 0.4rem 0; }
+.ai-api-trigger { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.6rem; border-radius: 1.5rem; border: 1px solid #2a2a2e; background: transparent; color: #888; font-size: 0.64rem; font-weight: 550; cursor: pointer; }
+.ai-api-panel { padding: 0.6rem; border-radius: 0.5rem; border: 1px solid #2a2a2e; background: #0f0f11; margin-top: 0.3rem; overflow: hidden; }
+.ai-api-input { width: 100%; padding: 0.4rem 0.5rem; border-radius: 0.4rem; border: 1px solid #2a2a2e; background: #0a0a0c; color: #e5e5e7; font-size: 0.68rem; resize: none; outline: none; margin-bottom: 0.4rem; }
+.ai-api-framework { display: flex; gap: 0.2rem; margin-bottom: 0.4rem; }
+.ai-api-framework button { padding: 0.25rem 0.5rem; border-radius: 0.3rem; border: 1px solid #2a2a2e; background: transparent; color: #999; font-size: 0.6rem; cursor: pointer; }
+.ai-api-framework button.is-active { border-color: rgba(255,153,51,0.3); background: rgba(255,153,51,0.06); color: #ff9933; }
+.ai-api-generate { width: 100%; padding: 0.4rem; border-radius: 0.4rem; border: 1px solid rgba(255,153,51,0.25); background: rgba(255,153,51,0.06); color: #ff9933; font-size: 0.66rem; font-weight: 600; cursor: pointer; }
+.ai-api-endpoints { margin-top: 0.5rem; }
+.ai-api-endpoints-title { font-size: 0.62rem; color: #888; margin-bottom: 0.3rem; }
+.api-endpoint { display: flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0; font-size: 0.62rem; }
+.api-method { font-weight: 700; font-size: 0.56rem; min-width: 2.5rem; }
+.api-path { font-family: monospace; color: #ccc; }
+.api-desc { color: #666; margin-left: auto; font-size: 0.56rem; }
+.ai-api-code-btn { width: 100%; margin-top: 0.4rem; padding: 0.4rem; border-radius: 0.4rem; border: 1px solid rgba(74,222,128,0.3); background: rgba(74,222,128,0.06); color: #4ade80; font-size: 0.66rem; font-weight: 600; cursor: pointer; }
+
+/* ========================================================================== */
+/* AI Performance Profiler                                                    */
+/* ========================================================================== */
+.perf-profiler { border-radius: 0.5rem; border: 1px solid #2a2a2e; overflow: hidden; margin: 0.4rem 0; }
+.perf-clean { display: flex; align-items: center; gap: 0.3rem; padding: 0.5rem 0.75rem; font-size: 0.66rem; color: #4ade80; }
+.perf-header { display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.6rem; background: #111113; border-bottom: 1px solid #1c1c20; font-size: 0.66rem; color: #e5e5e7; font-weight: 600; }
+.perf-count { font-size: 0.58rem; color: #888; font-weight: 500; }
+.perf-issues { max-height: 220px; overflow-y: auto; }
+.perf-issue { padding: 0.4rem 0.6rem; border-bottom: 1px solid #151517; }
+.perf-issue:last-child { border-bottom: none; }
+.perf-issue-header { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.15rem; }
+.perf-issue-type { font-size: 0.56rem; font-weight: 650; text-transform: uppercase; }
+.perf-issue-line { font-size: 0.52rem; color: #555; font-family: monospace; margin-left: auto; }
+.perf-issue-msg { font-size: 0.62rem; color: #ccc; margin-bottom: 0.15rem; }
+.perf-issue-fix { font-size: 0.58rem; color: #888; font-style: italic; }
