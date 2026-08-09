@@ -4227,3 +4227,67 @@ body {
 .completion-overlay { position: absolute; pointer-events: none; }
 .completion-ghost-text { color: rgba(255,153,51,0.3); font-family: monospace; }
 .completion-hint { position: absolute; right: 0; top: -1.2rem; font-size: 0.5rem; color: #555; background: #1a1a1d; padding: 0.1rem 0.3rem; border-radius: 0.2rem; border: 1px solid #333; }
+
+/* ========================================================================== */
+/* AI Debug Assistant                                                         */
+/* ========================================================================== */
+.ai-debug { margin: 0.5rem 0; }
+.ai-debug-trigger { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.65rem; border-radius: 1.5rem; border: 1px solid #2a2a2e; background: transparent; color: #888; font-size: 0.66rem; font-weight: 550; cursor: pointer; }
+.ai-debug-trigger:hover { border-color: #3a3a3e; color: #ccc; }
+.ai-debug-panel { padding: 0.75rem; border-radius: 0.55rem; border: 1px solid #2a2a2e; background: #0f0f11; margin-top: 0.4rem; overflow: hidden; }
+.ai-debug-input { width: 100%; padding: 0.5rem; border-radius: 0.4rem; border: 1px solid #2a2a2e; background: #0a0a0c; color: #f87171; font-family: monospace; font-size: 0.68rem; resize: none; outline: none; margin-bottom: 0.4rem; }
+.ai-debug-analyze { width: 100%; padding: 0.4rem; border-radius: 0.4rem; border: 1px solid rgba(255,153,51,0.25); background: rgba(255,153,51,0.06); color: #ff9933; font-size: 0.68rem; font-weight: 600; cursor: pointer; }
+.ai-debug-analyze:disabled { opacity: 0.5; cursor: not-allowed; }
+.ai-debug-result { margin-top: 0.5rem; }
+.ai-debug-explanation { font-size: 0.68rem; color: #ccc; line-height: 1.55; white-space: pre-wrap; margin-bottom: 0.4rem; }
+.ai-debug-fix { border-radius: 0.4rem; border: 1px solid rgba(74,222,128,0.2); overflow: hidden; }
+.ai-debug-fix header { display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0.5rem; background: rgba(74,222,128,0.04); }
+.ai-debug-fix header span { font-size: 0.6rem; color: #4ade80; font-weight: 600; }
+.ai-debug-fix header button { border: 1px solid rgba(74,222,128,0.3); background: transparent; color: #4ade80; font-size: 0.58rem; padding: 0.15rem 0.4rem; border-radius: 0.25rem; cursor: pointer; }
+.ai-debug-fix pre { padding: 0.4rem 0.5rem; background: #0a0a0c; font-size: 0.64rem; color: #abb2bf; overflow-x: auto; margin: 0; }
+
+/* ========================================================================== */
+/* Code Snippet Library                                                       */
+/* ========================================================================== */
+.snippet-library { position: absolute; top: 0; right: 0; bottom: 0; width: 340px; background: #0d0d0f; border-left: 1px solid #1c1c20; display: flex; flex-direction: column; z-index: 50; box-shadow: -4px 0 20px rgba(0,0,0,0.4); }
+.snippet-header { display: flex; align-items: center; justify-content: space-between; padding: 0.7rem 0.85rem; border-bottom: 1px solid #1c1c20; }
+.snippet-header h3 { font-size: 0.8rem; font-weight: 650; color: #e5e5e7; }
+.snippet-header-actions { display: flex; gap: 0.3rem; }
+.snippet-header-actions button { border: none; background: transparent; color: #888; font-size: 0.68rem; cursor: pointer; padding: 0.2rem 0.4rem; }
+.snippet-search { padding: 0.4rem 0.6rem; border-bottom: 1px solid #1c1c20; }
+.snippet-search input { width: 100%; padding: 0.35rem 0.5rem; border-radius: 0.35rem; border: 1px solid #2a2a2e; background: #0a0a0c; color: #e5e5e7; font-size: 0.68rem; outline: none; }
+.snippet-add-form { padding: 0.5rem 0.6rem; border-bottom: 1px solid #1c1c20; display: flex; flex-direction: column; gap: 0.3rem; }
+.snippet-add-form input, .snippet-add-form textarea { padding: 0.3rem 0.5rem; border-radius: 0.3rem; border: 1px solid #2a2a2e; background: #0a0a0c; color: #e5e5e7; font-size: 0.66rem; outline: none; }
+.snippet-add-form textarea { font-family: monospace; resize: none; }
+.snippet-add-form button { padding: 0.3rem; border-radius: 0.35rem; border: 1px solid rgba(255,153,51,0.3); background: rgba(255,153,51,0.06); color: #ff9933; font-size: 0.64rem; font-weight: 600; cursor: pointer; }
+.snippet-list { flex: 1; overflow-y: auto; padding: 0.4rem; }
+.snippet-item { padding: 0.5rem; border-radius: 0.4rem; border: 1px solid transparent; cursor: pointer; margin-bottom: 0.3rem; transition: all 80ms; }
+.snippet-item:hover { border-color: #2a2a2e; background: rgba(255,255,255,0.02); }
+.snippet-item-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.2rem; }
+.snippet-item-header strong { font-size: 0.68rem; color: #ccc; }
+.snippet-lang { font-size: 0.54rem; color: #666; background: rgba(255,255,255,0.04); padding: 0.1rem 0.3rem; border-radius: 0.2rem; }
+.snippet-code { font-family: monospace; font-size: 0.6rem; color: #888; background: #0a0a0c; padding: 0.3rem 0.4rem; border-radius: 0.25rem; margin: 0.2rem 0; overflow: hidden; white-space: pre; text-overflow: ellipsis; }
+.snippet-tags { display: flex; gap: 0.2rem; }
+.snippet-tag { font-size: 0.5rem; padding: 0.1rem 0.3rem; border-radius: 1rem; background: rgba(96,165,250,0.08); color: #60a5fa; }
+
+/* ========================================================================== */
+/* Live Preview                                                               */
+/* ========================================================================== */
+.live-preview { border-top: 1px solid #1c1c20; display: flex; flex-direction: column; height: 250px; }
+.live-preview-header { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.75rem; background: #111113; border-bottom: 1px solid #1c1c20; font-size: 0.66rem; color: #888; }
+.live-preview-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse-ring 2s ease infinite; }
+.live-preview-error { color: #f87171; margin-left: auto; font-size: 0.6rem; }
+.live-preview-frame { flex: 1; border: none; background: #0a0a0c; width: 100%; }
+
+/* ========================================================================== */
+/* AI Commit Message Generator                                                */
+/* ========================================================================== */
+.ai-commit-msg { margin: 0.5rem 0; }
+.ai-commit-trigger { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.65rem; border-radius: 1.5rem; border: 1px dashed rgba(255,153,51,0.25); background: rgba(255,153,51,0.03); color: #ff9933; font-size: 0.66rem; font-weight: 550; cursor: pointer; transition: all 120ms; }
+.ai-commit-trigger:hover { background: rgba(255,153,51,0.07); border-color: rgba(255,153,51,0.4); }
+.ai-commit-icon { font-size: 0.7rem; }
+.ai-commit-suggestions { display: flex; flex-direction: column; gap: 0.2rem; margin-top: 0.4rem; overflow: hidden; }
+.ai-commit-option { display: block; width: 100%; text-align: left; padding: 0.4rem 0.6rem; border-radius: 0.4rem; border: 1px solid #2a2a2e; background: transparent; color: #ccc; cursor: pointer; transition: all 80ms; }
+.ai-commit-option:hover { border-color: #3a3a3e; background: rgba(255,255,255,0.02); }
+.ai-commit-option.is-selected { border-color: rgba(255,153,51,0.4); background: rgba(255,153,51,0.04); }
+.ai-commit-option code { font-family: monospace; font-size: 0.64rem; }
