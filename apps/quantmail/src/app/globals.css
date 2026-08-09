@@ -4408,3 +4408,48 @@ body {
 .ai-doc-result header span { font-size: 0.6rem; color: #888; }
 .ai-doc-result header button { border: 1px solid rgba(74,222,128,0.3); background: transparent; color: #4ade80; font-size: 0.56rem; padding: 0.15rem 0.4rem; border-radius: 0.25rem; cursor: pointer; }
 .ai-doc-result pre { padding: 0.4rem 0.5rem; font-size: 0.62rem; color: #abb2bf; overflow-x: auto; margin: 0; background: #0a0a0c; max-height: 180px; overflow-y: auto; }
+
+/* ========================================================================== */
+/* AI Refactor Panel                                                          */
+/* ========================================================================== */
+.ai-refactor { margin: 0.4rem 0; }
+.ai-refactor-trigger { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.6rem; border-radius: 1.5rem; border: 1px solid #2a2a2e; background: transparent; color: #888; font-size: 0.64rem; font-weight: 550; cursor: pointer; }
+.ai-refactor-panel { padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #2a2a2e; background: #0f0f11; margin-top: 0.3rem; overflow: hidden; }
+.refactor-actions { display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.4rem; }
+.refactor-action { display: flex; align-items: flex-start; gap: 0.4rem; width: 100%; text-align: left; padding: 0.4rem 0.5rem; border-radius: 0.4rem; border: 1px solid transparent; background: transparent; color: #ccc; cursor: pointer; transition: all 80ms; }
+.refactor-action:hover { background: rgba(255,255,255,0.03); border-color: #2a2a2e; }
+.refactor-action.is-active { border-color: rgba(255,153,51,0.3); background: rgba(255,153,51,0.04); }
+.refactor-icon { font-size: 0.8rem; margin-top: 0.05rem; }
+.refactor-action strong { font-size: 0.66rem; display: block; color: #ddd; }
+.refactor-action p { font-size: 0.56rem; color: #777; margin-top: 0.05rem; }
+.refactor-loading { text-align: center; font-size: 0.66rem; color: #ff9933; padding: 0.5rem; }
+.refactor-result { border-radius: 0.4rem; border: 1px solid #2a2a2e; overflow: hidden; }
+.refactor-result header { display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0.5rem; background: #141416; }
+.refactor-result header span { font-size: 0.6rem; color: #888; }
+.refactor-result header button { border: 1px solid rgba(74,222,128,0.3); background: transparent; color: #4ade80; font-size: 0.56rem; padding: 0.15rem 0.4rem; border-radius: 0.25rem; cursor: pointer; }
+.refactor-result pre { padding: 0.4rem 0.5rem; font-size: 0.62rem; color: #abb2bf; margin: 0; background: #0a0a0c; max-height: 160px; overflow-y: auto; }
+
+/* ========================================================================== */
+/* AI Code Search (Semantic)                                                  */
+/* ========================================================================== */
+.ai-code-search { margin: 0.5rem 0; }
+.code-search-bar { padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #2a2a2e; background: #0d0d0f; }
+.code-search-modes { display: flex; gap: 0.2rem; margin-bottom: 0.3rem; }
+.code-search-modes button { padding: 0.2rem 0.4rem; border-radius: 0.3rem; border: 1px solid #2a2a2e; background: transparent; color: #888; font-size: 0.56rem; cursor: pointer; }
+.code-search-modes button.is-active { border-color: rgba(255,153,51,0.3); background: rgba(255,153,51,0.06); color: #ff9933; }
+.code-search-input-row { display: flex; gap: 0.3rem; }
+.code-search-input-row input { flex: 1; padding: 0.35rem 0.5rem; border-radius: 0.35rem; border: 1px solid #2a2a2e; background: #0a0a0c; color: #e5e5e7; font-size: 0.7rem; outline: none; }
+.code-search-input-row input:focus { border-color: rgba(255,153,51,0.4); }
+.code-search-btn { padding: 0.35rem 0.55rem; border-radius: 0.35rem; border: 1px solid rgba(255,153,51,0.3); background: rgba(255,153,51,0.06); color: #ff9933; font-size: 0.7rem; cursor: pointer; }
+.code-search-results { margin-top: 0.4rem; }
+.code-search-count { font-size: 0.6rem; color: #888; margin-bottom: 0.3rem; }
+.code-search-result { display: block; width: 100%; text-align: left; padding: 0.4rem 0.5rem; border-radius: 0.35rem; border: 1px solid transparent; background: transparent; cursor: pointer; margin-bottom: 0.2rem; transition: all 80ms; }
+.code-search-result:hover { background: rgba(255,255,255,0.03); border-color: #2a2a2e; }
+.search-result-header { display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.15rem; }
+.search-result-file { font-size: 0.62rem; color: #60a5fa; font-family: monospace; }
+.search-result-line { font-size: 0.58rem; color: #666; }
+.search-result-badge { font-size: 0.5rem; padding: 0.08rem 0.3rem; border-radius: 1rem; font-weight: 600; }
+.search-result-badge--semantic { background: rgba(255,153,51,0.1); color: #ff9933; }
+.search-result-badge--exact { background: rgba(74,222,128,0.1); color: #4ade80; }
+.search-result-badge--regex { background: rgba(167,139,250,0.1); color: #a78bfa; }
+.search-result-content { font-family: monospace; font-size: 0.6rem; color: #999; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
