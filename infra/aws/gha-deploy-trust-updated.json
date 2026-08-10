@@ -13,9 +13,9 @@
         },
         "StringLike": {
           "token.actions.githubusercontent.com:sub": [
-            "repo:quantrinitylabsgo/Quant-Ecosystem:environment:staging",
-            "repo:quantrinitylabsgo/Quant-Ecosystem:environment:production",
-            "repo:quantrinitylabsgo/Quant-Ecosystem:ref:refs/heads/main"
+            "repo:quantrinitylabsgo@305857214/Quant-Ecosystem@1294727574:environment:staging",
+            "repo:quantrinitylabsgo@305857214/Quant-Ecosystem@1294727574:environment:production",
+            "repo:quantrinitylabsgo@305857214/Quant-Ecosystem@1294727574:ref:refs/heads/main"
           ]
         }
       }
