@@ -1,11 +1,8 @@
-import { Queue, type JobsOptions } from 'bullmq';
+import { Queue, type JobsOptions, type QueueOptions } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import type { ZodSchema } from 'zod';
 
-export interface TypedQueueOptions {
-  host: string;
-  port: number;
-}
+export type TypedQueueOptions = QueueOptions['connection'];
 
 export class TypedQueue<TPayload> {
   private readonly queue: Queue;

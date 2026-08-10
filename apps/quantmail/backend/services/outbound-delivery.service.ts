@@ -36,6 +36,47 @@ export interface EnqueueSendOptions {
 export interface RedisConnectionOptions {
   host: string;
   port: number;
+  username?: string;
+  password?: string;
+  db?: number;
+  tls?: Record<string, never>;
+}
+
+export function resolveRedisConnection(
+  env: Record<string, string | undefined> = process.env,
+): RedisConnectionOptions {
+  const redisUrl = env['REDIS_URL'];
+  if (!redisUrl) {
+    return {
+      host: env['REDIS_HOST'] ?? 'localhost',
+      port: Number(env['REDIS_PORT'] ?? 6379),
+    };
+  }
+
+  const parsed = new URL(redisUrl);
+  if (parsed.protocol !== 'redis:' && parsed.protocol !== 'rediss:') {
+    throw new Error('REDIS_URL must use redis:// or rediss://');
+  }
+
+  const port = parsed.port ? Number(parsed.port) : 6379;
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('REDIS_URL contains an invalid port');
+  }
+
+  const dbSegment = parsed.pathname.replace(/^\//, '');
+  const db = dbSegment === '' ? undefined : Number(dbSegment);
+  if (db !== undefined && (!Number.isInteger(db) || db < 0)) {
+    throw new Error('REDIS_URL contains an invalid database index');
+  }
+
+  return {
+    host: parsed.hostname,
+    port,
+    ...(parsed.username ? { username: decodeURIComponent(parsed.username) } : {}),
+    ...(parsed.password ? { password: decodeURIComponent(parsed.password) } : {}),
+    ...(db !== undefined ? { db } : {}),
+    ...(parsed.protocol === 'rediss:' ? { tls: {} } : {}),
+  };
 }
 
 /**
@@ -69,10 +110,7 @@ export class OutboundDeliveryPipeline {
    * the app (see `routes/ai-services.ts`).
    */
   static createQueue(connection?: RedisConnectionOptions): TypedQueue<SendEmailJob> {
-    const conn: RedisConnectionOptions = connection ?? {
-      host: process.env['REDIS_HOST'] ?? 'localhost',
-      port: Number(process.env['REDIS_PORT'] ?? 6379),
-    };
+    const conn = connection ?? resolveRedisConnection();
     return new TypedQueue<SendEmailJob>(OUTBOUND_DELIVERY_QUEUE, SendEmailJobSchema, conn);
   }
 

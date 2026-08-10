@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   OutboundDeliveryPipeline,
   OUTBOUND_SEND_JOB,
+  resolveRedisConnection,
 } from '../services/outbound-delivery.service';
 
 /**
@@ -122,6 +123,36 @@ describe('OutboundDeliveryPipeline.enqueueSend — ownership rejection (Req 4.2 
         where: { id: 'email-1' },
         data: expect.objectContaining({ deliveryStatus: 'queued' }),
       }),
+    );
+  });
+});
+
+describe('resolveRedisConnection', () => {
+  it('uses REDIS_URL credentials, database, and TLS for producer/worker parity', () => {
+    expect(
+      resolveRedisConnection({
+        REDIS_URL: 'rediss://queue-user:queue-password@redis.internal:6380/4',
+      }),
+    ).toEqual({
+      host: 'redis.internal',
+      port: 6380,
+      username: 'queue-user',
+      password: 'queue-password',
+      db: 4,
+      tls: {},
+    });
+  });
+
+  it('falls back to explicit host and port when REDIS_URL is absent', () => {
+    expect(resolveRedisConnection({ REDIS_HOST: 'redis.service', REDIS_PORT: '6381' })).toEqual({
+      host: 'redis.service',
+      port: 6381,
+    });
+  });
+
+  it('rejects unsupported URL protocols', () => {
+    expect(() => resolveRedisConnection({ REDIS_URL: 'http://redis.internal:6379' })).toThrow(
+      'REDIS_URL must use redis:// or rediss://',
     );
   });
 });

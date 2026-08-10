@@ -21,8 +21,9 @@ import {
   DnsMxResolver,
   NetSmtpTransport,
 } from './services/delivery-worker.service';
+import { resolveRedisConnection } from './services/outbound-delivery.service';
 
-function buildWorker() {
+function buildWorker(): ReturnType<typeof createDeliveryWorker> {
   // The generated @quant/database client and the backend's structural Prisma
   // view are the same runtime object; the cast bridges the two type surfaces.
   const db = prisma as unknown as Parameters<typeof createDeliveryWorker>[0];
@@ -37,10 +38,7 @@ function buildWorker() {
       senderDomain: process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.app',
     },
     {
-      connection: {
-        host: process.env['REDIS_HOST'] ?? 'localhost',
-        port: Number(process.env['REDIS_PORT'] ?? 6379),
-      },
+      connection: resolveRedisConnection(),
       concurrency: Number(process.env['DELIVERY_WORKER_CONCURRENCY'] ?? 8),
     },
   );

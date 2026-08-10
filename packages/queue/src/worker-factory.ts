@@ -5,7 +5,7 @@ import type { ZodSchema } from 'zod';
 const logger = pino({ name: 'queue-worker' });
 
 export interface TypedWorkerOptions {
-  connection: { host: string; port: number };
+  connection: WorkerOptions['connection'];
   concurrency?: number;
   limiter?: { max: number; duration: number };
 }
