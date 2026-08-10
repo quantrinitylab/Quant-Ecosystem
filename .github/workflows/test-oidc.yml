@@ -12,6 +12,15 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     steps:
+      - name: Inspect OIDC claims
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="$(curl --fail --silent --show-error \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" | jq -r .value)" \
+            node -e "const p=JSON.parse(Buffer.from(process.env.TOKEN.split('.')[1], 'base64url')); console.log(JSON.stringify({iss:p.iss,aud:p.aud,sub:p.sub,repository:p.repository,ref:p.ref,environment:p.environment}, null, 2))"
+
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
         with:
