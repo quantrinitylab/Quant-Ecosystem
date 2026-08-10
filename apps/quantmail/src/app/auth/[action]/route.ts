@@ -59,6 +59,17 @@ export async function POST(
       redirect: 'manual',
     });
 
+    const contentType = backendResponse.headers.get('content-type')?.toLowerCase() ?? '';
+    const isJson = contentType.includes('application/json') || contentType.includes('+json');
+    if (!isJson) {
+      await backendResponse.body?.cancel();
+      return errorResponse(
+        502,
+        'AUTH_BACKEND_INVALID_RESPONSE',
+        'The authentication service returned an invalid response.',
+      );
+    }
+
     return new Response(backendResponse.body, {
       status: backendResponse.status,
       statusText: backendResponse.statusText,

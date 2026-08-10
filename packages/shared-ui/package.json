@@ -23,7 +23,7 @@
     "@quant/universal-timeline": "workspace:*",
     "@quant/wellbeing": "workspace:*",
     "@tanstack/react-query": "^5.60.0",
-    "dompurify": "^3.4.11",
+    "dompurify": "3.4.13",
     "framer-motion": "^11",
     "livekit-client": "^2.9.1"
   },

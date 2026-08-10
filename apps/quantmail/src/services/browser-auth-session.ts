@@ -2,9 +2,9 @@
 // Refresh credentials never enter JavaScript; only the short-lived access token
 // returned by /auth/login, /auth/register, or /auth/refresh is held in module memory.
 
-// Auth routes use the /auth/* path which matches the backend's cookie Path=/auth.
-// next.config.js has rewrites that proxy /auth/* to the backend service.
-// This ensures the browser sends the HttpOnly refresh cookie on /auth/refresh requests.
+// Auth routes stay on /auth/* so the browser sends the HttpOnly refresh cookie
+// (Path=/auth). A Next route handler proxies them at runtime using the server-only
+// QUANTMAIL_BACKEND_URL and always fails closed with a JSON response.
 const AUTH_BASE_URL = (process.env.NEXT_PUBLIC_AUTH_URL ?? '').replace(/\/$/, '');
 
 export const LEGACY_TOKEN_KEYS = [
@@ -54,6 +54,19 @@ const post = async <T>(path: string, body?: unknown): Promise<AuthResponse<T>> =
       headers: { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+    const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+    const isJson = contentType.includes('application/json') || contentType.includes('+json');
+    if (!isJson) {
+      return {
+        success: false,
+        error: {
+          code: 'AUTH_INVALID_RESPONSE',
+          message: 'The authentication service returned an invalid response.',
+          statusCode: response.status,
+        },
+      };
+    }
+
     const payload = (await response.json()) as AuthResponse<T>;
     if (!response.ok && payload.success !== false) {
       return {
@@ -66,12 +79,12 @@ const post = async <T>(path: string, body?: unknown): Promise<AuthResponse<T>> =
       };
     }
     return payload;
-  } catch (error) {
+  } catch {
     return {
       success: false,
       error: {
         code: 'NETWORK_ERROR',
-        message: error instanceof Error ? error.message : 'Authentication request failed.',
+        message: 'The authentication service is temporarily unavailable.',
         statusCode: 0,
       },
     };

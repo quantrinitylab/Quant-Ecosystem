@@ -27,6 +27,9 @@ data:
   {{- if .Values.configmap.QUANT_AI_FAIL_CLOSED }}
   QUANT_AI_FAIL_CLOSED: {{ .Values.configmap.QUANT_AI_FAIL_CLOSED | quote }}
   {{- end }}
+  {{- if .Values.configmap.QUANTMAIL_BACKEND_URL }}
+  QUANTMAIL_BACKEND_URL: {{ .Values.configmap.QUANTMAIL_BACKEND_URL | quote }}
+  {{- end }}
   {{- if .Values.configmap.QUANTCHAT_BACKEND_URL }}
   QUANTCHAT_BACKEND_URL: {{ .Values.configmap.QUANTCHAT_BACKEND_URL | quote }}
   {{- end }}

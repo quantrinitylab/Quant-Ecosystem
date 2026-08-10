@@ -42,7 +42,7 @@ spec:
               service:
                 name: {{ include "quant-platform.fullname" . }}-quantmail
                 port:
-                  number: 3000
+                  number: {{ .Values.services.quantmail.port }}
     - host: {{ .Values.global.appSubdomains.quantchat }}
       http:
         paths:
@@ -52,7 +52,7 @@ spec:
               service:
                 name: {{ include "quant-platform.fullname" . }}-quantchat
                 port:
-                  number: 3000
+                  number: {{ .Values.services.quantchat.port }}
     - host: {{ .Values.global.appSubdomains.quantai }}
       http:
         paths:
@@ -62,7 +62,7 @@ spec:
               service:
                 name: {{ include "quant-platform.fullname" . }}-quantai
                 port:
-                  number: 3000
+                  number: {{ .Values.services.quantai.port }}
     {{- end }}
     - host: ws.{{ .Values.global.domain }}
       http:
