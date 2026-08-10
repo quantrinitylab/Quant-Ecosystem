@@ -20,8 +20,7 @@ import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
 import { EmailSnooze } from '../components/EmailSnooze';
 import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
-import { InboxToastContainer, showToast } from '../components/InboxToast';
-import { KeyboardShortcutsHelp } from '../components/KeyboardShortcutsHelp';
+import { showToast } from '../components/InboxToast';
 import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
 import { QuantrinityMark } from '../components/QuantrinityMark';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
@@ -318,7 +317,9 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
         <footer className="reading-reply-bar">
           <SmartReplySuggestions
             emailId={email.id}
-            onSelectReply={(text) => router.push(`/compose?replyTo=${email.threadId}&body=${encodeURIComponent(text)}`)}
+            onSelectReply={(text) =>
+              router.push(`/compose?replyTo=${email.threadId}&body=${encodeURIComponent(text)}`)
+            }
           />
           <button type="button" onClick={() => router.push(`/compose?replyTo=${email.threadId}`)}>
             Reply with clarity…
@@ -367,41 +368,56 @@ export default function InboxPage() {
     return counts;
   }, [allEmails]);
 
-  const toggleSelect = useCallback((id: string, event?: React.MouseEvent) => {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      // Shift+Click range selection
-      if (event?.shiftKey && emails && lastSelectedIndex.current >= 0) {
-        const currentIndex = emails.findIndex((e) => e.id === id);
-        if (currentIndex >= 0) {
-          const start = Math.min(lastSelectedIndex.current, currentIndex);
-          const end = Math.max(lastSelectedIndex.current, currentIndex);
-          for (let i = start; i <= end; i++) {
-            next.add(emails[i].id);
+  const toggleSelect = useCallback(
+    (id: string, event?: React.MouseEvent) => {
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        // Shift+Click range selection
+        if (event?.shiftKey && emails && lastSelectedIndex.current >= 0) {
+          const currentIndex = emails.findIndex((e) => e.id === id);
+          if (currentIndex >= 0) {
+            const start = Math.min(lastSelectedIndex.current, currentIndex);
+            const end = Math.max(lastSelectedIndex.current, currentIndex);
+            for (let i = start; i <= end; i++) {
+              next.add(emails[i].id);
+            }
+            return next;
           }
-          return next;
         }
-      }
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      // Track last selected for shift+click
-      if (emails) {
-        const idx = emails.findIndex((e) => e.id === id);
-        if (idx >= 0) lastSelectedIndex.current = idx;
-      }
-      return next;
-    });
-  }, [emails]);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        // Track last selected for shift+click
+        if (emails) {
+          const idx = emails.findIndex((e) => e.id === id);
+          if (idx >= 0) lastSelectedIndex.current = idx;
+        }
+        return next;
+      });
+    },
+    [emails],
+  );
 
   const batchAction = useCallback(
     async (action: 'archive' | 'delete') => {
       const count = selectedIds.size;
-      const requests = Array.from(selectedIds, (id) =>
-        action === 'archive' ? apiClient.archiveEmail(id) : apiClient.deleteEmail(id),
+      const responses = await Promise.all(
+        Array.from(selectedIds, (id) =>
+          action === 'archive' ? apiClient.archiveEmail(id) : apiClient.deleteEmail(id),
+        ),
       );
-      await Promise.all(requests);
+      const failed = responses.find((response) => !response.success);
+      if (failed) {
+        showToast({
+          text: failed.error?.message || `Selected conversations could not be ${action}d`,
+          type: 'error',
+        });
+        return;
+      }
       setSelectedIds(new Set());
-      showToast({ text: `${count} conversation${count === 1 ? '' : 's'} ${action === 'archive' ? 'archived' : 'deleted'}`, type: 'success' });
+      showToast({
+        text: `${count} conversation${count === 1 ? '' : 's'} ${action === 'archive' ? 'archived' : 'deleted'}`,
+        type: 'success',
+      });
       await refetch();
     },
     [refetch, selectedIds],
@@ -418,14 +434,27 @@ export default function InboxPage() {
 
   const archiveEmail = useCallback(
     async (id: string) => {
-      await apiClient.archiveEmail(id);
+      const response = await apiClient.archiveEmail(id);
+      if (!response.success) {
+        showToast({
+          text: response.error?.message || 'Conversation could not be archived',
+          type: 'error',
+        });
+        return;
+      }
       if (selectedEmail?.id === id) setSelectedEmail(null);
       showToast({
         text: 'Conversation archived',
         type: 'success',
         undoAction: async () => {
-          // Undo: unarchive (move back to inbox)
-          await apiClient.unarchiveEmail?.(id).catch(() => {});
+          const undoResponse = await apiClient.unarchiveEmail(id);
+          if (!undoResponse.success) {
+            showToast({
+              text: undoResponse.error?.message || 'Archive could not be undone',
+              type: 'error',
+            });
+            return;
+          }
           await refetch();
         },
       });
@@ -436,7 +465,14 @@ export default function InboxPage() {
 
   const deleteEmail = useCallback(
     async (id: string) => {
-      await apiClient.deleteEmail(id);
+      const response = await apiClient.deleteEmail(id);
+      if (!response.success) {
+        showToast({
+          text: response.error?.message || 'Conversation could not be moved to trash',
+          type: 'error',
+        });
+        return;
+      }
       if (selectedEmail?.id === id) setSelectedEmail(null);
       showToast({ text: 'Conversation moved to trash', type: 'success' });
       await refetch();
@@ -462,10 +498,14 @@ export default function InboxPage() {
   );
 
   const snoozeEmail = useCallback(
-    async (emailId: string, _snoozeUntil: Date) => {
-      await apiClient.archiveEmail(emailId);
+    async (emailId: string, snoozeUntil: Date) => {
+      const response = await apiClient.snoozeEmail(emailId, snoozeUntil);
+      if (!response.success) {
+        showToast({ text: response.error?.message || 'Email could not be snoozed', type: 'error' });
+        return;
+      }
       if (selectedEmail?.id === emailId) setSelectedEmail(null);
-      showToast({ text: 'Email snoozed', type: 'info' });
+      showToast({ text: `Email snoozed until ${snoozeUntil.toLocaleString()}`, type: 'info' });
       await refetch();
     },
     [refetch, selectedEmail],
@@ -704,8 +744,6 @@ export default function InboxPage() {
         </section>
         <ReadingPane email={selectedEmail} onClose={() => setSelectedEmail(null)} />
       </div>
-      <InboxToastContainer />
-      <KeyboardShortcutsHelp />
     </AppShell>
   );
 }

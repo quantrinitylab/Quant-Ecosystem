@@ -3,7 +3,6 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { quantMailBrandMetadata } from '../brand/identity';
 import { AuthGuard } from '../components/AuthGuard';
-import { CommandPalette } from '../components/CommandPalette';
 import { GlobalShortcutsProvider } from '../components/GlobalShortcutsProvider';
 import { InboxToastContainer } from '../components/InboxToast';
 import { KeyboardShortcutsHelp } from '../components/KeyboardShortcutsHelp';
@@ -66,11 +65,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <AppProviders>
                 <AuthGuard>
                   <GlobalShortcutsProvider>
-                    <main id="main-content">
-                      {children}
-                    </main>
+                    <main id="main-content">{children}</main>
                   </GlobalShortcutsProvider>
-                  <CommandPalette />
                   <KeyboardShortcutsHelp />
                   <InboxToastContainer />
                 </AuthGuard>

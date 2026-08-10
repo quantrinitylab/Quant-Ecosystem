@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button, Skeleton } from '@quant/shared-ui';
@@ -16,12 +16,10 @@ export default function RepoEditorPage() {
   const repoId = (params?.id as string) || '';
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [editorContent, setEditorContent] = useState('');
-  const [isModified, setIsModified] = useState(false);
   const [showAIChat, setShowAIChat] = useState(true);
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
   const [showTerminal, setShowTerminal] = useState(false);
   const [terminalInput, setTerminalInput] = useState('');
-  const editorRef = useRef<HTMLTextAreaElement>(null);
 
   const { data: repo } = useRepo(repoId);
   const { data: fileTree, isLoading: loadingTree } = useFileTree(repoId);
@@ -29,65 +27,55 @@ export default function RepoEditorPage() {
 
   // Load file content when selected
   useEffect(() => {
-    if (fileContent?.content) {
+    if (fileContent) {
       setEditorContent(fileContent.content);
-      setIsModified(false);
     }
   }, [fileContent]);
 
   const handleFileSelect = useCallback((path: string) => {
-    if (isModified) {
-      if (!confirm('You have unsaved changes. Discard?')) return;
-    }
     setSelectedFile(path);
-  }, [isModified]);
-
-  const handleEditorChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setEditorContent(e.target.value);
-    setIsModified(true);
   }, []);
 
   const handleSave = useCallback(() => {
-    // In production: POST to backend to save file
-    setIsModified(false);
-    setTerminalOutput((prev) => [...prev, `✓ Saved ${selectedFile}`]);
-  }, [selectedFile]);
+    setTerminalOutput((prev) => [
+      ...prev,
+      'Save unavailable: durable repository storage is not connected.',
+    ]);
+  }, []);
 
-  const handleTerminalSubmit = useCallback((e: React.FormEvent) => {
-    e.preventDefault();
-    if (!terminalInput.trim()) return;
-    setTerminalOutput((prev) => [...prev, `$ ${terminalInput}`, 'Command execution not connected yet.']);
-    setTerminalInput('');
-  }, [terminalInput]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Tab support
-    if (e.key === 'Tab') {
+  const handleTerminalSubmit = useCallback(
+    (e: React.FormEvent) => {
       e.preventDefault();
-      const target = e.target as HTMLTextAreaElement;
-      const start = target.selectionStart;
-      const end = target.selectionEnd;
-      const newContent = editorContent.substring(0, start) + '  ' + editorContent.substring(end);
-      setEditorContent(newContent);
-      setIsModified(true);
-      // Move cursor
-      setTimeout(() => { target.selectionStart = target.selectionEnd = start + 2; }, 0);
-    }
-    // Ctrl+S to save
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-      e.preventDefault();
-      handleSave();
-    }
-  }, [editorContent, handleSave]);
+      if (!terminalInput.trim()) return;
+      setTerminalOutput((prev) => [
+        ...prev,
+        'Terminal unavailable: command execution is not connected.',
+      ]);
+      setTerminalInput('');
+    },
+    [terminalInput],
+  );
 
   const getLanguage = (filename: string | null): string => {
     if (!filename) return 'plaintext';
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     const map: Record<string, string> = {
-      ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
-      py: 'python', go: 'go', rs: 'rust', java: 'java', rb: 'ruby',
-      css: 'css', html: 'html', json: 'json', md: 'markdown',
-      yaml: 'yaml', yml: 'yaml', sh: 'bash',
+      ts: 'typescript',
+      tsx: 'typescript',
+      js: 'javascript',
+      jsx: 'javascript',
+      py: 'python',
+      go: 'go',
+      rs: 'rust',
+      java: 'java',
+      rb: 'ruby',
+      css: 'css',
+      html: 'html',
+      json: 'json',
+      md: 'markdown',
+      yaml: 'yaml',
+      yml: 'yaml',
+      sh: 'bash',
     };
     return map[ext] || 'plaintext';
   };
@@ -102,11 +90,7 @@ export default function RepoEditorPage() {
               ← Back
             </Button>
             <span className="ide-repo-name">{repo?.name || 'Repository'}</span>
-            {selectedFile && (
-              <span className="ide-file-path">
-                / {selectedFile} {isModified && <span className="ide-modified">●</span>}
-              </span>
-            )}
+            {selectedFile && <span className="ide-file-path">/ {selectedFile}</span>}
           </div>
           <div className="ide-topbar-right">
             <button
@@ -125,8 +109,8 @@ export default function RepoEditorPage() {
             >
               ⌨ Terminal
             </button>
-            <Button variant="primary" onClick={handleSave} disabled={!isModified}>
-              {isModified ? 'Save' : 'Saved'}
+            <Button variant="primary" onClick={handleSave} disabled>
+              Read only
             </Button>
           </div>
         </header>
@@ -154,12 +138,14 @@ export default function RepoEditorPage() {
           <main className="ide-editor-area">
             {!selectedFile ? (
               <div className="ide-welcome">
-                <h2>Select a file to start editing</h2>
-                <p>Choose a file from the tree on the left, or use AI to generate code.</p>
+                <h2>Select a file to preview</h2>
+                <p>
+                  Repository storage is not connected, so editing, saving, AI apply, and terminal
+                  execution are unavailable.
+                </p>
                 <div className="ide-welcome-shortcuts">
-                  <kbd>Ctrl+S</kbd> Save
-                  <kbd>Tab</kbd> Indent
-                  <kbd>✦ AI</kbd> Ask AI
+                  <kbd>Read only</kbd> No durable writes
+                  <kbd>✦ AI</kbd> Suggestions only
                 </div>
               </div>
             ) : (
@@ -172,11 +158,10 @@ export default function RepoEditorPage() {
                     ))}
                   </div>
                   <textarea
-                    ref={editorRef}
                     className="ide-textarea"
                     value={editorContent}
-                    onChange={handleEditorChange}
-                    onKeyDown={handleKeyDown}
+                    readOnly
+                    aria-label="Repository file preview (read only)"
                     spellCheck={false}
                     autoComplete="off"
                     autoCorrect="off"
@@ -190,7 +175,7 @@ export default function RepoEditorPage() {
                   <span>{editorContent.split('\n').length} lines</span>
                   <span>{editorContent.length} chars</span>
                   <span>UTF-8</span>
-                  {isModified && <span className="ide-status-modified">Modified</span>}
+                  <span>Read only</span>
                 </div>
               </div>
             )}
@@ -207,7 +192,9 @@ export default function RepoEditorPage() {
                 >
                   <div className="ide-terminal-header">
                     <span>Terminal</span>
-                    <button type="button" onClick={() => setShowTerminal(false)}>×</button>
+                    <button type="button" onClick={() => setShowTerminal(false)}>
+                      ×
+                    </button>
                   </div>
                   <div className="ide-terminal-output">
                     {terminalOutput.map((line, i) => (
@@ -243,9 +230,11 @@ export default function RepoEditorPage() {
                   currentFile={selectedFile}
                   currentContent={editorContent}
                   language={getLanguage(selectedFile)}
-                  onApplyCode={(code) => {
-                    setEditorContent(code);
-                    setIsModified(true);
+                  onApplyCode={() => {
+                    setTerminalOutput((prev) => [
+                      ...prev,
+                      'AI apply unavailable: durable repository storage is not connected.',
+                    ]);
                   }}
                   onClose={() => setShowAIChat(false)}
                 />

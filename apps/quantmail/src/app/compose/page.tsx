@@ -15,6 +15,7 @@ export default function ComposePage() {
   const replyTo = searchParams?.get('replyTo') ?? null;
   const forwardId = searchParams?.get('forward') ?? null;
   const draftId = searchParams?.get('draftId') ?? null;
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId);
 
   const [draftData, setDraftData] = useState<{
     to?: Array<{ email: string }>;
@@ -27,25 +28,34 @@ export default function ComposePage() {
     if (!draftId) return;
     let active = true;
     setDraftLoading(true);
-    apiClient.getEmail(draftId).then((response) => {
-      if (!active) return;
-      if (response.success && response.data) {
-        setDraftData({
-          to: response.data.to,
-          subject: response.data.subject ?? '',
-          body: response.data.bodyText ?? response.data.snippet ?? '',
-        });
-      }
-      setDraftLoading(false);
-    }).catch(() => {
-      if (active) setDraftLoading(false);
-    });
-    return () => { active = false; };
+    apiClient
+      .getEmail(draftId)
+      .then((response) => {
+        if (!active) return;
+        if (response.success && response.data) {
+          const storedDraft = response.data as typeof response.data & {
+            toAddresses?: string[];
+            bodyPlain?: string;
+          };
+          setDraftData({
+            to: storedDraft.to ?? storedDraft.toAddresses?.map((email) => ({ email })),
+            subject: storedDraft.subject ?? '',
+            body: storedDraft.bodyText ?? storedDraft.bodyPlain ?? storedDraft.snippet ?? '',
+          });
+        }
+        setDraftLoading(false);
+      })
+      .catch(() => {
+        if (active) setDraftLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [draftId]);
 
   const composeDraft = useCallback(
     async (data: ComposerMessageData) => {
-      const response = await apiClient.composeEmail({
+      const payload = {
         to: data.to,
         cc: data.cc,
         bcc: data.bcc,
@@ -56,15 +66,19 @@ export default function ComposePage() {
         scheduledAt: data.scheduledAt,
         inReplyTo: replyTo || undefined,
         isDraft: true,
-      });
+      };
+      const response = currentDraftId
+        ? await apiClient.updateDraft(currentDraftId, payload)
+        : await apiClient.composeEmail(payload);
 
       if (!response.success || !response.data) {
-        throw new Error(response.error?.message || 'Draft could not be composed.');
+        throw new Error(response.error?.message || 'Draft could not be saved.');
       }
 
+      if (!currentDraftId) setCurrentDraftId(response.data.id);
       return response.data;
     },
-    [replyTo],
+    [currentDraftId, replyTo],
   );
 
   const handleSend = useCallback(
@@ -127,7 +141,9 @@ export default function ComposePage() {
         ) : (
           <EmailComposer
             initialTo={draftData?.to}
-            initialSubject={draftData?.subject ?? (forwardId ? 'Fwd: ' : replyTo ? 'Re: ' : undefined)}
+            initialSubject={
+              draftData?.subject ?? (forwardId ? 'Fwd: ' : replyTo ? 'Re: ' : undefined)
+            }
             initialBody={draftData?.body}
             inReplyTo={replyTo || undefined}
             onSend={handleSend}

@@ -8,6 +8,7 @@ import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { AppSidebar } from '../../components/AppSidebar';
+import { showToast } from '../../components/InboxToast';
 import { PageTransition } from '../../components/PageTransition';
 import { useInbox } from '../../hooks/useInbox';
 import { apiClient } from '../../services/api-client';
@@ -39,43 +40,78 @@ export default function TrashPage() {
   const handlePermanentDelete = useCallback(
     async (id: string) => {
       if (!window.confirm('Permanently delete this email? This cannot be undone.')) return;
-      await apiClient.deleteEmail(id);
+      const response = await apiClient.deleteEmail(id);
+      if (!response.success) {
+        showToast({
+          text: response.error?.message || 'Email could not be permanently deleted',
+          type: 'error',
+        });
+        return;
+      }
       setSelectedIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
-      refetch();
+      showToast({ text: 'Email permanently deleted', type: 'success' });
+      await refetch();
     },
     [refetch],
   );
 
   const handleRestore = useCallback(
     async (id: string) => {
-      await apiClient.archiveEmail(id); // moves out of trash back to inbox/archive
+      const response = await apiClient.restoreEmail(id);
+      if (!response.success) {
+        showToast({
+          text: response.error?.message || 'Email could not be restored',
+          type: 'error',
+        });
+        return;
+      }
       setSelectedIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
-      refetch();
+      showToast({ text: 'Email restored to inbox', type: 'success' });
+      await refetch();
     },
     [refetch],
   );
 
   const handleBatchDelete = useCallback(async () => {
-    if (!window.confirm(`Permanently delete ${selectedIds.size} email(s)? This cannot be undone.`)) return;
+    if (!window.confirm(`Permanently delete ${selectedIds.size} email(s)? This cannot be undone.`))
+      return;
     const ids = Array.from(selectedIds);
-    await Promise.all(ids.map((id) => apiClient.deleteEmail(id)));
+    const responses = await Promise.all(ids.map((id) => apiClient.deleteEmail(id)));
+    const failed = responses.find((response) => !response.success);
+    if (failed) {
+      showToast({
+        text: failed.error?.message || 'Some emails could not be permanently deleted',
+        type: 'error',
+      });
+      return;
+    }
     setSelectedIds(new Set());
-    refetch();
+    showToast({ text: `${ids.length} email(s) permanently deleted`, type: 'success' });
+    await refetch();
   }, [selectedIds, refetch]);
 
   const handleBatchRestore = useCallback(async () => {
     const ids = Array.from(selectedIds);
-    await Promise.all(ids.map((id) => apiClient.archiveEmail(id)));
+    const responses = await Promise.all(ids.map((id) => apiClient.restoreEmail(id)));
+    const failed = responses.find((response) => !response.success);
+    if (failed) {
+      showToast({
+        text: failed.error?.message || 'Some emails could not be restored',
+        type: 'error',
+      });
+      return;
+    }
     setSelectedIds(new Set());
-    refetch();
+    showToast({ text: `${ids.length} email(s) restored`, type: 'success' });
+    await refetch();
   }, [selectedIds, refetch]);
 
   return (
@@ -93,7 +129,12 @@ export default function TrashPage() {
               <Button
                 variant="secondary"
                 onClick={async () => {
-                  if (!window.confirm(`Permanently delete all ${emails.length} items in trash? This cannot be undone.`)) return;
+                  if (
+                    !window.confirm(
+                      `Permanently delete all ${emails.length} items in trash? This cannot be undone.`,
+                    )
+                  )
+                    return;
                   await Promise.all(emails.map((e) => apiClient.deleteEmail(e.id)));
                   setSelectedIds(new Set());
                   refetch();

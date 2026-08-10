@@ -321,13 +321,11 @@ export class EmailService {
       throw createAppError('Not authorized', 403, 'FORBIDDEN');
     }
 
-    if (hard) {
-      return this.prisma.email.delete({ where: { id: emailId } });
-    }
-
+    // Preserve history: deleting from the inbox moves the message to trash;
+    // deleting an already-trashed message records a logical permanent deletion.
     return this.prisma.email.update({
       where: { id: emailId },
-      data: { deletedAt: new Date(), isTrash: true },
+      data: email.isTrash || hard ? { deletedAt: new Date() } : { deletedAt: null, isTrash: true },
     });
   }
 

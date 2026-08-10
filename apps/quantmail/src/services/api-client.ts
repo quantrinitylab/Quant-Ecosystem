@@ -150,6 +150,7 @@ export class QuantMailApiClient {
   async getEmails(options?: {
     label?: string;
     category?: string;
+    folderType?: string;
     page?: number;
     pageSize?: number;
   }): Promise<PaginatedResponse<Email>> {
@@ -172,7 +173,13 @@ export class QuantMailApiClient {
     return this.post('/emails/compose', data);
   }
 
-  async sendEmail(id: string): Promise<ApiResponse<{ message: string; emailId: string }>> {
+  async updateDraft(id: string, data: ComposeEmailRequest): Promise<ApiResponse<Email>> {
+    return this.put(`/emails/${id}`, data);
+  }
+
+  async sendEmail(
+    id: string,
+  ): Promise<ApiResponse<{ message: string; emailId: string; deliveryStatus: string }>> {
     return this.post(`/emails/${id}/send`, {});
   }
 
@@ -194,6 +201,17 @@ export class QuantMailApiClient {
 
   async unarchiveEmail(id: string): Promise<ApiResponse<{ message: string }>> {
     return this.post(`/emails/${id}/unarchive`, {});
+  }
+
+  async restoreEmail(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/restore`, {});
+  }
+
+  async snoozeEmail(
+    id: string,
+    snoozeUntil: Date,
+  ): Promise<ApiResponse<{ message: string; snoozedUntil: string }>> {
+    return this.post(`/emails/${id}/snooze`, { snoozeUntil: snoozeUntil.toISOString() });
   }
 
   async deleteEmail(id: string): Promise<ApiResponse<{ message: string }>> {

@@ -207,37 +207,43 @@ describe('EmailService', () => {
   });
 
   describe('delete', () => {
-    it('soft deletes an email by default', async () => {
+    it('moves an email to recoverable trash by default', async () => {
       prisma.email.findUnique.mockResolvedValue({
         id: 'email-1',
         userId: 'user-1',
+        isTrash: false,
       });
       prisma.email.update.mockResolvedValue({
         id: 'email-1',
-        deletedAt: new Date(),
+        deletedAt: null,
         isTrash: true,
       });
 
       const result = await service.delete('email-1', 'user-1');
 
       expect(result.isTrash).toBe(true);
-      expect(result.deletedAt).toBeInstanceOf(Date);
+      expect(result.deletedAt).toBeNull();
       expect(prisma.email.update).toHaveBeenCalledWith({
         where: { id: 'email-1' },
-        data: { deletedAt: expect.any(Date), isTrash: true },
+        data: { deletedAt: null, isTrash: true },
       });
     });
 
-    it('hard deletes when hard flag is true', async () => {
+    it('records logical deletion when the hard flag is true', async () => {
       prisma.email.findUnique.mockResolvedValue({
         id: 'email-1',
         userId: 'user-1',
+        isTrash: true,
       });
-      prisma.email.delete.mockResolvedValue({ id: 'email-1' });
+      prisma.email.update.mockResolvedValue({ id: 'email-1', deletedAt: new Date() });
 
       await service.delete('email-1', 'user-1', true);
 
-      expect(prisma.email.delete).toHaveBeenCalledWith({ where: { id: 'email-1' } });
+      expect(prisma.email.update).toHaveBeenCalledWith({
+        where: { id: 'email-1' },
+        data: { deletedAt: expect.any(Date) },
+      });
+      expect(prisma.email.delete).not.toHaveBeenCalled();
     });
 
     it('throws EMAIL_NOT_FOUND for non-existent email', async () => {

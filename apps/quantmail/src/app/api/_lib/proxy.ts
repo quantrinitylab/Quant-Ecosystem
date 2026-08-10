@@ -40,10 +40,29 @@ export async function proxyToBackend(
     }
   }
 
-  const res = await fetch(url.toString(), fetchOptions);
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), { ...fetchOptions, cache: 'no-store' });
+  } catch {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: 'BACKEND_UNAVAILABLE',
+          message: 'The requested service is temporarily unavailable.',
+          statusCode: 502,
+        },
+      },
+      { status: 502, headers: { 'cache-control': 'no-store' } },
+    );
+  }
+
   try {
     const data = await res.json();
-    const response = NextResponse.json(data, { status: res.status });
+    const response = NextResponse.json(data, {
+      status: res.status,
+      headers: { 'cache-control': 'no-store' },
+    });
     // Forward Set-Cookie headers from backend (for auth refresh tokens)
     const setCookie = res.headers.get('set-cookie');
     if (setCookie) {
@@ -60,7 +79,7 @@ export async function proxyToBackend(
           statusCode: 502,
         },
       },
-      { status: 502 },
+      { status: 502, headers: { 'cache-control': 'no-store' } },
     );
   }
 }
