@@ -10,7 +10,6 @@ permissions:
 jobs:
   test-oidc:
     runs-on: ubuntu-latest
-    environment: staging
     steps:
       - name: Inspect OIDC claims
         shell: bash
