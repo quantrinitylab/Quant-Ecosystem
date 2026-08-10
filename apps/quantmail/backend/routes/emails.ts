@@ -378,7 +378,10 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       });
     }
 
-    await prisma.emailThread.update({ where: { id: thread.id }, data: { snoozedUntil } });
+    await prisma.emailThread.update({
+      where: { id: thread.id },
+      data: { snoozedUntil: snoozeUntil },
+    });
     return reply.send({
       success: true,
       data: { message: 'Email snoozed', snoozedUntil: snoozeUntil.toISOString() },
