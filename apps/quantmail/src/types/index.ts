@@ -431,6 +431,13 @@ export interface Calendar extends BaseEntity {
 // Contact Types
 // ============================================================================
 
+export interface ContactSuggestion {
+  email: string;
+  name?: string;
+  avatar?: string;
+  frequency?: number;
+}
+
 export interface Contact extends BaseEntity {
   userId: string;
   email: string;

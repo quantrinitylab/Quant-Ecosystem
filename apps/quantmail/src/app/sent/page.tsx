@@ -10,6 +10,7 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { IdentityAvatar } from '../../components/IdentityAvatar';
 import { PageTransition } from '../../components/PageTransition';
 import { useInbox } from '../../hooks/useInbox';
+import { apiClient } from '../../services/api-client';
 import type { Email, EmailStatus } from '../../types';
 
 function DeliveryStatus({ status, onResend }: { status: EmailStatus; onResend?: () => void }) {
@@ -31,7 +32,10 @@ function DeliveryStatus({ status, onResend }: { status: EmailStatus; onResend?: 
         <button
           type="button"
           className="delivery-resend"
-          onClick={(e) => { e.stopPropagation(); onResend(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onResend();
+          }}
           title="Retry sending"
         >
           Resend
@@ -85,7 +89,9 @@ export default function SentPage() {
       <PageTransition className="workspace-page sent-workspace flex flex-col h-full">
         <header className="sent-header">
           <div>
-            <p className="sent-kicker"><span /> Delivery trail</p>
+            <p className="sent-kicker">
+              <span /> Delivery trail
+            </p>
             <h1>Sent</h1>
             <p className="sent-subtitle">
               {emails?.length
@@ -141,7 +147,10 @@ export default function SentPage() {
                       <span className="sent-row-recipients">
                         {email.to?.map((t) => t.name || t.email).join(', ') || 'Unknown'}
                       </span>
-                      <DeliveryStatus status={email.status} onResend={() => void handleResend(email.id)} />
+                      <DeliveryStatus
+                        status={email.status}
+                        onResend={() => void handleResend(email.id)}
+                      />
                       <time className="sent-row-time">{formatSentDate(email.receivedAt)}</time>
                     </div>
                     <h3 className="sent-row-subject">{email.subject || '(no subject)'}</h3>

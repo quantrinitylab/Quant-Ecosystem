@@ -52,7 +52,7 @@ export function useInfiniteInbox({
       .then((response) => {
         if (!active) return;
         if (response.success && response.data) {
-          const items = Array.isArray(response.data) ? response.data : response.data.items ?? [];
+          const items = response.data;
           setEmails(items);
           setHasMore(items.length >= pageSize);
         } else {
@@ -66,7 +66,9 @@ export function useInfiniteInbox({
         if (active) setIsLoading(false);
       });
 
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [category, pageSize]);
 
   // Load more pages
@@ -78,7 +80,7 @@ export function useInfiniteInbox({
     try {
       const response = await apiClient.getEmails({ category, page: nextPage, pageSize });
       if (response.success && response.data) {
-        const items = Array.isArray(response.data) ? response.data : response.data.items ?? [];
+        const items = response.data;
         setEmails((prev) => [...prev, ...items]);
         setPage(nextPage);
         setHasMore(items.length >= pageSize);
@@ -122,7 +124,7 @@ export function useInfiniteInbox({
     try {
       const response = await apiClient.getEmails({ category, page: 1, pageSize });
       if (response.success && response.data) {
-        const items = Array.isArray(response.data) ? response.data : response.data.items ?? [];
+        const items = response.data;
         setEmails(items);
         setHasMore(items.length >= pageSize);
       }

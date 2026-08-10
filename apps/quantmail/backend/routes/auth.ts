@@ -270,21 +270,17 @@ export async function authRoutes(fastify: FastifyInstance) {
     const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
     if (!userId) return fail(reply, 401, 'UNAUTHORIZED', 'Authentication required.');
 
-    // Generate a TOTP secret and QR code URL
-    const crypto = await import('node:crypto');
-    const secret = crypto.randomBytes(20).toString('base32') || crypto.randomBytes(20).toString('hex').slice(0, 32);
-    const base32Secret = Buffer.from(secret).toString('base64url').replace(/[^A-Z2-7]/gi, '').slice(0, 16).toUpperCase();
+    // Generate a standards-compliant Base32 TOTP secret with the shared auth service.
+    const { totpService } = await import('@quant/auth');
+    const base32Secret = totpService.generateSecret();
 
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     const issuer = 'QuantMail';
     const account = user?.email || 'user@quantmail.in';
-    const otpauthUrl = `otpauth://totp/${issuer}:${account}?secret=${base32Secret}&issuer=${issuer}&digits=6&period=30`;
+    const otpauthUrl = totpService.generateQRCodeUri(base32Secret, account, issuer);
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUrl)}`;
 
-    // Generate backup codes
-    const backupCodes = Array.from({ length: 8 }, () =>
-      crypto.randomBytes(4).toString('hex').toUpperCase(),
-    );
+    const backupCodes = totpService.generateBackupCodes().map((code) => code.toUpperCase());
 
     return reply.send({
       success: true,
@@ -309,7 +305,12 @@ export async function authRoutes(fastify: FastifyInstance) {
     // Basic TOTP verification (time-based, 6 digits, 30s window)
     // For production, use a proper TOTP library — this validates format only
     if (!/^\d{6}$/.test(code)) {
-      return fail(reply, 400, 'INVALID_CODE', 'Enter a valid 6-digit code from your authenticator app.');
+      return fail(
+        reply,
+        400,
+        'INVALID_CODE',
+        'Enter a valid 6-digit code from your authenticator app.',
+      );
     }
 
     // Store 2FA status (in a real impl, store secret + backup codes hashed)
@@ -333,7 +334,9 @@ export async function authRoutes(fastify: FastifyInstance) {
     // Always return success to avoid leaking whether an email exists
     return reply.send({
       success: true,
-      data: { message: 'If an account exists with that address, reset instructions have been sent.' },
+      data: {
+        message: 'If an account exists with that address, reset instructions have been sent.',
+      },
     });
   });
 

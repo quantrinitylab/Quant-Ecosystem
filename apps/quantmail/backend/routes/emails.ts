@@ -222,7 +222,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
           });
           const fromAddr = sender?.displayName
             ? `${sender.displayName} <${sender.email}>`
-            : sender?.email ?? `noreply@quantmail.in`;
+            : (sender?.email ?? `noreply@quantmail.in`);
           await sendViaSes({
             from: fromAddr,
             to: externalRecipients,
@@ -230,10 +230,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
             bodyHtml: email.bodyHtml ?? undefined,
             bodyText: email.bodyPlain ?? email.bodyText ?? undefined,
           });
-          request.log.info(
-            { to: externalRecipients },
-            'external email sent via SES',
-          );
+          request.log.info({ to: externalRecipients }, 'external email sent via SES');
         }
       }
     } catch (sesErr) {
@@ -266,18 +263,6 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
     await prisma.email.update({ where: { id: request.params.id }, data: { isTrash: false } });
     return reply.send({ success: true, data: { message: 'Email moved to inbox' } });
-  });
-
-  // POST /emails/:id/read - mark as read.
-  fastify.post<{ Params: { id: string } }>('/:id/read', async (request, reply) => {
-    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
-    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
-    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
-    if (!email) throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
-    if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
-    await prisma.email.update({ where: { id: request.params.id }, data: { isRead: true } });
-    return reply.send({ success: true, data: { message: 'Marked as read' } });
   });
 
   // POST /emails/:id/unread - mark as unread.

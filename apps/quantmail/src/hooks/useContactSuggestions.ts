@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '../services/api-client';
-import type { ContactSuggestion } from '../components/ContactAutocomplete';
+import type { ContactSuggestion } from '../types';
 
 const CACHE_KEY = 'quant-contact-suggestions';
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes

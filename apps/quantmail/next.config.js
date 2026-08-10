@@ -26,16 +26,6 @@ const nextConfig = {
     return config;
   },
 
-  async rewrites() {
-    const backendUrl = process.env.QUANTMAIL_BACKEND_URL || 'http://localhost:3010';
-    return [
-      {
-        source: '/auth/:path*',
-        destination: `${backendUrl}/auth/:path*`,
-      },
-    ];
-  },
-
   async headers() {
     return [
       {

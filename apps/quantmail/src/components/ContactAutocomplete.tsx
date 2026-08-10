@@ -3,13 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { IdentityAvatar } from './IdentityAvatar';
+import type { ContactSuggestion } from '../types';
 
-export interface ContactSuggestion {
-  email: string;
-  name?: string;
-  avatar?: string;
-  frequency?: number;
-}
+export type { ContactSuggestion } from '../types';
 
 interface ContactAutocompleteProps {
   value: string;
@@ -205,10 +201,7 @@ export function ContactAutocomplete({
                 }}
                 onMouseEnter={() => setActiveIndex(index)}
               >
-                <IdentityAvatar
-                  name={suggestion.name || suggestion.email}
-                  size="sm"
-                />
+                <IdentityAvatar name={suggestion.name || suggestion.email} size="sm" />
                 <div className="autocomplete-item-info">
                   {suggestion.name && (
                     <span className="autocomplete-item-name">{suggestion.name}</span>

@@ -20,6 +20,7 @@ configmap:
   CORS_ORIGINS: 'https://quantmail.quantrinity.in,https://quantchat.quantrinity.in,https://quantai.quantrinity.in,https://quantrinity.in'
   JWT_ISSUER: 'https://quantrinity.in'
   JWT_AUDIENCE: 'quant-platform-staging'
+  QUANTMAIL_BACKEND_URL: 'http://quant-quantmail-backend:3011'
 
 ingress:
   tls:
