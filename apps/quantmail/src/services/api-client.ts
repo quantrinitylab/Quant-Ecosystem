@@ -177,7 +177,9 @@ export class QuantMailApiClient {
     return this.put(`/emails/${id}`, data);
   }
 
-  async sendEmail(id: string): Promise<ApiResponse<{ message: string; emailId: string }>> {
+  async sendEmail(
+    id: string,
+  ): Promise<ApiResponse<{ message: string; emailId: string; deliveryStatus: string }>> {
     return this.post(`/emails/${id}/send`, {});
   }
 

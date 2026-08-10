@@ -38,6 +38,17 @@ const searchSchema = z.object({
 });
 
 export default async function emailsRoutes(fastify: FastifyInstance) {
+  let outboundQueue: ReturnType<typeof OutboundDeliveryPipeline.createQueue> | undefined;
+  const createSendService = (prisma: any) => {
+    outboundQueue ??= OutboundDeliveryPipeline.createQueue();
+    const pipeline = new OutboundDeliveryPipeline(prisma as never, outboundQueue);
+    return new EmailService(prisma as never, pipeline);
+  };
+
+  fastify.addHook('onClose', async () => {
+    await outboundQueue?.close();
+  });
+
   // POST /emails - Compose or send an email
   fastify.post('/', async (request, reply) => {
     const parseResult = composeSchema.safeParse(request.body);
@@ -75,11 +86,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     if (parseResult.data.send && parseResult.data.sentFolderId) {
       // Durable, queued outbound delivery: enqueue a real BullMQ job and set
       // the email deliveryStatus to `queued` (Requirements 4.1/4.2).
-      const pipeline = new OutboundDeliveryPipeline(
-        prisma as never,
-        OutboundDeliveryPipeline.createQueue(),
-      );
-      const sendService = new EmailService(prisma as never, pipeline);
+      const sendService = createSendService(prisma);
       const sent = await sendService.send(userId, email.id, parseResult.data.sentFolderId);
 
       // Internal delivery: any recipient that is itself a QuantMail user gets a
@@ -194,14 +201,12 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: email });
   });
 
-  // POST /emails/:id/send - send a draft + deliver to QuantMail recipients.
+  // POST /emails/:id/send - durably queue an owned draft for delivery.
   fastify.post<{ Params: { id: string } }>('/:id/send', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
 
     const prisma = (fastify as unknown as { prisma: any }).prisma;
-    const service = new EmailService(prisma as never);
-
     const email = await prisma.email.findUnique({ where: { id: request.params.id } });
     if (!email) throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
     if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
@@ -209,14 +214,21 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Only an unsent draft can be sent', 409, 'EMAIL_NOT_SENDABLE');
     }
 
-    await prisma.email.update({
-      where: { id: request.params.id },
-      data: { isDraft: false, isSent: true, sentAt: new Date(), deliveryStatus: 'delivered' },
+    const sentFolder = await prisma.emailFolder.upsert({
+      where: { userId_name: { userId, name: 'Sent' } },
+      update: { type: 'SENT' },
+      create: { userId, name: 'Sent', type: 'SENT' },
     });
+    const sendService = createSendService(prisma);
 
-    const asArray = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
+    // Queue creation/add failures propagate through the standard JSON error
+    // envelope. The draft remains unsent instead of reporting false success.
+    await sendService.send(userId, email.id, sentFolder.id);
+
+    const asArray = (value: unknown): string[] =>
+      Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
     try {
-      await service.deliverInternally({
+      await sendService.deliverInternally({
         fromUserId: userId,
         subject: email.subject,
         bodyHtml: email.bodyHtml ?? undefined,
@@ -227,55 +239,24 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         threadId: email.threadId ?? undefined,
         inReplyTo: email.inReplyTo ?? undefined,
       });
-    } catch {
-      /* internal delivery failure must not fail the send */
+    } catch (error) {
+      request.log.warn({ err: error, emailId: email.id }, 'internal mailbox delivery failed');
     }
 
     try {
       notifier.notifyNewEmail(asArray(email.toAddresses), userId, email.subject, email.id);
-    } catch {
-      /* ignore */
+    } catch (error) {
+      request.log.warn({ err: error, emailId: email.id }, 'new-email notification failed');
     }
 
-    // External delivery via SES: for recipients outside @quantmail.in, send
-    // directly through Amazon SES. The BullMQ outbound worker handles this in
-    // production (DKIM+SMTP), but when Redis/queue isn't available (sandbox,
-    // early deploy) this direct SES path ensures emails actually leave.
-    try {
-      const { sendViaSes, isSesConfigured } = await import('../lib/ses-sender');
-      if (isSesConfigured()) {
-        const allRecipients = [
-          ...asArray(email.toAddresses),
-          ...asArray(email.ccAddresses),
-          ...asArray(email.bccAddresses),
-        ];
-        const externalRecipients = allRecipients.filter(
-          (addr: string) => !addr.endsWith('@quantmail.in') && !addr.endsWith('@quantchat.online'),
-        );
-        if (externalRecipients.length > 0) {
-          const sender = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { displayName: true, email: true },
-          });
-          const fromAddr = sender?.displayName
-            ? `${sender.displayName} <${sender.email}>`
-            : (sender?.email ?? `noreply@quantmail.in`);
-          await sendViaSes({
-            from: fromAddr,
-            to: externalRecipients,
-            subject: email.subject ?? '(no subject)',
-            bodyHtml: email.bodyHtml ?? undefined,
-            bodyText: email.bodyPlain ?? email.bodyText ?? undefined,
-          });
-          request.log.info({ to: externalRecipients }, 'external email sent via SES');
-        }
-      }
-    } catch (sesErr) {
-      // SES send failure should not fail the response (graceful degradation).
-      request.log.warn({ err: sesErr }, 'SES external delivery failed (sandbox or config issue)');
-    }
-
-    return reply.send({ success: true, data: { message: 'Email sent', emailId: email.id } });
+    return reply.status(202).send({
+      success: true,
+      data: {
+        message: 'Email queued for delivery',
+        emailId: email.id,
+        deliveryStatus: 'queued',
+      },
+    });
   });
 
   // POST /emails/:id/archive - move to the owner's archive folder without trashing it.
