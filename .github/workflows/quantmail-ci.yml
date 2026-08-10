@@ -48,7 +48,7 @@ jobs:
       - name: Build dependencies
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        run: npx turbo build --filter=@quant/quantmail...^...
+        run: npx turbo build --filter=@quant/quantmail^...
 
       - name: Typecheck QuantMail
         env:

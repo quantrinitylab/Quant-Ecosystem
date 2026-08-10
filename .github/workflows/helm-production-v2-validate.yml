@@ -42,7 +42,7 @@ jobs:
           grep -F 'domain: quantrinity.in' "$values"
           grep -F 'deploymentApproved: false' "$values"
           grep -F 'ingressApproved: false' "$values"
-          grep -F "CORS_ORIGINS: 'https://quantrinity.in'" "$values"
+          grep -F "CORS_ORIGINS: 'https://quantrinity.in,https://quantmail.quantrinity.in,https://quantchat.quantrinity.in,https://quantai.quantrinity.in'" "$values"
           grep -F "JWT_ISSUER: 'https://quantrinity.in'" "$values"
           grep -F 'AI_PROVIDER: cloudflare' "$values"
           grep -F "AI_DEFAULT_MODEL: '@cf/meta/llama-3.2-1b-instruct'" "$values"
@@ -87,7 +87,7 @@ jobs:
           test "$(grep -c '^kind: Deployment$' "$rendered")" -eq 5
           test "$(grep -c 'optional: false' "$rendered")" -eq 5
           grep -F 'DOMAIN: "quantrinity.in"' "$rendered"
-          grep -F 'CORS_ORIGINS: "https://quantrinity.in"' "$rendered"
+          grep -F 'CORS_ORIGINS: "https://quantrinity.in,https://quantmail.quantrinity.in,https://quantchat.quantrinity.in,https://quantai.quantrinity.in"' "$rendered"
           grep -F 'JWT_ISSUER: "https://quantrinity.in"' "$rendered"
           grep -F 'AI_PROVIDER: "cloudflare"' "$rendered"
           grep -F 'AI_DEFAULT_MODEL: "@cf/meta/llama-3.2-1b-instruct"' "$rendered"
