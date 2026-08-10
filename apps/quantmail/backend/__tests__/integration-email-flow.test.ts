@@ -290,13 +290,17 @@ describe('Integration: Email Flows', () => {
       expect(result.data).toHaveLength(1);
     });
 
-    it('hard deletes email permanently', async () => {
+    it('records permanent deletion without erasing history', async () => {
       const email = { id: 'email-1', userId: 'user-1', isTrash: true };
       prisma.email.findUnique.mockResolvedValue(email);
-      prisma.email.delete.mockResolvedValue(email);
+      prisma.email.update.mockResolvedValue({ ...email, deletedAt: new Date() });
 
       await emailService.delete('email-1', 'user-1', true);
-      expect(prisma.email.delete).toHaveBeenCalledWith({ where: { id: 'email-1' } });
+      expect(prisma.email.update).toHaveBeenCalledWith({
+        where: { id: 'email-1' },
+        data: { deletedAt: expect.any(Date) },
+      });
+      expect(prisma.email.delete).not.toHaveBeenCalled();
     });
   });
 
