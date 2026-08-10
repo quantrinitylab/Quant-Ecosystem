@@ -3,19 +3,18 @@
 ## GitHub
 
 - Repository: `quantrinitylabsgo/Quant-Ecosystem`.
-- The production-hardening merge sequence completed through `main` commit `09a0a22e9aa5fe288d22987b90a6119a70f7c467`; the evening staging sequence extended it through `82a0af5d4311f048179a16c33de6b6e17e35c6ac` (#139–#142, #147).
-- The production deploy workflow is manual-only, exact-main-SHA gated, OIDC-authenticated, digest-pinned, and rollback-aware. `ENABLE_QUANTMAIL_PRODUCTION_DEPLOY` remains disabled.
-- The staging deploy workflow (#139) validates the exact current main SHA, requires a green CI gate, builds SHA-tagged images, deploys by digest to `quant-staging`, and rolls back automatically on failure. It is currently blocked by the account-level OIDC federation denial, so the first cycle runs through the EC2 instance role as a documented temporary path.
+- The production-hardening and staging sequence now extends through PR #161, merged as `2e3a3d6b67883156e7cd4991ce0f4b53c3382d4a`.
+- The production deploy workflow remains manual-only, exact-main-SHA gated, OIDC-authenticated, digest-pinned, and rollback-aware. `ENABLE_QUANTMAIL_PRODUCTION_DEPLOY` remains disabled.
+- GitHub-hosted OIDC is proven by run `31381388221`. The #161 exact-main CI gate passed in run `31400717610`, attempt 2.
 
 ## AWS live truth
 
 - Active account: `266176113726`. Region: `us-east-1`.
 - The connected identity for this memory session is a read-only role; items marked as write-verified come from the separate write-capable session and were cross-posted with evidence in #138.
 - Five release repositories exist: `quant-admin`, `quant-quantmail`, `quant-quantchat`, `quant-quantai`, and `quant-ws-gateway`. All five use immutable tags, scan on push, and AES256.
-- First image: `quant-quantmail` digest `sha256:bf36e8004d914af5594827fd2a23a86a50fd7fccc9cae66e98d62efdb70db575`, tagged `8b254c1947543559a52ce74f661467cc69b2679f`, pushed 2026-08-07T14:37:06Z (593 MB). The other four repositories remain empty.
-- The observed secret inventory contains only `quant/staging/redis/credentials`. Staging application secrets and the production Cloudflare paths are absent; provisioning them is the critical path.
-- GitHub OIDC provider `token.actions.githubusercontent.com` and role `quant-gha-deploy` exist (write-verified). `sts:AssumeRoleWithWebIdentity` is denied account-wide while AWS account verification is pending; Bedrock and CloudShell share the same block. A support case is filed.
-- `quant-staging-eks` is ACTIVE (Kubernetes v1.34, two node groups, endpoint public+private, control-plane logging enabled). `quant-production-eks` is intentionally not created yet.
+- The verified QuantMail frontend release is main SHA `2e3a3d6b67883156e7cd4991ce0f4b53c3382d4a`, digest `sha256:b0574a82285f567e04d64f460db3933d847c181a0867f5f2ce372dcef78f0281`.
+- GitHub OIDC provider `token.actions.githubusercontent.com` and role `quant-gha-deploy` exist; GitHub-hosted OIDC run `31381388221` passed.
+- `quant-staging-eks` is ACTIVE. SSM rollout command `bd0d69a5-c3c9-432d-98a3-f0d607f2a58a` deployed the verified frontend digest to `quant-staging`; internal and external invalid-login smokes returned HTTP 400 JSON. `quant-production-eks` remains intentionally uncreated.
 - The failed `quant-github-oidc-deploy` CloudFormation stack was deleted; the stack name is free.
 
 ## Merged infrastructure configuration
@@ -55,11 +54,10 @@ Provision values only through an authorized secure path; never commit or paste r
 
 Staging (current):
 
-1. Provision real staging secrets through the authorized write path; never commit or paste values.
-2. Confirm the External Secrets operator and `aws-secrets-manager` ClusterSecretStore on `quant-staging-eks`.
-3. One-time `helm install` of `infra/helm/quant-platform` with `values-staging.yaml` into `quant-staging`; the release name must yield `quant-platform-staging-*` workloads.
-4. Digest-pinned first rollout with captured previous image and rollback on failed rollout status (manual from the EC2 role until OIDC unblocks).
-5. Record health, smoke, and rollback evidence before calling staging real.
+1. Treat the #161 digest and login JSON smoke as the established rollback-safe frontend baseline.
+2. Merge new feature work only after exact-main CI; build immutable images for every changed runtime.
+3. Roll out by digest to `quant-staging`, select the newest Ready pod for smoke, and restore the captured prior digest on failure.
+4. Verify authenticated behavior non-destructively before promoting any additional feature-readiness claim.
 
 Production (unchanged gates):
 

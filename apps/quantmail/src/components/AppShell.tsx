@@ -2,10 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { PageTransition } from '@quant/shared-ui';
-import {
-  quantMailDarkSemanticTheme,
-  quantMailDarkSemanticThemeName,
-} from '../brand/theme';
+import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -126,7 +123,9 @@ export function AppShell({
             }`}
             aria-label="Sidebar"
             onClickCapture={(event) => {
-              if ((event.target as HTMLElement).closest('a, button')) closeSidebar(false);
+              if ((event.target as HTMLElement).closest('.sidebar-nav-item, .sidebar-compose')) {
+                closeSidebar(false);
+              }
             }}
           >
             <button

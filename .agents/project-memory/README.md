@@ -32,7 +32,7 @@ Verified conclusions must be promoted to the owning canonical file. Never let a 
 11. [`sessions/`](./sessions/) for dated reconstruction checkpoints
 12. [`memory-index.json`](./memory-index.json) for machine-readable bootstrap
 
-Latest checkpoint: [`2026-08-07 — production hardening and live cloud truth`](./sessions/2026-08-07-production-hardening-and-cloud-truth.md).
+Latest checkpoint: [`2026-08-10 — QuantMail login rollout and feature wiring`](./sessions/2026-08-10-quantmail-login-rollout-and-feature-wiring.md).
 
 ## Memory rules
 
