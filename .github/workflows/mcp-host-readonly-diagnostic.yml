@@ -1,4 +1,4 @@
-name: MCP host read-only diagnostic
+name: MCP host targeted container recovery
 
 on:
   pull_request:
@@ -9,36 +9,44 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  recover:
     if: github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'ops/mcp-host-recovery-')
     runs-on: [self-hosted, Linux, X64, quant-deploy, notion-aws]
     timeout-minutes: 5
     steps:
-      - name: Capture MCP host runtime state without secrets
+      - name: Start only observed stopped MCP gateway containers
         shell: bash
         run: |
           set +e
-          exec >"$RUNNER_TEMP/mcp-host-diagnostic.txt" 2>&1
-          echo '=== HOST ==='; date -Is; hostname; id; uptime; df -h /; free -h
-          echo '=== FAILED_UNITS ==='; systemctl --failed --no-pager || true
-          echo '=== CANDIDATE_UNITS ==='
-          systemctl list-unit-files --no-pager --no-legend | grep -Ei 'mcp|notion|nginx|caddy|node|docker|pm2' || true
-          systemctl list-units --type=service --state=running --no-pager --no-legend | grep -Ei 'mcp|notion|nginx|caddy|node|docker|pm2' || true
-          echo '=== LISTENERS ==='; ss -lnt || true
-          echo '=== PROCESSES ==='; ps -eo user,pid,ppid,comm | grep -Ei 'mcp|notion|inspector|nginx|caddy|node|docker|pm2' || true
-          echo '=== DOCKER_ALL ==='; docker ps -a --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}' || true
-          echo '=== DOCKER_SAFE_INSPECT ==='
-          for id in $(docker ps -aq 2>/dev/null); do docker inspect --format 'NAME={{.Name}} IMAGE={{.Config.Image}} STATUS={{.State.Status}} EXIT={{.State.ExitCode}} STARTED={{.State.StartedAt}} FINISHED={{.State.FinishedAt}} RESTART={{.HostConfig.RestartPolicy.Name}} PORTS={{json .HostConfig.PortBindings}}' "$id"; done
-          echo '=== CANDIDATE_CONTAINER_LOGS ==='
-          for id in $(docker ps -aq 2>/dev/null); do name="$(docker inspect --format '{{.Name}}' "$id" | tr '[:upper:]' '[:lower:]')"; case "$name" in *mcp*|*notion*|*gateway*) echo "--- $name ---"; docker logs --tail 100 "$id" 2>&1;; esac; done
-          echo '=== COMPOSE ==='; docker compose ls || true
-          echo '=== CANDIDATE_FILES ==='
-          find /etc/systemd/system /opt /srv "$HOME" -maxdepth 3 -type f 2>/dev/null | grep -Ei 'mcp|notion|gateway|compose' || true
-          exit 0
-      - name: Upload diagnostic evidence
+          exec >"$RUNNER_TEMP/mcp-host-recovery.txt" 2>&1
+          echo '=== PRE_STATE ==='; date -Is; hostname; id; docker ps -a; ss -lnt || true
+          candidates=()
+          for id in $(docker ps -aq); do
+            descriptor="$(docker inspect --format '{{.Name}} {{.Config.Image}}' "$id" | tr '[:upper:]' '[:lower:]')"
+            bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$id")"
+            if [[ "$descriptor" =~ mcp|notion|gateway ]] || [[ "$bindings" =~ \"(80|443)/tcp\" ]]; then candidates+=("$id"); fi
+          done
+          echo "CANDIDATE_COUNT=${#candidates[@]}"
+          if [ "${#candidates[@]}" -eq 0 ]; then echo NO_MCP_CONTAINER_CANDIDATE; exit 20; fi
+          for id in "${candidates[@]}"; do
+            docker inspect --format 'PRE NAME={{.Name}} IMAGE={{.Config.Image}} STATUS={{.State.Status}} EXIT={{.State.ExitCode}} RESTART={{.HostConfig.RestartPolicy.Name}} PORTS={{json .HostConfig.PortBindings}}' "$id"
+            echo "--- PRE_LOGS $id ---"; docker logs --tail 100 "$id" 2>&1 || true
+          done
+          changed=0
+          for id in "${candidates[@]}"; do
+            state="$(docker inspect --format '{{.State.Status}}' "$id")"
+            if [ "$state" != running ]; then echo "STARTING_STOPPED_CONTAINER=$id"; docker start "$id" || exit 21; changed=1; fi
+          done
+          sleep 8
+          echo "CHANGED=$changed"; echo '=== POST_STATE ==='; docker ps -a; ss -lnt || true
+          code="$(curl -ksS --max-time 12 -H 'Host: mcp.quantrinity.in' -o "$RUNNER_TEMP/mcp-probe-body.txt" -w '%{http_code}' https://127.0.0.1/mcp 2>/dev/null || true)"
+          echo "LOCAL_MCP_HTTP_CODE=${code:-000}"
+          for id in "${candidates[@]}"; do docker inspect --format 'POST NAME={{.Name}} STATUS={{.State.Status}} EXIT={{.State.ExitCode}}' "$id"; docker logs --tail 60 "$id" 2>&1 || true; done
+          [ -n "$code" ] && [ "$code" != 000 ]
+      - name: Upload recovery evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mcp-host-diagnostic
-          path: ${{ runner.temp }}/mcp-host-diagnostic.txt
+          name: mcp-host-recovery
+          path: ${{ runner.temp }}/mcp-host-recovery.txt
           retention-days: 1
