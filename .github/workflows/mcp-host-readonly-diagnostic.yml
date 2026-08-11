@@ -34,7 +34,6 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$TEMP_AWS_SECRET_ACCESS_KEY"
           export AWS_SESSION_TOKEN="$TEMP_AWS_SESSION_TOKEN"
           export AWS_EC2_METADATA_DISABLED=true AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1
-          export DOCKER_BUILDKIT=1
           test "$(aws sts get-caller-identity --query Account --output text)" = 266176113726
           bundle="$RUNNER_TEMP/mcp-systemd-bundle"
           rm -rf "$bundle"; install -d -m 700 "$bundle"
