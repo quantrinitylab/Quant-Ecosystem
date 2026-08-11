@@ -1,4 +1,4 @@
-name: MCP host targeted container recovery
+name: Quant staging read-only workload inventory
 
 on:
   pull_request:
@@ -9,44 +9,29 @@ permissions:
   contents: read
 
 jobs:
-  recover:
+  inventory:
     if: github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'ops/mcp-host-recovery-')
     runs-on: [self-hosted, Linux, X64, quant-deploy, notion-aws]
     timeout-minutes: 5
     steps:
-      - name: Start only observed stopped MCP gateway containers
+      - name: Capture cluster workload placement without secrets
         shell: bash
         run: |
           set +e
-          exec >"$RUNNER_TEMP/mcp-host-recovery.txt" 2>&1
-          echo '=== PRE_STATE ==='; date -Is; hostname; id; docker ps -a; ss -lnt || true
-          candidates=()
-          for id in $(docker ps -aq); do
-            descriptor="$(docker inspect --format '{{.Name}} {{.Config.Image}}' "$id" | tr '[:upper:]' '[:lower:]')"
-            bindings="$(docker inspect --format '{{json .HostConfig.PortBindings}}' "$id")"
-            if [[ "$descriptor" =~ mcp|notion|gateway ]] || [[ "$bindings" =~ \"(80|443)/tcp\" ]]; then candidates+=("$id"); fi
-          done
-          echo "CANDIDATE_COUNT=${#candidates[@]}"
-          if [ "${#candidates[@]}" -eq 0 ]; then echo NO_MCP_CONTAINER_CANDIDATE; exit 20; fi
-          for id in "${candidates[@]}"; do
-            docker inspect --format 'PRE NAME={{.Name}} IMAGE={{.Config.Image}} STATUS={{.State.Status}} EXIT={{.State.ExitCode}} RESTART={{.HostConfig.RestartPolicy.Name}} PORTS={{json .HostConfig.PortBindings}}' "$id"
-            echo "--- PRE_LOGS $id ---"; docker logs --tail 100 "$id" 2>&1 || true
-          done
-          changed=0
-          for id in "${candidates[@]}"; do
-            state="$(docker inspect --format '{{.State.Status}}' "$id")"
-            if [ "$state" != running ]; then echo "STARTING_STOPPED_CONTAINER=$id"; docker start "$id" || exit 21; changed=1; fi
-          done
-          sleep 8
-          echo "CHANGED=$changed"; echo '=== POST_STATE ==='; docker ps -a; ss -lnt || true
-          code="$(curl -ksS --max-time 12 -H 'Host: mcp.quantrinity.in' -o "$RUNNER_TEMP/mcp-probe-body.txt" -w '%{http_code}' https://127.0.0.1/mcp 2>/dev/null || true)"
-          echo "LOCAL_MCP_HTTP_CODE=${code:-000}"
-          for id in "${candidates[@]}"; do docker inspect --format 'POST NAME={{.Name}} STATUS={{.State.Status}} EXIT={{.State.ExitCode}}' "$id"; docker logs --tail 60 "$id" 2>&1 || true; done
-          [ -n "$code" ] && [ "$code" != 000 ]
-      - name: Upload recovery evidence
+          exec >"$RUNNER_TEMP/quant-staging-inventory.txt" 2>&1
+          echo '=== IDENTITY ==='; aws sts get-caller-identity
+          aws eks update-kubeconfig --region us-east-1 --name quant-staging-eks --kubeconfig "$RUNNER_TEMP/kubeconfig"
+          echo '=== NODES ==='; kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" get nodes -o wide
+          echo '=== NODE_USAGE ==='; kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" top nodes || true
+          echo '=== WORKLOADS ==='; kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" get deployments,statefulsets,daemonsets -A -o wide
+          echo '=== POD_PLACEMENT ==='; kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" get pods -A -o wide
+          echo '=== SERVICES_AND_INGRESS ==='; kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" get services,ingresses -A -o wide
+          echo '=== POD_USAGE ==='; kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" top pods -A || true
+          exit 0
+      - name: Upload inventory evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mcp-host-recovery
-          path: ${{ runner.temp }}/mcp-host-recovery.txt
+          name: quant-staging-inventory
+          path: ${{ runner.temp }}/quant-staging-inventory.txt
           retention-days: 1
