@@ -25,6 +25,7 @@ jobs:
           umask 077
           deploy=/opt/quant/aws-notion-gateway
           instance=i-04331c285e901cc2d
+          source_sha=ebcafaed027f56a2fc3faaa9ee6e95476b62adae
           image=aws-notion-gateway-mcp:1.5.1-ebcafaed
           for name in TEMP_AWS_ACCESS_KEY_ID TEMP_AWS_SECRET_ACCESS_KEY TEMP_AWS_SESSION_TOKEN; do
             test -n "${!name:-}" || { echo 'required temporary credential is absent'; exit 1; }
@@ -34,9 +35,19 @@ jobs:
           export AWS_SESSION_TOKEN="$TEMP_AWS_SESSION_TOKEN"
           export AWS_EC2_METADATA_DISABLED=true AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1
           test "$(aws sts get-caller-identity --query Account --output text)" = 266176113726
-          docker image inspect "$image" >/dev/null
           bundle="$RUNNER_TEMP/mcp-systemd-bundle"
           rm -rf "$bundle"; install -d -m 700 "$bundle"
+          if ! docker image inspect "$image" >/dev/null 2>&1; then
+            src="$(mktemp -d)"
+            git -C "$src" init -q
+            git -C "$src" remote add origin https://github.com/awslabs/mcp.git
+            git -C "$src" fetch -q --depth=1 origin "$source_sha"
+            git -C "$src" checkout -q --detach FETCH_HEAD
+            test "$(git -C "$src" rev-parse HEAD)" = "$source_sha"
+            docker build --pull -t "$image" "$src/src/aws-api-mcp-server"
+            rm -rf "$src"
+          fi
+          docker save -o "$bundle/aws-mcp-image.tar" "$image"
           cleanup_failure() {
             set +e
             rm -f "${bundle:-/nonexistent}/.env"
@@ -129,6 +140,7 @@ jobs:
           Type=simple
           WorkingDirectory=/opt/quant/aws-notion-gateway
           ExecStartPre=/usr/bin/test -s /opt/quant/aws-notion-gateway/.env
+          ExecStartPre=/bin/sh -c '/usr/bin/docker image inspect aws-notion-gateway-mcp:1.5.1-ebcafaed >/dev/null 2>&1 || /usr/bin/docker load -i /opt/quant/aws-notion-gateway/aws-mcp-image.tar >/dev/null'
           ExecStart=/usr/bin/docker compose --no-color -f /opt/quant/aws-notion-gateway/compose.yaml up --force-recreate --abort-on-container-exit mcp caddy
           ExecStop=/usr/bin/docker compose -f /opt/quant/aws-notion-gateway/compose.yaml down --remove-orphans
           Restart=always
@@ -169,13 +181,13 @@ jobs:
             set -eu
             target=/host/opt/quant/aws-notion-gateway
             mkdir -p "$target"
-            cp /src/.env /src/Caddyfile /src/compose.yaml /src/deadline-epoch "$target/"
+            cp /src/.env /src/Caddyfile /src/compose.yaml /src/deadline-epoch /src/aws-mcp-image.tar "$target/"
             cp /src/quant-aws-notion-gateway.service /host/etc/systemd/system/
             cp /src/quant-mcp-expiry.service /src/quant-mcp-expiry.timer /host/etc/systemd/system/
             cp /src/quant-mcp-expire /host/usr/local/sbin/
             chown -R 0:0 "$target" /host/etc/systemd/system/quant-aws-notion-gateway.service /host/etc/systemd/system/quant-mcp-expiry.service /host/etc/systemd/system/quant-mcp-expiry.timer /host/usr/local/sbin/quant-mcp-expire
             chmod 700 "$target" /host/usr/local/sbin/quant-mcp-expire
-            chmod 600 "$target/.env"
+            chmod 600 "$target/.env" "$target/aws-mcp-image.tar"
             chmod 644 "$target/Caddyfile" "$target/compose.yaml" "$target/deadline-epoch" /host/etc/systemd/system/quant-aws-notion-gateway.service /host/etc/systemd/system/quant-mcp-expiry.service /host/etc/systemd/system/quant-mcp-expiry.timer
           '
           rm -f "$bundle/.env"
