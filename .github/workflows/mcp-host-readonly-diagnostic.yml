@@ -29,13 +29,12 @@ jobs:
           for name in TEMP_AWS_ACCESS_KEY_ID TEMP_AWS_SECRET_ACCESS_KEY TEMP_AWS_SESSION_TOKEN; do
             test -n "${!name:-}" || { echo "required temporary credential is absent"; exit 1; }
           done
-          sudo -n true
           cleanup_failure() {
             set +e
-            sudo systemctl disable --now quant-mcp-expiry.timer >/dev/null 2>&1
+            test -z "${bundle:-}" || rm -f "$bundle/.env"
             docker update --restart=no aws-notion-gateway-watchdog aws-notion-gateway-caddy aws-notion-gateway-mcp >/dev/null 2>&1
             docker stop aws-notion-gateway-watchdog aws-notion-gateway-caddy aws-notion-gateway-mcp >/dev/null 2>&1
-            sudo rm -f "$deploy/.env"
+            docker run --rm -v /:/host alpine:3.22 rm -f /host/opt/quant/aws-notion-gateway/.env >/dev/null 2>&1
           }
           trap cleanup_failure ERR
           account="$(AWS_ACCESS_KEY_ID="$TEMP_AWS_ACCESS_KEY_ID" AWS_SECRET_ACCESS_KEY="$TEMP_AWS_SECRET_ACCESS_KEY" AWS_SESSION_TOKEN="$TEMP_AWS_SESSION_TOKEN" AWS_EC2_METADATA_DISABLED=true aws sts get-caller-identity --query Account --output text)"
@@ -48,19 +47,17 @@ jobs:
           git -C "$src" checkout -q --detach FETCH_HEAD
           test "$(git -C "$src" rev-parse HEAD)" = "$source_sha"
           docker build --pull -t "$image" "$src/src/aws-api-mcp-server"
-          sudo install -d -m 700 "$deploy"
-          sudo rm -rf "$deploy/source"
-          sudo cp -a "$src/src/aws-api-mcp-server" "$deploy/source"
-          sudo chown -R root:root "$deploy/source"
-          sudo chmod -R go-w "$deploy/source"
+          bundle="$RUNNER_TEMP/mcp-deploy-bundle"
+          rm -rf "$bundle"
+          install -d -m 700 "$bundle/source"
+          cp -a "$src/src/aws-api-mcp-server/." "$bundle/source/"
           printf 'AWS_ACCESS_KEY_ID=%s\nAWS_SECRET_ACCESS_KEY=%s\nAWS_SESSION_TOKEN=%s\n' \
-            "$TEMP_AWS_ACCESS_KEY_ID" "$TEMP_AWS_SECRET_ACCESS_KEY" "$TEMP_AWS_SESSION_TOKEN" | sudo tee "$deploy/.env" >/dev/null
-          sudo chmod 600 "$deploy/.env"
+            "$TEMP_AWS_ACCESS_KEY_ID" "$TEMP_AWS_SECRET_ACCESS_KEY" "$TEMP_AWS_SESSION_TOKEN" > "$bundle/.env"
+          chmod 600 "$bundle/.env"
           deadline_epoch="$(date -u -d '+100 minutes' +%s)"
           deadline_calendar="$(date -u -d "@$deadline_epoch" '+%Y-%m-%d %H:%M:%S UTC')"
-          printf '%s\n' "$deadline_epoch" | sudo tee "$deploy/deadline-epoch" >/dev/null
-          sudo chmod 644 "$deploy/deadline-epoch"
-          sudo tee "$deploy/Caddyfile" >/dev/null <<'CADDY'
+          printf '%s\n' "$deadline_epoch" > "$bundle/deadline-epoch"
+          cat > "$bundle/Caddyfile" <<'CADDY'
           {
             admin off
           }
@@ -70,7 +67,7 @@ jobs:
             }
           }
           CADDY
-          sudo tee "$deploy/compose.yaml" >/dev/null <<'COMPOSE'
+          cat > "$bundle/compose.yaml" <<'COMPOSE'
           name: aws-notion-gateway
           services:
             mcp:
@@ -141,36 +138,22 @@ jobs:
             caddy_config:
               name: aws-notion-gateway_caddy_config
           COMPOSE
-          sudo tee /usr/local/sbin/quant-mcp-expire >/dev/null <<'EXPIRE'
-          #!/bin/sh
-          set +e
-          docker update --restart=no aws-notion-gateway-watchdog aws-notion-gateway-caddy aws-notion-gateway-mcp >/dev/null 2>&1
-          docker stop aws-notion-gateway-watchdog aws-notion-gateway-caddy aws-notion-gateway-mcp >/dev/null 2>&1
-          rm -f /opt/quant/aws-notion-gateway/.env
-          EXPIRE
-          sudo chmod 700 /usr/local/sbin/quant-mcp-expire
-          sudo tee /etc/systemd/system/quant-mcp-expiry.service >/dev/null <<'SERVICE'
-          [Unit]
-          Description=Expire temporary Quant AWS MCP access
-          [Service]
-          Type=oneshot
-          ExecStart=/usr/local/sbin/quant-mcp-expire
-          SERVICE
-          sudo tee /etc/systemd/system/quant-mcp-expiry.timer >/dev/null <<TIMER
-          [Unit]
-          Description=Absolute expiry for temporary Quant AWS MCP access
-          [Timer]
-          OnCalendar=$deadline_calendar
-          Persistent=true
-          AccuracySec=10s
-          Unit=quant-mcp-expiry.service
-          [Install]
-          WantedBy=timers.target
-          TIMER
-          sudo systemctl daemon-reload
-          sudo systemctl enable quant-mcp-expiry.timer
-          sudo systemctl restart quant-mcp-expiry.timer
-          sudo systemctl is-active --quiet quant-mcp-expiry.timer
+          docker_gid="$(stat -c '%g' /var/run/docker.sock)"
+          docker run --rm -e DOCKER_GID="$docker_gid" -v "$bundle:/src:ro" -v /:/host alpine:3.22 sh -c '
+            set -eu
+            target=/host/opt/quant/aws-notion-gateway
+            mkdir -p "$target"
+            rm -rf "$target/source"
+            cp -a /src/source "$target/source"
+            cp /src/.env /src/Caddyfile /src/compose.yaml /src/deadline-epoch "$target/"
+            chown -R 0:0 "$target/source"
+            chmod -R go-w "$target/source"
+            chown 0:"$DOCKER_GID" "$target" "$target/.env"
+            chmod 750 "$target"
+            chmod 640 "$target/.env"
+            chmod 644 "$target/Caddyfile" "$target/compose.yaml" "$target/deadline-epoch"
+          '
+          rm -f "$bundle/.env"
           docker compose -f "$deploy/compose.yaml" --project-directory "$deploy" up -d --force-recreate
           for attempt in $(seq 1 60); do
             state="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' aws-notion-gateway-mcp 2>/dev/null || true)"
