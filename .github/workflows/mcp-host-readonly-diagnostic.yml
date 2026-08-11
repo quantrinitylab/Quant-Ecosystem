@@ -1,0 +1,40 @@
+name: MCP host read-only diagnostic
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/mcp-host-readonly-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'ops/mcp-host-recovery-')
+    runs-on: [self-hosted, Linux, X64, quant-deploy, notion-aws]
+    timeout-minutes: 5
+    steps:
+      - name: Capture MCP host runtime state without secrets
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo '=== HOST ==='; date -Is; hostname; uptime; df -h /; free -h
+          echo '=== FAILED_UNITS ==='; sudo systemctl --failed --no-pager || true
+          echo '=== CANDIDATE_UNIT_FILES ==='
+          sudo systemctl list-unit-files --no-pager --no-legend | grep -Ei 'mcp|notion|nginx|caddy|node|docker|pm2' || true
+          echo '=== CANDIDATE_RUNNING_UNITS ==='
+          sudo systemctl list-units --type=service --state=running --no-pager --no-legend | grep -Ei 'mcp|notion|nginx|caddy|node|docker|pm2' || true
+          echo '=== LISTENERS ==='; sudo ss -lntp || true
+          echo '=== CANDIDATE_PROCESSES ==='
+          ps -eo user,pid,ppid,comm | grep -Ei 'mcp|notion|inspector|nginx|caddy|node|docker|pm2' || true
+          echo '=== DOCKER_ALL ==='
+          if command -v docker >/dev/null 2>&1; then sudo docker ps -a --format 'table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'; else echo DOCKER_NOT_INSTALLED; fi
+          echo '=== PM2 ==='
+          if command -v pm2 >/dev/null 2>&1; then timeout 10s pm2 list || true; else echo PM2_NOT_INSTALLED; fi
+          echo '=== NGINX ==='
+          if command -v nginx >/dev/null 2>&1; then sudo nginx -t 2>&1 || true; sudo systemctl status nginx --no-pager -l || true; sudo journalctl -u nginx -n 100 --no-pager || true; sudo grep -RhnE '^[[:space:]]*(listen|server_name|proxy_pass)[[:space:]]' /etc/nginx/nginx.conf /etc/nginx/conf.d /etc/nginx/sites-enabled 2>/dev/null || true; else echo NGINX_NOT_INSTALLED; fi
+          echo '=== CADDY ==='
+          if command -v caddy >/dev/null 2>&1; then sudo systemctl status caddy --no-pager -l || true; sudo journalctl -u caddy -n 100 --no-pager || true; sudo grep -RhnE 'mcp\.quantrinity\.in|reverse_proxy' /etc/caddy 2>/dev/null || true; else echo CADDY_NOT_INSTALLED; fi
+          echo '=== CANDIDATE_SYSTEMD_FILES ==='
+          sudo find /etc/systemd/system /lib/systemd/system -maxdepth 1 -type f -printf '%p\n' 2>/dev/null | grep -Ei 'mcp|notion|nginx|caddy|node|docker|pm2' || true
