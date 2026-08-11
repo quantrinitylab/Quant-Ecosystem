@@ -18,7 +18,8 @@ jobs:
       - name: Capture MCP host runtime state without secrets
         shell: bash
         run: |
-          set -uo pipefail
+          set +e
+          exec >"$RUNNER_TEMP/mcp-host-diagnostic.txt" 2>&1
           echo '=== HOST ==='; date -Is; hostname; uptime; df -h /; free -h
           echo '=== FAILED_UNITS ==='; sudo systemctl --failed --no-pager || true
           echo '=== CANDIDATE_UNIT_FILES ==='
@@ -38,3 +39,12 @@ jobs:
           if command -v caddy >/dev/null 2>&1; then sudo systemctl status caddy --no-pager -l || true; sudo journalctl -u caddy -n 100 --no-pager || true; sudo grep -RhnE 'mcp\.quantrinity\.in|reverse_proxy' /etc/caddy 2>/dev/null || true; else echo CADDY_NOT_INSTALLED; fi
           echo '=== CANDIDATE_SYSTEMD_FILES ==='
           sudo find /etc/systemd/system /lib/systemd/system -maxdepth 1 -type f -printf '%p\n' 2>/dev/null | grep -Ei 'mcp|notion|nginx|caddy|node|docker|pm2' || true
+          exit 0
+      - name: Upload bounded diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mcp-host-diagnostic
+          path: ${{ runner.temp }}/mcp-host-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 1
