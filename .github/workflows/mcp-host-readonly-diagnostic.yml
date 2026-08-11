@@ -37,6 +37,9 @@ jobs:
             done
             echo '=== WATCHDOG_LOG ==='
             docker logs --tail=30 aws-notion-gateway-watchdog 2>&1 || true
+            echo '=== HOST_SYSTEMD_PROBE ==='
+            docker run --rm --privileged -v /:/host:ro alpine:3.22 chroot /host /usr/bin/systemctl is-system-running 2>&1 || true
+            docker run --rm --privileged -v /:/host:ro alpine:3.22 chroot /host /usr/bin/systemctl show docker.service --property=ActiveState,SubState,FragmentPath 2>&1 || true
             echo '=== LISTENERS ==='
             docker run --rm --network host alpine:3.22 sh -c "wget -qSO- --timeout=3 --header='Host: mcp.quantrinity.in' http://127.0.0.1:8000/mcp 2>&1 | head -n 8" || true
           } | tee "$out"
