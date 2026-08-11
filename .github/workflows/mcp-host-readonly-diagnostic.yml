@@ -1,4 +1,4 @@
-name: Quant staging safe dependency topology
+name: MCP host privileged read-only forensic
 
 on:
   pull_request:
@@ -9,65 +9,32 @@ permissions:
   contents: read
 
 jobs:
-  topology:
+  forensic:
     if: github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'ops/mcp-host-recovery-')
     runs-on: [self-hosted, Linux, X64, quant-deploy, notion-aws]
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Resolve only database and Redis hostnames
+      - name: Locate prior MCP deployment without reading secrets
         shell: bash
         run: |
-          set -euo pipefail
-          out="$RUNNER_TEMP/quant-staging-topology.txt"
-          kube="$RUNNER_TEMP/kubeconfig"
-          aws eks update-kubeconfig --region us-east-1 --name quant-staging-eks --kubeconfig "$kube" >/dev/null
-          kubectl --kubeconfig "$kube" get deployments -n quant-staging -o json >"$RUNNER_TEMP/deployments.json"
-          kubectl --kubeconfig "$kube" get secrets -n quant-staging -o json >"$RUNNER_TEMP/secrets.json"
-          kubectl --kubeconfig "$kube" get configmaps -n quant-staging -o json >"$RUNNER_TEMP/configmaps.json"
-          echo '=== STORAGE ===' >"$out"
-          kubectl --kubeconfig "$kube" get pvc,pv -A -o wide >>"$out" 2>&1 || true
-          echo '=== SAFE_ENDPOINT_TOPOLOGY ===' >>"$out"
-          python3 - "$RUNNER_TEMP" >>"$out" <<'PY'
-          import base64,json,re,sys
-          from urllib.parse import urlparse
-          root=sys.argv[1]
-          load=lambda n:json.load(open(f'{root}/{n}.json'))
-          deps,secrets,configs=load('deployments'),load('secrets'),load('configmaps')
-          sm={x['metadata']['name']:x.get('data',{}) for x in secrets['items']}
-          cm={x['metadata']['name']:x.get('data',{}) for x in configs['items']}
-          relevant=re.compile(r'DATABASE|POSTGRES|REDIS|(^|_)DB(_|$)',re.I)
-          def decode(v):
-            try:return base64.b64decode(v).decode()
-            except:return ''
-          def safe(name,value):
-            if not value:return '<configured>'
-            try:
-              u=urlparse(value)
-              if u.hostname:return f'{u.scheme}://{u.hostname}'+(f':{u.port}' if u.port else '')
-            except:pass
-            if name.upper().endswith('HOST') and re.fullmatch(r'[A-Za-z0-9._-]+',value):return value
-            return '<configured>'
-          for d in deps['items']:
-            found=[]
-            for c in d['spec']['template']['spec']['containers']:
-              for e in c.get('env',[]):
-                n=e.get('name','')
-                if not relevant.search(n):continue
-                if 'value' in e:v,src=e['value'],'literal'
-                else:
-                  r=e.get('valueFrom',{}).get('secretKeyRef',{}); q=e.get('valueFrom',{}).get('configMapKeyRef',{})
-                  v=decode(sm.get(r.get('name',''),{}).get(r.get('key',''),'')) if r else cm.get(q.get('name',''),{}).get(q.get('key',''),''); src='reference'
-                found.append(f'{n}={safe(n,v)}({src})')
-              for f in c.get('envFrom',[]):
-                r=f.get('secretRef',{}); q=f.get('configMapRef',{}); data={k:decode(v) for k,v in sm.get(r.get('name',''),{}).items()} if r else cm.get(q.get('name',''),{})
-                found += [f'{n}={safe(n,v)}(envFrom)' for n,v in data.items() if relevant.search(n)]
-            print(d['metadata']['name']+': '+(', '.join(sorted(set(found))) if found else '<no db/redis env>'))
-          PY
-          rm -f "$RUNNER_TEMP/deployments.json" "$RUNNER_TEMP/secrets.json" "$RUNNER_TEMP/configmaps.json"
-      - name: Upload safe topology evidence
+          set +e
+          out="$RUNNER_TEMP/mcp-host-forensic.txt"
+          exec >"$out" 2>&1
+          echo '=== HOST ==='; date -Is; hostname; id; df -h; docker version --format '{{.Server.Version}}'
+          echo '=== DOCKER_STATE ==='; docker ps -a; docker images -a; docker volume ls; docker network ls
+          echo '=== PRIVILEGED_PATH_NAMES ==='
+          docker run --rm --pull=always -v /:/host:ro alpine:3.22 sh -c "find /host/opt /host/srv /host/root /host/home /host/tmp /host/etc/systemd/system -xdev -maxdepth 6 \( -iname '*mcp*' -o -iname '*notion*' -o -iname '*gateway*' -o -iname 'compose*.yml' -o -iname 'docker-compose*.yml' \) -printf '%y %p\n' 2>/dev/null | head -1000"
+          echo '=== SERVICE_FILE_NAMES ==='
+          docker run --rm -v /etc/systemd/system:/host:ro alpine:3.22 sh -c "find /host -maxdepth 3 -type f -printf '%p\n' 2>/dev/null | sort"
+          echo '=== RUNNER_WORKSPACES ==='
+          find /opt/actions-runner/_work -maxdepth 5 -type d 2>/dev/null | grep -Ei 'mcp|notion|gateway|Quant-Ecosystem' | head -500
+          echo '=== SAFE_UNIT_METADATA ==='
+          docker run --rm -v /etc/systemd/system:/host:ro alpine:3.22 sh -c "grep -RIlE 'mcp|notion|gateway|6274|/mcp' /host 2>/dev/null | head -100"
+          exit 0
+      - name: Upload forensic evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: quant-staging-topology
-          path: ${{ runner.temp }}/quant-staging-topology.txt
+          name: mcp-host-forensic
+          path: ${{ runner.temp }}/mcp-host-forensic.txt
           retention-days: 1
