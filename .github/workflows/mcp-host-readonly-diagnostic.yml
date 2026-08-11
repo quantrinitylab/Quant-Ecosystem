@@ -1,4 +1,4 @@
-name: MCP post-deploy lifecycle diagnostic
+name: MCP temporary systemd recovery
 
 on:
   pull_request:
@@ -9,44 +9,287 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  deploy:
     if: github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'ops/mcp-host-recovery-')
     runs-on: [self-hosted, Linux, X64, quant-deploy, notion-aws]
-    timeout-minutes: 5
+    timeout-minutes: 20
+    env:
+      TEMP_AWS_ACCESS_KEY_ID: ${{ secrets.KIRO_TEMP_MCP_AWS_ACCESS_KEY_ID }}
+      TEMP_AWS_SECRET_ACCESS_KEY: ${{ secrets.KIRO_TEMP_MCP_AWS_SECRET_ACCESS_KEY }}
+      TEMP_AWS_SESSION_TOKEN: ${{ secrets.KIRO_TEMP_MCP_AWS_SESSION_TOKEN }}
     steps:
-      - name: Capture safe lifecycle state
+      - name: Install and prove systemd-managed MCP
         shell: bash
         run: |
-          set -eu
+          set -Eeuo pipefail
+          umask 077
           deploy=/opt/quant/aws-notion-gateway
-          out="$RUNNER_TEMP/mcp-post-deploy-lifecycle.txt"
+          instance=i-04331c285e901cc2d
+          image=aws-notion-gateway-mcp:1.5.1-ebcafaed
+          for name in TEMP_AWS_ACCESS_KEY_ID TEMP_AWS_SECRET_ACCESS_KEY TEMP_AWS_SESSION_TOKEN; do
+            test -n "${!name:-}" || { echo 'required temporary credential is absent'; exit 1; }
+          done
+          export AWS_ACCESS_KEY_ID="$TEMP_AWS_ACCESS_KEY_ID"
+          export AWS_SECRET_ACCESS_KEY="$TEMP_AWS_SECRET_ACCESS_KEY"
+          export AWS_SESSION_TOKEN="$TEMP_AWS_SESSION_TOKEN"
+          export AWS_EC2_METADATA_DISABLED=true AWS_REGION=us-east-1 AWS_DEFAULT_REGION=us-east-1
+          test "$(aws sts get-caller-identity --query Account --output text)" = 266176113726
+          docker image inspect "$image" >/dev/null
+          bundle="$RUNNER_TEMP/mcp-systemd-bundle"
+          rm -rf "$bundle"; install -d -m 700 "$bundle"
+          cleanup_failure() {
+            set +e
+            rm -f "${bundle:-/nonexistent}/.env"
+            cat > "$RUNNER_TEMP/mcp-cleanup.json" <<'JSON'
+          {"InstanceIds":["i-04331c285e901cc2d"],"DocumentName":"AWS-RunShellScript","Parameters":{"commands":["systemctl disable --now quant-mcp-expiry.timer quant-aws-notion-gateway.service || true","docker rm -f aws-notion-gateway-caddy aws-notion-gateway-mcp 2>/dev/null || true","rm -f /opt/quant/aws-notion-gateway/.env"]}}
+          JSON
+            aws ssm send-command --cli-input-json "file://$RUNNER_TEMP/mcp-cleanup.json" >/dev/null 2>&1 || true
+          }
+          trap cleanup_failure ERR
+          printf 'AWS_ACCESS_KEY_ID=%s\nAWS_SECRET_ACCESS_KEY=%s\nAWS_SESSION_TOKEN=%s\n' \
+            "$TEMP_AWS_ACCESS_KEY_ID" "$TEMP_AWS_SECRET_ACCESS_KEY" "$TEMP_AWS_SESSION_TOKEN" > "$bundle/.env"
+          chmod 600 "$bundle/.env"
+          deadline_epoch="$(date -u -d '+90 minutes' +%s)"
+          deadline_calendar="$(date -u -d "@$deadline_epoch" '+%Y-%m-%d %H:%M:%S UTC')"
+          printf '%s\n' "$deadline_epoch" > "$bundle/deadline-epoch"
+          cat > "$bundle/Caddyfile" <<'CADDY'
           {
-            echo "UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            if test -s "$deploy/.env"; then echo 'TEMP_ENV=present'; else echo 'TEMP_ENV=absent'; fi
-            if test -r "$deploy/deadline-epoch"; then
-              deadline="$(cat "$deploy/deadline-epoch")"
-              case "$deadline" in *[!0-9]*|'') echo 'DEADLINE=invalid';; *) echo "DEADLINE_EPOCH=$deadline"; echo "SECONDS_REMAINING=$((deadline-$(date +%s)))";; esac
-            else echo 'DEADLINE=absent'; fi
-            echo '=== CONTAINERS ==='
-            docker ps -a --filter 'name=aws-notion-gateway-' --format 'NAME={{.Names}} STATUS={{.Status}} IMAGE={{.Image}}'
-            echo '=== SAFE_INSPECT ==='
-            for name in aws-notion-gateway-mcp aws-notion-gateway-caddy aws-notion-gateway-watchdog; do
-              if docker inspect "$name" >/dev/null 2>&1; then
-                docker inspect --format 'NAME={{.Name}} STATE={{.State.Status}} EXIT={{.State.ExitCode}} ERROR={{json .State.Error}} STARTED={{.State.StartedAt}} FINISHED={{.State.FinishedAt}} RESTARTS={{.RestartCount}} POLICY={{.HostConfig.RestartPolicy.Name}}' "$name"
-              else echo "NAME=/$name STATE=absent"; fi
-            done
-            echo '=== WATCHDOG_LOG ==='
-            docker logs --tail=30 aws-notion-gateway-watchdog 2>&1 || true
-            echo '=== HOST_SYSTEMD_PROBE ==='
-            docker run --rm --privileged -v /:/host:ro alpine:3.22 chroot /host /usr/bin/systemctl is-system-running 2>&1 || true
-            docker run --rm --privileged -v /:/host:ro alpine:3.22 chroot /host /usr/bin/systemctl show docker.service --property=ActiveState,SubState,FragmentPath 2>&1 || true
-            echo '=== LISTENERS ==='
-            docker run --rm --network host alpine:3.22 sh -c "wget -qSO- --timeout=3 --header='Host: mcp.quantrinity.in' http://127.0.0.1:8000/mcp 2>&1 | head -n 8" || true
-          } | tee "$out"
-      - name: Upload lifecycle evidence
+            admin off
+          }
+          mcp.quantrinity.in {
+            reverse_proxy aws-notion-gateway-mcp:8000 {
+              header_up Host mcp.quantrinity.in
+            }
+          }
+          CADDY
+          cat > "$bundle/compose.yaml" <<'COMPOSE'
+          name: aws-notion-gateway
+          services:
+            mcp:
+              image: aws-notion-gateway-mcp:1.5.1-ebcafaed
+              container_name: aws-notion-gateway-mcp
+              restart: "no"
+              env_file: [.env]
+              environment:
+                AWS_REGION: us-east-1
+                AWS_DEFAULT_REGION: us-east-1
+                AWS_EC2_METADATA_DISABLED: "true"
+                AWS_API_MCP_TRANSPORT: streamable-http
+                AWS_API_MCP_HOST: 0.0.0.0
+                AWS_API_MCP_PORT: "8000"
+                AWS_API_MCP_ALLOWED_HOSTS: mcp.quantrinity.in
+                AWS_API_MCP_ALLOWED_ORIGINS: "*"
+                AWS_API_MCP_STATELESS_HTTP: "false"
+                AWS_API_MCP_ALLOW_UNRESTRICTED_LOCAL_FILE_ACCESS: no-access
+                AWS_API_MCP_WORKING_DIR: /work
+                AWS_API_MCP_TELEMETRY: "false"
+                READ_OPERATIONS_ONLY: "false"
+                REQUIRE_MUTATION_CONSENT: "false"
+                EXPERIMENTAL_AGENT_SCRIPTS: "false"
+                AUTH_TYPE: no-auth
+              ports: ["127.0.0.1:8000:8000"]
+              read_only: true
+              tmpfs:
+                - /tmp:rw,noexec,nosuid,size=64m
+                - /app/.aws:rw,noexec,nosuid,size=32m
+                - /work:rw,noexec,nosuid,size=32m
+              cap_drop: [ALL]
+              security_opt: [no-new-privileges:true]
+              pids_limit: 256
+              mem_limit: 1g
+            caddy:
+              image: caddy:2.10.2-alpine
+              container_name: aws-notion-gateway-caddy
+              restart: "no"
+              depends_on:
+                mcp:
+                  condition: service_healthy
+              ports: ["80:80", "443:443"]
+              volumes:
+                - ./Caddyfile:/etc/caddy/Caddyfile:ro
+                - caddy_data:/data
+                - caddy_config:/config
+              cap_drop: [ALL]
+              cap_add: [NET_BIND_SERVICE]
+              security_opt: [no-new-privileges:true]
+              mem_limit: 256m
+          volumes:
+            caddy_data:
+              name: aws-notion-gateway_caddy_data
+            caddy_config:
+              name: aws-notion-gateway_caddy_config
+          COMPOSE
+          cat > "$bundle/quant-aws-notion-gateway.service" <<'SERVICE'
+          [Unit]
+          Description=Quant temporary AWS API MCP gateway
+          Requires=docker.service
+          After=docker.service network-online.target
+          StartLimitIntervalSec=0
+          [Service]
+          Type=simple
+          WorkingDirectory=/opt/quant/aws-notion-gateway
+          ExecStartPre=/usr/bin/test -s /opt/quant/aws-notion-gateway/.env
+          ExecStart=/usr/bin/docker compose --no-color -f /opt/quant/aws-notion-gateway/compose.yaml up --force-recreate --abort-on-container-exit mcp caddy
+          ExecStop=/usr/bin/docker compose -f /opt/quant/aws-notion-gateway/compose.yaml down --remove-orphans
+          Restart=always
+          RestartSec=3
+          TimeoutStartSec=0
+          TimeoutStopSec=30
+          [Install]
+          WantedBy=multi-user.target
+          SERVICE
+          cat > "$bundle/quant-mcp-expire" <<'EXPIRE'
+          #!/bin/sh
+          set +e
+          systemctl stop quant-aws-notion-gateway.service
+          docker compose -f /opt/quant/aws-notion-gateway/compose.yaml down --remove-orphans
+          docker rm -f aws-notion-gateway-caddy aws-notion-gateway-mcp 2>/dev/null
+          rm -f /opt/quant/aws-notion-gateway/.env
+          systemctl disable quant-aws-notion-gateway.service
+          EXPIRE
+          cat > "$bundle/quant-mcp-expiry.service" <<'EXPIRYSERVICE'
+          [Unit]
+          Description=Expire temporary Quant AWS MCP access
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/sbin/quant-mcp-expire
+          EXPIRYSERVICE
+          cat > "$bundle/quant-mcp-expiry.timer" <<TIMER
+          [Unit]
+          Description=Absolute expiry for temporary Quant AWS MCP access
+          [Timer]
+          OnCalendar=$deadline_calendar
+          Persistent=true
+          AccuracySec=10s
+          Unit=quant-mcp-expiry.service
+          [Install]
+          WantedBy=timers.target
+          TIMER
+          docker run --rm -v "$bundle:/src:ro" -v /:/host alpine:3.22 sh -c '
+            set -eu
+            target=/host/opt/quant/aws-notion-gateway
+            mkdir -p "$target"
+            cp /src/.env /src/Caddyfile /src/compose.yaml /src/deadline-epoch "$target/"
+            cp /src/quant-aws-notion-gateway.service /host/etc/systemd/system/
+            cp /src/quant-mcp-expiry.service /src/quant-mcp-expiry.timer /host/etc/systemd/system/
+            cp /src/quant-mcp-expire /host/usr/local/sbin/
+            chown -R 0:0 "$target" /host/etc/systemd/system/quant-aws-notion-gateway.service /host/etc/systemd/system/quant-mcp-expiry.service /host/etc/systemd/system/quant-mcp-expiry.timer /host/usr/local/sbin/quant-mcp-expire
+            chmod 700 "$target" /host/usr/local/sbin/quant-mcp-expire
+            chmod 600 "$target/.env"
+            chmod 644 "$target/Caddyfile" "$target/compose.yaml" "$target/deadline-epoch" /host/etc/systemd/system/quant-aws-notion-gateway.service /host/etc/systemd/system/quant-mcp-expiry.service /host/etc/systemd/system/quant-mcp-expiry.timer
+          '
+          rm -f "$bundle/.env"
+          cat > "$RUNNER_TEMP/mcp-start.json" <<'JSON'
+          {
+            "InstanceIds": ["i-04331c285e901cc2d"],
+            "DocumentName": "AWS-RunShellScript",
+            "Comment": "Start temporary systemd-managed Quant AWS MCP",
+            "TimeoutSeconds": 180,
+            "Parameters": {"commands": [
+              "set -eu",
+              "systemctl daemon-reload",
+              "systemctl enable quant-mcp-expiry.timer quant-aws-notion-gateway.service",
+              "systemctl restart quant-mcp-expiry.timer",
+              "systemctl restart quant-aws-notion-gateway.service",
+              "systemctl is-active --quiet quant-mcp-expiry.timer",
+              "systemctl is-active --quiet quant-aws-notion-gateway.service"
+            ]}
+          }
+          JSON
+          command_id="$(aws ssm send-command --cli-input-json "file://$RUNNER_TEMP/mcp-start.json" --query Command.CommandId --output text)"
+          test -n "$command_id"
+          status=Pending
+          for attempt in $(seq 1 60); do
+            sleep 3
+            status="$(aws ssm get-command-invocation --command-id "$command_id" --instance-id "$instance" --query Status --output text 2>/dev/null || true)"
+            case "$status" in Success) break;; Failed|TimedOut|Cancelled) aws ssm get-command-invocation --command-id "$command_id" --instance-id "$instance" --query '{Status:Status,Code:ResponseCode,Output:StandardOutputContent,Error:StandardErrorContent}' --output json; exit 1;; esac
+          done
+          test "$status" = Success
+          for attempt in $(seq 1 90); do
+            state="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' aws-notion-gateway-mcp 2>/dev/null || true)"
+            test "$state" = healthy && break
+            sleep 2
+          done
+          test "$(docker inspect --format '{{.State.Health.Status}}' aws-notion-gateway-mcp)" = healthy
+          curl --fail --silent --show-error --max-time 15 http://127.0.0.1:8000/mcp \
+            -H 'Host: mcp.quantrinity.in' -H 'Accept: application/json, text/event-stream' \
+            -H 'Content-Type: application/json' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"kiro-local-smoke","version":"1.0"}}}' >/dev/null
+          export MCP_TEST_ENDPOINT=https://mcp.quantrinity.in/mcp MCP_TEST_ACCOUNT=266176113726
+          python3 - <<'PY'
+          import json, os, time, urllib.request, uuid
+          endpoint=os.environ['MCP_TEST_ENDPOINT']; account=os.environ['MCP_TEST_ACCOUNT']
+          session=None; protocol='2025-06-18'
+          def decode(raw):
+              text=raw.decode('utf-8'); events=[x[5:].strip() for x in text.splitlines() if x.startswith('data:')]
+              return json.loads(events[-1] if events else text) if text.strip() else {}
+          def post(payload, retries=1):
+              global session, protocol
+              headers={'Content-Type':'application/json','Accept':'application/json, text/event-stream'}
+              if session: headers.update({'Mcp-Session-Id':session,'MCP-Protocol-Version':protocol})
+              error=None
+              for _ in range(retries):
+                  try:
+                      req=urllib.request.Request(endpoint,data=json.dumps(payload).encode(),headers=headers,method='POST')
+                      with urllib.request.urlopen(req,timeout=30) as response:
+                          session=response.headers.get('Mcp-Session-Id',session)
+                          return decode(response.read())
+                  except Exception as exc: error=exc; time.sleep(3)
+              raise error
+          init=post({'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':protocol,'capabilities':{},'clientInfo':{'name':'kiro-systemd-proof','version':'1.0'}}},30)
+          assert session and 'result' in init, init
+          protocol=init['result'].get('protocolVersion',protocol)
+          post({'jsonrpc':'2.0','method':'notifications/initialized'})
+          tools=post({'jsonrpc':'2.0','id':2,'method':'tools/list','params':{}})
+          assert {'call_aws','suggest_aws_commands'} <= {x['name'] for x in tools['result']['tools']}
+          call_id=3
+          def call(command):
+              global call_id
+              result=post({'jsonrpc':'2.0','id':call_id,'method':'tools/call','params':{'name':'call_aws','arguments':{'cli_command':command}}})
+              call_id+=1; assert 'result' in result and not result['result'].get('isError',False), result
+              body=result['result']; text='\n'.join(x.get('text','') for x in body.get('content',[]))
+              if body.get('structuredContent'): text+='\n'+json.dumps(body['structuredContent'],sort_keys=True)
+              return text
+          assert account in call('aws sts get-caller-identity')
+          parameter='/quant/mcp-recovery/kiro-'+uuid.uuid4().hex; marker='temporary-systemd-proof'; created=False
+          try:
+              put=call(f'aws ssm put-parameter --region us-east-1 --name {parameter} --type String --value {marker} --tags Key=Purpose,Value=kiro-mcp-recovery --overwrite')
+              assert 'Version' in put and 'error": null' in put, put; created=True
+              got=call(f'aws ssm get-parameter --region us-east-1 --name {parameter}')
+              assert marker in got and 'error": null' in got, got
+              deleted=call(f'aws ssm delete-parameter --region us-east-1 --name {parameter}')
+              assert 'error": null' in deleted, deleted; created=False
+              assert 'ParameterNotFound' in call(f'aws ssm get-parameter --region us-east-1 --name {parameter}')
+          finally:
+              if created:
+                  try: call(f'aws ssm delete-parameter --region us-east-1 --name {parameter}')
+                  except Exception: pass
+          print('MCP_SYSTEMD_EXTERNAL_PROOF=passed')
+          PY
+          evidence="$RUNNER_TEMP/mcp-systemd-recovery-evidence.txt"
+          {
+            echo 'SOURCE_SHA=ebcafaed027f56a2fc3faaa9ee6e95476b62adae'
+            echo 'PACKAGE_VERSION=1.5.1'
+            echo 'AWS_ACCOUNT=266176113726'
+            echo 'PUBLIC_ENDPOINT=https://mcp.quantrinity.in/mcp'
+            echo 'AUTH_MODE=temporary-no-auth'
+            echo 'READ_OPERATIONS_ONLY=false'
+            echo 'SYSTEMD_MANAGED=true'
+            echo 'LOCAL_INITIALIZE=passed'
+            echo 'EXTERNAL_INITIALIZE=passed'
+            echo 'TOOLS_LIST=passed'
+            echo 'AWS_READ=passed'
+            echo 'REVERSIBLE_SSM_WRITE_READ_DELETE=passed'
+            echo "AUTO_EXPIRY_UTC=$deadline_calendar"
+            echo "SYSTEMD_START_COMMAND=$command_id"
+            docker ps --filter 'name=aws-notion-gateway-' --format 'CONTAINER={{.Names}} STATUS={{.Status}} IMAGE={{.Image}}'
+          } | tee "$evidence"
+          trap - ERR
+      - name: Upload sanitized systemd recovery evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mcp-post-deploy-lifecycle
-          path: ${{ runner.temp }}/mcp-post-deploy-lifecycle.txt
+          name: mcp-systemd-recovery-evidence
+          path: ${{ runner.temp }}/mcp-systemd-recovery-evidence.txt
+          if-no-files-found: warn
           retention-days: 1
