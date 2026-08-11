@@ -171,8 +171,10 @@ export class OutboundDeliveryPipeline {
 
         // Durable job. A deterministic jobId keyed off the email makes the enqueue
         // idempotent: re-enqueuing the same draft does not create duplicate jobs.
+        // NOTE: BullMQ forbids ':' inside custom job ids (it is the Redis key
+        // separator), so the queue name and email id are joined with '-'.
         const jobId = await this.queue.add(OUTBOUND_SEND_JOB, payload, {
-          jobId: `${OUTBOUND_DELIVERY_QUEUE}:${email.id}`,
+          jobId: `${OUTBOUND_DELIVERY_QUEUE}-${email.id}`,
           ...(options.delayMs !== undefined ? { delay: options.delayMs } : {}),
           attempts: 3,
           backoff: { type: 'exponential', delay: 5000 },
