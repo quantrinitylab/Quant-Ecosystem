@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   diagnose:
@@ -48,3 +50,14 @@ jobs:
           path: ${{ runner.temp }}/mcp-host-diagnostic.txt
           if-no-files-found: error
           retention-days: 1
+      - name: Publish bounded diagnostic to the recovery PR
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          evidence="$(tail -c 50000 "$RUNNER_TEMP/mcp-host-diagnostic.txt")"
+          body="$(printf '### MCP host diagnostic (run `%s`)\n\n```text\n%s\n```' "$GITHUB_RUN_ID" "$evidence")"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -f body="$body" >/dev/null
