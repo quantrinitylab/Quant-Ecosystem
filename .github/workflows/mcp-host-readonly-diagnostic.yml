@@ -1,4 +1,4 @@
-name: MCP Docker residue read-only forensic
+name: MCP image and path residue forensic
 
 on:
   pull_request:
@@ -12,35 +12,33 @@ jobs:
   forensic:
     if: github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'ops/mcp-host-recovery-')
     runs-on: [self-hosted, Linux, X64, quant-deploy, notion-aws]
-    timeout-minutes: 10
+    timeout-minutes: 8
     steps:
-      - name: Inspect retained Compose volumes and safe image metadata
+      - name: Inspect safe image metadata and sanitized path history
         shell: bash
         run: |
           set +e
-          out="$RUNNER_TEMP/mcp-docker-forensic.txt"
+          out="$RUNNER_TEMP/mcp-residue-forensic.txt"
           exec >"$out" 2>&1
-          echo '=== VOLUME_METADATA ==='
-          docker volume inspect aws-notion-gateway_caddy_config aws-notion-gateway_caddy_data --format 'NAME={{.Name}} DRIVER={{.Driver}} LABELS={{json .Labels}}'
-          echo '=== VOLUME_FILE_NAMES_ONLY ==='
-          for v in aws-notion-gateway_caddy_config aws-notion-gateway_caddy_data; do echo "--- $v ---"; docker run --rm -v "$v:/evidence:ro" alpine:3.22 find /evidence -maxdepth 7 -type f -printf '%p\n' 2>/dev/null | head -500; done
           echo '=== SAFE_IMAGE_METADATA ==='
           for id in $(docker image ls -aq | sort -u); do
-            docker image inspect "$id" --format 'ID={{.Id}} CREATED={{.Created}} SIZE={{.Size}} TAGS={{json .RepoTags}} WORKDIR={{.Config.WorkingDir}} ENTRY={{json .Config.Entrypoint}} CMD={{json .Config.Cmd}} PORTS={{json .Config.ExposedPorts}} LABELS={{json .Config.Labels}}' 2>/dev/null
+            docker image inspect "$id" >"$RUNNER_TEMP/image.json" 2>/dev/null || continue
+            python3 - "$RUNNER_TEMP/image.json" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1]))[0]; c=x.get('Config') or {}
+          print('ID='+x.get('Id','')+' CREATED='+x.get('Created','')+' SIZE='+str(x.get('Size',''))+' TAGS='+str(x.get('RepoTags'))+' WORKDIR='+str(c.get('WorkingDir'))+' ENTRY='+str(c.get('Entrypoint'))+' CMD='+str(c.get('Cmd'))+' PORTS='+str(c.get('ExposedPorts'))+' LABEL_KEYS='+str(sorted((c.get('Labels') or {}).keys())))
+          PY
           done
-          echo '=== MCP_LIKE_IMAGE_FILES ==='
-          for id in $(docker image ls -aq | sort -u); do
-            size=$(docker image inspect "$id" --format '{{.Size}}' 2>/dev/null); [ -n "$size" ] || continue
-            if [ "$size" -lt 600000000 ]; then
-              echo "--- IMAGE $id SIZE $size ---"
-              docker run --rm --network none --read-only --entrypoint sh "$id" -c "find /app /workspace /srv /usr/src -maxdepth 4 -type f \( -name package.json -o -name '*mcp*' -o -name 'server.js' -o -name 'index.js' \) -printf '%p\n' 2>/dev/null | head -100" 2>/dev/null || true
-            fi
-          done
+          rm -f "$RUNNER_TEMP/image.json"
+          echo '=== SANITIZED_HISTORY_PATH_TOKENS ==='
+          docker run --rm -v /:/host:ro alpine:3.22 sh -c "grep -ihEo '[^[:space:]]*(aws-notion-gateway|mcp|notion|Caddyfile|docker-compose)[^[:space:]]*' /host/root/.bash_history /host/home/*/.bash_history 2>/dev/null | sed -E 's/[?&].*//' | sort -u | head -300"
+          echo '=== DEEP_PATH_NAMES ==='
+          docker run --rm -v /:/host:ro alpine:3.22 sh -c "find /host -xdev -maxdepth 12 \( -iname '*aws-notion*' -o -iname '*mcp*gateway*' -o -iname 'Caddyfile' -o -iname 'docker-compose.yml' -o -iname 'compose.yml' \) -printf '%y %p\n' 2>/dev/null | head -1000"
           exit 0
       - name: Upload forensic evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mcp-docker-forensic
-          path: ${{ runner.temp }}/mcp-docker-forensic.txt
+          name: mcp-residue-forensic
+          path: ${{ runner.temp }}/mcp-residue-forensic.txt
           retention-days: 1
