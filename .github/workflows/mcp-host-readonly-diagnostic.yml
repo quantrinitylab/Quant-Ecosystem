@@ -1,4 +1,4 @@
-name: MCP host privileged read-only forensic
+name: MCP Docker residue read-only forensic
 
 on:
   pull_request:
@@ -12,29 +12,35 @@ jobs:
   forensic:
     if: github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'ops/mcp-host-recovery-')
     runs-on: [self-hosted, Linux, X64, quant-deploy, notion-aws]
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
-      - name: Locate prior MCP deployment without reading secrets
+      - name: Inspect retained Compose volumes and safe image metadata
         shell: bash
         run: |
           set +e
-          out="$RUNNER_TEMP/mcp-host-forensic.txt"
+          out="$RUNNER_TEMP/mcp-docker-forensic.txt"
           exec >"$out" 2>&1
-          echo '=== HOST ==='; date -Is; hostname; id; df -h; docker version --format '{{.Server.Version}}'
-          echo '=== DOCKER_STATE ==='; docker ps -a; docker images -a; docker volume ls; docker network ls
-          echo '=== PRIVILEGED_PATH_NAMES ==='
-          docker run --rm --pull=always -v /:/host:ro alpine:3.22 sh -c "find /host/opt /host/srv /host/root /host/home /host/tmp /host/etc/systemd/system -xdev -maxdepth 6 \( -iname '*mcp*' -o -iname '*notion*' -o -iname '*gateway*' -o -iname 'compose*.yml' -o -iname 'docker-compose*.yml' \) -printf '%y %p\n' 2>/dev/null | head -1000"
-          echo '=== SERVICE_FILE_NAMES ==='
-          docker run --rm -v /etc/systemd/system:/host:ro alpine:3.22 sh -c "find /host -maxdepth 3 -type f -printf '%p\n' 2>/dev/null | sort"
-          echo '=== RUNNER_WORKSPACES ==='
-          find /opt/actions-runner/_work -maxdepth 5 -type d 2>/dev/null | grep -Ei 'mcp|notion|gateway|Quant-Ecosystem' | head -500
-          echo '=== SAFE_UNIT_METADATA ==='
-          docker run --rm -v /etc/systemd/system:/host:ro alpine:3.22 sh -c "grep -RIlE 'mcp|notion|gateway|6274|/mcp' /host 2>/dev/null | head -100"
+          echo '=== VOLUME_METADATA ==='
+          docker volume inspect aws-notion-gateway_caddy_config aws-notion-gateway_caddy_data --format 'NAME={{.Name}} DRIVER={{.Driver}} LABELS={{json .Labels}}'
+          echo '=== VOLUME_FILE_NAMES_ONLY ==='
+          for v in aws-notion-gateway_caddy_config aws-notion-gateway_caddy_data; do echo "--- $v ---"; docker run --rm -v "$v:/evidence:ro" alpine:3.22 find /evidence -maxdepth 7 -type f -printf '%p\n' 2>/dev/null | head -500; done
+          echo '=== SAFE_IMAGE_METADATA ==='
+          for id in $(docker image ls -aq | sort -u); do
+            docker image inspect "$id" --format 'ID={{.Id}} CREATED={{.Created}} SIZE={{.Size}} TAGS={{json .RepoTags}} WORKDIR={{.Config.WorkingDir}} ENTRY={{json .Config.Entrypoint}} CMD={{json .Config.Cmd}} PORTS={{json .Config.ExposedPorts}} LABELS={{json .Config.Labels}}' 2>/dev/null
+          done
+          echo '=== MCP_LIKE_IMAGE_FILES ==='
+          for id in $(docker image ls -aq | sort -u); do
+            size=$(docker image inspect "$id" --format '{{.Size}}' 2>/dev/null); [ -n "$size" ] || continue
+            if [ "$size" -lt 600000000 ]; then
+              echo "--- IMAGE $id SIZE $size ---"
+              docker run --rm --network none --read-only --entrypoint sh "$id" -c "find /app /workspace /srv /usr/src -maxdepth 4 -type f \( -name package.json -o -name '*mcp*' -o -name 'server.js' -o -name 'index.js' \) -printf '%p\n' 2>/dev/null | head -100" 2>/dev/null || true
+            fi
+          done
           exit 0
       - name: Upload forensic evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mcp-host-forensic
-          path: ${{ runner.temp }}/mcp-host-forensic.txt
+          name: mcp-docker-forensic
+          path: ${{ runner.temp }}/mcp-docker-forensic.txt
           retention-days: 1
