@@ -1,4 +1,4 @@
-name: Quant staging read-only workload inventory
+name: Quant staging safe dependency topology
 
 on:
   pull_request:
@@ -9,29 +9,65 @@ permissions:
   contents: read
 
 jobs:
-  inventory:
+  topology:
     if: github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'ops/mcp-host-recovery-')
     runs-on: [self-hosted, Linux, X64, quant-deploy, notion-aws]
     timeout-minutes: 5
     steps:
-      - name: Capture cluster workload placement without secrets
+      - name: Resolve only database and Redis hostnames
         shell: bash
         run: |
-          set +e
-          exec >"$RUNNER_TEMP/quant-staging-inventory.txt" 2>&1
-          echo '=== IDENTITY ==='; aws sts get-caller-identity
-          aws eks update-kubeconfig --region us-east-1 --name quant-staging-eks --kubeconfig "$RUNNER_TEMP/kubeconfig"
-          echo '=== NODES ==='; kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" get nodes -o wide
-          echo '=== NODE_USAGE ==='; kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" top nodes || true
-          echo '=== WORKLOADS ==='; kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" get deployments,statefulsets,daemonsets -A -o wide
-          echo '=== POD_PLACEMENT ==='; kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" get pods -A -o wide
-          echo '=== SERVICES_AND_INGRESS ==='; kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" get services,ingresses -A -o wide
-          echo '=== POD_USAGE ==='; kubectl --kubeconfig "$RUNNER_TEMP/kubeconfig" top pods -A || true
-          exit 0
-      - name: Upload inventory evidence
+          set -euo pipefail
+          out="$RUNNER_TEMP/quant-staging-topology.txt"
+          kube="$RUNNER_TEMP/kubeconfig"
+          aws eks update-kubeconfig --region us-east-1 --name quant-staging-eks --kubeconfig "$kube" >/dev/null
+          kubectl --kubeconfig "$kube" get deployments -n quant-staging -o json >"$RUNNER_TEMP/deployments.json"
+          kubectl --kubeconfig "$kube" get secrets -n quant-staging -o json >"$RUNNER_TEMP/secrets.json"
+          kubectl --kubeconfig "$kube" get configmaps -n quant-staging -o json >"$RUNNER_TEMP/configmaps.json"
+          echo '=== STORAGE ===' >"$out"
+          kubectl --kubeconfig "$kube" get pvc,pv -A -o wide >>"$out" 2>&1 || true
+          echo '=== SAFE_ENDPOINT_TOPOLOGY ===' >>"$out"
+          python3 - "$RUNNER_TEMP" >>"$out" <<'PY'
+          import base64,json,re,sys
+          from urllib.parse import urlparse
+          root=sys.argv[1]
+          load=lambda n:json.load(open(f'{root}/{n}.json'))
+          deps,secrets,configs=load('deployments'),load('secrets'),load('configmaps')
+          sm={x['metadata']['name']:x.get('data',{}) for x in secrets['items']}
+          cm={x['metadata']['name']:x.get('data',{}) for x in configs['items']}
+          relevant=re.compile(r'DATABASE|POSTGRES|REDIS|(^|_)DB(_|$)',re.I)
+          def decode(v):
+            try:return base64.b64decode(v).decode()
+            except:return ''
+          def safe(name,value):
+            if not value:return '<configured>'
+            try:
+              u=urlparse(value)
+              if u.hostname:return f'{u.scheme}://{u.hostname}'+(f':{u.port}' if u.port else '')
+            except:pass
+            if name.upper().endswith('HOST') and re.fullmatch(r'[A-Za-z0-9._-]+',value):return value
+            return '<configured>'
+          for d in deps['items']:
+            found=[]
+            for c in d['spec']['template']['spec']['containers']:
+              for e in c.get('env',[]):
+                n=e.get('name','')
+                if not relevant.search(n):continue
+                if 'value' in e:v,src=e['value'],'literal'
+                else:
+                  r=e.get('valueFrom',{}).get('secretKeyRef',{}); q=e.get('valueFrom',{}).get('configMapKeyRef',{})
+                  v=decode(sm.get(r.get('name',''),{}).get(r.get('key',''),'')) if r else cm.get(q.get('name',''),{}).get(q.get('key',''),''); src='reference'
+                found.append(f'{n}={safe(n,v)}({src})')
+              for f in c.get('envFrom',[]):
+                r=f.get('secretRef',{}); q=f.get('configMapRef',{}); data={k:decode(v) for k,v in sm.get(r.get('name',''),{}).items()} if r else cm.get(q.get('name',''),{})
+                found += [f'{n}={safe(n,v)}(envFrom)' for n,v in data.items() if relevant.search(n)]
+            print(d['metadata']['name']+': '+(', '.join(sorted(set(found))) if found else '<no db/redis env>'))
+          PY
+          rm -f "$RUNNER_TEMP/deployments.json" "$RUNNER_TEMP/secrets.json" "$RUNNER_TEMP/configmaps.json"
+      - name: Upload safe topology evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: quant-staging-inventory
-          path: ${{ runner.temp }}/quant-staging-inventory.txt
+          name: quant-staging-topology
+          path: ${{ runner.temp }}/quant-staging-topology.txt
           retention-days: 1
