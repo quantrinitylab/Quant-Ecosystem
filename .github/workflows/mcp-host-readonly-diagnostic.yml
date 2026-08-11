@@ -1,4 +1,4 @@
-name: MCP image and path residue forensic
+name: MCP prior auth-mode forensic
 
 on:
   pull_request:
@@ -12,33 +12,22 @@ jobs:
   forensic:
     if: github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'ops/mcp-host-recovery-')
     runs-on: [self-hosted, Linux, X64, quant-deploy, notion-aws]
-    timeout-minutes: 8
+    timeout-minutes: 5
     steps:
-      - name: Inspect safe image metadata and sanitized path history
+      - name: Detect prior auth mode without outputting history
         shell: bash
         run: |
           set +e
-          out="$RUNNER_TEMP/mcp-residue-forensic.txt"
-          exec >"$out" 2>&1
-          echo '=== SAFE_IMAGE_METADATA ==='
-          for id in $(docker image ls -aq | sort -u); do
-            docker image inspect "$id" >"$RUNNER_TEMP/image.json" 2>/dev/null || continue
-            python3 - "$RUNNER_TEMP/image.json" <<'PY'
-          import json,sys
-          x=json.load(open(sys.argv[1]))[0]; c=x.get('Config') or {}
-          print('ID='+x.get('Id','')+' CREATED='+x.get('Created','')+' SIZE='+str(x.get('Size',''))+' TAGS='+str(x.get('RepoTags'))+' WORKDIR='+str(c.get('WorkingDir'))+' ENTRY='+str(c.get('Entrypoint'))+' CMD='+str(c.get('Cmd'))+' PORTS='+str(c.get('ExposedPorts'))+' LABEL_KEYS='+str(sorted((c.get('Labels') or {}).keys())))
-          PY
-          done
-          rm -f "$RUNNER_TEMP/image.json"
-          echo '=== SANITIZED_HISTORY_PATH_TOKENS ==='
-          docker run --rm -v /:/host:ro alpine:3.22 sh -c "grep -ihEo '[^[:space:]]*(aws-notion-gateway|mcp|notion|Caddyfile|docker-compose)[^[:space:]]*' /host/root/.bash_history /host/home/*/.bash_history 2>/dev/null | sed -E 's/[?&].*//' | sort -u | head -300"
-          echo '=== DEEP_PATH_NAMES ==='
-          docker run --rm -v /:/host:ro alpine:3.22 sh -c "find /host -xdev -maxdepth 12 \( -iname '*aws-notion*' -o -iname '*mcp*gateway*' -o -iname 'Caddyfile' -o -iname 'docker-compose.yml' -o -iname 'compose.yml' \) -printf '%y %p\n' 2>/dev/null | head -1000"
+          out="$RUNNER_TEMP/mcp-auth-mode.txt"
+          for term in 'AUTH_TYPE=no-auth' 'AUTH_TYPE=oauth' 'basic_auth' 'basicauth' 'Authorization' 'Bearer' 'header_up' 'forward_auth' 'oauth' 'Caddyfile' 'aws-notion-gateway'; do
+            key="$(printf '%s' "$term" | tr '[:lower:]-=' '[:upper:]__' | tr -cd 'A-Z0-9_')"
+            if docker run --rm -v /:/host:ro alpine:3.22 sh -c "grep -qiF '$term' /host/root/.bash_history /host/home/*/.bash_history 2>/dev/null"; then echo "$key=present"; else echo "$key=absent"; fi
+          done >"$out"
           exit 0
-      - name: Upload forensic evidence
+      - name: Upload auth-mode evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: mcp-residue-forensic
-          path: ${{ runner.temp }}/mcp-residue-forensic.txt
+          name: mcp-auth-mode
+          path: ${{ runner.temp }}/mcp-auth-mode.txt
           retention-days: 1
