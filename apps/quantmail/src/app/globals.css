@@ -4491,58 +4491,59 @@ body {
 
 /* ==========================================================================
    Shared-UI primitives (Modal / Input / Select / TextArea / Card / Button)
-   Token-driven so dialogs never render as white boxes on the dark shell.
+   Token-driven with fallbacks so dialogs never render as white boxes.
    ========================================================================== */
 .quant-field {
-  border-radius: var(--quant-radius);
-  border: 1px solid var(--quant-border);
-  background: var(--quant-surface);
-  color: var(--quant-foreground);
-  transition: border-color var(--brand-transition-normal) var(--brand-ease-out),
-    box-shadow var(--brand-transition-normal) var(--brand-ease-out),
-    background-color var(--brand-transition-normal) var(--brand-ease-out);
+  border-radius: var(--quant-radius, 0.625rem);
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: var(--quant-surface, #101014);
+  color: var(--quant-foreground, #f5f3f7);
+  transition: border-color 180ms ease-out, box-shadow 180ms ease-out, background-color 180ms ease-out;
 }
-.quant-field::placeholder { color: var(--quant-muted-foreground); }
-.quant-field:hover:not(:disabled) { border-color: var(--quant-border-strong); }
+.quant-field::placeholder { color: var(--quant-muted-foreground, #9b99a6); }
+.quant-field:hover:not(:disabled) { border-color: var(--quant-border-strong, rgba(255, 255, 255, 0.2)); }
 .quant-field:focus,
 .quant-field:focus-visible {
   outline: none;
-  border-color: var(--quant-accent-border);
-  background: var(--quant-surface-elevated);
-  box-shadow: 0 0 0 3px var(--quant-accent-soft);
+  border-color: var(--quant-accent-border, rgba(255, 173, 92, 0.4));
+  background: var(--quant-surface-elevated, #17171d);
+  box-shadow: 0 0 0 3px var(--quant-accent-soft, rgba(255, 153, 51, 0.14));
 }
-.quant-field-error { border-color: var(--quant-destructive); }
+.quant-field-error { border-color: var(--quant-destructive, #f87171); }
 .quant-field-error:focus { box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.16); }
-.quant-field option { background: var(--quant-surface-elevated); color: var(--quant-foreground); }
+.quant-field option {
+  background: var(--quant-surface-elevated, #17171d);
+  color: var(--quant-foreground, #f5f3f7);
+}
 
 .quant-panel {
-  background: var(--quant-card);
-  color: var(--quant-card-foreground);
-  border: 1px solid var(--quant-border);
+  background: var(--quant-card, #111115);
+  color: var(--quant-card-foreground, #f5f3f7);
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
 }
 .quant-panel-elevated { box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32); }
-.quant-panel-flat { background: var(--quant-surface-subtle); }
+.quant-panel-flat { background: var(--quant-surface-subtle, #0d0d10); }
 
 .quant-btn { border: 1px solid transparent; }
 .quant-btn-primary {
-  background: var(--brand-primary);
+  background: var(--brand-primary, #ff9933);
   color: #14100b;
   font-weight: 640;
 }
-.quant-btn-primary:hover:not(:disabled) { background: var(--brand-primary-hover); }
+.quant-btn-primary:hover:not(:disabled) { background: var(--brand-primary-hover, #ffad5c); }
 .quant-btn-secondary {
-  background: var(--quant-surface-elevated);
-  border-color: var(--quant-border);
-  color: var(--quant-foreground);
+  background: var(--quant-surface-elevated, #17171d);
+  border-color: var(--quant-border, rgba(255, 255, 255, 0.12));
+  color: var(--quant-foreground, #f5f3f7);
 }
 .quant-btn-secondary:hover:not(:disabled) {
-  background: var(--quant-surface-hover);
-  border-color: var(--quant-border-strong);
+  background: var(--quant-surface-hover, #1d1c23);
+  border-color: var(--quant-border-strong, rgba(255, 255, 255, 0.2));
 }
-.quant-btn-ghost { background: transparent; color: var(--quant-muted-foreground); }
+.quant-btn-ghost { background: transparent; color: var(--quant-muted-foreground, #9b99a6); }
 .quant-btn-ghost:hover:not(:disabled) {
-  background: var(--quant-surface-hover);
-  color: var(--quant-foreground);
+  background: var(--quant-surface-hover, #1d1c23);
+  color: var(--quant-foreground, #f5f3f7);
 }
 
 /* QuantAI copilot — real chat surface */
