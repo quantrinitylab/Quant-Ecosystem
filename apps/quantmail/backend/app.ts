@@ -68,6 +68,26 @@ export async function buildApp(config?: AppConfig) {
   const appConfig = config ?? getConfig();
   const app = await createApp(appConfig);
 
+  // Cookie-only endpoints (/auth/refresh, /auth/logout) are legitimately called
+  // without a payload. Fastify's default JSON parser rejects that with
+  // FST_ERR_CTP_EMPTY_JSON_BODY (400), which silently logged users out.
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (_request, body: string, done) => {
+      if (!body || body.trim() === '') {
+        done(null, {});
+        return;
+      }
+      try {
+        done(null, JSON.parse(body));
+      } catch (error) {
+        done(error as Error, undefined);
+      }
+    },
+  );
+
   // Auth routes (Login, Register, OAuth2)
   await app.register(authRoutes);
   await app.register(oauthRoutes);
