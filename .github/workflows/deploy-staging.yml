@@ -154,19 +154,19 @@ jobs:
               deployment=quant-quantmail; container=quant-quantmail ;;
             quantmail-backend)
               repository=quant-quantmail-backend; dockerfile=apps/quantmail/Dockerfile.backend
-              deployment=quant-quantmail-backend; container=quant-quantmail-backend ;;
+              deployment=quant-quantmail-backend; container=quantmail-backend ;;
             quantchat)
               repository=quant-quantchat; dockerfile=apps/quantchat/Dockerfile
-              deployment=quant-platform-staging-quantchat; container=quantchat ;;
+              deployment=quant-quantchat; container=quant-quantchat ;;
             quantai)
               repository=quant-quantai; dockerfile=apps/quantai/Dockerfile
-              deployment=quant-platform-staging-quantai; container=quantai ;;
+              deployment=quant-quantai; container=quant-quantai ;;
             admin)
               repository=quant-admin; dockerfile=apps/admin/Dockerfile
               deployment=quant-platform-staging-admin; container=admin ;;
             ws-gateway)
               repository=quant-ws-gateway; dockerfile=services/ws-gateway/Dockerfile
-              deployment=quant-platform-staging-ws-gateway; container=ws-gateway ;;
+              deployment=quant-ws-gateway; container=ws-gateway ;;
             *) echo "Unsupported target: $TARGET" >&2; exit 1 ;;
           esac
           test -f "$dockerfile"
