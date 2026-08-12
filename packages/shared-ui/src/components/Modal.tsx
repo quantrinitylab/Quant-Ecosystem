@@ -64,20 +64,23 @@ export const Modal: React.FC<ModalProps> = ({
   if (!isOpen) return null;
 
   const sizeStyles: Record<string, string> = {
-    sm: 'sm:max-w-sm',
-    md: 'sm:max-w-md',
-    lg: 'sm:max-w-lg',
-    xl: 'sm:max-w-2xl',
-    full: 'sm:max-w-5xl',
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-2xl',
+    full: 'max-w-5xl',
   };
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center p-0 sm:p-4"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'modal-title' : undefined}
     >
+      <style>{`@keyframes quantModalIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
+.quant-modal-panel{animation:quantModalIn .18s cubic-bezier(.2,.8,.2,1) both}
+@media (prefers-reduced-motion:reduce){.quant-modal-panel{animation:none}}`}</style>
       <div
         className="absolute inset-0"
         style={{ background: 'rgba(4,4,6,.66)', backdropFilter: 'blur(6px)' }}
@@ -85,13 +88,15 @@ export const Modal: React.FC<ModalProps> = ({
         aria-hidden="true"
       />
       <div
-        className={`relative w-full ${sizeStyles[size]} flex max-h-[92vh] sm:max-h-[86vh] flex-col overflow-hidden ${className}`}
+        className={`quant-modal-panel relative w-full ${sizeStyles[size]} flex max-h-[88vh] flex-col overflow-hidden ${className}`}
         style={{
           background: SURFACE,
           color: FOREGROUND,
           border: `1px solid ${BORDER}`,
           borderRadius: RADIUS,
           boxShadow: SHADOW,
+          backgroundImage:
+            'radial-gradient(120% 80% at 50% -20%, rgba(255,255,255,.07), transparent 60%)',
         }}
       >
         <span

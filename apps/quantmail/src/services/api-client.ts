@@ -450,7 +450,17 @@ export class QuantMailApiClient {
   async createEvent(
     data: Partial<CalendarEvent> & { title: string; startTime: string; endTime: string },
   ): Promise<ApiResponse<CalendarEvent>> {
-    return this.post('/events', data);
+    // The calendar backends disagree on field names: quantcalendar validates
+    // startTime/endTime, the quantmail calendar route validates start/end.
+    // Send both so a create never 400s depending on which service handles it.
+    const payload = {
+      ...data,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      start: data.startTime,
+      end: data.endTime,
+    };
+    return this.post('/events', payload);
   }
 
   async updateEvent(id: string, data: Partial<CalendarEvent>): Promise<ApiResponse<CalendarEvent>> {
