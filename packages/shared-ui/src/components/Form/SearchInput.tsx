@@ -71,7 +71,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
         onChange={handleChange}
         placeholder={placeholder}
         disabled={disabled}
-        className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-9 pr-9 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="quant-field w-full py-2 pl-9 pr-9 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label={ariaLabel}
         role="searchbox"
       />

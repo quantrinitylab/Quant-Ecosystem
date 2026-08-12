@@ -4488,3 +4488,114 @@ body {
 .perf-issue-line { font-size: 0.52rem; color: #555; font-family: monospace; margin-left: auto; }
 .perf-issue-msg { font-size: 0.62rem; color: #ccc; margin-bottom: 0.15rem; }
 .perf-issue-fix { font-size: 0.58rem; color: #888; font-style: italic; }
+
+/* ==========================================================================
+   Shared-UI primitives (Modal / Input / Select / TextArea / Card / Button)
+   Token-driven so dialogs never render as white boxes on the dark shell.
+   ========================================================================== */
+.quant-field {
+  border-radius: var(--quant-radius);
+  border: 1px solid var(--quant-border);
+  background: var(--quant-surface);
+  color: var(--quant-foreground);
+  transition: border-color var(--brand-transition-normal) var(--brand-ease-out),
+    box-shadow var(--brand-transition-normal) var(--brand-ease-out),
+    background-color var(--brand-transition-normal) var(--brand-ease-out);
+}
+.quant-field::placeholder { color: var(--quant-muted-foreground); }
+.quant-field:hover:not(:disabled) { border-color: var(--quant-border-strong); }
+.quant-field:focus,
+.quant-field:focus-visible {
+  outline: none;
+  border-color: var(--quant-accent-border);
+  background: var(--quant-surface-elevated);
+  box-shadow: 0 0 0 3px var(--quant-accent-soft);
+}
+.quant-field-error { border-color: var(--quant-destructive); }
+.quant-field-error:focus { box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.16); }
+.quant-field option { background: var(--quant-surface-elevated); color: var(--quant-foreground); }
+
+.quant-panel {
+  background: var(--quant-card);
+  color: var(--quant-card-foreground);
+  border: 1px solid var(--quant-border);
+}
+.quant-panel-elevated { box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32); }
+.quant-panel-flat { background: var(--quant-surface-subtle); }
+
+.quant-btn { border: 1px solid transparent; }
+.quant-btn-primary {
+  background: var(--brand-primary);
+  color: #14100b;
+  font-weight: 640;
+}
+.quant-btn-primary:hover:not(:disabled) { background: var(--brand-primary-hover); }
+.quant-btn-secondary {
+  background: var(--quant-surface-elevated);
+  border-color: var(--quant-border);
+  color: var(--quant-foreground);
+}
+.quant-btn-secondary:hover:not(:disabled) {
+  background: var(--quant-surface-hover);
+  border-color: var(--quant-border-strong);
+}
+.quant-btn-ghost { background: transparent; color: var(--quant-muted-foreground); }
+.quant-btn-ghost:hover:not(:disabled) {
+  background: var(--quant-surface-hover);
+  color: var(--quant-foreground);
+}
+
+/* QuantAI copilot — real chat surface */
+.mail-copilot-panel { display: flex; max-height: min(34rem, calc(100vh - 7rem)); flex-direction: column; }
+.mail-copilot-header-actions { display: flex; align-items: center; gap: .35rem; }
+.mail-copilot-reset {
+  border: 1px solid var(--quant-border); border-radius: .5rem; padding: .25rem .5rem;
+  color: var(--quant-muted-foreground); font-size: .55rem; font-weight: 640;
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.mail-copilot-reset:hover { border-color: var(--quant-accent-border); color: #ffc184; }
+.mail-copilot-thread { flex: 1 1 auto; min-height: 6rem; overflow-y: auto; padding: .25rem 0; }
+.mail-copilot-msg { padding: .3rem .85rem; }
+.mail-copilot-msg p {
+  border-radius: .8rem; padding: .5rem .7rem; font-size: .72rem; line-height: 1.6;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.mail-copilot-msg.is-user { display: flex; justify-content: flex-end; }
+.mail-copilot-msg.is-user p {
+  max-width: 85%; background: var(--brand-primary); color: #14100b; font-weight: 520;
+}
+.mail-copilot-msg.is-assistant p { background: transparent; padding-left: 0; color: #d8d8dc; }
+.mail-copilot-msg-author {
+  display: block; padding-left: 0; color: #b7804d; font-size: .52rem; font-weight: 760;
+  letter-spacing: .16em; text-transform: uppercase;
+}
+.mail-copilot-typing { padding: .1rem .85rem .5rem; color: #85858b; font-size: .66rem; }
+.mail-copilot-error {
+  margin: .2rem .85rem .5rem; border: 1px solid rgba(248,113,113,.32); border-radius: .6rem;
+  background: rgba(248,113,113,.08); padding: .45rem .6rem; color: #ffb4b4; font-size: .66rem;
+}
+.mail-copilot-chips { display: flex; flex-wrap: wrap; gap: .3rem; padding: .1rem .8rem .5rem; }
+.mail-copilot-chips button {
+  border: 1px solid var(--quant-border); border-radius: 999px; padding: .3rem .6rem;
+  color: #b5b5b9; font-size: .63rem;
+}
+.mail-copilot-chips button:hover {
+  border-color: var(--quant-accent-border); background: var(--quant-accent-soft); color: #ffc184;
+}
+.mail-copilot-composer {
+  display: flex; align-items: flex-end; gap: .45rem; padding: .55rem .7rem;
+  border-top: 1px solid rgba(255,255,255,.065);
+}
+.mail-copilot-composer textarea {
+  flex: 1 1 auto; min-height: 2.4rem; max-height: 7rem; resize: none;
+  border: 1px solid var(--quant-border); border-radius: .7rem; background: rgba(255,255,255,.03);
+  padding: .45rem .55rem; color: #f2f2f4; font-size: .7rem; line-height: 1.5;
+}
+.mail-copilot-composer textarea:focus {
+  outline: none; border-color: var(--quant-accent-border); box-shadow: 0 0 0 3px var(--quant-accent-soft);
+}
+.mail-copilot-composer button {
+  flex: 0 0 auto; border-radius: .65rem; background: var(--brand-primary); padding: .5rem .75rem;
+  color: #14100b; font-size: .66rem; font-weight: 680;
+}
+.mail-copilot-composer button:disabled { opacity: .45; cursor: not-allowed; }

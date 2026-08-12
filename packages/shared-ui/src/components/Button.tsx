@@ -42,9 +42,9 @@ export const Button: React.FC<ButtonProps> = ({
     'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2';
 
   const variantStyles: Record<string, string> = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 active:bg-blue-800',
-    secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-400 active:bg-gray-400',
-    ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-300',
+    primary: 'quant-btn quant-btn-primary',
+    secondary: 'quant-btn quant-btn-secondary',
+    ghost: 'quant-btn quant-btn-ghost',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 active:bg-red-800',
     success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500 active:bg-green-800',
   };
