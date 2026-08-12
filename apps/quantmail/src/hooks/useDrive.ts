@@ -199,9 +199,19 @@ export function useDrive(): UseDriveReturn {
                 if (xhr.status >= 200 && xhr.status < 300) {
                   resolve();
                 } else {
-                  reject(
-                    new Error(xhr.statusText || `Upload failed with status ${xhr.status}`),
-                  );
+                  // Surface the backend reason (quota exceeded, too large, storage down)
+                  // instead of a bare status line.
+                  let message = xhr.statusText || `Upload failed with status ${xhr.status}`;
+                  try {
+                    const parsed = JSON.parse(xhr.responseText) as {
+                      error?: { message?: string };
+                      message?: string;
+                    };
+                    message = parsed.error?.message || parsed.message || message;
+                  } catch {
+                    /* non-JSON body: keep the status text */
+                  }
+                  reject(new Error(message));
                 }
               };
               xhr.onerror = () => rejectUpload(new Error('Upload failed'));
