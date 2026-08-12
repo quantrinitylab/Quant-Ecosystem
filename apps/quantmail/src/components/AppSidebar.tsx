@@ -19,7 +19,7 @@ const PRESET_COLORS = [
 type IconName =
   | 'calendar' | 'chevron' | 'code' | 'compose' | 'contacts' | 'drafts'
   | 'drive' | 'inbox' | 'pipeline' | 'search' | 'security' | 'sent'
-  | 'settings' | 'trash';
+  | 'settings' | 'trash' | 'workspaces';
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /></>,
@@ -35,6 +35,7 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   security: <><path d="M12 3 4 6v5c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V6z" /><path d="m9 12 2 2 4-4" /></>,
   sent: <><path d="m22 2-7 20-4-9-9-4z" /><path d="M22 2 11 13" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" /></>,
+  workspaces: <><circle cx="9" cy="7" r="3" /><circle cx="17" cy="9" r="2.4" /><path d="M3 20c0-3.6 2.4-5.6 6-5.6s6 2 6 5.6M16.4 14.2c2.8.3 4.6 2.1 4.6 5" /></>,
   trash: <><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6" /></>,
 };
 
@@ -62,6 +63,9 @@ const NAV_GROUPS: Array<{
     { id: 'calendar', label: 'Calendar', icon: 'calendar', path: '/calendar' },
     { id: 'contacts', label: 'Contacts', icon: 'contacts', path: '/contacts' },
     { id: 'drive', label: 'Drive', icon: 'drive', path: '/drive' },
+  ] },
+  { label: 'Team', items: [
+    { id: 'workspaces', label: 'Workspaces', icon: 'workspaces', path: '/workspaces' },
   ] },
   { label: 'Code', items: [
     { id: 'codehub', label: 'CodeHub', icon: 'code', path: '/codehub' },

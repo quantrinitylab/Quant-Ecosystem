@@ -1,3 +1,13 @@
+import type {
+  WorkspaceSummary,
+  WorkspaceDetail,
+  WorkspaceMember,
+  WorkspaceInvite,
+  WorkspaceRole,
+  InviteRole,
+  InviteSendResult,
+  InvitePreview,
+} from '../types/workspace';
 // ============================================================================
 // QuantMail - Frontend API Client
 // ============================================================================
@@ -568,6 +578,94 @@ export class QuantMailApiClient {
   }
 
   // --------------------------------------------------------------------------
+  // Workspaces (shared collaboration spaces, roles + email invites)
+  // --------------------------------------------------------------------------
+
+  async listWorkspaces(): Promise<ApiResponse<WorkspaceSummary[]>> {
+    return this.get('/workspaces');
+  }
+
+  async createWorkspace(input: {
+    name: string;
+    description?: string;
+  }): Promise<ApiResponse<WorkspaceSummary>> {
+    return this.post('/workspaces', input);
+  }
+
+  async getWorkspace(id: string): Promise<ApiResponse<WorkspaceDetail>> {
+    return this.get(`/workspaces/${id}`);
+  }
+
+  async updateWorkspace(
+    id: string,
+    input: { name?: string; description?: string | null },
+  ): Promise<ApiResponse<WorkspaceSummary>> {
+    return this.patch(`/workspaces/${id}`, input);
+  }
+
+  async deleteWorkspace(id: string): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.delete(`/workspaces/${id}`);
+  }
+
+  async listWorkspaceMembers(id: string): Promise<ApiResponse<WorkspaceMember[]>> {
+    return this.get(`/workspaces/${id}/members`);
+  }
+
+  async updateWorkspaceMemberRole(
+    id: string,
+    memberId: string,
+    role: WorkspaceRole,
+  ): Promise<ApiResponse<WorkspaceMember[]>> {
+    return this.patch(`/workspaces/${id}/members/${memberId}`, { role });
+  }
+
+  async removeWorkspaceMember(
+    id: string,
+    memberId: string,
+  ): Promise<ApiResponse<{ removed: boolean }>> {
+    return this.delete(`/workspaces/${id}/members/${memberId}`);
+  }
+
+  async leaveWorkspace(id: string): Promise<ApiResponse<{ left: boolean }>> {
+    return this.post(`/workspaces/${id}/leave`, {});
+  }
+
+  async listWorkspaceInvites(id: string): Promise<ApiResponse<WorkspaceInvite[]>> {
+    return this.get(`/workspaces/${id}/invites`);
+  }
+
+  async inviteToWorkspace(
+    id: string,
+    input: { emails: string[]; role: InviteRole; message?: string },
+  ): Promise<ApiResponse<{ results: InviteSendResult[]; invites: WorkspaceInvite[] }>> {
+    return this.post(`/workspaces/${id}/invites`, input);
+  }
+
+  async resendWorkspaceInvite(
+    id: string,
+    inviteId: string,
+  ): Promise<ApiResponse<{ inviteId: string; inviteUrl: string; emailSent: boolean }>> {
+    return this.post(`/workspaces/${id}/invites/${inviteId}/resend`, {});
+  }
+
+  async revokeWorkspaceInvite(
+    id: string,
+    inviteId: string,
+  ): Promise<ApiResponse<{ revoked: boolean }>> {
+    return this.delete(`/workspaces/${id}/invites/${inviteId}`);
+  }
+
+  async getInvitePreview(token: string): Promise<ApiResponse<InvitePreview>> {
+    return this.get(`/public/invites/${token}`);
+  }
+
+  async acceptInvite(
+    token: string,
+  ): Promise<ApiResponse<{ workspaceId: string; role: WorkspaceRole }>> {
+    return this.post(`/invites/${token}/accept`, {});
+  }
+
+  // --------------------------------------------------------------------------
   // HTTP Methods
   // --------------------------------------------------------------------------
 
@@ -589,6 +687,14 @@ export class QuantMailApiClient {
     options?: RequestOptions,
   ): Promise<ApiResponse<T>> {
     return this.request<T>('PUT', path, body, options);
+  }
+
+  private async patch<T>(
+    path: string,
+    body: unknown,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>('PATCH', path, body, options);
   }
 
   private async delete<T>(path: string, options?: RequestOptions): Promise<ApiResponse<T>> {

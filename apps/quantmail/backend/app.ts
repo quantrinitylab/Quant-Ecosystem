@@ -21,6 +21,7 @@ import { oauthRoutes } from './routes/oauth';
 import phoneRoutes from './routes/phone';
 import { authRoutes } from './routes/auth';
 import reposRoutes from './routes/repos';
+import workspaceRoutes from './routes/workspaces';
 import ciRoutes from './routes/ci';
 import calendarRoutes from './routes/calendar';
 import driveRoutes from './routes/drive';
@@ -58,6 +59,9 @@ export function getConfig(): AppConfig {
       '/oauth/revoke',
       '/oauth/register',
       '/oauth/consent',
+      // Invite preview (/public/invites/:token): shown to people who may not
+      // have an account yet. Accepting an invite stays authenticated.
+      '/public/invites',
       '/.well-known',
     ],
     env,
@@ -101,6 +105,8 @@ export async function buildApp(config?: AppConfig) {
   // Product-surface repositories API (id-based, list-my-repos) consumed by the
   // Repos page. Complements the QuantCode owner/name git API under /api/code.
   await app.register(reposRoutes, { prefix: '/repos' });
+  // Shared workspaces: multi-user collaboration with roles + emailed invites.
+  await app.register(workspaceRoutes);
   // CI/CD product surface (/ci/*) for the Pipelines page — builds backed by the
   // CiRun model; workflows/deployments are empty until those are modelled.
   await app.register(ciRoutes);

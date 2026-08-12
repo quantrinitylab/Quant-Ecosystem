@@ -25,6 +25,16 @@ const ALLOWED_BACKEND_ROUTES: Array<{ pattern: RegExp; methods: readonly string[
   { pattern: /^events$/, methods: ['GET', 'POST'] },
   { pattern: /^events\/(?:today|upcoming)$/, methods: ['GET'] },
   { pattern: /^events\/[^/]+$/, methods: ['PUT', 'DELETE'] },
+  { pattern: /^workspaces$/, methods: ['GET', 'POST'] },
+  { pattern: /^workspaces\/[^/]+$/, methods: ['GET', 'PATCH', 'DELETE'] },
+  { pattern: /^workspaces\/[^/]+\/members$/, methods: ['GET'] },
+  { pattern: /^workspaces\/[^/]+\/members\/[^/]+$/, methods: ['PATCH', 'DELETE'] },
+  { pattern: /^workspaces\/[^/]+\/leave$/, methods: ['POST'] },
+  { pattern: /^workspaces\/[^/]+\/invites$/, methods: ['GET', 'POST'] },
+  { pattern: /^workspaces\/[^/]+\/invites\/[^/]+$/, methods: ['DELETE'] },
+  { pattern: /^workspaces\/[^/]+\/invites\/[^/]+\/resend$/, methods: ['POST'] },
+  { pattern: /^public\/invites\/[^/]+$/, methods: ['GET'] },
+  { pattern: /^invites\/[^/]+\/accept$/, methods: ['POST'] },
 ];
 
 const handle = async (
