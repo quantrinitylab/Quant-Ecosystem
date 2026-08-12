@@ -15,6 +15,9 @@ export default function ComposePage() {
   const replyTo = searchParams?.get('replyTo') ?? null;
   const forwardId = searchParams?.get('forward') ?? null;
   const draftId = searchParams?.get('draftId') ?? null;
+  const prefillBody = searchParams?.get('body') ?? null;
+  const prefillSubject = searchParams?.get('subject') ?? null;
+  const prefillTo = searchParams?.get('to') ?? null;
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId);
 
   const [draftData, setDraftData] = useState<{
@@ -140,11 +143,13 @@ export default function ComposePage() {
           </div>
         ) : (
           <EmailComposer
-            initialTo={draftData?.to}
+            initialTo={draftData?.to ?? (prefillTo ? [{ email: prefillTo }] : undefined)}
             initialSubject={
-              draftData?.subject ?? (forwardId ? 'Fwd: ' : replyTo ? 'Re: ' : undefined)
+              draftData?.subject ??
+              prefillSubject ??
+              (forwardId ? 'Fwd: ' : replyTo ? 'Re: ' : undefined)
             }
-            initialBody={draftData?.body}
+            initialBody={draftData?.body ?? prefillBody ?? undefined}
             inReplyTo={replyTo || undefined}
             onSend={handleSend}
             onSaveDraft={handleSaveDraft}

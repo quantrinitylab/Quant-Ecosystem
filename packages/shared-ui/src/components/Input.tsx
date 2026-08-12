@@ -66,9 +66,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   };
 
   const baseInputStyles = 'block rounded-lg border transition-colors duration-200 focus:outline-none focus:ring-2';
-  const normalStyles = 'border-gray-300 focus:border-blue-500 focus:ring-blue-200';
-  const errorStyles = 'border-red-500 focus:border-red-500 focus:ring-red-200';
-  const disabledStyles = 'bg-gray-100 text-gray-500 cursor-not-allowed';
+  const normalStyles = 'quant-field';
+  const errorStyles = 'quant-field quant-field-error';
+  const disabledStyles = 'opacity-60 cursor-not-allowed';
 
   const inputClassName = [
     baseInputStyles,
@@ -84,14 +84,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   return (
     <div className={`input-wrapper ${fullWidth ? 'w-full' : ''}`}>
       {label && (
-        <label htmlFor={inputId} className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium" style={{ color: 'var(--quant-foreground, #f5f3f7)' }}>
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
       <div className="relative">
         {icon && iconPosition === 'left' && (
-          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 transform" style={{ color: 'var(--quant-muted-foreground, #9b99a6)' }}>
             {icon}
           </span>
         )}
@@ -118,13 +118,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
           aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
         />
         {icon && iconPosition === 'right' && (
-          <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 transform" style={{ color: 'var(--quant-muted-foreground, #9b99a6)' }}>
             {icon}
           </span>
         )}
       </div>
       {error && (
-        <p id={`${inputId}-error`} className="mt-1 text-sm text-red-600" role="alert">
+        <p id={`${inputId}-error`} className="mt-1 text-sm" style={{ color: 'var(--quant-destructive, #f87171)' }} role="alert">
           {error}
         </p>
       )}

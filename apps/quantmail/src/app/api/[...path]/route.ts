@@ -14,6 +14,7 @@ const ALLOWED_BACKEND_ROUTES: Array<{ pattern: RegExp; methods: readonly string[
   { pattern: /^vacation-responder$/, methods: ['GET', 'PUT'] },
   { pattern: /^vacation-responder\/(?:enable|disable)$/, methods: ['POST'] },
   { pattern: /^ai\/compose$/, methods: ['POST'] },
+  { pattern: /^ai\/chat$/, methods: ['POST'] },
   { pattern: /^repos\/[^/]+\/(?:branches|commits|tree|file)$/, methods: ['GET'] },
   { pattern: /^ci\/(?:workflows\/[^/]+\/trigger|builds\/[^/]+\/cancel)$/, methods: ['POST'] },
   { pattern: /^ci\/deployments$/, methods: ['GET', 'POST'] },
