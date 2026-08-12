@@ -18,6 +18,7 @@ import attachmentRoutes from './routes/attachments';
 import e2eeRoutes from './routes/e2ee';
 import federationRoutes, { createFederationService } from './routes/federation';
 import { oauthRoutes } from './routes/oauth';
+import phoneRoutes from './routes/phone';
 import { authRoutes } from './routes/auth';
 import reposRoutes from './routes/repos';
 import ciRoutes from './routes/ci';
@@ -70,6 +71,7 @@ export async function buildApp(config?: AppConfig) {
   // Auth routes (Login, Register, OAuth2)
   await app.register(authRoutes);
   await app.register(oauthRoutes);
+  await app.register(phoneRoutes);
 
   await app.register(emailsRoutes, { prefix: '/emails' });
   await app.register(labelsRoutes, { prefix: '/labels' });

@@ -64,8 +64,7 @@ const NAV_GROUPS: Array<{
     { id: 'drive', label: 'Drive', icon: 'drive', path: '/drive' },
   ] },
   { label: 'Code', items: [
-    { id: 'repos', label: 'Repos', icon: 'code', path: '/repos' },
-    { id: 'pipelines', label: 'Pipelines', icon: 'pipeline', path: '/pipelines' },
+    { id: 'codehub', label: 'CodeHub', icon: 'code', path: '/codehub' },
   ] },
   { label: 'Control', items: [
     { id: 'security', label: 'Security', icon: 'security', path: '/security' },

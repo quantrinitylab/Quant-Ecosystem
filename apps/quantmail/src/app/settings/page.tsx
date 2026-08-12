@@ -9,6 +9,7 @@ import { useCreateLabel, useLabels } from '../../hooks/useLabels';
 import { apiClient } from '../../services/api-client';
 import type { EmailLabel } from '../../types';
 import { VacationResponderSettings } from './VacationResponderSettings';
+import { PhoneVerificationCard } from '../../components/PhoneVerificationCard';
 
 type SettingsTab = 'general' | 'notifications' | 'appearance' | 'labels' | 'keyboard';
 type Theme = 'light' | 'dark' | 'system';
@@ -200,6 +201,8 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </section>
+
+              <PhoneVerificationCard />
 
               <section>
                 <h2 className="mb-1 text-base font-semibold text-[var(--quant-foreground)]">Email preferences</h2>

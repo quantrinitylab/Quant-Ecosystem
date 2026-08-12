@@ -61,7 +61,7 @@ export default function CalendarPage() {
 
   const eventsByDay = useMemo(() => {
     const map: Record<number, CalendarEventLike[]> = {};
-    for (const event of (events ?? []) as CalendarEventLike[]) {
+    for (const event of (events ?? []) as unknown as CalendarEventLike[]) {
       const date = startOf(event);
       if (Number.isNaN(date.getTime())) continue;
       if (date.getFullYear() !== year || date.getMonth() !== month) continue;

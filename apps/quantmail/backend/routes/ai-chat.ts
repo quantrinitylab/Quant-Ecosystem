@@ -5,13 +5,14 @@
 // of what the user currently has on screen (route, selected thread, subject,
 // visible text) so answers reference the actual workspace instead of guessing.
 //
-// Primary path: Cloudflare Workers AI (AI_PROVIDER=cloudflare) — same provider
-// the composer already uses. Falls back to a clean 503 when no provider is
-// configured so the UI degrades gracefully instead of showing a broken panel.
+// Inference goes through the pluggable provider layer (services/ai-provider),
+// so switching from Cloudflare Workers AI to an OpenAI-compatible endpoint or
+// our own future model is a config change only — no code change here.
 // ============================================================================
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
+import { aiChat, isAIConfigured, activeProvider } from '../services/ai-provider.service';
 
 const messageSchema = z.object({
   role: z.enum(['user', 'assistant']),
@@ -56,55 +57,9 @@ function buildContextBlock(context: z.infer<typeof chatSchema>['context']): stri
   return `On-screen context:\n${lines.join('\n')}`;
 }
 
-async function inferViaWorkersAI(
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-): Promise<string> {
-  const accountId = process.env['CLOUDFLARE_ACCOUNT_ID'];
-  const apiToken = process.env['CLOUDFLARE_API_TOKEN'];
-  const model = process.env['CLOUDFLARE_AI_MODEL'] ?? '@cf/meta/llama-3.2-1b-instruct';
-  const baseUrl =
-    process.env['CLOUDFLARE_AI_BASE_URL'] ?? 'https://api.cloudflare.com/client/v4/accounts';
-
-  if (!accountId || !apiToken) {
-    throw new Error('Cloudflare Workers AI credentials not configured');
-  }
-
-  const response = await fetch(`${baseUrl}/${accountId}/ai/run/${model}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ messages, max_tokens: 1024, temperature: 0.6 }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Workers AI returned ${response.status}`);
-  }
-
-  const data = (await response.json()) as {
-    success: boolean;
-    result?: { response?: string };
-  };
-
-  if (!data.success || !data.result?.response) {
-    throw new Error('Workers AI returned empty response');
-  }
-
-  return data.result.response.trim();
-}
-
-function isWorkersAIConfigured(): boolean {
-  return (
-    process.env['AI_PROVIDER']?.toLowerCase() === 'cloudflare' &&
-    Boolean(process.env['CLOUDFLARE_ACCOUNT_ID']) &&
-    Boolean(process.env['CLOUDFLARE_API_TOKEN'])
-  );
-}
-
 export default async function aiChatRoutes(fastify: FastifyInstance) {
   fastify.get('/chat/health', async (_request, reply) => {
-    if (!isWorkersAIConfigured()) {
+    if (!isAIConfigured()) {
       return reply.status(503).send({
         success: false,
         data: { status: 'offline' },
@@ -112,7 +67,7 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
       });
     }
 
-    return reply.send({ success: true, data: { status: 'ready' } });
+    return reply.send({ success: true, data: { status: 'ready', provider: activeProvider() } });
   });
 
   fastify.post('/chat', async (request, reply) => {
@@ -133,12 +88,12 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
     }
     modelMessages.push(...messages);
 
-    if (!isWorkersAIConfigured()) {
+    if (!isAIConfigured()) {
       throw createAppError('QuantAI is not configured on this environment', 503, 'AI_UNAVAILABLE');
     }
 
     try {
-      const message = await inferViaWorkersAI(modelMessages);
+      const message = await aiChat(modelMessages, { maxTokens: 1024, temperature: 0.6 });
       return reply.send({ success: true, data: { message } });
     } catch (err) {
       request.log.error({ err }, 'QuantAI chat failed');
