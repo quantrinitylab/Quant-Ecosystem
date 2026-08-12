@@ -36,6 +36,31 @@ const STARTERS = [
   'What needs my attention in the inbox?',
 ];
 
+/* Self-contained styles so the fallback card stays on-theme in every app shell. */
+const ERROR_TITLE_STYLE = {
+  display: 'block',
+  marginBottom: '.15rem',
+  fontSize: '.63rem',
+  letterSpacing: '.04em',
+} as const;
+const ERROR_TEXT_STYLE = {
+  margin: 0,
+  color: 'rgba(255,180,180,.82)',
+  lineHeight: 1.45,
+} as const;
+const ERROR_ACTIONS_STYLE = { display: 'flex', gap: '.35rem', marginTop: '.45rem' } as const;
+const ERROR_BUTTON_STYLE = {
+  border: '1px solid rgba(248,113,113,.4)',
+  borderRadius: '999px',
+  padding: '.25rem .6rem',
+  background: 'rgba(248,113,113,.12)',
+  color: '#ffd0d0',
+  fontSize: '.62rem',
+  fontWeight: 620,
+} as const;
+
+
+
 function clamp(value: string, max: number): string {
   const clean = value.replace(/\s+/g, ' ').trim();
   return clean.length > max ? `${clean.slice(0, max)}…` : clean;
@@ -67,6 +92,99 @@ function readScreenContext(): ScreenContext {
   return context;
 }
 
+const MAX_ATTEMPTS = 3;
+const REQUEST_TIMEOUT_MS = 45_000;
+const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504, 522, 524]);
+
+type ChatError = { title: string; message: string; retryable: boolean };
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** One chat round-trip with a hard timeout so the panel never hangs forever. */
+async function requestChat(
+  history: ChatMessage[],
+): Promise<{ ok: true; message: string } | { ok: false; error: ChatError }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      signal: controller.signal,
+      body: JSON.stringify({
+        messages: history.slice(-12).map(({ role, content }) => ({ role, content })),
+        context: readScreenContext(),
+      }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | { success?: boolean; data?: { message?: string }; error?: { message?: string } }
+      | null;
+
+    if (response.ok && payload?.success && payload.data?.message) {
+      return { ok: true, message: payload.data.message };
+    }
+
+    if (response.status === 401) {
+      return {
+        ok: false,
+        error: {
+          title: 'Session expired',
+          message: 'Sign in again to keep chatting with QuantAI.',
+          retryable: false,
+        },
+      };
+    }
+
+    if (response.status === 404) {
+      return {
+        ok: false,
+        error: {
+          title: 'QuantAI is still rolling out',
+          message: 'The chat service is not reachable on this deployment yet. Try again shortly.',
+          retryable: true,
+        },
+      };
+    }
+
+    return {
+      ok: false,
+      error: {
+        title: RETRYABLE_STATUS.has(response.status) ? 'QuantAI is busy' : 'QuantAI could not answer',
+        message:
+          payload?.error?.message ??
+          `The assistant service responded with ${response.status}. Your message is kept — retry when ready.`,
+        retryable: RETRYABLE_STATUS.has(response.status),
+      },
+    };
+  } catch (err) {
+    const aborted = err instanceof DOMException && err.name === 'AbortError';
+    return {
+      ok: false,
+      error: aborted
+        ? {
+            title: 'Took too long',
+            message: 'QuantAI did not respond in time. Retry and it will usually come back faster.',
+            retryable: true,
+          }
+        : {
+            title: typeof navigator !== 'undefined' && !navigator.onLine ? 'You are offline' : 'Connection problem',
+            message:
+              typeof navigator !== 'undefined' && !navigator.onLine
+                ? 'Reconnect to the network and retry — your message is saved.'
+                : 'Could not reach QuantAI. Check your connection and retry.',
+            retryable: true,
+          },
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** QuantMail-specific presentation for the shared QuantAI sidekick state. */
 export function MailCopilot() {
   const router = useRouter();
@@ -75,11 +193,12 @@ export function MailCopilot() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ChatError | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const liveStatus = isSending ? 'Thinking' : STATUS_COPY[status];
+  const liveStatus = isSending ? 'Thinking' : error ? 'Needs retry' : STATUS_COPY[status];
 
   useEffect(() => {
     if (!isOpen) return;
@@ -88,10 +207,47 @@ export function MailCopilot() {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages, isSending]);
+  }, [messages, isSending, error]);
+
+  /** Sends `history` (whose last entry is the user turn) with backoff retries. */
+  const deliver = useCallback(async (history: ChatMessage[]) => {
+    setError(null);
+    setIsSending(true);
+
+    let last: ChatError = {
+      title: 'QuantAI could not answer',
+      message: 'Something went wrong. Retry when ready.',
+      retryable: true,
+    };
+
+    for (let tries = 1; tries <= MAX_ATTEMPTS; tries += 1) {
+      setAttempt(tries);
+      const result = await requestChat(history);
+
+      if (result.ok) {
+        setMessages((prev) => [
+          ...prev,
+          { id: crypto.randomUUID(), role: 'assistant', content: result.message },
+        ]);
+        setIsSending(false);
+        setAttempt(0);
+        inputRef.current?.focus();
+        return;
+      }
+
+      last = result.error;
+      if (!result.error.retryable || tries === MAX_ATTEMPTS) break;
+      await wait(700 * 2 ** (tries - 1));
+    }
+
+    setError(last);
+    setIsSending(false);
+    setAttempt(0);
+    inputRef.current?.focus();
+  }, []);
 
   const send = useCallback(
-    async (raw: string) => {
+    (raw: string) => {
       const text = raw.trim();
       if (!text || isSending) return;
 
@@ -101,41 +257,21 @@ export function MailCopilot() {
       ];
       setMessages(nextMessages);
       setInput('');
-      setError(null);
-      setIsSending(true);
-
-      try {
-        const response = await fetch('/api/ai/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            messages: nextMessages.slice(-12).map(({ role, content }) => ({ role, content })),
-            context: readScreenContext(),
-          }),
-        });
-
-        const payload = (await response.json().catch(() => null)) as
-          | { success?: boolean; data?: { message?: string }; error?: { message?: string } }
-          | null;
-
-        if (!response.ok || !payload?.success || !payload.data?.message) {
-          throw new Error(payload?.error?.message ?? 'QuantAI could not answer right now.');
-        }
-
-        setMessages((prev) => [
-          ...prev,
-          { id: crypto.randomUUID(), role: 'assistant', content: payload.data!.message! },
-        ]);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'QuantAI could not answer right now.');
-      } finally {
-        setIsSending(false);
-        inputRef.current?.focus();
-      }
+      void deliver(nextMessages);
     },
-    [isSending, messages],
+    [deliver, isSending, messages],
   );
+
+  /** Re-sends the existing conversation without duplicating the user turn. */
+  const retry = useCallback(() => {
+    if (isSending) return;
+    if (messages.length === 0 || messages[messages.length - 1]?.role !== 'user') {
+      setError(null);
+      return;
+    }
+    void deliver(messages);
+  }, [deliver, isSending, messages]);
+
 
   const suggestionChips = useMemo(
     () =>
@@ -211,13 +347,35 @@ export function MailCopilot() {
               ))
             )}
 
-            {isSending && <div className="mail-copilot-typing" aria-label="QuantAI is thinking">Thinking…</div>}
+            {isSending && (
+              <div className="mail-copilot-typing" aria-label="QuantAI is thinking">
+                {attempt > 1 ? `Retrying… (attempt ${attempt} of ${MAX_ATTEMPTS})` : 'Thinking…'}
+              </div>
+            )}
 
             {error && (
-              <p className="mail-copilot-error" role="alert">
-                {error}
-              </p>
+              <div className="mail-copilot-error" role="alert">
+                <strong style={ERROR_TITLE_STYLE}>{error.title}</strong>
+                <p style={ERROR_TEXT_STYLE}>{error.message}</p>
+                <div style={ERROR_ACTIONS_STYLE}>
+                  {error.retryable && (
+                    <button
+                      type="button"
+                      style={ERROR_BUTTON_STYLE}
+                      onClick={retry}
+                      disabled={isSending}
+                    >
+                      Retry
+                    </button>
+                  )}
+                  <button type="button" style={ERROR_BUTTON_STYLE} onClick={() => setError(null)}>
+                    Dismiss
+                  </button>
+                </div>
+              </div>
             )}
+
+
           </div>
 
           {(messages.length === 0 || lastAssistant) && (
