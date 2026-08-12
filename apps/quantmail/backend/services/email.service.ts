@@ -1,6 +1,7 @@
 import type { PrismaClient, Email } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import type { OutboundDeliveryPipeline } from './outbound-delivery.service';
+import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
 
 export interface PaginationOptions {
   page?: number;
@@ -178,19 +179,14 @@ export class EmailService {
   }
 
   async send(userId: string, emailId: string, sentFolderId: string): Promise<Email> {
-    // When a durable delivery pipeline is wired in, sending a draft enqueues a
-    // real BullMQ delivery job and advances deliveryStatus to `queued`
-    // (Requirements 4.1/4.2). The pipeline enforces ownership and draft validity.
-    if (this.pipeline) {
-      await this.pipeline.enqueueSend(userId, emailId, { sentFolderId });
-      const queued = await this.prisma.email.findUnique({ where: { id: emailId } });
-      if (!queued) {
-        throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
-      }
-      return queued;
-    }
-
-    // Backward-compatible fallback (no pipeline injected): legacy flag-flip send.
+    // Sending has to do three things for the message to actually reach a human:
+    //   1. Recipients that are QuantMail users get an internal mailbox copy
+    //      (the route calls `deliverInternally` for that).
+    //   2. External recipients (Gmail, Outlook, ...) are handed to the durable
+    //      BullMQ pipeline when it is wired, AND transmitted immediately via SES
+    //      so mail leaves even when no outbound worker process is running.
+    //   3. The draft is always flipped into a real Sent message, otherwise the
+    //      UI keeps showing a "sent" mail as an unsent draft.
     const email = await this.prisma.email.findUnique({ where: { id: emailId } });
 
     if (!email) {
@@ -201,6 +197,82 @@ export class EmailService {
       throw createAppError('Not authorized to send this email', 403, 'FORBIDDEN');
     }
 
+    const asAddressList = (value: unknown): string[] => {
+      if (Array.isArray(value)) {
+        return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+      }
+      if (typeof value === 'string' && value.trim().length > 0) return [value];
+      return [];
+    };
+
+    const recipients = Array.from(
+      new Set(
+        [
+          ...asAddressList((email as { toAddresses?: unknown }).toAddresses),
+          ...asAddressList((email as { ccAddresses?: unknown }).ccAddresses),
+          ...asAddressList((email as { bccAddresses?: unknown }).bccAddresses),
+        ].map((a) => a.trim().toLowerCase()),
+      ),
+    );
+
+    let internal: string[] = [];
+    if (recipients.length > 0) {
+      try {
+        const userModel = this.prisma as unknown as {
+          user: { findMany(a: unknown): Promise<Array<{ email: string }>> };
+        };
+        const matches = await userModel.user.findMany({
+          where: { email: { in: recipients } },
+          select: { email: true },
+        });
+        internal = matches.map((u) => u.email.toLowerCase());
+      } catch {
+        internal = [];
+      }
+    }
+    const external = recipients.filter((address) => !internal.includes(address));
+
+    let deliveryStatus = 'delivered';
+    let deliveryError: string | undefined;
+
+    if (external.length > 0) {
+      deliveryStatus = 'queued';
+
+      // Durable job (retries, per-recipient attempts) when Redis/queue exist.
+      if (this.pipeline) {
+        try {
+          await this.pipeline.enqueueSend(userId, emailId, { sentFolderId });
+        } catch (error) {
+          deliveryError = error instanceof Error ? error.message : String(error);
+        }
+      }
+
+      // Immediate transmission so delivery does not depend on a worker being up.
+      if (isSesConfigured()) {
+        try {
+          const from = email.fromName
+            ? `${email.fromName} <${email.fromAddress}>`
+            : email.fromAddress;
+          await sendViaSes({
+            from,
+            to: external,
+            subject: email.subject,
+            ...(email.bodyHtml ? { bodyHtml: email.bodyHtml } : {}),
+            ...(email.bodyPlain ? { bodyText: email.bodyPlain } : {}),
+            replyTo: email.fromAddress,
+          });
+          deliveryStatus = 'delivered';
+          deliveryError = undefined;
+        } catch (error) {
+          deliveryError = error instanceof Error ? error.message : String(error);
+          if (!this.pipeline) deliveryStatus = 'failed';
+        }
+      } else if (!this.pipeline) {
+        deliveryStatus = 'failed';
+        deliveryError = 'No outbound transport configured (SES env vars missing)';
+      }
+    }
+
     const updated = await this.prisma.email.update({
       where: { id: emailId },
       data: {
@@ -208,8 +280,13 @@ export class EmailService {
         isSent: true,
         folderId: sentFolderId,
         sentAt: new Date(),
-      },
+        deliveryStatus,
+      } as never,
     });
+
+    if (deliveryError) {
+      console.error(`[quantmail] external delivery issue for email ${emailId}: ${deliveryError}`);
+    }
 
     return updated;
   }
