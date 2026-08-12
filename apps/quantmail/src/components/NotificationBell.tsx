@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createPortal } from 'react-dom';
 
 interface Notification {
   id: string;
@@ -24,6 +25,7 @@ export function NotificationBell() {
       read: false,
     },
   ]);
+  const [panelPosition, setPanelPosition] = useState({ left: 16, top: 72 });
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -38,6 +40,28 @@ export function NotificationBell() {
     };
     document.addEventListener('pointerdown', handleClickOutside);
     return () => document.removeEventListener('pointerdown', handleClickOutside);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const positionPanel = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const width = Math.min(320, window.innerWidth - 32);
+      setPanelPosition({
+        left: Math.max(16, Math.min(rect.left, window.innerWidth - width - 16)),
+        top: Math.min(rect.bottom + 8, window.innerHeight - 120),
+      });
+    };
+
+    positionPanel();
+    window.addEventListener('resize', positionPanel);
+    window.addEventListener('scroll', positionPanel, true);
+    return () => {
+      window.removeEventListener('resize', positionPanel);
+      window.removeEventListener('scroll', positionPanel, true);
+    };
   }, [isOpen]);
 
   const markAllRead = useCallback(() => {
@@ -70,8 +94,9 @@ export function NotificationBell() {
           <span className="notification-badge" aria-hidden="true">{unreadCount}</span>
         )}
       </button>
-      <AnimatePresence>
-        {isOpen && (
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isOpen && (
           <motion.div
             ref={menuRef}
             className="notification-panel"
@@ -79,6 +104,7 @@ export function NotificationBell() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
             transition={{ duration: 0.18 }}
+            style={{ left: panelPosition.left, top: panelPosition.top }}
           >
             <header className="notification-panel-header">
               <h2>Notifications</h2>
@@ -107,8 +133,10 @@ export function NotificationBell() {
               )}
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </div>
   );
 }

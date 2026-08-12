@@ -18,6 +18,7 @@ type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  turnId: string;
 };
 
 type ScreenContext = {
@@ -97,6 +98,7 @@ const REQUEST_TIMEOUT_MS = 45_000;
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504, 522, 524]);
 
 type ChatError = { title: string; message: string; retryable: boolean };
+type ServiceHealth = 'checking' | 'ready' | 'offline';
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -185,6 +187,19 @@ async function requestChat(
   }
 }
 
+async function checkChatHealth(): Promise<ServiceHealth> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return 'offline';
+  try {
+    const response = await fetch('/api/ai/chat/health', {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    return response.ok ? 'ready' : 'offline';
+  } catch {
+    return 'offline';
+  }
+}
+
 /** QuantMail-specific presentation for the shared QuantAI sidekick state. */
 export function MailCopilot() {
   const router = useRouter();
@@ -195,6 +210,7 @@ export function MailCopilot() {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<ChatError | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [serviceHealth, setServiceHealth] = useState<ServiceHealth>('checking');
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -203,6 +219,8 @@ export function MailCopilot() {
   useEffect(() => {
     if (!isOpen) return;
     inputRef.current?.focus();
+    setServiceHealth('checking');
+    void checkChatHealth().then(setServiceHealth);
   }, [isOpen]);
 
   useEffect(() => {
@@ -210,7 +228,7 @@ export function MailCopilot() {
   }, [messages, isSending, error]);
 
   /** Sends `history` (whose last entry is the user turn) with backoff retries. */
-  const deliver = useCallback(async (history: ChatMessage[]) => {
+  const deliver = useCallback(async (history: ChatMessage[], turnId: string) => {
     setError(null);
     setIsSending(true);
 
@@ -225,10 +243,19 @@ export function MailCopilot() {
       const result = await requestChat(history);
 
       if (result.ok) {
-        setMessages((prev) => [
-          ...prev,
-          { id: crypto.randomUUID(), role: 'assistant', content: result.message },
-        ]);
+        setMessages((prev) => {
+          const assistant: ChatMessage = {
+            id: `assistant-${turnId}`,
+            turnId,
+            role: 'assistant',
+            content: result.message,
+          };
+          const existing = prev.findIndex((message) => message.id === assistant.id);
+          return existing === -1
+            ? [...prev, assistant]
+            : prev.map((message, index) => (index === existing ? assistant : message));
+        });
+        setServiceHealth('ready');
         setIsSending(false);
         setAttempt(0);
         inputRef.current?.focus();
@@ -241,6 +268,7 @@ export function MailCopilot() {
     }
 
     setError(last);
+    setServiceHealth('offline');
     setIsSending(false);
     setAttempt(0);
     inputRef.current?.focus();
@@ -251,13 +279,14 @@ export function MailCopilot() {
       const text = raw.trim();
       if (!text || isSending) return;
 
+      const turnId = crypto.randomUUID();
       const nextMessages: ChatMessage[] = [
         ...messages,
-        { id: crypto.randomUUID(), role: 'user', content: text },
+        { id: `user-${turnId}`, turnId, role: 'user', content: text },
       ];
       setMessages(nextMessages);
       setInput('');
-      void deliver(nextMessages);
+      void deliver(nextMessages, turnId);
     },
     [deliver, isSending, messages],
   );
@@ -265,11 +294,15 @@ export function MailCopilot() {
   /** Re-sends the existing conversation without duplicating the user turn. */
   const retry = useCallback(() => {
     if (isSending) return;
-    if (messages.length === 0 || messages[messages.length - 1]?.role !== 'user') {
+    const lastUser = [...messages].reverse().find((message) => message.role === 'user');
+    if (!lastUser) {
       setError(null);
       return;
     }
-    void deliver(messages);
+    const history = messages.filter(
+      (message) => !(message.role === 'assistant' && message.turnId === lastUser.turnId),
+    );
+    void deliver(history, lastUser.turnId);
   }, [deliver, isSending, messages]);
 
 
@@ -298,6 +331,13 @@ export function MailCopilot() {
                 <strong>{quantAiBrandLockup.productName}</strong>
                 <span>
                   <i /> {liveStatus}
+                </span>
+                <span className={`mail-copilot-health is-${serviceHealth}`}>
+                  {serviceHealth === 'checking'
+                    ? 'Checking service…'
+                    : serviceHealth === 'ready'
+                      ? 'Online'
+                      : 'Offline — Retry available'}
                 </span>
               </div>
             </div>

@@ -103,6 +103,18 @@ function isWorkersAIConfigured(): boolean {
 }
 
 export default async function aiChatRoutes(fastify: FastifyInstance) {
+  fastify.get('/chat/health', async (_request, reply) => {
+    if (!isWorkersAIConfigured()) {
+      return reply.status(503).send({
+        success: false,
+        data: { status: 'offline' },
+        error: { code: 'AI_UNAVAILABLE', message: 'QuantAI is not configured on this environment' },
+      });
+    }
+
+    return reply.send({ success: true, data: { status: 'ready' } });
+  });
+
   fastify.post('/chat', async (request, reply) => {
     const parsed = chatSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;

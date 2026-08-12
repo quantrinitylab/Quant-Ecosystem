@@ -15,6 +15,7 @@ export default function DrivePage() {
     breadcrumbs,
     fetchFiles,
     uploadFiles,
+    getDownloadUrl,
     navigateToFolder,
     navigateToBreadcrumb,
     searchFiles,
@@ -227,7 +228,11 @@ export default function DrivePage() {
                     key={file.id}
                     className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-[var(--quant-muted)] cursor-pointer transition-colors"
                     onClick={() => {
-                      if (file.type === 'folder') navigateToFolder(file.id, file.name);
+                      if (file.type === 'folder') {
+                        navigateToFolder(file.id, file.name);
+                      } else {
+                        window.location.assign(getDownloadUrl(file.id));
+                      }
                     }}
                   >
                     <span className="text-lg">{getFileIcon(file.type, file.mimeType)}</span>
@@ -248,7 +253,11 @@ export default function DrivePage() {
                     key={file.id}
                     className="p-3 cursor-pointer hover:bg-[var(--quant-muted)] transition-colors text-center"
                     onClick={() => {
-                      if (file.type === 'folder') navigateToFolder(file.id, file.name);
+                      if (file.type === 'folder') {
+                        navigateToFolder(file.id, file.name);
+                      } else {
+                        window.location.assign(getDownloadUrl(file.id));
+                      }
                     }}
                   >
                     <div className="text-3xl mb-2">{getFileIcon(file.type, file.mimeType)}</div>

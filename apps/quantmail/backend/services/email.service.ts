@@ -284,10 +284,6 @@ export class EmailService {
       } as never,
     });
 
-    if (deliveryError) {
-      console.error(`[quantmail] external delivery issue for email ${emailId}: ${deliveryError}`);
-    }
-
     return updated;
   }
 

@@ -11,6 +11,7 @@ on:
         type: choice
         options:
           - quantmail
+          - quantmail-backend
           - quantchat
           - quantai
           - admin
@@ -150,7 +151,10 @@ jobs:
           case "$TARGET" in
             quantmail)
               repository=quant-quantmail; dockerfile=apps/quantmail/Dockerfile
-              deployment=quant-platform-staging-quantmail; container=quantmail ;;
+              deployment=quant-quantmail; container=quant-quantmail ;;
+            quantmail-backend)
+              repository=quant-quantmail-backend; dockerfile=apps/quantmail/Dockerfile.backend
+              deployment=quant-quantmail-backend; container=quant-quantmail-backend ;;
             quantchat)
               repository=quant-quantchat; dockerfile=apps/quantchat/Dockerfile
               deployment=quant-platform-staging-quantchat; container=quantchat ;;

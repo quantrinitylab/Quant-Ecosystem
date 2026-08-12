@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { safeFetch } from '../../../_lib/safe-fetch';
 
-const BACKEND_URL = process.env.QUANTDRIVE_BACKEND_URL || 'http://localhost:3012';
+const BACKEND_URL =
+  process.env.QUANTDRIVE_BACKEND_URL ||
+  process.env.QUANTMAIL_BACKEND_URL ||
+  'http://localhost:3011';
 
 export async function PUT(
   request: NextRequest,
