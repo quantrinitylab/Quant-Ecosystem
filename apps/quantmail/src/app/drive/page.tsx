@@ -18,6 +18,7 @@ export default function DrivePage() {
     navigateToFolder,
     navigateToBreadcrumb,
     searchFiles,
+    quota,
   } = useDrive();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,6 +73,9 @@ export default function DrivePage() {
     return '📄';
   };
 
+  // Storage bar reflects the real quota reported by the backend.
+  const quotaPercent = quota.total > 0 ? Math.min(100, (quota.used / quota.total) * 100) : 0;
+
   const showRecoveryBanner = Boolean(error && files.length > 0);
   const showRecoveryPanel = Boolean(!loading && error && files.length === 0);
 
@@ -85,9 +89,14 @@ export default function DrivePage() {
             {/* Storage indicator */}
             <div className="hidden sm:flex items-center gap-2">
               <div className="w-24 h-1.5 rounded-full bg-[var(--quant-muted)] overflow-hidden">
-                <div className="h-full rounded-full bg-[var(--brand-primary)] transition-all" style={{ width: '23%' }} />
+                <div
+                  className="h-full rounded-full bg-[var(--brand-primary)] transition-all"
+                  style={{ width: `${quotaPercent}%` }}
+                />
               </div>
-              <span className="text-xs text-[var(--quant-muted-foreground)]">2.3 GB of 10 GB</span>
+              <span className="text-xs text-[var(--quant-muted-foreground)]">
+                {formatSize(quota.used)} of {formatSize(quota.total)}
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
