@@ -24,6 +24,7 @@ export interface InputProps {
   name?: string;
   autoComplete?: string;
   maxLength?: number;
+  inputMode?: 'text' | 'tel' | 'numeric' | 'email' | 'url' | 'search' | 'decimal' | 'none';
   onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onFocus?: (event: React.FocusEvent<HTMLInputElement>) => void;
   onBlur?: (event: React.FocusEvent<HTMLInputElement>) => void;
@@ -51,6 +52,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   name,
   autoComplete,
   maxLength,
+  inputMode,
   onChange,
   onFocus,
   onBlur,
@@ -108,6 +110,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
           required={required}
           autoComplete={autoComplete}
           maxLength={maxLength}
+          inputMode={inputMode}
           className={inputClassName}
           onChange={onChange}
           onFocus={onFocus}
