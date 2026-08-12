@@ -8,10 +8,29 @@ import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email
 
 const notifier = new CrossAppDispatcher('quantmail');
 
+// Recipients typed as a bare handle ("krish") or as "Name <a@b.com>" are
+// normalised to a real address before validation, so the composer no longer
+// rejects what the user actually typed.
+const DEFAULT_MAIL_DOMAIN = process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.in';
+
+function normalizeAddress(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const angle = value.match(/<([^>]+)>/);
+  const raw = (angle ? angle[1] : value).trim().replace(/[,;]+$/, '').toLowerCase();
+  if (raw.length === 0) return raw;
+  return raw.includes('@') ? raw : `${raw}@${DEFAULT_MAIL_DOMAIN}`;
+}
+
+const addressArray = (min: number) =>
+  z.preprocess(
+    (value) => (Array.isArray(value) ? value.map(normalizeAddress) : value),
+    min > 0 ? z.array(z.string().email()).min(min) : z.array(z.string().email()),
+  );
+
 const composeSchema = z.object({
-  toAddresses: z.array(z.string().email()).min(1),
-  ccAddresses: z.array(z.string().email()).optional(),
-  bccAddresses: z.array(z.string().email()).optional(),
+  toAddresses: addressArray(1),
+  ccAddresses: addressArray(0).optional(),
+  bccAddresses: addressArray(0).optional(),
   subject: z.string().min(1).max(500),
   bodyHtml: z.string().optional(),
   bodyPlain: z.string().optional(),
