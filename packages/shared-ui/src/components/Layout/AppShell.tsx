@@ -14,8 +14,9 @@ export interface AppShellProps {
   animated?: boolean;
   /**
    * When true (default), the sidebar is hidden for a full-screen canvas and
-   * revealed as an overlay panel from the top-left trigger. Users can pin it
-   * to keep it docked; the choice persists across sessions.
+   * revealed as an overlay panel from the header hamburger button (GitHub
+   * style). Users can pin it to keep it docked; the choice persists across
+   * sessions.
    */
   collapsibleSidebar?: boolean;
   'aria-label'?: string;
@@ -80,17 +81,16 @@ export const AppShell: React.FC<AppShellProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [overlayMode]);
 
-  // Reveal by pushing the pointer to the very left edge of the screen.
+  // Auto-close the overlay whenever the route changes (GitHub behaviour).
   useEffect(() => {
-    if (!overlayMode || pinned) return;
-    const onMove = (event: MouseEvent) => {
-      if (event.clientX <= 3) setOpen(true);
-    };
-    window.addEventListener('mousemove', onMove);
-    return () => window.removeEventListener('mousemove', onMove);
-  }, [overlayMode, pinned]);
+    if (!overlayMode || typeof window === 'undefined') return;
+    const close = () => setOpen(false);
+    window.addEventListener('popstate', close);
+    return () => window.removeEventListener('popstate', close);
+  }, [overlayMode]);
 
   const dockedSidebar = sidebar && (!overlayMode || pinned);
+  const showHamburger = overlayMode && !pinned;
 
   return (
     <div
@@ -108,7 +108,7 @@ export const AppShell: React.FC<AppShellProps> = ({
               onClick={() => setPinnedPersisted(false)}
               className="quant-shell-unpin"
               aria-label="Hide sidebar for full-screen view"
-              title="Hide sidebar (\\)"
+              title="Hide sidebar (\)"
             >
               <ChevronsLeftIcon />
             </button>
@@ -116,19 +116,8 @@ export const AppShell: React.FC<AppShellProps> = ({
         </aside>
       )}
 
-      {overlayMode && !pinned && (
+      {showHamburger && (
         <>
-          <button
-            type="button"
-            onClick={() => setOpen((value) => !value)}
-            className="quant-shell-trigger"
-            aria-label="Show navigation"
-            aria-expanded={open}
-            title="Navigation (\\)"
-          >
-            <MenuIcon />
-          </button>
-
           <div
             className={`quant-shell-overlay ${open ? 'is-open' : ''}`}
             aria-hidden={!open}
@@ -150,7 +139,22 @@ export const AppShell: React.FC<AppShellProps> = ({
             {sidebar}
             <button
               type="button"
-              onClick={() => setPinnedPersisted(true)}
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpen(false);
+              }}
+              className="quant-shell-close"
+              aria-label="Close navigation"
+              title="Close navigation (Esc)"
+            >
+              <CloseIcon />
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setPinnedPersisted(true);
+              }}
               className="quant-shell-pin"
               aria-label="Keep sidebar docked"
               title="Pin sidebar"
@@ -162,9 +166,21 @@ export const AppShell: React.FC<AppShellProps> = ({
       )}
 
       <div className="flex flex-col flex-1 min-w-0">
-        {topBar && (
-          <header className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
-            {topBar}
+        {(topBar || showHamburger) && (
+          <header className="quant-shell-header flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
+            {showHamburger && (
+              <button
+                type="button"
+                onClick={() => setOpen((value) => !value)}
+                className="quant-shell-trigger"
+                aria-label="Show navigation"
+                aria-expanded={open}
+                title="Navigation (\)"
+              >
+                <MenuIcon />
+              </button>
+            )}
+            <div className="quant-shell-header-slot">{topBar}</div>
           </header>
         )}
         <main className="flex-1 overflow-y-auto">
@@ -179,7 +195,16 @@ function MenuIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
       strokeLinecap="round" aria-hidden="true" className="h-[18px] w-[18px]">
-      <path d="M4 7h16M4 12h16M4 17h10" />
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-4 w-4">
+      <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   );
 }

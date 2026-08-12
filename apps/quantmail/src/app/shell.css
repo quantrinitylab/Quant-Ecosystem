@@ -1,0 +1,68 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Quant shell overrides — GitHub-style header hamburger + overlay navigation.
+   Imported after globals.css so these rules win the cascade.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.quant-shell-header {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.quant-shell-header-slot { flex: 1 1 auto; min-width: 0; }
+
+.quant-shell-trigger {
+  position: static;
+  top: auto;
+  left: auto;
+  flex: 0 0 auto;
+  align-self: center;
+  margin-left: 0.6rem;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
+  backdrop-filter: none;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: none;
+}
+.quant-shell-trigger:hover {
+  transform: none;
+  border-color: rgba(255, 153, 51, 0.45);
+  background: rgba(255, 153, 51, 0.1);
+}
+.quant-shell-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--quant-accent-soft);
+}
+
+.quant-shell-close {
+  position: absolute;
+  top: 0.8rem;
+  right: -1.1rem;
+  z-index: 2;
+  display: grid;
+  width: 2.15rem;
+  height: 2.15rem;
+  place-items: center;
+  border: 1px solid var(--quant-border-subtle);
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.92);
+  color: var(--quant-muted-foreground);
+  backdrop-filter: blur(14px) saturate(140%);
+  transition: color 150ms var(--brand-ease-out), border-color 150ms var(--brand-ease-out);
+}
+.quant-shell-close:hover {
+  color: var(--quant-foreground);
+  border-color: rgba(255, 153, 51, 0.5);
+}
+.quant-shell-panel .quant-shell-pin { top: 3.3rem; }
+
+/* Hamburger now lives in the header, so the canvas needs no reserved gutter. */
+[data-shell-fullscreen='true'] > div > main { padding-left: 0; }
+@media (max-width: 768px) {
+  [data-shell-fullscreen='true'] > div > main { padding-left: 0; padding-top: 0; }
+}
