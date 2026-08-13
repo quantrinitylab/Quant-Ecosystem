@@ -224,6 +224,14 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/snooze`, { snoozeUntil: snoozeUntil.toISOString() });
   }
 
+  async unsnoozeEmail(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/unsnooze`, {});
+  }
+
+  async markNotSpam(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/not-spam`, {});
+  }
+
   async deleteEmail(id: string): Promise<ApiResponse<{ message: string }>> {
     return this.delete(`/emails/${id}`);
   }

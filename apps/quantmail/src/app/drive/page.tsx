@@ -15,7 +15,7 @@ export default function DrivePage() {
     breadcrumbs,
     fetchFiles,
     uploadFiles,
-    getDownloadUrl,
+    downloadFile,
     navigateToFolder,
     navigateToBreadcrumb,
     searchFiles,
@@ -231,7 +231,7 @@ export default function DrivePage() {
                       if (file.type === 'folder') {
                         navigateToFolder(file.id, file.name);
                       } else {
-                        window.location.assign(getDownloadUrl(file.id));
+                        void downloadFile(file.id, file.name);
                       }
                     }}
                   >
@@ -256,7 +256,7 @@ export default function DrivePage() {
                       if (file.type === 'folder') {
                         navigateToFolder(file.id, file.name);
                       } else {
-                        window.location.assign(getDownloadUrl(file.id));
+                        void downloadFile(file.id, file.name);
                       }
                     }}
                   >

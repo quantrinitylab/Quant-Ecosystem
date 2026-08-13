@@ -17,13 +17,15 @@ const PRESET_COLORS = [
 ];
 
 type IconName =
-  | 'calendar' | 'chevron' | 'code' | 'compose' | 'contacts' | 'drafts'
-  | 'drive' | 'inbox' | 'pipeline' | 'search' | 'security' | 'sent'
-  | 'settings' | 'trash' | 'workspaces';
+  | 'archive' | 'calendar' | 'chevron' | 'clock' | 'code' | 'compose' | 'contacts'
+  | 'drafts' | 'drive' | 'inbox' | 'pipeline' | 'search' | 'security' | 'sent'
+  | 'settings' | 'spam' | 'star' | 'trash' | 'workspaces';
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
+  archive: <><path d="M4 7h16" /><path d="M5 7l1-3h12l1 3v12H5z" /><path d="M9 11h6" /></>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M8 3v4M16 3v4M3 10h18" /></>,
   chevron: <path d="m9 18 6-6-6-6" />,
+  clock: <><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 2.5" /></>,
   code: <><path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14" /></>,
   compose: <><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z" /></>,
   contacts: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-4 2-6 6-6s6 2 6 6M16 7a3 3 0 0 1 0 6M17 14c2.7.4 4 2.4 4 5" /></>,
@@ -35,8 +37,10 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   security: <><path d="M12 3 4 6v5c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V6z" /><path d="m9 12 2 2 4-4" /></>,
   sent: <><path d="m22 2-7 20-4-9-9-4z" /><path d="M22 2 11 13" /></>,
   settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" /></>,
-  workspaces: <><circle cx="9" cy="7" r="3" /><circle cx="17" cy="9" r="2.4" /><path d="M3 20c0-3.6 2.4-5.6 6-5.6s6 2 6 5.6M16.4 14.2c2.8.3 4.6 2.1 4.6 5" /></>,
+  spam: <><path d="M12 3l9.5 16.5h-19z" /><path d="M12 10v4M12 17.2v.3" /></>,
+  star: <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />,
   trash: <><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6" /></>,
+  workspaces: <><circle cx="9" cy="7" r="3" /><circle cx="17" cy="9" r="2.4" /><path d="M3 20c0-3.6 2.4-5.6 6-5.6s6 2 6 5.6M16.4 14.2c2.8.3 4.6 2.1 4.6 5" /></>,
 };
 
 function Icon({ name, className = 'h-4 w-4' }: { name: IconName; className?: string }) {
@@ -55,8 +59,12 @@ const NAV_GROUPS: Array<{
   { label: 'Mail', items: [
     { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
     { id: 'search', label: 'Search', icon: 'search', path: '/search' },
+    { id: 'starred', label: 'Starred', icon: 'star', path: '/starred' },
+    { id: 'snoozed', label: 'Snoozed', icon: 'clock', path: '/snoozed' },
     { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
     { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
+    { id: 'archive', label: 'Archive', icon: 'archive', path: '/archive' },
+    { id: 'spam', label: 'Spam', icon: 'spam', path: '/spam' },
     { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
   ] },
   { label: 'Context', items: [
