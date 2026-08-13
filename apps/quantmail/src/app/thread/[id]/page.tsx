@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, Avatar, Badge, Button, Skeleton } from '@quant/shared-ui';
@@ -113,7 +113,11 @@ function AttachmentGallery({ attachments }: { attachments: EmailAttachment[] }) 
 export default function ThreadPage() {
   const params = useParams();
   const router = useRouter();
-  const threadId = (params?.id as string) || '';
+  const rawThreadId = (params?.id as string) || '';
+  // P0 guard (tracker #25): navigation bugs can produce /thread/null or
+  // /thread/undefined. Treat those literals as missing and bounce to inbox
+  // instead of stranding the user on a dead-end error screen.
+  const threadId = rawThreadId === 'null' || rawThreadId === 'undefined' ? '' : rawThreadId;
   const { data: thread, isLoading, error, refetch } = useThread(threadId);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
   const [threadSummary, setThreadSummary] = useState<string | null>(null);
@@ -124,6 +128,12 @@ export default function ThreadPage() {
   const [replyText, setReplyText] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!threadId) {
+      router.replace('/');
+    }
+  }, [threadId, router]);
 
   const toggleMessage = useCallback((index: number) => {
     setExpandedMessages((prev) => {
@@ -217,6 +227,18 @@ export default function ThreadPage() {
     if (index === total - 1) return true;
     return expandedMessages.has(index);
   };
+
+  if (!threadId) {
+    return (
+      <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
+        <PageTransition className="workspace-page thread-workspace flex flex-col h-full">
+          <div className="flex-1 flex items-center justify-center p-6">
+            <p className="text-sm text-[var(--quant-muted-foreground)]">Taking you back to your inbox…</p>
+          </div>
+        </PageTransition>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
