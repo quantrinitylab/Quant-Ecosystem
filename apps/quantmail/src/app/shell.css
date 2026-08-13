@@ -89,6 +89,11 @@
     max-width: 100%;
     min-height: 0;
   }
+  /* The AppShell mobile top-bar already carries the brand logo and compose
+     button.  Showing the inbox-hero H1/kicker/p below it creates a visible
+     double-header stack that wastes ~120px on small phones.  Hide the hero
+     copy on mobile; the compose button in mobileActions remains accessible. */
+  .quantmail-shell .inbox-hero { display: none; }
   /* One compose entry point on phones — the header action stays. */
   .quantmail-shell .hero-compose { display: none; }
 }
@@ -116,7 +121,9 @@
 .mail-copilot-trigger svg { color: #ff9933; }
 
 /* 3) Auth pages: the access form stays vertically centered, and desktop is a
-      real two-column layout instead of a short form lost in empty space. */
+      real two-column layout instead of a short form lost in empty space.
+      On mobile, the brand illustration panel is hidden so there is no dead
+      gap below the sign-in form. */
 .auth-shell .auth-shell-form {
   display: flex;
   align-items: center;
@@ -127,6 +134,8 @@
   max-width: 460px;
   margin: 0 auto;
 }
+/* Brand panel: visible only on desktop */
+.auth-shell-brand { display: none; }
 @media (min-width: 1024px) {
   .auth-shell {
     display: grid;
@@ -134,6 +143,7 @@
     align-items: stretch;
     min-height: 100dvh;
   }
+  .auth-shell-brand { display: flex; }
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
@@ -175,3 +185,43 @@
 @media (hover: none), (pointer: coarse) {
   .hover-actions { display: none !important; }
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Sidebar layout: compose button is sticky so the label list scrolls
+   underneath it without the button scrolling away.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.sidebar-compose-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  /* Slight backdrop so the list rows don't bleed through on scroll */
+  background: var(--quant-surface, rgba(12, 12, 16, 0.96));
+  padding: 0.75rem 0.875rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Pull-to-refresh indicator that page.tsx inserts above the mail-list */
+.ptr-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--quant-muted-foreground);
+  transition: height 120ms ease;
+}
+.ptr-indicator.ptr-ready {
+  height: 48px;
+}
+.ptr-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 153, 51, 0.25);
+  border-top-color: #ff9933;
+  border-radius: 50%;
+  animation: ptr-spin 0.7s linear infinite;
+}
+@keyframes ptr-spin { to { transform: rotate(360deg); } }

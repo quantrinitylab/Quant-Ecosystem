@@ -94,6 +94,22 @@ function formatReceivedAt(value?: string | Date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/**
+ * Normalize an email subject so we never display bare "Re:", "Fwd:", etc.
+ * Strips leading reply/forward markers that leave nothing meaningful behind.
+ */
+function normalizeSubject(subject?: string | null): string {
+  if (!subject) return '(no subject)';
+  // Iteratively strip re:/fwd:/fw: so "Re: Fwd: " is handled too
+  let s = subject.trim();
+  for (let i = 0; i < 10; i++) {
+    const next = s.replace(/^(re|fwd|fw):\s*/i, '').trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s || '(no subject)';
+}
+
 /** True when a value is safe to place in a route segment or query param. */
 function isValidRouteId(value: unknown): value is string {
   if (typeof value !== 'string') return false;
@@ -182,17 +198,17 @@ function EmailRow({
           onClick={(event) => event.stopPropagation()}
           aria-label={`Select email from ${email.from?.name || email.from?.email}`}
         />
-        <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="sm" />
+        <IdentityAvatar name={email.from?.name || email.from?.email || ''} size="sm" />
         <div className="mail-row-copy">
           <div className="mail-row-meta">
-            <strong>{email.from?.name || email.from?.email}</strong>
+            <strong>{email.from?.name || email.from?.email || 'Unknown'}</strong>
             {!email.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
             <time>{formatReceivedAt(email.receivedAt)}</time>
           </div>
-          <h3>{email.subject || '(no subject)'}</h3>
+          <h3>{normalizeSubject(email.subject)}</h3>
           <p>{email.snippet}</p>
         </div>
-        {/* Hover actions bar — Gmail-style quick actions on hover */}
+        {/* Hover actions bar — Gmail-style quick actions on hover (hidden on touch via CSS) */}
         <AnimatePresence>
           {isHovered && !isDragging && (
             <HoverActions
@@ -305,18 +321,18 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
               <ReadTimeEstimate text={email.bodyText || email.snippet} className="ml-2" />
             )}
           </p>
-          <h1>{email.subject || '(no subject)'}</h1>
+          <h1>{normalizeSubject(email.subject)}</h1>
           <div className="reading-sender">
-            <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="lg" />
+            <IdentityAvatar name={email.from?.name || email.from?.email || ''} size="lg" />
             <div>
-              <strong>{email.from?.name || email.from?.email}</strong>
+              <strong>{email.from?.name || email.from?.email || 'Unknown sender'}</strong>
               <span>{email.from?.email}</span>
             </div>
             <time>{email.receivedAt ? new Date(email.receivedAt).toLocaleString() : ''}</time>
           </div>
           {email.aiSummary && (
             <aside className="reading-ai-summary">
-              <span aria-hidden="true">✦</span>
+              <span aria-hidden="true">❆</span>
               <div>
                 <strong>QuantAI brief</strong>
                 <p>{email.aiSummary}</p>
@@ -369,6 +385,66 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
   );
 }
 
+// ---------------------------------------------------------------------------
+// Lightweight pull-to-refresh — no extra dependency
+// Returns a ref to attach to the scrollable list container.
+// ---------------------------------------------------------------------------
+function usePullToRefresh(onRefresh: () => void) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startY = useRef(0);
+  const pulling = useRef(false);
+  const [ready, setReady] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const THRESHOLD = 72;
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (el.scrollTop !== 0) return;
+      startY.current = e.touches[0].clientY;
+      pulling.current = true;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pulling.current) return;
+      const dy = e.touches[0].clientY - startY.current;
+      if (dy > 0 && el.scrollTop === 0) {
+        setReady(dy >= THRESHOLD);
+      } else {
+        pulling.current = false;
+        setReady(false);
+      }
+    };
+
+    const onTouchEnd = async () => {
+      if (!pulling.current) return;
+      pulling.current = false;
+      if (ready) {
+        setRefreshing(true);
+        setReady(false);
+        try { onRefresh(); } finally {
+          window.setTimeout(() => setRefreshing(false), 800);
+        }
+      } else {
+        setReady(false);
+      }
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: true });
+    el.addEventListener('touchmove', onTouchMove, { passive: true });
+    el.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [onRefresh, ready]);
+
+  return { containerRef, ready, refreshing };
+}
+
 export default function InboxPage() {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState<EmailCategory>('primary');
@@ -400,25 +476,25 @@ export default function InboxPage() {
     return counts;
   }, [allEmails]);
 
+  const handleRefetch = useCallback(() => { void refetch(); }, [refetch]);
+  const { containerRef: ptrRef, ready: ptrReady, refreshing: ptrRefreshing } =
+    usePullToRefresh(handleRefetch);
+
   const toggleSelect = useCallback(
     (id: string, event?: React.MouseEvent) => {
       setSelectedIds((current) => {
         const next = new Set(current);
-        // Shift+Click range selection
         if (event?.shiftKey && emails && lastSelectedIndex.current >= 0) {
           const currentIndex = emails.findIndex((e) => e.id === id);
           if (currentIndex >= 0) {
             const start = Math.min(lastSelectedIndex.current, currentIndex);
             const end = Math.max(lastSelectedIndex.current, currentIndex);
-            for (let i = start; i <= end; i++) {
-              next.add(emails[i].id);
-            }
+            for (let i = start; i <= end; i++) next.add(emails[i].id);
             return next;
           }
         }
         if (next.has(id)) next.delete(id);
         else next.add(id);
-        // Track last selected for shift+click
         if (emails) {
           const idx = emails.findIndex((e) => e.id === id);
           if (idx >= 0) lastSelectedIndex.current = idx;
@@ -468,10 +544,7 @@ export default function InboxPage() {
     async (id: string) => {
       const response = await apiClient.archiveEmail(id);
       if (!response.success) {
-        showToast({
-          text: response.error?.message || 'Conversation could not be archived',
-          type: 'error',
-        });
+        showToast({ text: response.error?.message || 'Conversation could not be archived', type: 'error' });
         return;
       }
       if (selectedEmail?.id === id) setSelectedEmail(null);
@@ -481,10 +554,7 @@ export default function InboxPage() {
         undoAction: async () => {
           const undoResponse = await apiClient.unarchiveEmail(id);
           if (!undoResponse.success) {
-            showToast({
-              text: undoResponse.error?.message || 'Archive could not be undone',
-              type: 'error',
-            });
+            showToast({ text: undoResponse.error?.message || 'Archive could not be undone', type: 'error' });
             return;
           }
           await refetch();
@@ -499,10 +569,7 @@ export default function InboxPage() {
     async (id: string) => {
       const response = await apiClient.deleteEmail(id);
       if (!response.success) {
-        showToast({
-          text: response.error?.message || 'Conversation could not be moved to trash',
-          type: 'error',
-        });
+        showToast({ text: response.error?.message || 'Conversation could not be moved to trash', type: 'error' });
         return;
       }
       if (selectedEmail?.id === id) setSelectedEmail(null);
@@ -545,20 +612,14 @@ export default function InboxPage() {
 
   const openEmail = useCallback(
     (email: Email | null) => {
-      if (!email) {
-        setSelectedEmail(null);
-        return;
-      }
+      if (!email) { setSelectedEmail(null); return; }
       if (window.matchMedia('(min-width: 900px)').matches) {
         setSelectedEmail(email);
         return;
       }
       const target = resolveThreadTarget(email);
       if (!target) {
-        showToast({
-          text: 'This conversation is still syncing — try again in a moment.',
-          type: 'error',
-        });
+        showToast({ text: 'This conversation is still syncing — try again in a moment.', type: 'error' });
         return;
       }
       router.push(`/thread/${target}`);
@@ -566,7 +627,6 @@ export default function InboxPage() {
     [router],
   );
 
-  // Superhuman-style keyboard navigation
   const { focusedIndex, listRef } = useInboxKeyboard({
     emails,
     selectedEmail,
@@ -578,6 +638,15 @@ export default function InboxPage() {
     onMarkRead: (id) => void markRead(id),
     onMarkUnread: (id) => void markUnread(id),
   });
+
+  // Merge list ref (keyboard nav) + ptrRef (pull-to-refresh) onto the same element
+  const mailListRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      (listRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+      (ptrRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+    },
+    [listRef, ptrRef],
+  );
 
   return (
     <AppShell
@@ -606,6 +675,7 @@ export default function InboxPage() {
     >
       <div className="inbox-workspace">
         <section className="inbox-list-pane" aria-label="Inbox messages">
+          {/* inbox-hero is hidden on mobile via shell.css; AppShell bar carries brand + compose */}
           <header className="inbox-hero">
             <div>
               <p className="inbox-kicker">
@@ -660,12 +730,8 @@ export default function InboxPage() {
                 exit={{ height: 0, opacity: 0 }}
               >
                 <strong>{selectedIds.size} selected</strong>
-                <button type="button" onClick={() => void batchAction('archive')}>
-                  Archive
-                </button>
-                <button type="button" onClick={() => void batchAction('delete')}>
-                  Delete
-                </button>
+                <button type="button" onClick={() => void batchAction('archive')}>Archive</button>
+                <button type="button" onClick={() => void batchAction('delete')}>Delete</button>
                 <button
                   type="button"
                   onClick={async () => {
@@ -688,18 +754,20 @@ export default function InboxPage() {
                 >
                   Mark unread
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedIds(new Set())}
-                  aria-label="Clear selection"
-                >
+                <button type="button" onClick={() => setSelectedIds(new Set())} aria-label="Clear selection">
                   <MailIcon name="close" />
                 </button>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <div className="mail-list" ref={listRef} aria-busy={isLoading || isSearching}>
+          <div className="mail-list" ref={mailListRef} aria-busy={isLoading || isSearching}>
+            {/* Pull-to-refresh indicator */}
+            <div className={`ptr-indicator${ptrReady || ptrRefreshing ? ' ptr-ready' : ''}`} aria-hidden="true">
+              <span className="ptr-spinner" />
+              <span>{ptrRefreshing ? 'Refreshing…' : 'Release to refresh'}</span>
+            </div>
+
             {(isLoading || isSearching) && (
               <div className="mail-loading">
                 {Array.from({ length: 6 }, (_, index) => (
@@ -731,10 +799,7 @@ export default function InboxPage() {
                     <>
                       <Button
                         variant="primary"
-                        onClick={() => {
-                          setSearchQuery('');
-                          setDebouncedQuery('');
-                        }}
+                        onClick={() => { setSearchQuery(''); setDebouncedQuery(''); }}
                       >
                         Clear search
                       </Button>
@@ -743,9 +808,14 @@ export default function InboxPage() {
                       </Button>
                     </>
                   ) : (
-                    <Button variant="primary" onClick={() => router.push('/compose')}>
-                      Start a conversation
-                    </Button>
+                    <>
+                      <Button variant="primary" onClick={() => router.push('/compose')}>
+                        Start a conversation
+                      </Button>
+                      <Button variant="secondary" onClick={() => void refetch()}>
+                        Check for new mail
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
