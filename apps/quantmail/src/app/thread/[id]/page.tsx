@@ -14,6 +14,55 @@ import { apiClient } from '../../../services/api-client';
 import { expandCollapseVariants, attachmentItemVariants } from '../../../lib/motion-variants';
 import type { Email, EmailAttachment } from '../../../types';
 
+// ---------------------------------------------------------------------------
+// Shared relative-time formatter (mirrors the inbox formatReceivedAt)
+// ---------------------------------------------------------------------------
+function formatMessageDate(value?: string | Date): string {
+  if (!value) return '';
+  const date = new Date(value);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDay === 1) return 'Yesterday';
+  if (diffDay < 7) return `${diffDay}d ago`;
+  // Same calendar year: omit year
+  if (date.getFullYear() === now.getFullYear())
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ---------------------------------------------------------------------------
+// Thread body with expand-collapse when text is long
+// ---------------------------------------------------------------------------
+const PREVIEW_LIMIT = 400;
+
+function BodyWithExpand({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(text.length <= PREVIEW_LIMIT);
+  const shown = expanded ? text : text.slice(0, PREVIEW_LIMIT);
+
+  return (
+    <div className="pt-4 text-sm leading-relaxed whitespace-pre-wrap">
+      {shown}
+      {!expanded && <span aria-hidden="true">…</span>}
+      {text.length > PREVIEW_LIMIT && (
+        <button
+          type="button"
+          className="ml-2 text-xs text-[var(--quant-primary)] hover:underline min-h-[44px]"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? 'Show less' : 'Show full message'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function QuotedText({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -114,9 +163,6 @@ export default function ThreadPage() {
   const params = useParams();
   const router = useRouter();
   const rawThreadId = (params?.id as string) || '';
-  // P0 guard (tracker #25): navigation bugs can produce /thread/null or
-  // /thread/undefined. Treat those literals as missing and bounce to inbox
-  // instead of stranding the user on a dead-end error screen.
   const threadId = rawThreadId === 'null' || rawThreadId === 'undefined' ? '' : rawThreadId;
   const { data: thread, isLoading, error, refetch } = useThread(threadId);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
@@ -130,9 +176,7 @@ export default function ThreadPage() {
   const [replyError, setReplyError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!threadId) {
-      router.replace('/');
-    }
+    if (!threadId) router.replace('/');
   }, [threadId, router]);
 
   const toggleMessage = useCallback((index: number) => {
@@ -162,10 +206,7 @@ export default function ThreadPage() {
     router.push('/');
   }, [thread, router]);
 
-  const handleOpenReplyComposer = useCallback(() => {
-    setShowReplyComposer(true);
-  }, []);
-
+  const handleOpenReplyComposer = useCallback(() => setShowReplyComposer(true), []);
   const handleCloseReplyComposer = useCallback(() => {
     setShowReplyComposer(false);
     setReplyError(null);
@@ -212,21 +253,15 @@ export default function ThreadPage() {
     }
   }, [thread, isSummarizing]);
 
-  const handleDismissSummary = useCallback(() => {
-    setThreadSummary(null);
-  }, []);
+  const handleDismissSummary = useCallback(() => setThreadSummary(null), []);
 
   const handleForward = useCallback(
-    (emailId: string) => {
-      router.push(`/compose?forward=${emailId}`);
-    },
+    (emailId: string) => router.push(`/compose?forward=${emailId}`),
     [router],
   );
 
-  const isExpanded = (index: number, total: number) => {
-    if (index === total - 1) return true;
-    return expandedMessages.has(index);
-  };
+  const isExpanded = (index: number, total: number) =>
+    index === total - 1 || expandedMessages.has(index);
 
   if (!threadId) {
     return (
@@ -243,6 +278,7 @@ export default function ThreadPage() {
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page thread-workspace flex flex-col h-full">
+        {/* Toolbar */}
         <div className="flex items-center gap-2 p-4 border-b border-[var(--quant-border)]">
           <Button variant="secondary" onClick={() => router.push('/')}>
             Back
@@ -255,17 +291,13 @@ export default function ThreadPage() {
                 disabled={isSummarizing}
               >
                 <span>{isSummarizing ? '\u2699\uFE0F' : '\u2728'}</span>
-                {isSummarizing ? 'Summarizing...' : 'Summarize thread'}
+                {isSummarizing ? 'Summarising…' : 'Summarise thread'}
               </button>
-              <Button variant="secondary" onClick={handleArchive}>
-                Archive
-              </Button>
+              <Button variant="secondary" onClick={handleArchive}>Archive</Button>
               <Button variant="secondary" onClick={handleStar}>
                 {thread.isStarred ? 'Unstar' : 'Star'}
               </Button>
-              <Button variant="secondary" onClick={handleDelete}>
-                Delete
-              </Button>
+              <Button variant="secondary" onClick={handleDelete}>Delete</Button>
             </div>
           )}
         </div>
@@ -282,6 +314,7 @@ export default function ThreadPage() {
           {!isLoading && !error && !thread && (
             <EmptyState title="Thread not found" description="This thread may have been deleted" />
           )}
+
           {!isLoading && !error && thread && (
             <>
               {summaryError && (
@@ -308,15 +341,10 @@ export default function ThreadPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="secondary"
-                            onClick={() => setIsSummaryVisible((visible) => !visible)}
-                          >
+                          <Button variant="secondary" onClick={() => setIsSummaryVisible((v) => !v)}>
                             {isSummaryVisible ? 'Hide' : 'Show'}
                           </Button>
-                          <Button variant="secondary" onClick={handleDismissSummary}>
-                            Dismiss
-                          </Button>
+                          <Button variant="secondary" onClick={handleDismissSummary}>Dismiss</Button>
                         </div>
                       </div>
                       {isSummaryVisible && (
@@ -329,35 +357,45 @@ export default function ThreadPage() {
                 )}
               </AnimatePresence>
 
+              {/* Thread header */}
               <div className="mb-6">
-                <h1 className="text-xl md:text-2xl font-bold mb-4">{thread.subject}</h1>
+                <h1 className="text-xl md:text-2xl font-bold mb-4">
+                  {thread.subject || '(no subject)'}
+                </h1>
                 <div className="flex items-center gap-2 text-sm text-[var(--quant-muted-foreground)]">
-                  <span>{thread.messageCount} messages</span>
-                  <span>-</span>
-                  <span>{thread.participants?.map((p) => p.name || p.email).join(', ')}</span>
+                  <span>{thread.messageCount} message{thread.messageCount === 1 ? '' : 's'}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{thread.participants?.map((p: any) => p.name || p.email).join(', ')}</span>
                 </div>
               </div>
 
+              {/* Messages */}
               <div className="space-y-4">
                 {thread.messages?.map((message: Email, index: number) => {
                   const expanded = isExpanded(index, thread.messages.length);
-                  const parsed = parseBodyWithQuotes(message.bodyText || message.snippet || '');
+                  const bodyText = message.bodyText || message.snippet || '';
+                  const parsed = parseBodyWithQuotes(bodyText);
 
                   return (
                     <Card key={message.id} padding="none" className="overflow-hidden">
+                      {/* Message header (always visible, click to collapse/expand) */}
                       <div
-                        className="flex items-center gap-3 p-4 cursor-pointer hover:bg-[var(--quant-muted)]"
+                        className="flex items-center gap-3 p-4 cursor-pointer hover:bg-[var(--quant-muted)] select-none"
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={expanded}
                         onClick={() => toggleMessage(index)}
+                        onKeyDown={(e) => e.key === 'Enter' && toggleMessage(index)}
                       >
                         <Avatar
                           src={undefined}
-                          name={message.from?.name || message.from?.email || '?'}
+                          name={message.from?.name || message.from?.email || 'Unknown'}
                           size="sm"
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">
-                              {message.from?.name || message.from?.email}
+                            <span className="font-medium text-sm truncate">
+                              {message.from?.name || message.from?.email || 'Unknown sender'}
                             </span>
                             {!message.isRead && <Badge variant="info">New</Badge>}
                           </div>
@@ -367,28 +405,25 @@ export default function ThreadPage() {
                             </p>
                           )}
                         </div>
-                        <span className="text-xs text-[var(--quant-muted-foreground)] whitespace-nowrap">
-                          {message.receivedAt
-                            ? new Date(message.receivedAt).toLocaleDateString()
-                            : ''}
-                        </span>
+                        {/* Consistent relative timestamp */}
+                        <time
+                          className="text-xs text-[var(--quant-muted-foreground)] whitespace-nowrap"
+                          dateTime={message.receivedAt ? new Date(message.receivedAt).toISOString() : undefined}
+                          title={message.receivedAt ? new Date(message.receivedAt).toLocaleString() : undefined}
+                        >
+                          {formatMessageDate(message.receivedAt)}
+                        </time>
                       </div>
+
+                      {/* Message body (expanded only) */}
                       {expanded && (
                         <div className="px-4 pb-4 border-t border-[var(--quant-border)]">
-                          <div className="pt-4 text-sm leading-relaxed whitespace-pre-wrap">
-                            {parsed.regular}
-                          </div>
-
+                          <BodyWithExpand text={parsed.regular} />
                           {parsed.quoted && <QuotedText text={parsed.quoted} />}
                           <AttachmentGallery attachments={message.attachments} />
-
                           <div className="flex gap-2 mt-4">
-                            <Button variant="secondary" onClick={handleOpenReplyComposer}>
-                              Reply
-                            </Button>
-                            <Button variant="secondary" onClick={() => handleForward(message.id)}>
-                              Forward
-                            </Button>
+                            <Button variant="secondary" onClick={handleOpenReplyComposer}>Reply</Button>
+                            <Button variant="secondary" onClick={() => handleForward(message.id)}>Forward</Button>
                           </div>
                         </div>
                       )}
@@ -397,30 +432,25 @@ export default function ThreadPage() {
                 })}
               </div>
 
+              {/* Reply composer */}
               <div className="mt-6 pt-4 border-t border-[var(--quant-border)]">
                 {!showReplyComposer ? (
-                  <Button variant="primary" onClick={handleOpenReplyComposer}>
-                    Reply to thread
-                  </Button>
+                  <Button variant="primary" onClick={handleOpenReplyComposer}>Reply to thread</Button>
                 ) : (
                   <Card padding="md">
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div>
-                        <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
-                          Reply to thread
-                        </h2>
+                        <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">Reply to thread</h2>
                         <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
                           Write one clear response, then send or cancel.
                         </p>
                       </div>
-                      <Button variant="secondary" onClick={handleCloseReplyComposer}>
-                        Cancel
-                      </Button>
+                      <Button variant="secondary" onClick={handleCloseReplyComposer}>Cancel</Button>
                     </div>
                     {replyError && <p className="text-sm text-red-600 mb-2">{replyError}</p>}
                     <textarea
                       className="w-full min-h-[120px] p-3 rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] text-sm resize-y focus:outline-none focus:ring-2 focus:ring-[var(--quant-primary)]"
-                      placeholder="Write your reply..."
+                      placeholder="Write your reply…"
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
                     />
@@ -430,7 +460,7 @@ export default function ThreadPage() {
                         onClick={handleSendReply}
                         disabled={isSendingReply || !replyText.trim()}
                       >
-                        {isSendingReply ? 'Sending...' : 'Send Reply'}
+                        {isSendingReply ? 'Sending…' : 'Send Reply'}
                       </Button>
                       <span className="text-xs text-[var(--quant-muted-foreground)]">
                         Keep the reply focused on the next action.

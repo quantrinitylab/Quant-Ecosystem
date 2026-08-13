@@ -163,3 +163,15 @@
   opacity: 0.5;
   pointer-events: none;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Touch-device mail rows — hover-action bar is mouse-only.
+   On coarse-pointer devices (phones/tablets) the bar must never appear:
+   the swipe-to-archive gesture and the individual row tap handle the same
+   actions.  The @media query targets any primary pointer without hover
+   (i.e. every touch-first device, even foldables in touch mode).
+   ────────────────────────────────────────────────────────────────────────── */
+
+@media (hover: none), (pointer: coarse) {
+  .hover-actions { display: none !important; }
+}
