@@ -11,11 +11,13 @@ interface HoverActionsProps {
   onMarkRead: () => void;
   onMarkUnread: () => void;
   onSnooze: () => void;
+  onLabel?: () => void;
 }
 
 /**
  * Gmail-style hover action bar that appears on the right side of an email row.
- * Shows: Archive, Delete, Mark Read/Unread, Snooze.
+ * Shows: Archive, Delete, Mark Read/Unread, Snooze, Label.
+ * Hidden on touch/coarse-pointer devices via shell.css.
  */
 export const HoverActions = memo(function HoverActions({
   emailId,
@@ -25,6 +27,7 @@ export const HoverActions = memo(function HoverActions({
   onMarkRead,
   onMarkUnread,
   onSnooze,
+  onLabel,
 }: HoverActionsProps) {
   return (
     <motion.div
@@ -98,6 +101,20 @@ export const HoverActions = memo(function HoverActions({
           <path d="m22 6-3-3" />
         </svg>
       </button>
+      {onLabel && (
+        <button
+          type="button"
+          className="hover-action-btn"
+          onClick={onLabel}
+          aria-label="Add label"
+          title="Add label (L)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+            <line x1="7" y1="7" x2="7.01" y2="7" />
+          </svg>
+        </button>
+      )}
     </motion.div>
   );
 });

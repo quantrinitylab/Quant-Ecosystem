@@ -25,6 +25,10 @@ import { PageTransition } from '../../components/PageTransition';
 import { useRepos, useCreateRepo } from '../../hooks/useRepos';
 import { useBuilds, useDeployments } from '../../hooks/usePipelines';
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 interface RepoLike {
   id: string;
   name: string;
@@ -36,6 +40,8 @@ interface RepoLike {
   stars?: number;
   forks?: number;
   updatedAt?: string | Date;
+  cloneUrl?: string;
+  sshUrl?: string;
 }
 
 interface BuildLike {
@@ -56,6 +62,10 @@ interface DeploymentLike {
 
 const VISIBILITY_FILTERS = ['all', 'public', 'private', 'internal'] as const;
 type VisibilityFilter = (typeof VISIBILITY_FILTERS)[number];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function statusVariant(status?: string): 'success' | 'warning' | 'danger' | 'info' | 'default' {
   switch (status) {
@@ -103,6 +113,79 @@ function languageDot(language?: string): string {
   };
   return palette[language ?? ''] ?? '#8b8ff5';
 }
+
+/**
+ * Derive the SSH clone URL for a repo.
+ * If the backend already returns sshUrl/cloneUrl we use that;
+ * otherwise we synthesise a plausible address.
+ */
+function getCloneUrl(repo: RepoLike): string {
+  if (repo.sshUrl) return repo.sshUrl;
+  const slug = repo.fullName || repo.name;
+  return `git@quantrinity.in:${slug}.git`;
+}
+
+// ---------------------------------------------------------------------------
+// Clone button
+// ---------------------------------------------------------------------------
+
+function CloneButton({ repo }: { repo: RepoLike }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const url = getCloneUrl(repo);
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // Clipboard API unavailable (e.g. non-HTTPS) — fallback: select a temp input
+        const el = document.createElement('input');
+        el.value = url;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        el.remove();
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 2000);
+      }
+    },
+    [repo],
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="flex items-center gap-1 rounded-md border border-[var(--quant-border)] bg-[var(--quant-muted)] px-2 py-1 text-[11px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:border-[rgba(255,153,51,0.45)] hover:text-[var(--quant-foreground)]"
+      title={`Clone: ${getCloneUrl(repo)}`}
+      aria-label={copied ? 'Clone URL copied' : 'Copy clone URL'}
+    >
+      {copied ? (
+        <>
+          <svg className="h-3 w-3 text-[#22c55e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span className="text-[#22c55e]">Copied!</span>
+        </>
+      ) : (
+        <>
+          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+          <span>Clone</span>
+        </>
+      )}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default function CodeHubPage() {
   const router = useRouter();
@@ -269,6 +352,8 @@ export default function CodeHubPage() {
                             <span>⑂ {repo.forks ?? 0}</span>
                             {repo.defaultBranch && <span>default: {repo.defaultBranch}</span>}
                             {repo.updatedAt && <span>updated {relativeTime(repo.updatedAt)}</span>}
+                            {/* Clone URL — one-click copy; stops propagation so row click still navigates */}
+                            <CloneButton repo={repo} />
                           </div>
                         </div>
                       </div>
@@ -376,6 +461,15 @@ export default function CodeHubPage() {
               <p className="text-xs text-[var(--quant-danger,#f87171)]">
                 {(createRepo.error as Error)?.message ?? 'Could not create the repository'}
               </p>
+            )}
+            {/* Clone URL preview for the new repo being created */}
+            {draft.name.trim() && (
+              <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-muted)] px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--quant-muted-foreground)] mb-1">Clone URL (after creation)</p>
+                <code className="block truncate text-xs text-[var(--quant-foreground)]">
+                  git@quantrinity.in:{draft.name.trim()}.git
+                </code>
+              </div>
             )}
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="secondary" onClick={() => setShowCreate(false)}>
