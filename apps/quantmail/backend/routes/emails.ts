@@ -388,6 +388,41 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // POST /emails/:id/unsnooze - clear the wake timer so the thread returns to the inbox now.
+  fastify.post<{ Params: { id: string } }>('/:id/unsnooze', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email) throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    if (email.threadId) {
+      const thread = await prisma.emailThread.findUnique({ where: { id: email.threadId } });
+      if (thread && thread.userId === userId) {
+        await prisma.emailThread.update({
+          where: { id: thread.id },
+          data: { snoozedUntil: null },
+        });
+      }
+    }
+    return reply.send({ success: true, data: { message: 'Snooze cleared' } });
+  });
+
+  // POST /emails/:id/not-spam - rescue a wrongly flagged email back to the inbox.
+  fastify.post<{ Params: { id: string } }>('/:id/not-spam', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email) throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    await prisma.email.update({
+      where: { id: request.params.id },
+      data: { isSpam: false, folderId: null, isTrash: false, deletedAt: null },
+    });
+    return reply.send({ success: true, data: { message: 'Moved to inbox' } });
+  });
+
   // POST /emails/:id/unread - mark as unread.
   fastify.post<{ Params: { id: string } }>('/:id/unread', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
@@ -431,6 +466,18 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     } else if (folderType === 'SPAM') {
       where.isSpam = true;
       where.isTrash = false;
+    } else if (folderType === 'STARRED') {
+      // Starred is a flag, not a folder: show every recoverable starred email.
+      where.isStarred = true;
+      where.isTrash = false;
+      where.isDraft = false;
+      where.isSpam = false;
+    } else if (folderType === 'SNOOZED') {
+      // Threads whose wake time is still in the future.
+      where.isTrash = false;
+      where.isDraft = false;
+      where.isSpam = false;
+      where.thread = { is: { snoozedUntil: { gt: new Date() } } };
     } else {
       // Default inbox: received, recoverable, non-archived mail whose snooze has elapsed.
       where.isDraft = false;
