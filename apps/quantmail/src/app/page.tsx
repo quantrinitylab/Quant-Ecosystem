@@ -94,6 +94,24 @@ function formatReceivedAt(value?: string | Date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/** True when a value is safe to place in a route segment or query param. */
+function isValidRouteId(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed !== 'null' && trimmed !== 'undefined';
+}
+
+/**
+ * Resolves the id used for /thread/:id and reply deep links.
+ * Some list payloads carry a missing/null threadId — fall back to the email id
+ * so navigation never produces /thread/null or /thread/undefined.
+ */
+function resolveThreadTarget(email: Email): string | null {
+  if (isValidRouteId(email.threadId)) return email.threadId;
+  if (isValidRouteId(email.id)) return email.id;
+  return null;
+}
+
 type EmailRowProps = {
   email: Email;
   isChecked: boolean;
@@ -234,6 +252,8 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
     );
   }
 
+  const threadTarget = resolveThreadTarget(email);
+
   return (
     <AnimatePresence mode="wait">
       <motion.section
@@ -258,14 +278,21 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
             <button
               type="button"
               className="quiet-button"
-              onClick={() => router.push(`/compose?replyTo=${email.threadId}`)}
+              onClick={() => router.push(`/compose?replyTo=${threadTarget ?? email.id}`)}
             >
               Reply
             </button>
             <button
               type="button"
               className="signal-button"
-              onClick={() => router.push(`/thread/${email.threadId}`)}
+              onClick={() => {
+                if (threadTarget) router.push(`/thread/${threadTarget}`);
+                else
+                  showToast({
+                    text: 'This conversation is still syncing — try again in a moment.',
+                    type: 'error',
+                  });
+              }}
             >
               Open thread <span aria-hidden="true">↗</span>
             </button>
@@ -318,10 +345,15 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
           <SmartReplySuggestions
             emailId={email.id}
             onSelectReply={(text) =>
-              router.push(`/compose?replyTo=${email.threadId}&body=${encodeURIComponent(text)}`)
+              router.push(
+                `/compose?replyTo=${threadTarget ?? email.id}&body=${encodeURIComponent(text)}`,
+              )
             }
           />
-          <button type="button" onClick={() => router.push(`/compose?replyTo=${email.threadId}`)}>
+          <button
+            type="button"
+            onClick={() => router.push(`/compose?replyTo=${threadTarget ?? email.id}`)}
+          >
             Reply with clarity…
           </button>
           <button
@@ -517,8 +549,19 @@ export default function InboxPage() {
         setSelectedEmail(null);
         return;
       }
-      if (window.matchMedia('(min-width: 900px)').matches) setSelectedEmail(email);
-      else router.push(`/thread/${email.threadId}`);
+      if (window.matchMedia('(min-width: 900px)').matches) {
+        setSelectedEmail(email);
+        return;
+      }
+      const target = resolveThreadTarget(email);
+      if (!target) {
+        showToast({
+          text: 'This conversation is still syncing — try again in a moment.',
+          type: 'error',
+        });
+        return;
+      }
+      router.push(`/thread/${target}`);
     },
     [router],
   );

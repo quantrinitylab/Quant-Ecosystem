@@ -66,3 +66,72 @@
 @media (max-width: 768px) {
   [data-shell-fullscreen='true'] > div > main { padding-left: 0; padding-top: 0; }
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   P0 fixes — mobile single-pane inbox, QuantAI trigger visibility, and
+   centered auth forms. shell.css loads after globals.css on purpose.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* 1) Mobile inbox is a true single pane. Phones navigate to /thread/:id, so
+      the desktop preview pane must never render (it was stacking an empty
+      panel under the list and creating dead space). */
+@media (max-width: 899px) {
+  .quantmail-shell .inbox-workspace {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 100%;
+  }
+  .quantmail-shell .reading-pane { display: none !important; }
+  .quantmail-shell .inbox-list-pane {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+  }
+  /* One compose entry point on phones — the header action stays. */
+  .quantmail-shell .hero-compose { display: none; }
+}
+
+/* 2) QuantAI trigger pill mounts outside the app shell's theme scope, so its
+      theme variables can be undefined there (blank white pill). Give it
+      self-contained styling that reads in every context. */
+.mail-copilot-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(16, 16, 20, 0.94) !important;
+  color: #f6f6f7 !important;
+  border: 1px solid rgba(255, 153, 51, 0.4) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px) saturate(140%);
+}
+.mail-copilot-trigger strong,
+.mail-copilot-trigger small,
+.mail-copilot-trigger span {
+  color: inherit !important;
+  opacity: 1;
+  visibility: visible;
+}
+.mail-copilot-trigger svg { color: #ff9933; }
+
+/* 3) Auth pages: the access form stays vertically centered, and desktop is a
+      real two-column layout instead of a short form lost in empty space. */
+.auth-shell .auth-shell-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.auth-shell .auth-shell-form-content {
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+}
+@media (min-width: 1024px) {
+  .auth-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    align-items: stretch;
+    min-height: 100dvh;
+  }
+}
