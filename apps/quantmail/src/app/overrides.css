@@ -9,6 +9,7 @@
    4. QuantMail wordmark brand (the word IS the logo) + Beta pill
    5. Compact icon toolbar for the thread view
    6. Clear read vs unread mail rows
+   7. Gmail micro-features round 1: mark-all-read, snooze menu, labels manager
    ========================================================================== */
 
 /* --- 1. Hide the old bottom-right Ask QuantAI pill (panel itself unchanged) */
@@ -274,4 +275,242 @@
 .sidebar-brand .notification-bell-wrapper {
   margin-left: auto;
   flex: 0 0 auto;
+}
+
+/* --- 7. Gmail micro-features round 1 ----------------------------------------
+   Mark-all-as-read pill, snooze menu upgrades (hover-bar opening + custom
+   date-time picker), sidebar manage-labels shortcut, and the /labels page. */
+.inbox-list-tools {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 18px 6px;
+}
+.mark-all-read-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.mark-all-read-btn:hover {
+  color: var(--quant-foreground, #e8edf4);
+  border-color: rgba(255, 153, 51, 0.45);
+  background: rgba(255, 153, 51, 0.08);
+}
+
+/* Snooze: hidden trigger keeps the menu anchored while the hover bar covers it */
+.snooze-trigger.is-hidden {
+  visibility: hidden;
+}
+.snooze-custom {
+  border-top: 1px solid var(--quant-border, rgba(255, 255, 255, 0.09));
+  margin-top: 6px;
+  padding-top: 4px;
+}
+.snooze-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 10px;
+}
+.snooze-custom-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-size: 12px;
+  color-scheme: dark;
+}
+.snooze-custom-row button {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 153, 51, 0.4);
+  background: rgba(255, 153, 51, 0.12);
+  color: #ff9933;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.snooze-custom-row button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Sidebar: manage-labels shortcut under the label list */
+.sidebar-manage-labels {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--quant-muted-foreground, #8a94a3);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.sidebar-manage-labels:hover {
+  color: var(--quant-foreground, #e8edf4);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Labels manager page (/labels) */
+.labels-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 20px 18px 80px;
+  width: 100%;
+}
+.labels-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.labels-header h1 {
+  font-size: 1.35rem;
+  margin: 0 0 4px;
+}
+.labels-header p {
+  margin: 0;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 13px;
+}
+.labels-card {
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.1));
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.labels-card input[type='text'],
+.labels-row-editor input[type='text'] {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-size: 14px;
+}
+.labels-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.labels-color-grid button {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.labels-color-grid button.is-selected {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+}
+.labels-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.labels-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.labels-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.labels-row-editor {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.labels-row-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  flex: 0 0 auto;
+}
+.labels-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.labels-row-meta {
+  flex: 0 0 auto;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 12px;
+}
+.labels-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.labels-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.labels-confirm button {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+}
+.labels-confirm button:first-of-type {
+  border-color: rgba(255, 107, 107, 0.5);
+  color: #ff6b6b;
+}
+.labels-empty {
+  text-align: center;
+  padding: 46px 16px;
+  border: 1px dashed var(--quant-border, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.labels-empty h2 {
+  color: var(--quant-foreground, #e8edf4);
+  font-size: 1.05rem;
+  margin: 0 0 6px;
+}
+.labels-empty p {
+  max-width: 420px;
+  margin: 0 auto 14px;
+}
+@media (max-width: 640px) {
+  .labels-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
