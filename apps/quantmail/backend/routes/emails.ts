@@ -278,6 +278,108 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // POST /emails/:id/reply - reply to a message. The client may pass either an
+  // email id or a thread id (the thread view historically sends the thread id),
+  // so both resolve here. Composes and sends immediately, reusing the same
+  // delivery path as /:id/send — this route was missing, which is why replies
+  // 404ed and never left the composer.
+  fastify.post<{ Params: { id: string } }>('/:id/reply', async (request, reply) => {
+    const parsed = z
+      .object({ body: z.string().min(1).max(100_000), replyAll: z.boolean().optional() })
+      .safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+
+    // Resolve the id as an owned email first, then as an owned thread's latest message.
+    let original = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (original && original.userId !== userId) original = null;
+    if (!original) {
+      const thread = await prisma.emailThread
+        .findUnique({ where: { id: request.params.id } })
+        .catch(() => null);
+      if (thread && thread.userId === userId) {
+        original = await prisma.email.findFirst({
+          where: { threadId: thread.id, userId, deletedAt: null },
+          orderBy: { receivedAt: 'desc' },
+        });
+      }
+    }
+    if (!original) {
+      throw createAppError('Message to reply to was not found', 404, 'EMAIL_NOT_FOUND');
+    }
+
+    const me = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    const myEmail = (me?.email ?? '').toLowerCase();
+    const asArray = (value: unknown): string[] =>
+      Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+
+    // Reply target: the original sender. When replying to my own sent message,
+    // fall back to the original recipients so the reply still goes somewhere real.
+    let to = [original.fromAddress].filter(
+      (a: string) => typeof a === 'string' && a.length > 0 && a.toLowerCase() !== myEmail,
+    );
+    if (to.length === 0) {
+      to = asArray(original.toAddresses).filter((a) => a.toLowerCase() !== myEmail);
+    }
+    if (to.length === 0 && original.fromAddress) to = [original.fromAddress];
+    if (to.length === 0) throw createAppError('No recipient to reply to', 400, 'NO_RECIPIENT');
+
+    let cc: string[] = [];
+    if (parsed.data.replyAll) {
+      cc = [...asArray(original.toAddresses), ...asArray(original.ccAddresses)].filter(
+        (a) => a && a.toLowerCase() !== myEmail && !to.includes(a),
+      );
+    }
+
+    const baseSubject = (original.subject ?? '') as string;
+    const subject = /^re:/i.test(baseSubject) ? baseSubject : `Re: ${baseSubject}`.trim();
+
+    const sendService = createSendService(prisma);
+    const draft = await sendService.compose({
+      userId,
+      toAddresses: to,
+      ccAddresses: cc,
+      bccAddresses: [],
+      subject,
+      bodyPlain: parsed.data.body,
+      threadId: original.threadId ?? undefined,
+      inReplyTo: original.id,
+    });
+
+    const sentFolder = await prisma.emailFolder.upsert({
+      where: { userId_name: { userId, name: 'Sent' } },
+      update: { type: 'SENT' },
+      create: { userId, name: 'Sent', type: 'SENT' },
+    });
+    const sent = await sendService.send(userId, draft.id, sentFolder.id);
+
+    try {
+      await sendService.deliverInternally({
+        fromUserId: userId,
+        subject,
+        bodyPlain: parsed.data.body,
+        toAddresses: to,
+        ccAddresses: cc,
+        threadId: original.threadId ?? undefined,
+        inReplyTo: original.id,
+      });
+    } catch (error) {
+      request.log.warn({ err: error, emailId: sent.id }, 'internal reply delivery failed');
+    }
+
+    try {
+      notifier.notifyNewEmail(to, userId, subject, sent.id);
+    } catch {
+      /* notification failure should not block the reply */
+    }
+
+    return reply.status(201).send({ success: true, data: sent });
+  });
+
   // POST /emails/:id/archive - move to the owner's archive folder without trashing it.
   fastify.post<{ Params: { id: string } }>('/:id/archive', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
@@ -494,6 +596,17 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
           ],
         },
       ];
+    }
+
+    // Category tabs (Focus/Updates/People/Offers/Groups): filter on aiCategory.
+    // Uncategorised mail counts as primary so Focus is never artificially empty,
+    // and the other tabs only show mail that actually belongs to them.
+    const category = typeof q.category === 'string' ? q.category.toLowerCase() : '';
+    if (category && category !== 'primary') {
+      where.aiCategory = category;
+    } else if (category === 'primary') {
+      const primaryOnly = { OR: [{ aiCategory: null }, { aiCategory: 'primary' }] };
+      where.AND = Array.isArray(where.AND) ? [...where.AND, primaryOnly] : [primaryOnly];
     }
 
     const [data, total, unreadCount] = await Promise.all([

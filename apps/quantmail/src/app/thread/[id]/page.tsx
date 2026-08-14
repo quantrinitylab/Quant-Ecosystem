@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, Avatar, Badge, Button, Skeleton } from '@quant/shared-ui';
@@ -13,6 +13,54 @@ import { useThread } from '../../../hooks/useThread';
 import { apiClient } from '../../../services/api-client';
 import { expandCollapseVariants, attachmentItemVariants } from '../../../lib/motion-variants';
 import type { Email, EmailAttachment } from '../../../types';
+
+// ---------------------------------------------------------------------------
+// Compact toolbar icons (consistent with the inbox icon language)
+// ---------------------------------------------------------------------------
+type TbIconName = 'archive' | 'back' | 'spark' | 'star' | 'trash';
+
+function TbIcon({
+  name,
+  className = 'h-[18px] w-[18px]',
+  filled = false,
+}: {
+  name: TbIconName;
+  className?: string;
+  filled?: boolean;
+}) {
+  const paths: Record<TbIconName, ReactNode> = {
+    archive: (
+      <>
+        <path d="M4 7h16" />
+        <path d="M5 7l1-3h12l1 3v12H5z" />
+        <path d="M9 11h6" />
+      </>
+    ),
+    back: <path d="M19 12H5M11 18l-6-6 6-6" />,
+    spark: (
+      <>
+        <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+        <path d="M18.5 15.5l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z" />
+      </>
+    ),
+    star: <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />,
+    trash: <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6" />,
+  };
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill={filled && name === 'star' ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Shared relative-time formatter (mirrors the inbox formatReceivedAt)
@@ -179,6 +227,16 @@ export default function ThreadPage() {
     if (!threadId) router.replace('/');
   }, [threadId, router]);
 
+  // Opening a thread marks its unread messages as read (Gmail behaviour) so
+  // the inbox unread indicators clear the moment the user has read the mail.
+  useEffect(() => {
+    const messages = thread?.messages;
+    if (!messages || messages.length === 0) return;
+    const unread = messages.filter((m: Email) => !m.isRead);
+    if (unread.length === 0) return;
+    void Promise.all(unread.map((m: Email) => apiClient.markAsRead(m.id).catch(() => null)));
+  }, [thread]);
+
   const toggleMessage = useCallback((index: number) => {
     setExpandedMessages((prev) => {
       const next = new Set(prev);
@@ -217,7 +275,13 @@ export default function ThreadPage() {
     setIsSendingReply(true);
     setReplyError(null);
     try {
-      const res = await apiClient.replyToEmail(threadId, replyText);
+      // Reply to the latest message in the conversation; fall back to the
+      // route id (the backend resolves both email ids and thread ids).
+      const replyTarget =
+        thread?.messages && thread.messages.length > 0
+          ? thread.messages[thread.messages.length - 1].id
+          : threadId;
+      const res = await apiClient.replyToEmail(replyTarget, replyText);
       if (!res.success) {
         setReplyError(res.error?.message || 'Failed to send reply');
         return;
@@ -230,7 +294,7 @@ export default function ThreadPage() {
     } finally {
       setIsSendingReply(false);
     }
-  }, [replyText, isSendingReply, threadId, refetch]);
+  }, [replyText, isSendingReply, thread, threadId, refetch]);
 
   const handleSummarize = useCallback(async () => {
     if (!thread?.messages?.[0] || isSummarizing) return;
@@ -278,26 +342,60 @@ export default function ThreadPage() {
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page thread-workspace flex flex-col h-full">
-        {/* Toolbar */}
-        <div className="flex items-center gap-2 p-4 border-b border-[var(--quant-border)]">
-          <Button variant="secondary" onClick={() => router.push('/')}>
-            Back
-          </Button>
+        {/* Toolbar — one compact icon bar; clean on mobile, calm on desktop */}
+        <div className="thread-toolbar">
+          <button
+            type="button"
+            className="icon-action"
+            onClick={() => router.push('/')}
+            aria-label="Back to inbox"
+            title="Back to inbox"
+          >
+            <TbIcon name="back" />
+          </button>
+          <h1 className="thread-toolbar-title">
+            {thread ? thread.subject || '(no subject)' : 'Conversation'}
+          </h1>
           {thread && (
-            <div className="flex items-center gap-2 ml-auto flex-wrap">
+            <div className="thread-toolbar-actions">
               <button
-                className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-[rgba(255,153,51,0.22)] bg-[rgba(255,153,51,0.08)] px-3 py-1.5 text-xs font-medium text-[var(--quant-primary)] transition-colors hover:bg-[rgba(255,153,51,0.16)]"
+                type="button"
+                className="icon-action"
                 onClick={handleSummarize}
                 disabled={isSummarizing}
+                aria-label="Summarise thread with QuantAI"
+                title="Summarise with QuantAI"
               >
-                <span>{isSummarizing ? '\u2699\uFE0F' : '\u2728'}</span>
-                {isSummarizing ? 'Summarising…' : 'Summarise thread'}
+                <TbIcon name="spark" className={isSummarizing ? 'h-[18px] w-[18px] animate-pulse' : 'h-[18px] w-[18px]'} />
               </button>
-              <Button variant="secondary" onClick={handleArchive}>Archive</Button>
-              <Button variant="secondary" onClick={handleStar}>
-                {thread.isStarred ? 'Unstar' : 'Star'}
-              </Button>
-              <Button variant="secondary" onClick={handleDelete}>Delete</Button>
+              <button
+                type="button"
+                className={`icon-action ${thread.isStarred ? 'is-on' : ''}`}
+                onClick={handleStar}
+                aria-label={thread.isStarred ? 'Unstar conversation' : 'Star conversation'}
+                aria-pressed={thread.isStarred}
+                title={thread.isStarred ? 'Unstar' : 'Star'}
+              >
+                <TbIcon name="star" filled={thread.isStarred} />
+              </button>
+              <button
+                type="button"
+                className="icon-action"
+                onClick={handleArchive}
+                aria-label="Archive conversation"
+                title="Archive"
+              >
+                <TbIcon name="archive" />
+              </button>
+              <button
+                type="button"
+                className="icon-action icon-action-danger"
+                onClick={handleDelete}
+                aria-label="Delete conversation"
+                title="Delete"
+              >
+                <TbIcon name="trash" />
+              </button>
             </div>
           )}
         </div>
@@ -357,16 +455,13 @@ export default function ThreadPage() {
                 )}
               </AnimatePresence>
 
-              {/* Thread header */}
-              <div className="mb-6">
-                <h1 className="text-xl md:text-2xl font-bold mb-4">
-                  {thread.subject || '(no subject)'}
-                </h1>
-                <div className="flex items-center gap-2 text-sm text-[var(--quant-muted-foreground)]">
-                  <span>{thread.messageCount} message{thread.messageCount === 1 ? '' : 's'}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{thread.participants?.map((p: any) => p.name || p.email).join(', ')}</span>
-                </div>
+              {/* Thread meta (the subject lives in the toolbar now) */}
+              <div className="mb-5 flex items-center gap-2 text-sm text-[var(--quant-muted-foreground)]">
+                <span>{thread.messageCount} message{thread.messageCount === 1 ? '' : 's'}</span>
+                <span aria-hidden="true">·</span>
+                <span className="truncate">
+                  {thread.participants?.map((p: any) => p.name || p.email).join(', ')}
+                </span>
               </div>
 
               {/* Messages */}
