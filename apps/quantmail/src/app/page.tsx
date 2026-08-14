@@ -11,7 +11,6 @@ import {
   type PanInfo,
 } from 'framer-motion';
 import { ErrorState, Skeleton, Button, useQuantSidekick } from '@quant/shared-ui';
-import { quantMailBrandLockup } from '../brand/identity';
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
@@ -22,7 +21,6 @@ import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
 import { showToast } from '../components/InboxToast';
 import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
-import { QuantrinityMark } from '../components/QuantrinityMark';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { apiClient } from '../services/api-client';
@@ -36,7 +34,7 @@ const CATEGORIES: Array<{ key: EmailCategory; label: string }> = [
   { key: 'forums', label: 'Groups' },
 ];
 
-type MailIconName = 'archive' | 'close' | 'compose' | 'mail' | 'search' | 'star';
+type MailIconName = 'archive' | 'close' | 'compose' | 'mail' | 'search' | 'spark' | 'star';
 
 function MailIcon({ name, className = 'h-4 w-4' }: { name: MailIconName; className?: string }) {
   const paths = {
@@ -64,6 +62,12 @@ function MailIcon({ name, className = 'h-4 w-4' }: { name: MailIconName; classNa
       <>
         <circle cx="11" cy="11" r="7" />
         <path d="m20 20-4-4" />
+      </>
+    ),
+    spark: (
+      <>
+        <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+        <path d="M18.5 15.5l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z" />
       </>
     ),
     star: <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />,
@@ -250,7 +254,9 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
       <section className="reading-pane reading-pane-empty" aria-label="Message preview">
         <div className="reading-ambient" aria-hidden="true" />
         <div className="reading-empty-content">
-          <QuantrinityMark className="reading-empty-mark" label="Quantrinity infinity" />
+          <span className="reading-empty-icon" aria-hidden="true">
+            <MailIcon name="mail" className="h-6 w-6" />
+          </span>
           <h2>Select a message to preview it</h2>
           <p>Open any conversation from the list — it appears here instantly.</p>
         </div>
@@ -604,8 +610,13 @@ export default function InboxPage() {
   const openEmail = useCallback(
     (email: Email | null) => {
       if (!email) { setSelectedEmail(null); return; }
+      // Opening a message marks it read immediately (Gmail behaviour) so the
+      // unread dot clears the moment the user actually reads the mail.
+      if (!email.isRead) {
+        void apiClient.markAsRead(email.id).then(() => refetch()).catch(() => {});
+      }
       if (window.matchMedia('(min-width: 900px)').matches) {
-        setSelectedEmail(email);
+        setSelectedEmail({ ...email, isRead: true });
         return;
       }
       const target = resolveThreadTarget(email);
@@ -615,7 +626,7 @@ export default function InboxPage() {
       }
       router.push(`/thread/${target}`);
     },
-    [router],
+    [router, refetch],
   );
 
   const { focusedIndex, listRef } = useInboxKeyboard({
@@ -646,10 +657,14 @@ export default function InboxPage() {
       className="quantmail-shell"
       mobileTitle={
         <span className="mobile-brand">
-          <QuantrinityMark compact label={quantMailBrandLockup.accessibleName} />
-          <span aria-hidden="true">
-            {quantMailBrandLockup.productName} <small>{quantMailBrandLockup.byline}</small>
-          </span>
+          <button
+            type="button"
+            className="qm-wordmark"
+            onClick={() => router.push('/')}
+            aria-label="QuantMail — go to your inbox"
+          >
+            <span className="qm-wordmark-text">QuantMail</span>
+          </button>
         </span>
       }
       aria-label="QuantMail inbox"
@@ -683,7 +698,7 @@ export default function InboxPage() {
                 placeholder="Search people, subjects, or meaning…"
               />
             </label>
-            {/* QuantAI moved here from the old bottom pill — logo button beside search */}
+            {/* QuantAI — spark icon button beside search (wired to Cloudflare Workers AI) */}
             <button
               type="button"
               className="inbox-ai-trigger"
@@ -692,7 +707,7 @@ export default function InboxPage() {
               aria-expanded={copilotOpen}
               title="Ask QuantAI about this screen"
             >
-              <QuantrinityMark compact label="QuantAI" />
+              <MailIcon name="spark" />
               <span>QuantAI</span>
             </button>
           </div>
@@ -843,7 +858,6 @@ export default function InboxPage() {
           </div>
           <footer className="inbox-list-footer">
             <span>{emails?.length ?? 0} conversations</span>
-            <span>Protected {quantMailBrandLockup.byline}</span>
           </footer>
         </section>
         <ReadingPane email={selectedEmail} onClose={() => setSelectedEmail(null)} />
