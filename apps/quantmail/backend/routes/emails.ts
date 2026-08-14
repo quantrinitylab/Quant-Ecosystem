@@ -537,6 +537,52 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: { message: 'Marked as unread' } });
   });
 
+  // POST /emails/mark-all-read - bulk-clear unread state for the current inbox
+  // view (optionally scoped to one category tab). Mirrors the GET / inbox
+  // filters so it never touches drafts, sent, spam, trash or snoozed threads.
+  fastify.post('/mark-all-read', async (request, reply) => {
+    const parsed = z
+      .object({ category: z.string().max(50).optional() })
+      .safeParse(request.body ?? {});
+    if (!parsed.success) throw parsed.error;
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+
+    const where: any = {
+      userId,
+      deletedAt: null,
+      isRead: false,
+      isDraft: false,
+      isSent: false,
+      isSpam: false,
+      isTrash: false,
+      AND: [
+        { OR: [{ folderId: null }, { folder: { is: { type: 'INBOX' } } }] },
+        {
+          OR: [
+            { threadId: null },
+            { thread: { is: { snoozedUntil: null } } },
+            { thread: { is: { snoozedUntil: { lte: new Date() } } } },
+          ],
+        },
+      ],
+    };
+    const category = parsed.data.category?.toLowerCase();
+    if (category && category !== 'primary') {
+      where.aiCategory = category;
+    } else if (category === 'primary') {
+      where.AND.push({ OR: [{ aiCategory: null }, { aiCategory: 'primary' }] });
+    }
+
+    const result = await prisma.email.updateMany({ where, data: { isRead: true } });
+    return reply.send({
+      success: true,
+      data: { message: 'All caught up', updated: result.count ?? 0 },
+    });
+  });
+
   // GET /emails - List emails (requires folderId or search)
   fastify.get('/', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
