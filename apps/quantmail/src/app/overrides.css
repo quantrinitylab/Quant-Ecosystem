@@ -6,6 +6,9 @@
    1. ONE compose entry point: global floating + FAB (bottom-right)
    2. QuantAI trigger moves to the top search row; old bottom pill hidden
    3. Calmer inbox hero + tighter vertical rhythm (less dead space)
+   4. QuantMail wordmark brand (the word IS the logo) + Beta pill
+   5. Compact icon toolbar for the thread view
+   6. Clear read vs unread mail rows
    ========================================================================== */
 
 /* --- 1. Hide the old bottom-right Ask QuantAI pill (panel itself unchanged) */
@@ -108,4 +111,159 @@
 .reading-pane-empty .reading-empty-content h2 {
   font-size: 1.15rem;
   line-height: 1.35;
+}
+.reading-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--quant-muted-foreground, #8a94a3);
+  margin-bottom: 4px;
+}
+
+/* --- 4. QuantMail wordmark: the word IS the logo ---------------------------- */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 44px 10px 12px; /* right padding clears the drawer close/pin buttons */
+}
+.qm-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 4px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.qm-wordmark:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.qm-wordmark:focus-visible {
+  outline: 2px solid rgba(255, 153, 51, 0.6);
+  outline-offset: 2px;
+}
+.qm-wordmark-text {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(120deg, #ffd9ac, #ff9933 45%, #ff7a00);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  white-space: nowrap;
+}
+.qm-beta-pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 153, 51, 0.35);
+  color: #ff9933;
+  background: rgba(255, 153, 51, 0.08);
+  line-height: 1.4;
+}
+.mobile-brand .qm-wordmark {
+  padding: 2px 4px;
+}
+.mobile-brand .qm-wordmark-text {
+  font-size: 16px;
+}
+
+/* --- 5. Thread view: compact icon toolbar ----------------------------------- */
+.thread-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--quant-border, rgba(255, 255, 255, 0.09));
+  background: rgba(11, 15, 20, 0.92);
+  backdrop-filter: blur(10px);
+}
+.thread-toolbar-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thread-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.icon-action:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--quant-foreground, #e8edf4);
+}
+.icon-action.is-on {
+  color: #ff9933;
+}
+.icon-action-danger:hover {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+}
+.icon-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.icon-action svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* --- 6. Read vs unread rows: unread pops, read settles ---------------------- */
+.mail-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #ff9933;
+  box-shadow: 0 0 0 3px rgba(255, 153, 51, 0.14);
+  flex: 0 0 auto;
+}
+.mail-row:not(.is-unread) {
+  opacity: 0.78;
+}
+.mail-row:not(.is-unread) h3 {
+  font-weight: 500;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.mail-row.is-unread h3 {
+  font-weight: 650;
+}
+
+/* Notification bell sits at the end of the brand row */
+.sidebar-brand .notification-bell-wrapper {
+  margin-left: auto;
+  flex: 0 0 auto;
 }

@@ -13,21 +13,55 @@ interface Notification {
   read: boolean;
 }
 
+// Read-state persists across refreshes: once a notification is marked read it
+// stays read (localStorage), fixing "mark all read" resetting on reload.
+const READ_STORAGE_KEY = 'quant.notifications.read.v1';
+
+const SEED_NOTIFICATIONS: Array<Omit<Notification, 'read' | 'timestamp'>> = [
+  {
+    id: 'welcome',
+    type: 'system',
+    title: 'Welcome to QuantMail',
+    body: 'Your workspace is ready. Compose your first email to get started.',
+  },
+];
+
+function loadReadIds(): string[] {
+  try {
+    const raw = window.localStorage.getItem(READ_STORAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveReadIds(ids: string[]) {
+  try {
+    window.localStorage.setItem(READ_STORAGE_KEY, JSON.stringify(ids));
+  } catch {
+    /* storage unavailable — read state lives for this session only */
+  }
+}
+
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'system',
-      title: 'Welcome to QuantMail',
-      body: 'Your workspace is ready. Compose your first email to get started.',
-      timestamp: new Date(),
-      read: false,
-    },
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [panelPosition, setPanelPosition] = useState({ left: 16, top: 72 });
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Hydrate on mount so server and client render the same initial markup.
+  useEffect(() => {
+    const readIds = loadReadIds();
+    setNotifications(
+      SEED_NOTIFICATIONS.map((n) => ({
+        ...n,
+        timestamp: new Date(),
+        read: readIds.includes(n.id),
+      })),
+    );
+  }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -65,7 +99,11 @@ export function NotificationBell() {
   }, [isOpen]);
 
   const markAllRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => {
+      const next = prev.map((n) => ({ ...n, read: true }));
+      saveReadIds(next.map((n) => n.id));
+      return next;
+    });
   }, []);
 
   const iconByType: Record<Notification['type'], string> = {

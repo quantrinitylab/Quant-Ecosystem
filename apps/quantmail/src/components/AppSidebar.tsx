@@ -3,13 +3,11 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { usePathname, useRouter } from 'next/navigation';
-import { quantMailBrandLockup } from '../brand/identity';
 import { useCreateLabel, useLabels } from '../hooks/useLabels';
 import { useInbox } from '../hooks/useInbox';
 import { NotificationBell } from './NotificationBell';
 import type { EmailLabel } from '../types';
 import { AccountBadge } from './AccountBadge';
-import { QuantrinityMark } from './QuantrinityMark';
 
 const PRESET_COLORS = [
   '#ef4444', '#ff9933', '#eab308', '#138808', '#06b6d4',
@@ -175,17 +173,22 @@ export function AppSidebar() {
 
   return (
     <nav className="quant-sidebar" aria-label="QuantMail navigation">
+      {/* The wordmark IS the logo (user decision): clicking it always returns home. */}
       <header className="sidebar-brand">
-        <QuantrinityMark compact label={quantMailBrandLockup.accessibleName} />
-        <div className="min-w-0" aria-hidden="true">
-          <p className="sidebar-product">{quantMailBrandLockup.productName}</p>
-          <p className="sidebar-parent">{quantMailBrandLockup.byline}</p>
-        </div>
+        <button
+          type="button"
+          className="qm-wordmark"
+          onClick={() => router.push('/')}
+          aria-label="QuantMail — open your inbox"
+          title="Go to inbox"
+        >
+          <span className="qm-wordmark-text">QuantMail</span>
+          <span className="qm-beta-pill" aria-hidden="true">Beta</span>
+        </button>
         <NotificationBell />
-        <span className="sidebar-live-dot" title="All systems operational" aria-label="All systems operational" />
       </header>
 
-      {/* Compose intentionally lives ONLY in the global floating + button now —
+      {/* Compose intentionally lives ONLY in the global floating + button —
           one compose entry point across the whole app (user decision). */}
 
       <div className="sidebar-scroll">
@@ -204,7 +207,6 @@ export function AppSidebar() {
                       <span>{item.label}</span>
                       {item.id === 'inbox' && unreadCount > 0 && <span className="sidebar-count">{unreadCount}</span>}
                       {item.id === 'drafts' && draftCount > 0 && <span className="sidebar-count sidebar-count-muted">{draftCount}</span>}
-                      {item.id === 'inbox' && <span className="sidebar-nav-spark" aria-hidden="true" />}
                     </button>
                   </li>
                 );
@@ -216,11 +218,6 @@ export function AppSidebar() {
       </div>
 
       <AccountBadge />
-      <footer className="sidebar-footer">
-        <span className="sidebar-india" aria-hidden="true"><i /><i /><i /></span>
-        <span>Built in India</span>
-        <span className="ml-auto text-[9px] uppercase tracking-[0.16em] text-[var(--quant-muted-foreground)]">Private beta</span>
-      </footer>
     </nav>
   );
 }
