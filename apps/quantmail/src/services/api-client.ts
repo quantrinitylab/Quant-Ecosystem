@@ -558,7 +558,9 @@ export class QuantMailApiClient {
   }
 
   async aiSummarize(emailId: string): Promise<ApiResponse<{ emailId: string; summary: string }>> {
-    return this.get(`/ai/summarize/email/${emailId}`);
+    // The summarize route lives on the emails router (registered at /emails),
+    // not under /ai — the old GET /ai/summarize/email/:id path 404ed.
+    return this.post(`/emails/${emailId}/summarize`, {});
   }
 
   async aiCategorize(
