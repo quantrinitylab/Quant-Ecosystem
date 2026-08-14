@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { Button, Modal, Input, FormField, Skeleton } from '@quant/shared-ui';
+import { Button, Modal, Skeleton, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
-import { ErrorState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { useCalendarEvents, useCreateEvent, useDeleteEvent } from '../../hooks/useCalendar';
@@ -29,6 +28,15 @@ const hhmm = (date: Date) =>
     ? ''
     : date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
+const toLocalInput = (date: Date) =>
+  `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}T${`${date.getHours()}`.padStart(2, '0')}:${`${date.getMinutes()}`.padStart(2, '0')}`;
+
+const DURATION_PRESETS = [
+  { label: '30 min', minutes: 30 },
+  { label: '1 hr', minutes: 60 },
+  { label: '2 hrs', minutes: 120 },
+];
+
 export default function CalendarPage() {
   const today = new Date();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -40,6 +48,7 @@ export default function CalendarPage() {
     endTime: '',
     location: '',
     description: '',
+    allDay: false,
   });
 
   const year = currentDate.getFullYear();
@@ -89,36 +98,86 @@ export default function CalendarPage() {
     (day?: number) => {
       const base = new Date(year, month, day ?? selectedDay, 10, 0, 0);
       const later = new Date(base.getTime() + 60 * 60 * 1000);
-      const local = (date: Date) =>
-        `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}T${`${date.getHours()}`.padStart(2, '0')}:${`${date.getMinutes()}`.padStart(2, '0')}`;
       setNewEvent({
         title: '',
-        startTime: local(base),
-        endTime: local(later),
+        startTime: toLocalInput(base),
+        endTime: toLocalInput(later),
         location: '',
         description: '',
+        allDay: false,
       });
       setShowCreateModal(true);
     },
     [year, month, selectedDay],
   );
 
+  const toggleAllDay = useCallback(() => {
+    setNewEvent((prev) => {
+      const startDate = prev.startTime.slice(0, 10) || toLocalInput(new Date()).slice(0, 10);
+      const endDate = prev.endTime.slice(0, 10) || startDate;
+      if (!prev.allDay) {
+        return { ...prev, allDay: true, startTime: `${startDate}T00:00`, endTime: `${endDate}T23:59` };
+      }
+      return { ...prev, allDay: false, startTime: `${startDate}T10:00`, endTime: `${startDate}T11:00` };
+    });
+  }, []);
+
+  const applyDuration = useCallback((minutes: number) => {
+    setNewEvent((prev) => {
+      const startAt = new Date(prev.startTime);
+      if (Number.isNaN(startAt.getTime())) return prev;
+      return { ...prev, endTime: toLocalInput(new Date(startAt.getTime() + minutes * 60000)) };
+    });
+  }, []);
+
+  const durationLabel = useMemo(() => {
+    const startAt = new Date(newEvent.startTime);
+    const endAt = new Date(newEvent.endTime);
+    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return '';
+    const mins = Math.round((endAt.getTime() - startAt.getTime()) / 60000);
+    if (mins <= 0) return '';
+    if (mins < 60) return `${mins} min`;
+    const hrs = mins / 60;
+    return Number.isInteger(hrs) ? `${hrs} hr${hrs > 1 ? 's' : ''}` : `${hrs.toFixed(1)} hrs`;
+  }, [newEvent.startTime, newEvent.endTime]);
+
+  const invalidRange = useMemo(() => {
+    if (newEvent.allDay) return false;
+    const startAt = new Date(newEvent.startTime);
+    const endAt = new Date(newEvent.endTime);
+    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return true;
+    return endAt.getTime() <= startAt.getTime();
+  }, [newEvent.allDay, newEvent.startTime, newEvent.endTime]);
+
   const handleCreateEvent = useCallback(async () => {
-    if (!newEvent.title || !newEvent.startTime || !newEvent.endTime) return;
-    await createEvent.mutateAsync({
-      title: newEvent.title,
-      startTime: new Date(newEvent.startTime).toISOString(),
-      endTime: new Date(newEvent.endTime).toISOString(),
-      description: newEvent.description,
-      location: newEvent.location,
-    } as never);
+    if (!newEvent.title || !newEvent.startTime || !newEvent.endTime || invalidRange) return;
+    const payload = newEvent.allDay
+      ? {
+          title: newEvent.title,
+          startTime: new Date(`${newEvent.startTime.slice(0, 10)}T00:00:00`).toISOString(),
+          endTime: new Date(`${newEvent.endTime.slice(0, 10)}T23:59:59`).toISOString(),
+          description: newEvent.description,
+          location: newEvent.location,
+          allDay: true,
+        }
+      : {
+          title: newEvent.title,
+          startTime: new Date(newEvent.startTime).toISOString(),
+          endTime: new Date(newEvent.endTime).toISOString(),
+          description: newEvent.description,
+          location: newEvent.location,
+        };
+    await createEvent.mutateAsync(payload as never);
     setShowCreateModal(false);
-  }, [newEvent, createEvent]);
+  }, [newEvent, invalidRange, createEvent]);
 
   const monthName = currentDate.toLocaleString(undefined, { month: 'long', year: 'numeric' });
   const selectedDate = new Date(year, month, selectedDay);
   const selectedEvents = eventsByDay[selectedDay] ?? [];
   const selectedHolidays = holidays[selectedDay] ?? [];
+
+  const fieldClasses =
+    'w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--brand-primary)]/60 focus:ring-2 focus:ring-[var(--brand-primary)]/25';
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
@@ -317,6 +376,7 @@ export default function CalendarPage() {
           )}
         </div>
 
+        {/* New event — Outlook-style compact compose card */}
         <Modal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
@@ -335,53 +395,156 @@ export default function CalendarPage() {
               <Button
                 variant="primary"
                 onClick={handleCreateEvent}
-                disabled={!newEvent.title || createEvent.isPending}
+                disabled={!newEvent.title || invalidRange || createEvent.isPending}
               >
                 {createEvent.isPending ? 'Saving…' : 'Save event'}
               </Button>
             </>
           }
         >
-          <div className="space-y-3.5">
-            <FormField label="Title" required>
-              <Input
-                value={newEvent.title}
-                onChange={(e) => setNewEvent((prev) => ({ ...prev, title: e.target.value }))}
-                placeholder="Design review"
-              />
-            </FormField>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <FormField label="Starts" required>
-                <input
-                  type="datetime-local"
-                  className="w-full rounded-lg border border-[var(--quant-border)] bg-transparent px-3 py-2 text-sm"
-                  value={newEvent.startTime}
-                  onChange={(e) => setNewEvent((prev) => ({ ...prev, startTime: e.target.value }))}
-                />
-              </FormField>
-              <FormField label="Ends" required>
-                <input
-                  type="datetime-local"
-                  className="w-full rounded-lg border border-[var(--quant-border)] bg-transparent px-3 py-2 text-sm"
-                  value={newEvent.endTime}
-                  onChange={(e) => setNewEvent((prev) => ({ ...prev, endTime: e.target.value }))}
-                />
-              </FormField>
+          <div className="space-y-4">
+            {/* Big borderless title, like Outlook/Google Calendar */}
+            <input
+              value={newEvent.title}
+              onChange={(e) => setNewEvent((prev) => ({ ...prev, title: e.target.value }))}
+              placeholder="Add a title"
+              aria-label="Event title"
+              autoFocus
+              className="w-full border-0 border-b border-[var(--quant-border)] bg-transparent px-1 pb-2 text-lg font-semibold outline-none transition-colors placeholder:text-[var(--quant-muted-foreground)]/50 focus:border-[var(--brand-primary)]"
+            />
+
+            {/* All-day toggle + quick durations */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleAllDay}
+                aria-pressed={newEvent.allDay}
+                className={`inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors ${
+                  newEvent.allDay
+                    ? 'border-[var(--brand-primary)]/60 bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
+                    : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-muted)]'
+                }`}
+              >
+                All day
+              </button>
+              {!newEvent.allDay &&
+                DURATION_PRESETS.map((preset) => (
+                  <button
+                    key={preset.minutes}
+                    type="button"
+                    onClick={() => applyDuration(preset.minutes)}
+                    className="inline-flex h-8 items-center rounded-full border border-[var(--quant-border)] px-3 text-xs font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)]"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
             </div>
-            <FormField label="Location">
-              <Input
+
+            {/* Starts / Ends */}
+            {newEvent.allDay ? (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">
+                    Start date
+                  </span>
+                  <input
+                    type="date"
+                    className={fieldClasses}
+                    value={newEvent.startTime.slice(0, 10)}
+                    onChange={(e) =>
+                      setNewEvent((prev) => {
+                        const v = e.target.value;
+                        const endDate = prev.endTime.slice(0, 10);
+                        return {
+                          ...prev,
+                          startTime: `${v}T00:00`,
+                          endTime: !endDate || endDate < v ? `${v}T23:59` : prev.endTime,
+                        };
+                      })
+                    }
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">
+                    End date
+                  </span>
+                  <input
+                    type="date"
+                    className={fieldClasses}
+                    value={newEvent.endTime.slice(0, 10)}
+                    min={newEvent.startTime.slice(0, 10)}
+                    onChange={(e) =>
+                      setNewEvent((prev) => ({ ...prev, endTime: `${e.target.value}T23:59` }))
+                    }
+                  />
+                </label>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">
+                    Starts
+                  </span>
+                  <input
+                    type="datetime-local"
+                    className={fieldClasses}
+                    value={newEvent.startTime}
+                    onChange={(e) =>
+                      setNewEvent((prev) => ({ ...prev, startTime: e.target.value }))
+                    }
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 flex items-center justify-between text-xs font-medium text-[var(--quant-muted-foreground)]">
+                    <span>Ends</span>
+                    {durationLabel && (
+                      <span className="font-normal text-[var(--quant-muted-foreground)]/80">
+                        {durationLabel}
+                      </span>
+                    )}
+                  </span>
+                  <input
+                    type="datetime-local"
+                    className={fieldClasses}
+                    value={newEvent.endTime}
+                    onChange={(e) => setNewEvent((prev) => ({ ...prev, endTime: e.target.value }))}
+                  />
+                </label>
+              </div>
+            )}
+            {invalidRange && newEvent.startTime && newEvent.endTime && (
+              <p className="text-xs text-[var(--quant-destructive)]">
+                End time must be after the start time.
+              </p>
+            )}
+
+            {/* Location + notes */}
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">
+                Location
+              </span>
+              <input
+                className={fieldClasses}
                 value={newEvent.location}
                 onChange={(e) => setNewEvent((prev) => ({ ...prev, location: e.target.value }))}
                 placeholder="Meet link or room"
               />
-            </FormField>
-            <FormField label="Notes">
-              <Input
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">
+                Notes
+              </span>
+              <textarea
+                rows={2}
+                className={`${fieldClasses} resize-none`}
                 value={newEvent.description}
-                onChange={(e) => setNewEvent((prev) => ({ ...prev, description: e.target.value }))}
+                onChange={(e) =>
+                  setNewEvent((prev) => ({ ...prev, description: e.target.value }))
+                }
                 placeholder="Agenda, context, links"
               />
-            </FormField>
+            </label>
+
             {createEvent.isError && (
               <p className="text-xs text-[var(--quant-destructive)]">
                 {(createEvent.error as Error).message}

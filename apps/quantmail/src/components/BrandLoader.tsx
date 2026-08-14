@@ -10,10 +10,10 @@ interface BrandLoaderProps {
 }
 
 const splashCss = `
-.qm-bl-splash{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--quant-background,var(--quant-surface,#0b0f14));}
-.qm-bl-wordmark{font-size:24px;font-weight:800;letter-spacing:-0.02em;background:linear-gradient(120deg,#ffd9ac,#ff9933 45%,#ff7a00);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.qm-bl-splash{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--quant-background,var(--quant-surface,#0b0f14));}
+.qm-bl-wordmark{font-family:var(--font-brand),'Segoe Script','Comic Sans MS',cursive;font-size:34px;font-weight:400;letter-spacing:0.005em;line-height:1.5;padding:0 10px 6px;background:linear-gradient(95deg,#ff9933 0%,#ff5e62 34%,#e64980 64%,#8b5cf6 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 12px rgba(230,73,128,0.3));}
 .qm-bl-track{position:relative;width:148px;height:3px;border-radius:9999px;background:rgba(255,255,255,0.08);overflow:hidden;}
-.qm-bl-fill{position:absolute;top:0;left:0;width:38%;height:100%;border-radius:9999px;background:linear-gradient(90deg,#ff9933,#ffb15e);animation:qm-bl-slide 1.05s ease-in-out infinite;}
+.qm-bl-fill{position:absolute;top:0;left:0;width:38%;height:100%;border-radius:9999px;background:linear-gradient(90deg,#ff9933,#e64980);animation:qm-bl-slide 1.05s ease-in-out infinite;}
 .qm-bl-message{margin:0;font-size:12.5px;letter-spacing:0.01em;color:var(--quant-muted-foreground,#8a94a3);}
 .qm-bl-hint{text-align:center;}
 @keyframes qm-bl-slide{0%{transform:translateX(-110%);}55%{transform:translateX(160%);}100%{transform:translateX(290%);}}
@@ -30,8 +30,8 @@ const inlineCss = `
 /**
  * QuantMail loader — intentionally minimal and calm.
  *
- * Splash: the QuantMail wordmark with a thin sliding progress bar. No 3D, no
- * gimmicks — fast, quiet, brand-first (replaces the old envelope animation).
+ * Splash: the cursive QuantMail wordmark (the logo) with a thin sliding
+ * progress bar. No 3D, no gimmicks — fast, quiet, brand-first.
  * Inline: a small spinner ring for in-panel loads.
  */
 export function BrandLoader({

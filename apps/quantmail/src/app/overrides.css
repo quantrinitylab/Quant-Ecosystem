@@ -125,23 +125,26 @@
   margin-bottom: 4px;
 }
 
-/* --- 4. QuantMail wordmark: the word IS the logo ---------------------------- */
+/* --- 4. QuantMail wordmark: the word IS the logo ----------------------------
+   Instagram-style cursive script (Pacifico via --font-brand) with a colourful
+   saffron → coral → pink → violet gradient. Script faces have deep descenders
+   (the Q tail, the y/l loops) so line-height stays generous and nothing clips. */
 .sidebar-brand {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 14px 44px 10px 12px; /* right padding clears the drawer close/pin buttons */
+  padding: 12px 44px 8px 12px; /* right padding clears the drawer close/pin buttons */
 }
 .qm-wordmark {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   min-width: 0;
   background: none;
   border: 0;
-  padding: 4px 6px;
-  border-radius: 8px;
+  padding: 2px 8px 4px 6px;
+  border-radius: 10px;
   cursor: pointer;
 }
 .qm-wordmark:hover {
@@ -152,14 +155,18 @@
   outline-offset: 2px;
 }
 .qm-wordmark-text {
-  font-size: 17px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  background: linear-gradient(120deg, #ffd9ac, #ff9933 45%, #ff7a00);
+  font-family: var(--font-brand), 'Segoe Script', 'Comic Sans MS', cursive;
+  font-size: 21px;
+  font-weight: 400;
+  letter-spacing: 0.005em;
+  line-height: 1.5; /* room for script descenders */
+  padding-bottom: 2px;
+  background: linear-gradient(95deg, #ff9933 0%, #ff5e62 34%, #e64980 64%, #8b5cf6 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   white-space: nowrap;
+  filter: drop-shadow(0 1px 8px rgba(230, 73, 128, 0.28));
 }
 .qm-beta-pill {
   font-size: 9px;
@@ -172,12 +179,13 @@
   color: #ff9933;
   background: rgba(255, 153, 51, 0.08);
   line-height: 1.4;
+  margin-top: 4px; /* optically centers next to the script baseline */
 }
 .mobile-brand .qm-wordmark {
-  padding: 2px 4px;
+  padding: 1px 6px 3px 4px;
 }
 .mobile-brand .qm-wordmark-text {
-  font-size: 16px;
+  font-size: 19px;
 }
 
 /* --- 5. Thread view: compact icon toolbar ----------------------------------- */
