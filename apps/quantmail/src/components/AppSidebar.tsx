@@ -185,13 +185,8 @@ export function AppSidebar() {
         <span className="sidebar-live-dot" title="All systems operational" aria-label="All systems operational" />
       </header>
 
-      <div className="sidebar-compose-wrap">
-        <button type="button" onClick={() => router.push('/compose')} className="sidebar-compose">
-          <Icon name="compose" className="h-[18px] w-[18px]" />
-          <span>New message</span>
-          <kbd>C</kbd>
-        </button>
-      </div>
+      {/* Compose intentionally lives ONLY in the global floating + button now —
+          one compose entry point across the whole app (user decision). */}
 
       <div className="sidebar-scroll">
         {NAV_GROUPS.map((group) => (

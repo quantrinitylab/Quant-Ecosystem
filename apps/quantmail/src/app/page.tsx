@@ -10,7 +10,7 @@ import {
   useTransform,
   type PanInfo,
 } from 'framer-motion';
-import { ErrorState, Skeleton, Button } from '@quant/shared-ui';
+import { ErrorState, Skeleton, Button, useQuantSidekick } from '@quant/shared-ui';
 import { quantMailBrandLockup } from '../brand/identity';
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
@@ -251,18 +251,8 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
         <div className="reading-ambient" aria-hidden="true" />
         <div className="reading-empty-content">
           <QuantrinityMark className="reading-empty-mark" label="Quantrinity infinity" />
-          <p className="reading-eyebrow">Zero-noise workspace</p>
-          <h2>
-            Choose the signal.
-            <br />
-            We&apos;ll quiet the rest.
-          </h2>
-          <p>Select a message to preview it without leaving your flow.</p>
-          <div className="reading-shortcuts" aria-label="Preview guidance">
-            <span>Select a thread to preview it.</span>
-            <span>Reply once a message is open.</span>
-            <span>Archive from the inbox list.</span>
-          </div>
+          <h2>Select a message to preview it</h2>
+          <p>Open any conversation from the list — it appears here instantly.</p>
         </div>
       </section>
     );
@@ -447,6 +437,7 @@ function usePullToRefresh(onRefresh: () => void) {
 
 export default function InboxPage() {
   const router = useRouter();
+  const { toggle: toggleCopilot, isOpen: copilotOpen } = useQuantSidekick();
   const [activeCategory, setActiveCategory] = useState<EmailCategory>('primary');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -661,21 +652,12 @@ export default function InboxPage() {
           </span>
         </span>
       }
-      mobileActions={
-        <button
-          type="button"
-          className="mobile-compose"
-          onClick={() => router.push('/compose')}
-          aria-label="Compose message"
-        >
-          <MailIcon name="compose" />
-        </button>
-      }
       aria-label="QuantMail inbox"
     >
       <div className="inbox-workspace">
         <section className="inbox-list-pane" aria-label="Inbox messages">
-          {/* inbox-hero is hidden on mobile via shell.css; AppShell bar carries brand + compose */}
+          {/* inbox-hero is hidden on mobile via shell.css; AppShell bar carries the brand.
+              Compose lives ONLY in the global floating + button (bottom-right). */}
           <header className="inbox-hero">
             <div>
               <p className="inbox-kicker">
@@ -688,9 +670,6 @@ export default function InboxPage() {
                   : 'You are fully caught up.'}
               </p>
             </div>
-            <button type="button" className="hero-compose" onClick={() => router.push('/compose')}>
-              <MailIcon name="compose" /> Compose
-            </button>
           </header>
 
           <div className="inbox-search-wrap">
@@ -704,6 +683,18 @@ export default function InboxPage() {
                 placeholder="Search people, subjects, or meaning…"
               />
             </label>
+            {/* QuantAI moved here from the old bottom pill — logo button beside search */}
+            <button
+              type="button"
+              className="inbox-ai-trigger"
+              onClick={toggleCopilot}
+              aria-label="Ask QuantAI"
+              aria-expanded={copilotOpen}
+              title="Ask QuantAI about this screen"
+            >
+              <QuantrinityMark compact label="QuantAI" />
+              <span>QuantAI</span>
+            </button>
           </div>
 
           <nav className="inbox-categories" aria-label="Inbox categories">

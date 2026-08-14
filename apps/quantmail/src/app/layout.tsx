@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import './shell.css';
+import './overrides.css';
 import { quantMailBrandMetadata } from '../brand/identity';
 import { AuthGuard } from '../components/AuthGuard';
 import { GlobalShortcutsProvider } from '../components/GlobalShortcutsProvider';

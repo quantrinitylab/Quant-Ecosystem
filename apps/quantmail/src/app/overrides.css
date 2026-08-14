@@ -1,0 +1,111 @@
+/* ============================================================================
+   QuantMail UI restructure overrides - loaded AFTER shell.css so these rules
+   win at equal specificity. Keep this file small and surgical.
+
+   What lives here:
+   1. ONE compose entry point: global floating + FAB (bottom-right)
+   2. QuantAI trigger moves to the top search row; old bottom pill hidden
+   3. Calmer inbox hero + tighter vertical rhythm (less dead space)
+   ========================================================================== */
+
+/* --- 1. Hide the old bottom-right Ask QuantAI pill (panel itself unchanged) */
+.mail-copilot-trigger {
+  display: none !important;
+}
+
+/* --- Global compose FAB ---------------------------------------------------- */
+.quant-compose-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  z-index: 46;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 153, 51, 0.4);
+  background: linear-gradient(135deg, #ffb15e 0%, #ff9933 45%, #ff7a00 100%);
+  color: #221233;
+  box-shadow: 0 14px 34px -12px rgba(255, 153, 51, 0.65);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.quant-compose-fab:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 18px 40px -12px rgba(255, 153, 51, 0.75);
+}
+.quant-compose-fab:active {
+  transform: scale(0.96);
+}
+.quant-compose-fab svg {
+  width: 26px;
+  height: 26px;
+}
+
+@media (max-width: 899px) {
+  .quant-compose-fab {
+    right: 16px;
+    bottom: 18px;
+  }
+}
+
+/* --- 2. QuantAI trigger in the top search row ------------------------------ */
+.inbox-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.inbox-search-wrap .inbox-search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.inbox-ai-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 153, 51, 0.32);
+  background: rgba(255, 153, 51, 0.1);
+  color: var(--quant-primary, #ff9933);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.inbox-ai-trigger:hover {
+  background: rgba(255, 153, 51, 0.18);
+  border-color: rgba(255, 153, 51, 0.5);
+}
+.inbox-ai-trigger svg {
+  width: 16px;
+  height: 16px;
+}
+@media (max-width: 480px) {
+  .inbox-ai-trigger span {
+    display: none; /* icon-only on the smallest screens */
+  }
+}
+
+/* --- 3. Calmer inbox hero / tighter rhythm --------------------------------- */
+.inbox-hero {
+  padding-top: 14px;
+  padding-bottom: 10px;
+}
+.inbox-hero h1 {
+  font-size: 1.3rem;
+  line-height: 1.2;
+  margin: 2px 0;
+}
+.inbox-hero p {
+  margin: 0;
+}
+
+/* Reading-pane empty state: quieter, centered, less copy */
+.reading-pane-empty .reading-empty-content h2 {
+  font-size: 1.15rem;
+  line-height: 1.35;
+}

@@ -9,6 +9,31 @@ import { useAuth } from './auth-provider';
 
 const PUBLIC_AUTH_PATHS = ['/login', '/register', '/forgot-password'];
 
+/**
+ * The ONE compose entry point for the whole app: a floating + button pinned
+ * bottom-right (where the old Ask QuantAI pill used to sit). The QuantAI
+ * trigger now lives in the inbox top bar next to search.
+ */
+function ComposeFab() {
+  const router = useRouter();
+  const pathname = usePathname() ?? '';
+  // Hide on the composer itself — no point stacking compose on compose.
+  if (pathname.startsWith('/compose')) return null;
+  return (
+    <button
+      type="button"
+      className="quant-compose-fab"
+      onClick={() => router.push('/compose')}
+      aria-label="Compose new message"
+      title="Compose (C)"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+        <path d="M12 5v14M5 12h14" />
+      </svg>
+    </button>
+  );
+}
+
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const pathname = usePathname();
@@ -145,6 +170,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
               placeholder="Search commands, views, and workflows…"
             />
             <MailCopilot />
+            <ComposeFab />
           </>
         ) : null}
       </QuantSidekickProvider>
