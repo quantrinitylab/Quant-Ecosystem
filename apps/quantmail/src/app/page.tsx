@@ -98,6 +98,11 @@ function formatReceivedAt(value?: string | Date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/** Human-friendly "snoozed until" moment for toasts: "Sat, Aug 15, 9:00 AM". */
+function formatSnoozeUntil(date: Date) {
+  return `${date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}, ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+}
+
 /**
  * Normalize an email subject so we never display bare "Re:", "Fwd:", etc.
  * Strips leading reply/forward markers that leave nothing meaningful behind.
@@ -166,6 +171,7 @@ function EmailRow({
   const prefersReducedMotion = useReducedMotion();
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
 
   const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     setIsDragging(false);
@@ -212,7 +218,9 @@ function EmailRow({
           <h3>{normalizeSubject(email.subject)}</h3>
           <p>{email.snippet}</p>
         </div>
-        {/* Hover actions bar — Gmail-style quick actions on hover (hidden on touch via CSS) */}
+        {/* Hover actions bar — Gmail-style quick actions on hover (hidden on touch via CSS).
+            The clock button opens the SAME snooze menu as the always-there trigger,
+            so desktop users get the full options list instead of a fixed +3h. */}
         <AnimatePresence>
           {isHovered && !isDragging && (
             <HoverActions
@@ -222,25 +230,31 @@ function EmailRow({
               onDelete={onDelete}
               onMarkRead={onMarkRead}
               onMarkUnread={onMarkUnread}
-              onSnooze={() => onSnooze(email.id, new Date(Date.now() + 3 * 3600 * 1000))}
+              onSnooze={() => setSnoozeOpen(true)}
             />
           )}
         </AnimatePresence>
-        {/* Star + Snooze only visible when NOT hovered (hover shows actions bar instead) */}
+        {/* Star only visible when NOT hovered (hover shows the actions bar instead) */}
         {!isHovered && (
-          <>
-            <button
-              type="button"
-              className={`mail-star ${email.isStarred ? 'is-starred' : ''}`}
-              onClick={onToggleStar}
-              aria-label={email.isStarred ? 'Unstar email' : 'Star email'}
-              aria-pressed={email.isStarred}
-            >
-              <MailIcon name="star" />
-            </button>
-            <EmailSnooze emailId={email.id} onSnooze={onSnooze} />
-          </>
+          <button
+            type="button"
+            className={`mail-star ${email.isStarred ? 'is-starred' : ''}`}
+            onClick={onToggleStar}
+            aria-label={email.isStarred ? 'Unstar email' : 'Star email'}
+            aria-pressed={email.isStarred}
+          >
+            <MailIcon name="star" />
+          </button>
         )}
+        {/* Snooze stays mounted so the hover-bar clock opens this same menu;
+            its trigger hides while the hover bar covers the row's right edge. */}
+        <EmailSnooze
+          emailId={email.id}
+          onSnooze={onSnooze}
+          open={snoozeOpen}
+          onOpenChange={setSnoozeOpen}
+          triggerHidden={isHovered}
+        />
       </motion.article>
     </div>
   );
@@ -593,6 +607,20 @@ export default function InboxPage() {
     [refetch],
   );
 
+  const markAllRead = useCallback(async () => {
+    const response = await apiClient.markAllRead(activeCategory);
+    if (!response.success) {
+      showToast({ text: response.error?.message || 'Could not mark everything as read', type: 'error' });
+      return;
+    }
+    const updated = response.data?.updated ?? 0;
+    showToast({
+      text: updated > 0 ? `${updated} conversation${updated === 1 ? '' : 's'} marked as read` : 'Already caught up',
+      type: 'success',
+    });
+    await refetch();
+  }, [activeCategory, refetch]);
+
   const snoozeEmail = useCallback(
     async (emailId: string, snoozeUntil: Date) => {
       const response = await apiClient.snoozeEmail(emailId, snoozeUntil);
@@ -601,7 +629,18 @@ export default function InboxPage() {
         return;
       }
       if (selectedEmail?.id === emailId) setSelectedEmail(null);
-      showToast({ text: `Email snoozed until ${snoozeUntil.toLocaleString()}`, type: 'info' });
+      showToast({
+        text: `Snoozed until ${formatSnoozeUntil(snoozeUntil)}`,
+        type: 'info',
+        undoAction: async () => {
+          const undoResponse = await apiClient.unsnoozeEmail(emailId);
+          if (!undoResponse.success) {
+            showToast({ text: undoResponse.error?.message || 'Snooze could not be undone', type: 'error' });
+            return;
+          }
+          await refetch();
+        },
+      });
       await refetch();
     },
     [refetch, selectedEmail],
@@ -726,6 +765,16 @@ export default function InboxPage() {
               </button>
             ))}
           </nav>
+
+          {/* One-click inbox zero for the current tab — appears only when something is unread */}
+          {unreadCount > 0 && !debouncedQuery && (
+            <div className="inbox-list-tools">
+              <button type="button" className="mark-all-read-btn" onClick={() => void markAllRead()}>
+                <MailIcon name="mail" className="h-3.5 w-3.5" />
+                Mark all as read
+              </button>
+            </div>
+          )}
 
           <AnimatePresence initial={false}>
             {selectedIds.size > 0 && (

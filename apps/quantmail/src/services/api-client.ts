@@ -248,6 +248,12 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/unread`, {});
   }
 
+  async markAllRead(
+    category?: string,
+  ): Promise<ApiResponse<{ message: string; updated: number }>> {
+    return this.post('/emails/mark-all-read', { category });
+  }
+
   async addLabel(emailId: string, label: string): Promise<ApiResponse<{ message: string }>> {
     return this.post(`/emails/${emailId}/labels`, { label });
   }
@@ -258,6 +264,17 @@ export class QuantMailApiClient {
 
   async createLabel(name: string, color: string): Promise<ApiResponse<EmailLabel>> {
     return this.post('/labels', { name, color });
+  }
+
+  async updateLabel(
+    id: string,
+    data: { name?: string; color?: string },
+  ): Promise<ApiResponse<EmailLabel>> {
+    return this.put(`/labels/${id}`, data);
+  }
+
+  async deleteLabel(id: string): Promise<ApiResponse<EmailLabel>> {
+    return this.delete(`/labels/${id}`);
   }
 
   async getEmailSignatures(): Promise<ApiResponse<EmailSignaturePreference[]>> {
