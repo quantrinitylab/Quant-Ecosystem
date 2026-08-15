@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCreateLabel, useLabels } from '../hooks/useLabels';
 import { useInbox } from '../hooks/useInbox';
 import { NotificationBell } from './NotificationBell';
+import { QuantMailLogo } from './QuantMailLogo';
 import type { EmailLabel } from '../types';
 import { AccountBadge } from './AccountBadge';
 
@@ -50,14 +51,18 @@ function Icon({ name, className = 'h-4 w-4' }: { name: IconName; className?: str
   );
 }
 
+/*
+ * Nav decisions (user, msg#30):
+ * - No Search item — search lives in the inbox header.
+ * - No Starred item — starring a mail pins it to the top of the inbox instead.
+ * - No separate Security item — security features live inside Settings.
+ */
 const NAV_GROUPS: Array<{
   label: string;
   items: Array<{ id: string; label: string; icon: IconName; path: string }>;
 }> = [
   { label: 'Mail', items: [
     { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
-    { id: 'search', label: 'Search', icon: 'search', path: '/search' },
-    { id: 'starred', label: 'Starred', icon: 'star', path: '/starred' },
     { id: 'snoozed', label: 'Snoozed', icon: 'clock', path: '/snoozed' },
     { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
     { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
@@ -77,7 +82,6 @@ const NAV_GROUPS: Array<{
     { id: 'codehub', label: 'CodeHub', icon: 'code', path: '/codehub' },
   ] },
   { label: 'Control', items: [
-    { id: 'security', label: 'Security', icon: 'security', path: '/security' },
     { id: 'settings', label: 'Settings', icon: 'settings', path: '/settings' },
   ] },
 ];
@@ -178,7 +182,7 @@ export function AppSidebar() {
 
   return (
     <nav className="quant-sidebar" aria-label="QuantMail navigation">
-      {/* The wordmark IS the logo (user decision): clicking it always returns home. */}
+      {/* Official logo + wordmark. No Beta pill (user decision) — clicking goes home. */}
       <header className="sidebar-brand">
         <button
           type="button"
@@ -187,8 +191,8 @@ export function AppSidebar() {
           aria-label="QuantMail — open your inbox"
           title="Go to inbox"
         >
+          <QuantMailLogo size={30} className="qm-wordmark-logo" />
           <span className="qm-wordmark-text">QuantMail</span>
-          <span className="qm-beta-pill" aria-hidden="true">Beta</span>
         </button>
         <NotificationBell />
       </header>
