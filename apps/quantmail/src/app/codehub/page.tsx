@@ -1,12 +1,14 @@
 'use client';
 
 // ============================================================================
-// CodeHub — the GitHub-style code home inside QuantMail.
-// Repos + pipelines live in one product surface: search, filters, repo cards,
-// and a live activity rail of builds and deployments.
+// CodeHub — the GitHub-style code home inside QuantMail, with Quanty at the
+// helm (user decision, msg#30 P14): a Claude/Lovable-style chat hero where you
+// describe what to build; Quanty plans or builds — there is NO model selector,
+// Quanty picks the best model for the task. Below: agents activity, MCP
+// connectors, repos and pipelines.
 // ============================================================================
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Button,
@@ -22,6 +24,8 @@ import {
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
+import { Quanty, type QuantyExpression } from '../../components/Quanty';
+import { QuantMailLogo } from '../../components/QuantMailLogo';
 import { useRepos, useCreateRepo } from '../../hooks/useRepos';
 import { useBuilds, useDeployments } from '../../hooks/usePipelines';
 
@@ -125,6 +129,286 @@ function getCloneUrl(repo: RepoLike): string {
   return `git@quantrinity.in:${slug}.git`;
 }
 
+/** Repo name from a paste-in clone URL (GitHub, GitLab, ssh, …). */
+function repoNameFromUrl(url: string): string {
+  const clean = url.trim().replace(/\.git$/i, '');
+  const seg = clean.split(/[/:]/).filter(Boolean).pop() ?? '';
+  return seg.replace(/[^a-zA-Z0-9-_.]/g, '-').toLowerCase();
+}
+
+// ---------------------------------------------------------------------------
+// Quanty build chat (Plan / Build — Quanty picks the model himself)
+// ---------------------------------------------------------------------------
+
+type BuildChatMessage = { id: string; role: 'user' | 'assistant'; content: string };
+type BuildMode = 'plan' | 'build';
+
+async function askQuanty(
+  history: BuildChatMessage[],
+  mode: BuildMode,
+  repoNames: string[],
+): Promise<string> {
+  const response = await fetch('/api/ai/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      messages: history.slice(-10).map(({ role, content }) => ({ role, content })),
+      context: {
+        app: 'QuantHub',
+        route: '/codehub',
+        view: `CodeHub home · ${mode === 'plan' ? 'Plan mode (explain, break down, estimate — no changes)' : 'Build mode (propose concrete repos, files, commits, deploy steps)'}`,
+        screenText: `Existing repositories: ${repoNames.join(', ') || 'none yet'}`,
+      },
+    }),
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | { success?: boolean; data?: { message?: string }; error?: { message?: string } }
+    | null;
+  if (response.ok && payload?.success && payload.data?.message) return payload.data.message;
+  throw new Error(payload?.error?.message ?? `Quanty could not answer (${response.status}). Retry in a moment.`);
+}
+
+function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewRepo: () => void }) {
+  const [mode, setMode] = useState<BuildMode>('plan');
+  const [messages, setMessages] = useState<BuildChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages, sending]);
+
+  const send = useCallback(async () => {
+    const text = input.trim();
+    if (!text || sending) return;
+    setChatError(null);
+    const next: BuildChatMessage[] = [
+      ...messages,
+      { id: crypto.randomUUID(), role: 'user', content: `[${mode.toUpperCase()}] ${text}` },
+    ];
+    setMessages(next);
+    setInput('');
+    setSending(true);
+    try {
+      const reply = await askQuanty(next, mode, repoNames);
+      setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: reply }]);
+    } catch (err) {
+      setChatError(err instanceof Error ? err.message : 'Quanty could not answer. Retry in a moment.');
+    } finally {
+      setSending(false);
+    }
+  }, [input, sending, messages, mode, repoNames]);
+
+  const expression: QuantyExpression = sending
+    ? 'thinking'
+    : chatError
+      ? 'sad'
+      : messages.some((m) => m.role === 'assistant')
+        ? 'happy'
+        : 'idle';
+
+  return (
+    <section className="ch-quanty-hero" aria-label="Build with Quanty">
+      <div className="ch-quanty-head">
+        <Quanty expression={expression} size={64} bob title="Quanty" />
+        <div className="ch-quanty-copy">
+          <h2>Build with Quanty</h2>
+          <p>
+            Describe the app, fix or automation you need. Quanty plans it, creates repos, runs
+            agents and watches the pipelines — he picks the best model for the job himself.
+          </p>
+        </div>
+        <div className="ch-mode-toggle" role="tablist" aria-label="Quanty mode">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'plan'}
+            className={mode === 'plan' ? 'is-active' : ''}
+            onClick={() => setMode('plan')}
+          >
+            Plan
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'build'}
+            className={mode === 'build' ? 'is-active' : ''}
+            onClick={() => setMode('build')}
+          >
+            Build
+          </button>
+        </div>
+      </div>
+
+      {(messages.length > 0 || sending || chatError) && (
+        <div className="ch-quanty-thread" ref={threadRef} aria-live="polite">
+          {messages.map((message) => (
+            <div key={message.id} className={`ch-msg is-${message.role}`}>
+              {message.role === 'assistant' && <span className="ch-msg-author">Quanty</span>}
+              <p>{message.content.replace(/^\[(PLAN|BUILD)\]\s*/, '')}</p>
+            </div>
+          ))}
+          {sending && (
+            <div className="ch-msg is-assistant ch-msg-typing">
+              <Quanty expression="thinking" size={22} /> Quanty is {mode === 'plan' ? 'planning' : 'building the approach'}…
+            </div>
+          )}
+          {chatError && (
+            <div className="ch-msg is-error" role="alert">
+              {chatError}
+            </div>
+          )}
+        </div>
+      )}
+
+      <form
+        className="ch-quanty-composer"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void send();
+        }}
+      >
+        <input
+          type="text"
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          placeholder={mode === 'plan' ? 'e.g. Plan a URL-shortener service with analytics' : 'e.g. Build a Next.js waitlist app with auth'}
+          aria-label="Tell Quanty what to plan or build"
+        />
+        <button type="submit" disabled={sending || input.trim().length === 0}>
+          {sending ? 'Working…' : mode === 'plan' ? 'Plan it' : 'Build it'}
+        </button>
+      </form>
+
+      <div className="ch-quanty-quick">
+        <button type="button" onClick={onNewRepo}>+ New repository</button>
+        <span>Quanty can scaffold into a fresh repo once you approve a plan.</span>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Agents strip — who is doing what right now (msg#30 P14)
+// ---------------------------------------------------------------------------
+
+function AgentsStrip({ builds, deployments }: { builds: BuildLike[]; deployments: DeploymentLike[] }) {
+  const latestBuild = builds[0];
+  const latestDeploy = deployments[0];
+  const agents = [
+    {
+      id: 'planner',
+      name: 'Quanty Planner',
+      status: 'ready',
+      detail: 'Waiting for your next brief in Plan mode.',
+    },
+    {
+      id: 'builder',
+      name: 'Build agent',
+      status: latestBuild?.status ?? 'idle',
+      detail: latestBuild
+        ? `${latestBuild.workflowName || latestBuild.branch || 'Workflow'} · ${latestBuild.commitMessage || 'latest commit'} · ${relativeTime(latestBuild.createdAt)}`
+        : 'No builds yet — trigger one from a repository.',
+    },
+    {
+      id: 'deployer',
+      name: 'Deploy agent',
+      status: latestDeploy?.status ?? 'idle',
+      detail: latestDeploy
+        ? `${latestDeploy.environment ?? 'environment'} · ${relativeTime(latestDeploy.createdAt)}`
+        : 'Nothing deployed from CodeHub yet.',
+    },
+    {
+      id: 'observer',
+      name: 'Observer',
+      status: 'active',
+      detail: 'Watching pipelines and surfacing failures to Quanty.',
+    },
+  ];
+
+  return (
+    <section className="ch-agents" aria-label="Agents activity">
+      <h2>Agents</h2>
+      <div className="ch-agents-row">
+        {agents.map((agent) => (
+          <article key={agent.id} className="ch-agent-card">
+            <header>
+              <span className={`ch-agent-dot is-${statusVariant(agent.status)}`} aria-hidden="true" />
+              <strong>{agent.name}</strong>
+              <Badge variant={statusVariant(agent.status)}>{agent.status}</Badge>
+            </header>
+            <p>{agent.detail}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MCP connectors — request/enable UI (deployment wiring follows backend batch)
+// ---------------------------------------------------------------------------
+
+const CONNECTORS = [
+  { id: 'github', name: 'GitHub', detail: 'Clone, mirror and sync repositories' },
+  { id: 'cloudflare', name: 'Cloudflare', detail: 'Workers, Pages and Worker AI deploys' },
+  { id: 'aws', name: 'AWS', detail: 'EKS, ECR and infrastructure deploys' },
+  { id: 'notion', name: 'Notion', detail: 'Specs, docs and build logs' },
+  { id: 'custom', name: 'Custom MCP', detail: 'Bring your own MCP server URL' },
+];
+
+function ConnectorsRow() {
+  const [enabled, setEnabled] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem('quanthub.connectors');
+      if (raw) setEnabled(JSON.parse(raw) as Record<string, boolean>);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const toggle = (id: string) => {
+    setEnabled((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try {
+        window.localStorage.setItem('quanthub.connectors', JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  return (
+    <section className="ch-connectors" aria-label="MCP connectors">
+      <h2>MCP connectors</h2>
+      <p className="ch-connectors-sub">
+        Connect tools once — Quanty and your agents use them to clone, build and deploy directly.
+      </p>
+      <div className="ch-connectors-row">
+        {CONNECTORS.map((connector) => (
+          <article key={connector.id} className="ch-connector-card">
+            <strong>{connector.name}</strong>
+            <p>{connector.detail}</p>
+            <button
+              type="button"
+              className={enabled[connector.id] ? 'is-on' : ''}
+              onClick={() => toggle(connector.id)}
+            >
+              {enabled[connector.id] ? 'Requested ✓' : 'Connect'}
+            </button>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Clone button
 // ---------------------------------------------------------------------------
@@ -192,7 +476,7 @@ export default function CodeHubPage() {
   const [query, setQuery] = useState('');
   const [visibility, setVisibility] = useState<VisibilityFilter>('all');
   const [showCreate, setShowCreate] = useState(false);
-  const [draft, setDraft] = useState({ name: '', description: '', visibility: 'private' });
+  const [draft, setDraft] = useState({ name: '', description: '', visibility: 'private', sourceUrl: '' });
 
   const { data: reposData, isLoading, error, refetch } = useRepos();
   const { data: buildsData } = useBuilds();
@@ -202,6 +486,7 @@ export default function CodeHubPage() {
   const repos = (reposData ?? []) as unknown as RepoLike[];
   const builds = ((buildsData ?? []) as unknown as BuildLike[]).slice(0, 6);
   const deployments = ((deploymentsData ?? []) as unknown as DeploymentLike[]).slice(0, 4);
+  const repoNames = useMemo(() => repos.map((repo) => repo.fullName || repo.name), [repos]);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -216,38 +501,34 @@ export default function CodeHubPage() {
   }, [repos, query, visibility]);
 
   const handleCreate = useCallback(async () => {
-    if (!draft.name.trim()) return;
+    const source = draft.sourceUrl.trim();
+    const name = draft.name.trim() || (source ? repoNameFromUrl(source) : '');
+    if (!name) return;
+    const description = source
+      ? `${draft.description ? `${draft.description} · ` : ''}Imported from ${source}`
+      : draft.description;
     const created = (await createRepo.mutateAsync({
-      name: draft.name.trim(),
-      description: draft.description,
+      name,
+      description,
       visibility: draft.visibility,
-      initReadme: true,
+      initReadme: !source,
     })) as unknown as RepoLike;
     setShowCreate(false);
-    setDraft({ name: '', description: '', visibility: 'private' });
+    setDraft({ name: '', description: '', visibility: 'private', sourceUrl: '' });
     if (created?.id) router.push(`/codehub/${created.id}`);
   }, [draft, createRepo, router]);
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page codehub-workspace flex flex-col h-full overflow-hidden">
-        {/* Top bar */}
+        {/* Top bar — official Quant logo family mark (no more “CH” tile) */}
         <header className="flex flex-wrap items-center gap-3 px-5 py-4 border-b border-[var(--quant-border)] bg-[color-mix(in_srgb,var(--quant-card)_86%,transparent)]">
           <div className="flex items-center gap-3 min-w-0">
-            <span
-              aria-hidden
-              className="grid h-9 w-9 place-items-center rounded-xl text-sm font-bold text-[var(--quant-primary-foreground)]"
-              style={{
-                background:
-                  'radial-gradient(120% 120% at 20% 0%, var(--quant-primary) 0%, #4c2fd6 60%, #1c1240 100%)',
-              }}
-            >
-              CH
-            </span>
+            <QuantMailLogo size={36} title="QuantHub" />
             <div className="min-w-0">
               <h1 className="text-base font-semibold leading-tight">CodeHub</h1>
               <p className="text-xs text-[var(--quant-muted-foreground)] truncate">
-                Repositories, pipelines and deployments for your workspace
+                Repositories, pipelines and deployments — with Quanty at the helm
               </p>
             </div>
           </div>
@@ -266,9 +547,13 @@ export default function CodeHubPage() {
         </header>
 
         <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-0">
-          {/* Repo list */}
+          {/* Main column */}
           <section className="min-h-0 overflow-y-auto p-5">
-            <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <QuantyBuildChat repoNames={repoNames} onNewRepo={() => setShowCreate(true)} />
+            <AgentsStrip builds={builds} deployments={deployments} />
+            <ConnectorsRow />
+
+            <div className="flex items-center gap-2 mb-4 mt-6 flex-wrap">
               {VISIBILITY_FILTERS.map((option) => {
                 const active = visibility === option;
                 return (
@@ -307,7 +592,7 @@ export default function CodeHubPage() {
                 description={
                   query
                     ? `Nothing matched “${query}”. Clear the search to see everything in CodeHub.`
-                    : 'CodeHub keeps code, pipelines, reviews and deployments in one place inside your workspace.'
+                    : 'Ask Quanty above to plan your first build, or create a repository directly.'
                 }
                 actionLabel={query ? 'Clear search' : 'New repository'}
                 onAction={() => (query ? setQuery('') : setShowCreate(true))}
@@ -428,11 +713,26 @@ export default function CodeHubPage() {
 
         <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="New repository">
           <div className="space-y-4">
+            <FormField label="Clone from URL (optional)">
+              <Input
+                value={draft.sourceUrl}
+                onChange={(event) =>
+                  setDraft((prev) => ({ ...prev, sourceUrl: event.target.value }))
+                }
+                placeholder="https://github.com/owner/repo or git@host:owner/repo.git"
+              />
+            </FormField>
+            {draft.sourceUrl.trim() && (
+              <p className="text-[11px] text-[var(--quant-muted-foreground)]">
+                Mirror sync runs through the GitHub connector — the repo is created now and the
+                source is recorded on it.
+              </p>
+            )}
             <FormField label="Repository name" required>
               <Input
                 value={draft.name}
                 onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
-                placeholder="quant-service"
+                placeholder={draft.sourceUrl.trim() ? repoNameFromUrl(draft.sourceUrl) || 'quant-service' : 'quant-service'}
               />
             </FormField>
             <FormField label="Description">
@@ -463,11 +763,11 @@ export default function CodeHubPage() {
               </p>
             )}
             {/* Clone URL preview for the new repo being created */}
-            {draft.name.trim() && (
+            {(draft.name.trim() || draft.sourceUrl.trim()) && (
               <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-muted)] px-3 py-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--quant-muted-foreground)] mb-1">Clone URL (after creation)</p>
                 <code className="block truncate text-xs text-[var(--quant-foreground)]">
-                  git@quantrinity.in:{draft.name.trim()}.git
+                  git@quantrinity.in:{draft.name.trim() || repoNameFromUrl(draft.sourceUrl)}.git
                 </code>
               </div>
             )}
@@ -478,7 +778,7 @@ export default function CodeHubPage() {
               <Button
                 variant="primary"
                 onClick={() => void handleCreate()}
-                disabled={!draft.name.trim() || createRepo.isPending}
+                disabled={(!draft.name.trim() && !draft.sourceUrl.trim()) || createRepo.isPending}
               >
                 {createRepo.isPending ? 'Creating…' : 'Create repository'}
               </Button>
