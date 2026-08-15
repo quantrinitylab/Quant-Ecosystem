@@ -20,6 +20,7 @@ import { EmailSnooze } from '../components/EmailSnooze';
 import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
 import { showToast } from '../components/InboxToast';
+import { Quanty } from '../components/Quanty';
 import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
@@ -342,7 +343,9 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
           </div>
           {email.aiSummary && (
             <aside className="reading-ai-summary">
-              <span aria-hidden="true">❆</span>
+              <span aria-hidden="true" className="reading-ai-quanty">
+                <Quanty expression="happy" size={26} />
+              </span>
               <div>
                 <strong>QuantAI brief</strong>
                 <p>{email.aiSummary}</p>
@@ -458,6 +461,7 @@ function usePullToRefresh(onRefresh: () => void) {
 export default function InboxPage() {
   const router = useRouter();
   const { toggle: toggleCopilot, isOpen: copilotOpen } = useQuantSidekick();
+  const [aiHover, setAiHover] = useState(false);
   const [activeCategory, setActiveCategory] = useState<EmailCategory>('primary');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -737,17 +741,19 @@ export default function InboxPage() {
                 placeholder="Search people, subjects, or meaning…"
               />
             </label>
-            {/* QuantAI — spark icon button beside search (wired to Cloudflare Workers AI) */}
+            {/* Quanty — THE QuantAI face lives beside search; click opens the copilot.
+                Idle he blinks; hover makes him wink; open panel makes him happy. */}
             <button
               type="button"
-              className="inbox-ai-trigger"
+              className="inbox-ai-trigger has-quanty"
               onClick={toggleCopilot}
-              aria-label="Ask QuantAI"
+              onMouseEnter={() => setAiHover(true)}
+              onMouseLeave={() => setAiHover(false)}
+              aria-label="Ask Quanty — QuantAI"
               aria-expanded={copilotOpen}
-              title="Ask QuantAI about this screen"
+              title="Ask Quanty — your QuantAI"
             >
-              <MailIcon name="spark" />
-              <span>QuantAI</span>
+              <Quanty expression={copilotOpen ? 'happy' : aiHover ? 'wink' : 'idle'} size={44} bob />
             </button>
           </div>
 
