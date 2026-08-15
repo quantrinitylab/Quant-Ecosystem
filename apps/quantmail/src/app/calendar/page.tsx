@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Button, Modal, Skeleton, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
@@ -110,6 +110,14 @@ export default function CalendarPage() {
     },
     [year, month, selectedDay],
   );
+
+  // The global contextual FAB (+) dispatches this on /calendar so the
+  // bottom-right plus opens this same New event modal.
+  useEffect(() => {
+    const handler = () => openCreate();
+    window.addEventListener('quant:calendar:create', handler);
+    return () => window.removeEventListener('quant:calendar:create', handler);
+  }, [openCreate]);
 
   const toggleAllDay = useCallback(() => {
     setNewEvent((prev) => {
