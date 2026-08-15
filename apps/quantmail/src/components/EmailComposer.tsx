@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { toastSlideUpVariants } from '../lib/motion-variants';
+import { useRouter } from 'next/navigation';
 import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomplete';
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
+import { showToast } from './InboxToast';
+import { Quanty, type QuantyExpression } from './Quanty';
 import type { EmailAddress, EmailPriority } from '../types';
 
 export interface ComposerMessageData {
@@ -37,6 +38,7 @@ export interface EmailComposerProps {
 type AITone = 'professional' | 'friendly' | 'concise' | 'expand';
 type LiveMessage = { kind: 'status' | 'error'; text: string } | null;
 type LocalAttachment = { id: string; name: string; size: number; type: string };
+type WriterMessage = { id: string; role: 'user' | 'assistant'; content: string };
 
 const AI_TONES: Array<{
   key: AITone;
@@ -56,6 +58,14 @@ const SCHEDULE_OPTIONS = [
   { label: 'Tomorrow afternoon, 2:00 PM', hours: 0, preset: 'tomorrow_2pm' },
   { label: 'Monday morning, 9:00 AM', hours: 0, preset: 'monday_9am' },
 ] as const;
+
+// Gmail-style undo send (msg#30 P07): the composer closes INSTANTLY on Send,
+// an “Undo” toast appears, and the message actually leaves after this delay.
+// The timer lives at module scope so it survives the composer unmounting.
+const UNDO_SEND_DELAY_MS = 5_200;
+const UNDO_DRAFT_KEY = 'qm-undo-draft';
+const UNDO_RESTORE_KEY = 'qm-undo-restore';
+let pendingSendTimer: number | null = null;
 
 function getScheduledDate(option: (typeof SCHEDULE_OPTIONS)[number]): Date {
   const now = new Date();
@@ -103,6 +113,34 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+/** Ask Quanty (Worker AI backend) to write or rework the email body. */
+async function askQuantyWriter(
+  history: WriterMessage[],
+  subject: string,
+  body: string,
+): Promise<string> {
+  const response = await fetch('/api/ai/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      messages: history.slice(-8).map(({ role, content }) => ({ role, content })),
+      context: {
+        app: 'QuantMail',
+        route: '/compose',
+        view: 'Compose — Quanty email writer. Write the email the user asks for and reply with ONLY the email body text (no preamble, no quotes). If key details are missing, ask ONE short clarifying question and offer 2-3 quick options the user can pick from, or they can write their own.',
+        subject: subject || undefined,
+        screenText: body.trim() ? `Current draft:\n${body.slice(0, 2000)}` : undefined,
+      },
+    }),
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | { success?: boolean; data?: { message?: string }; error?: { message?: string } }
+    | null;
+  if (response.ok && payload?.success && payload.data?.message) return payload.data.message;
+  throw new Error(payload?.error?.message ?? `Quanty could not answer (${response.status}). Retry in a moment.`);
+}
+
 export function EmailComposer({
   initialTo,
   initialSubject,
@@ -115,6 +153,7 @@ export function EmailComposer({
   onToggleMinimize,
 }: EmailComposerProps): React.ReactElement {
   const fieldId = useId();
+  const router = useRouter();
   const [to, setTo] = useState(initialTo?.map((address) => address.email).join(', ') ?? '');
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
@@ -123,7 +162,6 @@ export function EmailComposer({
   const [priority, setPriority] = useState<EmailPriority>('normal');
   const [showCcBcc, setShowCcBcc] = useState(false);
   const [showScheduleMenu, setShowScheduleMenu] = useState(false);
-  const [showAssistantTools, setShowAssistantTools] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -139,10 +177,13 @@ export function EmailComposer({
     { email: 'kundan@quantmail.in', name: 'Kundan', frequency: 8 },
     { email: 'support@quantrinity.in', name: 'Support', frequency: 5 },
   ]);
-  const [undoSendState, setUndoSendState] = useState<{
-    countdown: number;
-    payload: ComposerMessageData;
-  } | null>(null);
+  // Quanty writer chat (msg#30 P08) — replaces the old “Writing assistant”.
+  const [quantyOpen, setQuantyOpen] = useState(false);
+  const [writerMessages, setWriterMessages] = useState<WriterMessage[]>([]);
+  const [writerInput, setWriterInput] = useState('');
+  const [writerSending, setWriterSending] = useState(false);
+  const [writerError, setWriterError] = useState<string | null>(null);
+  const writerThreadRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scheduleButtonRef = useRef<HTMLButtonElement>(null);
   const scheduleMenuRef = useRef<HTMLDivElement>(null);
@@ -156,6 +197,36 @@ export function EmailComposer({
     : lastDraftSavedAt
       ? `Saved at ${lastDraftSavedAt}`
       : 'Not saved yet';
+
+  // Undo-restore (msg#30 P07): if the user pressed Undo, reopen their message
+  // exactly as it was.
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(UNDO_RESTORE_KEY) !== '1') return;
+      const raw = window.localStorage.getItem(UNDO_DRAFT_KEY);
+      window.localStorage.removeItem(UNDO_RESTORE_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as ComposerMessageData;
+      setTo(draft.to.map((a) => a.email).join(', '));
+      setCc(draft.cc.map((a) => a.email).join(', '));
+      setBcc(draft.bcc.map((a) => a.email).join(', '));
+      if (draft.cc.length > 0 || draft.bcc.length > 0) setShowCcBcc(true);
+      setSubject(draft.subject);
+      setBody(draft.bodyText);
+      setPriority(draft.priority);
+      setLiveMessage({ kind: 'status', text: 'Send undone — keep editing your message.' });
+      window.localStorage.removeItem(UNDO_DRAFT_KEY);
+    } catch {
+      /* restore is best-effort */
+    }
+  }, []);
+
+  useEffect(() => {
+    writerThreadRef.current?.scrollTo({
+      top: writerThreadRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
+  }, [writerMessages, writerSending]);
 
   useEffect(() => {
     if (!showScheduleMenu) return;
@@ -215,49 +286,59 @@ export function EmailComposer({
     return true;
   }, [subject, to]);
 
-  const completeSend = useCallback(
-    async (payload: ComposerMessageData) => {
-      setIsSending(true);
-      setLiveMessage({ kind: 'status', text: 'Sending message…' });
-      try {
-        await onSend(payload);
-        setLiveMessage({ kind: 'status', text: 'Message sent.' });
-      } catch (error) {
-        setLiveMessage({ kind: 'error', text: errorMessage(error, 'Message could not be sent.') });
-      } finally {
-        setIsSending(false);
-      }
-    },
-    [onSend],
-  );
-
+  /**
+   * Gmail-style send (msg#30 P07): the composer closes immediately, a toast
+   * with “Undo” appears, and the message actually goes out after ~5s unless
+   * the user taps Undo — in which case the compose screen reopens with the
+   * full draft so they can rewrite it.
+   */
   const handleSend = useCallback(() => {
     if (!validateRequired()) return;
     setShowScheduleMenu(false);
-    setUndoSendState({ countdown: 5, payload: buildMessage() });
-    setLiveMessage({ kind: 'status', text: 'Message will send in 5 seconds.' });
-  }, [buildMessage, validateRequired]);
+    const payload = buildMessage();
 
-  useEffect(() => {
-    if (!undoSendState) return;
-    if (undoSendState.countdown <= 0) {
-      const payload = undoSendState.payload;
-      setUndoSendState(null);
-      void completeSend(payload);
-      return;
+    try {
+      window.localStorage.setItem(UNDO_DRAFT_KEY, JSON.stringify(payload));
+      window.localStorage.removeItem(UNDO_RESTORE_KEY);
+    } catch {
+      /* storage unavailable — undo will simply not restore */
     }
-    const timer = window.setTimeout(() => {
-      setUndoSendState((current) =>
-        current ? { ...current, countdown: current.countdown - 1 } : null,
-      );
-    }, 1000);
-    return () => window.clearTimeout(timer);
-  }, [completeSend, undoSendState]);
 
-  const handleUndoSend = useCallback(() => {
-    setUndoSendState(null);
-    setLiveMessage({ kind: 'status', text: 'Send canceled. Your message is still open.' });
-  }, []);
+    if (pendingSendTimer !== null) window.clearTimeout(pendingSendTimer);
+    pendingSendTimer = window.setTimeout(() => {
+      pendingSendTimer = null;
+      void onSend(payload)
+        .then(() => {
+          try {
+            window.localStorage.removeItem(UNDO_DRAFT_KEY);
+          } catch {
+            /* ignore */
+          }
+        })
+        .catch(() => {
+          showToast({ text: 'Message could not be sent. It is kept in your draft.', type: 'error' });
+        });
+    }, UNDO_SEND_DELAY_MS);
+
+    showToast({
+      text: 'Message sent',
+      type: 'success',
+      undoAction: () => {
+        if (pendingSendTimer !== null) {
+          window.clearTimeout(pendingSendTimer);
+          pendingSendTimer = null;
+        }
+        try {
+          window.localStorage.setItem(UNDO_RESTORE_KEY, '1');
+        } catch {
+          /* ignore */
+        }
+        router.push('/compose');
+      },
+    });
+
+    onDiscard();
+  }, [buildMessage, onDiscard, onSend, router, validateRequired]);
 
   const handleScheduleSend = useCallback(
     async (option: (typeof SCHEDULE_OPTIONS)[number]) => {
@@ -309,7 +390,7 @@ export function EmailComposer({
       const toneConfig = AI_TONES.find((item) => item.key === tone);
       if (!toneConfig) return;
       setAiLoading(true);
-      setLiveMessage({ kind: 'status', text: `${toneConfig.label} AI assist is working…` });
+      setLiveMessage({ kind: 'status', text: `${toneConfig.label} rewrite is working…` });
       try {
         const result = await onAIAssist(toneConfig.action, body);
         setBody(result);
@@ -322,6 +403,30 @@ export function EmailComposer({
     },
     [body, onAIAssist],
   );
+
+  const sendToWriter = useCallback(async () => {
+    const text = writerInput.trim();
+    if (!text || writerSending) return;
+    setWriterError(null);
+    const next: WriterMessage[] = [
+      ...writerMessages,
+      { id: crypto.randomUUID(), role: 'user', content: text },
+    ];
+    setWriterMessages(next);
+    setWriterInput('');
+    setWriterSending(true);
+    try {
+      const reply = await askQuantyWriter(next, subject, body);
+      setWriterMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: 'assistant', content: reply },
+      ]);
+    } catch (error) {
+      setWriterError(errorMessage(error, 'Quanty could not answer. Retry in a moment.'));
+    } finally {
+      setWriterSending(false);
+    }
+  }, [writerInput, writerSending, writerMessages, subject, body]);
 
   const reportFiles = useCallback((files: File[]) => {
     if (files.length === 0) return;
@@ -340,6 +445,8 @@ export function EmailComposer({
     });
   }, []);
 
+  // Shortcuts still WORK (Ctrl/Cmd+Enter to send, Ctrl/Cmd+S to save) — the
+  // visible hints moved to Settings → Keyboard shortcuts (msg#30 P09).
   const handleKeyboardShortcut = useCallback(
     (event: React.KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey)) return;
@@ -383,6 +490,16 @@ export function EmailComposer({
   const bodyId = `${fieldId}-body`;
   const priorityId = `${fieldId}-priority`;
   const fileId = `${fieldId}-files`;
+
+  const writerExpression: QuantyExpression = writerSending
+    ? 'thinking'
+    : writerError
+      ? 'sad'
+      : writerMessages.some((m) => m.role === 'assistant')
+        ? 'happy'
+        : quantyOpen
+          ? 'wink'
+          : 'idle';
 
   return (
     <main className="email-composer" onKeyDown={handleKeyboardShortcut}>
@@ -470,8 +587,8 @@ export function EmailComposer({
             </span>
           </div>
           <p className="mt-2 text-[11px] leading-5 text-[var(--quant-muted-foreground)]">
-            Send stays primary. Schedule saves a draft only, and local file selection stays on this
-            device until upload is connected.
+            Send goes out instantly with a short Undo window. Schedule saves a draft only, and local
+            file selection stays on this device until upload is connected.
           </p>
         </section>
 
@@ -557,57 +674,95 @@ export function EmailComposer({
           )}
         </div>
 
-        <section className="composer-ai" aria-labelledby={`${fieldId}-ai-title`}>
-          <div className="composer-ai-copy">
-            <span className="composer-ai-mark" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="m12 3 1.4 4.6L18 9l-4.6 1.4L12 15l-1.4-4.6L6 9l4.6-1.4L12 3Zm6 11 .8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8L18 14Z" />
-              </svg>
-            </span>
-            <div>
-              <h2 id={`${fieldId}-ai-title`}>Writing assistant</h2>
-              <p>Optional rewrite tools. Review every change before sending.</p>
-            </div>
-          </div>
-          <div className="composer-ai-actions" aria-label="AI writing actions">
-            <button
-              type="button"
-              className="ai-action"
-              onClick={() => setShowAssistantTools((visible) => !visible)}
-              disabled={busy}
-              aria-expanded={showAssistantTools}
-              aria-controls={`${fieldId}-assistant-tools`}
-            >
-              {showAssistantTools ? 'Hide tools' : 'Show tools'}
-            </button>
-          </div>
-        </section>
-
-        {showAssistantTools && (
-          <section
-            id={`${fieldId}-assistant-tools`}
-            className="mx-5 mt-[-0.1rem] mb-4 rounded-[0.95rem] border border-[rgba(255,153,51,0.14)] bg-[rgba(255,153,51,0.04)] px-4 py-3"
-            aria-label="Expanded writing assistant tools"
+        {/* Quanty writer (msg#30 P08) — the robot sits centre-stage; click him
+            to chat. “Write a follow-up to the invoice mail” → he drafts it and
+            one tap drops it into the message. Worker AI answers in the back. */}
+        <section className="composer-quanty" aria-label="Quanty — ask him to write this mail">
+          <button
+            type="button"
+            className="composer-quanty-face"
+            onClick={() => setQuantyOpen((open) => !open)}
+            aria-expanded={quantyOpen}
+            title={quantyOpen ? 'Close Quanty' : 'Ask Quanty to write this mail'}
           >
-            <div className="flex flex-wrap gap-2" aria-label="AI writing actions">
-              {AI_TONES.map((tone) => (
-                <button
-                  key={tone.key}
-                  type="button"
-                  className="ai-action"
-                  onClick={() => void handleAITone(tone.key)}
-                  disabled={aiLoading || busy}
-                >
-                  {aiLoading ? 'Working…' : tone.label}
+            <Quanty expression={writerExpression} size={64} bob title="Quanty" />
+            <span className="composer-quanty-hint">
+              {quantyOpen ? 'Close Quanty' : 'Tell Quanty what to write'}
+            </span>
+          </button>
+
+          {quantyOpen && (
+            <div className="composer-quanty-chat">
+              <div className="composer-quanty-thread" ref={writerThreadRef} aria-live="polite">
+                {writerMessages.length === 0 && !writerSending && (
+                  <p className="composer-quanty-empty">
+                    Say something like “write a polite follow-up about the pending invoice, 3
+                    lines” — Quanty drafts it, you apply it with one tap. He will ask a quick
+                    question if he needs details.
+                  </p>
+                )}
+                {writerMessages.map((message) => (
+                  <div key={message.id} className={`composer-quanty-msg is-${message.role}`}>
+                    {message.role === 'assistant' && <span className="msg-author">Quanty</span>}
+                    <p>{message.content}</p>
+                    {message.role === 'assistant' && (
+                      <button
+                        type="button"
+                        className="composer-quanty-apply"
+                        onClick={() => {
+                          setBody(message.content);
+                          setLiveMessage({ kind: 'status', text: 'Quanty’s draft applied to the message.' });
+                        }}
+                      >
+                        Use in message
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {writerSending && (
+                  <div className="composer-quanty-msg is-assistant is-typing">
+                    <Quanty expression="thinking" size={20} /> Writing…
+                  </div>
+                )}
+                {writerError && (
+                  <div className="composer-quanty-msg is-error" role="alert">
+                    {writerError}
+                  </div>
+                )}
+              </div>
+              <div className="composer-quanty-tones" aria-label="Quick rewrites of the current message">
+                {AI_TONES.map((tone) => (
+                  <button
+                    key={tone.key}
+                    type="button"
+                    onClick={() => void handleAITone(tone.key)}
+                    disabled={aiLoading || busy}
+                  >
+                    {aiLoading ? 'Working…' : tone.label}
+                  </button>
+                ))}
+              </div>
+              <form
+                className="composer-quanty-input"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void sendToWriter();
+                }}
+              >
+                <input
+                  type="text"
+                  value={writerInput}
+                  onChange={(event) => setWriterInput(event.target.value)}
+                  placeholder="Tell Quanty what this mail should say…"
+                  aria-label="Tell Quanty what this mail should say"
+                />
+                <button type="submit" disabled={writerSending || writerInput.trim().length === 0}>
+                  Send
                 </button>
-              ))}
+              </form>
             </div>
-            <p className="mt-3 text-[11px] leading-5 text-[var(--quant-muted-foreground)]">
-              AI uses the current message body only and never sends on its own. Keep the original
-              meaning, then review the rewrite before delivery.
-            </p>
-          </section>
-        )}
+          )}
+        </section>
 
         <div
           className={`composer-writing-area ${isDragOver ? 'is-dragging' : ''}`}
@@ -728,12 +883,9 @@ export function EmailComposer({
               type="button"
               className="btn btn-primary"
               onClick={handleSend}
-              disabled={busy || Boolean(undoSendState)}
+              disabled={busy}
             >
-              {isSending ? 'Sending…' : undoSendState ? 'Pending…' : 'Send'}
-              <span className="shortcut" aria-hidden="true">
-                Ctrl/Cmd + Enter
-              </span>
+              {isSending ? 'Sending…' : 'Send'}
             </button>
             <div className="schedule-control">
               <button
@@ -744,7 +896,7 @@ export function EmailComposer({
                 aria-controls={`${fieldId}-schedule-menu`}
                 aria-expanded={showScheduleMenu}
                 onClick={() => setShowScheduleMenu((visible) => !visible)}
-                disabled={busy || Boolean(undoSendState)}
+                disabled={busy}
               >
                 Schedule draft
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -784,9 +936,6 @@ export function EmailComposer({
               disabled={busy}
             >
               {isSaving ? 'Saving…' : 'Save draft'}
-              <span className="shortcut" aria-hidden="true">
-                Ctrl/Cmd + S
-              </span>
             </button>
             <button type="button" className="btn btn-quiet discard-action" onClick={onDiscard}>
               Discard
@@ -803,28 +952,6 @@ export function EmailComposer({
           if (template.body) setBody(template.body);
         }}
       />
-
-      <AnimatePresence>
-        {undoSendState && (
-          <motion.div
-            variants={toastSlideUpVariants}
-            initial="hidden"
-            animate="visible"
-            exit="exit"
-            className="undo-send-toast"
-            role="status"
-            aria-live="assertive"
-          >
-            <span>Sending in {undoSendState.countdown}s</span>
-            <span className="undo-countdown" aria-hidden="true">
-              {undoSendState.countdown}
-            </span>
-            <button type="button" onClick={handleUndoSend}>
-              Undo send
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </main>
   );
 }
