@@ -1,14 +1,16 @@
 'use client';
 
 /**
- * Quanty — the QuantAI mascot.
+ * Quanty — the QuantAI mascot (v2 — realistic 2.5D).
  *
  * One face for every AI surface in the Quant ecosystem (QuantMail copilot,
  * CodeHub coding chat, QuantChat, future apps). Pure SVG + CSS — no runtime
  * dependencies, no hooks, safe to render anywhere at any size.
  *
- * Look: cream helmet shell, dark navy face screen, glowing cyan LED eyes
- * (dot-matrix), teal top button, ear pods with glowing cyan stripes.
+ * v2 realism: layered shell shading (radial core + bottom-right ambient
+ * occlusion), helmet specular gloss, glass sheen + rim light on the screen,
+ * metallic ear pods, teal button with highlight, and a grounded contact
+ * shadow that "breathes" in sync with the float animation.
  *
  * Expressions: idle (blinks), happy, wink, thinking (eyes scan), sad,
  * cry (animated tears), shock, angry.
@@ -28,7 +30,7 @@ export interface QuantyProps {
   expression?: QuantyExpression;
   /** Rendered width in px — height scales automatically. */
   size?: number;
-  /** Gentle floating animation. */
+  /** Gentle floating animation (with breathing ground shadow). */
   bob?: boolean;
   className?: string;
   title?: string;
@@ -130,31 +132,53 @@ export function Quanty({
         .qty-tears { transform-origin: 130px 132px; animation: qty-tears 1.5s ease-in infinite; }
         .qty-pop { transform-origin: 130px 120px; animation: qty-pop 1.6s ease-in-out infinite; }
         .qty-earglow { animation: qty-earglow 2.8s ease-in-out infinite; }
+        .qty-shadow { transform-origin: 130px 212px; }
+        .qty-shadow-pulse { animation: qty-shadow-pulse 4.2s ease-in-out infinite; }
+        .qty-sheen { animation: qty-sheen 5.6s ease-in-out infinite; }
         @keyframes qty-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
         @keyframes qty-blink { 0%, 91%, 100% { transform: scaleY(1); } 94% { transform: scaleY(0.06); } 97% { transform: scaleY(1); } }
         @keyframes qty-look { 0%, 100% { transform: translateX(-7px); } 50% { transform: translateX(7px); } }
         @keyframes qty-tears { 0% { transform: scaleY(0.15); opacity: 0; } 25% { opacity: 1; } 85% { transform: scaleY(1); opacity: 0.9; } 100% { transform: scaleY(1.05); opacity: 0; } }
         @keyframes qty-pop { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
         @keyframes qty-earglow { 0%, 100% { opacity: 0.95; } 50% { opacity: 0.55; } }
+        @keyframes qty-shadow-pulse { 0%, 100% { transform: scaleX(1); opacity: 0.6; } 50% { transform: scaleX(0.85); opacity: 0.35; } }
+        @keyframes qty-sheen { 0%, 100% { opacity: 0.10; } 50% { opacity: 0.17; } }
         @media (prefers-reduced-motion: reduce) {
           .qty-root, .qty-root * { animation: none !important; }
         }
       `}</style>
       <defs>
-        <linearGradient id="qtyShell" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#fdfaf3" />
-          <stop offset="0.6" stopColor="#efe9db" />
-          <stop offset="1" stopColor="#d8d0be" />
+        <radialGradient id="qtyShell" cx="0.34" cy="0.24" r="1.15">
+          <stop offset="0" stopColor="#fffef9" />
+          <stop offset="0.4" stopColor="#f6f0e2" />
+          <stop offset="0.75" stopColor="#e2d9c4" />
+          <stop offset="1" stopColor="#c9bda1" />
+        </radialGradient>
+        <linearGradient id="qtyGloss" x1="0" y1="0" x2="0.35" y2="1">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.95" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
         </linearGradient>
-        <radialGradient id="qtyScreen" cx="0.38" cy="0.3" r="1">
-          <stop offset="0" stopColor="#2b3560" />
-          <stop offset="0.55" stopColor="#141a38" />
-          <stop offset="1" stopColor="#0a0d22" />
+        <radialGradient id="qtyScreen" cx="0.36" cy="0.28" r="1.05">
+          <stop offset="0" stopColor="#33406f" />
+          <stop offset="0.5" stopColor="#161d3f" />
+          <stop offset="0.85" stopColor="#0a0e26" />
+          <stop offset="1" stopColor="#070a1c" />
         </radialGradient>
         <linearGradient id="qtyTeal" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#3fd9c6" />
-          <stop offset="1" stopColor="#1fa396" />
+          <stop offset="0" stopColor="#4fe3d0" />
+          <stop offset="0.55" stopColor="#2cc4b2" />
+          <stop offset="1" stopColor="#178f84" />
         </linearGradient>
+        <linearGradient id="qtyPod" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#2a3040" />
+          <stop offset="0.5" stopColor="#171b28" />
+          <stop offset="1" stopColor="#0d101b" />
+        </linearGradient>
+        <radialGradient id="qtyShadowG" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="#000000" stopOpacity="0.38" />
+          <stop offset="0.7" stopColor="#000000" stopOpacity="0.16" />
+          <stop offset="1" stopColor="#000000" stopOpacity="0" />
+        </radialGradient>
         <pattern id="qtyLed" width="6" height="6" patternUnits="userSpaceOnUse">
           <rect width="6" height="6" fill="#31cfe8" />
           <circle cx="3" cy="3" r="2.1" fill="#5fe8ff" />
@@ -168,20 +192,50 @@ export function Quanty({
         </filter>
       </defs>
 
+      {/* Grounded contact shadow — breathes while Quanty floats */}
+      <ellipse
+        cx="130"
+        cy="212"
+        rx="64"
+        ry="7"
+        fill="url(#qtyShadowG)"
+        className={bob ? 'qty-shadow qty-shadow-pulse' : 'qty-shadow'}
+      />
+
+      {/* Ear pods — brushed metal with glowing stripe */}
       <g>
-        <rect x="2" y="86" width="30" height="60" rx="14" fill="#171a23" />
+        <rect x="2" y="86" width="30" height="60" rx="14" fill="url(#qtyPod)" />
+        <rect x="2" y="86" width="30" height="60" rx="14" fill="none" stroke="#000000" strokeOpacity="0.35" strokeWidth="1" />
+        <rect x="6" y="90" width="10" height="14" rx="5" fill="#ffffff" opacity="0.08" />
         <rect x="13" y="93" width="7" height="46" rx="3.5" fill="#2fe1e9" className="qty-earglow" filter={GLOW} />
       </g>
       <g>
-        <rect x="228" y="86" width="30" height="60" rx="14" fill="#171a23" />
+        <rect x="228" y="86" width="30" height="60" rx="14" fill="url(#qtyPod)" />
+        <rect x="228" y="86" width="30" height="60" rx="14" fill="none" stroke="#000000" strokeOpacity="0.35" strokeWidth="1" />
+        <rect x="232" y="90" width="10" height="14" rx="5" fill="#ffffff" opacity="0.08" />
         <rect x="240" y="93" width="7" height="46" rx="3.5" fill="#2fe1e9" className="qty-earglow" filter={GLOW} />
       </g>
 
-      <ellipse cx="130" cy="114" rx="96" ry="89" fill="url(#qtyShell)" />
-      <ellipse cx="130" cy="114" rx="96" ry="89" fill="none" stroke="#c9c0ac" strokeWidth="2" opacity="0.7" />
-      <rect x="117" y="12" width="26" height="15" rx="7.5" fill="url(#qtyTeal)" />
+      {/* Helmet shell — ambient-occlusion base + lit shell offset up-left */}
+      <ellipse cx="130" cy="114" rx="96" ry="89" fill="#bfb296" />
+      <ellipse cx="127" cy="110" rx="94" ry="87" fill="url(#qtyShell)" />
+      <ellipse cx="130" cy="114" rx="96" ry="89" fill="none" stroke="#b3a687" strokeWidth="1.6" opacity="0.8" />
+      {/* Left rim light */}
+      <path d="M46 74 Q38 108 48 142" stroke="#ffffff" strokeWidth="3" opacity="0.35" fill="none" strokeLinecap="round" />
+      {/* Specular gloss sweep across the helmet top */}
+      <path d="M58 62 Q112 20 188 46 Q150 30 104 38 Q72 48 58 62 Z" fill="url(#qtyGloss)" opacity="0.55" />
+
+      {/* Top button with highlight */}
+      <rect x="117" y="11" width="26" height="16" rx="8" fill="url(#qtyTeal)" />
+      <rect x="117" y="11" width="26" height="16" rx="8" fill="none" stroke="#0c6b61" strokeOpacity="0.5" strokeWidth="1" />
+      <ellipse cx="126" cy="15.5" rx="6" ry="2.6" fill="#ffffff" opacity="0.5" />
+
+      {/* Face screen — deep glass with rim light + sheen */}
       <ellipse cx="130" cy="120" rx="75" ry="69" fill="url(#qtyScreen)" stroke="#080b1a" strokeWidth="5" />
-      <path d="M70 84 Q104 52 176 62 Q136 48 98 58 Q76 68 70 84 Z" fill="#ffffff" opacity="0.07" />
+      <ellipse cx="130" cy="120" rx="71" ry="65" fill="none" stroke="#4a5b9e" strokeWidth="1.4" opacity="0.4" />
+      <ellipse cx="102" cy="83" rx="44" ry="19" fill="#ffffff" className="qty-sheen" opacity="0.10" transform="rotate(-16 102 83)" />
+      <circle cx="84" cy="75" r="6.5" fill="#ffffff" opacity="0.18" />
+      <path d="M76 172 Q130 190 184 172" stroke="#31cfe8" strokeWidth="8" strokeLinecap="round" opacity="0.07" fill="none" />
 
       <Eyes expression={expression} />
     </svg>
