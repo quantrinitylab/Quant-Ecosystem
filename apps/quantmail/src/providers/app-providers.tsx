@@ -10,15 +10,58 @@ import { useAuth } from './auth-provider';
 const PUBLIC_AUTH_PATHS = ['/login', '/register', '/forgot-password'];
 
 /**
- * The ONE compose entry point for the whole app: a floating + button pinned
- * bottom-right (where the old Ask QuantAI pill used to sit). The QuantAI
- * trigger now lives in the inbox top bar next to search.
+ * Contextual floating action button (bottom-right).
+ * - Mail surfaces (inbox, folders, threads, search, labels) → compose a mail
+ * - Calendar → add an event (opens the calendar's New event modal)
+ * - Everywhere else (CodeHub, Drive, Repos, Pipelines, Settings…) → hidden,
+ *   so the + never leaks into non-mail contexts.
  */
-function ComposeFab() {
+const MAIL_FAB_ROUTES = [
+  '/',
+  '/starred',
+  '/snoozed',
+  '/sent',
+  '/drafts',
+  '/archive',
+  '/spam',
+  '/trash',
+  '/thread',
+  '/labels',
+  '/search',
+];
+
+function ContextFab() {
   const router = useRouter();
   const pathname = usePathname() ?? '';
-  // Hide on the composer itself — no point stacking compose on compose.
+  // No FAB on the composer itself — no point stacking compose on compose.
   if (pathname.startsWith('/compose')) return null;
+
+  const isCalendar = pathname === '/calendar' || pathname.startsWith('/calendar/');
+  const isMailSurface =
+    pathname === '/' ||
+    MAIL_FAB_ROUTES.some(
+      (route) => route !== '/' && (pathname === route || pathname.startsWith(`${route}/`)),
+    );
+
+  if (isCalendar) {
+    return (
+      <button
+        type="button"
+        className="quant-compose-fab quant-fab-calendar"
+        onClick={() => window.dispatchEvent(new CustomEvent('quant:calendar:create'))}
+        aria-label="Add calendar event"
+        title="New event"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <rect x="3" y="4.5" width="18" height="16" rx="2.5" />
+          <path d="M16 3v4M8 3v4M3 9.5h18M12 12.5v5M9.5 15h5" />
+        </svg>
+      </button>
+    );
+  }
+
+  if (!isMailSurface) return null;
+
   return (
     <button
       type="button"
@@ -170,7 +213,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
               placeholder="Search commands, views, and workflows…"
             />
             <MailCopilot />
-            <ComposeFab />
+            <ContextFab />
           </>
         ) : null}
       </QuantSidekickProvider>
