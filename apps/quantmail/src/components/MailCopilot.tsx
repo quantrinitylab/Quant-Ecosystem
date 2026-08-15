@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuantSidekick } from '@quant/shared-ui';
 import { quantAiBrandLockup } from '../brand/identity';
-import { QuantrinityMark } from './QuantrinityMark';
+import { Quanty, type QuantyExpression } from './Quanty';
 
 const STATUS_COPY = {
   idle: 'Ready',
@@ -316,6 +316,15 @@ export function MailCopilot() {
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
 
+  const quantyExpression: QuantyExpression =
+    isSending || status === 'thinking' || status === 'acting'
+      ? 'thinking'
+      : error || serviceHealth === 'offline'
+        ? 'sad'
+        : lastAssistant
+          ? 'happy'
+          : 'idle';
+
   return (
     <aside
       className={`mail-copilot is-${status}`}
@@ -326,7 +335,7 @@ export function MailCopilot() {
         <section className="mail-copilot-panel" role="dialog" aria-label="Ask QuantAI">
           <header>
             <div className="mail-copilot-lockup">
-              <QuantrinityMark compact label={quantAiBrandLockup.accessibleName} />
+              <Quanty expression={quantyExpression} size={46} bob title={quantAiBrandLockup.accessibleName} />
               <div>
                 <strong>{quantAiBrandLockup.productName}</strong>
                 <span>
@@ -369,6 +378,9 @@ export function MailCopilot() {
           <div className="mail-copilot-thread" ref={scrollRef} aria-live="polite">
             {messages.length === 0 ? (
               <div className="mail-copilot-body">
+                <div style={{ display: 'flex', justifyContent: 'center', margin: '.4rem 0 .9rem' }}>
+                  <Quanty expression={quantyExpression} size={104} bob />
+                </div>
                 <p className="mail-copilot-eyebrow">Signal copilot</p>
                 <h2>Ask about anything on this screen.</h2>
                 <p className="mail-copilot-description">
@@ -388,7 +400,12 @@ export function MailCopilot() {
             )}
 
             {isSending && (
-              <div className="mail-copilot-typing" aria-label="QuantAI is thinking">
+              <div
+                className="mail-copilot-typing"
+                aria-label="QuantAI is thinking"
+                style={{ display: 'flex', alignItems: 'center', gap: '.45rem' }}
+              >
+                <Quanty expression="thinking" size={28} />
                 {attempt > 1 ? `Retrying… (attempt ${attempt} of ${MAX_ATTEMPTS})` : 'Thinking…'}
               </div>
             )}
@@ -480,7 +497,7 @@ export function MailCopilot() {
         aria-label={isOpen ? 'Close QuantAI mail copilot' : 'Open QuantAI mail copilot'}
         aria-expanded={isOpen}
       >
-        <QuantrinityMark compact label={quantAiBrandLockup.productName} />
+        <Quanty expression={quantyExpression} size={40} title={quantAiBrandLockup.productName} />
         <span>
           <strong>Ask {quantAiBrandLockup.productName}</strong>
           <small>{liveStatus}</small>
