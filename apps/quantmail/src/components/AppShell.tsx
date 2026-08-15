@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { PageTransition } from '@quant/shared-ui';
 import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
 
@@ -20,6 +21,109 @@ const focusableSelector =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const PIN_STORAGE_KEY = 'quant.shell.sidebarPinned';
+
+/* Mobile bottom navigation — Outlook/Instagram-style icon bar (user decision,
+   msg#30 P15). Mobile keeps thumb-reach tabs; desktop keeps the sidebar. */
+const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNode }> = [
+  {
+    id: 'mail',
+    label: 'Mail',
+    path: '/',
+    icon: (
+      <>
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m3 7 9 6 9-6" />
+      </>
+    ),
+  },
+  {
+    id: 'calendar',
+    label: 'Calendar',
+    path: '/calendar',
+    icon: (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M8 3v4M16 3v4M3 10h18" />
+      </>
+    ),
+  },
+  {
+    id: 'drive',
+    label: 'Drive',
+    path: '/drive',
+    icon: (
+      <>
+        <path d="M3 7h7l2 2h9v10H3z" />
+        <path d="M3 7v12" />
+      </>
+    ),
+  },
+  {
+    id: 'contacts',
+    label: 'People',
+    path: '/contacts',
+    icon: (
+      <>
+        <circle cx="9" cy="8" r="3" />
+        <path d="M3 20c0-4 2-6 6-6s6 2 6 6M16 7a3 3 0 0 1 0 6M17 14c2.7.4 4 2.4 4 5" />
+      </>
+    ),
+  },
+  {
+    id: 'codehub',
+    label: 'CodeHub',
+    path: '/codehub',
+    icon: <path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14" />,
+  },
+];
+
+const MAIL_PREFIXES = [
+  '/thread', '/sent', '/drafts', '/archive', '/spam', '/trash',
+  '/snoozed', '/starred', '/search', '/labels', '/compose',
+];
+
+function MobileBottomNav() {
+  const router = useRouter();
+  const pathname = usePathname() ?? '/';
+
+  const isActive = (item: (typeof BOTTOM_NAV)[number]) => {
+    if (item.path === '/') {
+      return pathname === '/' || MAIL_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+    }
+    return pathname.startsWith(item.path);
+  };
+
+  return (
+    <nav className="quant-bottom-nav lg:hidden" aria-label="Primary">
+      {BOTTOM_NAV.map((item) => {
+        const active = isActive(item);
+        return (
+          <button
+            key={item.id}
+            type="button"
+            className={`qbn-item ${active ? 'is-active' : ''}`}
+            aria-current={active ? 'page' : undefined}
+            aria-label={item.label}
+            onClick={() => router.push(item.path)}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              {item.icon}
+            </svg>
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
 
 export function AppShell({
   children,
@@ -227,7 +331,7 @@ export function AppShell({
               </svg>
             </button>
             {mobileTitle && (
-              <div className="min-w-0 flex-1 truncate font-semibold">{mobileTitle}</div>
+              <div className="min-w-0 flex-1 font-semibold">{mobileTitle}</div>
             )}
             {mobileActions && (
               <div className="ml-auto flex items-center gap-1">{mobileActions}</div>
@@ -243,6 +347,7 @@ export function AppShell({
         <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {animated ? <PageTransition>{children}</PageTransition> : children}
         </main>
+        {sidebar && <MobileBottomNav />}
       </div>
     </section>
   );
