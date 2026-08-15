@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { Quanty } from './Quanty';
 
 interface ChatMessage {
   id: string;
@@ -53,7 +54,7 @@ export function AICodingChat({
     {
       id: 'welcome',
       role: 'system',
-      content: 'I\'m your AI coding assistant. Ask me anything about your code — I can explain, refactor, write tests, fix bugs, or generate new code.',
+      content: 'I\'m Quanty — your AI coding assistant. Ask me anything about your code — I can explain, refactor, write tests, fix bugs, or generate new code.',
       timestamp: new Date(),
     },
   ]);
@@ -152,7 +153,7 @@ export function AICodingChat({
     <div className="ai-coding-chat">
       <header className="ai-chat-header">
         <div className="ai-chat-title">
-          <span className="ai-chat-spark">✦</span>
+          <Quanty expression={isLoading ? 'thinking' : 'idle'} size={34} />
           <strong>QuantAI Code</strong>
         </div>
         <div className="ai-chat-context">
@@ -185,7 +186,7 @@ export function AICodingChat({
       <div className="ai-chat-messages">
         {messages.map((msg) => (
           <div key={msg.id} className={`ai-chat-msg ai-chat-msg--${msg.role}`}>
-            {msg.role === 'assistant' && <span className="ai-msg-avatar">✦</span>}
+            {msg.role === 'assistant' && <span className="ai-msg-avatar"><Quanty size={22} /></span>}
             {msg.role === 'user' && <span className="ai-msg-avatar">👤</span>}
             <div className="ai-msg-content">
               <p>{msg.content}</p>
@@ -211,7 +212,7 @@ export function AICodingChat({
         ))}
         {isLoading && (
           <div className="ai-chat-msg ai-chat-msg--assistant">
-            <span className="ai-msg-avatar">✦</span>
+            <span className="ai-msg-avatar"><Quanty size={22} expression="thinking" /></span>
             <div className="ai-msg-content">
               <div className="ai-typing">
                 <span /><span /><span />

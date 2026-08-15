@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useRef, useEffect } from 'react';
+import { Quanty } from './Quanty';
 
 export interface AIAssistantProps {
   isOpen: boolean;
@@ -33,7 +34,7 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
       id: '1',
       role: 'assistant',
       content:
-        'Hi! I am your AI assistant. I can help you compose emails, summarize threads, suggest replies, and answer questions about your inbox or code.',
+        'Hi! I am Quanty — your QuantAI assistant. I can help you compose emails, summarize threads, suggest replies, and answer questions about your inbox or code.',
       timestamp: new Date(),
     },
   ]);
@@ -171,8 +172,8 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
       {/* Header */}
       <div className="ai-header">
         <div className="ai-title">
-          <span className="ai-icon">AI</span>
-          <h3>AI Assistant</h3>
+          <Quanty expression={isProcessing ? 'thinking' : 'idle'} size={36} />
+          <h3>Quanty</h3>
         </div>
         <button className="btn-icon" onClick={onClose}>
           X
@@ -191,7 +192,9 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
       <div className="ai-messages">
         {messages.map((msg) => (
           <div key={msg.id} className={`ai-message ai-message-${msg.role}`}>
-            <div className="message-avatar">{msg.role === 'assistant' ? 'AI' : 'You'}</div>
+            <div className="message-avatar">
+              {msg.role === 'assistant' ? <Quanty size={26} /> : 'You'}
+            </div>
             <div className="message-content">
               <p style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</p>
               <span className="message-time">
@@ -202,7 +205,9 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
         ))}
         {isProcessing && (
           <div className="ai-message ai-message-assistant">
-            <div className="message-avatar">AI</div>
+            <div className="message-avatar">
+              <Quanty size={26} expression="thinking" />
+            </div>
             <div className="message-content typing">
               <span className="typing-dots">Thinking...</span>
             </div>
@@ -235,7 +240,7 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask me anything..."
+          placeholder="Ask Quanty anything..."
           rows={2}
           disabled={isProcessing}
         />
