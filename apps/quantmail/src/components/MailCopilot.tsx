@@ -67,7 +67,7 @@ function clamp(value: string, max: number): string {
   return clean.length > max ? `${clean.slice(0, max)}…` : clean;
 }
 
-/** Reads the current screen so QuantAI can answer about what the user sees. */
+/** Reads the current screen so Quanty can answer about what the user sees. */
 function readScreenContext(): ScreenContext {
   const context: ScreenContext = { app: 'QuantMail' };
   if (typeof window === 'undefined') return context;
@@ -136,7 +136,7 @@ async function requestChat(
         ok: false,
         error: {
           title: 'Session expired',
-          message: 'Sign in again to keep chatting with QuantAI.',
+          message: 'Sign in again to keep chatting with Quanty.',
           retryable: false,
         },
       };
@@ -146,7 +146,7 @@ async function requestChat(
       return {
         ok: false,
         error: {
-          title: 'QuantAI is still rolling out',
+          title: 'Quanty is still rolling out',
           message: 'The chat service is not reachable on this deployment yet. Try again shortly.',
           retryable: true,
         },
@@ -156,7 +156,7 @@ async function requestChat(
     return {
       ok: false,
       error: {
-        title: RETRYABLE_STATUS.has(response.status) ? 'QuantAI is busy' : 'QuantAI could not answer',
+        title: RETRYABLE_STATUS.has(response.status) ? 'Quanty is busy' : 'Quanty could not answer',
         message:
           payload?.error?.message ??
           `The assistant service responded with ${response.status}. Your message is kept — retry when ready.`,
@@ -170,7 +170,7 @@ async function requestChat(
       error: aborted
         ? {
             title: 'Took too long',
-            message: 'QuantAI did not respond in time. Retry and it will usually come back faster.',
+            message: 'Quanty did not respond in time. Retry and it will usually come back faster.',
             retryable: true,
           }
         : {
@@ -178,7 +178,7 @@ async function requestChat(
             message:
               typeof navigator !== 'undefined' && !navigator.onLine
                 ? 'Reconnect to the network and retry — your message is saved.'
-                : 'Could not reach QuantAI. Check your connection and retry.',
+                : 'Could not reach Quanty. Check your connection and retry.',
             retryable: true,
           },
     };
@@ -187,6 +187,14 @@ async function requestChat(
   }
 }
 
+/**
+ * Service health — IMPORTANT: chat runs on Cloudflare Worker AI via the
+ * backend /ai/chat route. Some deployments do not expose a dedicated
+ * /ai/chat/health endpoint; a 404/405 there means "no health route", NOT
+ * "assistant down". Only report offline for real network failures or
+ * 5xx from the health probe — the old behaviour showed a false “Offline”
+ * badge (and a sad robot) everywhere. (msg#30 P05)
+ */
 async function checkChatHealth(): Promise<ServiceHealth> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return 'offline';
   try {
@@ -194,7 +202,11 @@ async function checkChatHealth(): Promise<ServiceHealth> {
       credentials: 'include',
       cache: 'no-store',
     });
-    return response.ok ? 'ready' : 'offline';
+    if (response.ok) return 'ready';
+    if (response.status === 404 || response.status === 405 || response.status === 401) {
+      return 'ready';
+    }
+    return response.status >= 500 ? 'offline' : 'ready';
   } catch {
     return 'offline';
   }
@@ -233,7 +245,7 @@ export function MailCopilot() {
     setIsSending(true);
 
     let last: ChatError = {
-      title: 'QuantAI could not answer',
+      title: 'Quanty could not answer',
       message: 'Something went wrong. Retry when ready.',
       retryable: true,
     };
@@ -268,7 +280,6 @@ export function MailCopilot() {
     }
 
     setError(last);
-    setServiceHealth('offline');
     setIsSending(false);
     setAttempt(0);
     inputRef.current?.focus();
@@ -316,28 +327,33 @@ export function MailCopilot() {
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
 
+  /* Quanty reacts to what he is doing: thinking while working, happy after
+     answering, wink while listening, sad ONLY on real errors/offline — and he
+     keeps blinking in every state (idle blink is built into <Quanty/>). */
   const quantyExpression: QuantyExpression =
     isSending || status === 'thinking' || status === 'acting'
       ? 'thinking'
       : error || serviceHealth === 'offline'
         ? 'sad'
-        : lastAssistant
-          ? 'happy'
-          : 'idle';
+        : status === 'listening'
+          ? 'wink'
+          : lastAssistant
+            ? 'happy'
+            : 'idle';
 
   return (
     <aside
       className={`mail-copilot is-${status}`}
       data-state={status}
-      aria-label="QuantAI mail copilot"
+      aria-label="Quanty — QuantAI mail copilot"
     >
       {isOpen && (
-        <section className="mail-copilot-panel" role="dialog" aria-label="Ask QuantAI">
+        <section className="mail-copilot-panel" role="dialog" aria-label="Chat with Quanty">
           <header>
             <div className="mail-copilot-lockup">
-              <Quanty expression={quantyExpression} size={46} bob title={quantAiBrandLockup.accessibleName} />
+              <Quanty expression={quantyExpression} size={46} bob title="Quanty" />
               <div>
-                <strong>{quantAiBrandLockup.productName}</strong>
+                <strong>Quanty</strong>
                 <span>
                   <i /> {liveStatus}
                 </span>
@@ -345,7 +361,7 @@ export function MailCopilot() {
                   {serviceHealth === 'checking'
                     ? 'Checking service…'
                     : serviceHealth === 'ready'
-                      ? 'Online'
+                      ? 'Online · Worker AI'
                       : 'Offline — Retry available'}
                 </span>
               </div>
@@ -368,7 +384,7 @@ export function MailCopilot() {
                 type="button"
                 className="mail-copilot-close"
                 onClick={close}
-                aria-label="Close QuantAI"
+                aria-label="Close Quanty"
               >
                 ×
               </button>
@@ -384,7 +400,7 @@ export function MailCopilot() {
                 <p className="mail-copilot-eyebrow">Signal copilot</p>
                 <h2>Ask about anything on this screen.</h2>
                 <p className="mail-copilot-description">
-                  QuantAI reads the page you are on — the open thread, subject, sender and any text
+                  Quanty reads the page you are on — the open thread, subject, sender and any text
                   you have selected — then answers, drafts or triages from there.
                 </p>
               </div>
@@ -392,7 +408,7 @@ export function MailCopilot() {
               messages.map((message) => (
                 <div key={message.id} className={`mail-copilot-msg is-${message.role}`}>
                   {message.role === 'assistant' && (
-                    <span className="mail-copilot-msg-author">{quantAiBrandLockup.productName}</span>
+                    <span className="mail-copilot-msg-author">Quanty</span>
                   )}
                   <p>{message.content}</p>
                 </div>
@@ -402,7 +418,7 @@ export function MailCopilot() {
             {isSending && (
               <div
                 className="mail-copilot-typing"
-                aria-label="QuantAI is thinking"
+                aria-label="Quanty is thinking"
                 style={{ display: 'flex', alignItems: 'center', gap: '.45rem' }}
               >
                 <Quanty expression="thinking" size={28} />
@@ -436,7 +452,7 @@ export function MailCopilot() {
           </div>
 
           {(messages.length === 0 || lastAssistant) && (
-            <div className="mail-copilot-chips" aria-label="QuantAI suggestions">
+            <div className="mail-copilot-chips" aria-label="Quanty suggestions">
               {lastAssistant ? (
                 <button
                   type="button"
@@ -469,7 +485,7 @@ export function MailCopilot() {
               ref={inputRef}
               value={input}
               rows={2}
-              placeholder="Ask QuantAI about this screen…"
+              placeholder="Ask Quanty about this screen…"
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
@@ -485,7 +501,7 @@ export function MailCopilot() {
 
           <footer>
             <span>Screen-aware answers</span>
-            <span>Ctrl / Cmd + K opens all commands</span>
+            <span>Private to you</span>
           </footer>
         </section>
       )}
@@ -494,10 +510,10 @@ export function MailCopilot() {
         type="button"
         className="mail-copilot-trigger"
         onClick={toggle}
-        aria-label={isOpen ? 'Close QuantAI mail copilot' : 'Open QuantAI mail copilot'}
+        aria-label={isOpen ? 'Close Quanty — QuantAI copilot' : 'Open Quanty — QuantAI copilot'}
         aria-expanded={isOpen}
       >
-        <Quanty expression={quantyExpression} size={40} title={quantAiBrandLockup.productName} />
+        <Quanty expression={quantyExpression} size={40} title="Quanty" />
         <span>
           <strong>Ask {quantAiBrandLockup.productName}</strong>
           <small>{liveStatus}</small>
