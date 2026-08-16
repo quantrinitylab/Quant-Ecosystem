@@ -42,6 +42,7 @@ jobs:
       - name: Collect status
         run: |
           mkdir -p infra/status
+          FRONTEND_POD_IP=$(kubectl get pods -n "$K8S_NAMESPACE" -l app.kubernetes.io/name=quantmail -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || echo "")
           {
             echo "# staging status (run ${{ github.run_id }})"
             echo "time: $(date -u +%FT%TZ)"
@@ -49,23 +50,27 @@ jobs:
             echo "## deployments"
             kubectl get deploy -n "$K8S_NAMESPACE" -o wide || true
             echo ""
-            echo "## pods"
-            kubectl get pods -n "$K8S_NAMESPACE" -o wide || true
+            echo "## endpoints"
+            kubectl get endpoints -n "$K8S_NAMESPACE" || true
             echo ""
-            echo "## backend logs (tail 30)"
-            kubectl logs deployment/quant-quantmail-backend -n "$K8S_NAMESPACE" --tail=30 --all-containers 2>&1 || true
+            echo "## frontend pod logs (tail 20)"
+            kubectl logs deployment/quant-quantmail -n "$K8S_NAMESPACE" --tail=20 --all-containers 2>&1 || true
             echo ""
-            echo "## in-cluster backend health check (localhost:3011)"
-            kubectl exec -n "$K8S_NAMESPACE" deploy/quant-quantmail-backend -- node -e "const ps=['/healthz','/api/health'];(async()=>{for(const p of ps){try{const r=await fetch('http://127.0.0.1:3011'+p);const t=await r.text();console.log(p,r.status,t.slice(0,120).replace(/\\s+/g,' '))}catch(e){console.log(p,'ERR',String(e).slice(0,80))}}})()" 2>&1 || echo "exec failed"
+            echo "## frontend container spec (ports / readinessProbe / env)"
+            kubectl get deploy quant-quantmail -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].ports}' || true
             echo ""
-            echo "## in-cluster frontend health check (http://quant-quantmail:3000/)"
-            kubectl exec -n "$K8S_NAMESPACE" deploy/quant-quantmail-backend -- node -e "(async()=>{try{const r=await fetch('http://quant-quantmail:3000/');const t=await r.text();console.log('frontend / status',r.status,'len',t.length,'title',(t.match(/<title>([^<]*)<\\/title>/)||[])[1]||'n/a')}catch(e){console.log('frontend ERR',String(e).slice(0,120))}})()" 2>&1 || echo "exec failed"
+            kubectl get deploy quant-quantmail -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].readinessProbe}' || true
+            echo ""
+            kubectl get deploy quant-quantmail -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].env}' || true
+            echo ""
+            echo "## frontend fetch diagnostics (svc DNS, svc IP, pod IP: $FRONTEND_POD_IP)"
+            kubectl exec -n "$K8S_NAMESPACE" deploy/quant-quantmail-backend -- node -e "(async()=>{const targets=['http://quant-quantmail:3000/','http://10.100.47.234:3000/','http://$FRONTEND_POD_IP:3000/'];for(const u of targets){try{const r=await fetch(u,{signal:AbortSignal.timeout(5000)});const t=await r.text();console.log(u,'->',r.status,'len',t.length)}catch(e){console.log(u,'-> ERR',String(e).slice(0,60),'| cause:',String(e&&e.cause).slice(0,140))}}})()" 2>&1 || echo "exec failed"
+            echo ""
+            echo "## backend health (localhost:3011/healthz)"
+            kubectl exec -n "$K8S_NAMESPACE" deploy/quant-quantmail-backend -- node -e "fetch('http://127.0.0.1:3011/healthz').then(async r=>console.log(r.status,(await r.text()).slice(0,100)))" 2>&1 || echo "exec failed"
             echo ""
             echo "## ingress-nginx svc"
             kubectl get svc ingress-nginx-controller -n ingress-nginx -o wide || true
-            echo ""
-            echo "## ingress-nginx svc events (tail 8)"
-            kubectl describe svc ingress-nginx-controller -n ingress-nginx | tail -8 || true
           } > infra/status/staging-status.txt
           echo "--- file preview ---"
           cat infra/status/staging-status.txt
