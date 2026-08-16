@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
 import { createPortal } from 'react-dom';
 
 interface Notification {
@@ -16,6 +16,8 @@ interface Notification {
 // Read-state persists across refreshes: once a notification is marked read it
 // stays read (localStorage), fixing "mark all read" resetting on reload.
 const READ_STORAGE_KEY = 'quant.notifications.read.v1';
+// Deleted notifications never come back (msg#30 P17).
+const DELETED_STORAGE_KEY = 'quant.notifications.deleted.v1';
 
 const SEED_NOTIFICATIONS: Array<Omit<Notification, 'read' | 'timestamp'>> = [
   {
@@ -26,9 +28,9 @@ const SEED_NOTIFICATIONS: Array<Omit<Notification, 'read' | 'timestamp'>> = [
   },
 ];
 
-function loadReadIds(): string[] {
+function loadIds(key: string): string[] {
   try {
-    const raw = window.localStorage.getItem(READ_STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     const parsed = raw ? (JSON.parse(raw) as unknown) : [];
     return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
   } catch {
@@ -36,11 +38,11 @@ function loadReadIds(): string[] {
   }
 }
 
-function saveReadIds(ids: string[]) {
+function saveIds(key: string, ids: string[]) {
   try {
-    window.localStorage.setItem(READ_STORAGE_KEY, JSON.stringify(ids));
+    window.localStorage.setItem(key, JSON.stringify(ids));
   } catch {
-    /* storage unavailable — read state lives for this session only */
+    /* storage unavailable — state lives for this session only */
   }
 }
 
@@ -53,9 +55,10 @@ export function NotificationBell() {
 
   // Hydrate on mount so server and client render the same initial markup.
   useEffect(() => {
-    const readIds = loadReadIds();
+    const readIds = loadIds(READ_STORAGE_KEY);
+    const deletedIds = loadIds(DELETED_STORAGE_KEY);
     setNotifications(
-      SEED_NOTIFICATIONS.map((n) => ({
+      SEED_NOTIFICATIONS.filter((n) => !deletedIds.includes(n.id)).map((n) => ({
         ...n,
         timestamp: new Date(),
         read: readIds.includes(n.id),
@@ -101,10 +104,34 @@ export function NotificationBell() {
   const markAllRead = useCallback(() => {
     setNotifications((prev) => {
       const next = prev.map((n) => ({ ...n, read: true }));
-      saveReadIds(next.map((n) => n.id));
+      saveIds(READ_STORAGE_KEY, next.map((n) => n.id));
       return next;
     });
   }, []);
+
+  // Delete one notification — via the × button or a swipe-to-trash gesture
+  // (msg#30 P17). Deletions persist so it never resurfaces.
+  const deleteNotification = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    saveIds(DELETED_STORAGE_KEY, [...loadIds(DELETED_STORAGE_KEY), id]);
+  }, []);
+
+  const clearAll = useCallback(() => {
+    setNotifications((prev) => {
+      saveIds(DELETED_STORAGE_KEY, [
+        ...loadIds(DELETED_STORAGE_KEY),
+        ...prev.map((n) => n.id),
+      ]);
+      return [];
+    });
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (id: string) => (_: unknown, info: PanInfo) => {
+      if (Math.abs(info.offset.x) > 90) deleteNotification(id);
+    },
+    [deleteNotification],
+  );
 
   const iconByType: Record<Notification['type'], string> = {
     email: '✉️',
@@ -145,19 +172,41 @@ export function NotificationBell() {
             style={{ left: panelPosition.left, top: panelPosition.top }}
           >
             <header className="notification-panel-header">
-              <h2>Notifications</h2>
-              {unreadCount > 0 && (
-                <button type="button" className="notification-mark-read" onClick={markAllRead}>
-                  Mark all read
-                </button>
-              )}
+              <div className="notification-panel-heading">
+                <h2>Notifications</h2>
+                <p className="notification-panel-sub">
+                  Quant-only — mail, calendar, security. Sign-in across Quant apps runs through
+                  QuantMail.
+                </p>
+              </div>
+              <div className="notification-panel-actions">
+                {unreadCount > 0 && (
+                  <button type="button" className="notification-mark-read" onClick={markAllRead}>
+                    Mark all read
+                  </button>
+                )}
+                {notifications.length > 0 && (
+                  <button type="button" className="notification-mark-read" onClick={clearAll}>
+                    Clear all
+                  </button>
+                )}
+              </div>
             </header>
             <div className="notification-panel-list">
               {notifications.length === 0 ? (
-                <p className="notification-empty">No notifications yet</p>
+                <p className="notification-empty">No notifications — all clear</p>
               ) : (
                 notifications.map((n) => (
-                  <div key={n.id} className={`notification-item ${n.read ? '' : 'is-unread'}`}>
+                  <motion.div
+                    key={n.id}
+                    className={`notification-item ${n.read ? '' : 'is-unread'}`}
+                    drag="x"
+                    dragConstraints={{ left: 0, right: 0 }}
+                    dragElastic={0.7}
+                    onDragEnd={handleDragEnd(n.id)}
+                    exit={{ opacity: 0, x: 120, height: 0, marginTop: 0, marginBottom: 0 }}
+                    layout
+                  >
                     <span className="notification-item-icon">{iconByType[n.type]}</span>
                     <div className="notification-item-content">
                       <p className="notification-item-title">{n.title}</p>
@@ -166,10 +215,23 @@ export function NotificationBell() {
                         {n.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </time>
                     </div>
-                  </div>
+                    <button
+                      type="button"
+                      className="notification-item-delete"
+                      aria-label={`Delete notification: ${n.title}`}
+                      onClick={() => deleteNotification(n.id)}
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                        <path d="m6 6 12 12M18 6 6 18" />
+                      </svg>
+                    </button>
+                  </motion.div>
                 ))
               )}
             </div>
+            {notifications.length > 0 && (
+              <p className="notification-panel-hint">Swipe a notification sideways — or tap × — to delete it.</p>
+            )}
           </motion.div>
           )}
         </AnimatePresence>,
