@@ -52,20 +52,25 @@ jobs:
             echo "## pods"
             kubectl get pods -n "$K8S_NAMESPACE" -o wide || true
             echo ""
-            echo "## backend logs (tail 60)"
-            kubectl logs deployment/quant-quantmail-backend -n "$K8S_NAMESPACE" --tail=60 --all-containers 2>&1 || true
+            echo "## backend logs (tail 30)"
+            kubectl logs deployment/quant-quantmail-backend -n "$K8S_NAMESPACE" --tail=30 --all-containers 2>&1 || true
+            echo ""
+            echo "## in-cluster backend health check (localhost:3011)"
+            kubectl exec -n "$K8S_NAMESPACE" deploy/quant-quantmail-backend -- node -e "const ps=['/health','/healthz','/api/health','/api/v1/health','/'];(async()=>{for(const p of ps){try{const r=await fetch('http://127.0.0.1:3011'+p);const t=await r.text();console.log(p,r.status,t.slice(0,120).replace(/\\s+/g,' '))}catch(e){console.log(p,'ERR',String(e).slice(0,80))}}})()" 2>&1 || echo "exec failed"
+            echo ""
+            echo "## in-cluster frontend health check (svc :3000)"
+            kubectl exec -n "$K8S_NAMESPACE" deploy/quant-quantmail-backend -- node -e "(async()=>{try{const r=await fetch('http://quant-quantmail.'+process.env.K8S_NS+'.svc.cluster.local:3000/');const t=await r.text();console.log('frontend / status',r.status,'len',t.length)}catch(e){console.log('frontend ERR',String(e).slice(0,120))}})()" 2>&1 || echo "exec failed"
             echo ""
             echo "## ingress-nginx svc"
             kubectl get svc ingress-nginx-controller -n ingress-nginx -o wide || true
             echo ""
-            echo "## ingress-nginx svc events (tail 15)"
-            kubectl describe svc ingress-nginx-controller -n ingress-nginx | tail -15 || true
-            echo ""
-            echo "## namespace events (tail 25)"
-            kubectl get events -n "$K8S_NAMESPACE" --sort-by=.lastTimestamp | tail -25 || true
+            echo "## ingress-nginx svc events (tail 8)"
+            kubectl describe svc ingress-nginx-controller -n ingress-nginx | tail -8 || true
           } > infra/status/staging-status.txt
           echo "--- file preview ---"
           cat infra/status/staging-status.txt
+        env:
+          K8S_NS: quant-staging
 
       - name: Publish to status-report branch
         if: always()
