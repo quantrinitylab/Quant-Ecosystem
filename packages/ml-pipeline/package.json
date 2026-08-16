@@ -15,12 +15,12 @@
     "@quant/ai": "workspace:*",
     "@quant/ml-runtime": "workspace:*",
     "@quant/search": "workspace:*",
-    "onnxruntime-node": "^1.26.0",
+    "onnxruntime-node": "^1.27.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.5.0",
-    "vitest": "^4.1.0"
+    "@types/node": "^22.20.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   }
 }

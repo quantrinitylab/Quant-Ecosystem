@@ -12,14 +12,14 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "ioredis": "^5.6.0",
+    "ioredis": "^5.11.1",
     "zod": "^3.24.2",
     "pino": "^9.6.0",
     "@quant/common": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "vitest": "^4",
-    "typescript": "~5.5.0"
+    "@types/node": "^22.20.1",
+    "vitest": "^3",
+    "typescript": "~5.9.3"
   }
 }

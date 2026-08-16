@@ -14,13 +14,13 @@
   "dependencies": {
     "@quant/common": "workspace:*",
     "@quant/database": "workspace:*",
-    "fastify": "^5.2.1",
+    "fastify": "^5.12.0",
     "fastify-plugin": "^5.0.1",
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "vitest": "^4",
-    "typescript": "~5.5.0"
+    "@types/node": "^22.20.1",
+    "vitest": "^3",
+    "typescript": "~5.9.3"
   }
 }

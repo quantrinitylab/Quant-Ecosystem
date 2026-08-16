@@ -18,8 +18,8 @@
     "@quant/queue": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "vitest": "^4",
-    "typescript": "~5.5.0"
+    "@types/node": "^22.20.1",
+    "vitest": "^3",
+    "typescript": "~5.9.3"
   }
 }
