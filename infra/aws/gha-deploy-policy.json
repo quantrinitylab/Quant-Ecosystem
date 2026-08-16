@@ -2,32 +2,33 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "EcrAuth",
+      "Sid": "ECRAuth",
       "Effect": "Allow",
-      "Action": "ecr:GetAuthorizationToken",
+      "Action": ["ecr:GetAuthorizationToken"],
       "Resource": "*"
     },
     {
-      "Sid": "EcrPushPull",
+      "Sid": "ECRRepoAccess",
       "Effect": "Allow",
       "Action": [
         "ecr:BatchCheckLayerAvailability",
         "ecr:GetDownloadUrlForLayer",
+        "ecr:GetRepositoryPolicy",
+        "ecr:DescribeRepositories",
+        "ecr:ListImages",
+        "ecr:DescribeImages",
         "ecr:BatchGetImage",
         "ecr:InitiateLayerUpload",
         "ecr:UploadLayerPart",
         "ecr:CompleteLayerUpload",
-        "ecr:PutImage",
-        "ecr:CreateRepository",
-        "ecr:DescribeRepositories",
-        "ecr:DescribeImages"
+        "ecr:PutImage"
       ],
-      "Resource": "*"
+      "Resource": "arn:aws:ecr:us-east-1:121701583740:repository/quant-*"
     },
     {
-      "Sid": "EksDescribe",
+      "Sid": "EKSRead",
       "Effect": "Allow",
-      "Action": ["eks:DescribeCluster"],
+      "Action": ["eks:DescribeCluster", "eks:ListClusters"],
       "Resource": "*"
     },
     {
@@ -37,7 +38,13 @@
         "secretsmanager:GetSecretValue",
         "secretsmanager:DescribeSecret"
       ],
-      "Resource": "arn:aws:secretsmanager:*:*:secret:quant/*"
+      "Resource": "arn:aws:secretsmanager:us-east-1:121701583740:secret:quant/*"
+    },
+    {
+      "Sid": "STSIdentity",
+      "Effect": "Allow",
+      "Action": ["sts:GetCallerIdentity"],
+      "Resource": "*"
     }
   ]
 }

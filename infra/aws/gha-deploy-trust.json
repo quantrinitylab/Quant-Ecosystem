@@ -4,19 +4,15 @@
     {
       "Effect": "Allow",
       "Principal": {
-        "Federated": "arn:aws:iam::266176113726:oidc-provider/token.actions.githubusercontent.com"
+        "Federated": "arn:aws:iam::121701583740:oidc-provider/token.actions.githubusercontent.com"
       },
       "Action": "sts:AssumeRoleWithWebIdentity",
       "Condition": {
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:quantrinitylabsgo/Quant-Ecosystem:*"
+        },
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-        },
-        "StringLike": {
-          "token.actions.githubusercontent.com:sub": [
-            "repo:quantrinitylabsgo@305857214/Quant-Ecosystem@1294727574:environment:staging",
-            "repo:quantrinitylabsgo@305857214/Quant-Ecosystem@1294727574:environment:production",
-            "repo:quantrinitylabsgo@305857214/Quant-Ecosystem@1294727574:ref:refs/heads/main"
-          ]
         }
       }
     }
