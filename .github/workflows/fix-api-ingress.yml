@@ -27,61 +27,41 @@ jobs:
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --name quant-staging-eks --region us-east-1
 
-      - name: Fix ingress + CORS, verify (always publishes)
+      - name: Set frontend auth proxy env + verify register (always publishes)
         run: |
           set +e
           {
-            echo "=== fix-api v4 $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
-            echo "--- main ingress rules before ---"
-            kubectl -n quant-staging get ingress quant-staging-main -o jsonpath='{.spec.rules}'
+            echo "=== fix-api v5 $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+            echo "--- frontend env before ---"
+            kubectl -n quant-staging get deploy quant-quantmail -o jsonpath='{.spec.template.spec.containers[0].env}'
             echo ""
-            echo "--- remove /api paths from main ingress ---"
-            kubectl -n quant-staging patch ingress quant-staging-main --type=json -p '[{"op":"remove","path":"/spec/rules/0/http/paths/0"},{"op":"remove","path":"/spec/rules/1/http/paths/0"}]'
-            echo "remove_rc=$?"
-            echo "--- apply separate rewrite ingress ---"
-            kubectl apply -f infra/k8s/staging-api-ingress.yaml
-            echo "apply_rc=$?"
-            echo "--- main ingress rules after ---"
-            kubectl -n quant-staging get ingress quant-staging-main -o jsonpath='{.spec.rules}'
+            echo "--- set QUANTMAIL_BACKEND_URL on frontend ---"
+            kubectl -n quant-staging set env deploy/quant-quantmail QUANTMAIL_BACKEND_URL=http://quant-quantmail-backend:3011
+            echo "setenv_rc=$?"
+            kubectl -n quant-staging rollout status deploy/quant-quantmail --timeout=180s
+            echo "rollout_rc=$?"
+            echo "--- frontend env after ---"
+            kubectl -n quant-staging get deploy quant-quantmail -o jsonpath='{.spec.template.spec.containers[0].env}'
             echo ""
-            echo "--- configmap check ---"
-            CM=quant-platform-production-config
-            CORS=$(kubectl -n quant-staging get configmap $CM -o jsonpath='{.data.CORS_ORIGINS}')
-            MAILDOM=$(kubectl -n quant-staging get configmap $CM -o jsonpath='{.data.QUANT_MAIL_DOMAIN}')
-            DOM=$(kubectl -n quant-staging get configmap $CM -o jsonpath='{.data.DOMAIN}')
-            echo "CORS_ORIGINS=[$CORS] QUANT_MAIL_DOMAIN=[$MAILDOM] DOMAIN=[$DOM]"
-            NEED_RESTART=0
-            case "$CORS" in
-              *quantmail.quantrinity.in*) echo "cors already ok" ;;
-              *) kubectl -n quant-staging patch configmap $CM --type=merge -p '{"data":{"CORS_ORIGINS":"https://quantmail.quantrinity.in,https://staging.quantrinity.in,https://quantrinity.in"}}'; echo "cors_patch_rc=$?"; NEED_RESTART=1 ;;
-            esac
-            if [ -z "$MAILDOM" ]; then kubectl -n quant-staging patch configmap $CM --type=merge -p '{"data":{"QUANT_MAIL_DOMAIN":"quantmail.in"}}'; echo "maildom_patch_rc=$?"; NEED_RESTART=1; fi
-            if [ -z "$DOM" ]; then kubectl -n quant-staging patch configmap $CM --type=merge -p '{"data":{"DOMAIN":"quantrinity.in"}}'; echo "dom_patch_rc=$?"; NEED_RESTART=1; fi
-            if [ "$NEED_RESTART" = "1" ]; then
-              kubectl -n quant-staging rollout restart deploy/quant-quantmail-backend
-              kubectl -n quant-staging rollout status deploy/quant-quantmail-backend --timeout=180s
-              echo "restart_rc=$?"
-            fi
-            sleep 12
-            echo "--- in-cluster probe with Origin header ---"
-            kubectl -n quant-staging delete pod tmp-probe2 --ignore-not-found=true >/dev/null 2>&1
-            kubectl -n quant-staging run tmp-probe2 --image=curlimages/curl:8.8.0 --rm -i --restart=Never --command -- sh -c 'B=http://quant-quantmail-backend:3011; D="{\"email\":\"probe2@quantmail.in\",\"password\":\"Probe_Test_12345\",\"name\":\"Probe\"}"; echo direct_reg=$(curl -s -o /tmp/a -w %{http_code} --max-time 8 -X POST -H "Content-Type: application/json" -H "Origin: https://quantmail.quantrinity.in" -d "$D" $B/auth/register); echo direct_reg_body=$(head -c 300 /tmp/a)' 2>&1
+            sleep 8
             echo "--- public verify through Cloudflare ---"
-            echo "healthz_public=$(curl -sS -o /tmp/h1 -w %{http_code} --max-time 25 https://quantmail.quantrinity.in/api/healthz)"
-            head -c 200 /tmp/h1; echo ""
-            echo "reg_public=$(curl -sS -o /tmp/r1 -w %{http_code} --max-time 25 -X POST -H "Content-Type: application/json" -H "Origin: https://quantmail.quantrinity.in" -d "{\"email\":\"probe2@quantmail.in\",\"password\":\"Probe_Test_12345\",\"name\":\"Probe\"}" https://quantmail.quantrinity.in/api/auth/register)"
-            head -c 400 /tmp/r1; echo ""
-            echo "staging_healthz_public=$(curl -sS -o /tmp/h2 -w %{http_code} --max-time 25 https://staging.quantrinity.in/api/healthz)"
-            head -c 200 /tmp/h2; echo ""
+            echo "home=$(curl -sS -o /dev/null -w %{http_code} --max-time 25 https://quantmail.quantrinity.in/)"
+            echo "auth_register=$(curl -sS -o /tmp/r1 -w %{http_code} --max-time 30 -X POST -H \"Content-Type: application/json\" -H \"Origin: https://quantmail.quantrinity.in\" -d \"{\\\"email\\\":\\\"probe3@quantmail.in\\\",\\\"username\\\":\\\"probe3\\\",\\\"displayName\\\":\\\"Probe Three\\\",\\\"password\\\":\\\"Probe_Test_12345A\\\",\\\"acceptTerms\\\":true}\" https://quantmail.quantrinity.in/auth/register)"
+            echo "auth_register_body=$(head -c 500 /tmp/r1)"
+            echo "auth_login=$(curl -sS -o /tmp/r2 -w %{http_code} --max-time 30 -X POST -H \"Content-Type: application/json\" -H \"Origin: https://quantmail.quantrinity.in\" -d \"{\\\"email\\\":\\\"probe3@quantmail.in\\\",\\\"password\\\":\\\"Probe_Test_12345A\\\"}\" https://quantmail.quantrinity.in/auth/login)"
+            echo "auth_login_body=$(head -c 500 /tmp/r2)"
+            echo "api_healthz=$(curl -sS -o /dev/null -w %{http_code} --max-time 25 https://quantmail.quantrinity.in/api/healthz)"
+            echo "--- frontend logs tail ---"
+            kubectl -n quant-staging logs deploy/quant-quantmail --tail=10 2>&1 | tail -10
             echo "--- backend logs tail ---"
-            kubectl -n quant-staging logs deploy/quant-quantmail-backend --tail=15 2>&1 | tail -15
+            kubectl -n quant-staging logs deploy/quant-quantmail-backend --tail=12 2>&1 | tail -12
             echo "=== done ==="
           } > /tmp/out.txt 2>&1
           cat /tmp/out.txt
           mkdir -p infra/status
-          cp /tmp/out.txt infra/status/api-fix3-result.txt
+          cp /tmp/out.txt infra/status/api-fix4-result.txt
           git config user.name "gha-bot"
           git config user.email "gha-bot@users.noreply.github.com"
-          git add -f infra/status/api-fix3-result.txt
-          git commit -m "api fix v4 result"
+          git add -f infra/status/api-fix4-result.txt
+          git commit -m "api fix v5 result"
           git push -f origin HEAD:status-report
