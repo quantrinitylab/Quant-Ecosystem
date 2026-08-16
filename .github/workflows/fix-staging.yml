@@ -1,14 +1,18 @@
 name: Fix staging (migrations + rollout + ELB)
 
-# One-time fix: runs Prisma migrations THROUGH the cluster (RDS is private),
-# restarts the backend, and reports the ELB hostname for Cloudflare DNS.
+# Auto-runs when this file is pushed to main; can also be run manually.
+# DB password comes from workflow input (manual) or SSM /quant/staging/db_password (auto).
 on:
   workflow_dispatch:
     inputs:
       db_password:
-        description: 'RDS master password (quant user)'
-        required: true
+        description: 'RDS master password (optional - falls back to SSM)'
+        required: false
         type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-staging.yml'
 
 concurrency:
   group: k8s-setup
@@ -24,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      contents: read
+      contents: write
       id-token: write
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
@@ -49,6 +53,16 @@ jobs:
       - name: Update kubeconfig
         run: |
           aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+
+      - name: Resolve DB password
+        run: |
+          PASS="${{ inputs.db_password }}"
+          if [ -z "$PASS" ]; then
+            echo "No input password - fetching from SSM..."
+            PASS=$(aws ssm get-parameter --name /quant/staging/db_password --with-decryption --query Parameter.Value --output text --region us-east-1)
+          fi
+          echo "::add-mask::$PASS"
+          echo "DB_PASS=$PASS" >> "$GITHUB_ENV"
 
       - name: Diagnose current state
         run: |
@@ -80,13 +94,13 @@ jobs:
           kubectl port-forward pod/pg-proxy -n "$K8S_NAMESPACE" 15432:5432 &
           echo $! > /tmp/pf.pid
           sleep 5
-          PGPASSWORD='${{ inputs.db_password }}' psql -h 127.0.0.1 -p 15432 -U "$RDS_USER" -d "$RDS_DB" -c 'SELECT version();'
+          PGPASSWORD="$DB_PASS" psql -h 127.0.0.1 -p 15432 -U "$RDS_USER" -d "$RDS_DB" -c 'SELECT version();'
 
       - name: Run Prisma migrations (through cluster proxy)
         run: |
           npm install -g pnpm
           pnpm install --frozen-lockfile --filter "@quant/database..." || pnpm install --frozen-lockfile
-          DATABASE_URL="postgresql://${RDS_USER}:${{ inputs.db_password }}@127.0.0.1:15432/${RDS_DB}" \
+          DATABASE_URL="postgresql://${RDS_USER}:${DB_PASS}@127.0.0.1:15432/${RDS_DB}" \
             pnpm --filter @quant/database exec prisma migrate deploy --schema=prisma/schema.prisma
           echo "Migrations done"
 
@@ -112,6 +126,7 @@ jobs:
           fi
 
       - name: Get ELB hostname
+        if: always()
         run: |
           ELB=""
           for i in $(seq 1 30); do
@@ -128,14 +143,45 @@ jobs:
           echo "ELB_HOSTNAME=$ELB" >> "$GITHUB_ENV"
           echo "ELB: $ELB"
 
+      - name: Publish result file
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p infra/status
+          {
+            echo "# fix-staging result (run ${{ github.run_id }})"
+            echo "time: $(date -u +%FT%TZ)"
+            echo ""
+            echo "## deployments"
+            kubectl get deploy -n "$K8S_NAMESPACE" 2>/dev/null || echo "kubectl unavailable"
+            echo ""
+            echo "## pods"
+            kubectl get pods -n "$K8S_NAMESPACE" 2>/dev/null || true
+            echo ""
+            echo "## elb"
+            echo "${ELB_HOSTNAME:-NOT_ASSIGNED}"
+            echo ""
+            echo "## backend logs (tail)"
+            kubectl logs deployment/quant-quantmail-backend -n "$K8S_NAMESPACE" --tail=40 2>/dev/null || true
+          } > infra/status/fix-staging-result.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add infra/status/fix-staging-result.txt
+          if git commit -m "chore(status): fix-staging run ${{ github.run_id }} result [skip ci]"; then
+            git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+            git pull --rebase origin main || true
+            git push origin HEAD:main || echo "push failed (non-fatal)"
+          fi
+
       - name: Summary
+        if: always()
         run: |
           {
             echo "## Staging fix result"
             echo ""
             echo "| Item | Value |"
             echo "|---|---|"
-            echo "| Backend rollout | OK |"
             echo "| ELB hostname | ${ELB_HOSTNAME:-NOT ASSIGNED} |"
             echo ""
             echo "Point Cloudflare CNAMEs (quantmail + staging) to the ELB hostname."
