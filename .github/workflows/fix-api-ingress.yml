@@ -27,41 +27,48 @@ jobs:
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --name quant-staging-eks --region us-east-1
 
-      - name: Fix and verify (always publishes)
+      - name: Probe, fix, verify (always publishes)
         run: |
           set +e
           {
-            echo "=== fix-api-ingress v2 $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
-            echo "--- ingresses before ---"
-            kubectl -n quant-staging get ingress
-            echo "--- quant-staging-main rules ---"
-            kubectl -n quant-staging get ingress quant-staging-main -o jsonpath='{.spec.rules}'
-            echo ""
-            echo "--- apply staging-api-ingress ---"
-            kubectl apply -f infra/k8s/staging-api-ingress.yaml
-            echo "apply_rc=$?"
+            echo "=== fix-api v3 $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+            echo "--- probe backend from inside cluster ---"
+            kubectl -n quant-staging delete pod tmp-probe --ignore-not-found=true >/dev/null 2>&1
+            kubectl -n quant-staging run tmp-probe --image=curlimages/curl:8.8.0 --rm -i --restart=Never --command -- sh -c 'B=http://quant-quantmail-backend:3011; D="{\"email\":\"probe@quantmail.in\",\"password\":\"Probe_Test_12345\",\"name\":\"Probe\"}"; echo healthz=$(curl -s -o /dev/null -w %{http_code} --max-time 8 $B/healthz); echo api_healthz=$(curl -s -o /dev/null -w %{http_code} --max-time 8 $B/api/healthz); echo root_reg=$(curl -s -o /tmp/a -w %{http_code} --max-time 8 -X POST -H "Content-Type: application/json" -d "$D" $B/auth/register); echo root_reg_body=$(head -c 200 /tmp/a); echo api_reg=$(curl -s -o /tmp/b -w %{http_code} --max-time 8 -X POST -H "Content-Type: application/json" -d "$D" $B/api/auth/register); echo api_reg_body=$(head -c 200 /tmp/b)' > /tmp/probe.txt 2>&1
+            cat /tmp/probe.txt
+            API_REG=$(grep -o "api_reg=[0-9]*" /tmp/probe.txt | head -1 | cut -d= -f2)
+            ROOT_REG=$(grep -o "root_reg=[0-9]*" /tmp/probe.txt | head -1 | cut -d= -f2)
+            echo "parsed API_REG=$API_REG ROOT_REG=$ROOT_REG"
+            if [ -z "$API_REG" ] && [ -z "$ROOT_REG" ]; then
+              echo "PROBE FAILED - making no changes"
+            elif [ -n "$API_REG" ] && [ "$API_REG" != "404" ]; then
+              echo "DECISION: backend serves /api/* directly -> switch ingress /api paths to plain Prefix (no rewrite)"
+              kubectl -n quant-staging patch ingress quant-staging-main --type=json -p '[{"op":"replace","path":"/spec/rules/0/http/paths/0/path","value":"/api"},{"op":"replace","path":"/spec/rules/0/http/paths/0/pathType","value":"Prefix"},{"op":"replace","path":"/spec/rules/1/http/paths/0/path","value":"/api"},{"op":"replace","path":"/spec/rules/1/http/paths/0/pathType","value":"Prefix"}]'
+              echo "patch_rc=$?"
+            else
+              echo "DECISION: backend routes at root -> remove /api from main ingress, add separate rewrite ingress"
+              kubectl -n quant-staging patch ingress quant-staging-main --type=json -p '[{"op":"remove","path":"/spec/rules/0/http/paths/0"},{"op":"remove","path":"/spec/rules/1/http/paths/0"}]'
+              echo "patch_rc=$?"
+              kubectl apply -f infra/k8s/staging-api-ingress.yaml
+              echo "apply_rc=$?"
+            fi
             sleep 12
-            echo "--- ingresses after ---"
-            kubectl -n quant-staging get ingress
-            echo "--- curl /api/healthz quantmail ---"
-            curl -sS -o /tmp/h1 -w "code=%{http_code}\n" --max-time 25 https://quantmail.quantrinity.in/api/healthz
-            head -c 300 /tmp/h1; echo ""
-            echo "--- curl /api/healthz staging ---"
-            curl -sS -o /tmp/h2 -w "code=%{http_code}\n" --max-time 25 https://staging.quantrinity.in/api/healthz
-            head -c 300 /tmp/h2; echo ""
-            echo "--- POST /api/auth/register dummy ---"
-            curl -sS -o /tmp/r1 -w "code=%{http_code}\n" --max-time 25 -X POST -H 'Content-Type: application/json' -d '{"email":"probe@quantmail.in","password":"Probe_Test_12345"}' https://quantmail.quantrinity.in/api/auth/register
-            head -c 400 /tmp/r1; echo ""
-            echo "--- GET /api/ ---"
-            curl -sS -o /tmp/a1 -w "code=%{http_code}\n" --max-time 25 https://quantmail.quantrinity.in/api/
-            head -c 200 /tmp/a1; echo ""
+            echo "--- verify through Cloudflare ---"
+            echo "api_healthz_public=$(curl -sS -o /tmp/h1 -w %{http_code} --max-time 25 https://quantmail.quantrinity.in/api/healthz)"
+            head -c 200 /tmp/h1; echo ""
+            echo "api_reg_public=$(curl -sS -o /tmp/r1 -w %{http_code} --max-time 25 -X POST -H "Content-Type: application/json" -d "{\"email\":\"probe@quantmail.in\",\"password\":\"Probe_Test_12345\",\"name\":\"Probe\"}" https://quantmail.quantrinity.in/api/auth/register)"
+            head -c 300 /tmp/r1; echo ""
+            echo "--- backend logs tail ---"
+            kubectl -n quant-staging logs deploy/quant-quantmail-backend --tail=25 2>&1 | tail -25
+            echo "--- frontend logs tail ---"
+            kubectl -n quant-staging logs deploy/quant-quantmail --tail=25 2>&1 | tail -25
             echo "=== done ==="
           } > /tmp/out.txt 2>&1
           cat /tmp/out.txt
           mkdir -p infra/status
-          cp /tmp/out.txt infra/status/api-ingress-result.txt
+          cp /tmp/out.txt infra/status/api-fix2-result.txt
           git config user.name "gha-bot"
           git config user.email "gha-bot@users.noreply.github.com"
-          git add -f infra/status/api-ingress-result.txt
-          git commit -m "api ingress fix result v2"
+          git add -f infra/status/api-fix2-result.txt
+          git commit -m "api fix v3 result"
           git push -f origin HEAD:status-report
