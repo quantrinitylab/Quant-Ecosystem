@@ -19,7 +19,8 @@
         "ecr:CompleteLayerUpload",
         "ecr:PutImage",
         "ecr:CreateRepository",
-        "ecr:DescribeRepositories"
+        "ecr:DescribeRepositories",
+        "ecr:DescribeImages"
       ],
       "Resource": "*"
     },
@@ -27,7 +28,16 @@
       "Sid": "EksDescribe",
       "Effect": "Allow",
       "Action": ["eks:DescribeCluster"],
-      "Resource": "arn:aws:eks:us-east-1:266176113726:cluster/quant-production-eks"
+      "Resource": "*"
+    },
+    {
+      "Sid": "SecretsRead",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+      ],
+      "Resource": "arn:aws:secretsmanager:*:*:secret:quant/*"
     }
   ]
 }
