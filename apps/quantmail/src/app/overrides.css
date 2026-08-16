@@ -11,6 +11,8 @@
    6. Clear read vs unread mail rows
    7. Gmail micro-features round 1: mark-all-read, snooze menu, labels manager
    8. Polish round: full sender names, Quanty trigger, contextual calendar FAB
+   9. msg#30 round: flame logo family, one-pane inbox, nav search, bottom nav,
+      Outlook empty state, composer Quanty writer, CodeHub chat, notifications
    ========================================================================== */
 
 /* --- 1. Hide the old bottom-right Ask QuantAI pill (panel itself unchanged) */
@@ -128,9 +130,10 @@
 }
 
 /* --- 4. QuantMail wordmark: the word IS the logo ----------------------------
-   Instagram-style cursive script (Pacifico via --font-brand) with a colourful
-   saffron → coral → pink → violet gradient. Script faces have deep descenders
-   (the Q tail, the y/l loops) so line-height stays generous and nothing clips. */
+   Cursive script (Pacifico via --font-brand) in the OFFICIAL flame family of
+   the new QuantMail logo — golden yellow → saffron → deep orange → flame red.
+   Script faces have deep descenders (the Q tail, the y/l loops) so line-height
+   stays generous, and extra right padding guarantees the final ‘l’ never clips. */
 .sidebar-brand {
   display: flex;
   align-items: center;
@@ -163,25 +166,17 @@
   letter-spacing: 0.005em;
   line-height: 1.5; /* room for script descenders */
   padding-bottom: 2px;
-  background: linear-gradient(95deg, #ff9933 0%, #ff5e62 34%, #e64980 64%, #8b5cf6 100%);
+  padding-right: 10px; /* the trailing ‘l’ never clips (msg#30 P16) */
+  overflow: visible;
+  background: linear-gradient(95deg, #ffc21a 0%, #ff9933 32%, #ff6a00 64%, #e01313 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   white-space: nowrap;
-  filter: drop-shadow(0 1px 8px rgba(230, 73, 128, 0.28));
+  filter: drop-shadow(0 1px 8px rgba(255, 122, 26, 0.3));
 }
 .qm-beta-pill {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 153, 51, 0.35);
-  color: #ff9933;
-  background: rgba(255, 153, 51, 0.08);
-  line-height: 1.4;
-  margin-top: 4px; /* optically centers next to the script baseline */
+  display: none !important; /* Beta label retired (msg#30 P16) */
 }
 .mobile-brand .qm-wordmark {
   padding: 1px 6px 3px 4px;
@@ -610,4 +605,658 @@
 }
 .quant-fab-calendar:hover {
   box-shadow: 0 18px 40px -12px rgba(63, 217, 198, 0.75);
+}
+
+/* ============================================================================
+   9. msg#30 round — official flame logo family everywhere, one-pane inbox,
+   nav search, mobile bottom nav, Outlook empty state, composer Quanty writer,
+   CodeHub build chat, notifications v2
+   ========================================================================== */
+
+/* Official QuantMail logo mark (QuantMailLogo.tsx) placements */
+.qm-wordmark-logo {
+  flex: 0 0 auto;
+  display: inline-flex;
+  border-radius: 10px;
+}
+.quantrinity-mark.is-quantmail {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+}
+
+/* P01: bare Quanty trigger — the robot alone, no pill/box behind him */
+.inbox-ai-trigger.is-bare,
+.inbox-ai-trigger.is-bare:hover {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.inbox-ai-trigger.is-bare svg {
+  width: auto;
+  height: auto;
+  display: block;
+}
+.inbox-ai-trigger.is-bare:hover {
+  transform: translateY(-1px) scale(1.05);
+}
+
+/* P02: Outlook-style empty inbox + one solid colour everywhere */
+.inbox-zero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 56px 20px 64px;
+  text-align: center;
+}
+.inbox-zero-mark {
+  animation: qm-zero-float 4.6s ease-in-out infinite;
+  filter: drop-shadow(0 18px 34px rgba(255, 122, 26, 0.35));
+}
+.inbox-zero-title {
+  margin: 14px 0 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.inbox-zero-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+@keyframes qm-zero-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inbox-zero-mark {
+    animation: none;
+  }
+}
+
+/* P04: one-pane inbox — the list owns the full width, no preview column */
+.inbox-workspace.is-single {
+  display: block !important;
+}
+.inbox-workspace.is-single .inbox-list-pane {
+  width: 100% !important;
+  max-width: none !important;
+  flex: 1 1 auto !important;
+  border-right: 0 !important;
+  min-height: 100%;
+}
+
+/* Mobile: one solid colour edge to edge + FAB clears the bottom nav */
+@media (max-width: 899px) {
+  .inbox-workspace.is-single,
+  .inbox-workspace.is-single .inbox-list-pane {
+    background: var(--quant-background, #0b0f14);
+  }
+  .quant-compose-fab {
+    bottom: 84px;
+  }
+}
+
+/* P03: search lives in the nav bar; the logo sits inside the field */
+.mobile-nav-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.inbox-search-nav {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.05);
+}
+.inbox-search-nav input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: inherit;
+  font-size: 14px;
+}
+.inbox-search-logo {
+  flex: 0 0 auto;
+  display: inline-flex;
+}
+.inbox-search-wrap .inbox-search-logo {
+  margin-right: 2px;
+}
+@media (max-width: 899px) {
+  .inbox-hero,
+  .inbox-search-wrap {
+    display: none; /* search moved up into the nav bar */
+  }
+}
+@media (min-width: 900px) {
+  .mobile-nav-search {
+    display: none;
+  }
+}
+
+/* P06: starred mail pins to the top of the inbox */
+.mail-row.is-pinned {
+  background: rgba(255, 153, 51, 0.05);
+}
+.mail-pin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffb200;
+}
+.mail-pin-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* P15: mobile bottom navigation (Outlook/Instagram style) */
+.quant-bottom-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 44;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  gap: 2px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--quant-border, rgba(255, 255, 255, 0.1));
+  background: rgba(11, 15, 20, 0.94);
+  backdrop-filter: blur(12px);
+}
+.qbn-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 1 1 0;
+  padding: 5px 2px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.qbn-item svg {
+  width: 21px;
+  height: 21px;
+}
+.qbn-item.is-active {
+  color: #ff9933;
+  background: rgba(255, 153, 51, 0.1);
+}
+@media (min-width: 1024px) {
+  .quant-bottom-nav {
+    display: none;
+  }
+}
+
+/* P07/P08/P09: composer — solid ground + centred Quanty writer chat */
+.email-composer {
+  background: var(--quant-background, #0b0f14);
+  min-height: 100%;
+  padding-bottom: 40px; /* no black cut-off band under the surface */
+}
+.composer-quanty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 20px 4px;
+}
+.composer-quanty-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.composer-quanty-face:hover {
+  transform: translateY(-1px);
+}
+.composer-quanty-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.composer-quanty-chat {
+  width: 100%;
+  max-width: 560px;
+  border: 1px solid rgba(255, 153, 51, 0.22);
+  border-radius: 16px;
+  background: rgba(255, 153, 51, 0.04);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.composer-quanty-thread {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.composer-quanty-empty {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.composer-quanty-msg {
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.composer-quanty-msg p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.composer-quanty-msg.is-user {
+  align-self: flex-end;
+  background: rgba(255, 153, 51, 0.14);
+  max-width: 85%;
+}
+.composer-quanty-msg.is-assistant {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.05);
+  max-width: 92%;
+}
+.composer-quanty-msg.is-error {
+  background: rgba(255, 107, 107, 0.12);
+  color: #ff9b9b;
+}
+.composer-quanty-msg.is-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.composer-quanty-msg .msg-author {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ff9933;
+  margin-bottom: 3px;
+}
+.composer-quanty-apply {
+  margin-top: 8px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 153, 51, 0.45);
+  background: rgba(255, 153, 51, 0.14);
+  color: #ff9933;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.composer-quanty-apply:hover {
+  background: rgba(255, 153, 51, 0.24);
+}
+.composer-quanty-tones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.composer-quanty-tones button {
+  padding: 5px 11px;
+  border-radius: 9999px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.composer-quanty-tones button:hover {
+  color: #ff9933;
+  border-color: rgba(255, 153, 51, 0.4);
+}
+.composer-quanty-input {
+  display: flex;
+  gap: 8px;
+}
+.composer-quanty-input input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.composer-quanty-input input:focus {
+  border-color: rgba(255, 153, 51, 0.5);
+}
+.composer-quanty-input button {
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 153, 51, 0.4);
+  background: rgba(255, 153, 51, 0.14);
+  color: #ff9933;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.composer-quanty-input button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* P17: notifications — Quant-only feed with per-item delete */
+.notification-panel-heading {
+  min-width: 0;
+}
+.notification-panel-sub {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.notification-panel-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.notification-item {
+  position: relative;
+  touch-action: pan-y;
+}
+.notification-item-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  cursor: pointer;
+}
+.notification-item-delete:hover {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.12);
+}
+.notification-item-delete svg {
+  width: 13px;
+  height: 13px;
+}
+.notification-panel-hint {
+  margin: 0;
+  padding: 8px 14px 12px;
+  font-size: 11px;
+  color: var(--quant-muted-foreground, #8a94a3);
+  border-top: 1px solid var(--quant-border, rgba(255, 255, 255, 0.08));
+}
+
+/* P13/P14: CodeHub — Quanty build chat, agents strip, connectors */
+.ch-quanty-hero {
+  border: 1px solid rgba(255, 153, 51, 0.24);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 153, 51, 0.07), rgba(255, 153, 51, 0.02));
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.ch-quanty-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.ch-quanty-copy h2 {
+  margin: 0 0 2px;
+  font-size: 1.15rem;
+}
+.ch-quanty-copy p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.ch-mode-toggle {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+  padding: 4px;
+  border-radius: 9999px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+}
+.ch-mode-toggle button {
+  padding: 6px 16px;
+  border-radius: 9999px;
+  border: 0;
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ch-mode-toggle button.is-active {
+  background: linear-gradient(135deg, #ffb15e, #ff7a00);
+  color: #221233;
+}
+.ch-quanty-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 14px 0 10px;
+}
+.ch-msg {
+  border-radius: 12px;
+  padding: 9px 11px;
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 92%;
+}
+.ch-msg p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.ch-msg.is-user {
+  align-self: flex-end;
+  background: rgba(255, 153, 51, 0.14);
+}
+.ch-msg.is-assistant {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.05);
+}
+.ch-msg.is-error {
+  background: rgba(255, 107, 107, 0.12);
+  color: #ff9b9b;
+}
+.ch-msg.is-typing,
+.ch-msg-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.ch-msg-author {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ff9933;
+  margin-bottom: 3px;
+}
+.ch-quanty-composer {
+  display: flex;
+  gap: 8px;
+}
+.ch-quanty-composer input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 13px;
+  border-radius: 12px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+.ch-quanty-composer input:focus {
+  border-color: rgba(255, 153, 51, 0.5);
+}
+.ch-quanty-composer button {
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 153, 51, 0.4);
+  background: linear-gradient(135deg, #ffb15e, #ff7a00);
+  color: #221233;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ch-quanty-composer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ch-quanty-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ch-quanty-quick button {
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ch-quanty-quick button:hover {
+  color: #ff9933;
+  border-color: rgba(255, 153, 51, 0.4);
+}
+.ch-agents {
+  margin: 0 0 16px;
+}
+.ch-agents h3,
+.ch-connectors h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.ch-agents-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+.ch-agent-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 12.5px;
+}
+.ch-agent-card strong {
+  display: block;
+  font-size: 12.5px;
+}
+.ch-agent-card small {
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 11px;
+}
+.ch-agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  flex: 0 0 auto;
+  background: #3fd9c6;
+}
+.ch-agent-dot.is-active,
+.ch-agent-dot.is-busy {
+  background: #ff9933;
+  box-shadow: 0 0 0 3px rgba(255, 153, 51, 0.18);
+}
+.ch-agent-dot.is-idle,
+.ch-agent-dot.is-build,
+.ch-agent-dot.is-deploy {
+  background: #8a94a3;
+}
+.ch-agent-dot.is-ready,
+.ch-agent-dot.is-observer {
+  background: #3fd9c6;
+}
+.ch-connectors {
+  margin: 0 0 16px;
+}
+.ch-connectors-sub {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.ch-connectors-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ch-connector-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 12.5px;
+  cursor: pointer;
+  color: inherit;
+}
+.ch-connector-card:hover {
+  border-color: rgba(255, 153, 51, 0.4);
+}
+.ch-connector-card.is-on {
+  border-color: rgba(63, 217, 198, 0.5);
+  color: #3fd9c6;
 }
