@@ -1,0 +1,98 @@
+name: fix-api-ingress
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/fix-api-ingress.yml"
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  fix-api:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::121701583740:role/quant-gha-deploy
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name quant-staging-eks --region us-east-1
+
+      - name: Show current ingress paths (before)
+        run: |
+          kubectl -n quant-staging get ingress -o jsonpath='{range .items[*]}{.metadata.name}{": "}{range .spec.rules[*]}{.host}{" ["}{range .http.paths[*]}{.path}{"("}{.pathType}{")->"}{.backend.service.name}{":"}{.backend.service.port.number}{" "}{end}{"] "}{end}{"\n"}{end}'
+
+      - name: Apply staging API ingress (rewrite /api -> backend root)
+        run: |
+          kubectl apply -f - <<'EOF'
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: quant-staging-api
+            namespace: quant-staging
+            annotations:
+              nginx.ingress.kubernetes.io/rewrite-target: /$2
+              nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+          spec:
+            ingressClassName: nginx
+            rules:
+              - host: quantmail.quantrinity.in
+                http:
+                  paths:
+                    - path: /api(/|$)(.*)
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: quant-quantmail-backend
+                          port:
+                            number: 3011
+              - host: staging.quantrinity.in
+                http:
+                  paths:
+                    - path: /api(/|$)(.*)
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: quant-quantmail-backend
+                          port:
+                            number: 3011
+          EOF
+          sleep 10
+
+      - name: Verify live through Cloudflare
+        run: |
+          mkdir -p infra/status
+          {
+            echo "=== fix-api-ingress $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+            echo "--- ingresses after apply ---"
+            kubectl -n quant-staging get ingress
+            echo "--- GET /api/healthz via https://quantmail.quantrinity.in (expect 200 JSON) ---"
+            code=$(curl -s -o /tmp/h.json -w "%{http_code}" --max-time 30 "https://quantmail.quantrinity.in/api/healthz" || echo FAIL)
+            echo "status=$code body=$(head -c 300 /tmp/h.json)"
+            echo "--- GET /api/healthz via https://staging.quantrinity.in ---"
+            code2=$(curl -s -o /tmp/h2.json -w "%{http_code}" --max-time 30 "https://staging.quantrinity.in/api/healthz" || echo FAIL)
+            echo "status=$code2 body=$(head -c 300 /tmp/h2.json)"
+            echo "--- POST /api/auth/register (dummy, expect JSON not HTML) ---"
+            code3=$(curl -s -o /tmp/r.json -w "%{http_code}" --max-time 30 -X POST -H 'Content-Type: application/json' -d '{"email":"probe@quantmail.in","password":"Probe_Test_12345"}' "https://quantmail.quantrinity.in/api/auth/register" || echo FAIL)
+            echo "status=$code3 body=$(head -c 400 /tmp/r.json)"
+            echo "--- GET /api/ (expect backend JSON, not 308) ---"
+            code4=$(curl -s -o /tmp/a.json -w "%{http_code}" --max-time 30 "https://quantmail.quantrinity.in/api/" || echo FAIL)
+            echo "status=$code4 body=$(head -c 200 /tmp/a.json)"
+          } | tee infra/status/api-ingress-result.txt
+
+      - name: Publish result
+        run: |
+          git config user.name "gha-bot"
+          git config user.email "gha-bot@users.noreply.github.com"
+          git add -f infra/status/api-ingress-result.txt
+          git commit -m "api ingress fix result"
+          git push -f origin HEAD:status-report
