@@ -27,41 +27,33 @@ jobs:
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --name quant-staging-eks --region us-east-1
 
-      - name: Set frontend auth proxy env + verify register (always publishes)
+      - name: Verify register end-to-end (always publishes)
         run: |
           set +e
           {
-            echo "=== fix-api v5 $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
-            echo "--- frontend env before ---"
+            echo "=== fix-api v6 verify $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+            echo "--- frontend env ---"
             kubectl -n quant-staging get deploy quant-quantmail -o jsonpath='{.spec.template.spec.containers[0].env}'
             echo ""
-            echo "--- set QUANTMAIL_BACKEND_URL on frontend ---"
-            kubectl -n quant-staging set env deploy/quant-quantmail QUANTMAIL_BACKEND_URL=http://quant-quantmail-backend:3011
-            echo "setenv_rc=$?"
-            kubectl -n quant-staging rollout status deploy/quant-quantmail --timeout=180s
-            echo "rollout_rc=$?"
-            echo "--- frontend env after ---"
-            kubectl -n quant-staging get deploy quant-quantmail -o jsonpath='{.spec.template.spec.containers[0].env}'
-            echo ""
-            sleep 8
-            echo "--- public verify through Cloudflare ---"
-            echo "home=$(curl -sS -o /dev/null -w %{http_code} --max-time 25 https://quantmail.quantrinity.in/)"
-            echo "auth_register=$(curl -sS -o /tmp/r1 -w %{http_code} --max-time 30 -X POST -H \"Content-Type: application/json\" -H \"Origin: https://quantmail.quantrinity.in\" -d \"{\\\"email\\\":\\\"probe3@quantmail.in\\\",\\\"username\\\":\\\"probe3\\\",\\\"displayName\\\":\\\"Probe Three\\\",\\\"password\\\":\\\"Probe_Test_12345A\\\",\\\"acceptTerms\\\":true}\" https://quantmail.quantrinity.in/auth/register)"
-            echo "auth_register_body=$(head -c 500 /tmp/r1)"
-            echo "auth_login=$(curl -sS -o /tmp/r2 -w %{http_code} --max-time 30 -X POST -H \"Content-Type: application/json\" -H \"Origin: https://quantmail.quantrinity.in\" -d \"{\\\"email\\\":\\\"probe3@quantmail.in\\\",\\\"password\\\":\\\"Probe_Test_12345A\\\"}\" https://quantmail.quantrinity.in/auth/login)"
-            echo "auth_login_body=$(head -c 500 /tmp/r2)"
-            echo "api_healthz=$(curl -sS -o /dev/null -w %{http_code} --max-time 25 https://quantmail.quantrinity.in/api/healthz)"
-            echo "--- frontend logs tail ---"
-            kubectl -n quant-staging logs deploy/quant-quantmail --tail=10 2>&1 | tail -10
+            printf '%s' '{"email":"probe3@quantmail.in","username":"probe3","displayName":"Probe Three","password":"Probe_Test_12345A","acceptTerms":true}' > /tmp/reg.json
+            printf '%s' '{"email":"probe3@quantmail.in","password":"Probe_Test_12345A"}' > /tmp/login.json
+            echo "home=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 25 https://quantmail.quantrinity.in/)"
+            REGCODE=$(curl -sS -o /tmp/r1 -w '%{http_code}' --max-time 30 -X POST -H 'Content-Type: application/json' -H 'Origin: https://quantmail.quantrinity.in' -d @/tmp/reg.json https://quantmail.quantrinity.in/auth/register)
+            echo "auth_register_code=$REGCODE"
+            echo "auth_register_body=$(head -c 600 /tmp/r1)"
+            LOGINCODE=$(curl -sS -o /tmp/r2 -w '%{http_code}' --max-time 30 -X POST -H 'Content-Type: application/json' -H 'Origin: https://quantmail.quantrinity.in' -d @/tmp/login.json https://quantmail.quantrinity.in/auth/login)
+            echo "auth_login_code=$LOGINCODE"
+            echo "auth_login_body=$(head -c 600 /tmp/r2)"
+            echo "api_healthz=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 25 https://quantmail.quantrinity.in/api/healthz)"
             echo "--- backend logs tail ---"
             kubectl -n quant-staging logs deploy/quant-quantmail-backend --tail=12 2>&1 | tail -12
             echo "=== done ==="
           } > /tmp/out.txt 2>&1
           cat /tmp/out.txt
           mkdir -p infra/status
-          cp /tmp/out.txt infra/status/api-fix4-result.txt
+          cp /tmp/out.txt infra/status/api-fix5-result.txt
           git config user.name "gha-bot"
           git config user.email "gha-bot@users.noreply.github.com"
-          git add -f infra/status/api-fix4-result.txt
-          git commit -m "api fix v5 result"
+          git add -f infra/status/api-fix5-result.txt
+          git commit -m "api fix v6 result"
           git push -f origin HEAD:status-report
