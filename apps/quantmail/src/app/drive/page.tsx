@@ -95,7 +95,6 @@ export default function DrivePage() {
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<DriveItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -145,9 +144,15 @@ export default function DrivePage() {
     const fileList = e.target.files;
     if (fileList && fileList.length > 0) {
       const arr = Array.from(fileList);
-      showToast(`Uploading ${arr.length} file${arr.length > 1 ? 's' : ''}…`, 'info');
+      showToast({
+        text: `Uploading ${arr.length} file${arr.length > 1 ? 's' : ''}…`,
+        type: 'info',
+      });
       await uploadFiles(arr);
-      showToast(`Uploaded ${arr.length} file${arr.length > 1 ? 's' : ''} successfully`, 'success');
+      showToast({
+        text: `Uploaded ${arr.length} file${arr.length > 1 ? 's' : ''} successfully`,
+        type: 'success',
+      });
       e.target.value = '';
     }
   };
@@ -163,9 +168,15 @@ export default function DrivePage() {
     setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const arr = Array.from(e.dataTransfer.files);
-      showToast(`Uploading ${arr.length} dropped file${arr.length > 1 ? 's' : ''}…`, 'info');
+      showToast({
+        text: `Uploading ${arr.length} dropped file${arr.length > 1 ? 's' : ''}…`,
+        type: 'info',
+      });
       await uploadFiles(arr);
-      showToast(`Uploaded ${arr.length} file${arr.length > 1 ? 's' : ''} successfully`, 'success');
+      showToast({
+        text: `Uploaded ${arr.length} file${arr.length > 1 ? 's' : ''} successfully`,
+        type: 'success',
+      });
     }
   };
 
@@ -176,9 +187,9 @@ export default function DrivePage() {
       await createFolder(name, currentFolderId);
       setShowNewFolderModal(false);
       setNewFolderName('');
-      showToast(`Created folder "${name}"`, 'success');
+      showToast({ text: `Created folder "${name}"`, type: 'success' });
     } catch {
-      showToast('Failed to create folder', 'error');
+      showToast({ text: 'Failed to create folder', type: 'error' });
     }
   };
 
@@ -187,13 +198,13 @@ export default function DrivePage() {
     try {
       if (item.isStarred) {
         await unstarFile(item.id);
-        showToast(`Removed from starred`, 'info');
+        showToast({ text: `Removed from starred`, type: 'info' });
       } else {
         await starFile(item.id);
-        showToast(`Starred "${item.name}"`, 'success');
+        showToast({ text: `Starred "${item.name}"`, type: 'success' });
       }
     } catch {
-      showToast('Could not update star status', 'error');
+      showToast({ text: 'Could not update star status', type: 'error' });
     }
   };
 
@@ -202,14 +213,14 @@ export default function DrivePage() {
     if (confirm(`Are you sure you want to delete "${name}"?`)) {
       try {
         await deleteFiles([id]);
-        showToast(`Deleted "${name}"`, 'info');
+        showToast({ text: `Deleted "${name}"`, type: 'info' });
         setSelectedIds((prev) => {
           const next = new Set(prev);
           next.delete(id);
           return next;
         });
       } catch {
-        showToast('Failed to delete item', 'error');
+        showToast({ text: 'Failed to delete item', type: 'error' });
       }
     }
   };
@@ -220,17 +231,16 @@ export default function DrivePage() {
     if (confirm(`Delete ${count} selected item${count > 1 ? 's' : ''}?`)) {
       try {
         await deleteFiles(Array.from(selectedIds));
-        showToast(`Deleted ${count} items`, 'info');
+        showToast({ text: `Deleted ${count} items`, type: 'info' });
         setSelectedIds(new Set());
       } catch {
-        showToast('Failed to delete items', 'error');
+        showToast({ text: 'Failed to delete items', type: 'error' });
       }
     }
   };
 
   const handleOpenRename = (item: DriveItem, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setActiveMenuId(null);
     setRenameTarget(item);
     setRenameValue(item.name);
   };
@@ -239,10 +249,10 @@ export default function DrivePage() {
     if (!renameTarget || !renameValue.trim()) return;
     try {
       await renameFile(renameTarget.id, renameValue.trim());
-      showToast(`Renamed to "${renameValue.trim()}"`, 'success');
+      showToast({ text: `Renamed to "${renameValue.trim()}"`, type: 'success' });
       setRenameTarget(null);
     } catch {
-      showToast('Failed to rename', 'error');
+      showToast({ text: 'Failed to rename', type: 'error' });
     }
   };
 
@@ -412,7 +422,7 @@ export default function DrivePage() {
                     const item = items.find((i) => i.id === id);
                     if (item && item.type !== 'folder') downloadFile(item.id, item.name);
                   }
-                  showToast(`Downloading selected files…`, 'info');
+                  showToast({ text: `Downloading selected files…`, type: 'info' });
                 }}
                 className="px-2.5 py-1 rounded-md bg-zinc-800 text-zinc-200 hover:text-white font-medium"
               >

@@ -36,13 +36,13 @@ const MONTH_NAMES = [
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7 AM to 9 PM
 
-interface CalendarEventLike {
+export interface CalendarEventLike {
   id: string;
   title: string;
-  startTime?: string;
-  endTime?: string;
-  start?: string;
-  end?: string;
+  startTime?: string | Date;
+  endTime?: string | Date;
+  start?: string | Date;
+  end?: string | Date;
   location?: string;
   description?: string;
   allDay?: boolean;
@@ -84,7 +84,8 @@ export default function CalendarPage() {
   const start = new Date(year, 0, 1).toISOString();
   const end = new Date(year, 11, 31, 23, 59, 59).toISOString();
 
-  const { data: events, isLoading, error, refetch } = useCalendarEvents({ start, end });
+  const { data: rawEvents, isLoading, error, refetch } = useCalendarEvents({ start, end });
+  const events = (rawEvents ?? []) as unknown as CalendarEventLike[];
   const createEvent = useCreateEvent();
   const deleteEvent = useDeleteEvent();
 
@@ -99,7 +100,7 @@ export default function CalendarPage() {
 
   const eventsByDay = useMemo(() => {
     const map: Record<number, CalendarEventLike[]> = {};
-    for (const event of (events ?? []) as unknown as CalendarEventLike[]) {
+    for (const event of events) {
       const date = startOf(event);
       if (Number.isNaN(date.getTime())) continue;
       if (date.getFullYear() !== year || date.getMonth() !== month) continue;
@@ -138,7 +139,7 @@ export default function CalendarPage() {
       ensure(new Date(year, month, d));
     }
 
-    for (const event of (events ?? []) as unknown as CalendarEventLike[]) {
+    for (const event of events) {
       const d = startOf(event);
       if (!Number.isNaN(d.getTime())) {
         ensure(d).events.push(event);
@@ -222,9 +223,9 @@ export default function CalendarPage() {
     try {
       await createEvent.mutateAsync(payload as never);
       setShowCreateModal(false);
-      showToast(`Created event "${newEvent.title.trim()}"`, 'success');
+      showToast({ text: `Created event "${newEvent.title.trim()}"`, type: 'success' });
     } catch {
-      showToast('Failed to create event', 'error');
+      showToast({ text: 'Failed to create event', type: 'error' });
     }
   }, [newEvent, createEvent]);
 
@@ -235,9 +236,9 @@ export default function CalendarPage() {
         try {
           await deleteEvent.mutateAsync(id);
           setSelectedEvent(null);
-          showToast('Event deleted', 'info');
+          showToast({ text: 'Event deleted', type: 'info' });
         } catch {
-          showToast('Failed to delete event', 'error');
+          showToast({ text: 'Failed to delete event', type: 'error' });
         }
       }
     },
@@ -250,7 +251,7 @@ export default function CalendarPage() {
       ...prev,
       location: `https://meet.quantrinity.in/${roomId}`,
     }));
-    showToast('Generated QuantMeet Video Link', 'info');
+    showToast({ text: 'Generated QuantMeet Video Link', type: 'info' });
   };
 
   const monthName = MONTH_NAMES[month];
@@ -270,7 +271,7 @@ export default function CalendarPage() {
           d.getMonth() === today.getMonth() &&
           d.getFullYear() === today.getFullYear(),
         isSelected: d.getDate() === selectedDay && d.getMonth() === month,
-        events: (events ?? []).filter((ev: CalendarEventLike) => {
+        events: events.filter((ev) => {
           const s = startOf(ev);
           return (
             s.getDate() === d.getDate() &&

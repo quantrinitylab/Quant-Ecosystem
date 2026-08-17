@@ -24,7 +24,6 @@ export default function ContactsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [inspectContact, setInspectContact] = useState<Contact | null>(null);
-  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const vcardInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
@@ -91,15 +90,15 @@ export default function ContactsPage() {
     try {
       if (editingContact) {
         await updateContact.mutateAsync({ id: editingContact.id, data });
-        showToast(`Updated contact ${data.name}`, 'success');
+        showToast({ text: `Updated contact ${data.name}`, type: 'success' });
       } else {
         await createContact.mutateAsync(data);
-        showToast(`Created contact ${data.name}`, 'success');
+        showToast({ text: `Created contact ${data.name}`, type: 'success' });
       }
       setShowCreateModal(false);
       setEditingContact(null);
     } catch {
-      showToast('Failed to save contact', 'error');
+      showToast({ text: 'Failed to save contact', type: 'error' });
     }
   }, [formData, editingContact, createContact, updateContact]);
 
@@ -110,9 +109,9 @@ export default function ContactsPage() {
         try {
           await deleteContact.mutateAsync(id);
           setInspectContact(null);
-          showToast('Contact deleted', 'info');
+          showToast({ text: 'Contact deleted', type: 'info' });
         } catch {
-          showToast('Failed to delete contact', 'error');
+          showToast({ text: 'Failed to delete contact', type: 'error' });
         }
       }
     },
@@ -141,7 +140,7 @@ export default function ContactsPage() {
   const handleExportVCard = () => {
     const list = contacts ?? [];
     if (list.length === 0) {
-      showToast('No contacts to export', 'info');
+      showToast({ text: 'No contacts to export', type: 'info' });
       return;
     }
     let vcf = '';
@@ -160,7 +159,7 @@ export default function ContactsPage() {
     link.download = `QuantContacts_${new Date().toISOString().slice(0, 10)}.vcf`;
     link.click();
     URL.revokeObjectURL(url);
-    showToast(`Exported ${list.length} contacts to vCard`, 'success');
+    showToast({ text: `Exported ${list.length} contacts to vCard`, type: 'success' });
   };
 
   const handleImportVCard = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,7 +187,7 @@ export default function ContactsPage() {
         }
       }
     }
-    showToast(`Imported ${imported} contacts`, 'success');
+    showToast({ text: `Imported ${imported} contacts`, type: 'success' });
     e.target.value = '';
   };
 

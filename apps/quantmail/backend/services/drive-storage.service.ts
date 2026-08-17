@@ -136,7 +136,8 @@ async function s3Request(
   return fetch(url, {
     method,
     headers: { ...headers, Authorization: authorization },
-    body: method === 'PUT' ? payload : undefined,
+    body:
+      method === 'PUT' && payload ? (new Uint8Array(payload) as unknown as BodyInit) : undefined,
   });
 }
 
