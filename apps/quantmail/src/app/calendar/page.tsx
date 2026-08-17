@@ -6,9 +6,32 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { useCalendarEvents, useCreateEvent, useDeleteEvent } from '../../hooks/useCalendar';
-import { holidaysForMonth, type Holiday } from '../../lib/holidays';
+import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const FULL_WEEKDAYS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 interface CalendarEventLike {
   id: string;
@@ -18,6 +41,7 @@ interface CalendarEventLike {
   start?: string;
   end?: string;
   location?: string;
+  description?: string;
   allDay?: boolean;
 }
 
@@ -39,15 +63,14 @@ const DURATION_PRESETS = [
 
 type AgendaDay = { key: string; date: Date; events: CalendarEventLike[]; holidays: Holiday[] };
 
-const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+const dayKey = (date: Date) =>
+  `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
 
 export default function CalendarPage() {
   const today = new Date();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number>(today.getDate());
   const [showCreateModal, setShowCreateModal] = useState(false);
-  // Outlook-style (msg#30 P10): the month grid collapses — via the chevron or
-  // automatically when you scroll the agenda — leaving the year agenda in focus.
   const [gridOpen, setGridOpen] = useState(true);
   const [newEvent, setNewEvent] = useState({
     title: '',
@@ -58,12 +81,10 @@ export default function CalendarPage() {
     allDay: false,
   });
   const scrollHostRef = useRef<HTMLDivElement>(null);
-  const didAutoScroll = useRef(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
-  // Fetch the WHOLE year — the agenda below the grid lists past, present and
-  // future events like Outlook mobile.
+
   const start = new Date(year, 0, 1).toISOString();
   const end = new Date(year, 11, 31, 23, 59, 59).toISOString();
 
@@ -74,7 +95,8 @@ export default function CalendarPage() {
   const grid = useMemo(() => {
     const total = new Date(year, month + 1, 0).getDate();
     const offset = new Date(year, month, 1).getDay();
-    return { total, offset, trailing: (7 - ((offset + total) % 7)) % 7 };
+    const prevMonthTotal = new Date(year, month, 0).getDate();
+    return { total, offset, prevMonthTotal, trailing: (7 - ((offset + total) % 7)) % 7 };
   }, [year, month]);
 
   const holidays = useMemo(() => holidaysForMonth(year, month), [year, month]);
@@ -88,66 +110,55 @@ export default function CalendarPage() {
       const day = date.getDate();
       map[day] = [...(map[day] ?? []), event];
     }
-    for (const day of Object.keys(map)) {
-      map[Number(day)]!.sort((a, b) => startOf(a).getTime() - startOf(b).getTime());
-    }
     return map;
   }, [events, year, month]);
 
-  // Full-year agenda: every day that has events or holidays, in order.
+  // Full-year agenda with events and Indian holidays
   const agenda = useMemo(() => {
     const map = new Map<string, AgendaDay>();
     const ensure = (input: Date): AgendaDay => {
-      const date = new Date(input.getFullYear(), input.getMonth(), input.getDate());
-      const key = dayKey(date);
-      let entry = map.get(key);
-      if (!entry) {
-        entry = { key, date, events: [], holidays: [] };
-        map.set(key, entry);
+      const key = dayKey(input);
+      let day = map.get(key);
+      if (!day) {
+        day = {
+          key,
+          date: new Date(input.getFullYear(), input.getMonth(), input.getDate()),
+          events: [],
+          holidays: [],
+        };
+        map.set(key, day);
       }
-      return entry;
+      return day;
     };
-    for (const event of (events ?? []) as unknown as CalendarEventLike[]) {
-      const date = startOf(event);
-      if (Number.isNaN(date.getTime())) continue;
-      ensure(date).events.push(event);
+
+    // Ensure current month days exist in agenda
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    for (let d = 1; d <= daysInMonth; d++) {
+      ensure(new Date(year, month, d));
     }
-    for (let m = 0; m < 12; m++) {
-      const monthHolidays = holidaysForMonth(year, m);
-      for (const [dayString, list] of Object.entries(monthHolidays)) {
-        const date = new Date(year, m, Number(dayString));
-        for (const holiday of list ?? []) ensure(date).holidays.push(holiday);
+
+    // Add user events
+    for (const event of (events ?? []) as unknown as CalendarEventLike[]) {
+      const d = startOf(event);
+      if (!Number.isNaN(d.getTime())) {
+        ensure(d).events.push(event);
       }
     }
-    if (year === today.getFullYear()) ensure(today);
-    const days = Array.from(map.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
-    for (const day of days) {
-      day.events.sort((a, b) => startOf(a).getTime() - startOf(b).getTime());
+
+    // Add holidays
+    for (const holiday of HOLIDAYS) {
+      const parts = holiday.date.split('-');
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      ensure(d).holidays.push(holiday);
     }
-    return days;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events, year]);
 
-  const todayKey = dayKey(today);
+    const list = Array.from(map.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+    return list;
+  }, [events, year, month]);
 
-  // Auto-scroll the agenda to today once events are in (Outlook behaviour).
-  useEffect(() => {
-    if (isLoading || didAutoScroll.current) return;
-    const target = scrollHostRef.current?.querySelector(`[data-agenda-key="${todayKey}"]`);
-    if (target) {
-      target.scrollIntoView({ block: 'start' });
-      didAutoScroll.current = true;
-    }
-  }, [isLoading, todayKey, agenda.length]);
-
-  useEffect(() => {
-    didAutoScroll.current = false;
-  }, [year]);
-
-  const goMonth = useCallback(
-    (delta: number) => setCurrentDate(new Date(year, month + delta, 1)),
-    [year, month],
-  );
+  const goMonth = useCallback((delta: number) => {
+    setCurrentDate((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
+  }, []);
 
   const goToday = useCallback(() => {
     const now = new Date();
@@ -174,8 +185,6 @@ export default function CalendarPage() {
     [year, month, selectedDay],
   );
 
-  // The global contextual FAB (+) dispatches this on /calendar so the
-  // bottom-right plus opens this same New event modal.
   useEffect(() => {
     const handler = () => openCreate();
     window.addEventListener('quant:calendar:create', handler);
@@ -192,66 +201,11 @@ export default function CalendarPage() {
     [year, month],
   );
 
-  // Scrolling the agenda collapses the month grid, like Outlook mobile.
-  const handleScroll = useCallback(() => {
-    const host = scrollHostRef.current;
-    if (!host) return;
-    if (host.scrollTop > 140 && gridOpen) setGridOpen(false);
-  }, [gridOpen]);
-
-  const toggleAllDay = useCallback(() => {
-    setNewEvent((prev) => {
-      const startDate = prev.startTime.slice(0, 10) || toLocalInput(new Date()).slice(0, 10);
-      const endDate = prev.endTime.slice(0, 10) || startDate;
-      if (!prev.allDay) {
-        return {
-          ...prev,
-          allDay: true,
-          startTime: `${startDate}T00:00`,
-          endTime: `${endDate}T23:59`,
-        };
-      }
-      return {
-        ...prev,
-        allDay: false,
-        startTime: `${startDate}T10:00`,
-        endTime: `${startDate}T11:00`,
-      };
-    });
-  }, []);
-
-  const applyDuration = useCallback((minutes: number) => {
-    setNewEvent((prev) => {
-      const startAt = new Date(prev.startTime);
-      if (Number.isNaN(startAt.getTime())) return prev;
-      return { ...prev, endTime: toLocalInput(new Date(startAt.getTime() + minutes * 60000)) };
-    });
-  }, []);
-
-  const durationLabel = useMemo(() => {
-    const startAt = new Date(newEvent.startTime);
-    const endAt = new Date(newEvent.endTime);
-    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return '';
-    const mins = Math.round((endAt.getTime() - startAt.getTime()) / 60000);
-    if (mins <= 0) return '';
-    if (mins < 60) return `${mins} min`;
-    const hrs = mins / 60;
-    return Number.isInteger(hrs) ? `${hrs} hr${hrs > 1 ? 's' : ''}` : `${hrs.toFixed(1)} hrs`;
-  }, [newEvent.startTime, newEvent.endTime]);
-
-  const invalidRange = useMemo(() => {
-    if (newEvent.allDay) return false;
-    const startAt = new Date(newEvent.startTime);
-    const endAt = new Date(newEvent.endTime);
-    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return true;
-    return endAt.getTime() <= startAt.getTime();
-  }, [newEvent.allDay, newEvent.startTime, newEvent.endTime]);
-
   const handleCreateEvent = useCallback(async () => {
-    if (!newEvent.title || !newEvent.startTime || !newEvent.endTime || invalidRange) return;
+    if (!newEvent.title.trim() || !newEvent.startTime || !newEvent.endTime) return;
     const payload = newEvent.allDay
       ? {
-          title: newEvent.title,
+          title: newEvent.title.trim(),
           startTime: new Date(`${newEvent.startTime.slice(0, 10)}T00:00:00`).toISOString(),
           endTime: new Date(`${newEvent.endTime.slice(0, 10)}T23:59:59`).toISOString(),
           description: newEvent.description,
@@ -259,7 +213,7 @@ export default function CalendarPage() {
           allDay: true,
         }
       : {
-          title: newEvent.title,
+          title: newEvent.title.trim(),
           startTime: new Date(newEvent.startTime).toISOString(),
           endTime: new Date(newEvent.endTime).toISOString(),
           description: newEvent.description,
@@ -267,476 +221,476 @@ export default function CalendarPage() {
         };
     await createEvent.mutateAsync(payload as never);
     setShowCreateModal(false);
-  }, [newEvent, invalidRange, createEvent]);
+  }, [newEvent, createEvent]);
 
-  const monthName = currentDate.toLocaleString(undefined, { month: 'long', year: 'numeric' });
-  const selectedDate = new Date(year, month, selectedDay);
-
-  const fieldClasses =
-    'w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--brand-primary)]/60 focus:ring-2 focus:ring-[var(--brand-primary)]/25';
+  const monthName = MONTH_NAMES[month];
 
   return (
-    <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page calendar-workspace flex flex-col h-full">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--quant-border)] p-4 sm:flex sm:justify-between">
-          <div className="flex min-w-0 items-center gap-2">
+    <AppShell
+      sidebar={<AppSidebar />}
+      theme="dark"
+      className="quantmail-shell"
+      mobileTitle={
+        <div className="flex items-center gap-2">
+          <h1 className="text-base font-bold text-[var(--quant-foreground)]">
+            {monthName} {year}
+          </h1>
+        </div>
+      }
+      mobileActions={
+        <button
+          type="button"
+          onClick={goToday}
+          className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-[var(--quant-surface-hover)] border border-[var(--quant-border)] text-[#ff9933]"
+        >
+          Today
+        </button>
+      }
+    >
+      <PageTransition className="workspace-page calendar-workspace flex flex-col h-full bg-[#0a0a0c]">
+        {/* Desktop Calendar Toolbar */}
+        <div className="hidden lg:flex items-center justify-between border-b border-[var(--quant-border)] px-6 py-3.5 bg-[var(--quant-surface)]">
+          <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={() => goMonth(-1)}
               aria-label="Previous month"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[var(--quant-border)] text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-muted)]"
+              className="size-8 grid place-items-center rounded-lg border border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-hover)] transition-colors"
             >
               ‹
             </button>
             <button
+              type="button"
               onClick={() => goMonth(1)}
               aria-label="Next month"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[var(--quant-border)] text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-muted)]"
+              className="size-8 grid place-items-center rounded-lg border border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-surface-hover)] transition-colors"
             >
               ›
             </button>
+            <h2 className="text-xl font-bold tracking-tight text-[var(--quant-foreground)]">
+              {monthName}{' '}
+              <span className="text-[var(--quant-muted-foreground)] font-normal">{year}</span>
+            </h2>
             <button
-              onClick={() => setGridOpen((open) => !open)}
-              aria-expanded={gridOpen}
-              aria-label={gridOpen ? 'Collapse month grid' : 'Expand month grid'}
-              className="flex min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-[var(--quant-muted)]"
-            >
-              <h1 className="truncate text-lg font-semibold tracking-tight">{monthName}</h1>
-              <svg
-                viewBox="0 0 24 24"
-                className={`h-4 w-4 shrink-0 text-[var(--quant-muted-foreground)] transition-transform ${gridOpen ? 'rotate-180' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            <button
+              type="button"
               onClick={goToday}
-              className="ml-1 shrink-0 rounded-lg border border-[var(--quant-border)] px-2.5 py-1 text-xs font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-muted)]"
+              className="ml-2 px-3 py-1 text-xs font-semibold rounded-lg border border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:text-white hover:border-[#ff9933]/60 transition-colors"
             >
               Today
             </button>
           </div>
-          <Button variant="primary" onClick={() => openCreate()}>
-            Create Event
-          </Button>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setGridOpen((open) => !open)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:text-white transition-colors"
+            >
+              {gridOpen ? 'Hide Month Grid' : 'Show Month Grid'}
+            </button>
+            <Button variant="primary" onClick={() => openCreate()}>
+              + New Event
+            </Button>
+          </div>
         </div>
 
+        {/* Collapsible Month Grid (Outlook & Google Calendar style) */}
+        {gridOpen && (
+          <div className="border-b border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] px-4 py-3 sm:px-6">
+            {/* Mobile Month Header with Chevrons */}
+            <div className="flex lg:hidden items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => goMonth(-1)}
+                  className="size-7 grid place-items-center rounded border border-[var(--quant-border)] text-xs text-[var(--quant-muted-foreground)]"
+                >
+                  ‹
+                </button>
+                <span className="text-sm font-bold text-white">
+                  {monthName} {year}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => goMonth(1)}
+                  className="size-7 grid place-items-center rounded border border-[var(--quant-border)] text-xs text-[var(--quant-muted-foreground)]"
+                >
+                  ›
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGridOpen(false)}
+                className="text-xs text-[var(--quant-muted-foreground)] hover:text-white"
+              >
+                Collapse ▴
+              </button>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1 text-center">
+              {WEEKDAYS.map((d, i) => (
+                <div
+                  key={i}
+                  className={`text-[11px] font-bold pb-1 uppercase tracking-wider ${
+                    i === 0 || i === 6 ? 'text-zinc-500' : 'text-zinc-400'
+                  }`}
+                >
+                  {d}
+                </div>
+              ))}
+
+              {/* Offset days from previous month */}
+              {Array.from({ length: grid.offset }).map((_, i) => {
+                const prevDay = grid.prevMonthTotal - grid.offset + i + 1;
+                return (
+                  <div
+                    key={`prev-${i}`}
+                    className="h-9 sm:h-11 flex flex-col items-center justify-center text-xs text-zinc-600 rounded-lg select-none"
+                  >
+                    {prevDay}
+                  </div>
+                );
+              })}
+
+              {/* Current month days */}
+              {Array.from({ length: grid.total }).map((_, i) => {
+                const day = i + 1;
+                const isSelected = day === selectedDay;
+                const isToday =
+                  today.getDate() === day &&
+                  today.getMonth() === month &&
+                  today.getFullYear() === year;
+                const dayHolidays = holidays[day] ?? [];
+                const dayEvents = eventsByDay[day] ?? [];
+                const hasHoliday = dayHolidays.length > 0;
+                const hasEvent = dayEvents.length > 0;
+
+                return (
+                  <button
+                    key={`day-${day}`}
+                    type="button"
+                    onClick={() => selectDayFromGrid(day)}
+                    className={`group relative h-9 sm:h-11 flex flex-col items-center justify-center rounded-xl text-xs font-semibold transition-all ${
+                      isSelected
+                        ? 'bg-[#ff9933] text-[#191008] shadow-md scale-105 z-10'
+                        : isToday
+                          ? 'border border-[#ff9933] text-white hover:bg-[var(--quant-surface-hover)]'
+                          : 'text-zinc-300 hover:bg-[var(--quant-surface-hover)]'
+                    }`}
+                  >
+                    <span>{day}</span>
+                    {/* Indicators for events & Indian festivals */}
+                    <div className="flex items-center gap-0.5 mt-0.5">
+                      {hasHoliday && (
+                        <span
+                          className={`size-1 rounded-full ${
+                            isSelected ? 'bg-[#191008]' : 'bg-emerald-400'
+                          }`}
+                        />
+                      )}
+                      {hasEvent && (
+                        <span
+                          className={`size-1 rounded-full ${
+                            isSelected ? 'bg-[#191008]' : 'bg-[#ff9933]'
+                          }`}
+                        />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Collapse / Expand Drag Handle */}
+            <div className="flex justify-center mt-2">
+              <button
+                type="button"
+                onClick={() => setGridOpen(false)}
+                className="w-12 h-1 rounded-full bg-zinc-700 hover:bg-zinc-500 transition-colors"
+                aria-label="Collapse month calendar"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Agenda / Schedule Timeline Stream */}
         <div
           ref={scrollHostRef}
-          onScroll={handleScroll}
-          className="flex-1 overflow-y-auto p-4 md:p-6"
+          className="flex-1 overflow-y-auto px-4 py-4 sm:px-8 sm:py-6 space-y-6"
         >
+          {/* Monthly Seasonal Header Card (Google Calendar style from user screenshot) */}
+          <div className="relative overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-gradient-to-br from-[#12171f] via-[#1a141c] to-[#1e130c] p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#ff9933]">
+                  QuantMail Calendar · Bharat Edition
+                </span>
+                <h3 className="text-2xl font-extrabold text-white mt-1">
+                  {monthName} {year}
+                </h3>
+                <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
+                  Synchronized with national holidays, Indian festivals, and your email schedules.
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20">
+                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Sync
+                </span>
+              </div>
+            </div>
+          </div>
+
           {isLoading && (
-            <div className="grid grid-cols-7 gap-1.5">
-              {Array.from({ length: 35 }).map((_, i) => (
-                <Skeleton key={i} variant="rect" width="100%" height="96px" />
+            <div className="space-y-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} variant="rect" width="100%" height="80px" />
               ))}
             </div>
           )}
+
           {error && <ErrorState message={error.message} onRetry={() => void refetch()} />}
 
           {!isLoading && !error && (
-            <>
-              {gridOpen && (
-                <div className="grid grid-cols-7 gap-1.5">
-                  {WEEKDAYS.map((d) => (
-                    <div
-                      key={d}
-                      className="pb-1 text-center text-[11px] font-semibold uppercase tracking-wider text-[var(--quant-muted-foreground)]"
-                    >
-                      {d}
-                    </div>
-                  ))}
+            <div className="space-y-6">
+              {agenda.map((item) => {
+                const isItemToday =
+                  today.getDate() === item.date.getDate() &&
+                  today.getMonth() === item.date.getMonth() &&
+                  today.getFullYear() === item.date.getFullYear();
+                const isSelected =
+                  item.date.getDate() === selectedDay && item.date.getMonth() === month;
+                const weekdayName = FULL_WEEKDAYS[item.date.getDay()];
+                const dayNum = item.date.getDate();
+                const monthShort = MONTH_NAMES[item.date.getMonth()].slice(0, 3);
+                const hasContent = item.events.length > 0 || item.holidays.length > 0;
 
-                  {Array.from({ length: grid.offset }).map((_, i) => (
-                    <div
-                      key={`lead-${i}`}
-                      className="min-h-[64px] rounded-xl border border-dashed border-[var(--quant-border)]/50 md:min-h-[92px]"
-                    />
-                  ))}
-
-                  {Array.from({ length: grid.total }).map((_, i) => {
-                    const day = i + 1;
-                    const isToday =
-                      day === today.getDate() &&
-                      month === today.getMonth() &&
-                      year === today.getFullYear();
-                    const isSelected = day === selectedDay;
-                    const dayEvents = eventsByDay[day] ?? [];
-                    const dayHolidays = holidays[day] ?? [];
-                    const weekend = new Date(year, month, day).getDay() % 6 === 0;
-
-                    return (
-                      <button
-                        key={day}
-                        onClick={() => selectDayFromGrid(day)}
-                        onDoubleClick={() => openCreate(day)}
-                        className={`flex min-h-[64px] flex-col gap-1 rounded-xl border p-2 text-left transition-all md:min-h-[92px] ${
-                          isSelected
-                            ? 'border-[var(--brand-primary)]/60 bg-[var(--brand-primary)]/10'
-                            : 'border-[var(--quant-border)] hover:border-[var(--brand-primary)]/40 hover:bg-[var(--quant-muted)]'
-                        } ${weekend && !isSelected ? 'bg-[var(--quant-surface)]/60' : ''}`}
-                      >
-                        <span className="flex items-center justify-between">
-                          <span
-                            className={`grid h-6 min-w-6 place-items-center rounded-full px-1.5 text-xs font-semibold ${
-                              isToday
-                                ? 'bg-[var(--brand-primary)] text-white'
-                                : 'text-[var(--quant-foreground)]'
-                            }`}
-                          >
-                            {day}
-                          </span>
-                          {dayEvents.length > 2 && (
-                            <span className="text-[10px] font-medium text-[var(--quant-muted-foreground)]">
-                              +{dayEvents.length - 2}
-                            </span>
-                          )}
-                        </span>
-
-                        {dayHolidays.map((holiday) => (
-                          <HolidayChip key={holiday.name} holiday={holiday} />
-                        ))}
-
-                        {dayEvents.slice(0, 2).map((event) => (
-                          <span
-                            key={event.id}
-                            className="hidden items-center gap-1 truncate rounded-md bg-[var(--brand-primary)]/15 px-1.5 py-0.5 text-[10px] font-medium text-[var(--quant-foreground)] md:flex"
-                            title={event.title}
-                          >
-                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand-primary)]" />
-                            <span className="truncate">
-                              {event.allDay ? '' : `${hhmm(startOf(event))} `}
-                              {event.title}
-                            </span>
-                          </span>
-                        ))}
-                        {dayEvents.length > 0 && (
-                          <span className="flex gap-0.5 md:hidden" aria-hidden="true">
-                            {dayEvents.slice(0, 3).map((event) => (
-                              <span
-                                key={event.id}
-                                className="h-1.5 w-1.5 rounded-full bg-[var(--brand-primary)]"
-                              />
-                            ))}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-
-                  {Array.from({ length: grid.trailing }).map((_, i) => (
-                    <div
-                      key={`trail-${i}`}
-                      className="min-h-[64px] rounded-xl border border-dashed border-[var(--quant-border)]/50 md:min-h-[92px]"
-                    />
-                  ))}
-                </div>
-              )}
-
-              {/* Year agenda — every event of {year}: past, today and upcoming */}
-              <div className={gridOpen ? 'mt-6' : 'mt-1'}>
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h2 className="text-base font-semibold text-[var(--quant-foreground)]">
-                    {year} agenda
-                  </h2>
-                  <button
-                    onClick={() => openCreate(selectedDay)}
-                    className="rounded-lg border border-[var(--quant-border)] px-2.5 py-1 text-xs font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-muted)]"
+                return (
+                  <div
+                    key={item.key}
+                    data-agenda-key={item.key}
+                    className={`transition-all duration-200 ${
+                      isSelected ? 'ring-1 ring-[#ff9933]/50 rounded-2xl p-2 bg-[#ff9933]/5' : ''
+                    }`}
                   >
-                    Add event
-                  </button>
-                </div>
-
-                {agenda.length === 0 && (
-                  <p className="rounded-xl border border-dashed border-[var(--quant-border)] p-6 text-center text-sm text-[var(--quant-muted-foreground)]">
-                    Nothing scheduled this year yet. Double-click any day — or hit Create Event — to
-                    add one.
-                  </p>
-                )}
-
-                {agenda.map((day) => {
-                  const isToday = day.key === todayKey;
-                  const isPast =
-                    day.date.getTime() <
-                    new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-                  return (
-                    <section
-                      key={day.key}
-                      data-agenda-key={day.key}
-                      className={`mb-3 scroll-mt-2 ${isPast && !isToday ? 'opacity-70' : ''}`}
-                      aria-label={day.date.toDateString()}
-                    >
-                      <header className="mb-1.5 flex items-center gap-2">
-                        <span
-                          className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl text-sm font-bold ${
-                            isToday
-                              ? 'bg-[var(--brand-primary)] text-white'
-                              : 'border border-[var(--quant-border)] text-[var(--quant-foreground)]'
-                          }`}
-                        >
-                          {day.date.getDate()}
+                    {/* Date Heading */}
+                    <div className="flex items-center gap-3 mb-2.5">
+                      <div
+                        className={`size-10 flex-none rounded-xl font-bold flex items-center justify-center text-sm shadow-md ${
+                          isItemToday
+                            ? 'bg-[#ff9933] text-[#191008]'
+                            : 'bg-[var(--quant-surface-hover)] border border-[var(--quant-border)] text-white'
+                        }`}
+                      >
+                        {dayNum}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white">
+                          {weekdayName}, {monthShort} {dayNum}
+                        </h4>
+                        <span className="text-[10px] uppercase font-semibold tracking-wider text-[var(--quant-muted-foreground)]">
+                          {isItemToday ? 'Today' : 'Upcoming'}
                         </span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold leading-tight">
-                            {day.date.toLocaleDateString(undefined, {
-                              weekday: 'long',
-                              month: 'long',
-                              day: 'numeric',
-                            })}
-                          </p>
-                          <p className="text-[11px] uppercase tracking-wide text-[var(--quant-muted-foreground)]">
-                            {isToday ? 'Today' : isPast ? 'Past' : 'Upcoming'}
-                          </p>
-                        </div>
-                      </header>
+                      </div>
+                    </div>
 
-                      {day.holidays.map((holiday) => (
+                    {/* Day Content: Holidays & User Events */}
+                    <div className="ml-13 pl-3 border-l border-zinc-800 space-y-2.5">
+                      {item.holidays.map((h, hi) => (
                         <div
-                          key={holiday.name}
-                          className="mb-2 ml-11 flex items-center gap-3 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-3"
+                          key={`h-${hi}`}
+                          className="flex items-center justify-between p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-950/20 text-emerald-300 shadow-sm"
                         >
-                          <span className="h-8 w-1 rounded-full bg-[var(--quant-warning,#f0b429)]" />
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium">{holiday.name}</p>
-                            <p className="text-xs capitalize text-[var(--quant-muted-foreground)]">
-                              {holiday.kind === 'national' ? 'Public holiday' : holiday.kind}
-                            </p>
+                          <div className="flex items-center gap-3">
+                            <span className="text-base">🪔</span>
+                            <div>
+                              <strong className="block text-xs font-bold text-emerald-200">
+                                {h.name}
+                              </strong>
+                              {h.description && (
+                                <p className="text-[11px] text-emerald-400/80">{h.description}</p>
+                              )}
+                            </div>
                           </div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                            {h.kind}
+                          </span>
                         </div>
                       ))}
 
-                      {day.events.length === 0 && day.holidays.length === 0 && isToday && (
-                        <p className="ml-11 rounded-xl border border-dashed border-[var(--quant-border)] p-4 text-sm text-[var(--quant-muted-foreground)]">
-                          Nothing scheduled today.
-                        </p>
-                      )}
-
-                      {day.events.map((event) => (
+                      {item.events.map((evt) => (
                         <div
-                          key={event.id}
-                          className="mb-2 ml-11 flex items-center gap-3 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-3 transition-colors hover:bg-[var(--quant-muted)]"
+                          key={evt.id}
+                          className="flex items-center justify-between p-3.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#ff9933]/50 transition-colors shadow-sm"
                         >
-                          <div className="h-10 w-1 rounded-full bg-[var(--brand-primary)]" />
                           <div className="min-w-0 flex-1">
-                            <h3 className="truncate text-sm font-medium text-[var(--quant-foreground)]">
-                              {event.title}
-                            </h3>
-                            <p className="text-xs text-[var(--quant-muted-foreground)]">
-                              {event.allDay
-                                ? 'All day'
-                                : `${hhmm(startOf(event))} – ${hhmm(endOf(event))}`}
-                              {event.location ? ` · ${event.location}` : ''}
-                            </p>
+                            <strong className="block text-xs font-bold text-white truncate">
+                              {evt.title}
+                            </strong>
+                            <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--quant-muted-foreground)]">
+                              <span>
+                                {evt.allDay
+                                  ? 'All day'
+                                  : `${hhmm(startOf(evt))} – ${hhmm(endOf(evt))}`}
+                              </span>
+                              {evt.location && <span>📍 {evt.location}</span>}
+                            </div>
+                            {evt.description && (
+                              <p className="text-[11px] text-zinc-400 mt-1 line-clamp-1">
+                                {evt.description}
+                              </p>
+                            )}
                           </div>
                           <button
-                            className="text-xs text-[var(--quant-destructive)] hover:underline"
-                            onClick={() => void deleteEvent.mutateAsync(event.id)}
+                            type="button"
+                            onClick={() => deleteEvent.mutate(evt.id)}
+                            className="text-xs text-rose-400/80 hover:text-rose-300 px-2 py-1"
+                            title="Delete event"
                           >
-                            Delete
+                            ✕
                           </button>
                         </div>
                       ))}
-                    </section>
-                  );
-                })}
-              </div>
-            </>
+
+                      {!hasContent && (
+                        <div className="flex items-center justify-between py-2 text-xs text-zinc-500">
+                          <span>No plans scheduled.</span>
+                          <button
+                            type="button"
+                            onClick={() => openCreate(dayNum)}
+                            className="text-[11px] text-[#ff9933] hover:underline font-semibold"
+                          >
+                            + Add plan
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
-        {/* New event — Outlook-style compact compose card */}
+        {/* Create Event Modal */}
         <Modal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
-          title="New event"
-          description={selectedDate.toLocaleDateString(undefined, {
-            weekday: 'long',
-            month: 'long',
-            day: 'numeric',
-          })}
-          size="sm"
-          footer={
-            <>
+          title="Create New Event"
+        >
+          <div className="space-y-4 p-4">
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                Event Title *
+              </label>
+              <input
+                type="text"
+                value={newEvent.title}
+                onChange={(e) => setNewEvent((prev) => ({ ...prev, title: e.target.value }))}
+                placeholder="e.g. Product Review, Standup, Investor Call…"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={newEvent.allDay}
+                  onChange={(e) => setNewEvent((prev) => ({ ...prev, allDay: e.target.checked }))}
+                  className="accent-[#ff9933]"
+                />
+                All Day Event
+              </label>
+              <div className="flex items-center gap-1.5">
+                {DURATION_PRESETS.map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => {
+                      const startAt = new Date(newEvent.startTime);
+                      if (!Number.isNaN(startAt.getTime())) {
+                        setNewEvent((prev) => ({
+                          ...prev,
+                          endTime: toLocalInput(
+                            new Date(startAt.getTime() + preset.minutes * 60000),
+                          ),
+                        }));
+                      }
+                    }}
+                    className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-300 hover:bg-zinc-700"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">
+                  Start Time
+                </label>
+                <input
+                  type={newEvent.allDay ? 'date' : 'datetime-local'}
+                  value={newEvent.allDay ? newEvent.startTime.slice(0, 10) : newEvent.startTime}
+                  onChange={(e) => setNewEvent((prev) => ({ ...prev, startTime: e.target.value }))}
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#ff9933]"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-400 mb-1">End Time</label>
+                <input
+                  type={newEvent.allDay ? 'date' : 'datetime-local'}
+                  value={newEvent.allDay ? newEvent.endTime.slice(0, 10) : newEvent.endTime}
+                  onChange={(e) => setNewEvent((prev) => ({ ...prev, endTime: e.target.value }))}
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#ff9933]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                Location (Optional)
+              </label>
+              <input
+                type="text"
+                value={newEvent.location}
+                onChange={(e) => setNewEvent((prev) => ({ ...prev, location: e.target.value }))}
+                placeholder="Google Meet, Zoom, or Office Room…"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                Description / Notes
+              </label>
+              <textarea
+                value={newEvent.description}
+                onChange={(e) => setNewEvent((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Meeting agenda, links, notes…"
+                rows={3}
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg p-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
                 Cancel
               </Button>
               <Button
                 variant="primary"
-                onClick={handleCreateEvent}
-                disabled={!newEvent.title || invalidRange || createEvent.isPending}
+                onClick={() => void handleCreateEvent()}
+                disabled={!newEvent.title.trim() || createEvent.isPending}
               >
-                {createEvent.isPending ? 'Saving…' : 'Save event'}
+                {createEvent.isPending ? 'Saving…' : 'Save Event'}
               </Button>
-            </>
-          }
-        >
-          <div className="space-y-4">
-            {/* Big borderless title, like Outlook/Google Calendar */}
-            <input
-              value={newEvent.title}
-              onChange={(e) => setNewEvent((prev) => ({ ...prev, title: e.target.value }))}
-              placeholder="Add a title"
-              aria-label="Event title"
-              autoFocus
-              className="w-full border-0 border-b border-[var(--quant-border)] bg-transparent px-1 pb-2 text-lg font-semibold outline-none transition-colors placeholder:text-[var(--quant-muted-foreground)]/50 focus:border-[var(--brand-primary)]"
-            />
-
-            {/* All-day toggle + quick durations */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleAllDay}
-                aria-pressed={newEvent.allDay}
-                className={`inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium transition-colors ${
-                  newEvent.allDay
-                    ? 'border-[var(--brand-primary)]/60 bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
-                    : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-muted)]'
-                }`}
-              >
-                All day
-              </button>
-              {!newEvent.allDay &&
-                DURATION_PRESETS.map((preset) => (
-                  <button
-                    key={preset.minutes}
-                    type="button"
-                    onClick={() => applyDuration(preset.minutes)}
-                    className="inline-flex h-8 items-center rounded-full border border-[var(--quant-border)] px-3 text-xs font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)]"
-                  >
-                    {preset.label}
-                  </button>
-                ))}
             </div>
-
-            {/* Starts / Ends */}
-            {newEvent.allDay ? (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">
-                    Start date
-                  </span>
-                  <input
-                    type="date"
-                    className={fieldClasses}
-                    value={newEvent.startTime.slice(0, 10)}
-                    onChange={(e) =>
-                      setNewEvent((prev) => {
-                        const v = e.target.value;
-                        const endDate = prev.endTime.slice(0, 10);
-                        return {
-                          ...prev,
-                          startTime: `${v}T00:00`,
-                          endTime: !endDate || endDate < v ? `${v}T23:59` : prev.endTime,
-                        };
-                      })
-                    }
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">
-                    End date
-                  </span>
-                  <input
-                    type="date"
-                    className={fieldClasses}
-                    value={newEvent.endTime.slice(0, 10)}
-                    min={newEvent.startTime.slice(0, 10)}
-                    onChange={(e) =>
-                      setNewEvent((prev) => ({ ...prev, endTime: `${e.target.value}T23:59` }))
-                    }
-                  />
-                </label>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">
-                    Starts
-                  </span>
-                  <input
-                    type="datetime-local"
-                    className={fieldClasses}
-                    value={newEvent.startTime}
-                    onChange={(e) =>
-                      setNewEvent((prev) => ({ ...prev, startTime: e.target.value }))
-                    }
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 flex items-center justify-between text-xs font-medium text-[var(--quant-muted-foreground)]">
-                    <span>Ends</span>
-                    {durationLabel && (
-                      <span className="font-normal text-[var(--quant-muted-foreground)]/80">
-                        {durationLabel}
-                      </span>
-                    )}
-                  </span>
-                  <input
-                    type="datetime-local"
-                    className={fieldClasses}
-                    value={newEvent.endTime}
-                    onChange={(e) => setNewEvent((prev) => ({ ...prev, endTime: e.target.value }))}
-                  />
-                </label>
-              </div>
-            )}
-            {invalidRange && newEvent.startTime && newEvent.endTime && (
-              <p className="text-xs text-[var(--quant-destructive)]">
-                End time must be after the start time.
-              </p>
-            )}
-
-            {/* Location + notes */}
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">
-                Location
-              </span>
-              <input
-                className={fieldClasses}
-                value={newEvent.location}
-                onChange={(e) => setNewEvent((prev) => ({ ...prev, location: e.target.value }))}
-                placeholder="Meet link or room"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-medium text-[var(--quant-muted-foreground)]">
-                Notes
-              </span>
-              <textarea
-                rows={2}
-                className={`${fieldClasses} resize-none`}
-                value={newEvent.description}
-                onChange={(e) => setNewEvent((prev) => ({ ...prev, description: e.target.value }))}
-                placeholder="Agenda, context, links"
-              />
-            </label>
-
-            {createEvent.isError && (
-              <p className="text-xs text-[var(--quant-destructive)]">
-                {(createEvent.error as Error).message}
-              </p>
-            )}
           </div>
         </Modal>
       </PageTransition>
     </AppShell>
-  );
-}
-
-function HolidayChip({ holiday }: { holiday: Holiday }) {
-  return (
-    <span
-      className="flex items-center gap-1 truncate rounded-md bg-[var(--quant-warning,#f0b429)]/15 px-1.5 py-0.5 text-[10px] font-medium text-[var(--quant-foreground)]"
-      title={holiday.name}
-    >
-      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--quant-warning,#f0b429)]" />
-      <span className="truncate">{holiday.name}</span>
-    </span>
   );
 }
