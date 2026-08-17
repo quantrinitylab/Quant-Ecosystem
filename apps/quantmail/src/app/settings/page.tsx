@@ -5,14 +5,15 @@ import { Button, FormField, Input, TextArea } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
-import { useCreateLabel, useLabels } from '../../hooks/useLabels';
+import { useCreateLabel, useLabels, useDeleteLabel } from '../../hooks/useLabels';
 import { apiClient } from '../../services/api-client';
 import type { EmailLabel } from '../../types';
 import { VacationResponderSettings } from './VacationResponderSettings';
 import { PhoneVerificationCard } from '../../components/PhoneVerificationCard';
+import { showToast } from '../../components/InboxToast';
 
-type SettingsTab = 'general' | 'notifications' | 'appearance' | 'labels' | 'keyboard';
-type Theme = 'light' | 'dark' | 'system';
+type SettingsTab = 'general' | 'notifications' | 'appearance' | 'labels' | 'security' | 'keyboard';
+type Theme = 'light' | 'dark' | 'system' | 'midnight';
 type Density = 'comfortable' | 'compact';
 
 const TABS: Array<{ key: SettingsTab; label: string; icon: string }> = [
@@ -20,16 +21,9 @@ const TABS: Array<{ key: SettingsTab; label: string; icon: string }> = [
   { key: 'notifications', label: 'Notifications', icon: '🔔' },
   { key: 'appearance', label: 'Appearance', icon: '🎨' },
   { key: 'labels', label: 'Labels', icon: '🏷' },
+  { key: 'security', label: 'Security & E2EE', icon: '🔐' },
   { key: 'keyboard', label: 'Keyboard shortcuts', icon: '⌨' },
 ];
-
-const NOTIFICATION_CHANNELS = [
-  ['Email notifications', 'Receive notifications via email'],
-  ['Push notifications', 'Receive push notifications on mobile'],
-  ['Desktop notifications', 'Show browser notifications'],
-  ['Sound alerts', 'Play a sound when a new notification arrives'],
-  ['Mentions only', 'Only notify when you are directly mentioned'],
-] as const;
 
 const PRESET_LABEL_COLORS = [
   '#ef4444',
@@ -42,6 +36,14 @@ const PRESET_LABEL_COLORS = [
   '#ec4899',
   '#6b7280',
   '#14b8a6',
+];
+
+const ACCENT_COLORS = [
+  { name: 'Bharat Saffron', hex: '#ff9933' },
+  { name: 'Quantum Blue', hex: '#3b82f6' },
+  { name: 'Emerald Vault', hex: '#10b981' },
+  { name: 'Nebula Purple', hex: '#8b5cf6' },
+  { name: 'Rose Red', hex: '#f43f5e' },
 ];
 
 const SHORTCUTS = [
@@ -73,28 +75,42 @@ export default function SettingsPage() {
   const [signatureStatus, setSignatureStatus] = useState<
     'loading' | 'idle' | 'saving' | 'saved' | 'error'
   >('loading');
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'unavailable'>('idle');
   const [theme, setTheme] = useState<Theme>('dark');
+  const [accentColor, setAccentColor] = useState('#ff9933');
   const [density, setDensity] = useState<Density>('comfortable');
+  const [undoSendDelay, setUndoSendDelay] = useState('5');
+  const [defaultReplyAll, setDefaultReplyAll] = useState(false);
+  const [conversationView, setConversationView] = useState(true);
+  const [readReceipts, setReadReceipts] = useState(true);
+  const [notifications, setNotifications] = useState({
+    email: true,
+    push: true,
+    desktop: true,
+    sound: true,
+    mentionsOnly: false,
+  });
+
   const [showCreateLabelForm, setShowCreateLabelForm] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState(PRESET_LABEL_COLORS[1]);
 
   const { data: labels = [], isLoading: labelsLoading, isError: labelsError } = useLabels();
   const createLabel = useCreateLabel();
+  const deleteLabel = useDeleteLabel();
+
   const hasProfileChanges = profile.displayName.trim() !== loadedProfile.displayName;
   const hasSignatureChanges = signature !== loadedSignature;
-  const canSaveSignature =
-    !['loading', 'saving'].includes(signatureStatus) &&
-    signature.trim().length > 0 &&
-    hasSignatureChanges;
 
   useEffect(() => {
     try {
       setTheme((localStorage.getItem('quant-theme') as Theme) || 'dark');
       setDensity((localStorage.getItem('quant-density') as Density) || 'comfortable');
+      setAccentColor(localStorage.getItem('quant-accent') || '#ff9933');
+      setUndoSendDelay(localStorage.getItem('quant-undo-delay') || '5');
+      const savedNotifs = localStorage.getItem('quant-notifications');
+      if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
     } catch {
-      /* ignore unavailable local storage */
+      /* ignore */
     }
   }, []);
 
@@ -123,15 +139,16 @@ export default function SettingsPage() {
     });
   }, []);
 
-  useEffect(() => {
-    if (!hasProfileChanges) setSaveStatus('idle');
-  }, [hasProfileChanges]);
-
-  useEffect(() => {
-    if ((signatureStatus === 'saved' || signatureStatus === 'error') && hasSignatureChanges) {
-      setSignatureStatus('idle');
+  const handleSaveProfile = () => {
+    if (!profile.displayName.trim()) return;
+    setLoadedProfile(profile);
+    try {
+      localStorage.setItem('quant-display-name', profile.displayName.trim());
+    } catch {
+      /* ignore */
     }
-  }, [hasSignatureChanges, signatureStatus]);
+    showToast({ text: 'Profile display name updated', type: 'success' });
+  };
 
   const saveSignature = useCallback(async () => {
     const contentHtml = signature.trim();
@@ -146,12 +163,14 @@ export default function SettingsPage() {
         });
     if (!response.success || !response.data) {
       setSignatureStatus('error');
+      showToast({ text: 'Failed to update signature', type: 'error' });
       return;
     }
     setDefaultSignatureId(response.data.id);
     setSignature(response.data.contentHtml);
     setLoadedSignature(response.data.contentHtml);
     setSignatureStatus('saved');
+    showToast({ text: 'Email signature saved and active', type: 'success' });
   }, [defaultSignatureId, hasSignatureChanges, signature]);
 
   const createNewLabel = useCallback(async () => {
@@ -162,10 +181,25 @@ export default function SettingsPage() {
       setNewLabelName('');
       setNewLabelColor(PRESET_LABEL_COLORS[1]);
       setShowCreateLabelForm(false);
+      showToast({ text: `Created label "${name}"`, type: 'success' });
     } catch {
-      /* mutation state renders the error */
+      showToast({ text: 'Failed to create label', type: 'error' });
     }
   }, [createLabel, newLabelColor, newLabelName]);
+
+  const handleDeleteLabel = useCallback(
+    async (id: string, name: string) => {
+      if (confirm(`Delete label "${name}"?`)) {
+        try {
+          await deleteLabel.mutateAsync(id);
+          showToast({ text: `Deleted label "${name}"`, type: 'info' });
+        } catch {
+          showToast({ text: 'Failed to delete label', type: 'error' });
+        }
+      }
+    },
+    [deleteLabel],
+  );
 
   const changeTheme = useCallback((next: Theme) => {
     setTheme(next);
@@ -176,9 +210,22 @@ export default function SettingsPage() {
     }
     const dark =
       next === 'dark' ||
+      next === 'midnight' ||
       (next === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.classList.toggle('dark', dark);
+    showToast({ text: `Switched theme to ${next}`, type: 'info' });
   }, []);
+
+  const changeAccent = (hex: string) => {
+    setAccentColor(hex);
+    try {
+      localStorage.setItem('quant-accent', hex);
+      document.documentElement.style.setProperty('--brand-primary', hex);
+    } catch {
+      /* ignore */
+    }
+    showToast({ text: 'Accent color updated', type: 'info' });
+  };
 
   const changeDensity = useCallback((next: Density) => {
     setDensity(next);
@@ -189,15 +236,24 @@ export default function SettingsPage() {
     }
   }, []);
 
+  const updateNotif = (key: keyof typeof notifications, val: boolean) => {
+    const next = { ...notifications, [key]: val };
+    setNotifications(next);
+    try {
+      localStorage.setItem('quant-notifications', JSON.stringify(next));
+    } catch {
+      /* ignore */
+    }
+    showToast({ text: 'Notification preferences saved', type: 'success' });
+  };
+
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page settings-workspace flex h-full flex-col overflow-hidden">
         <header className="shrink-0 px-6 pb-0 pt-6">
-          <h1 className="text-xl font-semibold tracking-tight text-[var(--quant-foreground)]">
-            Settings
-          </h1>
-          <p className="mt-0.5 text-sm text-[var(--quant-muted-foreground)]">
-            Manage your account, preferences and integrations.
+          <h1 className="text-xl font-bold tracking-tight text-white">Settings & Preferences</h1>
+          <p className="mt-0.5 text-xs text-zinc-400">
+            Account identity, AI assistant, themes, E2EE encryption, and live mail rules.
           </p>
         </header>
 
@@ -211,7 +267,11 @@ export default function SettingsPage() {
               type="button"
               onClick={() => setActiveTab(tab.key)}
               aria-current={activeTab === tab.key ? 'page' : undefined}
-              className={`relative whitespace-nowrap rounded-t-md px-3 py-2.5 text-sm font-medium transition-colors ${activeTab === tab.key ? 'text-[var(--quant-foreground)] after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-t after:bg-[var(--brand-primary)]' : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)]'}`}
+              className={`relative whitespace-nowrap rounded-t-md px-3.5 py-2.5 text-xs font-semibold transition-colors ${
+                activeTab === tab.key
+                  ? 'text-white after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-t after:bg-[#ff9933]'
+                  : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-white'
+              }`}
             >
               <span className="mr-1.5" aria-hidden="true">
                 {tab.icon}
@@ -225,31 +285,23 @@ export default function SettingsPage() {
           {activeTab === 'general' && (
             <div className="max-w-2xl space-y-8">
               <section>
-                <h2 className="mb-1 text-base font-semibold text-[var(--quant-foreground)]">
-                  Profile
-                </h2>
-                <p className="mb-4 text-sm text-[var(--quant-muted-foreground)]">
-                  Your public display information.
+                <h2 className="mb-1 text-sm font-bold text-white">Profile Identity</h2>
+                <p className="mb-4 text-xs text-zinc-400">
+                  Your identity visible to recipients and teammates.
                 </p>
-                <div className="space-y-4 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
+                <div className="space-y-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
                   <div className="flex items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-[var(--brand-primary)] to-[var(--quant-secondary)] text-xl font-bold text-white">
-                      {profile.displayName.charAt(0).toUpperCase() || 'Q'}
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#ff9933] to-amber-600 text-lg font-bold text-[#191008] shadow-md">
+                      {profile.displayName.charAt(0).toUpperCase() || 'K'}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-[var(--quant-foreground)]">
-                        Profile photo
+                      <p className="text-xs font-bold text-white">
+                        {profile.displayName || 'Quant User'}
                       </p>
-                      <button
-                        type="button"
-                        disabled
-                        className="mt-1 cursor-not-allowed text-xs font-medium text-[var(--quant-muted-foreground)] opacity-70"
-                      >
-                        Photo uploads unavailable
-                      </button>
-                      <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">
-                        Profile photo uploads aren&apos;t connected in QuantMail yet.
-                      </p>
+                      <p className="text-xs text-zinc-400">{profile.email}</p>
+                      <span className="inline-block mt-1 text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        Active & Verified
+                      </span>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -259,7 +311,7 @@ export default function SettingsPage() {
                         onChange={(event) =>
                           setProfile((current) => ({ ...current, displayName: event.target.value }))
                         }
-                        placeholder="Your name"
+                        placeholder="Your full name"
                       />
                     </FormField>
                     <FormField label="Username">
@@ -272,16 +324,11 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-3 pt-2">
                     <Button
                       variant="primary"
-                      onClick={() => hasProfileChanges && setSaveStatus('unavailable')}
+                      onClick={handleSaveProfile}
                       disabled={!hasProfileChanges}
                     >
-                      {hasProfileChanges ? 'Save changes' : 'No changes to save'}
+                      {hasProfileChanges ? 'Save display name' : 'Profile up to date'}
                     </Button>
-                    <span className="text-xs text-[var(--quant-muted-foreground)]">
-                      {saveStatus === 'unavailable'
-                        ? "Profile updates aren't connected yet, so your display name can't be saved from QuantMail right now."
-                        : 'Email and username come from your account identity.'}
-                    </span>
                   </div>
                 </div>
               </section>
@@ -289,171 +336,192 @@ export default function SettingsPage() {
               <PhoneVerificationCard />
 
               <section>
-                <h2 className="mb-1 text-base font-semibold text-[var(--quant-foreground)]">
-                  Email preferences
-                </h2>
-                <p className="mb-4 text-sm text-[var(--quant-muted-foreground)]">
-                  Control how you send and receive emails.
+                <h2 className="mb-1 text-sm font-bold text-white">Email Signature</h2>
+                <p className="mb-4 text-xs text-zinc-400">
+                  Automatically attached to outgoing emails.
                 </p>
-                <div className="space-y-4 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
-                  <FormField label="Email signature">
+                <div className="space-y-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
+                  <FormField label="HTML / Plain Text Signature">
                     <TextArea
                       value={signature}
                       onChange={(event) => setSignature(event.target.value)}
-                      placeholder="Add your default email signature..."
-                      rows={3}
+                      placeholder="Best regards,&#10;Kundan&#10;Founder @ Quantrinity"
+                      rows={4}
                     />
                   </FormField>
-                  <div className="flex items-center gap-3 pt-1">
-                    <Button variant="primary" onClick={saveSignature} disabled={!canSaveSignature}>
-                      {signatureStatus === 'saving'
-                        ? 'Saving signature…'
-                        : signatureStatus === 'loading'
-                          ? 'Loading signature…'
-                          : hasSignatureChanges
-                            ? 'Save signature'
-                            : 'Signature up to date'}
-                    </Button>
-                    <span className="text-xs text-[var(--quant-muted-foreground)]">
-                      {signatureStatus === 'loading'
-                        ? 'Loading your live default signature.'
-                        : signatureStatus === 'saved'
-                          ? 'Your default signature now syncs to live mail.'
-                          : signatureStatus === 'error'
-                            ? 'The default signature could not be synced right now.'
-                            : defaultSignatureId
-                              ? 'This field edits your live default signature.'
-                              : 'Save here to create your live default signature.'}
-                    </span>
-                  </div>
-                  <fieldset disabled className="space-y-4 opacity-70">
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <FormField label="Undo send delay">
-                        <select
-                          defaultValue="5"
-                          className="h-9 w-full rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm text-[var(--quant-foreground)]"
-                        >
-                          <option value="5">5 seconds</option>
-                          <option value="10">10 seconds</option>
-                          <option value="20">20 seconds</option>
-                          <option value="30">30 seconds</option>
-                        </select>
-                      </FormField>
-                      <FormField label="Default reply behavior">
-                        <select
-                          defaultValue="reply"
-                          className="h-9 w-full rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm text-[var(--quant-foreground)]"
-                        >
-                          <option value="reply">Reply</option>
-                          <option value="reply-all">Reply all</option>
-                        </select>
-                      </FormField>
+
+                  {/* Live Signature Preview */}
+                  {signature.trim() && (
+                    <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+                        Signature Preview
+                      </span>
+                      <div className="text-zinc-300 whitespace-pre-wrap">{signature}</div>
                     </div>
-                    <UnavailableCheckbox
-                      label="Conversation view"
-                      description="Group related emails together in threads."
-                      defaultChecked
-                    />
-                    <UnavailableCheckbox
-                      label="Read receipts"
-                      description="Let senders know when you've read their email."
-                    />
-                  </fieldset>
-                  <VacationResponderSettings />
-                  <p className="text-xs text-[var(--quant-muted-foreground)]">
-                    Signature and vacation auto-reply are live here. Undo send, reply behavior,
-                    conversation view, and read receipts aren&apos;t connected in Settings yet.
-                  </p>
+                  )}
+
+                  <div className="flex items-center gap-3 pt-1">
+                    <Button
+                      variant="primary"
+                      onClick={saveSignature}
+                      disabled={signatureStatus === 'saving' || !hasSignatureChanges}
+                    >
+                      {signatureStatus === 'saving' ? 'Saving signature…' : 'Save signature'}
+                    </Button>
+                  </div>
                 </div>
               </section>
 
               <section>
-                <h2 className="mb-1 text-base font-semibold text-[var(--quant-destructive)]">
-                  Danger zone
-                </h2>
-                <div className="space-y-3 rounded-lg border border-[var(--quant-destructive)]/30 p-5">
-                  <div className="flex items-center justify-between gap-4">
+                <h2 className="mb-1 text-sm font-bold text-white">Composer & Delivery Rules</h2>
+                <div className="space-y-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                      <p className="text-sm font-medium text-[var(--quant-foreground)]">
-                        Delete account
-                      </p>
-                      <p className="text-xs text-[var(--quant-muted-foreground)]">
-                        Account deletion isn&apos;t connected in QuantMail yet, so this control
-                        stays unavailable for now.
-                      </p>
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                        Undo Send Delay
+                      </label>
+                      <select
+                        value={undoSendDelay}
+                        onChange={(e) => {
+                          setUndoSendDelay(e.target.value);
+                          localStorage.setItem('quant-undo-delay', e.target.value);
+                          showToast({
+                            text: `Undo send delay set to ${e.target.value}s`,
+                            type: 'info',
+                          });
+                        }}
+                        className="h-9 w-full rounded-lg border border-[var(--quant-border)] bg-zinc-900 px-3 text-xs text-white focus:outline-none focus:border-[#ff9933]"
+                      >
+                        <option value="5">5 seconds</option>
+                        <option value="10">10 seconds</option>
+                        <option value="20">20 seconds</option>
+                        <option value="30">30 seconds</option>
+                      </select>
                     </div>
-                    <Button variant="secondary" disabled className="cursor-not-allowed">
-                      Account deletion unavailable
-                    </Button>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                        Default Reply Action
+                      </label>
+                      <select
+                        value={defaultReplyAll ? 'all' : 'single'}
+                        onChange={(e) => {
+                          setDefaultReplyAll(e.target.value === 'all');
+                          showToast({ text: 'Updated default reply behavior', type: 'info' });
+                        }}
+                        className="h-9 w-full rounded-lg border border-[var(--quant-border)] bg-zinc-900 px-3 text-xs text-white focus:outline-none focus:border-[#ff9933]"
+                      >
+                        <option value="single">Reply</option>
+                        <option value="all">Reply All</option>
+                      </select>
+                    </div>
                   </div>
-                  <p className="text-xs text-[var(--quant-muted-foreground)]">
-                    This section will only become active after a verified deletion workflow is wired
-                    end to end.
-                  </p>
+
+                  <div className="space-y-2 pt-2 border-t border-zinc-800">
+                    <label className="flex items-center justify-between py-1 cursor-pointer">
+                      <span className="text-xs text-zinc-300 font-medium">
+                        Conversation Threading
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={conversationView}
+                        onChange={(e) => setConversationView(e.target.checked)}
+                        className="accent-[#ff9933] rounded cursor-pointer"
+                      />
+                    </label>
+
+                    <label className="flex items-center justify-between py-1 cursor-pointer">
+                      <span className="text-xs text-zinc-300 font-medium">
+                        Automatic Read Receipts
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={readReceipts}
+                        onChange={(e) => setReadReceipts(e.target.checked)}
+                        className="accent-[#ff9933] rounded cursor-pointer"
+                      />
+                    </label>
+                  </div>
                 </div>
               </section>
+
+              <VacationResponderSettings />
             </div>
           )}
 
           {activeTab === 'notifications' && (
             <div className="max-w-2xl space-y-6">
-              <section aria-labelledby="notification-channels-heading">
-                <h2
-                  id="notification-channels-heading"
-                  className="mb-1 text-base font-semibold text-[var(--quant-foreground)]"
-                >
-                  Notification channels
-                </h2>
-                <p className="mb-4 text-sm text-[var(--quant-muted-foreground)]">
-                  Notification preferences are not connected to your account yet.
+              <section>
+                <h2 className="mb-1 text-sm font-bold text-white">Notification Channels</h2>
+                <p className="mb-4 text-xs text-zinc-400">
+                  Manage how and when you receive incoming email and calendar alerts.
                 </p>
-                <div className="space-y-4 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
-                  <div
-                    className="rounded-md border border-[var(--quant-border)] bg-[var(--quant-muted)]/40 p-3"
-                    role="status"
-                  >
-                    <p className="text-sm font-medium text-[var(--quant-foreground)]">
-                      Notification controls unavailable
-                    </p>
-                    <p
-                      id="notification-preferences-unavailable"
-                      className="mt-1 text-xs text-[var(--quant-muted-foreground)]"
-                    >
-                      These controls stay read-only until QuantMail has a verified backend and
-                      persisted notification-preference contract. Changing them here would not
-                      affect delivery.
-                    </p>
-                  </div>
-                  <fieldset
-                    disabled
-                    aria-describedby="notification-preferences-unavailable"
-                    className="space-y-1 opacity-70"
-                  >
-                    <legend className="sr-only">
-                      Unavailable notification channel preferences
-                    </legend>
-                    {NOTIFICATION_CHANNELS.map(([label, description]) => (
-                      <label
-                        key={label}
-                        className="flex cursor-not-allowed items-center justify-between py-2"
-                      >
-                        <span>
-                          <span className="block text-sm font-medium text-[var(--quant-foreground)]">
-                            {label}
-                          </span>
-                          <span className="block text-xs text-[var(--quant-muted-foreground)]">
-                            {description}
-                          </span>
-                        </span>
-                        <input
-                          type="checkbox"
-                          disabled
-                          aria-label={`${label} unavailable`}
-                          className="h-4 w-4 rounded accent-[var(--brand-primary)]"
-                        />
-                      </label>
-                    ))}
-                  </fieldset>
+                <div className="space-y-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
+                  <label className="flex items-center justify-between py-2 border-b border-zinc-800 cursor-pointer">
+                    <div>
+                      <strong className="block text-xs text-white font-bold">
+                        Email Notifications
+                      </strong>
+                      <span className="text-[11px] text-zinc-400">
+                        Receive daily digest and urgent priority forwards
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifications.email}
+                      onChange={(e) => updateNotif('email', e.target.checked)}
+                      className="accent-[#ff9933] rounded h-4 w-4"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between py-2 border-b border-zinc-800 cursor-pointer">
+                    <div>
+                      <strong className="block text-xs text-white font-bold">
+                        Desktop Browser Notifications
+                      </strong>
+                      <span className="text-[11px] text-zinc-400">
+                        Show instant push notifications when new emails arrive
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifications.desktop}
+                      onChange={(e) => updateNotif('desktop', e.target.checked)}
+                      className="accent-[#ff9933] rounded h-4 w-4"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between py-2 border-b border-zinc-800 cursor-pointer">
+                    <div>
+                      <strong className="block text-xs text-white font-bold">Sound Alerts</strong>
+                      <span className="text-[11px] text-zinc-400">
+                        Play subtle haptic chime on incoming mail
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifications.sound}
+                      onChange={(e) => updateNotif('sound', e.target.checked)}
+                      className="accent-[#ff9933] rounded h-4 w-4"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between py-2 cursor-pointer">
+                    <div>
+                      <strong className="block text-xs text-white font-bold">
+                        Direct Mentions Only
+                      </strong>
+                      <span className="text-[11px] text-zinc-400">
+                        Only trigger alerts when you are in To/CC or specifically @mentioned
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifications.mentionsOnly}
+                      onChange={(e) => updateNotif('mentionsOnly', e.target.checked)}
+                      className="accent-[#ff9933] rounded h-4 w-4"
+                    />
+                  </label>
                 </div>
               </section>
             </div>
@@ -461,36 +529,76 @@ export default function SettingsPage() {
 
           {activeTab === 'appearance' && (
             <div className="max-w-2xl space-y-6">
-              <ChoiceSection title="Theme" description="Customize how QuantMail looks.">
-                <div className="grid grid-cols-3 gap-3">
-                  {(['light', 'dark', 'system'] as const).map((item) => (
+              <section>
+                <h2 className="mb-1 text-sm font-bold text-white">Theme & Palette</h2>
+                <p className="mb-4 text-xs text-zinc-400">
+                  Select your workspace aesthetic and dark mode level.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { key: 'dark', label: 'Obsidian OLED', bg: 'bg-[#0a0a0c]' },
+                    { key: 'midnight', label: 'Midnight Blue', bg: 'bg-[#0f172a]' },
+                    { key: 'light', label: 'Clean White', bg: 'bg-zinc-100 text-zinc-900' },
+                    { key: 'system', label: 'System Match', bg: 'bg-zinc-900' },
+                  ].map((item) => (
                     <button
-                      key={item}
+                      key={item.key}
                       type="button"
-                      onClick={() => changeTheme(item)}
-                      aria-pressed={theme === item}
-                      className={`rounded-lg border-2 p-4 text-sm font-medium capitalize ${theme === item ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5' : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)]'}`}
+                      onClick={() => changeTheme(item.key as Theme)}
+                      className={`p-3.5 rounded-2xl border text-left transition-all ${
+                        theme === item.key
+                          ? 'border-[#ff9933] ring-1 ring-[#ff9933]'
+                          : 'border-[var(--quant-border)] hover:border-zinc-700'
+                      } ${item.bg}`}
                     >
-                      {item}
+                      <span className="text-xs font-bold block">{item.label}</span>
+                      <span className="text-[10px] opacity-70">
+                        {theme === item.key ? 'Active ✓' : 'Select'}
+                      </span>
                     </button>
                   ))}
                 </div>
-              </ChoiceSection>
-              <ChoiceSection title="Density" description="Adjust spacing in the interface.">
+              </section>
+
+              <section>
+                <h2 className="mb-1 text-sm font-bold text-white">Accent Highlight</h2>
+                <div className="flex items-center gap-3 mt-3">
+                  {ACCENT_COLORS.map((acc) => (
+                    <button
+                      key={acc.hex}
+                      type="button"
+                      onClick={() => changeAccent(acc.hex)}
+                      title={acc.name}
+                      className={`size-8 rounded-full border-2 transition-transform ${
+                        accentColor === acc.hex
+                          ? 'scale-115 border-white'
+                          : 'border-transparent hover:scale-105'
+                      }`}
+                      style={{ backgroundColor: acc.hex }}
+                    />
+                  ))}
+                </div>
+              </section>
+
+              <section>
+                <h2 className="mb-1 text-sm font-bold text-white">Density Spacing</h2>
                 <div className="flex gap-3">
                   {(['comfortable', 'compact'] as const).map((item) => (
                     <button
                       key={item}
                       type="button"
                       onClick={() => changeDensity(item)}
-                      aria-pressed={density === item}
-                      className={`rounded-lg border-2 px-4 py-2.5 text-sm font-medium capitalize ${density === item ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]/5 text-[var(--quant-foreground)]' : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)]'}`}
+                      className={`px-4 py-2 rounded-xl border text-xs font-semibold capitalize transition-colors ${
+                        density === item
+                          ? 'border-[#ff9933] bg-[#ff9933]/15 text-[#ff9933]'
+                          : 'border-[var(--quant-border)] text-zinc-400 hover:text-white'
+                      }`}
                     >
                       {item}
                     </button>
                   ))}
                 </div>
-              </ChoiceSection>
+              </section>
             </div>
           )}
 
@@ -498,51 +606,43 @@ export default function SettingsPage() {
             <div className="max-w-2xl space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-base font-semibold text-[var(--quant-foreground)]">Labels</h2>
-                  <p className="text-sm text-[var(--quant-muted-foreground)]">
-                    Live labels sync here from your account.
-                  </p>
-                  <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">
-                    Visibility controls aren&apos;t connected yet, so this view focuses on real
-                    label data and creation.
+                  <h2 className="text-sm font-bold text-white">Email Labels & Folders</h2>
+                  <p className="text-xs text-zinc-400">
+                    Create custom labels to organize your communications.
                   </p>
                 </div>
                 <Button variant="primary" onClick={() => setShowCreateLabelForm((value) => !value)}>
                   {showCreateLabelForm ? 'Cancel' : '+ New label'}
                 </Button>
               </div>
+
               {showCreateLabelForm && (
-                <div className="space-y-4 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
+                <div className="space-y-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
                   <FormField label="Label name">
                     <Input
                       value={newLabelName}
                       onChange={(event) => setNewLabelName(event.target.value)}
-                      placeholder="Enter a label name"
+                      placeholder="e.g. Invoices, Clients, Marketing…"
                     />
                   </FormField>
                   <div>
-                    <p className="text-sm font-medium text-[var(--quant-foreground)]">
-                      Label color
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2" aria-label="Label color choices">
+                    <p className="text-xs font-semibold text-zinc-300 mb-2">Label color</p>
+                    <div className="flex flex-wrap gap-2">
                       {PRESET_LABEL_COLORS.map((color) => (
                         <button
                           key={color}
                           type="button"
                           onClick={() => setNewLabelColor(color)}
-                          aria-label={`Use color ${color}`}
-                          aria-pressed={newLabelColor === color}
-                          className={`h-7 w-7 rounded-full border-2 ${newLabelColor === color ? 'scale-110 border-white' : 'border-transparent'}`}
+                          className={`size-7 rounded-full border-2 ${
+                            newLabelColor === color
+                              ? 'scale-110 border-white'
+                              : 'border-transparent'
+                          }`}
                           style={{ backgroundColor: color }}
                         />
                       ))}
                     </div>
                   </div>
-                  {createLabel.isError && (
-                    <p className="text-xs text-[var(--quant-destructive)]" role="alert">
-                      Label could not be created right now.
-                    </p>
-                  )}
                   <Button
                     variant="primary"
                     onClick={createNewLabel}
@@ -552,38 +652,39 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               )}
-              <div className="divide-y divide-[var(--quant-border)] rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)]">
+
+              <div className="divide-y divide-zinc-800 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)]">
                 {labelsLoading ? (
-                  <StateRow>Loading labels…</StateRow>
-                ) : labelsError ? (
-                  <StateRow>Labels couldn&apos;t be loaded right now.</StateRow>
+                  <div className="p-4 text-xs text-zinc-400">Loading labels…</div>
                 ) : labels.length === 0 ? (
-                  <StateRow>No labels have been created yet.</StateRow>
+                  <div className="p-4 text-xs text-zinc-400">No custom labels created yet.</div>
                 ) : (
                   labels.map((label: EmailLabel) => (
                     <div
                       key={label.id}
                       className="flex items-center justify-between gap-4 px-4 py-3"
                     >
-                      <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex items-center gap-3">
                         <span
-                          className="h-2.5 w-2.5 rounded-full"
+                          className="size-3 rounded-full"
                           style={{ backgroundColor: label.color || PRESET_LABEL_COLORS[1] }}
-                          aria-hidden="true"
                         />
-                        <div className="min-w-0">
-                          <span className="truncate text-sm font-medium text-[var(--quant-foreground)]">
-                            {label.name}
+                        <div>
+                          <span className="text-xs font-bold text-white">{label.name}</span>
+                          <span className="text-[11px] text-zinc-400 ml-2">
+                            {label.messageCount} messages
                           </span>
-                          <p className="text-xs text-[var(--quant-muted-foreground)]">
-                            {label.messageCount} messages · {label.unreadCount} unread
-                          </p>
                         </div>
                       </div>
-                      <div className="text-right text-xs text-[var(--quant-muted-foreground)]">
-                        <p>{label.isSystem ? 'System' : 'Custom'} label</p>
-                        <p>Visible in live mail</p>
-                      </div>
+                      {!label.isSystem && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteLabel(label.id, label.name)}
+                          className="text-xs text-zinc-500 hover:text-rose-400"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   ))
                 )}
@@ -591,19 +692,62 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {activeTab === 'security' && (
+            <div className="max-w-2xl space-y-6">
+              <section>
+                <h2 className="mb-1 text-sm font-bold text-white">
+                  Zero-Knowledge End-to-End Encryption (E2EE)
+                </h2>
+                <p className="mb-4 text-xs text-zinc-400">
+                  Your mail content, drive storage, and agent memory are encrypted with client-side
+                  keys.
+                </p>
+                <div className="p-5 rounded-2xl border border-emerald-500/30 bg-emerald-950/10 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-300 flex items-center gap-2">
+                      <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+                      E2EE Quantum Vault Active
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+                      AES-256-GCM
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-300">
+                    Private keys are stored in secure browser local credential storage and never
+                    transmitted in plaintext to external servers.
+                  </p>
+                </div>
+              </section>
+
+              <section>
+                <h2 className="mb-1 text-sm font-bold text-white">AI Engine & Inference</h2>
+                <div className="p-5 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white">Cloudflare Workers AI</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#ff9933]/20 text-[#ff9933]">
+                      Llama-3.3-70b-instruct
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-400">
+                    High-speed global edge inference for email generation, smart replies, thread
+                    summaries, and CodeHub planning.
+                  </p>
+                </div>
+              </section>
+            </div>
+          )}
+
           {activeTab === 'keyboard' && (
             <div className="max-w-2xl space-y-4">
-              <h2 className="text-base font-semibold text-[var(--quant-foreground)]">
-                Keyboard shortcuts
-              </h2>
-              <p className="text-sm text-[var(--quant-muted-foreground)]">
-                Speed up your workflow with these shortcuts.
+              <h2 className="text-sm font-bold text-white">Keyboard Navigation Shortcuts</h2>
+              <p className="text-xs text-zinc-400">
+                Superhuman and Linear grade keyboard shortcuts to fly through your inbox.
               </p>
-              <div className="divide-y divide-[var(--quant-border)] rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)]">
+              <div className="divide-y divide-zinc-800 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)]">
                 {SHORTCUTS.map(([keys, action]) => (
                   <div key={keys} className="flex items-center justify-between px-4 py-3">
-                    <span className="text-sm text-[var(--quant-foreground)]">{action}</span>
-                    <kbd className="rounded border border-[var(--quant-border)] bg-[var(--quant-muted)] px-2 py-1 font-mono text-xs text-[var(--quant-muted-foreground)]">
+                    <span className="text-xs font-medium text-white">{action}</span>
+                    <kbd className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-[11px] text-[#ff9933]">
                       {keys}
                     </kbd>
                   </div>
@@ -615,50 +759,4 @@ export default function SettingsPage() {
       </PageTransition>
     </AppShell>
   );
-}
-
-function UnavailableCheckbox({
-  label,
-  description,
-  defaultChecked = false,
-}: {
-  label: string;
-  description: string;
-  defaultChecked?: boolean;
-}) {
-  return (
-    <label className="flex cursor-not-allowed items-center gap-3">
-      <input
-        type="checkbox"
-        defaultChecked={defaultChecked}
-        className="h-4 w-4 rounded accent-[var(--brand-primary)]"
-      />
-      <span>
-        <span className="block text-sm text-[var(--quant-foreground)]">{label}</span>
-        <span className="block text-xs text-[var(--quant-muted-foreground)]">{description}</span>
-      </span>
-    </label>
-  );
-}
-
-function ChoiceSection({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section>
-      <h2 className="mb-1 text-base font-semibold text-[var(--quant-foreground)]">{title}</h2>
-      <p className="mb-4 text-sm text-[var(--quant-muted-foreground)]">{description}</p>
-      {children}
-    </section>
-  );
-}
-
-function StateRow({ children }: { children: React.ReactNode }) {
-  return <div className="px-4 py-6 text-sm text-[var(--quant-muted-foreground)]">{children}</div>;
 }

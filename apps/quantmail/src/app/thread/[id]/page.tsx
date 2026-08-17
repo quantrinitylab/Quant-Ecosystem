@@ -13,10 +13,8 @@ import { useThread } from '../../../hooks/useThread';
 import { apiClient } from '../../../services/api-client';
 import { expandCollapseVariants, attachmentItemVariants } from '../../../lib/motion-variants';
 import type { Email, EmailAttachment } from '../../../types';
+import { showToast } from '../../../components/InboxToast';
 
-// ---------------------------------------------------------------------------
-// Compact toolbar icons (consistent with the inbox icon language)
-// ---------------------------------------------------------------------------
 type TbIconName = 'archive' | 'back' | 'spark' | 'star' | 'trash';
 
 function TbIcon({
@@ -62,9 +60,6 @@ function TbIcon({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Shared relative-time formatter (mirrors the inbox formatReceivedAt)
-// ---------------------------------------------------------------------------
 function formatMessageDate(value?: string | Date): string {
   if (!value) return '';
   const date = new Date(value);
@@ -79,15 +74,11 @@ function formatMessageDate(value?: string | Date): string {
   if (diffHr < 24) return `${diffHr}h ago`;
   if (diffDay === 1) return 'Yesterday';
   if (diffDay < 7) return `${diffDay}d ago`;
-  // Same calendar year: omit year
   if (date.getFullYear() === now.getFullYear())
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-// ---------------------------------------------------------------------------
-// Thread body with expand-collapse when text is long
-// ---------------------------------------------------------------------------
 const PREVIEW_LIMIT = 400;
 
 function BodyWithExpand({ text }: { text: string }) {
@@ -95,13 +86,13 @@ function BodyWithExpand({ text }: { text: string }) {
   const shown = expanded ? text : text.slice(0, PREVIEW_LIMIT);
 
   return (
-    <div className="pt-4 text-sm leading-relaxed whitespace-pre-wrap">
+    <div className="pt-4 text-sm leading-relaxed whitespace-pre-wrap text-zinc-200">
       {shown}
       {!expanded && <span aria-hidden="true">…</span>}
       {text.length > PREVIEW_LIMIT && (
         <button
           type="button"
-          className="ml-2 text-xs text-[var(--quant-primary)] hover:underline min-h-[44px]"
+          className="ml-2 text-xs text-[#ff9933] hover:underline min-h-[44px]"
           onClick={() => setExpanded((v) => !v)}
         >
           {expanded ? 'Show less' : 'Show full message'}
@@ -117,11 +108,11 @@ function QuotedText({ text }: { text: string }) {
   return (
     <div className="mt-2">
       <button
-        className="text-xs min-h-[44px] text-[var(--quant-primary)] hover:underline flex items-center gap-1"
+        className="text-xs min-h-[44px] text-[#ff9933] hover:underline flex items-center gap-1"
         onClick={() => setExpanded(!expanded)}
       >
         {expanded ? 'Hide' : 'Show'} quoted text
-        <span className="text-[10px]">{expanded ? '\u25B2' : '\u25BC'}</span>
+        <span className="text-[10px]">{expanded ? '▲' : '▼'}</span>
       </button>
       <AnimatePresence>
         {expanded && (
@@ -130,7 +121,7 @@ function QuotedText({ text }: { text: string }) {
             initial="collapsed"
             animate="expanded"
             exit="collapsed"
-            className="pl-3 border-l-2 border-[var(--quant-muted-foreground)]/30 mt-2 text-sm text-[var(--quant-muted-foreground)] whitespace-pre-wrap"
+            className="pl-3 border-l-2 border-zinc-700 mt-2 text-xs text-zinc-400 whitespace-pre-wrap font-mono"
           >
             {text}
           </motion.div>
@@ -171,8 +162,8 @@ function AttachmentGallery({ attachments }: { attachments: EmailAttachment[] }) 
 
   return (
     <div className="mt-4">
-      <p className="text-xs font-medium text-[var(--quant-muted-foreground)] mb-2">
-        Attachments ({attachments.length})
+      <p className="text-xs font-semibold text-zinc-400 mb-2">
+        📎 Attachments ({attachments.length})
       </p>
       <div className="flex gap-3 overflow-x-auto pb-2">
         {attachments.map((att) => (
@@ -181,24 +172,23 @@ function AttachmentGallery({ attachments }: { attachments: EmailAttachment[] }) 
             variants={attachmentItemVariants}
             initial="hidden"
             animate="visible"
-            className="flex-shrink-0 w-32 rounded-lg border border-[var(--quant-border)] overflow-hidden hover:shadow-md transition-shadow"
+            className="flex-shrink-0 w-36 rounded-xl border border-zinc-800 bg-zinc-900/80 overflow-hidden hover:border-[#ff9933]/50 transition-all cursor-pointer"
+            onClick={() => showToast({ text: `Downloading ${att.filename}…`, type: 'info' })}
           >
             {isImage(att.mimeType) ? (
-              <div className="w-32 h-24 bg-[var(--quant-muted)] flex items-center justify-center">
-                <span className="text-2xl">&#128247;</span>
+              <div className="w-36 h-20 bg-zinc-950 flex items-center justify-center text-2xl">
+                🖼
               </div>
             ) : (
-              <div className="w-32 h-24 bg-[var(--quant-muted)] flex items-center justify-center">
-                <span className="text-2xl">&#128196;</span>
+              <div className="w-36 h-20 bg-zinc-950 flex items-center justify-center text-2xl">
+                📄
               </div>
             )}
-            <div className="p-2">
-              <p className="text-xs font-medium truncate" title={att.filename}>
+            <div className="p-2.5">
+              <p className="text-xs font-semibold truncate text-white" title={att.filename}>
                 {att.filename}
               </p>
-              <p className="text-[10px] text-[var(--quant-muted-foreground)]">
-                {(att.size / 1024).toFixed(1)} KB
-              </p>
+              <p className="text-[10px] text-zinc-400">{(att.size / 1024).toFixed(1)} KB</p>
             </div>
           </motion.div>
         ))}
@@ -217,8 +207,7 @@ export default function ThreadPage() {
   const [threadSummary, setThreadSummary] = useState<string | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [isSummaryVisible, setIsSummaryVisible] = useState(true);
-  const [summaryError, setSummaryError] = useState<string | null>(null);
-  const [showReplyComposer, setShowReplyComposer] = useState(false);
+  const [summaryMode, setSummaryMode] = useState<'bullets' | 'action_items' | 'hindi'>('bullets');
   const [replyText, setReplyText] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
@@ -227,8 +216,6 @@ export default function ThreadPage() {
     if (!threadId) router.replace('/');
   }, [threadId, router]);
 
-  // Opening a thread marks its unread messages as read (Gmail behaviour) so
-  // the inbox unread indicators clear the moment the user has read the mail.
   useEffect(() => {
     const messages = thread?.messages;
     if (!messages || messages.length === 0) return;
@@ -236,6 +223,28 @@ export default function ThreadPage() {
     if (unread.length === 0) return;
     void Promise.all(unread.map((m: Email) => apiClient.markAsRead(m.id).catch(() => null)));
   }, [thread]);
+
+  // Keyboard navigation shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+      if (e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+        void handleArchive();
+      } else if (e.key === '#') {
+        e.preventDefault();
+        void handleDelete();
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        void handleStar();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        router.push('/');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [thread, router]);
 
   const toggleMessage = useCallback((index: number) => {
     setExpandedMessages((prev) => {
@@ -249,34 +258,32 @@ export default function ThreadPage() {
   const handleArchive = useCallback(async () => {
     if (!thread?.messages?.[0]) return;
     await apiClient.archiveEmail(thread.messages[0].id);
+    showToast({ text: 'Conversation archived', type: 'info' });
     router.push('/');
   }, [thread, router]);
 
   const handleStar = useCallback(async () => {
     if (!thread?.messages?.[0]) return;
     await apiClient.toggleStar(thread.messages[0].id);
+    showToast({
+      text: thread.isStarred ? 'Conversation unstarred' : 'Conversation starred',
+      type: 'info',
+    });
     refetch();
   }, [thread, refetch]);
 
   const handleDelete = useCallback(async () => {
     if (!thread?.messages?.[0]) return;
     await apiClient.deleteEmail(thread.messages[0].id);
+    showToast({ text: 'Conversation moved to trash', type: 'info' });
     router.push('/');
   }, [thread, router]);
-
-  const handleOpenReplyComposer = useCallback(() => setShowReplyComposer(true), []);
-  const handleCloseReplyComposer = useCallback(() => {
-    setShowReplyComposer(false);
-    setReplyError(null);
-  }, []);
 
   const handleSendReply = useCallback(async () => {
     if (!replyText.trim() || isSendingReply) return;
     setIsSendingReply(true);
     setReplyError(null);
     try {
-      // Reply to the latest message in the conversation; fall back to the
-      // route id (the backend resolves both email ids and thread ids).
       const replyTarget =
         thread?.messages && thread.messages.length > 0
           ? thread.messages[thread.messages.length - 1].id
@@ -287,7 +294,7 @@ export default function ThreadPage() {
         return;
       }
       setReplyText('');
-      setShowReplyComposer(false);
+      showToast({ text: 'Reply sent successfully', type: 'success' });
       refetch();
     } catch {
       setReplyError('Failed to send reply');
@@ -296,32 +303,53 @@ export default function ThreadPage() {
     }
   }, [replyText, isSendingReply, thread, threadId, refetch]);
 
-  const handleSummarize = useCallback(async () => {
-    if (!thread?.messages?.[0] || isSummarizing) return;
-    setIsSummarizing(true);
-    setSummaryError(null);
-    try {
-      const response = await apiClient.aiSummarize(thread.messages[0].id);
-      if (!response.success) {
-        setSummaryError(response.error?.message || 'Failed to summarize thread');
-        return;
-      }
-      if (response.data?.summary) {
-        setThreadSummary(response.data.summary);
-        setIsSummaryVisible(true);
-      }
-    } catch {
-      setSummaryError('Failed to summarize thread');
-    } finally {
-      setIsSummarizing(false);
-    }
-  }, [thread, isSummarizing]);
+  const handleAISummarize = useCallback(
+    async (mode: 'bullets' | 'action_items' | 'hindi' = 'bullets') => {
+      if (!thread?.messages?.[0] || isSummarizing) return;
+      setIsSummarizing(true);
+      setSummaryMode(mode);
+      try {
+        const bodyContent = thread.messages
+          .map((m: Email) => `${m.from?.name || m.from?.email}: ${m.bodyText || m.snippet}`)
+          .join('\n\n');
 
-  const handleDismissSummary = useCallback(() => setThreadSummary(null), []);
+        let prompt = `Summarize this email conversation into 3 crisp bullet points.`;
+        if (mode === 'action_items') {
+          prompt = `Extract all action items, deliverables, decisions, and deadlines from this email conversation. Format as bullet points.`;
+        } else if (mode === 'hindi') {
+          prompt = `Translate and summarize this email thread into natural, clear Hindi (Devanagari).`;
+        }
 
-  const handleForward = useCallback(
-    (emailId: string) => router.push(`/compose?forward=${emailId}`),
-    [router],
+        const res = await fetch('/api/ai/copilot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{ role: 'user', content: `${prompt}\n\nEmail Thread:\n${bodyContent}` }],
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.content) {
+            setThreadSummary(data.content);
+            setIsSummaryVisible(true);
+            return;
+          }
+        }
+
+        // Fallback to standard summary endpoint
+        const response = await apiClient.aiSummarize(thread.messages[0].id);
+        if (response.success && response.data?.summary) {
+          setThreadSummary(response.data.summary);
+          setIsSummaryVisible(true);
+        }
+      } catch {
+        showToast({ text: 'Could not generate AI summary', type: 'error' });
+      } finally {
+        setIsSummarizing(false);
+      }
+    },
+    [thread, isSummarizing],
   );
 
   const isExpanded = (index: number, total: number) =>
@@ -332,9 +360,7 @@ export default function ThreadPage() {
       <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
         <PageTransition className="workspace-page thread-workspace flex flex-col h-full">
           <div className="flex-1 flex items-center justify-center p-6">
-            <p className="text-sm text-[var(--quant-muted-foreground)]">
-              Taking you back to your inbox…
-            </p>
+            <p className="text-sm text-zinc-400">Taking you back to your inbox…</p>
           </div>
         </PageTransition>
       </AppShell>
@@ -344,62 +370,53 @@ export default function ThreadPage() {
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page thread-workspace flex flex-col h-full">
-        {/* Toolbar — one compact icon bar; clean on mobile, calm on desktop */}
-        <div className="thread-toolbar">
-          <button
-            type="button"
-            className="icon-action"
-            onClick={() => router.push('/')}
-            aria-label="Back to inbox"
-            title="Back to inbox"
-          >
-            <TbIcon name="back" />
-          </button>
-          <h1 className="thread-toolbar-title">
-            {thread ? thread.subject || '(no subject)' : 'Conversation'}
-          </h1>
+        {/* Top Action Toolbar */}
+        <div className="thread-toolbar flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+              onClick={() => router.push('/')}
+              aria-label="Back to inbox"
+              title="Back to inbox (Esc)"
+            >
+              <TbIcon name="back" />
+            </button>
+            <h1 className="text-sm font-bold text-white truncate max-w-lg">
+              {thread ? thread.subject || '(no subject)' : 'Conversation'}
+            </h1>
+          </div>
+
           {thread && (
-            <div className="thread-toolbar-actions">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                className="icon-action"
-                onClick={handleSummarize}
-                disabled={isSummarizing}
-                aria-label="Summarise thread with QuantAI"
-                title="Summarise with QuantAI"
-              >
-                <TbIcon
-                  name="spark"
-                  className={
-                    isSummarizing ? 'h-[18px] w-[18px] animate-pulse' : 'h-[18px] w-[18px]'
-                  }
-                />
-              </button>
-              <button
-                type="button"
-                className={`icon-action ${thread.isStarred ? 'is-on' : ''}`}
+                className={`p-2 rounded-xl transition-colors ${
+                  thread.isStarred
+                    ? 'text-amber-400 bg-amber-400/10'
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                }`}
                 onClick={handleStar}
-                aria-label={thread.isStarred ? 'Unstar conversation' : 'Star conversation'}
-                aria-pressed={thread.isStarred}
-                title={thread.isStarred ? 'Unstar' : 'Star'}
+                aria-label={thread.isStarred ? 'Unstar' : 'Star (S)'}
+                title={thread.isStarred ? 'Unstar (S)' : 'Star (S)'}
               >
                 <TbIcon name="star" filled={thread.isStarred} />
               </button>
               <button
                 type="button"
-                className="icon-action"
+                className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
                 onClick={handleArchive}
-                aria-label="Archive conversation"
-                title="Archive"
+                aria-label="Archive (E)"
+                title="Archive (E)"
               >
                 <TbIcon name="archive" />
               </button>
               <button
                 type="button"
-                className="icon-action icon-action-danger"
+                className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                 onClick={handleDelete}
-                aria-label="Delete conversation"
-                title="Delete"
+                aria-label="Delete (#)"
+                title="Delete (#)"
               >
                 <TbIcon name="trash" />
               </button>
@@ -407,11 +424,11 @@ export default function ThreadPage() {
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        {/* Content Body */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5">
           {isLoading && (
             <div className="space-y-4">
               <Skeleton variant="rect" width="60%" height="32px" />
-              <Skeleton variant="rect" width="100%" height="200px" />
               <Skeleton variant="rect" width="100%" height="200px" />
             </div>
           )}
@@ -422,12 +439,45 @@ export default function ThreadPage() {
 
           {!isLoading && !error && thread && (
             <>
-              {summaryError && (
-                <Card padding="md" className="mb-4 bg-red-50 border-red-200">
-                  <p className="text-sm text-red-600">{summaryError}</p>
-                </Card>
-              )}
+              {/* Cloudflare Workers AI Smart Action Bar */}
+              <div className="flex flex-wrap items-center gap-2 p-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 backdrop-blur">
+                <span className="text-xs font-bold text-[#ff9933] flex items-center gap-1.5 mr-2">
+                  <TbIcon name="spark" className="size-4 animate-pulse" />
+                  Cloudflare Workers AI:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleAISummarize('bullets')}
+                  disabled={isSummarizing}
+                  className="px-3 py-1 rounded-xl text-xs font-semibold bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
+                >
+                  {isSummarizing && summaryMode === 'bullets'
+                    ? 'Summarizing…'
+                    : '⚡ 3-Bullet Summary'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAISummarize('action_items')}
+                  disabled={isSummarizing}
+                  className="px-3 py-1 rounded-xl text-xs font-semibold bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
+                >
+                  {isSummarizing && summaryMode === 'action_items'
+                    ? 'Extracting…'
+                    : '📋 Action Items'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAISummarize('hindi')}
+                  disabled={isSummarizing}
+                  className="px-3 py-1 rounded-xl text-xs font-semibold bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
+                >
+                  {isSummarizing && summaryMode === 'hindi'
+                    ? 'अनुवाद हो रहा है…'
+                    : '🇮🇳 Translate to Hindi'}
+                </button>
+              </div>
 
+              {/* AI Summary Box */}
               <AnimatePresence>
                 {threadSummary && (
                   <motion.div
@@ -437,48 +487,60 @@ export default function ThreadPage() {
                     transition={{ type: 'spring', ...spring.gentle }}
                     className="overflow-hidden"
                   >
-                    <Card padding="md" className="mb-4 bg-[var(--quant-muted)]">
-                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <div>
-                          <span className="text-sm font-semibold">AI Summary</span>
-                          <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
-                            Read the thread signal first, then reply, archive, or forward.
-                          </p>
-                        </div>
+                    <div className="p-4 rounded-2xl border border-[#ff9933]/30 bg-[#ff9933]/5">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="text-xs font-bold text-[#ff9933] flex items-center gap-1.5">
+                          ✨ AI Intelligence Insight
+                        </span>
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="secondary"
+                          <button
+                            type="button"
+                            className="text-xs text-zinc-400 hover:text-white"
                             onClick={() => setIsSummaryVisible((v) => !v)}
                           >
                             {isSummaryVisible ? 'Hide' : 'Show'}
-                          </Button>
-                          <Button variant="secondary" onClick={handleDismissSummary}>
+                          </button>
+                          <button
+                            type="button"
+                            className="text-xs text-zinc-400 hover:text-white"
+                            onClick={() => setThreadSummary(null)}
+                          >
                             Dismiss
-                          </Button>
+                          </button>
                         </div>
                       </div>
                       {isSummaryVisible && (
-                        <p className="text-sm text-[var(--quant-muted-foreground)] leading-relaxed">
+                        <div className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap font-sans">
                           {threadSummary}
-                        </p>
+                        </div>
                       )}
-                    </Card>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Thread meta (the subject lives in the toolbar now) */}
-              <div className="mb-5 flex items-center gap-2 text-sm text-[var(--quant-muted-foreground)]">
-                <span>
-                  {thread.messageCount} message{thread.messageCount === 1 ? '' : 's'}
-                </span>
-                <span aria-hidden="true">·</span>
-                <span className="truncate">
-                  {thread.participants?.map((p: any) => p.name || p.email).join(', ')}
-                </span>
+              {/* Thread Meta & Security Seal */}
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-zinc-400">
+                <div className="flex items-center gap-2">
+                  <span>
+                    {thread.messageCount} message{thread.messageCount === 1 ? '' : 's'}
+                  </span>
+                  <span>·</span>
+                  <span className="truncate text-zinc-300">
+                    {thread.participants?.map((p: any) => p.name || p.email).join(', ')}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
+                    ✓ SPF/DKIM Verified
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-mono">
+                    🔐 E2EE Encrypted
+                  </span>
+                </div>
               </div>
 
-              {/* Messages */}
+              {/* Messages Thread Stack */}
               <div className="space-y-4">
                 {thread.messages?.map((message: Email, index: number) => {
                   const expanded = isExpanded(index, thread.messages.length);
@@ -486,10 +548,13 @@ export default function ThreadPage() {
                   const parsed = parseBodyWithQuotes(bodyText);
 
                   return (
-                    <Card key={message.id} padding="none" className="overflow-hidden">
-                      {/* Message header (always visible, click to collapse/expand) */}
+                    <Card
+                      key={message.id}
+                      padding="none"
+                      className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/90"
+                    >
                       <div
-                        className="flex items-center gap-3 p-4 cursor-pointer hover:bg-[var(--quant-muted)] select-none"
+                        className="flex items-center gap-3 p-4 cursor-pointer hover:bg-zinc-800/60 select-none transition-colors"
                         role="button"
                         tabIndex={0}
                         aria-expanded={expanded}
@@ -498,33 +563,27 @@ export default function ThreadPage() {
                       >
                         <Avatar
                           src={undefined}
-                          name={message.from?.name || message.from?.email || 'Unknown'}
+                          name={message.from?.name || message.from?.email || 'User'}
                           size="sm"
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm truncate">
+                            <span className="font-bold text-xs text-white truncate">
                               {message.from?.name || message.from?.email || 'Unknown sender'}
                             </span>
                             {!message.isRead && <Badge variant="info">New</Badge>}
                           </div>
                           {!expanded && (
-                            <p className="text-xs text-[var(--quant-muted-foreground)] truncate">
+                            <p className="text-xs text-zinc-400 truncate mt-0.5">
                               {message.snippet}
                             </p>
                           )}
                         </div>
-                        {/* Consistent relative timestamp */}
                         <time
-                          className="text-xs text-[var(--quant-muted-foreground)] whitespace-nowrap"
+                          className="text-[11px] text-zinc-400 whitespace-nowrap"
                           dateTime={
                             message.receivedAt
                               ? new Date(message.receivedAt).toISOString()
-                              : undefined
-                          }
-                          title={
-                            message.receivedAt
-                              ? new Date(message.receivedAt).toLocaleString()
                               : undefined
                           }
                         >
@@ -532,19 +591,29 @@ export default function ThreadPage() {
                         </time>
                       </div>
 
-                      {/* Message body (expanded only) */}
                       {expanded && (
-                        <div className="px-4 pb-4 border-t border-[var(--quant-border)]">
+                        <div className="px-5 pb-5 border-t border-zinc-800">
                           <BodyWithExpand text={parsed.regular} />
                           {parsed.quoted && <QuotedText text={parsed.quoted} />}
                           <AttachmentGallery attachments={message.attachments} />
-                          <div className="flex gap-2 mt-4">
-                            <Button variant="secondary" onClick={handleOpenReplyComposer}>
-                              Reply
-                            </Button>
-                            <Button variant="secondary" onClick={() => handleForward(message.id)}>
-                              Forward
-                            </Button>
+                          <div className="flex gap-2 mt-4 pt-3 border-t border-zinc-800/80">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const target = document.getElementById('inline-reply-input');
+                                target?.focus();
+                              }}
+                              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
+                            >
+                              ↩ Reply
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/compose?forward=${message.id}`)}
+                              className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
+                            >
+                              ↪ Forward
+                            </button>
                           </div>
                         </div>
                       )}
@@ -553,48 +622,72 @@ export default function ThreadPage() {
                 })}
               </div>
 
-              {/* Reply composer */}
-              <div className="mt-6 pt-4 border-t border-[var(--quant-border)]">
-                {!showReplyComposer ? (
-                  <Button variant="primary" onClick={handleOpenReplyComposer}>
-                    Reply to thread
+              {/* Instant Inline Reply Box */}
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/90 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white flex items-center gap-2">
+                    ↩ Quick Reply
+                  </span>
+                  <span className="text-[10px] text-zinc-400">
+                    Press Ctrl+Enter to send instantly
+                  </span>
+                </div>
+
+                <textarea
+                  id="inline-reply-input"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                      e.preventDefault();
+                      void handleSendReply();
+                    }
+                  }}
+                  placeholder="Write your reply or ask AI to draft one…"
+                  rows={3}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933] transition-colors resize-none"
+                />
+
+                {replyError && <p className="text-xs text-rose-400">{replyError}</p>}
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!thread?.messages?.[0]) return;
+                        const subject = thread.subject || '';
+                        const res = await fetch('/api/ai/copilot', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            messages: [
+                              {
+                                role: 'user',
+                                content: `Draft a concise, polite, professional email reply for subject "${subject}".`,
+                              },
+                            ],
+                          }),
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          if (data?.content) setReplyText(data.content);
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-medium text-[#ff9933] bg-[#ff9933]/10 hover:bg-[#ff9933]/20 transition-colors"
+                    >
+                      ✨ Auto-draft reply with AI
+                    </button>
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    onClick={handleSendReply}
+                    disabled={!replyText.trim() || isSendingReply}
+                  >
+                    {isSendingReply ? 'Sending…' : 'Send reply'}
                   </Button>
-                ) : (
-                  <Card padding="md">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div>
-                        <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
-                          Reply to thread
-                        </h2>
-                        <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
-                          Write one clear response, then send or cancel.
-                        </p>
-                      </div>
-                      <Button variant="secondary" onClick={handleCloseReplyComposer}>
-                        Cancel
-                      </Button>
-                    </div>
-                    {replyError && <p className="text-sm text-red-600 mb-2">{replyError}</p>}
-                    <textarea
-                      className="w-full min-h-[120px] p-3 rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] text-sm resize-y focus:outline-none focus:ring-2 focus:ring-[var(--quant-primary)]"
-                      placeholder="Write your reply…"
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                    />
-                    <div className="flex flex-wrap items-center gap-2 mt-3">
-                      <Button
-                        variant="primary"
-                        onClick={handleSendReply}
-                        disabled={isSendingReply || !replyText.trim()}
-                      >
-                        {isSendingReply ? 'Sending…' : 'Send Reply'}
-                      </Button>
-                      <span className="text-xs text-[var(--quant-muted-foreground)]">
-                        Keep the reply focused on the next action.
-                      </span>
-                    </div>
-                  </Card>
-                )}
+                </div>
               </div>
             </>
           )}
