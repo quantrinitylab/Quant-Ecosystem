@@ -817,11 +817,11 @@ export default function CalendarPage() {
           )}
         </div>
 
-        {/* Dedicated Calendar Floating Action Button (+) matching Outlook style */}
+        {/* Dedicated Calendar Floating Action Button (+) matching Outlook style — only on mobile */}
         <button
           type="button"
           onClick={() => openCreate()}
-          className="fixed bottom-20 right-4 z-40 size-14 rounded-full bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold shadow-2xl flex items-center justify-center active:scale-95 transition-all focus:outline-none focus:ring-4 focus:ring-[#3b82f6]/40"
+          className="fixed bottom-20 right-4 md:hidden z-40 size-14 rounded-full bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold shadow-2xl flex items-center justify-center active:scale-95 transition-all focus:outline-none focus:ring-4 focus:ring-[#3b82f6]/40"
           aria-label="New calendar event"
         >
           <svg
