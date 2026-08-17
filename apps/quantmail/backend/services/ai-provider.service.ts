@@ -30,10 +30,19 @@ export interface AIChatOptions {
 export type AIProviderName = 'cloudflare' | 'openai' | 'anthropic' | 'custom' | 'none';
 
 const DEFAULT_TIMEOUT_MS = 40_000;
+const CLOUDFLARE_DEFAULT_ACCOUNT_ID = '9af698848a5edd00e756c3a2c908ec8d';
 
 function env(name: string): string | undefined {
   const value = process.env[name];
   return value && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function getCloudflareToken(): string | undefined {
+  return env('CLOUDFLARE_API_TOKEN') ?? env('CLOUDFLARE_API_KEY');
+}
+
+function getCloudflareAccountId(): string {
+  return env('CLOUDFLARE_ACCOUNT_ID') ?? CLOUDFLARE_DEFAULT_ACCOUNT_ID;
 }
 
 /** Which provider is configured right now (env is read per call, never cached). */
@@ -41,7 +50,7 @@ export function activeProvider(): AIProviderName {
   const configured = env('AI_PROVIDER')?.toLowerCase();
 
   if (configured === 'cloudflare') {
-    return env('CLOUDFLARE_ACCOUNT_ID') && env('CLOUDFLARE_API_TOKEN') ? 'cloudflare' : 'none';
+    return getCloudflareToken() ? 'cloudflare' : 'none';
   }
   if (configured === 'anthropic') {
     return (env('AI_API_KEY') ?? env('ANTHROPIC_API_KEY')) ? 'anthropic' : 'none';
@@ -53,8 +62,8 @@ export function activeProvider(): AIProviderName {
     return env('AI_BASE_URL') ? 'custom' : 'none';
   }
 
-  // No explicit provider: auto-detect whatever credentials exist.
-  if (env('CLOUDFLARE_ACCOUNT_ID') && env('CLOUDFLARE_API_TOKEN')) return 'cloudflare';
+  // No explicit provider: auto-detect whatever credentials exist (prioritize Cloudflare Workers AI).
+  if (getCloudflareToken()) return 'cloudflare';
   if (env('OPENAI_API_KEY') ?? env('AI_API_KEY')) return 'openai';
   if (env('ANTHROPIC_API_KEY')) return 'anthropic';
   if (env('AI_BASE_URL')) return 'custom';
@@ -95,25 +104,46 @@ async function postJson(
 }
 
 async function chatViaCloudflare(messages: AIMessage[], options: AIChatOptions): Promise<string> {
-  const accountId = env('CLOUDFLARE_ACCOUNT_ID')!;
-  const apiToken = env('CLOUDFLARE_API_TOKEN')!;
-  const model = env('CLOUDFLARE_AI_MODEL') ?? env('AI_MODEL') ?? '@cf/meta/llama-3.2-1b-instruct';
+  const accountId = getCloudflareAccountId();
+  const apiToken = getCloudflareToken()!;
+  const model = env('CLOUDFLARE_AI_MODEL') ?? env('AI_MODEL') ?? '@cf/meta/llama-3.1-70b-instruct';
   const baseUrl = env('CLOUDFLARE_AI_BASE_URL') ?? 'https://api.cloudflare.com/client/v4/accounts';
 
-  const data = (await postJson(
-    `${baseUrl}/${accountId}/ai/run/${model}`,
-    { Authorization: `Bearer ${apiToken}` },
-    {
-      messages,
-      max_tokens: options.maxTokens ?? 1024,
-      temperature: options.temperature ?? 0.6,
-    },
-    options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-  )) as { success?: boolean; result?: { response?: string } };
+  // Primary: OpenAI-compatible /ai/v1/chat/completions endpoint
+  try {
+    const data = (await postJson(
+      `${baseUrl}/${accountId}/ai/v1/chat/completions`,
+      { Authorization: `Bearer ${apiToken}` },
+      {
+        model,
+        messages,
+        max_tokens: options.maxTokens ?? 1024,
+        temperature: options.temperature ?? 0.6,
+      },
+      options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    )) as { choices?: Array<{ message?: { content?: string } }> };
 
-  const text = data.result?.response?.trim();
-  if (!data.success || !text) throw new Error('Workers AI returned an empty response');
-  return text;
+    const text = data.choices?.[0]?.message?.content?.trim();
+    if (text) return text;
+  } catch (v1Err) {
+    // Fallback: direct REST /ai/run endpoint
+    const data = (await postJson(
+      `${baseUrl}/${accountId}/ai/run/${model}`,
+      { Authorization: `Bearer ${apiToken}` },
+      {
+        messages,
+        max_tokens: options.maxTokens ?? 1024,
+        temperature: options.temperature ?? 0.6,
+      },
+      options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    )) as { success?: boolean; result?: { response?: string } };
+
+    const text = data.result?.response?.trim();
+    if (!data.success || !text) throw v1Err;
+    return text;
+  }
+
+  throw new Error('Workers AI returned an empty response');
 }
 
 async function chatViaOpenAICompatible(

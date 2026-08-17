@@ -94,7 +94,7 @@ describe('AIEngine', () => {
 
     it('enforces budget limits', async () => {
       const cheapEngine = new AIEngine({
-        costBudgetPerUser: 0.0001,
+        costBudgetPerUser: 0.000001,
         costBudgetPerDay: 1000.0,
         enableCaching: false,
       });
@@ -192,9 +192,13 @@ describe('AIEngine', () => {
       vi.stubEnv('OPENAI_API_KEY', '');
       vi.stubEnv('ANTHROPIC_API_KEY', '');
       vi.stubEnv('GOOGLE_API_KEY', '');
+      vi.stubEnv('CLOUDFLARE_API_TOKEN', '');
+      vi.stubEnv('CLOUDFLARE_API_KEY', '');
       delete process.env['OPENAI_API_KEY'];
       delete process.env['ANTHROPIC_API_KEY'];
       delete process.env['GOOGLE_API_KEY'];
+      delete process.env['CLOUDFLARE_API_TOKEN'];
+      delete process.env['CLOUDFLARE_API_KEY'];
 
       const noKeyEngine = new AIEngine();
 

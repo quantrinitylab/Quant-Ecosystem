@@ -6,12 +6,12 @@ import type { QuantApp } from '@quant/common';
 
 /** AI model providers */
 export type AIProvider =
+  | 'cloudflare'
   | 'openai'
   | 'anthropic'
   | 'google'
   | 'bedrock'
   | 'openrouter'
-  | 'bedrock'
   | 'deepseek'
   | 'groq'
   | 'mistral'

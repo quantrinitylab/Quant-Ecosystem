@@ -121,12 +121,24 @@ describe('ModelRouter', () => {
   describe('fallback chain', () => {
     it('returns default fallback chain for text generation', () => {
       const chain = router.getFallbackChain('text_generation');
-      expect(chain).toEqual(['gpt-4o', 'gpt-4o-mini', 'claude-haiku-4']);
+      expect(chain).toEqual([
+        '@cf/meta/llama-3.1-70b-instruct',
+        '@cf/meta/llama-3.1-8b-instruct-fast',
+        'gpt-4o',
+        'gpt-4o-mini',
+        'claude-haiku-4',
+      ]);
     });
 
     it('returns code fallback chain', () => {
       const chain = router.getFallbackChain('code_generation');
-      expect(chain).toEqual(['gpt-4o', 'claude-sonnet-4', 'gpt-4o-mini']);
+      expect(chain).toEqual([
+        '@cf/qwen/qwen2.5-coder-32b-instruct',
+        '@cf/meta/llama-3.1-70b-instruct',
+        'gpt-4o',
+        'claude-sonnet-4',
+        'gpt-4o-mini',
+      ]);
     });
 
     it('returns default chain for unknown capabilities', () => {
