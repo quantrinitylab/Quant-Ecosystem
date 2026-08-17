@@ -25,27 +25,151 @@ export function CommandPalette() {
   const commands: CommandItem[] = useMemo(
     () => [
       // Navigation
-      { id: 'inbox', label: 'Go to Inbox', icon: '📥', category: 'navigation', action: () => router.push('/') },
-      { id: 'compose', label: 'Compose new message', icon: '✏️', shortcut: 'C', category: 'navigation', action: () => router.push('/compose') },
-      { id: 'sent', label: 'Go to Sent', icon: '📤', category: 'navigation', action: () => router.push('/sent') },
-      { id: 'drafts', label: 'Go to Drafts', icon: '📝', category: 'navigation', action: () => router.push('/drafts') },
-      { id: 'search', label: 'Search emails', icon: '🔍', shortcut: '/', category: 'navigation', action: () => router.push('/search') },
-      { id: 'calendar', label: 'Open Calendar', icon: '📅', category: 'navigation', action: () => router.push('/calendar') },
-      { id: 'contacts', label: 'Open Contacts', icon: '👥', category: 'navigation', action: () => router.push('/contacts') },
-      { id: 'drive', label: 'Open Drive', icon: '📁', category: 'navigation', action: () => router.push('/drive') },
-      { id: 'repos', label: 'Open Repos', icon: '💻', category: 'navigation', action: () => router.push('/repos') },
-      { id: 'pipelines', label: 'Open Pipelines', icon: '🔧', category: 'navigation', action: () => router.push('/pipelines') },
-      { id: 'settings', label: 'Open Settings', icon: '⚙️', category: 'navigation', action: () => router.push('/settings') },
-      { id: 'security', label: 'Security settings', icon: '🔒', category: 'navigation', action: () => router.push('/security') },
+      {
+        id: 'inbox',
+        label: 'Go to Inbox',
+        icon: '📥',
+        category: 'navigation',
+        action: () => router.push('/'),
+      },
+      {
+        id: 'compose',
+        label: 'Compose new message',
+        icon: '✏️',
+        shortcut: 'C',
+        category: 'navigation',
+        action: () => router.push('/compose'),
+      },
+      {
+        id: 'sent',
+        label: 'Go to Sent',
+        icon: '📤',
+        category: 'navigation',
+        action: () => router.push('/sent'),
+      },
+      {
+        id: 'drafts',
+        label: 'Go to Drafts',
+        icon: '📝',
+        category: 'navigation',
+        action: () => router.push('/drafts'),
+      },
+      {
+        id: 'search',
+        label: 'Search emails',
+        icon: '🔍',
+        shortcut: '/',
+        category: 'navigation',
+        action: () => router.push('/search'),
+      },
+      {
+        id: 'calendar',
+        label: 'Open Calendar',
+        icon: '📅',
+        category: 'navigation',
+        action: () => router.push('/calendar'),
+      },
+      {
+        id: 'contacts',
+        label: 'Open Contacts',
+        icon: '👥',
+        category: 'navigation',
+        action: () => router.push('/contacts'),
+      },
+      {
+        id: 'drive',
+        label: 'Open Drive',
+        icon: '📁',
+        category: 'navigation',
+        action: () => router.push('/drive'),
+      },
+      {
+        id: 'repos',
+        label: 'Open Repos',
+        icon: '💻',
+        category: 'navigation',
+        action: () => router.push('/repos'),
+      },
+      {
+        id: 'pipelines',
+        label: 'Open Pipelines',
+        icon: '🔧',
+        category: 'navigation',
+        action: () => router.push('/pipelines'),
+      },
+      {
+        id: 'settings',
+        label: 'Open Settings',
+        icon: '⚙️',
+        category: 'navigation',
+        action: () => router.push('/settings'),
+      },
+      {
+        id: 'security',
+        label: 'Security settings',
+        icon: '🔒',
+        category: 'navigation',
+        action: () => router.push('/security'),
+      },
       // Actions
-      { id: 'theme-dark', label: 'Switch to dark theme', icon: '🌙', category: 'settings', action: () => { document.documentElement.setAttribute('data-theme', 'dark'); document.documentElement.classList.add('dark'); localStorage.setItem('quant-theme', 'dark'); } },
-      { id: 'theme-light', label: 'Switch to light theme', icon: '☀️', category: 'settings', action: () => { document.documentElement.setAttribute('data-theme', 'light'); document.documentElement.classList.remove('dark'); localStorage.setItem('quant-theme', 'light'); } },
-      { id: 'mark-all-read', label: 'Mark all as read', icon: '✓', category: 'actions', action: () => {} },
-      { id: 'empty-trash', label: 'Empty trash', icon: '🗑️', category: 'actions', action: () => router.push('/trash') },
+      {
+        id: 'theme-dark',
+        label: 'Switch to dark theme',
+        icon: '🌙',
+        category: 'settings',
+        action: () => {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          document.documentElement.classList.add('dark');
+          localStorage.setItem('quant-theme', 'dark');
+        },
+      },
+      {
+        id: 'theme-light',
+        label: 'Switch to light theme',
+        icon: '☀️',
+        category: 'settings',
+        action: () => {
+          document.documentElement.setAttribute('data-theme', 'light');
+          document.documentElement.classList.remove('dark');
+          localStorage.setItem('quant-theme', 'light');
+        },
+      },
+      {
+        id: 'mark-all-read',
+        label: 'Mark all as read',
+        icon: '✓',
+        category: 'actions',
+        action: () => {},
+      },
+      {
+        id: 'empty-trash',
+        label: 'Empty trash',
+        icon: '🗑️',
+        category: 'actions',
+        action: () => router.push('/trash'),
+      },
       // AI
-      { id: 'ai-compose', label: 'AI: Write an email for me', icon: '✨', category: 'ai', action: () => router.push('/compose') },
-      { id: 'ai-summarize', label: 'AI: Summarize inbox', icon: '📋', category: 'ai', action: () => {} },
-      { id: 'ai-prioritize', label: 'AI: Prioritize emails', icon: '🎯', category: 'ai', action: () => {} },
+      {
+        id: 'ai-compose',
+        label: 'AI: Write an email for me',
+        icon: '✨',
+        category: 'ai',
+        action: () => router.push('/compose'),
+      },
+      {
+        id: 'ai-summarize',
+        label: 'AI: Summarize inbox',
+        icon: '📋',
+        category: 'ai',
+        action: () => {},
+      },
+      {
+        id: 'ai-prioritize',
+        label: 'AI: Prioritize emails',
+        icon: '🎯',
+        category: 'ai',
+        action: () => {},
+      },
     ],
     [router],
   );
@@ -76,8 +200,13 @@ export function CommandPalette() {
         setIsOpen(false);
       }
     };
+    const handleOpenEvent = () => setIsOpen(true);
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('quant:command-palette:open', handleOpenEvent);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('quant:command-palette:open', handleOpenEvent);
+    };
   }, [isOpen]);
 
   useEffect(() => {
@@ -87,13 +216,10 @@ export function CommandPalette() {
     }
   }, [isOpen]);
 
-  const executeCommand = useCallback(
-    (cmd: CommandItem) => {
-      setIsOpen(false);
-      cmd.action();
-    },
-    [],
-  );
+  const executeCommand = useCallback((cmd: CommandItem) => {
+    setIsOpen(false);
+    cmd.action();
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -159,8 +285,18 @@ export function CommandPalette() {
             transition={{ duration: 0.18, ease: [0, 0, 0.2, 1] }}
           >
             <div className="command-palette-input-wrap">
-              <svg className="command-palette-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" />
+              <svg
+                className="command-palette-search-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m20 20-4-4" />
               </svg>
               <input
                 ref={inputRef}
@@ -178,13 +314,13 @@ export function CommandPalette() {
             </div>
             <div className="command-palette-list" ref={listRef} role="listbox">
               {filtered.length === 0 && (
-                <div className="command-palette-empty">
-                  No commands match &ldquo;{query}&rdquo;
-                </div>
+                <div className="command-palette-empty">No commands match &ldquo;{query}&rdquo;</div>
               )}
               {Object.entries(grouped).map(([category, items]) => (
                 <div key={category} className="command-palette-group">
-                  <div className="command-palette-group-label">{categoryLabels[category] || category}</div>
+                  <div className="command-palette-group-label">
+                    {categoryLabels[category] || category}
+                  </div>
                   {items.map((item) => {
                     const idx = flatIndex++;
                     const isActive = idx === activeIndex;
@@ -199,7 +335,9 @@ export function CommandPalette() {
                         onClick={() => executeCommand(item)}
                         onMouseEnter={() => setActiveIndex(idx)}
                       >
-                        <span className="command-palette-item-icon" aria-hidden="true">{item.icon}</span>
+                        <span className="command-palette-item-icon" aria-hidden="true">
+                          {item.icon}
+                        </span>
                         <span className="command-palette-item-label">{item.label}</span>
                         {item.shortcut && (
                           <kbd className="command-palette-item-shortcut">{item.shortcut}</kbd>
@@ -211,9 +349,15 @@ export function CommandPalette() {
               ))}
             </div>
             <footer className="command-palette-footer">
-              <span><kbd>↑↓</kbd> navigate</span>
-              <span><kbd>↵</kbd> select</span>
-              <span><kbd>esc</kbd> close</span>
+              <span>
+                <kbd>↑↓</kbd> navigate
+              </span>
+              <span>
+                <kbd>↵</kbd> select
+              </span>
+              <span>
+                <kbd>esc</kbd> close
+              </span>
             </footer>
           </motion.div>
         </>

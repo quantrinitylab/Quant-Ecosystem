@@ -410,7 +410,7 @@ export function AppShell({
             <button
               type="button"
               onClick={() => {
-                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+                window.dispatchEvent(new CustomEvent('quant:command-palette:open'));
               }}
               className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] text-xs text-[var(--quant-muted-foreground)] hover:text-white hover:border-[#ff9933]/50 transition-colors"
             >
