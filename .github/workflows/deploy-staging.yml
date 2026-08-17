@@ -251,12 +251,23 @@ jobs:
           DEPLOYMENT: ${{ steps.target.outputs.deployment }}
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
           IMMUTABLE_IMAGE: ${{ steps.image.outputs.uri }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
           kubectl auth can-i get deployments -n "$K8S_NAMESPACE" | grep -qx yes
           kubectl auth can-i patch deployments -n "$K8S_NAMESPACE" | grep -qx yes
           kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" >/dev/null
+
+          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            kubectl set env "deployment/$DEPLOYMENT" \
+              -c "$CONTAINER" \
+              CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" \
+              CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-9af698848a5edd00e756c3a2c908ec8d}" \
+              AI_PROVIDER="cloudflare" \
+              -n "$K8S_NAMESPACE" || true
+          fi
 
           previous_image="$(kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" \
             -o "jsonpath={.spec.template.spec.containers[?(@.name=='$CONTAINER')].image}")"
