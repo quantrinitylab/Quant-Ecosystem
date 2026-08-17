@@ -10,7 +10,7 @@ import {
   useTransform,
   type PanInfo,
 } from 'framer-motion';
-import { ErrorState, Skeleton, Button, useQuantSidekick } from '@quant/shared-ui';
+import { ErrorState, Skeleton, Button } from '@quant/shared-ui';
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
@@ -548,19 +548,6 @@ export default function InboxPage() {
     debouncedQuery ? { query: debouncedQuery } : null,
   );
 
-  // Sidekick Context Registration
-  useQuantSidekick({
-    app: 'quantmail',
-    context: {
-      activeCategory,
-      totalUnread: allEmails?.filter((e) => !e.isRead).length ?? 0,
-      selectedEmailId: selectedEmail?.id,
-      selectedSubject: selectedEmail?.subject,
-      selectedSender: selectedEmail?.from?.email,
-      view: 'inbox',
-    },
-  });
-
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(searchQuery.trim()), 260);
     return () => window.clearTimeout(timer);
@@ -907,7 +894,7 @@ export default function InboxPage() {
                   </div>
                 </div>
               ) : (
-                <InboxZeroState onCompose={() => router.push('/compose')} />
+                <InboxZeroState />
               ))}
             {!isLoading && !isSearching && !error && emails && emails.length > 0 && (
               <motion.div
