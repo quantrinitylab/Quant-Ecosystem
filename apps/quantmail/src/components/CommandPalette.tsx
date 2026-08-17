@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { showToast } from './InboxToast';
 
 interface CommandItem {
   id: string;
@@ -28,6 +29,7 @@ export function CommandPalette() {
       {
         id: 'inbox',
         label: 'Go to Inbox',
+        description: 'View all email threads and messages',
         icon: '📥',
         category: 'navigation',
         action: () => router.push('/'),
@@ -35,140 +37,159 @@ export function CommandPalette() {
       {
         id: 'compose',
         label: 'Compose new message',
+        description: 'Write an email with Quanty AI assistant',
         icon: '✏️',
         shortcut: 'C',
         category: 'navigation',
         action: () => router.push('/compose'),
       },
       {
-        id: 'sent',
-        label: 'Go to Sent',
-        icon: '📤',
-        category: 'navigation',
-        action: () => router.push('/sent'),
-      },
-      {
-        id: 'drafts',
-        label: 'Go to Drafts',
-        icon: '📝',
-        category: 'navigation',
-        action: () => router.push('/drafts'),
-      },
-      {
-        id: 'search',
-        label: 'Search emails',
-        icon: '🔍',
-        shortcut: '/',
-        category: 'navigation',
-        action: () => router.push('/search'),
-      },
-      {
         id: 'calendar',
         label: 'Open Calendar',
+        description: 'Schedule meetings and view agenda',
         icon: '📅',
         category: 'navigation',
         action: () => router.push('/calendar'),
       },
       {
-        id: 'contacts',
-        label: 'Open Contacts',
-        icon: '👥',
-        category: 'navigation',
-        action: () => router.push('/contacts'),
-      },
-      {
         id: 'drive',
-        label: 'Open Drive',
+        label: 'Open QuantDrive',
+        description: 'Zero-knowledge encrypted cloud files',
         icon: '📁',
         category: 'navigation',
         action: () => router.push('/drive'),
       },
       {
-        id: 'repos',
-        label: 'Open Repos',
-        icon: '💻',
+        id: 'contacts',
+        label: 'Open Contacts & Directory',
+        description: 'Address book and vCard manager',
+        icon: '👥',
         category: 'navigation',
-        action: () => router.push('/repos'),
+        action: () => router.push('/contacts'),
       },
       {
-        id: 'pipelines',
-        label: 'Open Pipelines',
-        icon: '🔧',
+        id: 'codehub',
+        label: 'Open CodeHub',
+        description: 'Repositories, agent fleets, and CI pipelines',
+        icon: '💻',
         category: 'navigation',
-        action: () => router.push('/pipelines'),
+        action: () => router.push('/codehub'),
       },
       {
         id: 'settings',
-        label: 'Open Settings',
+        label: 'Open Settings & Preferences',
+        description: 'Themes, E2EE vault, and signatures',
         icon: '⚙️',
         category: 'navigation',
         action: () => router.push('/settings'),
       },
-      {
-        id: 'security',
-        label: 'Security settings',
-        icon: '🔒',
-        category: 'navigation',
-        action: () => router.push('/security'),
-      },
+
       // Actions
       {
-        id: 'theme-dark',
-        label: 'Switch to dark theme',
-        icon: '🌙',
-        category: 'settings',
+        id: 'action-meet',
+        label: 'Schedule QuantMeet Video Call',
+        description: 'Generate 1-click video conference room',
+        icon: '🎥',
+        category: 'actions',
         action: () => {
-          document.documentElement.setAttribute('data-theme', 'dark');
-          document.documentElement.classList.add('dark');
-          localStorage.setItem('quant-theme', 'dark');
+          router.push('/calendar');
+          showToast({ text: 'Opening calendar scheduler…', type: 'info' });
         },
       },
       {
-        id: 'theme-light',
-        label: 'Switch to light theme',
-        icon: '☀️',
-        category: 'settings',
-        action: () => {
-          document.documentElement.setAttribute('data-theme', 'light');
-          document.documentElement.classList.remove('dark');
-          localStorage.setItem('quant-theme', 'light');
-        },
+        id: 'action-new-folder',
+        label: 'Create new folder in Drive',
+        description: 'Organize cloud files and mail attachments',
+        icon: '📂',
+        category: 'actions',
+        action: () => router.push('/drive'),
       },
       {
-        id: 'mark-all-read',
-        label: 'Mark all as read',
-        icon: '✓',
+        id: 'action-new-repo',
+        label: 'Create repository in CodeHub',
+        description: 'Scaffold repo with autonomous agent setup',
+        icon: '🐙',
         category: 'actions',
-        action: () => {},
+        action: () => router.push('/codehub'),
       },
       {
-        id: 'empty-trash',
-        label: 'Empty trash',
-        icon: '🗑️',
+        id: 'action-new-contact',
+        label: 'Add new contact',
+        description: 'Save email, phone, and organization details',
+        icon: '👤',
         category: 'actions',
-        action: () => router.push('/trash'),
+        action: () => router.push('/contacts'),
       },
-      // AI
+
+      // AI Commands
       {
         id: 'ai-compose',
-        label: 'AI: Write an email for me',
+        label: 'QuantAI: Write draft with Cloudflare AI',
+        description: 'Autonomous edge LLM email drafting',
         icon: '✨',
         category: 'ai',
         action: () => router.push('/compose'),
       },
       {
         id: 'ai-summarize',
-        label: 'AI: Summarize inbox',
+        label: 'QuantAI: Summarize inbox',
+        description: 'Extract top priorities and action items',
         icon: '📋',
         category: 'ai',
-        action: () => {},
+        action: () => {
+          showToast({ text: 'Analyzing inbox with Cloudflare Workers AI…', type: 'info' });
+          router.push('/');
+        },
+      },
+
+      // Settings & Themes
+      {
+        id: 'theme-obsidian',
+        label: 'Theme: Obsidian OLED (Dark)',
+        description: 'Deep pure black aesthetic',
+        icon: '🌙',
+        category: 'settings',
+        action: () => {
+          document.documentElement.classList.add('dark');
+          localStorage.setItem('quant-theme', 'dark');
+          showToast({ text: 'Switched to Obsidian OLED theme', type: 'info' });
+        },
       },
       {
-        id: 'ai-prioritize',
-        label: 'AI: Prioritize emails',
-        icon: '🎯',
-        category: 'ai',
-        action: () => {},
+        id: 'theme-midnight',
+        label: 'Theme: Midnight Blue',
+        description: 'Deep cosmic slate aesthetic',
+        icon: '🌌',
+        category: 'settings',
+        action: () => {
+          document.documentElement.classList.add('dark');
+          localStorage.setItem('quant-theme', 'midnight');
+          showToast({ text: 'Switched to Midnight Blue theme', type: 'info' });
+        },
+      },
+      {
+        id: 'accent-saffron',
+        label: 'Accent: Bharat Saffron',
+        description: 'Warm energetic saffron tone',
+        icon: '🟠',
+        category: 'settings',
+        action: () => {
+          localStorage.setItem('quant-accent', '#ff9933');
+          document.documentElement.style.setProperty('--brand-primary', '#ff9933');
+          showToast({ text: 'Set accent to Bharat Saffron', type: 'info' });
+        },
+      },
+      {
+        id: 'accent-emerald',
+        label: 'Accent: Emerald Vault',
+        description: 'Cryptographic green tone',
+        icon: '🟢',
+        category: 'settings',
+        action: () => {
+          localStorage.setItem('quant-accent', '#10b981');
+          document.documentElement.style.setProperty('--brand-primary', '#10b981');
+          showToast({ text: 'Set accent to Emerald Vault', type: 'info' });
+        },
       },
     ],
     [router],
@@ -237,7 +258,6 @@ export function CommandPalette() {
     [activeIndex, executeCommand, filtered],
   );
 
-  // Scroll active item into view
   useEffect(() => {
     if (!listRef.current) return;
     const activeEl = listRef.current.querySelector('[data-active="true"]');
@@ -255,9 +275,9 @@ export function CommandPalette() {
 
   const categoryLabels: Record<string, string> = {
     navigation: 'Navigation',
-    actions: 'Actions',
-    ai: 'AI Assistant',
-    settings: 'Settings',
+    actions: 'Quick Actions',
+    ai: 'Cloudflare AI Assistant',
+    settings: 'Appearance & System',
   };
 
   let flatIndex = 0;
@@ -267,7 +287,7 @@ export function CommandPalette() {
       {isOpen && (
         <>
           <motion.div
-            className="command-palette-backdrop"
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -276,7 +296,7 @@ export function CommandPalette() {
             aria-hidden="true"
           />
           <motion.div
-            className="command-palette"
+            className="fixed top-[15%] left-1/2 -translate-x-1/2 w-full max-w-xl bg-zinc-950/95 border border-zinc-800 shadow-2xl rounded-2xl overflow-hidden z-50 flex flex-col max-h-[70vh]"
             role="dialog"
             aria-label="Command palette"
             initial={{ opacity: 0, scale: 0.96, y: -10 }}
@@ -284,9 +304,9 @@ export function CommandPalette() {
             exit={{ opacity: 0, scale: 0.96, y: -10 }}
             transition={{ duration: 0.18, ease: [0, 0, 0.2, 1] }}
           >
-            <div className="command-palette-input-wrap">
+            <div className="flex items-center px-4 py-3.5 border-b border-zinc-800 bg-zinc-900/60">
               <svg
-                className="command-palette-search-icon"
+                className="size-4 text-[#ff9933] mr-3 shrink-0"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -300,9 +320,9 @@ export function CommandPalette() {
               </svg>
               <input
                 ref={inputRef}
-                className="command-palette-input"
+                className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none"
                 type="text"
-                placeholder="Type a command or search…"
+                placeholder="Type a command, navigate, or search…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -310,15 +330,20 @@ export function CommandPalette() {
                 autoComplete="off"
                 spellCheck={false}
               />
-              <kbd className="command-palette-esc">Esc</kbd>
+              <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-[10px] font-mono text-zinc-400">
+                Esc
+              </kbd>
             </div>
-            <div className="command-palette-list" ref={listRef} role="listbox">
+
+            <div className="overflow-y-auto p-2 space-y-3" ref={listRef} role="listbox">
               {filtered.length === 0 && (
-                <div className="command-palette-empty">No commands match &ldquo;{query}&rdquo;</div>
+                <div className="py-8 text-center text-xs text-zinc-500">
+                  No commands match &ldquo;{query}&rdquo;
+                </div>
               )}
               {Object.entries(grouped).map(([category, items]) => (
-                <div key={category} className="command-palette-group">
-                  <div className="command-palette-group-label">
+                <div key={category} className="space-y-1">
+                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
                     {categoryLabels[category] || category}
                   </div>
                   {items.map((item) => {
@@ -331,16 +356,33 @@ export function CommandPalette() {
                         role="option"
                         aria-selected={isActive}
                         data-active={isActive}
-                        className={`command-palette-item ${isActive ? 'is-active' : ''}`}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors ${
+                          isActive
+                            ? 'bg-[#ff9933]/15 text-white border border-[#ff9933]/30'
+                            : 'text-zinc-300 hover:bg-zinc-900 border border-transparent'
+                        }`}
                         onClick={() => executeCommand(item)}
                         onMouseEnter={() => setActiveIndex(idx)}
                       >
-                        <span className="command-palette-item-icon" aria-hidden="true">
-                          {item.icon}
-                        </span>
-                        <span className="command-palette-item-label">{item.label}</span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-base" aria-hidden="true">
+                            {item.icon}
+                          </span>
+                          <div className="min-w-0">
+                            <span className="block text-xs font-semibold truncate text-white">
+                              {item.label}
+                            </span>
+                            {item.description && (
+                              <span className="block text-[11px] text-zinc-400 truncate">
+                                {item.description}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                         {item.shortcut && (
-                          <kbd className="command-palette-item-shortcut">{item.shortcut}</kbd>
+                          <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-[10px] font-mono text-[#ff9933] shrink-0 ml-2">
+                            {item.shortcut}
+                          </kbd>
                         )}
                       </button>
                     );
@@ -348,16 +390,20 @@ export function CommandPalette() {
                 </div>
               ))}
             </div>
-            <footer className="command-palette-footer">
-              <span>
-                <kbd>↑↓</kbd> navigate
-              </span>
-              <span>
-                <kbd>↵</kbd> select
-              </span>
-              <span>
-                <kbd>esc</kbd> close
-              </span>
+
+            <footer className="px-4 py-2 border-t border-zinc-800 bg-zinc-900/40 flex items-center justify-between text-[11px] text-zinc-500">
+              <div className="flex items-center gap-3">
+                <span>
+                  <kbd className="font-mono text-zinc-400">↑↓</kbd> navigate
+                </span>
+                <span>
+                  <kbd className="font-mono text-zinc-400">↵</kbd> select
+                </span>
+                <span>
+                  <kbd className="font-mono text-zinc-400">esc</kbd> close
+                </span>
+              </div>
+              <span className="text-[10px] text-[#ff9933] font-medium">Quant Omnibar</span>
             </footer>
           </motion.div>
         </>
