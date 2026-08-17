@@ -256,6 +256,12 @@ export default function CalendarPage() {
     [selectedDate],
   );
 
+  useEffect(() => {
+    const handler = () => openCreate();
+    window.addEventListener('quant:calendar:create', handler);
+    return () => window.removeEventListener('quant:calendar:create', handler);
+  }, [openCreate]);
+
   const handleCreateEvent = useCallback(async () => {
     if (!newEvent.title.trim() || !newEvent.startTime || !newEvent.endTime) return;
     const payload = newEvent.allDay

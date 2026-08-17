@@ -453,24 +453,26 @@ export function AppShell({
         </main>
       </div>
 
-      {/* Floating Action Button (FAB) — only on mobile */}
-      <button
-        type="button"
-        onClick={handleFabClick}
-        className="fixed bottom-20 right-4 md:hidden z-40 size-14 rounded-full bg-gradient-to-r from-[#ff9933] to-[#ffaa4d] text-[#191008] font-bold shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#ff9933]/40"
-        aria-label="Create new item"
-      >
-        <svg
-          className="size-6"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
+      {/* Floating Action Button (FAB) — only on mobile, excluding dedicated pages like calendar */}
+      {!pathname.startsWith('/calendar') && (
+        <button
+          type="button"
+          onClick={handleFabClick}
+          className="fixed bottom-20 right-4 md:hidden z-40 size-14 rounded-full bg-gradient-to-r from-[#ff9933] to-[#ffaa4d] text-[#191008] font-bold shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#ff9933]/40"
+          aria-label="Create new item"
         >
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-      </button>
+          <svg
+            className="size-6"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+      )}
 
       {/* Mobile Bottom Navigation — strictly md:hidden */}
       <MobileBottomNav />
