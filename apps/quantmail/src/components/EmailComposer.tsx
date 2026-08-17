@@ -6,6 +6,7 @@ import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomple
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
 import { showToast } from './InboxToast';
 import { Quanty, type QuantyExpression } from './Quanty';
+import { browserAuthSession } from '../services/browser-auth-session';
 import type { EmailAddress, EmailPriority } from '../types';
 
 export interface ComposerMessageData {
@@ -113,16 +114,14 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-/** Ask Quanty (Worker AI backend) to write or rework the email body. */
 async function askQuantyWriter(
   history: WriterMessage[],
   subject: string,
   body: string,
 ): Promise<string> {
-  const response = await fetch('/api/ai/chat', {
+  const response = await browserAuthSession.authenticatedFetch('/api/ai/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({
       messages: history.slice(-8).map(({ role, content }) => ({ role, content })),
       context: {

@@ -28,6 +28,7 @@ import { Quanty, type QuantyExpression } from '../../components/Quanty';
 import { QuantMailLogo } from '../../components/QuantMailLogo';
 import { useRepos, useCreateRepo } from '../../hooks/useRepos';
 import { useBuilds, useDeployments } from '../../hooks/usePipelines';
+import { browserAuthSession } from '../../services/browser-auth-session';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -148,10 +149,9 @@ async function askQuanty(
   mode: BuildMode,
   repoNames: string[],
 ): Promise<string> {
-  const response = await fetch('/api/ai/chat', {
+  const response = await browserAuthSession.authenticatedFetch('/api/ai/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
     body: JSON.stringify({
       messages: history.slice(-10).map(({ role, content }) => ({ role, content })),
       context: {

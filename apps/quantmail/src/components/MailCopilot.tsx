@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuantSidekick } from '@quant/shared-ui';
 import { quantAiBrandLockup } from '../brand/identity';
 import { Quanty, type QuantyExpression } from './Quanty';
+import { browserAuthSession } from '../services/browser-auth-session';
 
 const STATUS_COPY = {
   idle: 'Ready',
@@ -110,10 +111,9 @@ async function requestChat(
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch('/api/ai/chat', {
+    const response = await browserAuthSession.authenticatedFetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       signal: controller.signal,
       body: JSON.stringify({
         messages: history.slice(-12).map(({ role, content }) => ({ role, content })),
