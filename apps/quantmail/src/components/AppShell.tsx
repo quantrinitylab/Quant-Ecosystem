@@ -402,13 +402,11 @@ export function AppShell({
               </button>
 
               <div
-                className="flex items-center gap-2.5 cursor-pointer select-none"
+                className="flex items-center cursor-pointer select-none"
                 onClick={() => router.push('/')}
+                title="QuantMail"
               >
                 <QuantMailLogo size={32} />
-                <span className="font-bold text-sm text-white tracking-tight hidden sm:inline-block">
-                  QuantMail
-                </span>
               </div>
             </div>
 

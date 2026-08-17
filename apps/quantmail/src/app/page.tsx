@@ -747,11 +747,6 @@ export default function InboxPage() {
       sidebar={<AppSidebar />}
       theme="dark"
       className="quantmail-shell"
-      mobileTitle={
-        <span className="mobile-brand">
-          <QuantMailLogo size={28} />
-        </span>
-      }
       mobileActions={
         <button
           type="button"
