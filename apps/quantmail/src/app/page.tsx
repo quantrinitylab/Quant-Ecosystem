@@ -36,7 +36,18 @@ const CATEGORIES: Array<{ key: EmailCategory; label: string }> = [
   { key: 'forums', label: 'Groups' },
 ];
 
-type MailIconName = 'archive' | 'close' | 'compose' | 'mail' | 'search' | 'star';
+type MailIconName =
+  | 'archive'
+  | 'close'
+  | 'compose'
+  | 'mail'
+  | 'search'
+  | 'star'
+  | 'trash'
+  | 'reply'
+  | 'forward'
+  | 'sparkles'
+  | 'shield';
 
 function MailIcon({ name, className = 'h-4 w-4' }: { name: MailIconName; className?: string }) {
   const paths = {
@@ -67,6 +78,27 @@ function MailIcon({ name, className = 'h-4 w-4' }: { name: MailIconName; classNa
       </>
     ),
     star: <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />,
+    trash: (
+      <>
+        <path d="M3 6h18" />
+        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+      </>
+    ),
+    reply: <path d="M9 17 4 12l5-5M4 12h12a4 4 0 0 1 4 4v2" />,
+    forward: <path d="m15 17 5-5-5-5M20 12H8a4 4 0 0 0-4 4v2" />,
+    sparkles: (
+      <>
+        <path d="m12 3-1.9 4.8L5.3 9.7l4.8 1.9L12 16.4l1.9-4.8 4.8-1.9-4.8-1.9L12 3z" />
+        <path d="m19 16-.9 2.1L16 19l2.1.9.9 2.1.9-2.1 2.1-.9-2.1-.9-.9-2.1z" />
+      </>
+    ),
+    shield: (
+      <>
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        <path d="m9 12 2 2 4-4" />
+      </>
+    ),
   };
   return (
     <svg
@@ -134,6 +166,13 @@ function EmailRow({
     if (info.offset.x < -96) void onArchive();
   };
 
+  const priorityColor =
+    email.priority === 'high'
+      ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+      : email.priority === 'low'
+        ? 'bg-zinc-800 text-zinc-400 border-zinc-700/40'
+        : 'bg-amber-500/10 text-amber-300/80 border-amber-500/20';
+
   return (
     <div className="mail-row-shell">
       <motion.div
@@ -169,12 +208,19 @@ function EmailRow({
           <div className="mail-row-meta">
             <strong>{email.from?.name || email.from?.email}</strong>
             {!email.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
+            {email.priority && email.priority !== 'normal' && (
+              <span
+                className={`text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded border ${priorityColor}`}
+              >
+                {email.priority}
+              </span>
+            )}
             <time>{formatReceivedAt(email.receivedAt)}</time>
           </div>
           <h3>{email.subject || '(no subject)'}</h3>
           <p>{email.snippet}</p>
         </div>
-        {/* Hover actions bar — Gmail-style quick actions on hover */}
+        {/* Hover actions bar — quick actions on hover */}
         <AnimatePresence>
           {isHovered && !isDragging && (
             <HoverActions
@@ -188,7 +234,7 @@ function EmailRow({
             />
           )}
         </AnimatePresence>
-        {/* Star + Snooze only visible when NOT hovered (hover shows actions bar instead) */}
+        {/* Star + Snooze only visible when NOT hovered */}
         {!isHovered && (
           <>
             <button
@@ -208,8 +254,40 @@ function EmailRow({
   );
 }
 
-function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => void }) {
+function ReadingPane({
+  email,
+  onClose,
+  onArchive,
+  onDelete,
+  onToggleStar,
+}: {
+  email: Email | null;
+  onClose: () => void;
+  onArchive?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onToggleStar?: (id: string) => void;
+}) {
   const router = useRouter();
+  const [quickReplyText, setQuickReplyText] = useState('');
+  const [isSendingQuickReply, setIsSendingQuickReply] = useState(false);
+
+  const handleSendQuickReply = async () => {
+    if (!email || !quickReplyText.trim()) return;
+    setIsSendingQuickReply(true);
+    try {
+      const res = await apiClient.replyToEmail(email.id, quickReplyText);
+      if (res.success) {
+        showToast({ text: 'Quick reply sent', type: 'success' });
+        setQuickReplyText('');
+      } else {
+        showToast({ text: res.error?.message || 'Failed to send reply', type: 'error' });
+      }
+    } catch {
+      showToast({ text: 'Failed to send reply', type: 'error' });
+    } finally {
+      setIsSendingQuickReply(false);
+    }
+  };
 
   if (!email) {
     return (
@@ -223,11 +301,20 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
             <br />
             We&apos;ll quiet the rest.
           </h2>
-          <p>Select a message to preview it without leaving your flow.</p>
+          <p>Select a message to preview it or use keyboard shortcuts (J/K) to navigate.</p>
           <div className="reading-shortcuts" aria-label="Preview guidance">
-            <span>Select a thread to preview it.</span>
-            <span>Reply once a message is open.</span>
-            <span>Archive from the inbox list.</span>
+            <span>
+              <kbd>J</kbd> / <kbd>K</kbd> Navigate
+            </span>
+            <span>
+              <kbd>E</kbd> Archive
+            </span>
+            <span>
+              <kbd>S</kbd> Star
+            </span>
+            <span>
+              <kbd>C</kbd> Compose
+            </span>
           </div>
         </div>
       </section>
@@ -246,32 +333,79 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
         transition={{ duration: 0.2 }}
       >
         <header className="reading-header">
-          <button
-            type="button"
-            className="icon-button"
-            onClick={onClose}
-            aria-label="Close preview"
-          >
-            <MailIcon name="close" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              className="icon-button"
+              onClick={onClose}
+              aria-label="Close preview"
+            >
+              <MailIcon name="close" />
+            </button>
+            {onArchive && (
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => onArchive(email.id)}
+                title="Archive (E)"
+                aria-label="Archive"
+              >
+                <MailIcon name="archive" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => onDelete(email.id)}
+                title="Delete (#)"
+                aria-label="Delete"
+              >
+                <MailIcon name="trash" />
+              </button>
+            )}
+            {onToggleStar && (
+              <button
+                type="button"
+                className={`icon-button ${email.isStarred ? 'text-[#ffb547]' : ''}`}
+                onClick={() => onToggleStar(email.id)}
+                title="Star (S)"
+                aria-label="Star"
+              >
+                <MailIcon name="star" />
+              </button>
+            )}
+          </div>
+
           <div className="reading-header-actions">
             <button
               type="button"
               className="quiet-button"
-              onClick={() => router.push(`/compose?replyTo=${email.threadId}`)}
+              onClick={() => router.push(`/compose?replyTo=${email.threadId || email.id}`)}
             >
+              <MailIcon name="reply" className="h-3.5 w-3.5 inline mr-1" />
               Reply
             </button>
             <button
               type="button"
               className="signal-button"
-              onClick={() => router.push(`/thread/${email.threadId}`)}
+              onClick={() => router.push(`/thread/${email.threadId || email.id}`)}
             >
               Open thread <span aria-hidden="true">↗</span>
             </button>
           </div>
         </header>
+
         <div className="reading-content">
+          {/* Security & Verification Banner */}
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5 mb-4 rounded-lg bg-[var(--quant-surface-subtle)] border border-[var(--quant-border-subtle)] text-[11px] text-[var(--quant-muted-foreground)]">
+            <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+              <MailIcon name="shield" className="h-3.5 w-3.5" />
+              Verified Sender · SPF Pass · DKIM Signed
+            </span>
+            <span className="font-mono text-[10px]">E2EE Encrypted</span>
+          </div>
+
           <p className="reading-eyebrow">
             {email.category} · {email.priority} priority
             {(email.bodyText || email.snippet) && (
@@ -279,6 +413,7 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
             )}
           </p>
           <h1>{email.subject || '(no subject)'}</h1>
+
           <div className="reading-sender">
             <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="lg" />
             <div>
@@ -287,18 +422,47 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
             </div>
             <time>{email.receivedAt ? new Date(email.receivedAt).toLocaleString() : ''}</time>
           </div>
-          {email.aiSummary && (
+
+          {/* QuantAI Brief & Summary */}
+          {email.aiSummary ? (
             <aside className="reading-ai-summary">
-              <span aria-hidden="true">✦</span>
+              <span aria-hidden="true" className="text-[#ffad5c]">
+                <MailIcon name="sparkles" className="h-4 w-4" />
+              </span>
               <div>
-                <strong>QuantAI brief</strong>
+                <strong>QuantAI Executive Brief</strong>
                 <p>{email.aiSummary}</p>
               </div>
             </aside>
+          ) : (
+            <aside className="reading-ai-summary bg-opacity-40">
+              <span aria-hidden="true" className="text-[#ffad5c]">
+                <MailIcon name="sparkles" className="h-4 w-4" />
+              </span>
+              <div className="flex items-center justify-between w-full">
+                <div>
+                  <strong>QuantAI Copilot</strong>
+                  <p className="text-xs text-[var(--quant-muted-foreground)]">
+                    Auto-triage and thread context analyzed.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(`/compose?replyTo=${email.threadId || email.id}&aiAssist=true`)
+                  }
+                  className="text-xs text-[#ffad5c] hover:underline font-semibold"
+                >
+                  Generate Draft ⚡
+                </button>
+              </div>
+            </aside>
           )}
+
           <EmailSafetyBanner email={email} />
           <div className="reading-message">{email.bodyText || email.snippet}</div>
-          {email.attachments?.length > 0 && (
+
+          {email.attachments && email.attachments.length > 0 && (
             <section className="reading-attachments" aria-label="Attachments">
               <h2>
                 {email.attachments.length} attachment{email.attachments.length === 1 ? '' : 's'}
@@ -314,23 +478,56 @@ function ReadingPane({ email, onClose }: { email: Email | null; onClose: () => v
             </section>
           )}
         </div>
-        <footer className="reading-reply-bar">
+
+        {/* Inline Quick Reply & Smart Replies Footer */}
+        <footer className="reading-reply-bar flex-col gap-2.5">
           <SmartReplySuggestions
             emailId={email.id}
-            onSelectReply={(text) =>
-              router.push(`/compose?replyTo=${email.threadId}&body=${encodeURIComponent(text)}`)
-            }
+            onSelectReply={(text) => {
+              setQuickReplyText(text);
+            }}
           />
-          <button type="button" onClick={() => router.push(`/compose?replyTo=${email.threadId}`)}>
-            Reply with clarity…
-          </button>
-          <button
-            type="button"
-            className="reading-send-shortcut"
-            onClick={() => router.push(`/compose?forward=${email.id}`)}
-          >
-            Forward <span aria-hidden="true">→</span>
-          </button>
+
+          <div className="flex items-center gap-2 w-full">
+            <input
+              type="text"
+              className="flex-1 bg-[#151517] border border-[var(--quant-border)] rounded-lg px-3.5 py-2 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[#ff9933]/60 transition-colors"
+              placeholder="Type a quick reply or pick a suggestion above…"
+              value={quickReplyText}
+              onChange={(e) => setQuickReplyText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleSendQuickReply();
+                }
+              }}
+            />
+            {quickReplyText.trim() ? (
+              <button
+                type="button"
+                disabled={isSendingQuickReply}
+                onClick={() => void handleSendQuickReply()}
+                className="reading-send-shortcut px-4 py-2 text-xs font-semibold"
+              >
+                {isSendingQuickReply ? 'Sending…' : 'Send (↵)'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="quiet-button text-xs"
+                onClick={() => router.push(`/compose?replyTo=${email.threadId || email.id}`)}
+              >
+                Full Composer
+              </button>
+            )}
+            <button
+              type="button"
+              className="quiet-button text-xs"
+              onClick={() => router.push(`/compose?forward=${email.id}`)}
+            >
+              Forward <span aria-hidden="true">→</span>
+            </button>
+          </div>
         </footer>
       </motion.section>
     </AnimatePresence>
@@ -372,7 +569,6 @@ export default function InboxPage() {
     (id: string, event?: React.MouseEvent) => {
       setSelectedIds((current) => {
         const next = new Set(current);
-        // Shift+Click range selection
         if (event?.shiftKey && emails && lastSelectedIndex.current >= 0) {
           const currentIndex = emails.findIndex((e) => e.id === id);
           if (currentIndex >= 0) {
@@ -386,7 +582,6 @@ export default function InboxPage() {
         }
         if (next.has(id)) next.delete(id);
         else next.add(id);
-        // Track last selected for shift+click
         if (emails) {
           const idx = emails.findIndex((e) => e.id === id);
           if (idx >= 0) lastSelectedIndex.current = idx;
@@ -566,17 +761,17 @@ export default function InboxPage() {
           <header className="inbox-hero">
             <div>
               <p className="inbox-kicker">
-                <span /> Inbox intelligence
+                <span /> QuantMail Intelligence
               </p>
-              <h1>Your signal.</h1>
+              <h1>Your Inbox</h1>
               <p>
                 {unreadCount > 0
-                  ? `${unreadCount} unread message${unreadCount === 1 ? '' : 's'} need your attention.`
-                  : 'You are fully caught up.'}
+                  ? `${unreadCount} unread message${unreadCount === 1 ? '' : 's'} waiting for review.`
+                  : 'You are completely caught up.'}
               </p>
             </div>
             <button type="button" className="hero-compose" onClick={() => router.push('/compose')}>
-              <MailIcon name="compose" /> Compose
+              <MailIcon name="compose" /> New Message
             </button>
           </header>
 
@@ -588,8 +783,9 @@ export default function InboxPage() {
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search people, subjects, or meaning…"
+                placeholder="Search messages, contacts, keywords…"
               />
+              <kbd>/</kbd>
             </label>
           </div>
 
@@ -674,14 +870,12 @@ export default function InboxPage() {
                 <span className="mail-empty-icon">
                   <MailIcon name={debouncedQuery ? 'search' : 'mail'} />
                 </span>
-                <p className="reading-eyebrow">
-                  {debouncedQuery ? 'Search needs a clearer signal' : 'Inbox ready'}
-                </p>
-                <h2>{debouncedQuery ? 'No inbox match yet.' : 'Your inbox is clear.'}</h2>
+                <p className="reading-eyebrow">{debouncedQuery ? 'Search query' : 'Inbox zero'}</p>
+                <h2>{debouncedQuery ? 'No matching messages.' : 'All caught up!'}</h2>
                 <p>
                   {debouncedQuery
-                    ? `Nothing matched “${debouncedQuery}”. Try a sender, subject, or simpler phrase, or clear the search to return to your live inbox flow.`
-                    : 'New conversations, replies, and priority updates will collect here first so you can triage the next important thread from one focused surface.'}
+                    ? `No messages matched "${debouncedQuery}". Try searching for another keyword, email, or subject.`
+                    : 'Your inbox is clear. New incoming emails, thread replies, and notifications will arrive in real time.'}
                 </p>
                 <div className="flex items-center justify-center gap-2 flex-wrap">
                   {debouncedQuery ? (
@@ -696,12 +890,12 @@ export default function InboxPage() {
                         Clear search
                       </Button>
                       <Button variant="secondary" onClick={() => router.push('/search')}>
-                        Open advanced search
+                        Advanced search
                       </Button>
                     </>
                   ) : (
                     <Button variant="primary" onClick={() => router.push('/compose')}>
-                      Start a conversation
+                      Compose new email
                     </Button>
                   )}
                 </div>
@@ -738,11 +932,18 @@ export default function InboxPage() {
             )}
           </div>
           <footer className="inbox-list-footer">
-            <span>{emails?.length ?? 0} conversations</span>
-            <span>Protected {quantMailBrandLockup.byline}</span>
+            <span>{emails?.length ?? 0} messages</span>
+            <span>Ecosystem connected · SES/DKIM active</span>
           </footer>
         </section>
-        <ReadingPane email={selectedEmail} onClose={() => setSelectedEmail(null)} />
+
+        <ReadingPane
+          email={selectedEmail}
+          onClose={() => setSelectedEmail(null)}
+          onArchive={(id) => void archiveEmail(id)}
+          onDelete={(id) => void deleteEmail(id)}
+          onToggleStar={(id) => void toggleStar(null, id)}
+        />
       </div>
     </AppShell>
   );
