@@ -262,39 +262,78 @@ export default function CalendarPage() {
     return () => window.removeEventListener('quant:calendar:create', handler);
   }, [openCreate]);
 
-  // Touch / Drag Gesture handling for swipe down (expand) and swipe up (collapse)
-  const touchStartY = useRef<number | null>(null);
-  const touchStartX = useRef<number | null>(null);
+  // Real-time Pointer & Touch Drag controller for smooth interactive pull-down/push-up
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragY, setDragY] = useState(0);
+  const pointerStartRef = useRef<{ y: number; x: number; time: number } | null>(null);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStartY.current = e.touches[0].clientY;
-    touchStartX.current = e.touches[0].clientX;
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    pointerStartRef.current = { y: e.clientY, x: e.clientX, time: Date.now() };
+    setIsDragging(true);
+    setDragY(0);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
   }, []);
 
-  const handleTouchEnd = useCallback(
-    (e: React.TouchEvent) => {
-      if (touchStartY.current === null || touchStartX.current === null) return;
-      const deltaY = e.changedTouches[0].clientY - touchStartY.current;
-      const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!pointerStartRef.current) return;
+      const deltaY = e.clientY - pointerStartRef.current.y;
+      if (!isMonthExpanded) {
+        setDragY(Math.max(0, Math.min(240, deltaY)));
+      } else {
+        setDragY(Math.min(0, Math.max(-240, deltaY)));
+      }
+    },
+    [isMonthExpanded],
+  );
 
-      // Vertical drag: Pull down to expand, Push up to collapse
-      if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 30) {
-        if (deltaY > 0 && !isMonthExpanded) {
-          setIsMonthExpanded(true);
-        } else if (deltaY < 0 && isMonthExpanded) {
-          setIsMonthExpanded(false);
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!pointerStartRef.current) return;
+      const deltaY = e.clientY - pointerStartRef.current.y;
+      const deltaX = e.clientX - pointerStartRef.current.x;
+      const duration = Date.now() - pointerStartRef.current.time;
+      const velocityY = deltaY / (duration || 1);
+
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+
+      pointerStartRef.current = null;
+      setIsDragging(false);
+      setDragY(0);
+
+      // Tap detection (minimal movement within 300ms)
+      if (Math.abs(deltaY) < 6 && Math.abs(deltaX) < 6 && duration < 300) {
+        setIsMonthExpanded((prev) => !prev);
+        return;
+      }
+
+      // Drag / Swipe detection: threshold 25px or velocity > 0.25
+      if (Math.abs(deltaY) > Math.abs(deltaX)) {
+        if (!isMonthExpanded) {
+          if (deltaY > 25 || velocityY > 0.25) {
+            setIsMonthExpanded(true);
+          }
+        } else {
+          if (deltaY < -25 || velocityY < -0.25) {
+            setIsMonthExpanded(false);
+          }
         }
-      } else if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 45 && isMonthExpanded) {
-        // Horizontal swipe when expanded: switch month
+      } else if (Math.abs(deltaX) > 40 && isMonthExpanded) {
         if (deltaX < 0) {
           goMonth(1);
         } else {
           goMonth(-1);
         }
       }
-
-      touchStartY.current = null;
-      touchStartX.current = null;
     },
     [isMonthExpanded, goMonth],
   );
@@ -532,9 +571,8 @@ export default function CalendarPage() {
 
         {/* Outlook-Style Interactive Expandable Date Picker (Mobile + Desktop Top Bar) */}
         <div
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-          className="border-b border-zinc-800 bg-[#161618] select-none touch-pan-y"
+          className="border-b border-zinc-800 bg-[#161618] select-none"
+          style={{ touchAction: 'pan-x' }}
         >
           <AnimatePresence initial={false} mode="wait">
             {!isMonthExpanded ? (
@@ -544,7 +582,7 @@ export default function CalendarPage() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15 }}
-                className="px-3 pt-2.5 pb-1"
+                className="px-3 pt-2.5 pb-0.5"
               >
                 <div className="grid grid-cols-7 text-center">
                   {currentWeekDays.map((d, i) => (
@@ -572,13 +610,21 @@ export default function CalendarPage() {
                   ))}
                 </div>
 
-                {/* Drag Handle to Expand Month (Tap or Pull Down) */}
+                {/* Real-time Interactive Drag Handle to Expand Month */}
                 <div
-                  onClick={() => setIsMonthExpanded(true)}
-                  className="w-full flex flex-col items-center justify-center py-2 cursor-grab active:cursor-grabbing group select-none"
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={handlePointerUp}
+                  className="w-full flex flex-col items-center justify-center py-2.5 cursor-grab active:cursor-grabbing group select-none touch-none"
+                  style={{ touchAction: 'none' }}
                   title="Slide down or tap to expand full month"
                 >
-                  <div className="w-12 h-1.5 rounded-full bg-zinc-700 group-hover:bg-zinc-500 transition-colors" />
+                  <div
+                    className={`w-12 h-1.5 rounded-full transition-all ${
+                      isDragging ? 'bg-[#3b82f6] scale-110' : 'bg-zinc-700 group-hover:bg-zinc-500'
+                    }`}
+                  />
                 </div>
               </motion.div>
             ) : (
@@ -588,7 +634,7 @@ export default function CalendarPage() {
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="px-3 pt-2.5 pb-2 overflow-hidden"
+                className="px-3 pt-2.5 pb-1 overflow-hidden"
               >
                 <div className="flex items-center justify-between px-2 mb-2">
                   <span className="text-xs font-bold text-zinc-300">
@@ -660,13 +706,21 @@ export default function CalendarPage() {
                   })}
                 </div>
 
-                {/* Drag Handle to Collapse Month (Tap or Push Up) */}
+                {/* Real-time Interactive Drag Handle to Collapse Month */}
                 <div
-                  onClick={() => setIsMonthExpanded(false)}
-                  className="w-full flex flex-col items-center justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing group select-none"
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={handlePointerUp}
+                  className="w-full flex flex-col items-center justify-center pt-2.5 pb-1.5 cursor-grab active:cursor-grabbing group select-none touch-none"
+                  style={{ touchAction: 'none' }}
                   title="Slide up or tap to collapse to week strip"
                 >
-                  <div className="w-12 h-1.5 rounded-full bg-zinc-700 group-hover:bg-zinc-500 transition-colors" />
+                  <div
+                    className={`w-12 h-1.5 rounded-full transition-all ${
+                      isDragging ? 'bg-[#3b82f6] scale-110' : 'bg-zinc-700 group-hover:bg-zinc-500'
+                    }`}
+                  />
                 </div>
               </motion.div>
             )}
