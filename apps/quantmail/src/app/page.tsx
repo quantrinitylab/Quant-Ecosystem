@@ -745,11 +745,11 @@ export default function InboxPage() {
       mobileActions={
         <button
           type="button"
-          className="mobile-compose"
-          onClick={() => router.push('/compose')}
-          aria-label="Compose message"
+          className="inline-flex size-9 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+          onClick={() => router.push('/search')}
+          aria-label="Search messages"
         >
-          <MailIcon name="compose" />
+          <MailIcon name="search" className="size-5" />
         </button>
       }
       aria-label="QuantMail inbox"

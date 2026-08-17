@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { usePathname, useRouter } from 'next/navigation';
 import { PageTransition } from '@quant/shared-ui';
 import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
+import { CommandPalette } from './CommandPalette';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -278,6 +279,9 @@ export function AppShell({
       style={semanticTheme}
       role="application"
     >
+      {/* Global Command Palette (Ctrl+K / Cmd+K) */}
+      <CommandPalette />
+
       {sidebar && (
         <>
           {/* Backdrop for overlay drawer */}
@@ -375,7 +379,7 @@ export function AppShell({
       )}
 
       <div className="flex min-w-0 flex-1 flex-col pb-14 lg:pb-0">
-        {/* Top Header bar with menu trigger & actions */}
+        {/* Top Header bar with menu trigger, command palette trigger & actions */}
         {sidebar && (
           <header className="flex min-h-14 flex-none items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-3">
             <button
@@ -401,6 +405,20 @@ export function AppShell({
             ) : (
               <div className="min-w-0 flex-1" />
             )}
+
+            {/* Quick Command Palette Button on Desktop */}
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+              }}
+              className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] text-xs text-[var(--quant-muted-foreground)] hover:text-white hover:border-[#ff9933]/50 transition-colors"
+            >
+              <span>Search or command…</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-mono text-zinc-400 border border-zinc-700">
+                ⌘K
+              </kbd>
+            </button>
 
             {mobileActions}
           </header>
