@@ -23,13 +23,13 @@ const chatSchema = z.object({
   messages: z.array(messageSchema).min(1).max(24),
   context: z
     .object({
-      app: z.string().max(60).optional(),
-      route: z.string().max(300).optional(),
-      view: z.string().max(120).optional(),
-      subject: z.string().max(500).optional(),
+      app: z.string().max(200).optional(),
+      route: z.string().max(500).optional(),
+      view: z.string().max(2000).optional(),
+      subject: z.string().max(1000).optional(),
       from: z.string().max(320).optional(),
       selection: z.string().max(4000).optional(),
-      screenText: z.string().max(6000).optional(),
+      screenText: z.string().max(8000).optional(),
     })
     .optional(),
 });
