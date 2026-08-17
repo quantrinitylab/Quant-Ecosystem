@@ -34,10 +34,7 @@
     {
       "Sid": "SecretsRead",
       "Effect": "Allow",
-      "Action": [
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:DescribeSecret"
-      ],
+      "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
       "Resource": "arn:aws:secretsmanager:us-east-1:121701583740:secret:quant/*"
     },
     {

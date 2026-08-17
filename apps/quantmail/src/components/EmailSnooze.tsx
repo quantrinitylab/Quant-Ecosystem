@@ -98,12 +98,18 @@ export function EmailSnooze({
   useEffect(() => {
     if (!isOpen) return;
     const handleClickOutside = (e: PointerEvent) => {
-      if (!menuRef.current?.contains(e.target as Node) && !buttonRef.current?.contains(e.target as Node)) {
+      if (
+        !menuRef.current?.contains(e.target as Node) &&
+        !buttonRef.current?.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     };
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setOpen(false); buttonRef.current?.focus(); }
+      if (e.key === 'Escape') {
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
     };
     document.addEventListener('pointerdown', handleClickOutside);
     document.addEventListener('keydown', handleEsc);
@@ -144,7 +150,15 @@ export function EmailSnooze({
         aria-label="Snooze email"
         title="Snooze"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <circle cx="12" cy="13" r="8" />
           <path d="M12 9v4l2 2" />
           <path d="M5 3 2 6" />
@@ -174,7 +188,13 @@ export function EmailSnooze({
               >
                 <span>{option.label}</span>
                 <span className="snooze-option-date">
-                  {option.getDate().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {option
+                    .getDate()
+                    .toLocaleDateString(undefined, {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
                 </span>
               </button>
             ))}

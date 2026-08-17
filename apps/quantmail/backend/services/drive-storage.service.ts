@@ -55,7 +55,8 @@ function readS3Config(): S3Config | null {
     `https://s3.${region}.amazonaws.com`
   ).replace(/\/+$/, '');
   const forcePathStyle =
-    (process.env.DRIVE_S3_FORCE_PATH_STYLE ?? process.env.S3_FORCE_PATH_STYLE ?? 'false') === 'true';
+    (process.env.DRIVE_S3_FORCE_PATH_STYLE ?? process.env.S3_FORCE_PATH_STYLE ?? 'false') ===
+    'true';
 
   return { bucket, region, endpoint, accessKeyId, secretAccessKey, forcePathStyle };
 }
@@ -96,9 +97,7 @@ async function s3Request(
 
   const base = new URL(config.endpoint);
   const host = config.forcePathStyle ? base.host : `${config.bucket}.${base.host}`;
-  const path = config.forcePathStyle
-    ? `/${config.bucket}/${encodeKey(key)}`
-    : `/${encodeKey(key)}`;
+  const path = config.forcePathStyle ? `/${config.bucket}/${encodeKey(key)}` : `/${encodeKey(key)}`;
   const url = `${base.protocol}//${host}${path}`;
 
   const payload = body ?? Buffer.alloc(0);
@@ -122,12 +121,7 @@ async function s3Request(
   );
 
   const scope = `${dateStamp}/${config.region}/s3/aws4_request`;
-  const stringToSign = [
-    'AWS4-HMAC-SHA256',
-    amzDate,
-    scope,
-    sha256Hex(canonicalRequest),
-  ].join('\n');
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonicalRequest)].join('\n');
 
   const signingKey = hmac(
     hmac(hmac(hmac(`AWS4${config.secretAccessKey}`, dateStamp), config.region), 's3'),

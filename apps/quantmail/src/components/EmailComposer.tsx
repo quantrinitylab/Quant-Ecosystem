@@ -134,11 +134,15 @@ async function askQuantyWriter(
       },
     }),
   });
-  const payload = (await response.json().catch(() => null)) as
-    | { success?: boolean; data?: { message?: string }; error?: { message?: string } }
-    | null;
+  const payload = (await response.json().catch(() => null)) as {
+    success?: boolean;
+    data?: { message?: string };
+    error?: { message?: string };
+  } | null;
   if (response.ok && payload?.success && payload.data?.message) return payload.data.message;
-  throw new Error(payload?.error?.message ?? `Quanty could not answer (${response.status}). Retry in a moment.`);
+  throw new Error(
+    payload?.error?.message ?? `Quanty could not answer (${response.status}). Retry in a moment.`,
+  );
 }
 
 export function EmailComposer({
@@ -316,7 +320,10 @@ export function EmailComposer({
           }
         })
         .catch(() => {
-          showToast({ text: 'Message could not be sent. It is kept in your draft.', type: 'error' });
+          showToast({
+            text: 'Message could not be sent. It is kept in your draft.',
+            type: 'error',
+          });
         });
     }, UNDO_SEND_DELAY_MS);
 
@@ -580,7 +587,10 @@ export function EmailComposer({
               {hasMessageBody ? '✓' : '•'} Message {hasMessageBody ? 'started' : 'empty'}
             </span>
             <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)] px-2.5 py-1 text-[var(--quant-muted-foreground)]">
-              {attachments.length > 0 ? '↗' : '•'} {attachments.length > 0 ? `${attachments.length} local file${attachments.length === 1 ? '' : 's'}` : 'No local files'}
+              {attachments.length > 0 ? '↗' : '•'}{' '}
+              {attachments.length > 0
+                ? `${attachments.length} local file${attachments.length === 1 ? '' : 's'}`
+                : 'No local files'}
             </span>
             <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.04)] px-2.5 py-1 text-[var(--quant-muted-foreground)]">
               Draft status: {draftStatusLabel}
@@ -696,9 +706,9 @@ export function EmailComposer({
               <div className="composer-quanty-thread" ref={writerThreadRef} aria-live="polite">
                 {writerMessages.length === 0 && !writerSending && (
                   <p className="composer-quanty-empty">
-                    Say something like “write a polite follow-up about the pending invoice, 3
-                    lines” — Quanty drafts it, you apply it with one tap. He will ask a quick
-                    question if he needs details.
+                    Say something like “write a polite follow-up about the pending invoice, 3 lines”
+                    — Quanty drafts it, you apply it with one tap. He will ask a quick question if
+                    he needs details.
                   </p>
                 )}
                 {writerMessages.map((message) => (
@@ -711,7 +721,10 @@ export function EmailComposer({
                         className="composer-quanty-apply"
                         onClick={() => {
                           setBody(message.content);
-                          setLiveMessage({ kind: 'status', text: 'Quanty’s draft applied to the message.' });
+                          setLiveMessage({
+                            kind: 'status',
+                            text: 'Quanty’s draft applied to the message.',
+                          });
                         }}
                       >
                         Use in message
@@ -730,7 +743,10 @@ export function EmailComposer({
                   </div>
                 )}
               </div>
-              <div className="composer-quanty-tones" aria-label="Quick rewrites of the current message">
+              <div
+                className="composer-quanty-tones"
+                aria-label="Quick rewrites of the current message"
+              >
                 {AI_TONES.map((tone) => (
                   <button
                     key={tone.key}
@@ -850,11 +866,7 @@ export function EmailComposer({
               </svg>
               Select local files
             </button>
-            <button
-              type="button"
-              className="tool-action"
-              onClick={() => setShowTemplates(true)}
-            >
+            <button type="button" className="tool-action" onClick={() => setShowTemplates(true)}>
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <rect x="3" y="3" width="18" height="18" rx="2" />
                 <path d="M3 9h18M9 21V9" />
@@ -879,12 +891,7 @@ export function EmailComposer({
 
         <footer className="composer-footer">
           <div className="composer-send-group">
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleSend}
-              disabled={busy}
-            >
+            <button type="button" className="btn btn-primary" onClick={handleSend} disabled={busy}>
               {isSending ? 'Sending…' : 'Send'}
             </button>
             <div className="schedule-control">

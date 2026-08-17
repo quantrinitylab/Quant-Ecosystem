@@ -189,7 +189,9 @@ export default function WorkspaceDetailPage() {
                 }}
               >
                 {item.label}
-                {item.id === 'invites' && pendingInvites.length > 0 ? ` (${pendingInvites.length})` : ''}
+                {item.id === 'invites' && pendingInvites.length > 0
+                  ? ` (${pendingInvites.length})`
+                  : ''}
               </button>
             ))}
           </div>
@@ -206,7 +208,11 @@ export default function WorkspaceDetailPage() {
             workspace.members.map((member) => (
               <Card key={member.id} padding="none" className="mb-2 p-3">
                 <div className="flex flex-wrap items-center gap-3">
-                  <Avatar src={member.avatarUrl} name={member.displayName || member.email} size="md" />
+                  <Avatar
+                    src={member.avatarUrl}
+                    name={member.displayName || member.email}
+                    size="md"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{member.displayName}</span>
@@ -398,7 +404,11 @@ export default function WorkspaceDetailPage() {
               >
                 Done
               </Button>
-              <Button variant="primary" loading={invite.isPending} onClick={() => void handleInvite()}>
+              <Button
+                variant="primary"
+                loading={invite.isPending}
+                onClick={() => void handleInvite()}
+              >
                 Send invitations
               </Button>
             </div>
@@ -437,7 +447,10 @@ export default function WorkspaceDetailPage() {
             {inviteResults && (
               <div className="space-y-2 rounded-xl border border-[var(--quant-border)] p-3">
                 {inviteResults.map((result) => (
-                  <div key={result.email} className="flex items-center justify-between gap-3 text-xs">
+                  <div
+                    key={result.email}
+                    className="flex items-center justify-between gap-3 text-xs"
+                  >
                     <span className="truncate">{result.email}</span>
                     <Badge
                       variant={

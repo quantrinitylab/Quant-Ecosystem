@@ -78,8 +78,17 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
 ];
 
 const MAIL_PREFIXES = [
-  '/thread', '/sent', '/drafts', '/archive', '/spam', '/trash',
-  '/snoozed', '/starred', '/search', '/labels', '/compose',
+  '/thread',
+  '/sent',
+  '/drafts',
+  '/archive',
+  '/spam',
+  '/trash',
+  '/snoozed',
+  '/starred',
+  '/search',
+  '/labels',
+  '/compose',
 ];
 
 function MobileBottomNav() {
@@ -330,9 +339,7 @@ export function AppShell({
                 />
               </svg>
             </button>
-            {mobileTitle && (
-              <div className="min-w-0 flex-1 font-semibold">{mobileTitle}</div>
-            )}
+            {mobileTitle && <div className="min-w-0 flex-1 font-semibold">{mobileTitle}</div>}
             {mobileActions && (
               <div className="ml-auto flex items-center gap-1">{mobileActions}</div>
             )}

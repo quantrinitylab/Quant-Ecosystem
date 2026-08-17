@@ -9,8 +9,16 @@ import { useCreateLabel, useDeleteLabel, useLabels, useUpdateLabel } from '../..
 import type { EmailLabel } from '../../types';
 
 const PRESET_COLORS = [
-  '#ff9933', '#ff5e62', '#e64980', '#8b5cf6', '#3b82f6',
-  '#06b6d4', '#10b981', '#eab308', '#14b8a6', '#6b7280',
+  '#ff9933',
+  '#ff5e62',
+  '#e64980',
+  '#8b5cf6',
+  '#3b82f6',
+  '#06b6d4',
+  '#10b981',
+  '#eab308',
+  '#14b8a6',
+  '#6b7280',
 ];
 
 function RowIcon({ name }: { name: 'pencil' | 'trash' }) {
@@ -157,7 +165,11 @@ function LabelRow({ label }: { label: EmailLabel }) {
         {confirmingDelete ? (
           <div className="labels-confirm">
             <span>Delete?</span>
-            <button type="button" onClick={() => void handleDelete()} disabled={deleteLabel.isPending}>
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={deleteLabel.isPending}
+            >
               {deleteLabel.isPending ? '…' : 'Yes'}
             </button>
             <button type="button" onClick={() => setConfirmingDelete(false)}>
@@ -280,8 +292,8 @@ export default function LabelsPage() {
           <div className="labels-empty">
             <h2>No labels yet</h2>
             <p>
-              Labels group related mail — clients, receipts, travel — without moving anything out
-              of your inbox.
+              Labels group related mail — clients, receipts, travel — without moving anything out of
+              your inbox.
             </p>
             <Button variant="primary" onClick={() => setShowCreate(true)}>
               Create your first label

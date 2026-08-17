@@ -65,9 +65,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       const target = event.target as HTMLElement | null;
       const typing =
         target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable);
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
       if (event.key === 'Escape') {
         setOpen(false);
         return;
@@ -193,8 +191,15 @@ export const AppShell: React.FC<AppShellProps> = ({
 
 function MenuIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
-      strokeLinecap="round" aria-hidden="true" className="h-[18px] w-[18px]">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      aria-hidden="true"
+      className="h-[18px] w-[18px]"
+    >
       <path d="M4 7h16M4 12h16M4 17h16" />
     </svg>
   );
@@ -202,8 +207,16 @@ function MenuIcon() {
 
 function CloseIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-4 w-4">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-4 w-4"
+    >
       <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   );
@@ -211,8 +224,16 @@ function CloseIcon() {
 
 function ChevronsLeftIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-3.5 w-3.5">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-3.5 w-3.5"
+    >
       <path d="m11 17-5-5 5-5M18 17l-5-5 5-5" />
     </svg>
   );
@@ -220,8 +241,16 @@ function ChevronsLeftIcon() {
 
 function PinIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9"
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-3.5 w-3.5">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-3.5 w-3.5"
+    >
       <path d="M12 17v5M7 4h10l-1.5 6.5L19 14H5l3.5-3.5z" />
     </svg>
   );

@@ -58,29 +58,71 @@ export function QuantMailLogo({
           <clipPath id={tileClip}>
             <rect x="4" y="4" width="120" height="120" rx="30" />
           </clipPath>
-          <radialGradient id={fireTop} cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(74 2) scale(74 52)">
+          <radialGradient
+            id={fireTop}
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="translate(74 2) scale(74 52)"
+          >
             <stop stopColor="#ff7a1a" />
             <stop offset="0.55" stopColor="#e01313" stopOpacity="0.9" />
             <stop offset="1" stopColor="#e01313" stopOpacity="0" />
           </radialGradient>
-          <radialGradient id={fireLeft} cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(4 54) scale(46 58)">
+          <radialGradient
+            id={fireLeft}
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="translate(4 54) scale(46 58)"
+          >
             <stop stopColor="#e21212" stopOpacity="0.85" />
             <stop offset="1" stopColor="#e21212" stopOpacity="0" />
           </radialGradient>
-          <radialGradient id={fireAmber} cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(24 120) scale(74 62)">
+          <radialGradient
+            id={fireAmber}
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="translate(24 120) scale(74 62)"
+          >
             <stop stopColor="#ffc21a" />
             <stop offset="0.45" stopColor="#ff8a00" stopOpacity="0.92" />
             <stop offset="1" stopColor="#ff6a00" stopOpacity="0" />
           </radialGradient>
-          <radialGradient id={fireRight} cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(120 112) scale(54 50)">
+          <radialGradient
+            id={fireRight}
+            cx="0"
+            cy="0"
+            r="1"
+            gradientUnits="userSpaceOnUse"
+            gradientTransform="translate(120 112) scale(54 50)"
+          >
             <stop stopColor="#ff3d00" stopOpacity="0.8" />
             <stop offset="1" stopColor="#ff3d00" stopOpacity="0" />
           </radialGradient>
-          <linearGradient id={glossGrad} x1="18" y1="6" x2="70" y2="70" gradientUnits="userSpaceOnUse">
+          <linearGradient
+            id={glossGrad}
+            x1="18"
+            y1="6"
+            x2="70"
+            y2="70"
+            gradientUnits="userSpaceOnUse"
+          >
             <stop stopColor="#ffffff" stopOpacity="0.22" />
             <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
           </linearGradient>
-          <linearGradient id={paperGrad} x1="64" y1="36" x2="64" y2="96" gradientUnits="userSpaceOnUse">
+          <linearGradient
+            id={paperGrad}
+            x1="64"
+            y1="36"
+            x2="64"
+            y2="96"
+            gradientUnits="userSpaceOnUse"
+          >
             <stop stopColor="#ffffff" />
             <stop offset="1" stopColor="#f1ece1" />
           </linearGradient>
@@ -88,7 +130,13 @@ export function QuantMailLogo({
             <feGaussianBlur stdDeviation="7" />
           </filter>
           <filter id={envShadow} x="-30%" y="-30%" width="160%" height="160%">
-            <feDropShadow dx="0" dy="3" stdDeviation="3.4" floodColor="#3d0a00" floodOpacity="0.55" />
+            <feDropShadow
+              dx="0"
+              dy="3"
+              stdDeviation="3.4"
+              floodColor="#3d0a00"
+              floodOpacity="0.55"
+            />
           </filter>
         </defs>
 
@@ -105,11 +153,30 @@ export function QuantMailLogo({
           </g>
           {/* gloss + moving light sweep for the 3D feel */}
           <rect x="4" y="4" width="120" height="62" rx="30" fill={'url(#' + glossGrad + ')'} />
-          <rect className="qml-sweep" x="34" y="-20" width="26" height="168" rx="13" fill="#ffffff" opacity="0.09" transform="rotate(14 64 64)" />
+          <rect
+            className="qml-sweep"
+            x="34"
+            y="-20"
+            width="26"
+            height="168"
+            rx="13"
+            fill="#ffffff"
+            opacity="0.09"
+            transform="rotate(14 64 64)"
+          />
         </g>
 
         {/* Inner rim light */}
-        <rect x="5.2" y="5.2" width="117.6" height="117.6" rx="28.8" stroke="#ffffff" strokeOpacity="0.1" strokeWidth="2" />
+        <rect
+          x="5.2"
+          y="5.2"
+          width="117.6"
+          height="117.6"
+          rx="28.8"
+          stroke="#ffffff"
+          strokeOpacity="0.1"
+          strokeWidth="2"
+        />
 
         {/* Twin-peak envelope */}
         <g filter={'url(#' + envShadow + ')'}>
@@ -125,10 +192,22 @@ export function QuantMailLogo({
 
         {/* Happy eyes (blink) */}
         <g className="qml-eye">
-          <path d="M46.5 76.5 Q53 83.5 59.5 76.5" stroke="#0b0503" strokeWidth="5.5" strokeLinecap="round" fill="none" />
+          <path
+            d="M46.5 76.5 Q53 83.5 59.5 76.5"
+            stroke="#0b0503"
+            strokeWidth="5.5"
+            strokeLinecap="round"
+            fill="none"
+          />
         </g>
         <g className="qml-eye">
-          <path d="M68.5 76.5 Q75 83.5 81.5 76.5" stroke="#0b0503" strokeWidth="5.5" strokeLinecap="round" fill="none" />
+          <path
+            d="M68.5 76.5 Q75 83.5 81.5 76.5"
+            stroke="#0b0503"
+            strokeWidth="5.5"
+            strokeLinecap="round"
+            fill="none"
+          />
         </g>
       </svg>
       <style>{logoCss}</style>

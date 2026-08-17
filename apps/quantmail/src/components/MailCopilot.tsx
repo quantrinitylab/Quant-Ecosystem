@@ -60,8 +60,6 @@ const ERROR_BUTTON_STYLE = {
   fontWeight: 620,
 } as const;
 
-
-
 function clamp(value: string, max: number): string {
   const clean = value.replace(/\s+/g, ' ').trim();
   return clean.length > max ? `${clean.slice(0, max)}…` : clean;
@@ -123,9 +121,11 @@ async function requestChat(
       }),
     });
 
-    const payload = (await response.json().catch(() => null)) as
-      | { success?: boolean; data?: { message?: string }; error?: { message?: string } }
-      | null;
+    const payload = (await response.json().catch(() => null)) as {
+      success?: boolean;
+      data?: { message?: string };
+      error?: { message?: string };
+    } | null;
 
     if (response.ok && payload?.success && payload.data?.message) {
       return { ok: true, message: payload.data.message };
@@ -174,7 +174,10 @@ async function requestChat(
             retryable: true,
           }
         : {
-            title: typeof navigator !== 'undefined' && !navigator.onLine ? 'You are offline' : 'Connection problem',
+            title:
+              typeof navigator !== 'undefined' && !navigator.onLine
+                ? 'You are offline'
+                : 'Connection problem',
             message:
               typeof navigator !== 'undefined' && !navigator.onLine
                 ? 'Reconnect to the network and retry — your message is saved.'
@@ -316,7 +319,6 @@ export function MailCopilot() {
     void deliver(history, lastUser.turnId);
   }, [deliver, isSending, messages]);
 
-
   const suggestionChips = useMemo(
     () =>
       suggestions.length > 0
@@ -447,8 +449,6 @@ export function MailCopilot() {
                 </div>
               </div>
             )}
-
-
           </div>
 
           {(messages.length === 0 || lastAssistant) && (

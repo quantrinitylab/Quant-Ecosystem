@@ -223,71 +223,67 @@ export default async function driveRoutes(fastify: FastifyInstance) {
   // POST /drive/upload — the Next proxy turns the browser's multipart form into
   // JSON base64 so the backend needs no multipart parser. Bytes are encrypted
   // here and only the ciphertext leaves for object storage.
-  fastify.post(
-    '/drive/upload',
-    { bodyLimit: DRIVE_MAX_BODY_BYTES },
-    async (request, reply) => {
-      const userId = requireUserId(request);
-      const prisma = getPrisma(fastify);
+  fastify.post('/drive/upload', { bodyLimit: DRIVE_MAX_BODY_BYTES }, async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
 
-      if (!driveStorageReady()) {
-        throw createAppError(driveStorageUnavailableReason(), 503, 'STORAGE_UNAVAILABLE');
-      }
+    if (!driveStorageReady()) {
+      throw createAppError(driveStorageUnavailableReason(), 503, 'STORAGE_UNAVAILABLE');
+    }
 
-      const parsed = uploadBodySchema.safeParse(request.body);
-      if (!parsed.success) throw createAppError('Invalid upload payload', 400, 'VALIDATION_ERROR');
+    const parsed = uploadBodySchema.safeParse(request.body);
+    if (!parsed.success) throw createAppError('Invalid upload payload', 400, 'VALIDATION_ERROR');
 
-      const bytes = Buffer.from(parsed.data.contentBase64, 'base64');
-      if (bytes.length === 0) throw createAppError('Empty file', 400, 'VALIDATION_ERROR');
-      if (bytes.length > DRIVE_MAX_FILE_BYTES) {
-        throw createAppError('File is larger than the upload limit', 413, 'FILE_TOO_LARGE');
-      }
+    const bytes = Buffer.from(parsed.data.contentBase64, 'base64');
+    if (bytes.length === 0) throw createAppError('Empty file', 400, 'VALIDATION_ERROR');
+    if (bytes.length > DRIVE_MAX_FILE_BYTES) {
+      throw createAppError('File is larger than the upload limit', 413, 'FILE_TOO_LARGE');
+    }
 
-      const used = await usedBytes(prisma, userId);
-      if (used + bytes.length > TOTAL_QUOTA) {
-        throw createAppError('Storage quota exceeded', 507, 'QUOTA_EXCEEDED');
-      }
+    const used = await usedBytes(prisma, userId);
+    if (used + bytes.length > TOTAL_QUOTA) {
+      throw createAppError('Storage quota exceeded', 507, 'QUOTA_EXCEEDED');
+    }
 
-      let folderId = parsed.data.folderId ?? null;
-      if (folderId) {
-        const folder = await prisma.folder.findUnique({ where: { id: folderId } });
-        if (!folder || folder.userId !== userId) folderId = null;
-      }
+    let folderId = parsed.data.folderId ?? null;
+    if (folderId) {
+      const folder = await prisma.folder.findUnique({ where: { id: folderId } });
+      if (!folder || folder.userId !== userId) folderId = null;
+    }
 
-      const envelope = encryptForDrive(bytes);
-      const created = (await prisma.file.create({
-        data: {
-          userId,
-          name: safeFileName(parsed.data.name),
-          mimeType: parsed.data.mimeType || 'application/octet-stream',
-          size: bytes.length,
-          folderId,
-          encryptedContent: '',
-          encryptionIV: envelope.iv,
-          encryptionAuthTag: envelope.authTag,
-          encryptionKey: envelope.wrappedKey,
-          contentHash: envelope.contentHash,
-        },
-      })) as FileRow;
+    const envelope = encryptForDrive(bytes);
+    const created = (await prisma.file.create({
+      data: {
+        userId,
+        name: safeFileName(parsed.data.name),
+        mimeType: parsed.data.mimeType || 'application/octet-stream',
+        size: bytes.length,
+        folderId,
+        encryptedContent: '',
+        encryptionIV: envelope.iv,
+        encryptionAuthTag: envelope.authTag,
+        encryptionKey: envelope.wrappedKey,
+        contentHash: envelope.contentHash,
+      },
+    })) as FileRow;
 
-      const key = driveObjectKey(userId, created.id);
-      try {
-        await putDriveObject(key, envelope.ciphertext);
-        await prisma.file.update({ where: { id: created.id }, data: { encryptedContent: key } });
-      } catch (err) {
-        // Never leave a metadata row pointing at a missing object.
-        await prisma.file.delete({ where: { id: created.id } }).catch(() => undefined);
-        fastify.log.error({ err }, 'drive upload failed');
-        throw createAppError('Upload failed while storing the file', 502, 'STORAGE_ERROR');
-      }
+    const key = driveObjectKey(userId, created.id);
+    try {
+      await putDriveObject(key, envelope.ciphertext);
+      await prisma.file.update({ where: { id: created.id }, data: { encryptedContent: key } });
+    } catch (err) {
+      // Never leave a metadata row pointing at a missing object.
+      await prisma.file.delete({ where: { id: created.id } }).catch(() => undefined);
+      fastify.log.error({ err }, 'drive upload failed');
+      throw createAppError('Upload failed while storing the file', 502, 'STORAGE_ERROR');
+    }
 
-      const owner = await ownerInfo(prisma, userId);
-      return reply.status(201).send({
-        file: fileDto({ ...created, folderId }, owner),
-        quota: { used: used + bytes.length, total: TOTAL_QUOTA },
-      });
-    },
-  );
+    const owner = await ownerInfo(prisma, userId);
+    return reply.status(201).send({
+      file: fileDto({ ...created, folderId }, owner),
+      quota: { used: used + bytes.length, total: TOTAL_QUOTA },
+    });
+  });
 
   // GET /drive/files/:id/download — decrypts and streams the file back.
   fastify.get<{ Params: { id: string } }>('/drive/files/:id/download', async (request, reply) => {
@@ -297,7 +293,8 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     if (!file || file.userId !== userId || file.isDeleted) {
       throw createAppError('Not found', 404, 'NOT_FOUND');
     }
-    if (!file.encryptedContent) throw createAppError('File has no stored content', 409, 'NO_CONTENT');
+    if (!file.encryptedContent)
+      throw createAppError('File has no stored content', 409, 'NO_CONTENT');
     if (!driveStorageReady()) {
       throw createAppError(driveStorageUnavailableReason(), 503, 'STORAGE_UNAVAILABLE');
     }

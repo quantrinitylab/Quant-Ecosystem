@@ -162,11 +162,15 @@ async function askQuanty(
       },
     }),
   });
-  const payload = (await response.json().catch(() => null)) as
-    | { success?: boolean; data?: { message?: string }; error?: { message?: string } }
-    | null;
+  const payload = (await response.json().catch(() => null)) as {
+    success?: boolean;
+    data?: { message?: string };
+    error?: { message?: string };
+  } | null;
   if (response.ok && payload?.success && payload.data?.message) return payload.data.message;
-  throw new Error(payload?.error?.message ?? `Quanty could not answer (${response.status}). Retry in a moment.`);
+  throw new Error(
+    payload?.error?.message ?? `Quanty could not answer (${response.status}). Retry in a moment.`,
+  );
 }
 
 function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewRepo: () => void }) {
@@ -194,9 +198,14 @@ function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewR
     setSending(true);
     try {
       const reply = await askQuanty(next, mode, repoNames);
-      setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'assistant', content: reply }]);
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: 'assistant', content: reply },
+      ]);
     } catch (err) {
-      setChatError(err instanceof Error ? err.message : 'Quanty could not answer. Retry in a moment.');
+      setChatError(
+        err instanceof Error ? err.message : 'Quanty could not answer. Retry in a moment.',
+      );
     } finally {
       setSending(false);
     }
@@ -253,7 +262,8 @@ function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewR
           ))}
           {sending && (
             <div className="ch-msg is-assistant ch-msg-typing">
-              <Quanty expression="thinking" size={22} /> Quanty is {mode === 'plan' ? 'planning' : 'building the approach'}…
+              <Quanty expression="thinking" size={22} /> Quanty is{' '}
+              {mode === 'plan' ? 'planning' : 'building the approach'}…
             </div>
           )}
           {chatError && (
@@ -275,7 +285,11 @@ function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewR
           type="text"
           value={input}
           onChange={(event) => setInput(event.target.value)}
-          placeholder={mode === 'plan' ? 'e.g. Plan a URL-shortener service with analytics' : 'e.g. Build a Next.js waitlist app with auth'}
+          placeholder={
+            mode === 'plan'
+              ? 'e.g. Plan a URL-shortener service with analytics'
+              : 'e.g. Build a Next.js waitlist app with auth'
+          }
           aria-label="Tell Quanty what to plan or build"
         />
         <button type="submit" disabled={sending || input.trim().length === 0}>
@@ -284,7 +298,9 @@ function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewR
       </form>
 
       <div className="ch-quanty-quick">
-        <button type="button" onClick={onNewRepo}>+ New repository</button>
+        <button type="button" onClick={onNewRepo}>
+          + New repository
+        </button>
         <span>Quanty can scaffold into a fresh repo once you approve a plan.</span>
       </div>
     </section>
@@ -295,7 +311,13 @@ function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewR
 // Agents strip — who is doing what right now (msg#30 P14)
 // ---------------------------------------------------------------------------
 
-function AgentsStrip({ builds, deployments }: { builds: BuildLike[]; deployments: DeploymentLike[] }) {
+function AgentsStrip({
+  builds,
+  deployments,
+}: {
+  builds: BuildLike[];
+  deployments: DeploymentLike[];
+}) {
   const latestBuild = builds[0];
   const latestDeploy = deployments[0];
   const agents = [
@@ -336,7 +358,10 @@ function AgentsStrip({ builds, deployments }: { builds: BuildLike[]; deployments
         {agents.map((agent) => (
           <article key={agent.id} className="ch-agent-card">
             <header>
-              <span className={`ch-agent-dot is-${statusVariant(agent.status)}`} aria-hidden="true" />
+              <span
+                className={`ch-agent-dot is-${statusVariant(agent.status)}`}
+                aria-hidden="true"
+              />
               <strong>{agent.name}</strong>
               <Badge variant={statusVariant(agent.status)}>{agent.status}</Badge>
             </header>
@@ -449,14 +474,30 @@ function CloneButton({ repo }: { repo: RepoLike }) {
     >
       {copied ? (
         <>
-          <svg className="h-3 w-3 text-[#22c55e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            className="h-3 w-3 text-[#22c55e]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <polyline points="20 6 9 17 4 12" />
           </svg>
           <span className="text-[#22c55e]">Copied!</span>
         </>
       ) : (
         <>
-          <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            className="h-3 w-3"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <rect x="9" y="9" width="13" height="13" rx="2" />
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
           </svg>
@@ -476,7 +517,12 @@ export default function CodeHubPage() {
   const [query, setQuery] = useState('');
   const [visibility, setVisibility] = useState<VisibilityFilter>('all');
   const [showCreate, setShowCreate] = useState(false);
-  const [draft, setDraft] = useState({ name: '', description: '', visibility: 'private', sourceUrl: '' });
+  const [draft, setDraft] = useState({
+    name: '',
+    description: '',
+    visibility: 'private',
+    sourceUrl: '',
+  });
 
   const { data: reposData, isLoading, error, refetch } = useRepos();
   const { data: buildsData } = useBuilds();
@@ -534,11 +580,7 @@ export default function CodeHubPage() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <div className="w-64 max-w-[52vw]">
-              <SearchInput
-                placeholder="Search repositories…"
-                value={query}
-                onChange={setQuery}
-              />
+              <SearchInput placeholder="Search repositories…" value={query} onChange={setQuery} />
             </div>
             <Button variant="primary" onClick={() => setShowCreate(true)}>
               New repository
@@ -674,7 +716,8 @@ export default function CodeHubPage() {
                         </Badge>
                       </div>
                       <p className="mt-1 text-[11px] text-[var(--quant-muted-foreground)] truncate">
-                        {build.commitMessage || build.branch || '—'} · {relativeTime(build.createdAt)}
+                        {build.commitMessage || build.branch || '—'} ·{' '}
+                        {relativeTime(build.createdAt)}
                       </p>
                     </li>
                   ))}
@@ -732,7 +775,11 @@ export default function CodeHubPage() {
               <Input
                 value={draft.name}
                 onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
-                placeholder={draft.sourceUrl.trim() ? repoNameFromUrl(draft.sourceUrl) || 'quant-service' : 'quant-service'}
+                placeholder={
+                  draft.sourceUrl.trim()
+                    ? repoNameFromUrl(draft.sourceUrl) || 'quant-service'
+                    : 'quant-service'
+                }
               />
             </FormField>
             <FormField label="Description">
@@ -765,7 +812,9 @@ export default function CodeHubPage() {
             {/* Clone URL preview for the new repo being created */}
             {(draft.name.trim() || draft.sourceUrl.trim()) && (
               <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-muted)] px-3 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--quant-muted-foreground)] mb-1">Clone URL (after creation)</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--quant-muted-foreground)] mb-1">
+                  Clone URL (after creation)
+                </p>
                 <code className="block truncate text-xs text-[var(--quant-foreground)]">
                   git@quantrinity.in:{draft.name.trim() || repoNameFromUrl(draft.sourceUrl)}.git
                 </code>

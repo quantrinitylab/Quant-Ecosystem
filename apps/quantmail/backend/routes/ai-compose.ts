@@ -96,11 +96,7 @@ export default async function aiComposeRoutes(fastify: FastifyInstance) {
       const { MailAIService, AIEngine } = await import('@quant/ai');
       const engine = new AIEngine();
       const mailAI = new MailAIService(engine);
-      const result = await mailAI.composeEmail(
-        instructions,
-        { tone, recipient, subject },
-        userId,
-      );
+      const result = await mailAI.composeEmail(instructions, { tone, recipient, subject }, userId);
       return reply.send({
         success: true,
         data: { subject: subject ?? '', body: result.content, suggestions: [] },

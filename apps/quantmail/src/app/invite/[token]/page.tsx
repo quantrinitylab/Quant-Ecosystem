@@ -34,7 +34,10 @@ export default function InviteAcceptPage() {
   return (
     <main
       className="flex min-h-screen items-center justify-center p-6"
-      style={{ background: 'var(--quant-background, #0b0b0f)', color: 'var(--quant-foreground, #f5f3f7)' }}
+      style={{
+        background: 'var(--quant-background, #0b0b0f)',
+        color: 'var(--quant-foreground, #f5f3f7)',
+      }}
     >
       <div className="w-full max-w-md">
         <div className="mb-6 flex items-center justify-center">
@@ -54,11 +57,7 @@ export default function InviteAcceptPage() {
         {invite && (
           <Card padding="none" className="p-6 text-center">
             <div className="flex justify-center">
-              <Avatar
-                src={invite.invitedBy.avatarUrl}
-                name={invite.invitedBy.name}
-                size="lg"
-              />
+              <Avatar src={invite.invitedBy.avatarUrl} name={invite.invitedBy.name} size="lg" />
             </div>
             <h1 className="mt-4 text-lg font-semibold">
               {invite.invitedBy.name} invited you to {invite.workspace.name}

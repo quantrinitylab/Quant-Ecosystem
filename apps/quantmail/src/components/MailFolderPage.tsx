@@ -163,10 +163,7 @@ export function MailFolderPage({
                   className="sent-row"
                   onClick={() => openEmail(email)}
                 >
-                  <IdentityAvatar
-                    name={email.from?.name || email.from?.email || '?'}
-                    size="sm"
-                  />
+                  <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="sm" />
                   <div className="sent-row-content">
                     <div className="sent-row-meta">
                       <span className="sent-row-recipients">

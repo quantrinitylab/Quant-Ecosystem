@@ -25,7 +25,11 @@ export const FormField: React.FC<FormFieldProps> = ({
 }) => {
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
-      <label htmlFor={htmlFor} className="text-sm font-medium" style={{ color: 'var(--quant-foreground, #f5f3f7)' }}>
+      <label
+        htmlFor={htmlFor}
+        className="text-sm font-medium"
+        style={{ color: 'var(--quant-foreground, #f5f3f7)' }}
+      >
         {label}
         {required && (
           <span className="text-red-500 ml-1" aria-hidden="true">
@@ -37,13 +41,22 @@ export const FormField: React.FC<FormFieldProps> = ({
       {children}
 
       {hint && !error && (
-        <p className="text-xs" style={{ color: 'var(--quant-muted-foreground, #9b99a6)' }} role="note">
+        <p
+          className="text-xs"
+          style={{ color: 'var(--quant-muted-foreground, #9b99a6)' }}
+          role="note"
+        >
           {hint}
         </p>
       )}
 
       {error && (
-        <p className="text-xs" style={{ color: 'var(--quant-destructive, #f87171)' }} role="alert" aria-live="polite">
+        <p
+          className="text-xs"
+          style={{ color: 'var(--quant-destructive, #f87171)' }}
+          role="alert"
+          aria-live="polite"
+        >
           {error}
         </p>
       )}

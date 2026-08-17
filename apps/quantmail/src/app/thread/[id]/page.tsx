@@ -332,7 +332,9 @@ export default function ThreadPage() {
       <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
         <PageTransition className="workspace-page thread-workspace flex flex-col h-full">
           <div className="flex-1 flex items-center justify-center p-6">
-            <p className="text-sm text-[var(--quant-muted-foreground)]">Taking you back to your inbox…</p>
+            <p className="text-sm text-[var(--quant-muted-foreground)]">
+              Taking you back to your inbox…
+            </p>
           </div>
         </PageTransition>
       </AppShell>
@@ -366,7 +368,12 @@ export default function ThreadPage() {
                 aria-label="Summarise thread with QuantAI"
                 title="Summarise with QuantAI"
               >
-                <TbIcon name="spark" className={isSummarizing ? 'h-[18px] w-[18px] animate-pulse' : 'h-[18px] w-[18px]'} />
+                <TbIcon
+                  name="spark"
+                  className={
+                    isSummarizing ? 'h-[18px] w-[18px] animate-pulse' : 'h-[18px] w-[18px]'
+                  }
+                />
               </button>
               <button
                 type="button"
@@ -439,10 +446,15 @@ export default function ThreadPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="secondary" onClick={() => setIsSummaryVisible((v) => !v)}>
+                          <Button
+                            variant="secondary"
+                            onClick={() => setIsSummaryVisible((v) => !v)}
+                          >
                             {isSummaryVisible ? 'Hide' : 'Show'}
                           </Button>
-                          <Button variant="secondary" onClick={handleDismissSummary}>Dismiss</Button>
+                          <Button variant="secondary" onClick={handleDismissSummary}>
+                            Dismiss
+                          </Button>
                         </div>
                       </div>
                       {isSummaryVisible && (
@@ -457,7 +469,9 @@ export default function ThreadPage() {
 
               {/* Thread meta (the subject lives in the toolbar now) */}
               <div className="mb-5 flex items-center gap-2 text-sm text-[var(--quant-muted-foreground)]">
-                <span>{thread.messageCount} message{thread.messageCount === 1 ? '' : 's'}</span>
+                <span>
+                  {thread.messageCount} message{thread.messageCount === 1 ? '' : 's'}
+                </span>
                 <span aria-hidden="true">·</span>
                 <span className="truncate">
                   {thread.participants?.map((p: any) => p.name || p.email).join(', ')}
@@ -503,8 +517,16 @@ export default function ThreadPage() {
                         {/* Consistent relative timestamp */}
                         <time
                           className="text-xs text-[var(--quant-muted-foreground)] whitespace-nowrap"
-                          dateTime={message.receivedAt ? new Date(message.receivedAt).toISOString() : undefined}
-                          title={message.receivedAt ? new Date(message.receivedAt).toLocaleString() : undefined}
+                          dateTime={
+                            message.receivedAt
+                              ? new Date(message.receivedAt).toISOString()
+                              : undefined
+                          }
+                          title={
+                            message.receivedAt
+                              ? new Date(message.receivedAt).toLocaleString()
+                              : undefined
+                          }
                         >
                           {formatMessageDate(message.receivedAt)}
                         </time>
@@ -517,8 +539,12 @@ export default function ThreadPage() {
                           {parsed.quoted && <QuotedText text={parsed.quoted} />}
                           <AttachmentGallery attachments={message.attachments} />
                           <div className="flex gap-2 mt-4">
-                            <Button variant="secondary" onClick={handleOpenReplyComposer}>Reply</Button>
-                            <Button variant="secondary" onClick={() => handleForward(message.id)}>Forward</Button>
+                            <Button variant="secondary" onClick={handleOpenReplyComposer}>
+                              Reply
+                            </Button>
+                            <Button variant="secondary" onClick={() => handleForward(message.id)}>
+                              Forward
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -530,17 +556,23 @@ export default function ThreadPage() {
               {/* Reply composer */}
               <div className="mt-6 pt-4 border-t border-[var(--quant-border)]">
                 {!showReplyComposer ? (
-                  <Button variant="primary" onClick={handleOpenReplyComposer}>Reply to thread</Button>
+                  <Button variant="primary" onClick={handleOpenReplyComposer}>
+                    Reply to thread
+                  </Button>
                 ) : (
                   <Card padding="md">
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div>
-                        <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">Reply to thread</h2>
+                        <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+                          Reply to thread
+                        </h2>
                         <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
                           Write one clear response, then send or cancel.
                         </p>
                       </div>
-                      <Button variant="secondary" onClick={handleCloseReplyComposer}>Cancel</Button>
+                      <Button variant="secondary" onClick={handleCloseReplyComposer}>
+                        Cancel
+                      </Button>
                     </div>
                     {replyError && <p className="text-sm text-red-600 mb-2">{replyError}</p>}
                     <textarea

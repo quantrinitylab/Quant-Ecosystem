@@ -1,11 +1,12 @@
 // ============================================================================
 // QuantMail - Email Thread Component
-// Email conversation thread view
+// Email conversation thread view with QuantAI integration
 // ============================================================================
 
 import React, { useState } from 'react';
 import { sanitizeHtmlContent } from '@quant/shared-ui';
 import type { Email, EmailThread as EmailThreadType, EmailAddress } from '../types';
+import { IdentityAvatar } from './IdentityAvatar';
 
 export interface EmailThreadProps {
   thread: EmailThreadType;
@@ -28,7 +29,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
     onArchive,
     onDelete,
     onToggleStar,
-    onAddLabel,
+    onAddLabel: _onAddLabel,
     onAISummarize,
     onAISuggestReplies,
     onBack,
@@ -46,6 +47,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
   const [summary, setSummary] = useState<string | null>(null);
   const [replySuggestions, setReplySuggestions] = useState<string[]>([]);
   const [activeEmailId, setActiveEmailId] = useState<string | null>(null);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
 
   const toggleExpanded = (emailId: string) => {
     setExpandedMessages((prev) => {
@@ -74,15 +76,25 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
   };
 
   const handleSummarize = async (emailId: string) => {
-    const result = await onAISummarize(emailId);
-    setSummary(result);
-    setActiveEmailId(emailId);
+    setIsLoadingAI(true);
+    try {
+      const result = await onAISummarize(emailId);
+      setSummary(result);
+      setActiveEmailId(emailId);
+    } finally {
+      setIsLoadingAI(false);
+    }
   };
 
   const handleSuggestReplies = async (emailId: string) => {
-    const suggestions = await onAISuggestReplies(emailId);
-    setReplySuggestions(suggestions);
-    setActiveEmailId(emailId);
+    setIsLoadingAI(true);
+    try {
+      const suggestions = await onAISuggestReplies(emailId);
+      setReplySuggestions(suggestions);
+      setActiveEmailId(emailId);
+    } finally {
+      setIsLoadingAI(false);
+    }
   };
 
   const useSuggestion = (suggestion: string, emailId: string) => {
@@ -101,26 +113,41 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
   };
 
   return (
-    <div className="email-thread">
+    <div className="email-thread max-w-5xl mx-auto p-4 md:p-6 text-[var(--quant-foreground)]">
       {/* Thread Header */}
-      <div className="thread-header">
-        <button className="btn btn-sm btn-icon" onClick={onBack}>
-          Back
-        </button>
-        <h2 className="thread-subject">{thread.subject}</h2>
-        <div className="thread-meta">
-          <span>{thread.messageCount} messages</span>
-          <span>{thread.participants.length} participants</span>
-        </div>
-        <div className="thread-actions">
+      <div className="flex items-center justify-between gap-4 pb-4 mb-6 border-b border-[var(--quant-border-subtle)]">
+        <div className="flex items-center gap-3 min-w-0">
           <button
-            className="btn btn-sm btn-outline"
+            type="button"
+            className="inline-flex items-center justify-center size-8 rounded-lg bg-[var(--quant-muted)] hover:bg-[var(--quant-surface-hover)] text-xs text-[var(--quant-foreground)] transition-colors"
+            onClick={onBack}
+            aria-label="Back to inbox"
+          >
+            ←
+          </button>
+          <div className="min-w-0">
+            <h2 className="text-xl md:text-2xl font-semibold tracking-tight truncate">
+              {thread.subject || '(no subject)'}
+            </h2>
+            <div className="flex items-center gap-2 mt-1 text-xs text-[var(--quant-muted-foreground)]">
+              <span>{thread.messageCount} messages</span>
+              <span>•</span>
+              <span>{thread.participants.length} participants</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-none">
+          <button
+            type="button"
+            className="px-3 py-1.5 rounded-lg border border-[var(--quant-border)] text-xs text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-muted)] transition-colors"
             onClick={() => onArchive(thread.messages[0]?.id)}
           >
             Archive
           </button>
           <button
-            className="btn btn-sm btn-outline"
+            type="button"
+            className="px-3 py-1.5 rounded-lg border border-[var(--quant-border)] text-xs text-[var(--quant-destructive)] hover:bg-rose-500/10 transition-colors"
             onClick={() => onDelete(thread.messages[0]?.id)}
           >
             Delete
@@ -128,57 +155,92 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
         </div>
       </div>
 
-      {/* AI Summary */}
+      {/* AI Summary Banner */}
       {summary && activeEmailId && (
-        <div className="ai-summary-banner">
-          <span className="ai-badge">AI Summary</span>
-          <p>{summary}</p>
-          <button className="btn-link btn-sm" onClick={() => setSummary(null)}>
-            Dismiss
-          </button>
+        <div className="mb-6 p-4 rounded-xl border border-[#ff9933]/30 bg-gradient-to-r from-[#ff9933]/10 to-transparent text-sm">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#ffad5c] flex items-center gap-1.5">
+              ✦ QuantAI Summary
+            </span>
+            <button
+              type="button"
+              className="text-xs text-[var(--quant-muted-foreground)] hover:text-white"
+              onClick={() => setSummary(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+          <p className="text-[var(--quant-foreground)] leading-relaxed">{summary}</p>
         </div>
       )}
 
-      {/* Messages */}
-      <div className="thread-messages">
+      {/* Thread Messages */}
+      <div className="space-y-4">
         {thread.messages.map((email, index) => {
           const isExpanded = expandedMessages.has(email.id);
           const isLast = index === thread.messages.length - 1;
 
           return (
-            <div key={email.id} className={`message-card ${isExpanded ? 'expanded' : 'collapsed'}`}>
+            <div
+              key={email.id}
+              className={`rounded-xl border transition-all duration-200 overflow-hidden ${
+                isExpanded
+                  ? 'border-[var(--quant-border)] bg-[var(--quant-surface)] shadow-lg'
+                  : 'border-[var(--quant-border-subtle)] bg-[var(--quant-surface-subtle)] hover:border-[var(--quant-border)]'
+              }`}
+            >
               {/* Message Header */}
-              <div className="message-header" onClick={() => toggleExpanded(email.id)}>
-                <div className="sender-avatar">
-                  <span>{(email.from.name || email.from.email).charAt(0).toUpperCase()}</span>
+              <div
+                className="flex items-center gap-3 p-4 cursor-pointer select-none"
+                onClick={() => toggleExpanded(email.id)}
+              >
+                <IdentityAvatar name={email.from.name || email.from.email} size="md" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-[var(--quant-foreground)] truncate">
+                      {email.from.name || email.from.email}
+                    </span>
+                    <span className="text-xs text-[var(--quant-muted-foreground)] truncate">
+                      &lt;{email.from.email}&gt;
+                    </span>
+                  </div>
+                  {!isExpanded && (
+                    <p className="text-xs text-[var(--quant-muted-foreground)] truncate mt-0.5">
+                      {email.snippet}
+                    </p>
+                  )}
                 </div>
-                <div className="sender-info">
-                  <span className="sender-name">{email.from.name || email.from.email}</span>
-                  <span className="sender-email">&lt;{email.from.email}&gt;</span>
+
+                <div className="flex items-center gap-3 flex-none text-xs text-[var(--quant-muted-foreground)]">
+                  <span>{formatDate(email.receivedAt)}</span>
+                  <button
+                    type="button"
+                    className={`size-7 rounded flex items-center justify-center transition-colors ${
+                      email.isStarred ? 'text-[#ffb547]' : 'text-zinc-500 hover:text-zinc-300'
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleStar(email.id);
+                    }}
+                    aria-label="Star email"
+                  >
+                    ★
+                  </button>
                 </div>
-                <div className="message-date">{formatDate(email.receivedAt)}</div>
-                <button
-                  className={`star-btn ${email.isStarred ? 'starred' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleStar(email.id);
-                  }}
-                >
-                  {email.isStarred ? '\u2605' : '\u2606'}
-                </button>
               </div>
 
               {/* Message Body */}
               {isExpanded && (
-                <div className="message-body">
-                  <div className="message-recipients">
-                    <span>To: {email.to.map((r) => r.name || r.email).join(', ')}</span>
-                    {email.cc.length > 0 && (
-                      <span>Cc: {email.cc.map((r) => r.email).join(', ')}</span>
+                <div className="px-4 pb-4 pt-1 border-t border-[var(--quant-border-subtle)]">
+                  <div className="text-xs text-[var(--quant-muted-foreground)] mb-4 space-y-0.5">
+                    <div>To: {email.to.map((r) => r.name || r.email).join(', ')}</div>
+                    {email.cc && email.cc.length > 0 && (
+                      <div>Cc: {email.cc.map((r) => r.email).join(', ')}</div>
                     )}
                   </div>
+
                   <div
-                    className="message-content"
+                    className="text-sm leading-relaxed text-[var(--quant-foreground)] prose prose-invert max-w-none mb-6"
                     dangerouslySetInnerHTML={{
                       __html: sanitizeHtmlContent(
                         email.bodyHtml || email.bodyText.replace(/\n/g, '<br>'),
@@ -187,25 +249,35 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                   />
 
                   {/* Attachments */}
-                  {email.attachments.length > 0 && (
-                    <div className="message-attachments">
-                      <h5>Attachments ({email.attachments.length})</h5>
-                      {email.attachments.map((att) => (
-                        <div key={att.id} className="attachment-item">
-                          <span className="attachment-icon">📎</span>
-                          <span className="attachment-name">{att.filename}</span>
-                          <span className="attachment-size">
-                            ({Math.round(att.size / 1024)} KB)
-                          </span>
-                        </div>
-                      ))}
+                  {email.attachments && email.attachments.length > 0 && (
+                    <div className="mb-6 p-3 rounded-lg bg-[var(--quant-surface-subtle)] border border-[var(--quant-border-subtle)]">
+                      <h5 className="text-xs font-semibold uppercase tracking-wider text-[var(--quant-muted-foreground)] mb-2">
+                        Attachments ({email.attachments.length})
+                      </h5>
+                      <div className="flex flex-wrap gap-2">
+                        {email.attachments.map((att) => (
+                          <div
+                            key={att.id}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] text-xs text-[var(--quant-foreground)]"
+                          >
+                            <span>📎</span>
+                            <span className="font-medium truncate max-w-[12rem]">
+                              {att.filename}
+                            </span>
+                            <span className="text-[var(--quant-muted-foreground)]">
+                              ({Math.round(att.size / 1024)} KB)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {/* Message Actions */}
-                  <div className="message-actions">
+                  {/* Message Action Toolbar */}
+                  <div className="flex items-center gap-2 pt-2 border-t border-[var(--quant-border-subtle)] flex-wrap">
                     <button
-                      className="btn btn-sm btn-outline"
+                      type="button"
+                      className="px-3 py-1.5 rounded-lg bg-[var(--quant-muted)] hover:bg-[var(--quant-surface-hover)] text-xs font-medium transition-colors"
                       onClick={() => {
                         setReplyingTo(email.id);
                         setReplyAll(false);
@@ -214,7 +286,8 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                       Reply
                     </button>
                     <button
-                      className="btn btn-sm btn-outline"
+                      type="button"
+                      className="px-3 py-1.5 rounded-lg bg-[var(--quant-muted)] hover:bg-[var(--quant-surface-hover)] text-xs font-medium transition-colors"
                       onClick={() => {
                         setReplyingTo(email.id);
                         setReplyAll(true);
@@ -223,103 +296,127 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                       Reply All
                     </button>
                     <button
-                      className="btn btn-sm btn-outline"
+                      type="button"
+                      className="px-3 py-1.5 rounded-lg bg-[var(--quant-muted)] hover:bg-[var(--quant-surface-hover)] text-xs font-medium transition-colors"
                       onClick={() => setForwardingId(email.id)}
                     >
                       Forward
                     </button>
                     <button
-                      className="btn btn-sm btn-outline"
+                      type="button"
+                      disabled={isLoadingAI}
+                      className="px-3 py-1.5 rounded-lg border border-[#ff9933]/30 text-[#ffad5c] hover:bg-[#ff9933]/10 text-xs font-medium transition-colors"
                       onClick={() => handleSummarize(email.id)}
                     >
-                      AI Summarize
+                      ✦ AI Summarize
                     </button>
                     <button
-                      className="btn btn-sm btn-outline"
+                      type="button"
+                      disabled={isLoadingAI}
+                      className="px-3 py-1.5 rounded-lg border border-[#ff9933]/30 text-[#ffad5c] hover:bg-[#ff9933]/10 text-xs font-medium transition-colors"
                       onClick={() => handleSuggestReplies(email.id)}
                     >
-                      AI Suggest Reply
+                      ✦ Smart Replies
                     </button>
                   </div>
 
-                  {/* Reply Suggestions */}
+                  {/* AI Reply Suggestions */}
                   {replySuggestions.length > 0 && activeEmailId === email.id && (
-                    <div className="reply-suggestions">
-                      <h5>Suggested Replies:</h5>
-                      {replySuggestions.map((suggestion, i) => (
-                        <button
-                          key={i}
-                          className="suggestion-btn"
-                          onClick={() => useSuggestion(suggestion, email.id)}
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
+                    <div className="mt-3 p-3 rounded-lg bg-[var(--quant-surface-subtle)] border border-[#ff9933]/20">
+                      <h5 className="text-xs font-semibold text-[#ffad5c] mb-2">
+                        Smart Suggestions:
+                      </h5>
+                      <div className="flex flex-wrap gap-2">
+                        {replySuggestions.map((suggestion, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            className="px-3 py-1.5 rounded-lg bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-hover)] border border-[var(--quant-border)] text-xs text-[var(--quant-foreground)] transition-colors text-left"
+                            onClick={() => useSuggestion(suggestion, email.id)}
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {/* Reply Form */}
+                  {/* Inline Reply Form */}
                   {replyingTo === email.id && (
-                    <div className="reply-form">
+                    <div className="mt-4 p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] space-y-3">
                       <textarea
                         value={replyBody}
                         onChange={(e) => setReplyBody(e.target.value)}
-                        placeholder={`Reply to ${email.from.name || email.from.email}...`}
-                        rows={5}
+                        placeholder={`Reply to ${email.from.name || email.from.email}…`}
+                        rows={4}
+                        className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg p-3 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[#ff9933]/60"
                         autoFocus
                       />
-                      <div className="reply-form-actions">
-                        <label className="checkbox-label">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 text-xs text-[var(--quant-muted-foreground)] cursor-pointer">
                           <input
                             type="checkbox"
                             checked={replyAll}
                             onChange={(e) => setReplyAll(e.target.checked)}
+                            className="accent-[#ff9933]"
                           />
-                          Reply All
+                          Reply to all
                         </label>
-                        <button
-                          className="btn btn-sm btn-outline"
-                          onClick={() => {
-                            setReplyingTo(null);
-                            setReplyBody('');
-                          }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          className="btn btn-sm btn-primary"
-                          onClick={handleReply}
-                          disabled={!replyBody.trim()}
-                        >
-                          Send Reply
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="px-3 py-1.5 rounded-lg border border-[var(--quant-border)] text-xs text-[var(--quant-muted-foreground)] hover:text-white"
+                            onClick={() => {
+                              setReplyingTo(null);
+                              setReplyBody('');
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="px-4 py-1.5 rounded-lg bg-[#ff9933] text-[#191008] font-semibold text-xs shadow-md hover:bg-[#ffad5c] transition-colors"
+                            onClick={handleReply}
+                            disabled={!replyBody.trim()}
+                          >
+                            Send Reply
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Forward Form */}
+                  {/* Inline Forward Form */}
                   {forwardingId === email.id && (
-                    <div className="forward-form">
-                      <div className="form-group">
-                        <label>Forward to:</label>
+                    <div className="mt-4 p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--quant-muted-foreground)] mb-1">
+                          Forward to:
+                        </label>
                         <input
                           type="text"
                           value={forwardTo}
                           onChange={(e) => setForwardTo(e.target.value)}
-                          placeholder="email@example.com"
+                          placeholder="recipient@example.com"
+                          className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[#ff9933]/60"
                         />
                       </div>
-                      <div className="form-group">
-                        <label>Additional message:</label>
+                      <div>
+                        <label className="block text-xs font-medium text-[var(--quant-muted-foreground)] mb-1">
+                          Message:
+                        </label>
                         <textarea
                           value={forwardMessage}
                           onChange={(e) => setForwardMessage(e.target.value)}
-                          rows={3}
+                          rows={2}
+                          placeholder="Add an optional note…"
+                          className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg p-3 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[#ff9933]/60"
                         />
                       </div>
-                      <div className="forward-form-actions">
+                      <div className="flex items-center justify-end gap-2">
                         <button
-                          className="btn btn-sm btn-outline"
+                          type="button"
+                          className="px-3 py-1.5 rounded-lg border border-[var(--quant-border)] text-xs text-[var(--quant-muted-foreground)] hover:text-white"
                           onClick={() => {
                             setForwardingId(null);
                             setForwardTo('');
@@ -328,20 +425,18 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                           Cancel
                         </button>
                         <button
-                          className="btn btn-sm btn-primary"
+                          type="button"
+                          className="px-4 py-1.5 rounded-lg bg-[#ff9933] text-[#191008] font-semibold text-xs shadow-md hover:bg-[#ffad5c] transition-colors"
                           onClick={handleForward}
                           disabled={!forwardTo.trim()}
                         >
-                          Forward
+                          Forward Message
                         </button>
                       </div>
                     </div>
                   )}
                 </div>
               )}
-
-              {/* Collapsed preview */}
-              {!isExpanded && <p className="message-snippet">{email.snippet}</p>}
             </div>
           );
         })}

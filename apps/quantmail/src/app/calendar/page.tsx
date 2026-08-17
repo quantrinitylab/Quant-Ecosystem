@@ -204,9 +204,19 @@ export default function CalendarPage() {
       const startDate = prev.startTime.slice(0, 10) || toLocalInput(new Date()).slice(0, 10);
       const endDate = prev.endTime.slice(0, 10) || startDate;
       if (!prev.allDay) {
-        return { ...prev, allDay: true, startTime: `${startDate}T00:00`, endTime: `${endDate}T23:59` };
+        return {
+          ...prev,
+          allDay: true,
+          startTime: `${startDate}T00:00`,
+          endTime: `${endDate}T23:59`,
+        };
       }
-      return { ...prev, allDay: false, startTime: `${startDate}T10:00`, endTime: `${startDate}T11:00` };
+      return {
+        ...prev,
+        allDay: false,
+        startTime: `${startDate}T10:00`,
+        endTime: `${startDate}T11:00`,
+      };
     });
   }, []);
 
@@ -702,9 +712,7 @@ export default function CalendarPage() {
                 rows={2}
                 className={`${fieldClasses} resize-none`}
                 value={newEvent.description}
-                onChange={(e) =>
-                  setNewEvent((prev) => ({ ...prev, description: e.target.value }))
-                }
+                onChange={(e) => setNewEvent((prev) => ({ ...prev, description: e.target.value }))}
                 placeholder="Agenda, context, links"
               />
             </label>

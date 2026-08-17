@@ -71,7 +71,10 @@ export function NotificationBell() {
   useEffect(() => {
     if (!isOpen) return;
     const handleClickOutside = (e: PointerEvent) => {
-      if (!menuRef.current?.contains(e.target as Node) && !buttonRef.current?.contains(e.target as Node)) {
+      if (
+        !menuRef.current?.contains(e.target as Node) &&
+        !buttonRef.current?.contains(e.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
@@ -104,7 +107,10 @@ export function NotificationBell() {
   const markAllRead = useCallback(() => {
     setNotifications((prev) => {
       const next = prev.map((n) => ({ ...n, read: true }));
-      saveIds(READ_STORAGE_KEY, next.map((n) => n.id));
+      saveIds(
+        READ_STORAGE_KEY,
+        next.map((n) => n.id),
+      );
       return next;
     });
   }, []);
@@ -118,10 +124,7 @@ export function NotificationBell() {
 
   const clearAll = useCallback(() => {
     setNotifications((prev) => {
-      saveIds(DELETED_STORAGE_KEY, [
-        ...loadIds(DELETED_STORAGE_KEY),
-        ...prev.map((n) => n.id),
-      ]);
+      saveIds(DELETED_STORAGE_KEY, [...loadIds(DELETED_STORAGE_KEY), ...prev.map((n) => n.id)]);
       return [];
     });
   }, []);
@@ -151,92 +154,119 @@ export function NotificationBell() {
         aria-haspopup="true"
         aria-expanded={isOpen}
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
         {unreadCount > 0 && (
-          <span className="notification-badge" aria-hidden="true">{unreadCount}</span>
+          <span className="notification-badge" aria-hidden="true">
+            {unreadCount}
+          </span>
         )}
       </button>
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {isOpen && (
-          <motion.div
-            ref={menuRef}
-            className="notification-panel"
-            initial={{ opacity: 0, y: -8, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.96 }}
-            transition={{ duration: 0.18 }}
-            style={{ left: panelPosition.left, top: panelPosition.top }}
-          >
-            <header className="notification-panel-header">
-              <div className="notification-panel-heading">
-                <h2>Notifications</h2>
-                <p className="notification-panel-sub">
-                  Quant-only — mail, calendar, security. Sign-in across Quant apps runs through
-                  QuantMail.
-                </p>
-              </div>
-              <div className="notification-panel-actions">
-                {unreadCount > 0 && (
-                  <button type="button" className="notification-mark-read" onClick={markAllRead}>
-                    Mark all read
-                  </button>
-                )}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <AnimatePresence>
+            {isOpen && (
+              <motion.div
+                ref={menuRef}
+                className="notification-panel"
+                initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                transition={{ duration: 0.18 }}
+                style={{ left: panelPosition.left, top: panelPosition.top }}
+              >
+                <header className="notification-panel-header">
+                  <div className="notification-panel-heading">
+                    <h2>Notifications</h2>
+                    <p className="notification-panel-sub">
+                      Quant-only — mail, calendar, security. Sign-in across Quant apps runs through
+                      QuantMail.
+                    </p>
+                  </div>
+                  <div className="notification-panel-actions">
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        className="notification-mark-read"
+                        onClick={markAllRead}
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                    {notifications.length > 0 && (
+                      <button type="button" className="notification-mark-read" onClick={clearAll}>
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+                </header>
+                <div className="notification-panel-list">
+                  {notifications.length === 0 ? (
+                    <p className="notification-empty">No notifications — all clear</p>
+                  ) : (
+                    notifications.map((n) => (
+                      <motion.div
+                        key={n.id}
+                        className={`notification-item ${n.read ? '' : 'is-unread'}`}
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        dragElastic={0.7}
+                        onDragEnd={handleDragEnd(n.id)}
+                        exit={{ opacity: 0, x: 120, height: 0, marginTop: 0, marginBottom: 0 }}
+                        layout
+                      >
+                        <span className="notification-item-icon">{iconByType[n.type]}</span>
+                        <div className="notification-item-content">
+                          <p className="notification-item-title">{n.title}</p>
+                          <p className="notification-item-body">{n.body}</p>
+                          <time className="notification-item-time">
+                            {n.timestamp.toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </time>
+                        </div>
+                        <button
+                          type="button"
+                          className="notification-item-delete"
+                          aria-label={`Delete notification: ${n.title}`}
+                          onClick={() => deleteNotification(n.id)}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            aria-hidden="true"
+                          >
+                            <path d="m6 6 12 12M18 6 6 18" />
+                          </svg>
+                        </button>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
                 {notifications.length > 0 && (
-                  <button type="button" className="notification-mark-read" onClick={clearAll}>
-                    Clear all
-                  </button>
+                  <p className="notification-panel-hint">
+                    Swipe a notification sideways — or tap × — to delete it.
+                  </p>
                 )}
-              </div>
-            </header>
-            <div className="notification-panel-list">
-              {notifications.length === 0 ? (
-                <p className="notification-empty">No notifications — all clear</p>
-              ) : (
-                notifications.map((n) => (
-                  <motion.div
-                    key={n.id}
-                    className={`notification-item ${n.read ? '' : 'is-unread'}`}
-                    drag="x"
-                    dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.7}
-                    onDragEnd={handleDragEnd(n.id)}
-                    exit={{ opacity: 0, x: 120, height: 0, marginTop: 0, marginBottom: 0 }}
-                    layout
-                  >
-                    <span className="notification-item-icon">{iconByType[n.type]}</span>
-                    <div className="notification-item-content">
-                      <p className="notification-item-title">{n.title}</p>
-                      <p className="notification-item-body">{n.body}</p>
-                      <time className="notification-item-time">
-                        {n.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </time>
-                    </div>
-                    <button
-                      type="button"
-                      className="notification-item-delete"
-                      aria-label={`Delete notification: ${n.title}`}
-                      onClick={() => deleteNotification(n.id)}
-                    >
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                        <path d="m6 6 12 12M18 6 6 18" />
-                      </svg>
-                    </button>
-                  </motion.div>
-                ))
-              )}
-            </div>
-            {notifications.length > 0 && (
-              <p className="notification-panel-hint">Swipe a notification sideways — or tap × — to delete it.</p>
+              </motion.div>
             )}
-          </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
+          </AnimatePresence>,
+          document.body,
+        )}
     </div>
   );
 }

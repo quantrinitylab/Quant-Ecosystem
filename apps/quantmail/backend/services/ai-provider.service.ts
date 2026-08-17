@@ -44,10 +44,10 @@ export function activeProvider(): AIProviderName {
     return env('CLOUDFLARE_ACCOUNT_ID') && env('CLOUDFLARE_API_TOKEN') ? 'cloudflare' : 'none';
   }
   if (configured === 'anthropic') {
-    return env('AI_API_KEY') ?? env('ANTHROPIC_API_KEY') ? 'anthropic' : 'none';
+    return (env('AI_API_KEY') ?? env('ANTHROPIC_API_KEY')) ? 'anthropic' : 'none';
   }
   if (configured === 'openai') {
-    return env('AI_API_KEY') ?? env('OPENAI_API_KEY') ? 'openai' : 'none';
+    return (env('AI_API_KEY') ?? env('OPENAI_API_KEY')) ? 'openai' : 'none';
   }
   if (configured === 'custom') {
     return env('AI_BASE_URL') ? 'custom' : 'none';
@@ -98,8 +98,7 @@ async function chatViaCloudflare(messages: AIMessage[], options: AIChatOptions):
   const accountId = env('CLOUDFLARE_ACCOUNT_ID')!;
   const apiToken = env('CLOUDFLARE_API_TOKEN')!;
   const model = env('CLOUDFLARE_AI_MODEL') ?? env('AI_MODEL') ?? '@cf/meta/llama-3.2-1b-instruct';
-  const baseUrl =
-    env('CLOUDFLARE_AI_BASE_URL') ?? 'https://api.cloudflare.com/client/v4/accounts';
+  const baseUrl = env('CLOUDFLARE_AI_BASE_URL') ?? 'https://api.cloudflare.com/client/v4/accounts';
 
   const data = (await postJson(
     `${baseUrl}/${accountId}/ai/run/${model}`,

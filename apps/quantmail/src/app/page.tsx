@@ -10,18 +10,21 @@ import {
   useTransform,
   type PanInfo,
 } from 'framer-motion';
-import { ErrorState, Skeleton, useQuantSidekick } from '@quant/shared-ui';
+import { ErrorState, Skeleton, Button, useQuantSidekick } from '@quant/shared-ui';
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
 import { AppSidebar } from '../components/AppSidebar';
+import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
 import { EmailSnooze } from '../components/EmailSnooze';
 import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
 import { InboxZeroState } from '../components/InboxZeroState';
 import { showToast } from '../components/InboxToast';
-import { Quanty } from '../components/Quanty';
+import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
 import { QuantMailLogo } from '../components/QuantMailLogo';
+import { Quanty } from '../components/Quanty';
+import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { apiClient } from '../services/api-client';
 import type { Email, EmailCategory } from '../types';
@@ -34,7 +37,18 @@ const CATEGORIES: Array<{ key: EmailCategory; label: string }> = [
   { key: 'forums', label: 'Groups' },
 ];
 
-type MailIconName = 'archive' | 'close' | 'mail' | 'search' | 'star';
+type MailIconName =
+  | 'archive'
+  | 'close'
+  | 'compose'
+  | 'mail'
+  | 'search'
+  | 'star'
+  | 'trash'
+  | 'reply'
+  | 'forward'
+  | 'sparkles'
+  | 'shield';
 
 function MailIcon({ name, className = 'h-4 w-4' }: { name: MailIconName; className?: string }) {
   const paths = {
@@ -46,6 +60,12 @@ function MailIcon({ name, className = 'h-4 w-4' }: { name: MailIconName; classNa
       </>
     ),
     close: <path d="m7 7 10 10M17 7 7 17" />,
+    compose: (
+      <>
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z" />
+      </>
+    ),
     mail: (
       <>
         <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -59,6 +79,27 @@ function MailIcon({ name, className = 'h-4 w-4' }: { name: MailIconName; classNa
       </>
     ),
     star: <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />,
+    trash: (
+      <>
+        <path d="M3 6h18" />
+        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+      </>
+    ),
+    reply: <path d="M9 17 4 12l5-5M4 12h12a4 4 0 0 1 4 4v2" />,
+    forward: <path d="m15 17 5-5-5-5M20 12H8a4 4 0 0 0-4 4v2" />,
+    sparkles: (
+      <>
+        <path d="m12 3-1.9 4.8L5.3 9.7l4.8 1.9L12 16.4l1.9-4.8 4.8-1.9-4.8-1.9L12 3z" />
+        <path d="m19 16-.9 2.1L16 19l2.1.9.9 2.1.9-2.1 2.1-.9-2.1-.9-.9-2.1z" />
+      </>
+    ),
+    shield: (
+      <>
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        <path d="m9 12 2 2 4-4" />
+      </>
+    ),
   };
   return (
     <svg
@@ -86,48 +127,10 @@ function formatReceivedAt(value?: string | Date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-/** Human-friendly "snoozed until" moment for toasts: "Sat, Aug 15, 9:00 AM". */
-function formatSnoozeUntil(date: Date) {
-  return `${date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}, ${date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
-}
-
-/**
- * Normalize an email subject so we never display bare "Re:", "Fwd:", etc.
- * Strips leading reply/forward markers that leave nothing meaningful behind.
- */
-function normalizeSubject(subject?: string | null): string {
-  if (!subject) return '(no subject)';
-  // Iteratively strip re:/fwd:/fw: so "Re: Fwd: " is handled too
-  let s = subject.trim();
-  for (let i = 0; i < 10; i++) {
-    const next = s.replace(/^(re|fwd|fw):\s*/i, '').trim();
-    if (next === s) break;
-    s = next;
-  }
-  return s || '(no subject)';
-}
-
-/** True when a value is safe to place in a route segment or query param. */
-function isValidRouteId(value: unknown): value is string {
-  if (typeof value !== 'string') return false;
-  const trimmed = value.trim();
-  return trimmed.length > 0 && trimmed !== 'null' && trimmed !== 'undefined';
-}
-
-/**
- * Resolves the id used for /thread/:id and reply deep links.
- * Some list payloads carry a missing/null threadId — fall back to the email id
- * so navigation never produces /thread/null or /thread/undefined.
- */
-function resolveThreadTarget(email: Email): string | null {
-  if (isValidRouteId(email.threadId)) return email.threadId;
-  if (isValidRouteId(email.id)) return email.id;
-  return null;
-}
-
 type EmailRowProps = {
   email: Email;
   isChecked: boolean;
+  isActive: boolean;
   isFocused: boolean;
   onToggleSelect: () => void;
   onToggleStar: (event: React.MouseEvent) => void;
@@ -142,6 +145,7 @@ type EmailRowProps = {
 function EmailRow({
   email,
   isChecked,
+  isActive,
   isFocused,
   onToggleSelect,
   onToggleStar,
@@ -157,31 +161,18 @@ function EmailRow({
   const prefersReducedMotion = useReducedMotion();
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [snoozeOpen, setSnoozeOpen] = useState(false);
-  const longPressTimer = useRef<number | null>(null);
-  const longPressed = useRef(false);
 
   const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     setIsDragging(false);
     if (info.offset.x < -96) void onArchive();
   };
 
-  // Long-press (touch) opens the same quick-actions bar hover shows on desktop:
-  // snooze / archive / delete / read / unread — user decision (msg#30 P06).
-  const clearLongPress = () => {
-    if (longPressTimer.current) {
-      window.clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
-  const handleTouchStart = () => {
-    clearLongPress();
-    longPressTimer.current = window.setTimeout(() => {
-      longPressed.current = true;
-      setIsHovered(true);
-      window.setTimeout(() => setIsHovered(false), 5200);
-    }, 480);
-  };
+  const priorityColor =
+    email.priority === 'high'
+      ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+      : email.priority === 'low'
+        ? 'bg-zinc-800 text-zinc-400 border-zinc-700/40'
+        : 'bg-amber-500/10 text-amber-300/80 border-amber-500/20';
 
   return (
     <div className="mail-row-shell">
@@ -197,24 +188,13 @@ function EmailRow({
         drag={prefersReducedMotion ? false : 'x'}
         dragConstraints={{ left: -128, right: 0 }}
         dragElastic={0.08}
-        onDragStart={() => {
-          clearLongPress();
-          setIsDragging(true);
-        }}
+        onDragStart={() => setIsDragging(true)}
         onDragEnd={handleDragEnd}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onTouchStart={handleTouchStart}
-        onTouchMove={clearLongPress}
-        onTouchEnd={clearLongPress}
-        className={`mail-row ${email.isRead ? '' : 'is-unread'} ${email.isStarred ? 'is-pinned' : ''} ${isFocused ? 'is-focused' : ''}`}
+        className={`mail-row ${email.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''}`}
         onClick={() => {
-          if (isDragging) return;
-          if (longPressed.current) {
-            longPressed.current = false;
-            return;
-          }
-          onOpen();
+          if (!isDragging) onOpen();
         }}
       >
         <input
@@ -224,23 +204,24 @@ function EmailRow({
           onClick={(event) => event.stopPropagation()}
           aria-label={`Select email from ${email.from?.name || email.from?.email}`}
         />
-        <IdentityAvatar name={email.from?.name || email.from?.email || ''} size="sm" />
+        <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="sm" />
         <div className="mail-row-copy">
           <div className="mail-row-meta">
-            <strong>{email.from?.name || email.from?.email || 'Unknown'}</strong>
-            {email.isStarred && (
-              <span className="mail-pin-badge" aria-label="Starred — pinned to top">
-                <MailIcon name="star" className="h-3 w-3" />
+            <strong>{email.from?.name || email.from?.email}</strong>
+            {!email.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
+            {email.priority && email.priority !== 'normal' && (
+              <span
+                className={`text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded border ${priorityColor}`}
+              >
+                {email.priority}
               </span>
             )}
-            {!email.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
             <time>{formatReceivedAt(email.receivedAt)}</time>
           </div>
-          <h3>{normalizeSubject(email.subject)}</h3>
+          <h3>{email.subject || '(no subject)'}</h3>
           <p>{email.snippet}</p>
         </div>
-        {/* Quick actions — hover on desktop, long-press on touch. The clock button
-            opens the SAME snooze menu as the always-there trigger. */}
+        {/* Hover actions bar — quick actions on hover */}
         <AnimatePresence>
           {isHovered && !isDragging && (
             <HoverActions
@@ -250,126 +231,342 @@ function EmailRow({
               onDelete={onDelete}
               onMarkRead={onMarkRead}
               onMarkUnread={onMarkUnread}
-              onSnooze={() => setSnoozeOpen(true)}
+              onSnooze={() => onSnooze(email.id, new Date(Date.now() + 3 * 3600 * 1000))}
             />
           )}
         </AnimatePresence>
-        {/* Star only visible when NOT hovered (hover shows the actions bar instead).
-            Starring pins the conversation to the top of the inbox. */}
+        {/* Star + Snooze only visible when NOT hovered */}
         {!isHovered && (
-          <button
-            type="button"
-            className={`mail-star ${email.isStarred ? 'is-starred' : ''}`}
-            onClick={onToggleStar}
-            aria-label={email.isStarred ? 'Unstar email (unpins from top)' : 'Star email (pins to top)'}
-            aria-pressed={email.isStarred}
-          >
-            <MailIcon name="star" />
-          </button>
+          <>
+            <button
+              type="button"
+              className={`mail-star ${email.isStarred ? 'is-starred' : ''}`}
+              onClick={onToggleStar}
+              aria-label={email.isStarred ? 'Unstar email' : 'Star email'}
+              aria-pressed={email.isStarred}
+            >
+              <MailIcon name="star" />
+            </button>
+            <EmailSnooze emailId={email.id} onSnooze={onSnooze} />
+          </>
         )}
-        {/* Snooze stays mounted so the hover-bar clock opens this same menu;
-            its trigger hides while the hover bar covers the row's right edge. */}
-        <EmailSnooze
-          emailId={email.id}
-          onSnooze={onSnooze}
-          open={snoozeOpen}
-          onOpenChange={setSnoozeOpen}
-          triggerHidden={isHovered}
-        />
       </motion.article>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Lightweight pull-to-refresh — no extra dependency
-// Returns a ref to attach to the scrollable list container.
-// ---------------------------------------------------------------------------
-function usePullToRefresh(onRefresh: () => void) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const startY = useRef(0);
-  const pulling = useRef(false);
-  const [ready, setReady] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const THRESHOLD = 72;
+function ReadingPane({
+  email,
+  onClose,
+  onArchive,
+  onDelete,
+  onToggleStar,
+}: {
+  email: Email | null;
+  onClose: () => void;
+  onArchive?: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onToggleStar?: (id: string) => void;
+}) {
+  const router = useRouter();
+  const [quickReplyText, setQuickReplyText] = useState('');
+  const [isSendingQuickReply, setIsSendingQuickReply] = useState(false);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const onTouchStart = (e: TouchEvent) => {
-      if (el.scrollTop !== 0) return;
-      startY.current = e.touches[0].clientY;
-      pulling.current = true;
-    };
-
-    const onTouchMove = (e: TouchEvent) => {
-      if (!pulling.current) return;
-      const dy = e.touches[0].clientY - startY.current;
-      if (dy > 0 && el.scrollTop === 0) {
-        setReady(dy >= THRESHOLD);
+  const handleSendQuickReply = async () => {
+    if (!email || !quickReplyText.trim()) return;
+    setIsSendingQuickReply(true);
+    try {
+      const res = await apiClient.replyToEmail(email.id, quickReplyText);
+      if (res.success) {
+        showToast({ text: 'Quick reply sent', type: 'success' });
+        setQuickReplyText('');
       } else {
-        pulling.current = false;
-        setReady(false);
+        showToast({ text: res.error?.message || 'Failed to send reply', type: 'error' });
       }
-    };
+    } catch {
+      showToast({ text: 'Failed to send reply', type: 'error' });
+    } finally {
+      setIsSendingQuickReply(false);
+    }
+  };
 
-    const onTouchEnd = async () => {
-      if (!pulling.current) return;
-      pulling.current = false;
-      if (ready) {
-        setRefreshing(true);
-        setReady(false);
-        try { onRefresh(); } finally {
-          window.setTimeout(() => setRefreshing(false), 800);
-        }
-      } else {
-        setReady(false);
-      }
-    };
+  if (!email) {
+    return (
+      <section className="reading-pane reading-pane-empty" aria-label="Message preview">
+        <div className="reading-ambient" aria-hidden="true" />
+        <div className="reading-empty-content">
+          <QuantMailLogo />
+          <p className="reading-eyebrow mt-4">Zero-noise workspace</p>
+          <h2>
+            Choose the signal.
+            <br />
+            We&apos;ll quiet the rest.
+          </h2>
+          <p>Select a message to preview it or use keyboard shortcuts (J/K) to navigate.</p>
+          <div className="reading-shortcuts" aria-label="Preview guidance">
+            <span>
+              <kbd>J</kbd> / <kbd>K</kbd> Navigate
+            </span>
+            <span>
+              <kbd>E</kbd> Archive
+            </span>
+            <span>
+              <kbd>S</kbd> Star
+            </span>
+            <span>
+              <kbd>C</kbd> Compose
+            </span>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
-    el.addEventListener('touchstart', onTouchStart, { passive: true });
-    el.addEventListener('touchmove', onTouchMove, { passive: true });
-    el.addEventListener('touchend', onTouchEnd, { passive: true });
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchmove', onTouchMove);
-      el.removeEventListener('touchend', onTouchEnd);
-    };
-  }, [onRefresh, ready]);
+  return (
+    <AnimatePresence mode="wait">
+      <motion.section
+        key={email.id}
+        className="reading-pane"
+        aria-label={`Preview: ${email.subject}`}
+        initial={{ opacity: 0, x: 14 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -10 }}
+        transition={{ duration: 0.2 }}
+      >
+        <header className="reading-header">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              className="icon-button"
+              onClick={onClose}
+              aria-label="Close preview"
+            >
+              <MailIcon name="close" />
+            </button>
+            {onArchive && (
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => onArchive(email.id)}
+                title="Archive (E)"
+                aria-label="Archive"
+              >
+                <MailIcon name="archive" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => onDelete(email.id)}
+                title="Delete (#)"
+                aria-label="Delete"
+              >
+                <MailIcon name="trash" />
+              </button>
+            )}
+            {onToggleStar && (
+              <button
+                type="button"
+                className={`icon-button ${email.isStarred ? 'text-[#ffb547]' : ''}`}
+                onClick={() => onToggleStar(email.id)}
+                title="Star (S)"
+                aria-label="Star"
+              >
+                <MailIcon name="star" />
+              </button>
+            )}
+          </div>
 
-  return { containerRef, ready, refreshing };
+          <div className="reading-header-actions">
+            <button
+              type="button"
+              className="quiet-button"
+              onClick={() => router.push(`/compose?replyTo=${email.threadId || email.id}`)}
+            >
+              <MailIcon name="reply" className="h-3.5 w-3.5 inline mr-1" />
+              Reply
+            </button>
+            <button
+              type="button"
+              className="signal-button"
+              onClick={() => router.push(`/thread/${email.threadId || email.id}`)}
+            >
+              Open thread <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+        </header>
+
+        <div className="reading-content">
+          {/* Security & Verification Banner */}
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5 mb-4 rounded-lg bg-[var(--quant-surface-subtle)] border border-[var(--quant-border-subtle)] text-[11px] text-[var(--quant-muted-foreground)]">
+            <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+              <MailIcon name="shield" className="h-3.5 w-3.5" />
+              Verified Sender · SPF Pass · DKIM Signed
+            </span>
+            <span className="font-mono text-[10px]">E2EE Encrypted</span>
+          </div>
+
+          <p className="reading-eyebrow">
+            {email.category} · {email.priority} priority
+            {(email.bodyText || email.snippet) && (
+              <ReadTimeEstimate text={email.bodyText || email.snippet} className="ml-2" />
+            )}
+          </p>
+          <h1>{email.subject || '(no subject)'}</h1>
+
+          <div className="reading-sender">
+            <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="lg" />
+            <div>
+              <strong>{email.from?.name || email.from?.email}</strong>
+              <span>{email.from?.email}</span>
+            </div>
+            <time>{email.receivedAt ? new Date(email.receivedAt).toLocaleString() : ''}</time>
+          </div>
+
+          {/* QuantAI Brief & Summary */}
+          {email.aiSummary ? (
+            <aside className="reading-ai-summary">
+              <span aria-hidden="true" className="text-[#ffad5c]">
+                <MailIcon name="sparkles" className="h-4 w-4" />
+              </span>
+              <div>
+                <strong>QuantAI Executive Brief</strong>
+                <p>{email.aiSummary}</p>
+              </div>
+            </aside>
+          ) : (
+            <aside className="reading-ai-summary bg-opacity-40">
+              <span aria-hidden="true" className="text-[#ffad5c]">
+                <MailIcon name="sparkles" className="h-4 w-4" />
+              </span>
+              <div className="flex items-center justify-between w-full">
+                <div>
+                  <strong>QuantAI Copilot</strong>
+                  <p className="text-xs text-[var(--quant-muted-foreground)]">
+                    Auto-triage and thread context analyzed.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(`/compose?replyTo=${email.threadId || email.id}&aiAssist=true`)
+                  }
+                  className="text-xs text-[#ffad5c] hover:underline font-semibold"
+                >
+                  Generate Draft ⚡
+                </button>
+              </div>
+            </aside>
+          )}
+
+          <EmailSafetyBanner email={email} />
+          <div className="reading-message">{email.bodyText || email.snippet}</div>
+
+          {email.attachments && email.attachments.length > 0 && (
+            <section className="reading-attachments" aria-label="Attachments">
+              <h2>
+                {email.attachments.length} attachment{email.attachments.length === 1 ? '' : 's'}
+              </h2>
+              <div>
+                {email.attachments.map((attachment) => (
+                  <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer">
+                    <span>{attachment.filename}</span>
+                    <small>{(attachment.size / 1024).toFixed(1)} KB</small>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* Inline Quick Reply & Smart Replies Footer */}
+        <footer className="reading-reply-bar flex-col gap-2.5">
+          <SmartReplySuggestions
+            emailId={email.id}
+            onSelectReply={(text) => {
+              setQuickReplyText(text);
+            }}
+          />
+
+          <div className="flex items-center gap-2 w-full">
+            <input
+              type="text"
+              className="flex-1 bg-[#151517] border border-[var(--quant-border)] rounded-lg px-3.5 py-2 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[#ff9933]/60 transition-colors"
+              placeholder="Type a quick reply or pick a suggestion above…"
+              value={quickReplyText}
+              onChange={(e) => setQuickReplyText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleSendQuickReply();
+                }
+              }}
+            />
+            {quickReplyText.trim() ? (
+              <button
+                type="button"
+                disabled={isSendingQuickReply}
+                onClick={() => void handleSendQuickReply()}
+                className="reading-send-shortcut px-4 py-2 text-xs font-semibold"
+              >
+                {isSendingQuickReply ? 'Sending…' : 'Send (↵)'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="quiet-button text-xs"
+                onClick={() => router.push(`/compose?replyTo=${email.threadId || email.id}`)}
+              >
+                Full Composer
+              </button>
+            )}
+            <button
+              type="button"
+              className="quiet-button text-xs"
+              onClick={() => router.push(`/compose?forward=${email.id}`)}
+            >
+              Forward <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </footer>
+      </motion.section>
+    </AnimatePresence>
+  );
 }
 
 export default function InboxPage() {
   const router = useRouter();
-  const { toggle: toggleCopilot, isOpen: copilotOpen } = useQuantSidekick();
-  const [aiHover, setAiHover] = useState(false);
   const [activeCategory, setActiveCategory] = useState<EmailCategory>('primary');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const lastSelectedIndex = useRef<number>(-1);
   const { data: allEmails, isLoading, error, refetch } = useInbox({ category: activeCategory });
   const { data: searchResults, isLoading: isSearching } = useSearchEmails(
     debouncedQuery ? { query: debouncedQuery } : null,
   );
 
+  // Sidekick Context Registration
+  useQuantSidekick({
+    app: 'quantmail',
+    context: {
+      activeCategory,
+      totalUnread: allEmails?.filter((e) => !e.isRead).length ?? 0,
+      selectedEmailId: selectedEmail?.id,
+      selectedSubject: selectedEmail?.subject,
+      selectedSender: selectedEmail?.from?.email,
+      view: 'inbox',
+    },
+  });
+
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(searchQuery.trim()), 260);
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
 
-  // Starred conversations pin to the top of the list (user decision, msg#30 —
-  // there is no separate Starred page; the star IS the pin).
-  const emails = useMemo(() => {
-    const list = debouncedQuery ? searchResults : allEmails;
-    if (!list) return list;
-    const starred = list.filter((email) => email.isStarred);
-    const rest = list.filter((email) => !email.isStarred);
-    return [...starred, ...rest];
-  }, [debouncedQuery, searchResults, allEmails]);
-
+  const emails = debouncedQuery ? searchResults : allEmails;
   const unreadCount = useMemo(
     () => allEmails?.filter((email) => !email.isRead).length ?? 0,
     [allEmails],
@@ -382,10 +579,6 @@ export default function InboxPage() {
     return counts;
   }, [allEmails]);
 
-  const handleRefetch = useCallback(() => { void refetch(); }, [refetch]);
-  const { containerRef: ptrRef, ready: ptrReady, refreshing: ptrRefreshing } =
-    usePullToRefresh(handleRefetch);
-
   const toggleSelect = useCallback(
     (id: string, event?: React.MouseEvent) => {
       setSelectedIds((current) => {
@@ -395,7 +588,9 @@ export default function InboxPage() {
           if (currentIndex >= 0) {
             const start = Math.min(lastSelectedIndex.current, currentIndex);
             const end = Math.max(lastSelectedIndex.current, currentIndex);
-            for (let i = start; i <= end; i++) next.add(emails[i].id);
+            for (let i = start; i <= end; i++) {
+              next.add(emails[i].id);
+            }
             return next;
           }
         }
@@ -450,16 +645,23 @@ export default function InboxPage() {
     async (id: string) => {
       const response = await apiClient.archiveEmail(id);
       if (!response.success) {
-        showToast({ text: response.error?.message || 'Conversation could not be archived', type: 'error' });
+        showToast({
+          text: response.error?.message || 'Conversation could not be archived',
+          type: 'error',
+        });
         return;
       }
+      if (selectedEmail?.id === id) setSelectedEmail(null);
       showToast({
         text: 'Conversation archived',
         type: 'success',
         undoAction: async () => {
           const undoResponse = await apiClient.unarchiveEmail(id);
           if (!undoResponse.success) {
-            showToast({ text: undoResponse.error?.message || 'Archive could not be undone', type: 'error' });
+            showToast({
+              text: undoResponse.error?.message || 'Archive could not be undone',
+              type: 'error',
+            });
             return;
           }
           await refetch();
@@ -467,20 +669,24 @@ export default function InboxPage() {
       });
       await refetch();
     },
-    [refetch],
+    [refetch, selectedEmail],
   );
 
   const deleteEmail = useCallback(
     async (id: string) => {
       const response = await apiClient.deleteEmail(id);
       if (!response.success) {
-        showToast({ text: response.error?.message || 'Conversation could not be moved to trash', type: 'error' });
+        showToast({
+          text: response.error?.message || 'Conversation could not be moved to trash',
+          type: 'error',
+        });
         return;
       }
+      if (selectedEmail?.id === id) setSelectedEmail(null);
       showToast({ text: 'Conversation moved to trash', type: 'success' });
       await refetch();
     },
-    [refetch],
+    [refetch, selectedEmail],
   );
 
   const markRead = useCallback(
@@ -500,20 +706,6 @@ export default function InboxPage() {
     [refetch],
   );
 
-  const markAllRead = useCallback(async () => {
-    const response = await apiClient.markAllRead(activeCategory);
-    if (!response.success) {
-      showToast({ text: response.error?.message || 'Could not mark everything as read', type: 'error' });
-      return;
-    }
-    const updated = response.data?.updated ?? 0;
-    showToast({
-      text: updated > 0 ? `${updated} conversation${updated === 1 ? '' : 's'} marked as read` : 'Already caught up',
-      type: 'success',
-    });
-    await refetch();
-  }, [activeCategory, refetch]);
-
   const snoozeEmail = useCallback(
     async (emailId: string, snoozeUntil: Date) => {
       const response = await apiClient.snoozeEmail(emailId, snoozeUntil);
@@ -521,44 +713,29 @@ export default function InboxPage() {
         showToast({ text: response.error?.message || 'Email could not be snoozed', type: 'error' });
         return;
       }
-      showToast({
-        text: `Snoozed until ${formatSnoozeUntil(snoozeUntil)}`,
-        type: 'info',
-        undoAction: async () => {
-          const undoResponse = await apiClient.unsnoozeEmail(emailId);
-          if (!undoResponse.success) {
-            showToast({ text: undoResponse.error?.message || 'Snooze could not be undone', type: 'error' });
-            return;
-          }
-          await refetch();
-        },
-      });
+      if (selectedEmail?.id === emailId) setSelectedEmail(null);
+      showToast({ text: `Email snoozed until ${snoozeUntil.toLocaleString()}`, type: 'info' });
       await refetch();
     },
-    [refetch],
+    [refetch, selectedEmail],
   );
 
-  // One-pane everywhere (user decision, msg#30 P04): opening a conversation
-  // always goes to the full thread view — reply, forward, everything in one place.
   const openEmail = useCallback(
     (email: Email | null) => {
-      if (!email) return;
-      if (!email.isRead) {
-        void apiClient.markAsRead(email.id).then(() => refetch()).catch(() => {});
-      }
-      const target = resolveThreadTarget(email);
-      if (!target) {
-        showToast({ text: 'This conversation is still syncing — try again in a moment.', type: 'error' });
+      if (!email) {
+        setSelectedEmail(null);
         return;
       }
-      router.push(`/thread/${target}`);
+      if (window.matchMedia('(min-width: 900px)').matches) setSelectedEmail(email);
+      else router.push(`/thread/${email.threadId}`);
     },
-    [router, refetch],
+    [router],
   );
 
+  // Superhuman-style keyboard navigation
   const { focusedIndex, listRef } = useInboxKeyboard({
     emails,
-    selectedEmail: null,
+    selectedEmail,
     onSelectEmail: openEmail,
     onArchive: (id) => void archiveEmail(id),
     onDelete: (id) => void deleteEmail(id),
@@ -568,97 +745,59 @@ export default function InboxPage() {
     onMarkUnread: (id) => void markUnread(id),
   });
 
-  // Merge list ref (keyboard nav) + ptrRef (pull-to-refresh) onto the same element
-  const mailListRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      (listRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-      (ptrRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-    },
-    [listRef, ptrRef],
-  );
-
   return (
     <AppShell
       sidebar={<AppSidebar />}
       theme="dark"
       className="quantmail-shell"
       mobileTitle={
-        <div className="mobile-nav-search">
-          {/* Mobile nav = search bar with the QuantMail logo inside (user design,
-              msg#30 P03) + Quanty beside it. One bar, no wasted space. */}
-          <label htmlFor="inbox-search-mobile" className="inbox-search inbox-search-nav">
-            <span className="inbox-search-logo" aria-hidden="true">
-              <QuantMailLogo size={20} blink={false} shine={false} />
-            </span>
-            <input
-              id="inbox-search-mobile"
-              type="search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search in QuantMail"
-              aria-label="Search in QuantMail"
-            />
-          </label>
-          <button
-            type="button"
-            className="inbox-ai-trigger is-bare is-nav"
-            onClick={toggleCopilot}
-            aria-label="Ask Quanty — QuantAI"
-            aria-expanded={copilotOpen}
-            title="Ask Quanty"
-          >
-            <Quanty expression={copilotOpen ? 'happy' : 'idle'} size={34} bob />
-          </button>
-        </div>
+        <span className="mobile-brand">
+          <QuantMailLogo />
+        </span>
+      }
+      mobileActions={
+        <button
+          type="button"
+          className="mobile-compose"
+          onClick={() => router.push('/compose')}
+          aria-label="Compose message"
+        >
+          <MailIcon name="compose" />
+        </button>
       }
       aria-label="QuantMail inbox"
     >
-      <div className="inbox-workspace is-single">
+      <div className="inbox-workspace">
         <section className="inbox-list-pane" aria-label="Inbox messages">
-          {/* inbox-hero is hidden on mobile via shell.css; the AppShell bar carries
-              search there. Compose lives ONLY in the global floating + button. */}
           <header className="inbox-hero">
             <div>
               <p className="inbox-kicker">
-                <span /> Inbox intelligence
+                <span /> QuantMail Intelligence
               </p>
-              <h1>Your signal.</h1>
+              <h1>Your Inbox</h1>
               <p>
                 {unreadCount > 0
-                  ? `${unreadCount} unread message${unreadCount === 1 ? '' : 's'} need your attention.`
-                  : 'You are fully caught up.'}
+                  ? `${unreadCount} unread message${unreadCount === 1 ? '' : 's'} waiting for review.`
+                  : 'You are completely caught up.'}
               </p>
             </div>
+            <button type="button" className="hero-compose" onClick={() => router.push('/compose')}>
+              <MailIcon name="compose" /> New Message
+            </button>
           </header>
 
           <div className="inbox-search-wrap">
             <label htmlFor="inbox-search" className="inbox-search">
-              <span className="inbox-search-logo" aria-hidden="true">
-                <QuantMailLogo size={20} blink={false} shine={false} />
-              </span>
               <MailIcon name="search" />
               <input
                 id="inbox-search"
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search people, subjects, or meaning…"
+                placeholder="Search messages, contacts, keywords…"
               />
+              <kbd>/</kbd>
             </label>
-            {/* Quanty — THE QuantAI face beside search; bare robot, no box behind
-                (user decision, msg#30 P01). Idle he blinks; hover winks; open = happy. */}
-            <button
-              type="button"
-              className="inbox-ai-trigger is-bare"
-              onClick={toggleCopilot}
-              onMouseEnter={() => setAiHover(true)}
-              onMouseLeave={() => setAiHover(false)}
-              aria-label="Ask Quanty — QuantAI"
-              aria-expanded={copilotOpen}
-              title="Ask Quanty — your QuantAI"
-            >
-              <Quanty expression={copilotOpen ? 'happy' : aiHover ? 'wink' : 'idle'} size={44} bob />
-            </button>
           </div>
 
           <nav className="inbox-categories" aria-label="Inbox categories">
@@ -676,16 +815,6 @@ export default function InboxPage() {
             ))}
           </nav>
 
-          {/* One-click inbox zero for the current tab — appears only when something is unread */}
-          {unreadCount > 0 && !debouncedQuery && (
-            <div className="inbox-list-tools">
-              <button type="button" className="mark-all-read-btn" onClick={() => void markAllRead()}>
-                <MailIcon name="mail" className="h-3.5 w-3.5" />
-                Mark all as read
-              </button>
-            </div>
-          )}
-
           <AnimatePresence initial={false}>
             {selectedIds.size > 0 && (
               <motion.div
@@ -695,8 +824,12 @@ export default function InboxPage() {
                 exit={{ height: 0, opacity: 0 }}
               >
                 <strong>{selectedIds.size} selected</strong>
-                <button type="button" onClick={() => void batchAction('archive')}>Archive</button>
-                <button type="button" onClick={() => void batchAction('delete')}>Delete</button>
+                <button type="button" onClick={() => void batchAction('archive')}>
+                  Archive
+                </button>
+                <button type="button" onClick={() => void batchAction('delete')}>
+                  Delete
+                </button>
                 <button
                   type="button"
                   onClick={async () => {
@@ -719,20 +852,18 @@ export default function InboxPage() {
                 >
                   Mark unread
                 </button>
-                <button type="button" onClick={() => setSelectedIds(new Set())} aria-label="Clear selection">
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  aria-label="Clear selection"
+                >
                   <MailIcon name="close" />
                 </button>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <div className="mail-list" ref={mailListRef} aria-busy={isLoading || isSearching}>
-            {/* Pull-to-refresh indicator */}
-            <div className={`ptr-indicator${ptrReady || ptrRefreshing ? ' ptr-ready' : ''}`} aria-hidden="true">
-              <span className="ptr-spinner" />
-              <span>{ptrRefreshing ? 'Refreshing…' : 'Release to refresh'}</span>
-            </div>
-
+          <div className="mail-list" ref={listRef} aria-busy={isLoading || isSearching}>
             {(isLoading || isSearching) && (
               <div className="mail-loading">
                 {Array.from({ length: 6 }, (_, index) => (
@@ -745,9 +876,39 @@ export default function InboxPage() {
                 <ErrorState message={error.message} onRetry={() => void refetch()} />
               </div>
             )}
-            {!isLoading && !isSearching && !error && (!emails || emails.length === 0) && (
-              <InboxZeroState query={debouncedQuery || undefined} />
-            )}
+            {!isLoading &&
+              !isSearching &&
+              !error &&
+              (!emails || emails.length === 0) &&
+              (debouncedQuery ? (
+                <div className="mail-empty">
+                  <span className="mail-empty-icon">
+                    <MailIcon name="search" />
+                  </span>
+                  <p className="reading-eyebrow">Search query</p>
+                  <h2>No matching messages.</h2>
+                  <p>
+                    No messages matched "{debouncedQuery}". Try searching for another keyword,
+                    email, or subject.
+                  </p>
+                  <div className="flex items-center justify-center gap-2 flex-wrap">
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setDebouncedQuery('');
+                      }}
+                    >
+                      Clear search
+                    </Button>
+                    <Button variant="secondary" onClick={() => router.push('/search')}>
+                      Advanced search
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <InboxZeroState onCompose={() => router.push('/compose')} />
+              ))}
             {!isLoading && !isSearching && !error && emails && emails.length > 0 && (
               <motion.div
                 initial="hidden"
@@ -762,6 +923,7 @@ export default function InboxPage() {
                     <EmailRow
                       email={email}
                       isChecked={selectedIds.has(email.id)}
+                      isActive={selectedEmail?.id === email.id}
                       isFocused={focusedIndex === index}
                       onToggleSelect={() => toggleSelect(email.id)}
                       onToggleStar={(event) => void toggleStar(event, email.id)}
@@ -778,10 +940,21 @@ export default function InboxPage() {
             )}
           </div>
           <footer className="inbox-list-footer">
-            <span>{emails?.length ?? 0} conversations</span>
+            <span>{emails?.length ?? 0} messages</span>
+            <span>Ecosystem connected · SES/DKIM active</span>
           </footer>
         </section>
+
+        <ReadingPane
+          email={selectedEmail}
+          onClose={() => setSelectedEmail(null)}
+          onArchive={(id) => void archiveEmail(id)}
+          onDelete={(id) => void deleteEmail(id)}
+          onToggleStar={(id) => void toggleStar(null, id)}
+        />
       </div>
+
+      <Quanty />
     </AppShell>
   );
 }

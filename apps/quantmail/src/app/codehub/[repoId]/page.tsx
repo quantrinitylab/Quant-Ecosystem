@@ -125,7 +125,15 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-function StatCard({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+function StatCard({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string | number;
+  hint?: string;
+}) {
   return (
     <div className="rounded-xl border border-[var(--quant-border)] px-4 py-3">
       <p className="text-[11px] uppercase tracking-wide text-[var(--quant-muted-foreground)]">
@@ -222,7 +230,9 @@ export default function CodeHubRepoPage() {
     return sorted.filter((node) => (node.name ?? node.path ?? '').toLowerCase().includes(needle));
   }, [tree, fileFilter]);
 
-  const failedBuilds = builds.filter((b) => (b.status ?? '') === 'failure' || b.status === 'failed');
+  const failedBuilds = builds.filter(
+    (b) => (b.status ?? '') === 'failure' || b.status === 'failed',
+  );
 
   const copyClone = async () => {
     try {
@@ -337,7 +347,10 @@ export default function CodeHubRepoPage() {
                     className="ml-auto w-48 rounded-lg border border-[var(--quant-border)] bg-transparent px-2.5 py-1.5 text-xs"
                     aria-label="Go to file"
                   />
-                  <Button variant="secondary" onClick={() => router.push(`/repos/${repoId}/editor`)}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => router.push(`/repos/${repoId}/editor`)}
+                  >
                     Add file
                   </Button>
                   <Button variant="primary" onClick={copyClone}>
@@ -349,13 +362,18 @@ export default function CodeHubRepoPage() {
                 <Panel>
                   <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs">
                     <span className="font-medium">
-                      {(latestCommit?.authorName ?? latestCommit?.author ?? 'quantrinitylab') as string}
+                      {
+                        (latestCommit?.authorName ??
+                          latestCommit?.author ??
+                          'quantrinitylab') as string
+                      }
                     </span>
                     <span className="truncate text-[var(--quant-muted-foreground)]">
                       {latestCommit?.message ?? 'No commits yet'}
                     </span>
                     <span className="ml-auto text-[var(--quant-muted-foreground)]">
-                      {(latestCommit?.sha ?? '').slice(0, 7)} · {relativeTime(latestCommit?.createdAt)}
+                      {(latestCommit?.sha ?? '').slice(0, 7)} ·{' '}
+                      {relativeTime(latestCommit?.createdAt)}
                     </span>
                     <span className="text-[var(--quant-muted-foreground)]">
                       ⏱ {commits.length} Commits
@@ -492,15 +510,17 @@ export default function CodeHubRepoPage() {
                   className="flex-1 min-w-[220px] rounded-lg border border-[var(--quant-border)] bg-transparent px-3 py-1.5 text-xs font-mono"
                   aria-label="Filter query"
                 />
-                {['Author', 'Labels', 'Projects', 'Milestones', 'Assignees', 'Sort'].map((filter) => (
-                  <button
-                    key={filter}
-                    type="button"
-                    className="rounded-lg border border-[var(--quant-border)] px-2.5 py-1.5 text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
-                  >
-                    {filter} ▾
-                  </button>
-                ))}
+                {['Author', 'Labels', 'Projects', 'Milestones', 'Assignees', 'Sort'].map(
+                  (filter) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      className="rounded-lg border border-[var(--quant-border)] px-2.5 py-1.5 text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+                    >
+                      {filter} ▾
+                    </button>
+                  ),
+                )}
                 <Button variant="primary">
                   {tab === 'issues' ? 'New issue' : 'New pull request'}
                 </Button>
@@ -596,7 +616,9 @@ export default function CodeHubRepoPage() {
                 <Rows>
                   {builds.map((build) => (
                     <li key={build.id} className="flex items-center gap-3 px-4 py-3 text-xs">
-                      <Badge variant={statusVariant(build.status)}>{build.status ?? 'queued'}</Badge>
+                      <Badge variant={statusVariant(build.status)}>
+                        {build.status ?? 'queued'}
+                      </Badge>
                       <div className="min-w-0">
                         <p className="truncate">{build.message ?? build.name ?? 'workflow run'}</p>
                         <p className="text-[11px] text-[var(--quant-muted-foreground)]">
@@ -652,7 +674,9 @@ export default function CodeHubRepoPage() {
                         className="flex items-center justify-between px-4 py-2 text-xs"
                       >
                         <span>{author}</span>
-                        <span className="text-[var(--quant-muted-foreground)]">{total} commits</span>
+                        <span className="text-[var(--quant-muted-foreground)]">
+                          {total} commits
+                        </span>
                       </li>
                     ))}
                   {commits.length === 0 && (

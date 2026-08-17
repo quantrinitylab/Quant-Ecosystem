@@ -310,7 +310,9 @@ export class WorkspaceService {
     role: WorkspaceRole,
   ): Promise<WorkspaceMemberView[]> {
     const actor = await this.requireMembership(orgId, actorId, 'ADMIN');
-    const target = await this.prisma.organizationMember.findFirst({ where: { id: memberId, orgId } });
+    const target = await this.prisma.organizationMember.findFirst({
+      where: { id: memberId, orgId },
+    });
     if (!target) throw createAppError('Member not found.', 404, 'MEMBER_NOT_FOUND');
 
     if (role === 'OWNER' || target.role === 'OWNER') {
@@ -341,7 +343,9 @@ export class WorkspaceService {
 
   async removeMember(orgId: string, actorId: string, memberId: string) {
     const actor = await this.requireMembership(orgId, actorId, 'ADMIN');
-    const target = await this.prisma.organizationMember.findFirst({ where: { id: memberId, orgId } });
+    const target = await this.prisma.organizationMember.findFirst({
+      where: { id: memberId, orgId },
+    });
     if (!target) throw createAppError('Member not found.', 404, 'MEMBER_NOT_FOUND');
     if (target.role === 'OWNER') {
       throw createAppError('The workspace owner cannot be removed.', 400, 'OWNER_PROTECTED');
@@ -407,7 +411,11 @@ export class WorkspaceService {
   ) {
     await this.requireMembership(orgId, actorId, 'ADMIN');
     if (input.role === 'OWNER') {
-      throw createAppError('Owners cannot be invited — transfer ownership instead.', 400, 'BAD_ROLE');
+      throw createAppError(
+        'Owners cannot be invited — transfer ownership instead.',
+        400,
+        'BAD_ROLE',
+      );
     }
 
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
@@ -537,7 +545,8 @@ export class WorkspaceService {
     const invite = await this.prisma.workspaceInvite.findUnique({
       where: { tokenHash: hashToken(token) },
     });
-    if (!invite) throw createAppError('This invitation link is not valid.', 404, 'INVITE_NOT_FOUND');
+    if (!invite)
+      throw createAppError('This invitation link is not valid.', 404, 'INVITE_NOT_FOUND');
 
     const expired = invite.status === 'PENDING' && invite.expiresAt.getTime() < Date.now();
     const org = await this.prisma.organization.findUnique({ where: { id: invite.orgId } });
@@ -545,7 +554,9 @@ export class WorkspaceService {
       where: { id: invite.invitedById },
       select: { displayName: true, email: true, avatarUrl: true },
     });
-    const memberCount = await this.prisma.organizationMember.count({ where: { orgId: invite.orgId } });
+    const memberCount = await this.prisma.organizationMember.count({
+      where: { orgId: invite.orgId },
+    });
 
     return {
       email: invite.email,
@@ -572,7 +583,8 @@ export class WorkspaceService {
     const invite = await this.prisma.workspaceInvite.findUnique({
       where: { tokenHash: hashToken(token) },
     });
-    if (!invite) throw createAppError('This invitation link is not valid.', 404, 'INVITE_NOT_FOUND');
+    if (!invite)
+      throw createAppError('This invitation link is not valid.', 404, 'INVITE_NOT_FOUND');
     if (invite.status === 'REVOKED') {
       throw createAppError('This invitation was revoked.', 410, 'INVITE_REVOKED');
     }
@@ -584,7 +596,11 @@ export class WorkspaceService {
         where: { id: invite.id },
         data: { status: 'EXPIRED' },
       });
-      throw createAppError('This invitation has expired. Ask for a new one.', 410, 'INVITE_EXPIRED');
+      throw createAppError(
+        'This invitation has expired. Ask for a new one.',
+        410,
+        'INVITE_EXPIRED',
+      );
     }
 
     const user = await this.prisma.user.findUnique({

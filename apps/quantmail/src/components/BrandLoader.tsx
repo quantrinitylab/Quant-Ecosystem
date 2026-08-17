@@ -51,13 +51,10 @@ export function BrandLoader({
   }
 
   return (
-    <div
-      className={`qm-bl-splash ${className}`}
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-    >
-      <span className="qm-bl-wordmark" aria-hidden="true">QuantMail</span>
+    <div className={`qm-bl-splash ${className}`} role="status" aria-live="polite" aria-busy="true">
+      <span className="qm-bl-wordmark" aria-hidden="true">
+        QuantMail
+      </span>
       <span className="qm-bl-track" aria-hidden="true">
         <span className="qm-bl-fill" />
       </span>

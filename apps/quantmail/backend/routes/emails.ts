@@ -16,7 +16,10 @@ const DEFAULT_MAIL_DOMAIN = process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.in';
 function normalizeAddress(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   const angle = value.match(/<([^>]+)>/);
-  const raw = (angle ? angle[1] : value).trim().replace(/[,;]+$/, '').toLowerCase();
+  const raw = (angle ? angle[1] : value)
+    .trim()
+    .replace(/[,;]+$/, '')
+    .toLowerCase();
   if (raw.length === 0) return raw;
   return raw.includes('@') ? raw : `${raw}@${DEFAULT_MAIL_DOMAIN}`;
 }

@@ -45,7 +45,9 @@ const ICON_PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   close: <path d="m6 6 12 12M18 6 6 18" />,
-  clip: <path d="m21 12-8.5 8.5a5 5 0 0 1-7-7L14 5a3.4 3.4 0 0 1 4.8 4.8L10.4 18a1.8 1.8 0 0 1-2.5-2.5L16 7.5" />,
+  clip: (
+    <path d="m21 12-8.5 8.5a5 5 0 0 1-7-7L14 5a3.4 3.4 0 0 1 4.8 4.8L10.4 18a1.8 1.8 0 0 1-2.5-2.5L16 7.5" />
+  ),
   arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
 };
 

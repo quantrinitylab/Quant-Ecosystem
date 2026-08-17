@@ -248,9 +248,7 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/unread`, {});
   }
 
-  async markAllRead(
-    category?: string,
-  ): Promise<ApiResponse<{ message: string; updated: number }>> {
+  async markAllRead(category?: string): Promise<ApiResponse<{ message: string; updated: number }>> {
     return this.post('/emails/mark-all-read', { category });
   }
 

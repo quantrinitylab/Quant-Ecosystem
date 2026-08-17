@@ -297,7 +297,10 @@ export default function DrivePage() {
         {/* File list */}
         <div
           className={`flex-1 overflow-y-auto p-4 relative ${isDragOver ? 'ring-2 ring-inset ring-[var(--brand-primary)] bg-[var(--brand-primary)]/5' : ''}`}
-          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOver(true);
+          }}
           onDragLeave={() => setIsDragOver(false)}
           onDrop={(e) => {
             e.preventDefault();
@@ -310,7 +313,9 @@ export default function DrivePage() {
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--brand-primary)]/10 border-2 border-dashed border-[var(--brand-primary)] rounded-lg pointer-events-none">
               <div className="text-center">
                 <p className="text-lg font-semibold text-[var(--brand-primary)]">Drop files here</p>
-                <p className="text-sm text-[var(--quant-muted-foreground)]">Files will be uploaded to current folder</p>
+                <p className="text-sm text-[var(--quant-muted-foreground)]">
+                  Files will be uploaded to current folder
+                </p>
               </div>
             </div>
           )}
@@ -321,7 +326,9 @@ export default function DrivePage() {
           {!searchQuery && breadcrumbs.length === 1 && (
             <Card className="mb-4 border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-4">
               <div className="flex items-center gap-3">
-                <span className="text-2xl" aria-hidden="true">🔐</span>
+                <span className="text-2xl" aria-hidden="true">
+                  🔐
+                </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-semibold">Quant Memory</p>
@@ -376,7 +383,8 @@ export default function DrivePage() {
                 <h2 className="text-xl font-semibold">Drive couldn’t load right now</h2>
                 <p className="text-sm text-[var(--quant-muted-foreground)]">{error}</p>
                 <p className="text-sm text-[var(--quant-muted-foreground)]">
-                  Your files are safe. Retry the connection or return to the root folder and try again.
+                  Your files are safe. Retry the connection or return to the root folder and try
+                  again.
                 </p>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">

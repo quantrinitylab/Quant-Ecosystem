@@ -7,7 +7,10 @@ import type {
   WorkspaceSummary,
 } from '../types/workspace';
 
-const unwrap = <T,>(response: { success: boolean; data?: T; error?: { message?: string } }, fallback: string): T => {
+const unwrap = <T>(
+  response: { success: boolean; data?: T; error?: { message?: string } },
+  fallback: string,
+): T => {
   if (!response.success || response.data === undefined) {
     throw new Error(response.error?.message || fallback);
   }
@@ -17,7 +20,8 @@ const unwrap = <T,>(response: { success: boolean; data?: T; error?: { message?: 
 export function useWorkspaces() {
   return useQuery<WorkspaceSummary[]>({
     queryKey: ['workspaces'],
-    queryFn: async () => unwrap(await apiClient.listWorkspaces(), 'Could not load your workspaces.'),
+    queryFn: async () =>
+      unwrap(await apiClient.listWorkspaces(), 'Could not load your workspaces.'),
   });
 }
 
@@ -25,7 +29,8 @@ export function useWorkspace(id: string | undefined) {
   return useQuery<WorkspaceDetail>({
     queryKey: ['workspace', id],
     enabled: Boolean(id),
-    queryFn: async () => unwrap(await apiClient.getWorkspace(id as string), 'Could not load this workspace.'),
+    queryFn: async () =>
+      unwrap(await apiClient.getWorkspace(id as string), 'Could not load this workspace.'),
   });
 }
 
@@ -58,7 +63,8 @@ export function useUpdateWorkspace(id: string) {
 export function useDeleteWorkspace(id: string) {
   const invalidate = useWorkspaceInvalidation(id);
   return useMutation({
-    mutationFn: async () => unwrap(await apiClient.deleteWorkspace(id), 'Could not delete the workspace.'),
+    mutationFn: async () =>
+      unwrap(await apiClient.deleteWorkspace(id), 'Could not delete the workspace.'),
     onSuccess: invalidate,
   });
 }
@@ -76,7 +82,10 @@ export function useResendInvite(id: string) {
   const invalidate = useWorkspaceInvalidation(id);
   return useMutation({
     mutationFn: async (inviteId: string) =>
-      unwrap(await apiClient.resendWorkspaceInvite(id, inviteId), 'Could not resend the invitation.'),
+      unwrap(
+        await apiClient.resendWorkspaceInvite(id, inviteId),
+        'Could not resend the invitation.',
+      ),
     onSuccess: invalidate,
   });
 }
@@ -85,7 +94,10 @@ export function useRevokeInvite(id: string) {
   const invalidate = useWorkspaceInvalidation(id);
   return useMutation({
     mutationFn: async (inviteId: string) =>
-      unwrap(await apiClient.revokeWorkspaceInvite(id, inviteId), 'Could not revoke the invitation.'),
+      unwrap(
+        await apiClient.revokeWorkspaceInvite(id, inviteId),
+        'Could not revoke the invitation.',
+      ),
     onSuccess: invalidate,
   });
 }
@@ -94,7 +106,10 @@ export function useUpdateMemberRole(id: string) {
   const invalidate = useWorkspaceInvalidation(id);
   return useMutation({
     mutationFn: async ({ memberId, role }: { memberId: string; role: WorkspaceRole }) =>
-      unwrap(await apiClient.updateWorkspaceMemberRole(id, memberId, role), 'Could not change the role.'),
+      unwrap(
+        await apiClient.updateWorkspaceMemberRole(id, memberId, role),
+        'Could not change the role.',
+      ),
     onSuccess: invalidate,
   });
 }
@@ -111,7 +126,8 @@ export function useRemoveMember(id: string) {
 export function useLeaveWorkspace(id: string) {
   const invalidate = useWorkspaceInvalidation(id);
   return useMutation({
-    mutationFn: async () => unwrap(await apiClient.leaveWorkspace(id), 'Could not leave the workspace.'),
+    mutationFn: async () =>
+      unwrap(await apiClient.leaveWorkspace(id), 'Could not leave the workspace.'),
     onSuccess: invalidate,
   });
 }
@@ -122,7 +138,10 @@ export function useInvitePreview(token: string | undefined) {
     enabled: Boolean(token),
     retry: false,
     queryFn: async () =>
-      unwrap(await apiClient.getInvitePreview(token as string), 'This invitation link is not valid.'),
+      unwrap(
+        await apiClient.getInvitePreview(token as string),
+        'This invitation link is not valid.',
+      ),
   });
 }
 

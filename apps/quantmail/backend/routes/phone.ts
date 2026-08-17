@@ -26,7 +26,12 @@ const sendSchema = z.object({
     .trim()
     .regex(/^\+[1-9]\d{7,14}$/, 'Enter the number in international format, e.g. +919812345678'),
 });
-const verifySchema = z.object({ code: z.string().trim().regex(/^\d{4,8}$/, 'Enter the 6-digit code') });
+const verifySchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{4,8}$/, 'Enter the 6-digit code'),
+});
 
 interface PendingOtp {
   phoneNumber: string;
@@ -61,7 +66,9 @@ function getPrisma(fastify: FastifyInstance): any {
 
 function maskNumber(value: string | null): string | null {
   if (!value) return null;
-  return value.length > 4 ? `${value.slice(0, value.length - 4).replace(/\d/g, '•')}${value.slice(-4)}` : value;
+  return value.length > 4
+    ? `${value.slice(0, value.length - 4).replace(/\d/g, '•')}${value.slice(-4)}`
+    : value;
 }
 
 export default async function phoneRoutes(fastify: FastifyInstance) {
@@ -155,7 +162,11 @@ export default async function phoneRoutes(fastify: FastifyInstance) {
     prune();
     const outstanding = pending.get(userId);
     if (!outstanding) {
-      throw createAppError('No verification code is pending. Request a new one.', 400, 'OTP_EXPIRED');
+      throw createAppError(
+        'No verification code is pending. Request a new one.',
+        400,
+        'OTP_EXPIRED',
+      );
     }
     if (outstanding.attempts >= MAX_ATTEMPTS) {
       pending.delete(userId);

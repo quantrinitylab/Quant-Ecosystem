@@ -89,7 +89,10 @@ export const WORKSPACE_ROLE_RANK: Record<WorkspaceRole, number> = {
   VIEWER: 1,
 };
 
-export function can(role: WorkspaceRole | undefined, action: 'invite' | 'manageMembers' | 'editWorkspace' | 'deleteWorkspace' | 'transferOwnership'): boolean {
+export function can(
+  role: WorkspaceRole | undefined,
+  action: 'invite' | 'manageMembers' | 'editWorkspace' | 'deleteWorkspace' | 'transferOwnership',
+): boolean {
   if (!role) return false;
   switch (action) {
     case 'invite':
