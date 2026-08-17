@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, Button, Modal, Avatar, Badge, Skeleton, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
@@ -13,6 +13,9 @@ import {
   useDeleteContact,
 } from '../../hooks/useContacts';
 import type { Contact } from '../../types';
+import { showToast } from '../../components/InboxToast';
+
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
 
 export default function ContactsPage() {
   const router = useRouter();
@@ -20,6 +23,10 @@ export default function ContactsPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [inspectContact, setInspectContact] = useState<Contact | null>(null);
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
+  const vcardInputRef = useRef<HTMLInputElement>(null);
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -53,7 +60,8 @@ export default function ContactsPage() {
     return () => window.removeEventListener('quant:contacts:create', handler);
   }, [handleOpenCreate]);
 
-  const handleOpenEdit = useCallback((contact: Contact) => {
+  const handleOpenEdit = useCallback((contact: Contact, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setFormData({
       name: contact.name || '',
       email: contact.email || '',
@@ -62,6 +70,7 @@ export default function ContactsPage() {
       tags: contact.tags?.join(', ') || '',
     });
     setEditingContact(contact);
+    setInspectContact(null);
     setShowCreateModal(true);
   }, []);
 
@@ -79,19 +88,32 @@ export default function ContactsPage() {
             .filter(Boolean)
         : [],
     };
-    if (editingContact) {
-      await updateContact.mutateAsync({ id: editingContact.id, data });
-    } else {
-      await createContact.mutateAsync(data);
+    try {
+      if (editingContact) {
+        await updateContact.mutateAsync({ id: editingContact.id, data });
+        showToast(`Updated contact ${data.name}`, 'success');
+      } else {
+        await createContact.mutateAsync(data);
+        showToast(`Created contact ${data.name}`, 'success');
+      }
+      setShowCreateModal(false);
+      setEditingContact(null);
+    } catch {
+      showToast('Failed to save contact', 'error');
     }
-    setShowCreateModal(false);
-    setEditingContact(null);
   }, [formData, editingContact, createContact, updateContact]);
 
   const handleDelete = useCallback(
-    async (id: string) => {
-      if (confirm('Are you sure you want to delete this contact?')) {
-        await deleteContact.mutateAsync(id);
+    async (id: string, name?: string, e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      if (confirm(`Are you sure you want to delete ${name ? `"${name}"` : 'this contact'}?`)) {
+        try {
+          await deleteContact.mutateAsync(id);
+          setInspectContact(null);
+          showToast('Contact deleted', 'info');
+        } catch {
+          showToast('Failed to delete contact', 'error');
+        }
       }
     },
     [deleteContact],
@@ -103,16 +125,77 @@ export default function ContactsPage() {
     const map: Record<string, Contact[]> = {};
     for (const c of list) {
       const letter = (c.name?.[0] || c.email?.[0] || '#').toUpperCase();
-      if (!map[letter]) map[letter] = [];
-      map[letter].push(c);
+      const validKey = /^[A-Z]$/.test(letter) ? letter : '#';
+      if (!map[validKey]) map[validKey] = [];
+      map[validKey].push(c);
     }
     return Object.keys(map)
-      .sort()
+      .sort((a, b) => (a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b)))
       .map((letter) => ({
         letter,
         contacts: map[letter].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email)),
       }));
   }, [contacts]);
+
+  // Export all contacts as .vcf
+  const handleExportVCard = () => {
+    const list = contacts ?? [];
+    if (list.length === 0) {
+      showToast('No contacts to export', 'info');
+      return;
+    }
+    let vcf = '';
+    for (const c of list) {
+      vcf += 'BEGIN:VCARD\r\nVERSION:3.0\r\n';
+      vcf += `FN:${c.name || c.email}\r\n`;
+      vcf += `EMAIL:${c.email}\r\n`;
+      if (c.phone) vcf += `TEL:${c.phone}\r\n`;
+      if (c.company) vcf += `ORG:${c.company}\r\n`;
+      vcf += 'END:VCARD\r\n';
+    }
+    const blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `QuantContacts_${new Date().toISOString().slice(0, 10)}.vcf`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast(`Exported ${list.length} contacts to vCard`, 'success');
+  };
+
+  const handleImportVCard = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const cards = text.split(/BEGIN:VCARD/i).slice(1);
+    let imported = 0;
+    for (const card of cards) {
+      const fnMatch = card.match(/FN:(.+)/i);
+      const emailMatch = card.match(/EMAIL[^:]*:(.+)/i);
+      const telMatch = card.match(/TEL[^:]*:(.+)/i);
+      const orgMatch = card.match(/ORG:(.+)/i);
+      if (emailMatch && emailMatch[1]) {
+        try {
+          await createContact.mutateAsync({
+            name: fnMatch ? fnMatch[1].trim() : emailMatch[1].trim(),
+            email: emailMatch[1].trim(),
+            phone: telMatch ? telMatch[1].trim() : undefined,
+            company: orgMatch ? orgMatch[1].trim() : undefined,
+          });
+          imported++;
+        } catch {
+          // ignore duplicate errors
+        }
+      }
+    }
+    showToast(`Imported ${imported} contacts`, 'success');
+    e.target.value = '';
+  };
+
+  const scrollToLetter = (letter: string) => {
+    const el = document.getElementById(`letter-${letter}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return (
     <AppShell
@@ -131,6 +214,14 @@ export default function ContactsPage() {
       }
     >
       <PageTransition className="workspace-page contacts-workspace flex flex-col h-full bg-[#0a0a0c]">
+        <input
+          ref={vcardInputRef}
+          type="file"
+          accept=".vcf,.vcard"
+          className="hidden"
+          onChange={handleImportVCard}
+        />
+
         {/* Top Control Bar */}
         <div className="border-b border-[var(--quant-border)] px-4 py-3.5 sm:px-8 bg-[var(--quant-surface)] flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 flex-1 min-w-[240px] max-w-md">
@@ -172,10 +263,41 @@ export default function ContactsPage() {
               </button>
             </div>
 
+            <button
+              type="button"
+              onClick={() => vcardInputRef.current?.click()}
+              className="px-2.5 py-1.5 text-xs rounded-xl border border-[var(--quant-border)] text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
+              title="Import vCard .vcf"
+            >
+              📥 Import
+            </button>
+            <button
+              type="button"
+              onClick={handleExportVCard}
+              className="px-2.5 py-1.5 text-xs rounded-xl border border-[var(--quant-border)] text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
+              title="Export to vCard .vcf"
+            >
+              📤 Export
+            </button>
+
             <Button variant="primary" onClick={handleOpenCreate}>
               + New Contact
             </Button>
           </div>
+        </div>
+
+        {/* Alphabet Quick Jump Bar */}
+        <div className="flex items-center justify-center gap-1 py-1.5 px-4 bg-zinc-950 border-b border-zinc-900 overflow-x-auto text-[10px] font-bold text-zinc-500">
+          {ALPHABET.map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => scrollToLetter(l)}
+              className="px-1.5 py-0.5 rounded hover:text-[#ff9933] hover:bg-zinc-800 transition-colors"
+            >
+              {l}
+            </button>
+          ))}
         </div>
 
         {/* Contacts Stream Grouped Alphabetically */}
@@ -197,11 +319,14 @@ export default function ContactsPage() {
                 {searchQuery ? 'No contacts matched your search' : 'Your address book is empty'}
               </h3>
               <p className="text-xs text-zinc-400 max-w-sm mx-auto">
-                Add contacts to start emailing, scheduling meetings, and collaborating seamlessly.
+                Add contacts or import a .vcf file to start emailing and scheduling meetings.
               </p>
-              <div className="pt-2">
+              <div className="pt-2 flex items-center justify-center gap-2">
                 <Button variant="primary" onClick={handleOpenCreate}>
                   + Add first contact
+                </Button>
+                <Button variant="secondary" onClick={() => vcardInputRef.current?.click()}>
+                  Import vCard
                 </Button>
               </div>
             </div>
@@ -210,16 +335,17 @@ export default function ContactsPage() {
           {!isLoading && !error && groupedContacts.length > 0 && (
             <div className="space-y-6">
               {groupedContacts.map((group) => (
-                <section key={group.letter} className="space-y-2">
+                <section key={group.letter} id={`letter-${group.letter}`} className="space-y-2">
                   <h3 className="sticky top-0 z-10 text-xs font-extrabold uppercase tracking-widest text-[#ff9933] bg-[#0a0a0c]/90 backdrop-blur-sm py-1">
-                    {group.letter}
+                    {group.letter} ({group.contacts.length})
                   </h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {group.contacts.map((contact) => (
                       <div
                         key={contact.id}
-                        className="group flex flex-col justify-between p-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#ff9933]/60 transition-all shadow-sm"
+                        onClick={() => setInspectContact(contact)}
+                        className="group flex flex-col justify-between p-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#ff9933]/60 transition-all shadow-sm cursor-pointer"
                       >
                         <div className="flex items-start gap-3">
                           <Avatar
@@ -228,7 +354,7 @@ export default function ContactsPage() {
                             size="md"
                           />
                           <div className="min-w-0 flex-1">
-                            <h4 className="text-sm font-bold text-white truncate">
+                            <h4 className="text-sm font-bold text-white truncate group-hover:text-[#ff9933] transition-colors">
                               {contact.name || contact.email}
                             </h4>
                             <p className="text-xs text-zinc-400 truncate">{contact.email}</p>
@@ -250,16 +376,20 @@ export default function ContactsPage() {
                           <div className="flex items-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() =>
-                                router.push(`/compose?to=${encodeURIComponent(contact.email)}`)
-                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/compose?to=${encodeURIComponent(contact.email)}`);
+                              }}
                               className="px-2.5 py-1 rounded-lg bg-[#ff9933]/15 text-[#ff9933] text-xs font-semibold hover:bg-[#ff9933]/25 transition-colors"
                             >
                               ✉ Email
                             </button>
                             <button
                               type="button"
-                              onClick={() => router.push(`/calendar`)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/calendar`);
+                              }}
                               className="px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-300 text-xs font-medium hover:text-white transition-colors"
                             >
                               📅 Meet
@@ -269,7 +399,7 @@ export default function ContactsPage() {
                           <div className="flex items-center gap-1">
                             <button
                               type="button"
-                              onClick={() => handleOpenEdit(contact)}
+                              onClick={(e) => handleOpenEdit(contact, e)}
                               className="p-1 text-zinc-400 hover:text-white text-xs"
                               title="Edit contact"
                             >
@@ -277,7 +407,7 @@ export default function ContactsPage() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDelete(contact.id)}
+                              onClick={(e) => handleDelete(contact.id, contact.name, e)}
                               className="p-1 text-rose-400 hover:text-rose-300 text-xs"
                               title="Delete contact"
                             >
@@ -294,6 +424,76 @@ export default function ContactsPage() {
           )}
         </div>
 
+        {/* Contact Inspector Modal */}
+        <Modal
+          isOpen={!!inspectContact}
+          onClose={() => setInspectContact(null)}
+          title={inspectContact?.name || 'Contact Details'}
+        >
+          <div className="p-4 space-y-4">
+            <div className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
+              <Avatar
+                name={inspectContact?.name || inspectContact?.email}
+                src={inspectContact?.avatarUrl}
+                size="lg"
+              />
+              <div>
+                <h3 className="text-base font-bold text-white">{inspectContact?.name}</h3>
+                <p className="text-xs text-zinc-400">{inspectContact?.email}</p>
+                {inspectContact?.company && (
+                  <p className="text-xs text-[#ff9933] mt-0.5">🏢 {inspectContact?.company}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              {inspectContact?.phone && (
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                  <span className="text-zinc-400">Phone Number</span>
+                  <a
+                    href={`tel:${inspectContact.phone}`}
+                    className="font-mono font-semibold text-white hover:text-[#ff9933]"
+                  >
+                    {inspectContact.phone}
+                  </a>
+                </div>
+              )}
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800">
+                <span className="text-zinc-400">Email Address</span>
+                <a
+                  href={`mailto:${inspectContact?.email}`}
+                  className="font-mono font-semibold text-white hover:text-[#ff9933]"
+                >
+                  {inspectContact?.email}
+                </a>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
+              <Button
+                variant="primary"
+                onClick={() => {
+                  if (inspectContact?.email) {
+                    router.push(`/compose?to=${encodeURIComponent(inspectContact.email)}`);
+                  }
+                }}
+              >
+                ✉ Compose Email
+              </Button>
+              <div className="flex items-center gap-2">
+                {inspectContact && (
+                  <Button variant="secondary" onClick={(e) => handleOpenEdit(inspectContact, e)}>
+                    Edit
+                  </Button>
+                )}
+                <Button variant="secondary" onClick={() => setInspectContact(null)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+
         {/* Create / Edit Contact Modal */}
         <Modal
           isOpen={showCreateModal}
@@ -303,14 +503,14 @@ export default function ContactsPage() {
           }}
           title={editingContact ? 'Edit Contact' : 'Create New Contact'}
         >
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-3">
             <div>
               <label className="block text-xs font-semibold text-zinc-300 mb-1">Full Name *</label>
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g. Priya Sharma"
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g. Sundar Pichai"
                 className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
                 autoFocus
               />
@@ -323,48 +523,44 @@ export default function ContactsPage() {
               <input
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
-                placeholder="priya@example.com"
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="e.g. sundar@quantmail.in"
                 className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                  Phone Number
-                </label>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1">Phone</label>
                 <input
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+91 98765 43210"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#ff9933]"
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-medium text-zinc-400 mb-1">
-                  Company / Organization
-                </label>
+                <label className="block text-xs font-semibold text-zinc-300 mb-1">Company</label>
                 <input
                   type="text"
                   value={formData.company}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, company: e.target.value }))}
-                  placeholder="Quantrinity Labs"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#ff9933]"
+                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                  placeholder="e.g. Quantrinity"
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
                 />
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                Tags (Comma separated)
+                Tags (comma-separated)
               </label>
               <input
                 type="text"
                 value={formData.tags}
-                onChange={(e) => setFormData((prev) => ({ ...prev, tags: e.target.value }))}
-                placeholder="Engineering, VIP, Design, Investor…"
+                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                placeholder="Team, VIP, Client…"
                 className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
               />
             </div>
@@ -379,17 +575,8 @@ export default function ContactsPage() {
               >
                 Cancel
               </Button>
-              <Button
-                variant="primary"
-                onClick={() => void handleSave()}
-                disabled={
-                  !formData.name.trim() ||
-                  !formData.email.trim() ||
-                  createContact.isPending ||
-                  updateContact.isPending
-                }
-              >
-                {createContact.isPending || updateContact.isPending ? 'Saving…' : 'Save Contact'}
+              <Button variant="primary" onClick={handleSave}>
+                {editingContact ? 'Save Changes' : 'Create Contact'}
               </Button>
             </div>
           </div>
