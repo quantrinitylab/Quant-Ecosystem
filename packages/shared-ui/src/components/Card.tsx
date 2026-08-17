@@ -30,9 +30,9 @@ export const Card: React.FC<CardProps> = ({
   media,
 }) => {
   const variantStyles: Record<string, string> = {
-    elevated: 'bg-white shadow-md',
-    outlined: 'bg-white border border-gray-200',
-    flat: 'bg-gray-50',
+    elevated: 'quant-panel quant-panel-elevated',
+    outlined: 'quant-panel',
+    flat: 'quant-panel quant-panel-flat',
   };
 
   const paddingStyles: Record<string, string> = {
@@ -43,7 +43,8 @@ export const Card: React.FC<CardProps> = ({
   };
 
   const hoverStyles = hoverable ? 'hover:shadow-lg transition-shadow duration-200' : '';
-  const clickStyles = clickable || onClick ? 'cursor-pointer active:scale-[0.99] transition-transform' : '';
+  const clickStyles =
+    clickable || onClick ? 'cursor-pointer active:scale-[0.99] transition-transform' : '';
 
   return (
     <div
@@ -53,9 +54,17 @@ export const Card: React.FC<CardProps> = ({
       tabIndex={clickable || onClick ? 0 : undefined}
     >
       {media && <div className="card-media">{media}</div>}
-      {header && <div className="px-4 py-3 border-b border-gray-100">{header}</div>}
+      {header && (
+        <div className="px-4 py-3 border-b border-[var(--quant-border,rgba(255,255,255,.1))]">
+          {header}
+        </div>
+      )}
       <div className={paddingStyles[padding]}>{children}</div>
-      {footer && <div className="px-4 py-3 border-t border-gray-100">{footer}</div>}
+      {footer && (
+        <div className="px-4 py-3 border-t border-[var(--quant-border,rgba(255,255,255,.1))]">
+          {footer}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,0 +1,152 @@
+name: Ops Recover
+
+# Emergency staging diagnosis + self-heal. Runs on the quant-deploy self-hosted
+# runner (deploy box) whenever .ops/recover-trigger.txt changes on main.
+# Writes its report to the ops-report branch as .ops/recover-report.md
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".ops/recover-trigger.txt"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ops-recover
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    name: Diagnose and recover quant-staging
+    runs-on: [self-hosted, Linux, X64, quant-deploy, notion-aws]
+    timeout-minutes: 25
+    env:
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+      CLUSTER: quant-staging-eks
+      NS: quant-staging
+    steps:
+      - name: Diagnose and recover
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          R="$RUNNER_TEMP/recover-report.md"
+          : > "$R"
+          echo "# QuantMail staging recovery report" >> "$R"
+          echo "" >> "$R"
+          echo "- Run at: $(date -u +%Y-%m-%dT%H:%M:%SZ) UTC on $(hostname)" >> "$R"
+          sec() { echo "" >> "$R"; echo "## $1" >> "$R"; echo '```' >> "$R"; }
+          endsec() { echo '```' >> "$R"; }
+
+          sec "AWS identity"
+          aws sts get-caller-identity >> "$R" 2>&1
+          endsec
+
+          sec "RDS status"
+          aws rds describe-db-instances --query 'DBInstances[].{Id:DBInstanceIdentifier,Status:DBInstanceStatus,StorageGB:AllocatedStorage,Class:DBInstanceClass}' --output json >> "$R" 2>&1
+          endsec
+
+          RDS_ID=quant-staging-postgres
+          RDS_STATUS=$(aws rds describe-db-instances --db-instance-identifier "$RDS_ID" --query 'DBInstances[0].DBInstanceStatus' --output text 2>/dev/null)
+          if [ "$RDS_STATUS" = "stopped" ]; then
+            sec "RDS stopped - starting it"
+            aws rds start-db-instance --db-instance-identifier "$RDS_ID" >> "$R" 2>&1
+            endsec
+          fi
+
+          aws eks update-kubeconfig --name "$CLUSTER" --region "$AWS_REGION" > /dev/null 2>&1
+
+          sec "Nodes"
+          kubectl get nodes -o wide >> "$R" 2>&1
+          endsec
+
+          sec "Nodegroups"
+          for NG in $(aws eks list-nodegroups --cluster-name "$CLUSTER" --query 'nodegroups[]' --output text); do
+            aws eks describe-nodegroup --cluster-name "$CLUSTER" --nodegroup-name "$NG" --query 'nodegroup.{name:nodegroupName,status:status,scaling:scalingConfig,issues:health.issues[0:3]}' --output json >> "$R" 2>&1
+          done
+          endsec
+
+          READY=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2=="Ready"' | wc -l)
+          echo "" >> "$R"
+          echo "Ready nodes: $READY" >> "$R"
+          SCALED=no
+          if [ "$READY" -eq 0 ]; then
+            NG=$(aws eks list-nodegroups --cluster-name "$CLUSTER" --query 'nodegroups[0]' --output text)
+            DESIRED=$(aws eks describe-nodegroup --cluster-name "$CLUSTER" --nodegroup-name "$NG" --query 'nodegroup.scalingConfig.desiredSize' --output text)
+            sec "No Ready nodes - heal attempt on nodegroup $NG (desired=$DESIRED)"
+            if [ "$DESIRED" = "0" ] || [ -z "$DESIRED" ] || [ "$DESIRED" = "None" ]; then
+              aws eks update-nodegroup-config --cluster-name "$CLUSTER" --nodegroup-name "$NG" --scaling-config minSize=1,maxSize=3,desiredSize=2 >> "$R" 2>&1
+              SCALED=yes
+            else
+              echo "desiredSize already $DESIRED - node launch/health issue, see issues above" >> "$R"
+            fi
+            endsec
+          fi
+          if [ "$SCALED" = "yes" ]; then
+            sec "Waiting 240s for nodes to join"
+            sleep 240
+            kubectl get nodes -o wide >> "$R" 2>&1
+            endsec
+          fi
+
+          sec "Services (ELB hostnames)"
+          kubectl get svc -n "$NS" -o wide >> "$R" 2>&1
+          endsec
+
+          sec "Pods"
+          kubectl get pods -n "$NS" -o wide >> "$R" 2>&1
+          endsec
+
+          sec "Deployments"
+          kubectl get deploy -n "$NS" -o wide >> "$R" 2>&1
+          endsec
+
+          sec "Events (last 60)"
+          kubectl get events -n "$NS" --sort-by=.lastTimestamp 2>&1 | tail -60 >> "$R"
+          endsec
+
+          sec "Backend logs (tail 80)"
+          kubectl logs deployment/quant-quantmail-backend -n "$NS" --tail=80 --all-containers >> "$R" 2>&1
+          endsec
+
+          sec "Frontend logs (tail 40)"
+          kubectl logs deployment/quant-quantmail -n "$NS" --tail=40 --all-containers >> "$R" 2>&1
+          endsec
+
+          READY=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2=="Ready"' | wc -l)
+          if [ "$READY" -gt 0 ]; then
+            sec "Rollout restart quantmail + backend"
+            kubectl rollout restart deployment/quant-quantmail -n "$NS" >> "$R" 2>&1
+            kubectl rollout restart deployment/quant-quantmail-backend -n "$NS" >> "$R" 2>&1
+            kubectl rollout status deployment/quant-quantmail -n "$NS" --timeout=300s >> "$R" 2>&1
+            kubectl rollout status deployment/quant-quantmail-backend -n "$NS" --timeout=300s >> "$R" 2>&1
+            endsec
+          fi
+
+          sec "Site checks"
+          for i in 1 2 3; do
+            curl -s -o /dev/null -w "attempt $i https code: %{http_code}\n" --max-time 25 https://quantmail.quantrinity.in/ >> "$R" 2>&1
+            sleep 8
+          done
+          curl -s -o /dev/null -w "direct ELB code: %{http_code}\n" --max-time 25 http://afe564a2377ff42d7853262de31b64ee-609978482.us-east-1.elb.amazonaws.com/ >> "$R" 2>&1
+          endsec
+
+          echo "" >> "$R"
+          echo "REPORT_DONE $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$R"
+
+          cd "$RUNNER_TEMP"
+          rm -rf ops-report-repo
+          git clone --depth 1 --branch main "https://x-access-token:${GH_TOKEN}@github.com/quantrinitylabsgo/Quant-Ecosystem.git" ops-report-repo > /dev/null 2>&1
+          cd ops-report-repo
+          git checkout -B ops-report
+          mkdir -p .ops
+          cp "$R" .ops/recover-report.md
+          git config user.email "ops-bot@quantrinity.in"
+          git config user.name "Quant Ops Bot"
+          git add .ops/recover-report.md
+          git commit -m "ops: staging recovery report" > /dev/null 2>&1
+          git push -f origin ops-report

@@ -1,0 +1,62 @@
+name: fix-nodeport-live
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/fix-nodeport-live.yml"
+
+permissions:
+  id-token: write
+  contents: write
+
+jobs:
+  nodeport-live:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::121701583740:role/quant-gha-deploy
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name quant-staging-eks --region us-east-1
+
+      - name: Patch externalTrafficPolicy to Cluster
+        run: |
+          NS=$(kubectl get svc -A | awk '$2=="ingress-nginx-controller"{print $1; exit}')
+          echo "ingress-nginx namespace: $NS"
+          kubectl -n "$NS" patch svc ingress-nginx-controller -p '{"spec":{"externalTrafficPolicy":"Cluster"}}' || true
+          kubectl -n "$NS" get svc ingress-nginx-controller -o wide
+
+      - name: Verify from public internet
+        run: |
+          mkdir -p infra/status
+          {
+            echo "=== nodeport-live $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+            NS=$(kubectl get svc -A | awk '$2=="ingress-nginx-controller"{print $1; exit}')
+            echo "namespace=$NS"
+            echo "externalTrafficPolicy=$(kubectl -n "$NS" get svc ingress-nginx-controller -o jsonpath='{.spec.externalTrafficPolicy}')"
+            for ip in 100.61.181.99 35.168.114.47; do
+              for host in quantmail.quantrinity.in staging.quantrinity.in; do
+                code=$(curl -sk -o /tmp/o.html -w "%{http_code}" --connect-timeout 8 -H "Host: $host" "https://$ip:32672/" || echo FAIL)
+                title=$(grep -o "<title>[^<]*</title>" /tmp/o.html | head -1 || true)
+                echo "HTTPS $ip:32672 host=$host -> $code $title"
+              done
+              codeh=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 8 -H "Host: quantmail.quantrinity.in" "http://$ip:32397/" || echo FAIL)
+              echo "HTTP  $ip:32397 host=quantmail.quantrinity.in -> $codeh"
+            done
+          } | tee infra/status/nodeport-live-result.txt
+
+      - name: Publish result
+        run: |
+          git config user.name "gha-bot"
+          git config user.email "gha-bot@users.noreply.github.com"
+          git add -f infra/status/nodeport-live-result.txt
+          git commit -m "nodeport live verification"
+          git push -f origin HEAD:status-report

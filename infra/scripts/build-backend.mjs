@@ -8,6 +8,7 @@
 // Usage: node infra/scripts/build-backend.mjs <appDir> <entry> <outfile>
 import { build } from 'esbuild';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const [appDir, entry, outfile] = process.argv.slice(2);
 if (!appDir || !entry || !outfile) {
@@ -80,9 +81,22 @@ await build({
   alias: srcEntryAliases,
   logLevel: 'error',
   plugins: [deprecatedStubPlugin],
+  // esbuild injects the banner VERBATIM and does not deconflict its
+  // identifiers against import bindings kept in the bundle. Bundled deps that
+  // themselves do `import { createRequire } from 'module'` at module scope
+  // (e.g. bullmq's ESM dist) collide with a bare `createRequire` here, which
+  // makes the emitted bundle throw "SyntaxError: Identifier 'createRequire'
+  // has already been declared" before a single line runs (staging
+  // CrashLoopBackOff, 2026-08-11). Keep every banner binding __quant-prefixed
+  // or already-aliased so no dependency import can shadow it.
   banner: {
-    js: "import{createRequire}from'module';import{fileURLToPath as __f}from'url';import{dirname as __d}from'path';const require=createRequire(import.meta.url);const __filename=__f(import.meta.url);const __dirname=__d(__filename);",
+    js: "import{createRequire as __quantCreateRequire}from'module';import{fileURLToPath as __f}from'url';import{dirname as __d}from'path';const require=__quantCreateRequire(import.meta.url);const __filename=__f(import.meta.url);const __dirname=__d(__filename);",
   },
 });
+
+// Parse-gate the emitted bundle: any module-scope SyntaxError (like the banner
+// collision above) must fail the image build here, not crash-loop the pod at
+// container start. `node --check` parses the file without executing it.
+execFileSync(process.execPath, ['--check', outfile], { stdio: 'inherit' });
 
 console.log('bundled', outfile);

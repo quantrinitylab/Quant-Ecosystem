@@ -1,0 +1,560 @@
+name: Bootstrap new AWS account
+# ONE-TIME SETUP: Run this after old AWS account was suspended.
+# Prerequisites: Add GitHub secrets BOOTSTRAP_AWS_ACCESS_KEY_ID and
+# BOOTSTRAP_AWS_SECRET_ACCESS_KEY (IAM user with AdministratorAccess on new account).
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS region
+        default: us-east-1
+        required: true
+      cluster_name:
+        description: EKS cluster name
+        default: quant-staging-eks
+        required: true
+      node_type:
+        description: EKS node instance type
+        default: t3.large
+        required: true
+      rds_id:
+        description: RDS instance identifier
+        default: quant-staging-postgres
+        required: true
+      rds_class:
+        description: RDS instance class
+        default: db.t3.small
+        required: true
+      db_name:
+        description: Postgres database name
+        default: quant_staging
+        required: true
+
+env:
+  AWS_REGION: ${{ inputs.aws_region }}
+
+jobs:
+  bootstrap:
+    name: Bootstrap AWS infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    outputs:
+      account_id: ${{ steps.account.outputs.id }}
+      ecr_registry: ${{ steps.account.outputs.ecr_registry }}
+      elb_hostname: ${{ steps.elb.outputs.hostname }}
+      rds_endpoint: ${{ steps.rds.outputs.endpoint }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (bootstrap static keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+
+      - name: Detect account
+        id: account
+        run: |
+          ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "id=$ID" >> $GITHUB_OUTPUT
+          echo "ecr_registry=${ID}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com" >> $GITHUB_OUTPUT
+          echo ">> New AWS Account: $ID"
+
+      # ── ECR repositories ───────────────────────────────────────────────────
+      - name: Create ECR repositories
+        run: |
+          for REPO in quant-quantmail quant-quantmail-backend quant-quantchat quant-quantai quant-admin quant-ws-gateway; do
+            aws ecr create-repository \
+              --repository-name "$REPO" \
+              --image-tag-mutability IMMUTABLE \
+              --image-scanning-configuration scanOnPush=true \
+              --region "$AWS_REGION" 2>&1 | grep -v AlreadyExistsException || true
+            echo "  ok: $REPO"
+          done
+          echo ">> ECR repositories ready"
+
+      # ── GitHub OIDC provider ───────────────────────────────────────────────
+      - name: Create GitHub Actions OIDC provider
+        run: |
+          EXISTING=$(aws iam list-open-id-connect-providers \
+            --query "OIDCProviderList[?contains(Arn,'token.actions.githubusercontent.com')].Arn" \
+            --output text 2>/dev/null || echo "")
+          if [ -z "$EXISTING" ]; then
+            aws iam create-open-id-connect-provider \
+              --url https://token.actions.githubusercontent.com \
+              --client-id-list sts.amazonaws.com \
+              --thumbprint-list \
+                6938fd4d98bab03faadb97b34396831e3780aea1 \
+                d89e3bd43d5d909b47a18977aa9d5ce36cee184c
+            echo ">> OIDC provider created"
+          else
+            echo ">> OIDC provider already exists"
+          fi
+
+      # ── IAM role for GitHub Actions (OIDC) ────────────────────────────────
+      - name: Create quant-gha-deploy IAM role
+        run: |
+          ID="${{ steps.account.outputs.id }}"
+          ROLE="quant-gha-deploy"
+          REGION="${{ inputs.aws_region }}"
+
+          python3 - <<PYEOF
+          import json, subprocess, sys
+          import boto3
+
+          account_id = "$ID"
+          region = "$REGION"
+          role_name = "quant-gha-deploy"
+
+          trust = {
+            "Version": "2012-10-17",
+            "Statement": [{
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": f"arn:aws:iam::{account_id}:oidc-provider/token.actions.githubusercontent.com"
+              },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "StringEquals": {
+                  "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+                },
+                "StringLike": {
+                  "token.actions.githubusercontent.com:sub": [
+                    "repo:quantrinitylabsgo/Quant-Ecosystem:environment:staging",
+                    "repo:quantrinitylabsgo/Quant-Ecosystem:environment:production",
+                    "repo:quantrinitylabsgo/Quant-Ecosystem:ref:refs/heads/main"
+                  ]
+                }
+              }
+            }]
+          }
+
+          inline_policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+              {"Sid": "EcrAuth", "Effect": "Allow", "Action": "ecr:GetAuthorizationToken", "Resource": "*"},
+              {"Sid": "EcrPushPull", "Effect": "Allow", "Action": [
+                "ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer",
+                "ecr:BatchGetImage", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart",
+                "ecr:CompleteLayerUpload", "ecr:PutImage", "ecr:CreateRepository",
+                "ecr:DescribeRepositories", "ecr:DescribeImages"
+              ], "Resource": "*"},
+              {"Sid": "EksDescribe", "Effect": "Allow", "Action": ["eks:DescribeCluster"], "Resource": "*"},
+              {"Sid": "SecretsRead", "Effect": "Allow", "Action": [
+                "secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"
+              ], "Resource": f"arn:aws:secretsmanager:{region}:{account_id}:secret:quant/*"}
+            ]
+          }
+
+          iam = boto3.client("iam")
+          try:
+            iam.get_role(RoleName=role_name)
+            iam.update_assume_role_policy(RoleName=role_name, PolicyDocument=json.dumps(trust))
+            print(f">> Updated role trust policy")
+          except iam.exceptions.NoSuchEntityException:
+            iam.create_role(RoleName=role_name, AssumeRolePolicyDocument=json.dumps(trust),
+                            Description="GitHub Actions deploy role for Quant Ecosystem")
+            print(f">> Created role: {role_name}")
+
+          iam.put_role_policy(RoleName=role_name, PolicyName="quant-gha-deploy-inline",
+                              PolicyDocument=json.dumps(inline_policy))
+          print(f">> Inline policy attached")
+          print(f">> Role ARN: arn:aws:iam::{account_id}:role/{role_name}")
+          PYEOF
+
+      # ── Secrets Manager ────────────────────────────────────────────────────
+      - name: Seed Secrets Manager secrets
+        run: |
+          REGION="${{ inputs.aws_region }}"
+          DB_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+          JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(48))")
+          MEILI_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+          GRAFANA_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(16))")
+
+          upsert_secret() {
+            local NAME="$1"; local VAL="$2"
+            if aws secretsmanager describe-secret --secret-id "$NAME" --region "$REGION" >/dev/null 2>&1; then
+              aws secretsmanager put-secret-value --secret-id "$NAME" --secret-string "$VAL" --region "$REGION"
+            else
+              aws secretsmanager create-secret --name "$NAME" --secret-string "$VAL" --region "$REGION"
+            fi
+            echo "  ok: $NAME"
+          }
+
+          upsert_secret "quant/postgres"              "{\"password\":\"${DB_PASS}\"}"
+          upsert_secret "quant/jwt.secret"            "$JWT_SECRET"
+          upsert_secret "quant/openai.api-key"        "REPLACE_WITH_REAL_KEY"
+          upsert_secret "quant/anthropic.api-key"     "REPLACE_WITH_REAL_KEY"
+          upsert_secret "quant/meilisearch.master-key" "$MEILI_KEY"
+          upsert_secret "quant/grafana.admin-password" "$GRAFANA_PASS"
+
+          echo "BOOTSTRAP_DB_PASS=$DB_PASS" >> $GITHUB_ENV
+          echo ">> Secrets Manager secrets seeded"
+
+      # ── eksctl ────────────────────────────────────────────────────────────
+      - name: Install eksctl
+        run: |
+          curl -sLO "https://github.com/eksctl-io/eksctl/releases/latest/download/eksctl_Linux_amd64.tar.gz"
+          tar -xzf eksctl_Linux_amd64.tar.gz -C /tmp && sudo mv /tmp/eksctl /usr/local/bin
+          eksctl version
+
+      # ── EKS cluster (15-20 min) ───────────────────────────────────────────
+      - name: Create EKS cluster
+        run: |
+          CLUSTER="${{ inputs.cluster_name }}"
+          if aws eks describe-cluster --name "$CLUSTER" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo ">> EKS cluster already exists"
+          else
+            echo ">> Creating EKS cluster: $CLUSTER (~15-20 min)..."
+            eksctl create cluster \
+              --name "$CLUSTER" \
+              --region "$AWS_REGION" \
+              --node-type "${{ inputs.node_type }}" \
+              --nodes 2 --nodes-min 1 --nodes-max 4 \
+              --managed --with-oidc --full-ecr-access --asg-access
+            echo ">> EKS cluster created"
+          fi
+          aws eks update-kubeconfig --name "$CLUSTER" --region "$AWS_REGION"
+
+      # ── RDS PostgreSQL (~8 min) ────────────────────────────────────────────
+      - name: Create RDS PostgreSQL
+        id: rds
+        run: |
+          CLUSTER="${{ inputs.cluster_name }}"
+          RDS_ID="${{ inputs.rds_id }}"
+          DB_PASS="$BOOTSTRAP_DB_PASS"
+
+          if aws rds describe-db-instances --db-instance-identifier "$RDS_ID" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo ">> RDS already exists"
+          else
+            echo ">> Creating RDS instance..."
+            VPC=$(aws eks describe-cluster --name "$CLUSTER" \
+              --query 'cluster.resourcesVpcConfig.vpcId' --output text)
+            SUBNETS=$(aws ec2 describe-subnets \
+              --filters "Name=vpc-id,Values=$VPC" \
+              --query 'Subnets[*].SubnetId' --output text | tr '\t' ' ')
+            EKS_SG=$(aws eks describe-cluster --name "$CLUSTER" \
+              --query 'cluster.resourcesVpcConfig.clusterSecurityGroupId' --output text)
+
+            aws rds create-db-subnet-group \
+              --db-subnet-group-name "quant-staging-subnet-group" \
+              --db-subnet-group-description "Quant Staging RDS" \
+              --subnet-ids $SUBNETS 2>&1 | grep -v AlreadyExists || true
+
+            aws rds create-db-instance \
+              --db-instance-identifier "$RDS_ID" \
+              --db-instance-class "${{ inputs.rds_class }}" \
+              --engine postgres --engine-version "16" \
+              --db-name "${{ inputs.db_name }}" \
+              --master-username quant \
+              --master-user-password "$DB_PASS" \
+              --vpc-security-group-ids "$EKS_SG" \
+              --db-subnet-group-name "quant-staging-subnet-group" \
+              --storage-type gp3 --allocated-storage 20 \
+              --backup-retention-period 7 \
+              --no-publicly-accessible \
+              --region "$AWS_REGION"
+
+            echo ">> Waiting for RDS to be available (~8 min)..."
+            aws rds wait db-instance-available \
+              --db-instance-identifier "$RDS_ID" --region "$AWS_REGION"
+          fi
+
+          ENDPOINT=$(aws rds describe-db-instances \
+            --db-instance-identifier "$RDS_ID" \
+            --query 'DBInstances[0].Endpoint.Address' --output text)
+          echo "endpoint=$ENDPOINT" >> $GITHUB_OUTPUT
+          echo "RDS_ENDPOINT=$ENDPOINT" >> $GITHUB_ENV
+          echo ">> RDS endpoint: $ENDPOINT"
+
+          # Update secret with full connection string
+          CUR_PASS=$(aws secretsmanager get-secret-value --secret-id "quant/postgres" \
+            --query SecretString --output text | \
+            python3 -c "import sys,json; d=json.load(sys.stdin); print(d['password'])")
+          aws secretsmanager put-secret-value \
+            --secret-id "quant/postgres" \
+            --secret-string "{\"password\":\"${CUR_PASS}\",\"username\":\"quant\",\"dbname\":\"${{ inputs.db_name }}\",\"host\":\"${ENDPOINT}\",\"port\":\"5432\"}" \
+            --region "$AWS_REGION"
+
+      # ── Cluster add-ons ───────────────────────────────────────────────────
+      - name: Install EBS CSI driver addon
+        run: |
+          aws eks create-addon --cluster-name "${{ inputs.cluster_name }}" \
+            --addon-name aws-ebs-csi-driver \
+            --resolve-conflicts OVERWRITE \
+            --region "$AWS_REGION" 2>&1 | grep -v ResourceInUseException || true
+          echo ">> EBS CSI driver addon requested"
+
+      - name: Install nginx ingress controller
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.0/deploy/static/provider/aws/deploy.yaml
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=180s
+          echo ">> nginx ingress ready"
+
+      - name: Install cert-manager
+        run: |
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.1/cert-manager.yaml
+          kubectl wait --namespace cert-manager \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/instance=cert-manager \
+            --timeout=180s
+          echo ">> cert-manager ready"
+
+      - name: Install external-secrets operator
+        run: |
+          helm repo add external-secrets https://charts.external-secrets.io 2>/dev/null || true
+          helm repo update
+          helm upgrade --install external-secrets external-secrets/external-secrets \
+            -n external-secrets --create-namespace --wait --timeout=5m
+          echo ">> external-secrets operator ready"
+
+      # ── Kubernetes namespace + config ─────────────────────────────────────
+      - name: Create namespace and seed config
+        run: |
+          NS="quant-staging"
+          RDS_EP="$RDS_ENDPOINT"
+          DB_PASS="$BOOTSTRAP_DB_PASS"
+
+          kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -
+
+          # AWS credentials secret for external-secrets
+          kubectl create secret generic aws-credentials -n "$NS" \
+            --from-literal=access-key-id="${{ secrets.BOOTSTRAP_AWS_ACCESS_KEY_ID }}" \
+            --from-literal=secret-access-key="${{ secrets.BOOTSTRAP_AWS_SECRET_ACCESS_KEY }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Apply ExternalSecret store
+          sed 's/us-east-1/${{ inputs.aws_region }}/g' infra/k8s/external-secrets-store.yaml | \
+            kubectl apply -n "$NS" -f -
+
+          # Apply ExternalSecrets manifest
+          kubectl apply -n "$NS" -f infra/k8s/external-secrets.yaml 2>/dev/null || true
+
+          JWT=$(aws secretsmanager get-secret-value --secret-id "quant/jwt.secret" \
+            --query SecretString --output text)
+
+          # ConfigMap for non-sensitive env vars
+          kubectl create configmap quant-staging-config -n "$NS" \
+            --from-literal=NODE_ENV=production \
+            --from-literal=PORT=3011 \
+            --from-literal=QUANTMAIL_BACKEND_URL=http://quant-quantmail-backend:3011 \
+            --from-literal=AI_PROVIDER=custom \
+            --from-literal=AI_BASE_URL=https://quantmail-ai.quantrinity.workers.dev/v1 \
+            --from-literal=AI_MODEL=@cf/meta/llama-3.1-8b-instruct \
+            --from-literal=AI_API_KEY=qk_c7f2a94e1d5b8360f4a2c9e7d1b5a8f3c6e0d9b2a4f7c1e5d8b3a6f0c4e7d2b9 \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          # Secret for sensitive env vars
+          kubectl create secret generic quant-staging-secrets -n "$NS" \
+            --from-literal=DATABASE_URL="postgresql://quant:${DB_PASS}@${RDS_EP}:5432/${{ inputs.db_name }}" \
+            --from-literal=JWT_SECRET="$JWT" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+          echo ">> Namespace and config ready"
+
+      # ── Build & push Docker images ────────────────────────────────────────
+      - name: Build and push Docker images
+        run: |
+          REG="${{ steps.account.outputs.ecr_registry }}"
+          SHA="${{ github.sha }}"
+
+          aws ecr get-login-password --region "$AWS_REGION" | \
+            docker login --username AWS --password-stdin "$REG"
+
+          echo ">> Building frontend..."
+          docker build -f apps/quantmail/Dockerfile -t "$REG/quant-quantmail:$SHA" .
+          docker push "$REG/quant-quantmail:$SHA"
+
+          echo ">> Building backend..."
+          docker build -f apps/quantmail/Dockerfile.backend -t "$REG/quant-quantmail-backend:$SHA" .
+          docker push "$REG/quant-quantmail-backend:$SHA"
+
+          echo "FRONTEND_IMAGE=$REG/quant-quantmail:$SHA" >> $GITHUB_ENV
+          echo "BACKEND_IMAGE=$REG/quant-quantmail-backend:$SHA" >> $GITHUB_ENV
+          echo ">> Images pushed: $SHA"
+
+      # ── Deploy applications ───────────────────────────────────────────────
+      - name: Deploy frontend and backend
+        run: |
+          NS="quant-staging"
+          FE="$FRONTEND_IMAGE"
+          BE="$BACKEND_IMAGE"
+
+          # Frontend
+          kubectl apply -n "$NS" -f - <<EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: quant-quantmail
+            namespace: $NS
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: quant-quantmail
+            template:
+              metadata:
+                labels:
+                  app: quant-quantmail
+              spec:
+                containers:
+                  - name: quant-quantmail
+                    image: $FE
+                    ports:
+                      - containerPort: 3000
+                    envFrom:
+                      - configMapRef:
+                          name: quant-staging-config
+          EOF
+
+          # Backend
+          kubectl apply -n "$NS" -f - <<EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: quant-quantmail-backend
+            namespace: $NS
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: quant-quantmail-backend
+            template:
+              metadata:
+                labels:
+                  app: quant-quantmail-backend
+              spec:
+                containers:
+                  - name: quantmail-backend
+                    image: $BE
+                    ports:
+                      - containerPort: 3011
+                    envFrom:
+                      - configMapRef:
+                          name: quant-staging-config
+                      - secretRef:
+                          name: quant-staging-secrets
+          EOF
+
+          # Services
+          kubectl expose deployment quant-quantmail --port=3000 --target-port=3000 \
+            --name=quant-quantmail -n "$NS" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl expose deployment quant-quantmail-backend --port=3011 --target-port=3011 \
+            --name=quant-quantmail-backend -n "$NS" --dry-run=client -o yaml | kubectl apply -f -
+
+          # Ingress
+          kubectl apply -n "$NS" -f infra/k8s/ingress-quantmail.yaml 2>/dev/null || \
+          kubectl apply -n "$NS" -f - <<'INGEOF'
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: quantmail-ingress
+            namespace: quant-staging
+            annotations:
+              nginx.ingress.kubernetes.io/rewrite-target: /$2
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+          spec:
+            ingressClassName: nginx
+            tls:
+              - hosts:
+                  - quantmail.quantrinity.in
+                secretName: quant-trinity-tls
+            rules:
+              - host: quantmail.quantrinity.in
+                http:
+                  paths:
+                    - path: /api(/|$)(.*)
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: quant-quantmail-backend
+                          port:
+                            number: 3011
+                    - path: /()(.*)
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: quant-quantmail
+                          port:
+                            number: 3000
+          INGEOF
+
+          echo ">> Waiting for rollouts..."
+          kubectl rollout status deployment/quant-quantmail -n "$NS" --timeout=600s
+          kubectl rollout status deployment/quant-quantmail-backend -n "$NS" --timeout=600s
+          echo ">> Deployments healthy"
+
+      # ── Prisma migrations ─────────────────────────────────────────────────
+      - name: Run Prisma migrations
+        run: |
+          NS="quant-staging"
+          RUN_ID="${{ github.run_id }}"
+          DB_URL=$(kubectl get secret quant-staging-secrets -n "$NS" \
+            -o jsonpath='{.data.DATABASE_URL}' | base64 -d)
+
+          kubectl run prisma-migrate-${RUN_ID} -n "$NS" \
+            --image="$BACKEND_IMAGE" --restart=Never \
+            --env="DATABASE_URL=$DB_URL" \
+            -- sh -c "pnpm prisma migrate deploy 2>&1; echo PRISMA_DONE"
+
+          echo ">> Waiting for migrations (max 5 min)..."
+          for i in $(seq 1 30); do
+            STATUS=$(kubectl get pod prisma-migrate-${RUN_ID} -n "$NS" \
+              -o jsonpath='{.status.phase}' 2>/dev/null || echo "Pending")
+            [ "$STATUS" = "Succeeded" ] || [ "$STATUS" = "Failed" ] && break
+            sleep 10
+          done
+          kubectl logs prisma-migrate-${RUN_ID} -n "$NS" 2>/dev/null | tail -10
+          kubectl delete pod prisma-migrate-${RUN_ID} -n "$NS" 2>/dev/null || true
+          echo ">> Migrations done"
+
+      # ── Get ELB hostname ──────────────────────────────────────────────────
+      - name: Get nginx ingress ELB hostname
+        id: elb
+        run: |
+          echo ">> Waiting for ELB hostname (up to 4 min)..."
+          for i in $(seq 1 24); do
+            HOST=$(kubectl get svc ingress-nginx-controller -n ingress-nginx \
+              -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+            if [ -n "$HOST" ]; then
+              echo "hostname=$HOST" >> $GITHUB_OUTPUT
+              echo ">> ELB: $HOST"
+              break
+            fi
+            echo "  [$i/24] no hostname yet, waiting 10s..."
+            sleep 10
+          done
+
+      # ── Print summary ─────────────────────────────────────────────────────
+      - name: Bootstrap summary
+        if: always()
+        run: |
+          ID="${{ steps.account.outputs.id }}"
+          ELB="${{ steps.elb.outputs.hostname }}"
+          R="${{ inputs.aws_region }}"
+          cat >> $GITHUB_STEP_SUMMARY << SUMMARY
+          ## Bootstrap Complete
+
+          | Resource | Value |
+          |---|---|
+          | AWS Account | \`$ID\` |
+          | ECR Registry | \`$ID.dkr.ecr.$R.amazonaws.com\` |
+          | EKS Cluster | \`${{ inputs.cluster_name }}\` |
+          | RDS Endpoint | \`${{ steps.rds.outputs.endpoint }}\` |
+          | New ELB Hostname | \`$ELB\` |
+          | GitHub Actions Role | \`arn:aws:iam::$ID:role/quant-gha-deploy\` |
+
+          ### Next steps
+          1. Update GitHub environment variable **AWS_ACCOUNT_ID** = \`$ID\`
+          2. Update GitHub environment variable **AWS_DEPLOY_ROLE_ARN** = \`arn:aws:iam::$ID:role/quant-gha-deploy\`
+          3. Cloudflare DNS: set \`quantmail.quantrinity.in\` CNAME → \`$ELB\`
+          4. Update Secrets Manager **quant/openai.api-key** and **quant/anthropic.api-key** with real keys
+          SUMMARY

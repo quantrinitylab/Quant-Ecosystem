@@ -1,0 +1,227 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   Quant shell overrides — GitHub-style header hamburger + overlay navigation.
+   Imported after globals.css so these rules win the cascade.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.quant-shell-header {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.quant-shell-header-slot { flex: 1 1 auto; min-width: 0; }
+
+.quant-shell-trigger {
+  position: static;
+  top: auto;
+  left: auto;
+  flex: 0 0 auto;
+  align-self: center;
+  margin-left: 0.6rem;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
+  backdrop-filter: none;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: none;
+}
+.quant-shell-trigger:hover {
+  transform: none;
+  border-color: rgba(255, 153, 51, 0.45);
+  background: rgba(255, 153, 51, 0.1);
+}
+.quant-shell-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--quant-accent-soft);
+}
+
+.quant-shell-close {
+  position: absolute;
+  top: 0.8rem;
+  right: -1.1rem;
+  z-index: 2;
+  display: grid;
+  width: 2.15rem;
+  height: 2.15rem;
+  place-items: center;
+  border: 1px solid var(--quant-border-subtle);
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.92);
+  color: var(--quant-muted-foreground);
+  backdrop-filter: blur(14px) saturate(140%);
+  transition: color 150ms var(--brand-ease-out), border-color 150ms var(--brand-ease-out);
+}
+.quant-shell-close:hover {
+  color: var(--quant-foreground);
+  border-color: rgba(255, 153, 51, 0.5);
+}
+.quant-shell-panel .quant-shell-pin { top: 3.3rem; }
+
+/* Hamburger now lives in the header, so the canvas needs no reserved gutter. */
+[data-shell-fullscreen='true'] > div > main { padding-left: 0; }
+@media (max-width: 768px) {
+  [data-shell-fullscreen='true'] > div > main { padding-left: 0; padding-top: 0; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   P0 fixes — mobile single-pane inbox, QuantAI trigger visibility, and
+   centered auth forms. shell.css loads after globals.css on purpose.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* 1) Mobile inbox is a true single pane. Phones navigate to /thread/:id, so
+      the desktop preview pane must never render (it was stacking an empty
+      panel under the list and creating dead space). */
+@media (max-width: 899px) {
+  .quantmail-shell .inbox-workspace {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 100%;
+  }
+  .quantmail-shell .reading-pane { display: none !important; }
+  .quantmail-shell .inbox-list-pane {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+  }
+  /* The AppShell mobile top-bar already carries the brand logo and compose
+     button.  Showing the inbox-hero H1/kicker/p below it creates a visible
+     double-header stack that wastes ~120px on small phones.  Hide the hero
+     copy on mobile; the compose button in mobileActions remains accessible. */
+  .quantmail-shell .inbox-hero { display: none; }
+  /* One compose entry point on phones — the header action stays. */
+  .quantmail-shell .hero-compose { display: none; }
+}
+
+/* 2) QuantAI trigger pill mounts outside the app shell's theme scope, so its
+      theme variables can be undefined there (blank white pill). Give it
+      self-contained styling that reads in every context. */
+.mail-copilot-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(16, 16, 20, 0.94) !important;
+  color: #f6f6f7 !important;
+  border: 1px solid rgba(255, 153, 51, 0.4) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px) saturate(140%);
+}
+.mail-copilot-trigger strong,
+.mail-copilot-trigger small,
+.mail-copilot-trigger span {
+  color: inherit !important;
+  opacity: 1;
+  visibility: visible;
+}
+.mail-copilot-trigger svg { color: #ff9933; }
+
+/* 3) Auth pages: the access form stays vertically centered, and desktop is a
+      real two-column layout instead of a short form lost in empty space.
+      On mobile, the brand illustration panel is hidden so there is no dead
+      gap below the sign-in form. */
+.auth-shell .auth-shell-form {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.auth-shell .auth-shell-form-content {
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+}
+/* Brand panel: visible only on desktop */
+.auth-shell-brand { display: none; }
+@media (min-width: 1024px) {
+  .auth-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    align-items: stretch;
+    min-height: 100dvh;
+  }
+  .auth-shell-brand { display: flex; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Folder mailboxes (Starred / Snoozed / Archive / Spam) — per-row rescue
+   action button used by MailFolderPage.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.folder-row-action {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  color: inherit;
+  opacity: 0.85;
+  background: transparent;
+  white-space: nowrap;
+  transition: opacity 150ms ease, border-color 150ms ease;
+}
+.folder-row-action:hover {
+  opacity: 1;
+  border-color: rgba(255, 153, 51, 0.55);
+}
+.folder-row-action:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Touch-device mail rows — hover-action bar is mouse-only.
+   On coarse-pointer devices (phones/tablets) the bar must never appear:
+   the swipe-to-archive gesture and the individual row tap handle the same
+   actions.  The @media query targets any primary pointer without hover
+   (i.e. every touch-first device, even foldables in touch mode).
+   ────────────────────────────────────────────────────────────────────────── */
+
+@media (hover: none), (pointer: coarse) {
+  .hover-actions { display: none !important; }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Sidebar layout: compose button is sticky so the label list scrolls
+   underneath it without the button scrolling away.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.sidebar-compose-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  /* Slight backdrop so the list rows don't bleed through on scroll */
+  background: var(--quant-surface, rgba(12, 12, 16, 0.96));
+  padding: 0.75rem 0.875rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Pull-to-refresh indicator that page.tsx inserts above the mail-list */
+.ptr-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--quant-muted-foreground);
+  transition: height 120ms ease;
+}
+.ptr-indicator.ptr-ready {
+  height: 48px;
+}
+.ptr-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 153, 51, 0.25);
+  border-top-color: #ff9933;
+  border-radius: 50%;
+  animation: ptr-spin 0.7s linear infinite;
+}
+@keyframes ptr-spin { to { transform: rotate(360deg); } }

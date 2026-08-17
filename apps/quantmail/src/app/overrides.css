@@ -1,0 +1,1262 @@
+/* ============================================================================
+   QuantMail UI restructure overrides - loaded AFTER shell.css so these rules
+   win at equal specificity. Keep this file small and surgical.
+
+   What lives here:
+   1. ONE compose entry point: global floating + FAB (bottom-right)
+   2. QuantAI trigger moves to the top search row; old bottom pill hidden
+   3. Calmer inbox hero + tighter vertical rhythm (less dead space)
+   4. QuantMail wordmark brand (the word IS the logo) + Beta pill
+   5. Compact icon toolbar for the thread view
+   6. Clear read vs unread mail rows
+   7. Gmail micro-features round 1: mark-all-read, snooze menu, labels manager
+   8. Polish round: full sender names, Quanty trigger, contextual calendar FAB
+   9. msg#30 round: flame logo family, one-pane inbox, nav search, bottom nav,
+      Outlook empty state, composer Quanty writer, CodeHub chat, notifications
+   ========================================================================== */
+
+/* --- 1. Hide the old bottom-right Ask QuantAI pill (panel itself unchanged) */
+.mail-copilot-trigger {
+  display: none !important;
+}
+
+/* --- Global compose FAB ---------------------------------------------------- */
+.quant-compose-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  z-index: 46;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 153, 51, 0.4);
+  background: linear-gradient(135deg, #ffb15e 0%, #ff9933 45%, #ff7a00 100%);
+  color: #221233;
+  box-shadow: 0 14px 34px -12px rgba(255, 153, 51, 0.65);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.quant-compose-fab:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 18px 40px -12px rgba(255, 153, 51, 0.75);
+}
+.quant-compose-fab:active {
+  transform: scale(0.96);
+}
+.quant-compose-fab svg {
+  width: 26px;
+  height: 26px;
+}
+
+@media (max-width: 899px) {
+  .quant-compose-fab {
+    right: 16px;
+    bottom: 18px;
+  }
+}
+
+/* --- 2. QuantAI trigger in the top search row ------------------------------ */
+.inbox-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.inbox-search-wrap .inbox-search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.inbox-ai-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 153, 51, 0.32);
+  background: rgba(255, 153, 51, 0.1);
+  color: var(--quant-primary, #ff9933);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.inbox-ai-trigger:hover {
+  background: rgba(255, 153, 51, 0.18);
+  border-color: rgba(255, 153, 51, 0.5);
+}
+.inbox-ai-trigger svg {
+  width: 16px;
+  height: 16px;
+}
+@media (max-width: 480px) {
+  .inbox-ai-trigger span {
+    display: none; /* icon-only on the smallest screens */
+  }
+}
+
+/* --- 3. Calmer inbox hero / tighter rhythm --------------------------------- */
+.inbox-hero {
+  padding-top: 14px;
+  padding-bottom: 10px;
+}
+.inbox-hero h1 {
+  font-size: 1.3rem;
+  line-height: 1.2;
+  margin: 2px 0;
+}
+.inbox-hero p {
+  margin: 0;
+}
+
+/* Reading-pane empty state: quieter, centered, less copy */
+.reading-pane-empty .reading-empty-content h2 {
+  font-size: 1.15rem;
+  line-height: 1.35;
+}
+.reading-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.1));
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--quant-muted-foreground, #8a94a3);
+  margin-bottom: 4px;
+}
+
+/* --- 4. QuantMail wordmark: the word IS the logo ----------------------------
+   Cursive script (Pacifico via --font-brand) in the OFFICIAL flame family of
+   the new QuantMail logo — golden yellow → saffron → deep orange → flame red.
+   Script faces have deep descenders (the Q tail, the y/l loops) so line-height
+   stays generous, and extra right padding guarantees the final ‘l’ never clips. */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 44px 8px 12px; /* right padding clears the drawer close/pin buttons */
+}
+.qm-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 2px 8px 4px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.qm-wordmark:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.qm-wordmark:focus-visible {
+  outline: 2px solid rgba(255, 153, 51, 0.6);
+  outline-offset: 2px;
+}
+.qm-wordmark-text {
+  font-family: var(--font-brand), 'Segoe Script', 'Comic Sans MS', cursive;
+  font-size: 21px;
+  font-weight: 400;
+  letter-spacing: 0.005em;
+  line-height: 1.5; /* room for script descenders */
+  padding-bottom: 2px;
+  padding-right: 10px; /* the trailing ‘l’ never clips (msg#30 P16) */
+  overflow: visible;
+  background: linear-gradient(95deg, #ffc21a 0%, #ff9933 32%, #ff6a00 64%, #e01313 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  white-space: nowrap;
+  filter: drop-shadow(0 1px 8px rgba(255, 122, 26, 0.3));
+}
+.qm-beta-pill {
+  display: none !important; /* Beta label retired (msg#30 P16) */
+}
+.mobile-brand .qm-wordmark {
+  padding: 1px 6px 3px 4px;
+}
+.mobile-brand .qm-wordmark-text {
+  font-size: 19px;
+}
+
+/* --- 5. Thread view: compact icon toolbar ----------------------------------- */
+.thread-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--quant-border, rgba(255, 255, 255, 0.09));
+  background: rgba(11, 15, 20, 0.92);
+  backdrop-filter: blur(10px);
+}
+.thread-toolbar-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thread-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.icon-action:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--quant-foreground, #e8edf4);
+}
+.icon-action.is-on {
+  color: #ff9933;
+}
+.icon-action-danger:hover {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+}
+.icon-action:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.icon-action svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* --- 6. Read vs unread rows: unread pops, read settles ---------------------- */
+.mail-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #ff9933;
+  box-shadow: 0 0 0 3px rgba(255, 153, 51, 0.14);
+  flex: 0 0 auto;
+}
+.mail-row:not(.is-unread) {
+  opacity: 0.78;
+}
+.mail-row:not(.is-unread) h3 {
+  font-weight: 500;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.mail-row.is-unread h3 {
+  font-weight: 650;
+}
+
+/* Notification bell sits at the end of the brand row */
+.sidebar-brand .notification-bell-wrapper {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* --- 7. Gmail micro-features round 1 ----------------------------------------
+   Mark-all-as-read pill, snooze menu upgrades (hover-bar opening + custom
+   date-time picker), sidebar manage-labels shortcut, and the /labels page. */
+.inbox-list-tools {
+  display: flex;
+  justify-content: flex-end;
+  padding: 2px 18px 6px;
+}
+.mark-all-read-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.mark-all-read-btn:hover {
+  color: var(--quant-foreground, #e8edf4);
+  border-color: rgba(255, 153, 51, 0.45);
+  background: rgba(255, 153, 51, 0.08);
+}
+
+/* Snooze: hidden trigger keeps the menu anchored while the hover bar covers it */
+.snooze-trigger.is-hidden {
+  visibility: hidden;
+}
+.snooze-custom {
+  border-top: 1px solid var(--quant-border, rgba(255, 255, 255, 0.09));
+  margin-top: 6px;
+  padding-top: 4px;
+}
+.snooze-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 10px;
+}
+.snooze-custom-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-size: 12px;
+  color-scheme: dark;
+}
+.snooze-custom-row button {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 153, 51, 0.4);
+  background: rgba(255, 153, 51, 0.12);
+  color: #ff9933;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.snooze-custom-row button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Sidebar: manage-labels shortcut under the label list */
+.sidebar-manage-labels {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--quant-muted-foreground, #8a94a3);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.sidebar-manage-labels:hover {
+  color: var(--quant-foreground, #e8edf4);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Labels manager page (/labels) */
+.labels-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 20px 18px 80px;
+  width: 100%;
+}
+.labels-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.labels-header h1 {
+  font-size: 1.35rem;
+  margin: 0 0 4px;
+}
+.labels-header p {
+  margin: 0;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 13px;
+}
+.labels-card {
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.1));
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.labels-card input[type='text'],
+.labels-row-editor input[type='text'] {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-size: 14px;
+}
+.labels-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.labels-color-grid button {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.labels-color-grid button.is-selected {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+}
+.labels-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.labels-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.labels-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.08));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.labels-row-editor {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.labels-row-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  flex: 0 0 auto;
+}
+.labels-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.labels-row-meta {
+  flex: 0 0 auto;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 12px;
+}
+.labels-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.labels-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.labels-confirm button {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+}
+.labels-confirm button:first-of-type {
+  border-color: rgba(255, 107, 107, 0.5);
+  color: #ff6b6b;
+}
+.labels-empty {
+  text-align: center;
+  padding: 46px 16px;
+  border: 1px dashed var(--quant-border, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.labels-empty h2 {
+  color: var(--quant-foreground, #e8edf4);
+  font-size: 1.05rem;
+  margin: 0 0 6px;
+}
+.labels-empty p {
+  max-width: 420px;
+  margin: 0 auto 14px;
+}
+@media (max-width: 640px) {
+  .labels-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* --- 8. Polish round: full sender names, Quanty trigger, contextual FAB -----
+   (a) Mail rows: sender name + subject use the full row width; ellipsis only
+       when genuinely out of space (kills the hard clipping Kumar reported).
+   (b) The search-row trigger now hosts the live Quanty robot; let its SVG
+       size itself (must beat the generic 16px icon rule in section 2).
+   (c) Reading-pane brief: inline Quanty alignment.
+   (d) Calendar context FAB: teal identity so add-event reads differently
+       from the orange mail compose FAB. */
+
+/* (a) Full sender names + tidy row typography */
+.mail-row-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.mail-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mail-row-meta strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none !important;
+  width: auto !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.mail-row-meta time {
+  flex: 0 0 auto;
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 11.5px;
+  opacity: 0.75;
+}
+.mail-row-copy h3 {
+  max-width: none !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-row-copy p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 899px) {
+  .mail-row-copy p {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
+
+/* (b) Quanty robot replaces the QuantAI pill next to search */
+.inbox-ai-trigger.has-quanty {
+  padding: 3px 10px 0;
+  background: rgba(18, 22, 36, 0.72);
+  border: 1px solid rgba(49, 207, 232, 0.4);
+  box-shadow: 0 6px 20px -8px rgba(49, 207, 232, 0.45);
+  border-radius: 9999px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease,
+    background 0.15s ease;
+}
+.inbox-ai-trigger.has-quanty:hover {
+  transform: translateY(-1px);
+  border-color: rgba(49, 207, 232, 0.7);
+  background: rgba(18, 22, 36, 0.85);
+  box-shadow: 0 10px 26px -8px rgba(49, 207, 232, 0.6);
+}
+.inbox-ai-trigger.has-quanty svg {
+  width: auto;
+  height: auto;
+  display: block;
+}
+
+/* (c) Reading-pane brief: Quanty inline alignment */
+.reading-ai-quanty {
+  display: inline-flex;
+  align-items: flex-end;
+}
+
+/* (d) Calendar FAB: teal identity (add event) vs orange mail compose */
+.quant-fab-calendar {
+  border-color: rgba(63, 217, 198, 0.45);
+  background: linear-gradient(135deg, #6ff0df 0%, #3fd9c6 45%, #17a596 100%);
+  color: #06251f;
+  box-shadow: 0 14px 34px -12px rgba(63, 217, 198, 0.6);
+}
+.quant-fab-calendar:hover {
+  box-shadow: 0 18px 40px -12px rgba(63, 217, 198, 0.75);
+}
+
+/* ============================================================================
+   9. msg#30 round — official flame logo family everywhere, one-pane inbox,
+   nav search, mobile bottom nav, Outlook empty state, composer Quanty writer,
+   CodeHub build chat, notifications v2
+   ========================================================================== */
+
+/* Official QuantMail logo mark (QuantMailLogo.tsx) placements */
+.qm-wordmark-logo {
+  flex: 0 0 auto;
+  display: inline-flex;
+  border-radius: 10px;
+}
+.quantrinity-mark.is-quantmail {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+}
+
+/* P01: bare Quanty trigger — the robot alone, no pill/box behind him */
+.inbox-ai-trigger.is-bare,
+.inbox-ai-trigger.is-bare:hover {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.inbox-ai-trigger.is-bare svg {
+  width: auto;
+  height: auto;
+  display: block;
+}
+.inbox-ai-trigger.is-bare:hover {
+  transform: translateY(-1px) scale(1.05);
+}
+
+/* P02: Outlook-style empty inbox + one solid colour everywhere */
+.inbox-zero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 56px 20px 64px;
+  text-align: center;
+}
+.inbox-zero-mark {
+  animation: qm-zero-float 4.6s ease-in-out infinite;
+  filter: drop-shadow(0 18px 34px rgba(255, 122, 26, 0.35));
+}
+.inbox-zero-title {
+  margin: 14px 0 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+.inbox-zero-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+@keyframes qm-zero-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inbox-zero-mark {
+    animation: none;
+  }
+}
+
+/* P04: one-pane inbox — the list owns the full width, no preview column */
+.inbox-workspace.is-single {
+  display: block !important;
+}
+.inbox-workspace.is-single .inbox-list-pane {
+  width: 100% !important;
+  max-width: none !important;
+  flex: 1 1 auto !important;
+  border-right: 0 !important;
+  min-height: 100%;
+}
+
+/* Mobile: one solid colour edge to edge + FAB clears the bottom nav */
+@media (max-width: 899px) {
+  .inbox-workspace.is-single,
+  .inbox-workspace.is-single .inbox-list-pane {
+    background: var(--quant-background, #0b0f14);
+  }
+  .quant-compose-fab {
+    bottom: 84px;
+  }
+}
+
+/* P03: search lives in the nav bar; the logo sits inside the field */
+.mobile-nav-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.inbox-search-nav {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.05);
+}
+.inbox-search-nav input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: inherit;
+  font-size: 14px;
+}
+.inbox-search-logo {
+  flex: 0 0 auto;
+  display: inline-flex;
+}
+.inbox-search-wrap .inbox-search-logo {
+  margin-right: 2px;
+}
+@media (max-width: 899px) {
+  .inbox-hero,
+  .inbox-search-wrap {
+    display: none; /* search moved up into the nav bar */
+  }
+}
+@media (min-width: 900px) {
+  .mobile-nav-search {
+    display: none;
+  }
+}
+
+/* P06: starred mail pins to the top of the inbox */
+.mail-row.is-pinned {
+  background: rgba(255, 153, 51, 0.05);
+}
+.mail-pin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffb200;
+}
+.mail-pin-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* P15: mobile bottom navigation (Outlook/Instagram style) */
+.quant-bottom-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 44;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  gap: 2px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--quant-border, rgba(255, 255, 255, 0.1));
+  background: rgba(11, 15, 20, 0.94);
+  backdrop-filter: blur(12px);
+}
+.qbn-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 1 1 0;
+  padding: 5px 2px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.qbn-item svg {
+  width: 21px;
+  height: 21px;
+}
+.qbn-item.is-active {
+  color: #ff9933;
+  background: rgba(255, 153, 51, 0.1);
+}
+@media (min-width: 1024px) {
+  .quant-bottom-nav {
+    display: none;
+  }
+}
+
+/* P07/P08/P09: composer — solid ground + centred Quanty writer chat */
+.email-composer {
+  background: var(--quant-background, #0b0f14);
+  min-height: 100%;
+  padding-bottom: 40px; /* no black cut-off band under the surface */
+}
+.composer-quanty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 20px 4px;
+}
+.composer-quanty-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.composer-quanty-face:hover {
+  transform: translateY(-1px);
+}
+.composer-quanty-hint {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.composer-quanty-chat {
+  width: 100%;
+  max-width: 560px;
+  border: 1px solid rgba(255, 153, 51, 0.22);
+  border-radius: 16px;
+  background: rgba(255, 153, 51, 0.04);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.composer-quanty-thread {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.composer-quanty-empty {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.composer-quanty-msg {
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.composer-quanty-msg p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.composer-quanty-msg.is-user {
+  align-self: flex-end;
+  background: rgba(255, 153, 51, 0.14);
+  max-width: 85%;
+}
+.composer-quanty-msg.is-assistant {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.05);
+  max-width: 92%;
+}
+.composer-quanty-msg.is-error {
+  background: rgba(255, 107, 107, 0.12);
+  color: #ff9b9b;
+}
+.composer-quanty-msg.is-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.composer-quanty-msg .msg-author {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ff9933;
+  margin-bottom: 3px;
+}
+.composer-quanty-apply {
+  margin-top: 8px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 153, 51, 0.45);
+  background: rgba(255, 153, 51, 0.14);
+  color: #ff9933;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.composer-quanty-apply:hover {
+  background: rgba(255, 153, 51, 0.24);
+}
+.composer-quanty-tones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.composer-quanty-tones button {
+  padding: 5px 11px;
+  border-radius: 9999px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.composer-quanty-tones button:hover {
+  color: #ff9933;
+  border-color: rgba(255, 153, 51, 0.4);
+}
+.composer-quanty-input {
+  display: flex;
+  gap: 8px;
+}
+.composer-quanty-input input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.composer-quanty-input input:focus {
+  border-color: rgba(255, 153, 51, 0.5);
+}
+.composer-quanty-input button {
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 153, 51, 0.4);
+  background: rgba(255, 153, 51, 0.14);
+  color: #ff9933;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.composer-quanty-input button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* P17: notifications — Quant-only feed with per-item delete */
+.notification-panel-heading {
+  min-width: 0;
+}
+.notification-panel-sub {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.notification-panel-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.notification-item {
+  position: relative;
+  touch-action: pan-y;
+}
+.notification-item-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  cursor: pointer;
+}
+.notification-item-delete:hover {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.12);
+}
+.notification-item-delete svg {
+  width: 13px;
+  height: 13px;
+}
+.notification-panel-hint {
+  margin: 0;
+  padding: 8px 14px 12px;
+  font-size: 11px;
+  color: var(--quant-muted-foreground, #8a94a3);
+  border-top: 1px solid var(--quant-border, rgba(255, 255, 255, 0.08));
+}
+
+/* P13/P14: CodeHub — Quanty build chat, agents strip, connectors */
+.ch-quanty-hero {
+  border: 1px solid rgba(255, 153, 51, 0.24);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 153, 51, 0.07), rgba(255, 153, 51, 0.02));
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.ch-quanty-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.ch-quanty-copy h2 {
+  margin: 0 0 2px;
+  font-size: 1.15rem;
+}
+.ch-quanty-copy p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.ch-mode-toggle {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+  padding: 4px;
+  border-radius: 9999px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+}
+.ch-mode-toggle button {
+  padding: 6px 16px;
+  border-radius: 9999px;
+  border: 0;
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ch-mode-toggle button.is-active {
+  background: linear-gradient(135deg, #ffb15e, #ff7a00);
+  color: #221233;
+}
+.ch-quanty-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 14px 0 10px;
+}
+.ch-msg {
+  border-radius: 12px;
+  padding: 9px 11px;
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 92%;
+}
+.ch-msg p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.ch-msg.is-user {
+  align-self: flex-end;
+  background: rgba(255, 153, 51, 0.14);
+}
+.ch-msg.is-assistant {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.05);
+}
+.ch-msg.is-error {
+  background: rgba(255, 107, 107, 0.12);
+  color: #ff9b9b;
+}
+.ch-msg.is-typing,
+.ch-msg-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.ch-msg-author {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ff9933;
+  margin-bottom: 3px;
+}
+.ch-quanty-composer {
+  display: flex;
+  gap: 8px;
+}
+.ch-quanty-composer input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 13px;
+  border-radius: 12px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+.ch-quanty-composer input:focus {
+  border-color: rgba(255, 153, 51, 0.5);
+}
+.ch-quanty-composer button {
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 153, 51, 0.4);
+  background: linear-gradient(135deg, #ffb15e, #ff7a00);
+  color: #221233;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ch-quanty-composer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ch-quanty-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ch-quanty-quick button {
+  padding: 5px 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ch-quanty-quick button:hover {
+  color: #ff9933;
+  border-color: rgba(255, 153, 51, 0.4);
+}
+.ch-agents {
+  margin: 0 0 16px;
+}
+.ch-agents h3,
+.ch-connectors h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.ch-agents-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+.ch-agent-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 12.5px;
+}
+.ch-agent-card strong {
+  display: block;
+  font-size: 12.5px;
+}
+.ch-agent-card small {
+  color: var(--quant-muted-foreground, #8a94a3);
+  font-size: 11px;
+}
+.ch-agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  flex: 0 0 auto;
+  background: #3fd9c6;
+}
+.ch-agent-dot.is-active,
+.ch-agent-dot.is-busy {
+  background: #ff9933;
+  box-shadow: 0 0 0 3px rgba(255, 153, 51, 0.18);
+}
+.ch-agent-dot.is-idle,
+.ch-agent-dot.is-build,
+.ch-agent-dot.is-deploy {
+  background: #8a94a3;
+}
+.ch-agent-dot.is-ready,
+.ch-agent-dot.is-observer {
+  background: #3fd9c6;
+}
+.ch-connectors {
+  margin: 0 0 16px;
+}
+.ch-connectors-sub {
+  margin: -4px 0 8px;
+  font-size: 12px;
+  color: var(--quant-muted-foreground, #8a94a3);
+}
+.ch-connectors-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ch-connector-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--quant-border, rgba(255, 255, 255, 0.1));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 12.5px;
+  cursor: pointer;
+  color: inherit;
+}
+.ch-connector-card:hover {
+  border-color: rgba(255, 153, 51, 0.4);
+}
+.ch-connector-card.is-on {
+  border-color: rgba(63, 217, 198, 0.5);
+  color: #3fd9c6;
+}

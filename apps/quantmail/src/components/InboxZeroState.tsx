@@ -1,50 +1,42 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { QuantrinityMark } from './QuantrinityMark';
+import { QuantMailLogo } from './QuantMailLogo';
 
 /**
- * Inbox Zero celebration state.
- * When inbox is completely clear, we show a premium celebration moment
- * (Gmail just shows a boring sun icon). We make reaching inbox zero feel rewarding.
+ * Empty-inbox state — Outlook-inspired (user reference, msg#30):
+ * the official QuantMail logo front and centre with a calm caption.
+ * Fills the whole list area in ONE background colour — no split panels,
+ * no dead blank space below.
  */
-export function InboxZeroState() {
+export function InboxZeroState({ query }: { query?: string }) {
   return (
     <motion.div
       className="inbox-zero"
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
-      <div className="inbox-zero-glow" aria-hidden="true" />
       <motion.div
         className="inbox-zero-mark"
-        animate={{ rotate: [0, 5, -5, 3, -3, 0] }}
-        transition={{ duration: 2, delay: 0.3, ease: 'easeInOut' }}
+        animate={{ y: [0, -6, 0] }}
+        transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <QuantrinityMark label="Inbox Zero" />
+        <QuantMailLogo size={96} title="QuantMail" />
       </motion.div>
-      <h2 className="inbox-zero-title">Inbox Zero</h2>
-      <p className="inbox-zero-subtitle">
-        Everything handled. No threads need your attention.
-      </p>
-      <div className="inbox-zero-stats">
-        <div className="inbox-zero-stat">
-          <span className="inbox-zero-stat-number">✓</span>
-          <span className="inbox-zero-stat-label">All caught up</span>
-        </div>
-        <div className="inbox-zero-stat">
-          <span className="inbox-zero-stat-number">🎯</span>
-          <span className="inbox-zero-stat-label">Focus achieved</span>
-        </div>
-        <div className="inbox-zero-stat">
-          <span className="inbox-zero-stat-number">⚡</span>
-          <span className="inbox-zero-stat-label">Zero noise</span>
-        </div>
-      </div>
-      <p className="inbox-zero-cta">
-        Start something new — compose, schedule, or review drafts.
-      </p>
+      {query ? (
+        <>
+          <h2 className="inbox-zero-title">No match yet</h2>
+          <p className="inbox-zero-subtitle">
+            Nothing matched “{query}”. Try a sender, a subject, or a simpler phrase.
+          </p>
+        </>
+      ) : (
+        <>
+          <h2 className="inbox-zero-title">All done for the day</h2>
+          <p className="inbox-zero-subtitle">Enjoy your empty inbox.</p>
+        </>
+      )}
     </motion.div>
   );
 }

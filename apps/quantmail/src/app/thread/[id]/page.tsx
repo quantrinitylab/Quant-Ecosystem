@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card, Avatar, Badge, Button, Skeleton } from '@quant/shared-ui';
@@ -13,6 +13,103 @@ import { useThread } from '../../../hooks/useThread';
 import { apiClient } from '../../../services/api-client';
 import { expandCollapseVariants, attachmentItemVariants } from '../../../lib/motion-variants';
 import type { Email, EmailAttachment } from '../../../types';
+
+// ---------------------------------------------------------------------------
+// Compact toolbar icons (consistent with the inbox icon language)
+// ---------------------------------------------------------------------------
+type TbIconName = 'archive' | 'back' | 'spark' | 'star' | 'trash';
+
+function TbIcon({
+  name,
+  className = 'h-[18px] w-[18px]',
+  filled = false,
+}: {
+  name: TbIconName;
+  className?: string;
+  filled?: boolean;
+}) {
+  const paths: Record<TbIconName, ReactNode> = {
+    archive: (
+      <>
+        <path d="M4 7h16" />
+        <path d="M5 7l1-3h12l1 3v12H5z" />
+        <path d="M9 11h6" />
+      </>
+    ),
+    back: <path d="M19 12H5M11 18l-6-6 6-6" />,
+    spark: (
+      <>
+        <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" />
+        <path d="M18.5 15.5l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z" />
+      </>
+    ),
+    star: <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />,
+    trash: <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6" />,
+  };
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill={filled && name === 'star' ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shared relative-time formatter (mirrors the inbox formatReceivedAt)
+// ---------------------------------------------------------------------------
+function formatMessageDate(value?: string | Date): string {
+  if (!value) return '';
+  const date = new Date(value);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+  const diffHr = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHr / 24);
+
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDay === 1) return 'Yesterday';
+  if (diffDay < 7) return `${diffDay}d ago`;
+  // Same calendar year: omit year
+  if (date.getFullYear() === now.getFullYear())
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ---------------------------------------------------------------------------
+// Thread body with expand-collapse when text is long
+// ---------------------------------------------------------------------------
+const PREVIEW_LIMIT = 400;
+
+function BodyWithExpand({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(text.length <= PREVIEW_LIMIT);
+  const shown = expanded ? text : text.slice(0, PREVIEW_LIMIT);
+
+  return (
+    <div className="pt-4 text-sm leading-relaxed whitespace-pre-wrap">
+      {shown}
+      {!expanded && <span aria-hidden="true">…</span>}
+      {text.length > PREVIEW_LIMIT && (
+        <button
+          type="button"
+          className="ml-2 text-xs text-[var(--quant-primary)] hover:underline min-h-[44px]"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? 'Show less' : 'Show full message'}
+        </button>
+      )}
+    </div>
+  );
+}
 
 function QuotedText({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -113,7 +210,8 @@ function AttachmentGallery({ attachments }: { attachments: EmailAttachment[] }) 
 export default function ThreadPage() {
   const params = useParams();
   const router = useRouter();
-  const threadId = (params?.id as string) || '';
+  const rawThreadId = (params?.id as string) || '';
+  const threadId = rawThreadId === 'null' || rawThreadId === 'undefined' ? '' : rawThreadId;
   const { data: thread, isLoading, error, refetch } = useThread(threadId);
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
   const [threadSummary, setThreadSummary] = useState<string | null>(null);
@@ -124,6 +222,20 @@ export default function ThreadPage() {
   const [replyText, setReplyText] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!threadId) router.replace('/');
+  }, [threadId, router]);
+
+  // Opening a thread marks its unread messages as read (Gmail behaviour) so
+  // the inbox unread indicators clear the moment the user has read the mail.
+  useEffect(() => {
+    const messages = thread?.messages;
+    if (!messages || messages.length === 0) return;
+    const unread = messages.filter((m: Email) => !m.isRead);
+    if (unread.length === 0) return;
+    void Promise.all(unread.map((m: Email) => apiClient.markAsRead(m.id).catch(() => null)));
+  }, [thread]);
 
   const toggleMessage = useCallback((index: number) => {
     setExpandedMessages((prev) => {
@@ -152,10 +264,7 @@ export default function ThreadPage() {
     router.push('/');
   }, [thread, router]);
 
-  const handleOpenReplyComposer = useCallback(() => {
-    setShowReplyComposer(true);
-  }, []);
-
+  const handleOpenReplyComposer = useCallback(() => setShowReplyComposer(true), []);
   const handleCloseReplyComposer = useCallback(() => {
     setShowReplyComposer(false);
     setReplyError(null);
@@ -166,7 +275,13 @@ export default function ThreadPage() {
     setIsSendingReply(true);
     setReplyError(null);
     try {
-      const res = await apiClient.replyToEmail(threadId, replyText);
+      // Reply to the latest message in the conversation; fall back to the
+      // route id (the backend resolves both email ids and thread ids).
+      const replyTarget =
+        thread?.messages && thread.messages.length > 0
+          ? thread.messages[thread.messages.length - 1].id
+          : threadId;
+      const res = await apiClient.replyToEmail(replyTarget, replyText);
       if (!res.success) {
         setReplyError(res.error?.message || 'Failed to send reply');
         return;
@@ -179,7 +294,7 @@ export default function ThreadPage() {
     } finally {
       setIsSendingReply(false);
     }
-  }, [replyText, isSendingReply, threadId, refetch]);
+  }, [replyText, isSendingReply, thread, threadId, refetch]);
 
   const handleSummarize = useCallback(async () => {
     if (!thread?.messages?.[0] || isSummarizing) return;
@@ -202,48 +317,92 @@ export default function ThreadPage() {
     }
   }, [thread, isSummarizing]);
 
-  const handleDismissSummary = useCallback(() => {
-    setThreadSummary(null);
-  }, []);
+  const handleDismissSummary = useCallback(() => setThreadSummary(null), []);
 
   const handleForward = useCallback(
-    (emailId: string) => {
-      router.push(`/compose?forward=${emailId}`);
-    },
+    (emailId: string) => router.push(`/compose?forward=${emailId}`),
     [router],
   );
 
-  const isExpanded = (index: number, total: number) => {
-    if (index === total - 1) return true;
-    return expandedMessages.has(index);
-  };
+  const isExpanded = (index: number, total: number) =>
+    index === total - 1 || expandedMessages.has(index);
+
+  if (!threadId) {
+    return (
+      <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
+        <PageTransition className="workspace-page thread-workspace flex flex-col h-full">
+          <div className="flex-1 flex items-center justify-center p-6">
+            <p className="text-sm text-[var(--quant-muted-foreground)]">
+              Taking you back to your inbox…
+            </p>
+          </div>
+        </PageTransition>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page thread-workspace flex flex-col h-full">
-        <div className="flex items-center gap-2 p-4 border-b border-[var(--quant-border)]">
-          <Button variant="secondary" onClick={() => router.push('/')}>
-            Back
-          </Button>
+        {/* Toolbar — one compact icon bar; clean on mobile, calm on desktop */}
+        <div className="thread-toolbar">
+          <button
+            type="button"
+            className="icon-action"
+            onClick={() => router.push('/')}
+            aria-label="Back to inbox"
+            title="Back to inbox"
+          >
+            <TbIcon name="back" />
+          </button>
+          <h1 className="thread-toolbar-title">
+            {thread ? thread.subject || '(no subject)' : 'Conversation'}
+          </h1>
           {thread && (
-            <div className="flex items-center gap-2 ml-auto flex-wrap">
+            <div className="thread-toolbar-actions">
               <button
-                className="flex min-h-[44px] items-center gap-1.5 rounded-full border border-[rgba(255,153,51,0.22)] bg-[rgba(255,153,51,0.08)] px-3 py-1.5 text-xs font-medium text-[var(--quant-primary)] transition-colors hover:bg-[rgba(255,153,51,0.16)]"
+                type="button"
+                className="icon-action"
                 onClick={handleSummarize}
                 disabled={isSummarizing}
+                aria-label="Summarise thread with QuantAI"
+                title="Summarise with QuantAI"
               >
-                <span>{isSummarizing ? '\u2699\uFE0F' : '\u2728'}</span>
-                {isSummarizing ? 'Summarizing...' : 'Summarize thread'}
+                <TbIcon
+                  name="spark"
+                  className={
+                    isSummarizing ? 'h-[18px] w-[18px] animate-pulse' : 'h-[18px] w-[18px]'
+                  }
+                />
               </button>
-              <Button variant="secondary" onClick={handleArchive}>
-                Archive
-              </Button>
-              <Button variant="secondary" onClick={handleStar}>
-                {thread.isStarred ? 'Unstar' : 'Star'}
-              </Button>
-              <Button variant="secondary" onClick={handleDelete}>
-                Delete
-              </Button>
+              <button
+                type="button"
+                className={`icon-action ${thread.isStarred ? 'is-on' : ''}`}
+                onClick={handleStar}
+                aria-label={thread.isStarred ? 'Unstar conversation' : 'Star conversation'}
+                aria-pressed={thread.isStarred}
+                title={thread.isStarred ? 'Unstar' : 'Star'}
+              >
+                <TbIcon name="star" filled={thread.isStarred} />
+              </button>
+              <button
+                type="button"
+                className="icon-action"
+                onClick={handleArchive}
+                aria-label="Archive conversation"
+                title="Archive"
+              >
+                <TbIcon name="archive" />
+              </button>
+              <button
+                type="button"
+                className="icon-action icon-action-danger"
+                onClick={handleDelete}
+                aria-label="Delete conversation"
+                title="Delete"
+              >
+                <TbIcon name="trash" />
+              </button>
             </div>
           )}
         </div>
@@ -260,6 +419,7 @@ export default function ThreadPage() {
           {!isLoading && !error && !thread && (
             <EmptyState title="Thread not found" description="This thread may have been deleted" />
           )}
+
           {!isLoading && !error && thread && (
             <>
               {summaryError && (
@@ -288,7 +448,7 @@ export default function ThreadPage() {
                         <div className="flex items-center gap-2">
                           <Button
                             variant="secondary"
-                            onClick={() => setIsSummaryVisible((visible) => !visible)}
+                            onClick={() => setIsSummaryVisible((v) => !v)}
                           >
                             {isSummaryVisible ? 'Hide' : 'Show'}
                           </Button>
@@ -307,35 +467,44 @@ export default function ThreadPage() {
                 )}
               </AnimatePresence>
 
-              <div className="mb-6">
-                <h1 className="text-xl md:text-2xl font-bold mb-4">{thread.subject}</h1>
-                <div className="flex items-center gap-2 text-sm text-[var(--quant-muted-foreground)]">
-                  <span>{thread.messageCount} messages</span>
-                  <span>-</span>
-                  <span>{thread.participants?.map((p) => p.name || p.email).join(', ')}</span>
-                </div>
+              {/* Thread meta (the subject lives in the toolbar now) */}
+              <div className="mb-5 flex items-center gap-2 text-sm text-[var(--quant-muted-foreground)]">
+                <span>
+                  {thread.messageCount} message{thread.messageCount === 1 ? '' : 's'}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span className="truncate">
+                  {thread.participants?.map((p: any) => p.name || p.email).join(', ')}
+                </span>
               </div>
 
+              {/* Messages */}
               <div className="space-y-4">
                 {thread.messages?.map((message: Email, index: number) => {
                   const expanded = isExpanded(index, thread.messages.length);
-                  const parsed = parseBodyWithQuotes(message.bodyText || message.snippet || '');
+                  const bodyText = message.bodyText || message.snippet || '';
+                  const parsed = parseBodyWithQuotes(bodyText);
 
                   return (
                     <Card key={message.id} padding="none" className="overflow-hidden">
+                      {/* Message header (always visible, click to collapse/expand) */}
                       <div
-                        className="flex items-center gap-3 p-4 cursor-pointer hover:bg-[var(--quant-muted)]"
+                        className="flex items-center gap-3 p-4 cursor-pointer hover:bg-[var(--quant-muted)] select-none"
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={expanded}
                         onClick={() => toggleMessage(index)}
+                        onKeyDown={(e) => e.key === 'Enter' && toggleMessage(index)}
                       >
                         <Avatar
                           src={undefined}
-                          name={message.from?.name || message.from?.email || '?'}
+                          name={message.from?.name || message.from?.email || 'Unknown'}
                           size="sm"
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium text-sm">
-                              {message.from?.name || message.from?.email}
+                            <span className="font-medium text-sm truncate">
+                              {message.from?.name || message.from?.email || 'Unknown sender'}
                             </span>
                             {!message.isRead && <Badge variant="info">New</Badge>}
                           </div>
@@ -345,21 +514,30 @@ export default function ThreadPage() {
                             </p>
                           )}
                         </div>
-                        <span className="text-xs text-[var(--quant-muted-foreground)] whitespace-nowrap">
-                          {message.receivedAt
-                            ? new Date(message.receivedAt).toLocaleDateString()
-                            : ''}
-                        </span>
+                        {/* Consistent relative timestamp */}
+                        <time
+                          className="text-xs text-[var(--quant-muted-foreground)] whitespace-nowrap"
+                          dateTime={
+                            message.receivedAt
+                              ? new Date(message.receivedAt).toISOString()
+                              : undefined
+                          }
+                          title={
+                            message.receivedAt
+                              ? new Date(message.receivedAt).toLocaleString()
+                              : undefined
+                          }
+                        >
+                          {formatMessageDate(message.receivedAt)}
+                        </time>
                       </div>
+
+                      {/* Message body (expanded only) */}
                       {expanded && (
                         <div className="px-4 pb-4 border-t border-[var(--quant-border)]">
-                          <div className="pt-4 text-sm leading-relaxed whitespace-pre-wrap">
-                            {parsed.regular}
-                          </div>
-
+                          <BodyWithExpand text={parsed.regular} />
                           {parsed.quoted && <QuotedText text={parsed.quoted} />}
                           <AttachmentGallery attachments={message.attachments} />
-
                           <div className="flex gap-2 mt-4">
                             <Button variant="secondary" onClick={handleOpenReplyComposer}>
                               Reply
@@ -375,6 +553,7 @@ export default function ThreadPage() {
                 })}
               </div>
 
+              {/* Reply composer */}
               <div className="mt-6 pt-4 border-t border-[var(--quant-border)]">
                 {!showReplyComposer ? (
                   <Button variant="primary" onClick={handleOpenReplyComposer}>
@@ -398,7 +577,7 @@ export default function ThreadPage() {
                     {replyError && <p className="text-sm text-red-600 mb-2">{replyError}</p>}
                     <textarea
                       className="w-full min-h-[120px] p-3 rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] text-sm resize-y focus:outline-none focus:ring-2 focus:ring-[var(--quant-primary)]"
-                      placeholder="Write your reply..."
+                      placeholder="Write your reply…"
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
                     />
@@ -408,7 +587,7 @@ export default function ThreadPage() {
                         onClick={handleSendReply}
                         disabled={isSendingReply || !replyText.trim()}
                       >
-                        {isSendingReply ? 'Sending...' : 'Send Reply'}
+                        {isSendingReply ? 'Sending…' : 'Send Reply'}
                       </Button>
                       <span className="text-xs text-[var(--quant-muted-foreground)]">
                         Keep the reply focused on the next action.

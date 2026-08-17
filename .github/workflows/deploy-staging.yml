@@ -1,6 +1,5 @@
 name: Deploy staging (OIDC)
 
-# Notion may dispatch this workflow only for the current protected main commit.
 # AWS credentials are short-lived OIDC credentials; no static keys are used.
 on:
   workflow_dispatch:
@@ -11,6 +10,7 @@ on:
         type: choice
         options:
           - quantmail
+          - quantmail-backend
           - quantchat
           - quantai
           - admin
@@ -87,7 +87,7 @@ jobs:
     name: Build and deploy ${{ inputs.target }}
     needs: validate-release
     environment: staging
-    runs-on: [self-hosted, Linux, X64, quant-deploy, notion-aws]
+    runs-on: ubuntu-latest
     timeout-minutes: 75
     permissions:
       contents: read
@@ -115,10 +115,14 @@ jobs:
           for name in "${required[@]}"; do
             test -n "${!name:-}" || { echo "Missing staging variable: $name" >&2; exit 1; }
           done
-          test "$AWS_ACCOUNT_ID" = '266176113726'
+          [[ "$AWS_ACCOUNT_ID" =~ ^[0-9]{12}$ ]] || {
+            echo 'AWS_ACCOUNT_ID must be a 12-digit account number' >&2; exit 1
+          }
+          [[ "$AWS_DEPLOY_ROLE_ARN" =~ ^arn:aws:iam::[0-9]{12}:role/ ]] || {
+            echo 'AWS_DEPLOY_ROLE_ARN must be a valid IAM role ARN' >&2; exit 1
+          }
           test "$EKS_CLUSTER" = 'quant-staging-eks'
           test "$K8S_NAMESPACE" = 'quant-staging'
-          test "$AWS_DEPLOY_ROLE_ARN" = 'arn:aws:iam::266176113726:role/quant-gha-deploy'
 
       - name: Configure short-lived AWS credentials
         uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
@@ -150,19 +154,22 @@ jobs:
           case "$TARGET" in
             quantmail)
               repository=quant-quantmail; dockerfile=apps/quantmail/Dockerfile
-              deployment=quant-platform-staging-quantmail; container=quantmail ;;
+              deployment=quant-quantmail; container=quant-quantmail ;;
+            quantmail-backend)
+              repository=quant-quantmail-backend; dockerfile=apps/quantmail/Dockerfile.backend
+              deployment=quant-quantmail-backend; container=quantmail-backend ;;
             quantchat)
               repository=quant-quantchat; dockerfile=apps/quantchat/Dockerfile
-              deployment=quant-platform-staging-quantchat; container=quantchat ;;
+              deployment=quant-quantchat; container=quant-quantchat ;;
             quantai)
               repository=quant-quantai; dockerfile=apps/quantai/Dockerfile
-              deployment=quant-platform-staging-quantai; container=quantai ;;
+              deployment=quant-quantai; container=quant-quantai ;;
             admin)
               repository=quant-admin; dockerfile=apps/admin/Dockerfile
               deployment=quant-platform-staging-admin; container=admin ;;
             ws-gateway)
               repository=quant-ws-gateway; dockerfile=services/ws-gateway/Dockerfile
-              deployment=quant-platform-staging-ws-gateway; container=ws-gateway ;;
+              deployment=quant-ws-gateway; container=ws-gateway ;;
             *) echo "Unsupported target: $TARGET" >&2; exit 1 ;;
           esac
           test -f "$dockerfile"

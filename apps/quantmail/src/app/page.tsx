@@ -10,8 +10,7 @@ import {
   useTransform,
   type PanInfo,
 } from 'framer-motion';
-import { ErrorState, Skeleton, Button } from '@quant/shared-ui';
-import { quantMailBrandLockup } from '../brand/identity';
+import { ErrorState, Skeleton, Button, useQuantSidekick } from '@quant/shared-ui';
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
@@ -20,9 +19,11 @@ import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
 import { EmailSnooze } from '../components/EmailSnooze';
 import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
+import { InboxZeroState } from '../components/InboxZeroState';
 import { showToast } from '../components/InboxToast';
 import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
-import { QuantrinityMark } from '../components/QuantrinityMark';
+import { QuantMailLogo } from '../components/QuantMailLogo';
+import { Quanty } from '../components/Quanty';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { apiClient } from '../services/api-client';
@@ -294,8 +295,8 @@ function ReadingPane({
       <section className="reading-pane reading-pane-empty" aria-label="Message preview">
         <div className="reading-ambient" aria-hidden="true" />
         <div className="reading-empty-content">
-          <QuantrinityMark className="reading-empty-mark" label="Quantrinity infinity" />
-          <p className="reading-eyebrow">Zero-noise workspace</p>
+          <QuantMailLogo />
+          <p className="reading-eyebrow mt-4">Zero-noise workspace</p>
           <h2>
             Choose the signal.
             <br />
@@ -547,6 +548,19 @@ export default function InboxPage() {
     debouncedQuery ? { query: debouncedQuery } : null,
   );
 
+  // Sidekick Context Registration
+  useQuantSidekick({
+    app: 'quantmail',
+    context: {
+      activeCategory,
+      totalUnread: allEmails?.filter((e) => !e.isRead).length ?? 0,
+      selectedEmailId: selectedEmail?.id,
+      selectedSubject: selectedEmail?.subject,
+      selectedSender: selectedEmail?.from?.email,
+      view: 'inbox',
+    },
+  });
+
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(searchQuery.trim()), 260);
     return () => window.clearTimeout(timer);
@@ -738,10 +752,7 @@ export default function InboxPage() {
       className="quantmail-shell"
       mobileTitle={
         <span className="mobile-brand">
-          <QuantrinityMark compact label={quantMailBrandLockup.accessibleName} />
-          <span aria-hidden="true">
-            {quantMailBrandLockup.productName} <small>{quantMailBrandLockup.byline}</small>
-          </span>
+          <QuantMailLogo />
         </span>
       }
       mobileActions={
@@ -865,42 +876,39 @@ export default function InboxPage() {
                 <ErrorState message={error.message} onRetry={() => void refetch()} />
               </div>
             )}
-            {!isLoading && !isSearching && !error && (!emails || emails.length === 0) && (
-              <div className="mail-empty">
-                <span className="mail-empty-icon">
-                  <MailIcon name={debouncedQuery ? 'search' : 'mail'} />
-                </span>
-                <p className="reading-eyebrow">{debouncedQuery ? 'Search query' : 'Inbox zero'}</p>
-                <h2>{debouncedQuery ? 'No matching messages.' : 'All caught up!'}</h2>
-                <p>
-                  {debouncedQuery
-                    ? `No messages matched "${debouncedQuery}". Try searching for another keyword, email, or subject.`
-                    : 'Your inbox is clear. New incoming emails, thread replies, and notifications will arrive in real time.'}
-                </p>
-                <div className="flex items-center justify-center gap-2 flex-wrap">
-                  {debouncedQuery ? (
-                    <>
-                      <Button
-                        variant="primary"
-                        onClick={() => {
-                          setSearchQuery('');
-                          setDebouncedQuery('');
-                        }}
-                      >
-                        Clear search
-                      </Button>
-                      <Button variant="secondary" onClick={() => router.push('/search')}>
-                        Advanced search
-                      </Button>
-                    </>
-                  ) : (
-                    <Button variant="primary" onClick={() => router.push('/compose')}>
-                      Compose new email
+            {!isLoading &&
+              !isSearching &&
+              !error &&
+              (!emails || emails.length === 0) &&
+              (debouncedQuery ? (
+                <div className="mail-empty">
+                  <span className="mail-empty-icon">
+                    <MailIcon name="search" />
+                  </span>
+                  <p className="reading-eyebrow">Search query</p>
+                  <h2>No matching messages.</h2>
+                  <p>
+                    No messages matched "{debouncedQuery}". Try searching for another keyword,
+                    email, or subject.
+                  </p>
+                  <div className="flex items-center justify-center gap-2 flex-wrap">
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setDebouncedQuery('');
+                      }}
+                    >
+                      Clear search
                     </Button>
-                  )}
+                    <Button variant="secondary" onClick={() => router.push('/search')}>
+                      Advanced search
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <InboxZeroState onCompose={() => router.push('/compose')} />
+              ))}
             {!isLoading && !isSearching && !error && emails && emails.length > 0 && (
               <motion.div
                 initial="hidden"
@@ -945,6 +953,8 @@ export default function InboxPage() {
           onToggleStar={(id) => void toggleStar(null, id)}
         />
       </div>
+
+      <Quanty />
     </AppShell>
   );
 }

@@ -1,0 +1,76 @@
+name: Fix frontend service port
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-frontend-port.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fix:
+    name: Patch svc targetPort + verify
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      EKS_CLUSTER: ${{ vars.EKS_CLUSTER }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-frontport-${{ github.run_id }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+
+      - name: Patch service targetPort to 3010
+        run: |
+          kubectl patch svc quant-quantmail -n "$K8S_NAMESPACE" -p '{"spec":{"ports":[{"port":3000,"targetPort":3010}]}}'
+          sleep 8
+          kubectl get endpoints quant-quantmail -n "$K8S_NAMESPACE"
+
+      - name: Publish result to status-report branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p infra/status
+          {
+            echo "# frontend port fix result (run ${{ github.run_id }})"
+            echo "time: $(date -u +%FT%TZ)"
+            echo ""
+            echo "## svc ports (after patch)"
+            kubectl get svc quant-quantmail -n "$K8S_NAMESPACE" -o jsonpath='{.spec.ports}' || true
+            echo ""
+            echo ""
+            echo "## endpoints (after patch)"
+            kubectl get endpoints quant-quantmail -n "$K8S_NAMESPACE" || true
+            echo ""
+            echo "## in-cluster fetch via service DNS (http://quant-quantmail:3000/)"
+            kubectl exec -n "$K8S_NAMESPACE" deploy/quant-quantmail-backend -- node -e "(async()=>{try{const r=await fetch('http://quant-quantmail:3000/',{signal:AbortSignal.timeout(8000)});const t=await r.text();console.log('frontend / ->',r.status,'len',t.length,'| title:',(t.match(/<title>([^<]+)/)||[])[1]||'n/a')}catch(e){console.log('frontend ERR',String(e).slice(0,60),'| cause:',String(e&&e.cause).slice(0,140))}})()" 2>&1 || echo "exec failed"
+            echo ""
+            echo "## direct pod fetch (:3010)"
+            kubectl exec -n "$K8S_NAMESPACE" deploy/quant-quantmail-backend -- node -e "(async()=>{try{const r=await fetch('http://172.31.33.163:3010/',{signal:AbortSignal.timeout(8000)});const t=await r.text();console.log('pod:3010 / ->',r.status,'len',t.length)}catch(e){console.log('pod:3010 ERR',String(e).slice(0,60),'| cause:',String(e&&e.cause).slice(0,140))}})()" 2>&1 || echo "exec failed"
+          } > infra/status/fix-frontend-result.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f infra/status/fix-frontend-result.txt
+          git commit -m "chore(status): frontend port fix run ${{ github.run_id }} [skip ci]" || echo "nothing to commit"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          git push -f origin HEAD:refs/heads/status-report && echo "PUSH_OK" || echo "PUSH_FAILED"

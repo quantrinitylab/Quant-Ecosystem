@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Pacifico } from 'next/font/google';
 import './globals.css';
+import './shell.css';
+import './overrides.css';
 import { quantMailBrandMetadata } from '../brand/identity';
 import { AuthGuard } from '../components/AuthGuard';
 import { GlobalShortcutsProvider } from '../components/GlobalShortcutsProvider';
@@ -13,6 +15,14 @@ import { BrandProvider } from '../providers/brand-provider';
 import { QueryProvider } from '../providers/query-provider';
 
 const inter = Inter({ subsets: ['latin'] });
+
+// Brand script face: the QuantMail wordmark IS the logo (Instagram-style cursive).
+const brandScript = Pacifico({
+  weight: '400',
+  subsets: ['latin'],
+  variable: '--font-brand',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -54,7 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
-      <body className={`${inter.className} quantmail-root`}>
+      <body className={`${inter.className} ${brandScript.variable} quantmail-root`}>
         <a href="#main-content" className="skip-to-content">
           Skip to content
         </a>

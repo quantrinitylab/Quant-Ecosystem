@@ -1,3 +1,13 @@
+import type {
+  WorkspaceSummary,
+  WorkspaceDetail,
+  WorkspaceMember,
+  WorkspaceInvite,
+  WorkspaceRole,
+  InviteRole,
+  InviteSendResult,
+  InvitePreview,
+} from '../types/workspace';
 // ============================================================================
 // QuantMail - Frontend API Client
 // ============================================================================
@@ -214,6 +224,14 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/snooze`, { snoozeUntil: snoozeUntil.toISOString() });
   }
 
+  async unsnoozeEmail(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/unsnooze`, {});
+  }
+
+  async markNotSpam(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/not-spam`, {});
+  }
+
   async deleteEmail(id: string): Promise<ApiResponse<{ message: string }>> {
     return this.delete(`/emails/${id}`);
   }
@@ -230,6 +248,10 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/unread`, {});
   }
 
+  async markAllRead(category?: string): Promise<ApiResponse<{ message: string; updated: number }>> {
+    return this.post('/emails/mark-all-read', { category });
+  }
+
   async addLabel(emailId: string, label: string): Promise<ApiResponse<{ message: string }>> {
     return this.post(`/emails/${emailId}/labels`, { label });
   }
@@ -240,6 +262,17 @@ export class QuantMailApiClient {
 
   async createLabel(name: string, color: string): Promise<ApiResponse<EmailLabel>> {
     return this.post('/labels', { name, color });
+  }
+
+  async updateLabel(
+    id: string,
+    data: { name?: string; color?: string },
+  ): Promise<ApiResponse<EmailLabel>> {
+    return this.put(`/labels/${id}`, data);
+  }
+
+  async deleteLabel(id: string): Promise<ApiResponse<EmailLabel>> {
+    return this.delete(`/labels/${id}`);
   }
 
   async getEmailSignatures(): Promise<ApiResponse<EmailSignaturePreference[]>> {
@@ -450,7 +483,17 @@ export class QuantMailApiClient {
   async createEvent(
     data: Partial<CalendarEvent> & { title: string; startTime: string; endTime: string },
   ): Promise<ApiResponse<CalendarEvent>> {
-    return this.post('/events', data);
+    // The calendar backends disagree on field names: quantcalendar validates
+    // startTime/endTime, the quantmail calendar route validates start/end.
+    // Send both so a create never 400s depending on which service handles it.
+    const payload = {
+      ...data,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      start: data.startTime,
+      end: data.endTime,
+    };
+    return this.post('/events', payload);
   }
 
   async updateEvent(id: string, data: Partial<CalendarEvent>): Promise<ApiResponse<CalendarEvent>> {
@@ -530,7 +573,9 @@ export class QuantMailApiClient {
   }
 
   async aiSummarize(emailId: string): Promise<ApiResponse<{ emailId: string; summary: string }>> {
-    return this.get(`/ai/summarize/email/${emailId}`);
+    // The summarize route lives on the emails router (registered at /emails),
+    // not under /ai — the old GET /ai/summarize/email/:id path 404ed.
+    return this.post(`/emails/${emailId}/summarize`, {});
   }
 
   async aiCategorize(
@@ -558,6 +603,94 @@ export class QuantMailApiClient {
   }
 
   // --------------------------------------------------------------------------
+  // Workspaces (shared collaboration spaces, roles + email invites)
+  // --------------------------------------------------------------------------
+
+  async listWorkspaces(): Promise<ApiResponse<WorkspaceSummary[]>> {
+    return this.get('/workspaces');
+  }
+
+  async createWorkspace(input: {
+    name: string;
+    description?: string;
+  }): Promise<ApiResponse<WorkspaceSummary>> {
+    return this.post('/workspaces', input);
+  }
+
+  async getWorkspace(id: string): Promise<ApiResponse<WorkspaceDetail>> {
+    return this.get(`/workspaces/${id}`);
+  }
+
+  async updateWorkspace(
+    id: string,
+    input: { name?: string; description?: string | null },
+  ): Promise<ApiResponse<WorkspaceSummary>> {
+    return this.patch(`/workspaces/${id}`, input);
+  }
+
+  async deleteWorkspace(id: string): Promise<ApiResponse<{ deleted: boolean }>> {
+    return this.delete(`/workspaces/${id}`);
+  }
+
+  async listWorkspaceMembers(id: string): Promise<ApiResponse<WorkspaceMember[]>> {
+    return this.get(`/workspaces/${id}/members`);
+  }
+
+  async updateWorkspaceMemberRole(
+    id: string,
+    memberId: string,
+    role: WorkspaceRole,
+  ): Promise<ApiResponse<WorkspaceMember[]>> {
+    return this.patch(`/workspaces/${id}/members/${memberId}`, { role });
+  }
+
+  async removeWorkspaceMember(
+    id: string,
+    memberId: string,
+  ): Promise<ApiResponse<{ removed: boolean }>> {
+    return this.delete(`/workspaces/${id}/members/${memberId}`);
+  }
+
+  async leaveWorkspace(id: string): Promise<ApiResponse<{ left: boolean }>> {
+    return this.post(`/workspaces/${id}/leave`, {});
+  }
+
+  async listWorkspaceInvites(id: string): Promise<ApiResponse<WorkspaceInvite[]>> {
+    return this.get(`/workspaces/${id}/invites`);
+  }
+
+  async inviteToWorkspace(
+    id: string,
+    input: { emails: string[]; role: InviteRole; message?: string },
+  ): Promise<ApiResponse<{ results: InviteSendResult[]; invites: WorkspaceInvite[] }>> {
+    return this.post(`/workspaces/${id}/invites`, input);
+  }
+
+  async resendWorkspaceInvite(
+    id: string,
+    inviteId: string,
+  ): Promise<ApiResponse<{ inviteId: string; inviteUrl: string; emailSent: boolean }>> {
+    return this.post(`/workspaces/${id}/invites/${inviteId}/resend`, {});
+  }
+
+  async revokeWorkspaceInvite(
+    id: string,
+    inviteId: string,
+  ): Promise<ApiResponse<{ revoked: boolean }>> {
+    return this.delete(`/workspaces/${id}/invites/${inviteId}`);
+  }
+
+  async getInvitePreview(token: string): Promise<ApiResponse<InvitePreview>> {
+    return this.get(`/public/invites/${token}`);
+  }
+
+  async acceptInvite(
+    token: string,
+  ): Promise<ApiResponse<{ workspaceId: string; role: WorkspaceRole }>> {
+    return this.post(`/invites/${token}/accept`, {});
+  }
+
+  // --------------------------------------------------------------------------
   // HTTP Methods
   // --------------------------------------------------------------------------
 
@@ -579,6 +712,14 @@ export class QuantMailApiClient {
     options?: RequestOptions,
   ): Promise<ApiResponse<T>> {
     return this.request<T>('PUT', path, body, options);
+  }
+
+  private async patch<T>(
+    path: string,
+    body: unknown,
+    options?: RequestOptions,
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>('PATCH', path, body, options);
   }
 
   private async delete<T>(path: string, options?: RequestOptions): Promise<ApiResponse<T>> {

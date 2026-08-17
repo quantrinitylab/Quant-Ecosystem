@@ -3,13 +3,12 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { usePathname, useRouter } from 'next/navigation';
-import { quantMailBrandLockup } from '../brand/identity';
 import { useCreateLabel, useLabels } from '../hooks/useLabels';
 import { useInbox } from '../hooks/useInbox';
 import { NotificationBell } from './NotificationBell';
+import { QuantMailLogo } from './QuantMailLogo';
 import type { EmailLabel } from '../types';
 import { AccountBadge } from './AccountBadge';
-import { QuantrinityMark } from './QuantrinityMark';
 
 const PRESET_COLORS = [
   '#ef4444',
@@ -25,8 +24,10 @@ const PRESET_COLORS = [
 ];
 
 type IconName =
+  | 'archive'
   | 'calendar'
   | 'chevron'
+  | 'clock'
   | 'code'
   | 'compose'
   | 'contacts'
@@ -38,9 +39,18 @@ type IconName =
   | 'security'
   | 'sent'
   | 'settings'
-  | 'trash';
+  | 'spam'
+  | 'trash'
+  | 'workspaces';
 
 const ICON_PATHS: Record<IconName, ReactNode> = {
+  archive: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M5 7l1-3h12l1 3v12H5z" />
+      <path d="M9 11h6" />
+    </>
+  ),
   calendar: (
     <>
       <rect x="3" y="5" width="18" height="16" rx="2" />
@@ -48,6 +58,12 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   chevron: <path d="m9 18 6-6-6-6" />,
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 6v6l4 2" />
+    </>
+  ),
   code: (
     <>
       <path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14" />
@@ -115,9 +131,23 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
       <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
     </>
   ),
+  spam: (
+    <>
+      <path d="M12 2 2 12l10 10 10-10L12 2z" />
+      <path d="M12 8v5M12 16h.01" />
+    </>
+  ),
   trash: (
     <>
       <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6" />
+    </>
+  ),
+  workspaces: (
+    <>
+      <rect x="2" y="3" width="9" height="9" rx="1.5" />
+      <rect x="13" y="3" width="9" height="9" rx="1.5" />
+      <rect x="2" y="14" width="9" height="7" rx="1.5" />
+      <rect x="13" y="14" width="9" height="7" rx="1.5" />
     </>
   ),
 };
@@ -147,9 +177,11 @@ const NAV_GROUPS: Array<{
     label: 'Mail',
     items: [
       { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
-      { id: 'search', label: 'Search', icon: 'search', path: '/search', shortcut: '/' },
+      { id: 'snoozed', label: 'Snoozed', icon: 'clock', path: '/snoozed' },
       { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
+      { id: 'archive', label: 'Archive', icon: 'archive', path: '/archive' },
+      { id: 'spam', label: 'Spam', icon: 'spam', path: '/spam' },
       { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
     ],
   },
@@ -162,22 +194,21 @@ const NAV_GROUPS: Array<{
     ],
   },
   {
+    label: 'Team',
+    items: [{ id: 'workspaces', label: 'Workspaces', icon: 'workspaces', path: '/workspaces' }],
+  },
+  {
     label: 'Code',
-    items: [
-      { id: 'repos', label: 'Repos', icon: 'code', path: '/repos' },
-      { id: 'pipelines', label: 'Pipelines', icon: 'pipeline', path: '/pipelines' },
-    ],
+    items: [{ id: 'codehub', label: 'CodeHub', icon: 'code', path: '/codehub' }],
   },
   {
     label: 'Control',
-    items: [
-      { id: 'security', label: 'Security', icon: 'security', path: '/security' },
-      { id: 'settings', label: 'Settings', icon: 'settings', path: '/settings' },
-    ],
+    items: [{ id: 'settings', label: 'Settings', icon: 'settings', path: '/settings' }],
   },
 ];
 
 function LabelSection() {
+  const router = useRouter();
   const { data: labels, isLoading } = useLabels();
   const createLabel = useCreateLabel();
   const prefersReducedMotion = useReducedMotion();
@@ -225,7 +256,13 @@ function LabelSection() {
           >
             {isLoading && <div className="sidebar-label-skeleton" />}
             {labels?.map((label: EmailLabel) => (
-              <button type="button" key={label.id} className="sidebar-label-item">
+              <button
+                type="button"
+                key={label.id}
+                className="sidebar-label-item"
+                onClick={() => router.push('/labels')}
+                title="Open labels manager"
+              >
                 <span
                   className="h-2 w-2 flex-none rounded-full shadow-[0_0_6px]"
                   style={{ backgroundColor: label.color, boxShadow: `0 0 6px ${label.color}80` }}
@@ -318,11 +355,7 @@ export function AppSidebar() {
   return (
     <nav className="quant-sidebar" aria-label="QuantMail navigation">
       <header className="sidebar-brand">
-        <QuantrinityMark compact label={quantMailBrandLockup.accessibleName} />
-        <div className="min-w-0" aria-hidden="true">
-          <p className="sidebar-product">{quantMailBrandLockup.productName}</p>
-          <p className="sidebar-parent">{quantMailBrandLockup.byline}</p>
-        </div>
+        <QuantMailLogo />
         <NotificationBell />
         <span
           className="sidebar-live-dot"

@@ -1,0 +1,34 @@
+# Staging /api ingress: same pattern as production quant-quantmail-api.
+# Frontend calls same-origin /api/*; this strips /api and routes to the
+# backend whose routes live at root (/auth, /oauth, /emails, ...).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quant-staging-api
+  namespace: quant-staging
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: quantmail.quantrinity.in
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: quant-quantmail-backend
+                port:
+                  number: 3011
+    - host: staging.quantrinity.in
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: quant-quantmail-backend
+                port:
+                  number: 3011

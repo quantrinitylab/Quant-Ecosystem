@@ -92,6 +92,14 @@ describe('EmailService', () => {
         id: 'email-1',
         userId: 'user-1',
         isDraft: true,
+        toAddresses: ['recipient@test.com'],
+        ccAddresses: [],
+        bccAddresses: [],
+        subject: 'Test Subject',
+        bodyPlain: 'Hello',
+        bodyHtml: '<p>Hello</p>',
+        fromAddress: 'user-1@quantmail.in',
+        fromName: 'User One',
       };
       prisma.email.findUnique.mockResolvedValue(mockEmail);
 
@@ -117,6 +125,7 @@ describe('EmailService', () => {
           isSent: true,
           folderId: 'sent-folder-id',
           sentAt: expect.any(Date),
+          deliveryStatus: expect.any(String),
         },
       });
     });
