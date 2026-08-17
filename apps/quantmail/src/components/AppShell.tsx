@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { PageTransition } from '@quant/shared-ui';
 import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
 import { CommandPalette } from './CommandPalette';
+import { QuantMailLogo } from './QuantMailLogo';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -23,7 +24,7 @@ const focusableSelector =
 
 const PIN_STORAGE_KEY = 'quant.shell.sidebarPinned';
 
-/* Mobile bottom navigation — Outlook/Instagram-style icon bar */
+/* Mobile bottom navigation — ONLY visible on mobile screens (md:hidden) */
 const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNode }> = [
   {
     id: 'mail',
@@ -138,7 +139,7 @@ function MobileBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-30 flex h-14 items-center justify-around border-t border-[var(--quant-border)] bg-[var(--quant-surface)]/95 backdrop-blur-md px-2 shadow-lg lg:hidden"
+      className="fixed bottom-0 inset-x-0 z-30 flex h-14 items-center justify-around border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-md px-2 shadow-lg md:hidden"
       aria-label="Mobile primary navigation"
     >
       {BOTTOM_NAV.map((item) => {
@@ -149,9 +150,7 @@ function MobileBottomNav() {
             type="button"
             onClick={() => router.push(item.path)}
             className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 text-[10px] font-medium transition-colors ${
-              active
-                ? 'text-[#ff9933] font-semibold'
-                : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
+              active ? 'text-[#ff9933] font-semibold' : 'text-zinc-400 hover:text-white'
             }`}
             aria-current={active ? 'page' : undefined}
           >
@@ -294,10 +293,10 @@ export function AppShell({
             onClick={() => closeSidebar()}
           />
 
-          {/* Desktop Pinned Sidebar — Only visible on lg (desktop) screens */}
+          {/* Desktop Pinned Sidebar */}
           {isPinned && (
             <aside
-              className="hidden lg:relative lg:flex flex-none bg-[var(--surface)] border-r border-[var(--border)]"
+              className="hidden md:relative md:flex flex-none bg-[var(--surface)] border-r border-[var(--border)]"
               aria-label="Sidebar"
             >
               <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
@@ -329,7 +328,7 @@ export function AppShell({
             id={drawerId}
             className={`fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-3rem)] flex-none bg-[var(--surface)] shadow-2xl transition-transform duration-200 ease-out motion-reduce:transition-none ${
               isSidebarOpen ? 'visible translate-x-0' : 'invisible -translate-x-full'
-            } ${isPinned ? 'lg:hidden' : ''}`}
+            } ${isPinned ? 'md:hidden' : ''}`}
             aria-label="Sidebar Drawer"
             aria-hidden={!isSidebarOpen}
             onClickCapture={(event) => {
@@ -341,7 +340,7 @@ export function AppShell({
             <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
               <button
                 type="button"
-                className="hidden size-9 items-center justify-center rounded-md text-[var(--foreground)]/70 outline-none hover:bg-[var(--muted)] hover:text-[var(--foreground)] lg:inline-flex"
+                className="hidden size-9 items-center justify-center rounded-md text-[var(--foreground)]/70 outline-none hover:bg-[var(--muted)] hover:text-[var(--foreground)] md:inline-flex"
                 aria-label={isPinned ? 'Unpin navigation' : 'Pin navigation'}
                 aria-pressed={isPinned}
                 onClick={togglePinned}
@@ -378,49 +377,74 @@ export function AppShell({
         </>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col pb-14 lg:pb-0">
-        {/* Top Header bar with menu trigger, command palette trigger & actions */}
+      <div className="flex min-w-0 flex-1 flex-col pb-14 md:pb-0">
+        {/* Top Header bar with Logo + Search in QuantMail */}
         {sidebar && (
-          <header className="flex min-h-14 flex-none items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-3">
-            <button
-              ref={menuTriggerRef}
-              type="button"
-              className="inline-flex size-10 flex-none items-center justify-center rounded-md outline-none hover:bg-[var(--muted)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-              aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
-              onClick={() => setIsSidebarOpen((open) => !open)}
-            >
-              <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
-                <path
-                  d="M4 6h16M4 12h16M4 18h16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeWidth="2"
-                />
-              </svg>
-            </button>
+          <header className="flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--border)] bg-zinc-950/90 backdrop-blur px-3 md:px-5">
+            {/* Left: Menu trigger + Brand Logo & Title */}
+            <div className="flex items-center gap-3">
+              <button
+                ref={menuTriggerRef}
+                type="button"
+                className="inline-flex size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors"
+                aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                onClick={() => setIsSidebarOpen((open) => !open)}
+              >
+                <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
+                  <path
+                    d="M4 6h16M4 12h16M4 18h16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </button>
 
-            {mobileTitle ? (
-              <div className="min-w-0 flex-1">{mobileTitle}</div>
-            ) : (
-              <div className="min-w-0 flex-1" />
-            )}
+              <div
+                className="flex items-center gap-2.5 cursor-pointer select-none"
+                onClick={() => router.push('/')}
+              >
+                <QuantMailLogo size={32} />
+                <span className="font-bold text-sm text-white tracking-tight hidden sm:inline-block">
+                  QuantMail
+                </span>
+              </div>
+            </div>
 
-            {/* Quick Command Palette Button on Desktop */}
-            <button
-              type="button"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('quant:command-palette:open'));
-              }}
-              className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] text-xs text-[var(--quant-muted-foreground)] hover:text-white hover:border-[#ff9933]/50 transition-colors"
-            >
-              <span>Search or command…</span>
-              <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-mono text-zinc-400 border border-zinc-700">
-                ⌘K
-              </kbd>
-            </button>
+            {/* Center: Search in QuantMail bar (Desktop) */}
+            <div className="hidden md:flex flex-1 max-w-xl mx-4">
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('quant:command-palette:open'));
+                }}
+                className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-400 hover:border-[#ff9933]/50 hover:text-zinc-200 transition-all shadow-inner"
+              >
+                <div className="flex items-center gap-2.5">
+                  <svg
+                    className="size-4 text-zinc-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-4-4" />
+                  </svg>
+                  <span>Search in QuantMail…</span>
+                </div>
+                <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-mono text-zinc-400 border border-zinc-700">
+                  ⌘K
+                </kbd>
+              </button>
+            </div>
 
-            {mobileActions}
+            {/* Right: Mobile Title / Actions */}
+            <div className="flex items-center gap-2">
+              {mobileTitle && <div className="md:hidden">{mobileTitle}</div>}
+              {mobileActions}
+            </div>
           </header>
         )}
 
@@ -431,11 +455,11 @@ export function AppShell({
         </main>
       </div>
 
-      {/* Floating Action Button (FAB) */}
+      {/* Floating Action Button (FAB) — only on mobile */}
       <button
         type="button"
         onClick={handleFabClick}
-        className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-40 size-14 rounded-full bg-gradient-to-r from-[#ff9933] to-[#ffaa4d] text-[#191008] font-bold shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#ff9933]/40"
+        className="fixed bottom-20 right-4 md:hidden z-40 size-14 rounded-full bg-gradient-to-r from-[#ff9933] to-[#ffaa4d] text-[#191008] font-bold shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#ff9933]/40"
         aria-label="Create new item"
       >
         <svg
@@ -450,7 +474,7 @@ export function AppShell({
         </svg>
       </button>
 
-      {/* Mobile Bottom Navigation */}
+      {/* Mobile Bottom Navigation — strictly md:hidden */}
       <MobileBottomNav />
     </section>
   );

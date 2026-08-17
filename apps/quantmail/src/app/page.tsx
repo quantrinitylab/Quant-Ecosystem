@@ -461,7 +461,13 @@ function ReadingPane({
           )}
 
           <EmailSafetyBanner email={email} />
-          <div className="reading-message">{email.bodyText || email.snippet}</div>
+          <div className="reading-message text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
+            {email.bodyHtml ? (
+              <div dangerouslySetInnerHTML={{ __html: email.bodyHtml }} />
+            ) : (
+              email.bodyText || email.snippet || 'No message content.'
+            )}
+          </div>
 
           {email.attachments && email.attachments.length > 0 && (
             <section className="reading-attachments" aria-label="Attachments">
@@ -713,8 +719,12 @@ export default function InboxPage() {
         setSelectedEmail(null);
         return;
       }
-      if (window.matchMedia('(min-width: 900px)').matches) setSelectedEmail(email);
-      else router.push(`/thread/${email.threadId}`);
+      setSelectedEmail(email);
+      void apiClient.markAsRead?.(email.id).catch(() => {});
+      const targetId = email.threadId || email.id;
+      if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 900px)').matches) {
+        router.push(`/thread/${targetId}`);
+      }
     },
     [router],
   );
@@ -739,7 +749,7 @@ export default function InboxPage() {
       className="quantmail-shell"
       mobileTitle={
         <span className="mobile-brand">
-          <QuantMailLogo />
+          <QuantMailLogo size={28} />
         </span>
       }
       mobileActions={
@@ -773,7 +783,7 @@ export default function InboxPage() {
             </button>
           </header>
 
-          <div className="inbox-search-wrap">
+          <div className="inbox-search-wrap md:hidden">
             <label htmlFor="inbox-search" className="inbox-search">
               <MailIcon name="search" />
               <input
