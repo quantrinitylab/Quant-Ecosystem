@@ -435,7 +435,7 @@ export function AppShell({
       <button
         type="button"
         onClick={handleFabClick}
-        className="fixed bottom-18 right-4 lg:bottom-6 lg:right-6 z-30 size-14 rounded-full bg-gradient-to-r from-[#ff9933] to-[#ffaa4d] text-[#191008] font-bold shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#ff9933]/40"
+        className="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-40 size-14 rounded-full bg-gradient-to-r from-[#ff9933] to-[#ffaa4d] text-[#191008] font-bold shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#ff9933]/40"
         aria-label="Create new item"
       >
         <svg
