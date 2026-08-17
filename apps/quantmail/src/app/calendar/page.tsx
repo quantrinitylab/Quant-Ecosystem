@@ -262,6 +262,43 @@ export default function CalendarPage() {
     return () => window.removeEventListener('quant:calendar:create', handler);
   }, [openCreate]);
 
+  // Touch / Drag Gesture handling for swipe down (expand) and swipe up (collapse)
+  const touchStartY = useRef<number | null>(null);
+  const touchStartX = useRef<number | null>(null);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchStartX.current = e.touches[0].clientX;
+  }, []);
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (touchStartY.current === null || touchStartX.current === null) return;
+      const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+      const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+
+      // Vertical drag: Pull down to expand, Push up to collapse
+      if (Math.abs(deltaY) > Math.abs(deltaX) && Math.abs(deltaY) > 30) {
+        if (deltaY > 0 && !isMonthExpanded) {
+          setIsMonthExpanded(true);
+        } else if (deltaY < 0 && isMonthExpanded) {
+          setIsMonthExpanded(false);
+        }
+      } else if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 45 && isMonthExpanded) {
+        // Horizontal swipe when expanded: switch month
+        if (deltaX < 0) {
+          goMonth(1);
+        } else {
+          goMonth(-1);
+        }
+      }
+
+      touchStartY.current = null;
+      touchStartX.current = null;
+    },
+    [isMonthExpanded, goMonth],
+  );
+
   const handleCreateEvent = useCallback(async () => {
     if (!newEvent.title.trim() || !newEvent.startTime || !newEvent.endTime) return;
     const payload = newEvent.allDay
@@ -494,128 +531,146 @@ export default function CalendarPage() {
         </div>
 
         {/* Outlook-Style Interactive Expandable Date Picker (Mobile + Desktop Top Bar) */}
-        <div className="border-b border-zinc-800 bg-[#161618] select-none">
-          {/* Collapsed State: 1-Week Horizontal Strip */}
-          {!isMonthExpanded ? (
-            <div className="px-3 pt-2.5 pb-1">
-              <div className="grid grid-cols-7 text-center">
-                {currentWeekDays.map((d, i) => (
-                  <button
-                    key={d.key}
-                    type="button"
-                    onClick={() => selectDate(d.date)}
-                    className="flex flex-col items-center justify-center py-1 group focus:outline-none"
-                  >
-                    <span className="text-[11px] font-semibold text-zinc-400 mb-1">
-                      {d.dayLetter}
-                    </span>
-                    <span
-                      className={`size-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                        d.isSelected
-                          ? 'bg-[#3b82f6] text-white shadow-md'
-                          : d.isToday
-                            ? 'border border-[#3b82f6] text-[#3b82f6]'
-                            : 'text-zinc-200 group-hover:bg-zinc-800'
-                      }`}
-                    >
-                      {d.dayNum}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Drag Handle to Expand Month */}
-              <div
-                onClick={() => setIsMonthExpanded(true)}
-                className="w-full flex justify-center py-1.5 cursor-pointer group"
-                title="Expand Month"
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="border-b border-zinc-800 bg-[#161618] select-none touch-pan-y"
+        >
+          <AnimatePresence initial={false} mode="wait">
+            {!isMonthExpanded ? (
+              <motion.div
+                key="week-strip"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+                className="px-3 pt-2.5 pb-1"
               >
-                <div className="w-10 h-1 rounded-full bg-zinc-700 group-hover:bg-zinc-500 transition-colors" />
-              </div>
-            </div>
-          ) : (
-            /* Expanded State: Full Month Calendar Grid */
-            <div className="px-3 pt-2.5 pb-2">
-              <div className="flex items-center justify-between px-2 mb-2">
-                <span className="text-xs font-bold text-zinc-300">
-                  {monthName} {year}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => goMonth(-1)}
-                    className="size-6 text-xs text-zinc-400 hover:text-white rounded hover:bg-zinc-800"
-                  >
-                    ‹
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => goMonth(1)}
-                    className="size-6 text-xs text-zinc-400 hover:text-white rounded hover:bg-zinc-800"
-                  >
-                    ›
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-7 gap-y-1 text-center">
-                {WEEKDAYS_SHORT.map((d, i) => (
-                  <div key={i} className="text-[11px] font-semibold text-zinc-400 pb-1">
-                    {d}
-                  </div>
-                ))}
-
-                {/* Prev Month Offset */}
-                {Array.from({ length: grid.offset }).map((_, i) => (
-                  <div
-                    key={`offset-${i}`}
-                    className="size-8 mx-auto flex items-center justify-center text-xs text-zinc-700"
-                  >
-                    {grid.prevMonthTotal - grid.offset + i + 1}
-                  </div>
-                ))}
-
-                {/* Current Month Days */}
-                {Array.from({ length: grid.total }).map((_, i) => {
-                  const dayNum = i + 1;
-                  const d = new Date(year, month, dayNum);
-                  const key = dayKey(d);
-                  const isSelected = key === dayKey(selectedDate);
-                  const isToday = key === dayKey(today);
-
-                  return (
+                <div className="grid grid-cols-7 text-center">
+                  {currentWeekDays.map((d, i) => (
                     <button
-                      key={key}
+                      key={d.key}
                       type="button"
-                      onClick={() => selectDate(d)}
-                      className="flex items-center justify-center py-0.5 focus:outline-none"
+                      onClick={() => selectDate(d.date)}
+                      className="flex flex-col items-center justify-center py-1 group focus:outline-none"
                     >
+                      <span className="text-[11px] font-semibold text-zinc-400 mb-1">
+                        {d.dayLetter}
+                      </span>
                       <span
-                        className={`size-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
-                          isSelected
-                            ? 'bg-[#3b82f6] text-white font-bold shadow-md'
-                            : isToday
+                        className={`size-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                          d.isSelected
+                            ? 'bg-[#3b82f6] text-white shadow-md'
+                            : d.isToday
                               ? 'border border-[#3b82f6] text-[#3b82f6]'
-                              : 'text-zinc-200 hover:bg-zinc-800'
+                              : 'text-zinc-200 group-hover:bg-zinc-800'
                         }`}
                       >
-                        {dayNum}
+                        {d.dayNum}
                       </span>
                     </button>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
 
-              {/* Drag Handle to Collapse Month */}
-              <div
-                onClick={() => setIsMonthExpanded(false)}
-                className="w-full flex justify-center pt-2 cursor-pointer group"
-                title="Collapse to Week Strip"
+                {/* Drag Handle to Expand Month (Tap or Pull Down) */}
+                <div
+                  onClick={() => setIsMonthExpanded(true)}
+                  className="w-full flex flex-col items-center justify-center py-2 cursor-grab active:cursor-grabbing group select-none"
+                  title="Slide down or tap to expand full month"
+                >
+                  <div className="w-12 h-1.5 rounded-full bg-zinc-700 group-hover:bg-zinc-500 transition-colors" />
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="month-grid"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="px-3 pt-2.5 pb-2 overflow-hidden"
               >
-                <div className="w-10 h-1 rounded-full bg-zinc-700 group-hover:bg-zinc-500 transition-colors" />
-              </div>
-            </div>
-          )}
+                <div className="flex items-center justify-between px-2 mb-2">
+                  <span className="text-xs font-bold text-zinc-300">
+                    {monthName} {year}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => goMonth(-1)}
+                      className="size-6 text-xs text-zinc-400 hover:text-white rounded hover:bg-zinc-800"
+                    >
+                      ‹
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => goMonth(1)}
+                      className="size-6 text-xs text-zinc-400 hover:text-white rounded hover:bg-zinc-800"
+                    >
+                      ›
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-7 gap-y-1 text-center">
+                  {WEEKDAYS_SHORT.map((d, i) => (
+                    <div key={i} className="text-[11px] font-semibold text-zinc-400 pb-1">
+                      {d}
+                    </div>
+                  ))}
+
+                  {/* Prev Month Offset */}
+                  {Array.from({ length: grid.offset }).map((_, i) => (
+                    <div
+                      key={`offset-${i}`}
+                      className="size-8 mx-auto flex items-center justify-center text-xs text-zinc-700"
+                    >
+                      {grid.prevMonthTotal - grid.offset + i + 1}
+                    </div>
+                  ))}
+
+                  {/* Current Month Days */}
+                  {Array.from({ length: grid.total }).map((_, i) => {
+                    const dayNum = i + 1;
+                    const d = new Date(year, month, dayNum);
+                    const key = dayKey(d);
+                    const isSelected = key === dayKey(selectedDate);
+                    const isToday = key === dayKey(today);
+
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => selectDate(d)}
+                        className="flex items-center justify-center py-0.5 focus:outline-none"
+                      >
+                        <span
+                          className={`size-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
+                            isSelected
+                              ? 'bg-[#3b82f6] text-white font-bold shadow-md'
+                              : isToday
+                                ? 'border border-[#3b82f6] text-[#3b82f6]'
+                                : 'text-zinc-200 hover:bg-zinc-800'
+                          }`}
+                        >
+                          {dayNum}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Drag Handle to Collapse Month (Tap or Push Up) */}
+                <div
+                  onClick={() => setIsMonthExpanded(false)}
+                  className="w-full flex flex-col items-center justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing group select-none"
+                  title="Slide up or tap to collapse to week strip"
+                >
+                  <div className="w-12 h-1.5 rounded-full bg-zinc-700 group-hover:bg-zinc-500 transition-colors" />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* View Content: Infinite Continuous Agenda Feed */}
