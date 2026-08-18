@@ -216,7 +216,11 @@ export default function CalendarPage() {
   );
 
   const goMonth = useCallback((delta: number) => {
-    setCurrentDate((curr) => new Date(curr.getFullYear(), curr.getMonth() + delta, 1));
+    setCurrentDate((curr) => {
+      const nextDate = new Date(curr.getFullYear(), curr.getMonth() + delta, 1);
+      setSelectedDate(nextDate);
+      return nextDate;
+    });
   }, []);
 
   const goToday = useCallback(() => {
@@ -225,6 +229,49 @@ export default function CalendarPage() {
     setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
     scrollToDate(now);
   }, [scrollToDate]);
+
+  // Dedicated touch swipe listener on the calendar container for horizontal month changing
+  const swipeStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
+  const handleCalendarTouchStart = useCallback((e: React.TouchEvent) => {
+    swipeStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      time: Date.now(),
+    };
+  }, []);
+
+  const handleCalendarTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (!swipeStartRef.current) return;
+      const deltaX = e.changedTouches[0].clientX - swipeStartRef.current.x;
+      const deltaY = e.changedTouches[0].clientY - swipeStartRef.current.y;
+      const duration = Date.now() - swipeStartRef.current.time;
+
+      swipeStartRef.current = null;
+      if (duration > 600) return;
+
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+
+      // Horizontal swipe detected (dominant X motion, threshold > 30px) -> Change Month!
+      if (absX > absY && absX > 30) {
+        if (deltaX < 0) {
+          goMonth(1); // Swipe Left -> Next Month
+        } else {
+          goMonth(-1); // Swipe Right -> Prev Month
+        }
+      } else if (absY > absX && absY > 35) {
+        // Vertical swipe on the grid area
+        if (deltaY > 0 && !isMonthExpanded) {
+          setIsMonthExpanded(true);
+        } else if (deltaY < 0 && isMonthExpanded) {
+          setIsMonthExpanded(false);
+        }
+      }
+    },
+    [goMonth, isMonthExpanded],
+  );
 
   // Dimension Constants for direct 1:1 finger tracking
   const numWeeks = monthWeeks.length || 5;
@@ -308,7 +355,7 @@ export default function CalendarPage() {
       }
 
       // Horizontal swipe to change month
-      if (Math.abs(deltaX) > 45 && Math.abs(deltaX) > Math.abs(deltaY) && isMonthExpanded) {
+      if (Math.abs(deltaX) > 30 && Math.abs(deltaX) > Math.abs(deltaY)) {
         if (deltaX < 0) goMonth(1);
         else goMonth(-1);
         return;
@@ -654,6 +701,8 @@ export default function CalendarPage() {
 
         {/* Outlook-Style Interactive Expandable Date Picker with 1:1 Direct Finger Physics */}
         <div
+          onTouchStart={handleCalendarTouchStart}
+          onTouchEnd={handleCalendarTouchEnd}
           className="border-b border-zinc-800 bg-[#161618] select-none overflow-hidden relative"
           style={{
             height: `${currentHeight}px`,
@@ -703,10 +752,11 @@ export default function CalendarPage() {
               ))}
             </div>
 
-            {/* Month Weeks Container with 1:1 translation */}
+            {/* Month Weeks Container with 1:1 translation and animated month transitions */}
             <div className="overflow-hidden flex-1 relative">
               <div
-                className="space-y-0"
+                key={`${year}-${month}`}
+                className="space-y-0 animate-in fade-in duration-200"
                 style={{
                   transform: `translateY(-${(1 - expansionProgress) * selectedWeekIndex * ROW_HEIGHT}px)`,
                   transition: isDragging ? 'none' : 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)',
