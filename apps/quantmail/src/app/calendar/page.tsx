@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Modal, Skeleton, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
@@ -69,9 +70,10 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventLike | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
 
   // Infinite agenda buffer: days from anchor date (-15 days to +45 days)
-  const [agendaRangeDays, setAgendaRangeDays] = useState({ past: 10, future: 35 });
+  const [agendaRangeDays, setAgendaRangeDays] = useState({ past: 12, future: 40 });
 
   const [newEvent, setNewEvent] = useState({
     title: '',
@@ -84,6 +86,8 @@ export default function CalendarPage() {
 
   const scrollHostRef = useRef<HTMLDivElement>(null);
   const dateItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const isProgrammaticScrollRef = useRef(false);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -197,7 +201,12 @@ export default function CalendarPage() {
     const key = dayKey(date);
     const target = dateItemRefs.current.get(key);
     if (target) {
+      isProgrammaticScrollRef.current = true;
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      scrollTimeoutRef.current = setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, 600);
     }
   }, []);
 
@@ -208,6 +217,7 @@ export default function CalendarPage() {
         date.getMonth() !== currentDate.getMonth() ||
         date.getFullYear() !== currentDate.getFullYear()
       ) {
+        setSlideDirection(date > currentDate ? 'left' : 'right');
         setCurrentDate(new Date(date.getFullYear(), date.getMonth(), 1));
       }
       scrollToDate(date);
@@ -216,6 +226,7 @@ export default function CalendarPage() {
   );
 
   const goMonth = useCallback((delta: number) => {
+    setSlideDirection(delta > 0 ? 'left' : 'right');
     setCurrentDate((curr) => {
       const nextDate = new Date(curr.getFullYear(), curr.getMonth() + delta, 1);
       setSelectedDate(nextDate);
@@ -225,10 +236,11 @@ export default function CalendarPage() {
 
   const goToday = useCallback(() => {
     const now = new Date();
+    setSlideDirection(now > currentDate ? 'left' : 'right');
     setSelectedDate(now);
     setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
     scrollToDate(now);
-  }, [scrollToDate]);
+  }, [currentDate, scrollToDate]);
 
   // Dedicated touch swipe listener on the calendar container for horizontal month changing
   const swipeStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
@@ -531,16 +543,61 @@ export default function CalendarPage() {
 
   const monthName = MONTH_NAMES[month];
 
-  // Infinite scroll listener for agenda
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    if (scrollHeight - scrollTop - clientHeight < 200) {
-      setAgendaRangeDays((prev) => ({ ...prev, future: prev.future + 25 }));
-    }
-    if (scrollTop < 100) {
-      setAgendaRangeDays((prev) => ({ ...prev, past: prev.past + 15 }));
-    }
-  };
+  // Infinite scroll listener for agenda with bi-directional calendar date tracking
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+
+      // Infinite scroll buffer extensions
+      if (scrollHeight - scrollTop - clientHeight < 300) {
+        setAgendaRangeDays((prev) => ({ ...prev, future: prev.future + 30 }));
+      }
+      if (scrollTop < 150) {
+        setAgendaRangeDays((prev) => ({ ...prev, past: prev.past + 20 }));
+      }
+
+      // Bi-directional calendar synchronization: when user manually scrolls agenda, update top calendar date!
+      if (!isProgrammaticScrollRef.current && scrollHostRef.current) {
+        const containerRect = scrollHostRef.current.getBoundingClientRect();
+        const targetY = containerRect.top + 60; // Reference line near top of viewport
+
+        let closestItem: { date: Date; key: string } | null = null;
+        let minDistance = Infinity;
+
+        for (const item of continuousAgendaDays) {
+          const el = dateItemRefs.current.get(item.key);
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            const distance = Math.abs(rect.top - targetY);
+            if (
+              rect.bottom > targetY &&
+              rect.top < containerRect.bottom &&
+              distance < minDistance
+            ) {
+              minDistance = distance;
+              closestItem = item;
+            }
+          }
+        }
+
+        if (closestItem) {
+          const itemDate = closestItem.date;
+          const itemKey = dayKey(itemDate);
+          if (itemKey !== dayKey(selectedDate)) {
+            setSelectedDate(itemDate);
+            if (
+              itemDate.getMonth() !== currentDate.getMonth() ||
+              itemDate.getFullYear() !== currentDate.getFullYear()
+            ) {
+              setSlideDirection(itemDate > currentDate ? 'left' : 'right');
+              setCurrentDate(new Date(itemDate.getFullYear(), itemDate.getMonth(), 1));
+            }
+          }
+        }
+      }
+    },
+    [continuousAgendaDays, selectedDate, currentDate],
+  );
 
   return (
     <AppShell
@@ -754,61 +811,79 @@ export default function CalendarPage() {
 
             {/* Month Weeks Container with 1:1 translation and animated month transitions */}
             <div className="overflow-hidden flex-1 relative">
-              <div
-                key={`${year}-${month}`}
-                className="space-y-0 animate-in fade-in duration-200"
-                style={{
-                  transform: `translateY(-${(1 - expansionProgress) * selectedWeekIndex * ROW_HEIGHT}px)`,
-                  transition: isDragging ? 'none' : 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
-              >
-                {monthWeeks.map((week, weekIdx) => {
-                  const isSelectedWeek = weekIdx === selectedWeekIndex;
-                  const rowOpacity = isSelectedWeek
-                    ? 1
-                    : Math.max(0, (expansionProgress - 0.15) / 0.85);
+              <AnimatePresence initial={false} mode="wait" custom={slideDirection}>
+                <motion.div
+                  key={`${year}-${month}`}
+                  custom={slideDirection}
+                  initial={{
+                    opacity: 0,
+                    x: slideDirection === 'left' ? 45 : slideDirection === 'right' ? -45 : 0,
+                  }}
+                  animate={{
+                    opacity: 1,
+                    x: 0,
+                  }}
+                  exit={{
+                    opacity: 0,
+                    x: slideDirection === 'left' ? -45 : slideDirection === 'right' ? 45 : 0,
+                  }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="space-y-0"
+                  style={{
+                    transform: `translateY(-${(1 - expansionProgress) * selectedWeekIndex * ROW_HEIGHT}px)`,
+                    transition: isDragging
+                      ? 'none'
+                      : 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)',
+                  }}
+                >
+                  {monthWeeks.map((week, weekIdx) => {
+                    const isSelectedWeek = weekIdx === selectedWeekIndex;
+                    const rowOpacity = isSelectedWeek
+                      ? 1
+                      : Math.max(0, (expansionProgress - 0.15) / 0.85);
 
-                  return (
-                    <div
-                      key={`week-${weekIdx}`}
-                      className="grid grid-cols-7 text-center h-[40px] items-center"
-                      style={{
-                        opacity: isDragging
-                          ? rowOpacity
-                          : isMonthExpanded
-                            ? 1
-                            : isSelectedWeek
+                    return (
+                      <div
+                        key={`week-${weekIdx}`}
+                        className="grid grid-cols-7 text-center h-[40px] items-center"
+                        style={{
+                          opacity: isDragging
+                            ? rowOpacity
+                            : isMonthExpanded
                               ? 1
-                              : 0,
-                        transition: isDragging ? 'none' : 'opacity 0.2s',
-                      }}
-                    >
-                      {week.map((d) => (
-                        <button
-                          key={d.key}
-                          type="button"
-                          onClick={() => selectDate(d.date)}
-                          className="flex items-center justify-center py-0.5 focus:outline-none"
-                        >
-                          <span
-                            className={`size-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
-                              d.isSelected
-                                ? 'bg-[#3b82f6] text-white font-bold shadow-md scale-105'
-                                : d.isToday
-                                  ? 'border border-[#3b82f6] text-[#3b82f6]'
-                                  : d.isCurrentMonth
-                                    ? 'text-zinc-200 hover:bg-zinc-800'
-                                    : 'text-zinc-600'
-                            }`}
+                              : isSelectedWeek
+                                ? 1
+                                : 0,
+                          transition: isDragging ? 'none' : 'opacity 0.2s',
+                        }}
+                      >
+                        {week.map((d) => (
+                          <button
+                            key={d.key}
+                            type="button"
+                            onClick={() => selectDate(d.date)}
+                            className="flex items-center justify-center py-0.5 focus:outline-none"
                           >
-                            {d.dayNum}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
+                            <span
+                              className={`size-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
+                                d.isSelected
+                                  ? 'bg-[#3b82f6] text-white font-bold shadow-md scale-105'
+                                  : d.isToday
+                                    ? 'border border-[#3b82f6] text-[#3b82f6]'
+                                    : d.isCurrentMonth
+                                      ? 'text-zinc-200 hover:bg-zinc-800'
+                                      : 'text-zinc-600'
+                              }`}
+                            >
+                              {d.dayNum}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </motion.div>
+              </AnimatePresence>
             </div>
 
             {/* Real-time Interactive Drag Handle at the Bottom */}
