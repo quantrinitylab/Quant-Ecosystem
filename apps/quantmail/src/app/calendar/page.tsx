@@ -72,8 +72,8 @@ export default function CalendarPage() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
 
-  // Infinite agenda buffer: days from anchor date (-15 days to +45 days)
-  const [agendaRangeDays, setAgendaRangeDays] = useState({ past: 15, future: 45 });
+  // Infinite agenda buffer: generous past and future buffer
+  const [agendaRangeDays, setAgendaRangeDays] = useState({ past: 45, future: 90 });
 
   const [newEvent, setNewEvent] = useState({
     title: '',
@@ -98,7 +98,7 @@ export default function CalendarPage() {
 
   // Broad half-year window so queries stay cached and never show loading skeletons during scrolling
   const start = useMemo(
-    () => new Date(today.getFullYear(), today.getMonth() - 4, 1).toISOString(),
+    () => new Date(today.getFullYear(), today.getMonth() - 6, 1).toISOString(),
     [today],
   );
   const end = useMemo(
@@ -579,45 +579,56 @@ export default function CalendarPage() {
     showToast({ text: 'Generated QuantMeet Video Link', type: 'info' });
   };
 
-  // Infinite scroll listener for agenda with rock-solid bi-directional calendar date tracking
+  // Infinite scroll listener for agenda with rock-solid bi-directional calendar date tracking (Up & Down)
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
 
-      // Infinite scroll buffer extensions
+      // Infinite scroll buffer extensions for forward scrolling
       if (scrollHeight - scrollTop - clientHeight < 300) {
         setAgendaRangeDays((prev) => ({ ...prev, future: prev.future + 30 }));
       }
-      if (scrollTop < 150) {
-        setAgendaRangeDays((prev) => ({ ...prev, past: prev.past + 20 }));
+      // Infinite scroll buffer extensions for backward scrolling (scroll anchored)
+      if (scrollTop < 100) {
+        const prevScrollHeight = e.currentTarget.scrollHeight;
+        setAgendaRangeDays((prev) => {
+          const next = { ...prev, past: prev.past + 30 };
+          requestAnimationFrame(() => {
+            if (scrollHostRef.current) {
+              const newScrollHeight = scrollHostRef.current.scrollHeight;
+              scrollHostRef.current.scrollTop += newScrollHeight - prevScrollHeight;
+            }
+          });
+          return next;
+        });
       }
 
-      // Bi-directional calendar synchronization: update selected date smoothly
+      // Bi-directional calendar synchronization: update selected date smoothly in BOTH directions (up and down)
       if (!isProgrammaticScrollRef.current && scrollHostRef.current) {
         const containerRect = scrollHostRef.current.getBoundingClientRect();
-        const targetY = containerRect.top + 70;
+        // Target line is just below the calendar strip
+        const targetY = containerRect.top + 30;
 
-        let closestItem: { date: Date; key: string } | null = null;
-        let minDistance = Infinity;
+        let activeItem: { date: Date; key: string } | null = null;
 
         for (const item of continuousAgendaDays) {
           const el = dateItemRefs.current.get(item.key);
           if (el) {
             const rect = el.getBoundingClientRect();
-            const distance = Math.abs(rect.top - targetY);
-            if (
-              rect.bottom > targetY &&
-              rect.top < containerRect.bottom &&
-              distance < minDistance
-            ) {
-              minDistance = distance;
-              closestItem = item;
+            // Check if this date item covers targetY or is the top-most visible date
+            if (rect.top <= targetY && rect.bottom > targetY) {
+              activeItem = item;
+              break;
+            }
+            if (rect.top > targetY) {
+              if (!activeItem) activeItem = item;
+              break;
             }
           }
         }
 
-        if (closestItem) {
-          const itemDate = closestItem.date;
+        if (activeItem) {
+          const itemDate = activeItem.date;
           const itemKey = dayKey(itemDate);
           if (itemKey !== dayKey(selectedDate)) {
             setSelectedDate(itemDate);
