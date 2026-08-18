@@ -197,6 +197,10 @@ export default function CalendarPage() {
     return idx >= 0 ? idx : 0;
   }, [monthWeeks, selectedDate]);
 
+  const currentWeekDays = useMemo(() => {
+    return monthWeeks[selectedWeekIndex] ?? [];
+  }, [monthWeeks, selectedWeekIndex]);
+
   const scrollToDate = useCallback((date: Date) => {
     const key = dayKey(date);
     const target = dateItemRefs.current.get(key);
@@ -801,7 +805,7 @@ export default function CalendarPage() {
             </div>
 
             {/* Weekday Label Headers (S M T W T F S) — always fixed at top */}
-            <div className="grid grid-cols-7 text-center py-0.5">
+            <div className="grid grid-cols-7 text-center py-1">
               {WEEKDAYS_SHORT.map((d, i) => (
                 <div key={i} className="text-[11px] font-semibold text-zinc-400">
                   {d}
@@ -809,53 +813,64 @@ export default function CalendarPage() {
               ))}
             </div>
 
-            {/* Month Weeks Container with 1:1 translation and animated month transitions */}
+            {/* Date Numbers Strip / Grid */}
             <div className="overflow-hidden flex-1 relative">
-              <AnimatePresence initial={false} mode="wait" custom={slideDirection}>
-                <motion.div
-                  key={`${year}-${month}`}
-                  custom={slideDirection}
-                  initial={{
-                    opacity: 0,
-                    x: slideDirection === 'left' ? 45 : slideDirection === 'right' ? -45 : 0,
-                  }}
-                  animate={{
-                    opacity: 1,
-                    x: 0,
-                  }}
-                  exit={{
-                    opacity: 0,
-                    x: slideDirection === 'left' ? -45 : slideDirection === 'right' ? 45 : 0,
-                  }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
-                  className="space-y-0"
-                  style={{
-                    transform: `translateY(-${(1 - expansionProgress) * selectedWeekIndex * ROW_HEIGHT}px)`,
-                    transition: isDragging
-                      ? 'none'
-                      : 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)',
-                  }}
-                >
-                  {monthWeeks.map((week, weekIdx) => {
-                    const isSelectedWeek = weekIdx === selectedWeekIndex;
-                    const rowOpacity = isSelectedWeek
-                      ? 1
-                      : Math.max(0, (expansionProgress - 0.15) / 0.85);
-
-                    return (
+              <AnimatePresence initial={false} mode="wait">
+                {!isMonthExpanded && !isDragging ? (
+                  <motion.div
+                    key={`week-${dayKey(selectedDate)}-${year}-${month}`}
+                    initial={{
+                      opacity: 0,
+                      x: slideDirection === 'left' ? 30 : slideDirection === 'right' ? -30 : 0,
+                    }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{
+                      opacity: 0,
+                      x: slideDirection === 'left' ? -30 : slideDirection === 'right' ? 30 : 0,
+                    }}
+                    transition={{ duration: 0.18 }}
+                    className="grid grid-cols-7 text-center h-[40px] items-center"
+                  >
+                    {currentWeekDays.map((d) => (
+                      <button
+                        key={d.key}
+                        type="button"
+                        onClick={() => selectDate(d.date)}
+                        className="flex items-center justify-center py-0.5 focus:outline-none"
+                      >
+                        <span
+                          className={`size-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
+                            d.isSelected
+                              ? 'bg-[#3b82f6] text-white font-bold shadow-md scale-105'
+                              : d.isToday
+                                ? 'border border-[#3b82f6] text-[#3b82f6]'
+                                : 'text-zinc-200 hover:bg-zinc-800'
+                          }`}
+                        >
+                          {d.dayNum}
+                        </span>
+                      </button>
+                    ))}
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key={`month-${year}-${month}`}
+                    initial={{
+                      opacity: 0,
+                      x: slideDirection === 'left' ? 30 : slideDirection === 'right' ? -30 : 0,
+                    }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{
+                      opacity: 0,
+                      x: slideDirection === 'left' ? -30 : slideDirection === 'right' ? 30 : 0,
+                    }}
+                    transition={{ duration: 0.18 }}
+                    className="space-y-0.5"
+                  >
+                    {monthWeeks.map((week, weekIdx) => (
                       <div
-                        key={`week-${weekIdx}`}
-                        className="grid grid-cols-7 text-center h-[40px] items-center"
-                        style={{
-                          opacity: isDragging
-                            ? rowOpacity
-                            : isMonthExpanded
-                              ? 1
-                              : isSelectedWeek
-                                ? 1
-                                : 0,
-                          transition: isDragging ? 'none' : 'opacity 0.2s',
-                        }}
+                        key={`week-row-${weekIdx}`}
+                        className="grid grid-cols-7 text-center h-[38px] items-center"
                       >
                         {week.map((d) => (
                           <button
@@ -880,9 +895,9 @@ export default function CalendarPage() {
                           </button>
                         ))}
                       </div>
-                    );
-                  })}
-                </motion.div>
+                    ))}
+                  </motion.div>
+                )}
               </AnimatePresence>
             </div>
 
