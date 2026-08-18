@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Modal, Skeleton, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
@@ -121,28 +120,228 @@ export default function CalendarPage() {
     return map;
   }, [events]);
 
-  // Current active 1-week strip (7 days based on selectedDate)
-  const currentWeekDays = useMemo(() => {
-    const current = new Date(selectedDate);
-    const dayOfWeek = current.getDay();
-    const firstDay = new Date(current);
-    firstDay.setDate(current.getDate() - dayOfWeek);
+  // Month grid weeks data structure for continuous Outlook-style vertical drawer
+  const monthWeeks = useMemo(() => {
+    const allDays: Array<{
+      date: Date;
+      dayNum: number;
+      isCurrentMonth: boolean;
+      isSelected: boolean;
+      isToday: boolean;
+      key: string;
+      hasHolidays: boolean;
+      hasEvents: boolean;
+    }> = [];
 
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(firstDay);
-      d.setDate(firstDay.getDate() + i);
-      const isSelected = dayKey(d) === dayKey(selectedDate);
-      const isToday = dayKey(d) === dayKey(today);
-      return {
+    // Prev month days
+    for (let i = grid.offset - 1; i >= 0; i--) {
+      const d = new Date(year, month - 1, grid.prevMonthTotal - i);
+      const k = dayKey(d);
+      allDays.push({
         date: d,
         dayNum: d.getDate(),
-        dayLetter: WEEKDAYS_SHORT[i],
-        isSelected,
-        isToday,
-        key: dayKey(d),
+        isCurrentMonth: false,
+        isSelected: k === dayKey(selectedDate),
+        isToday: k === dayKey(today),
+        key: k,
+        hasHolidays: (holidays[d.getDate()] ?? []).length > 0,
+        hasEvents: (eventsByDay[k] ?? []).length > 0,
+      });
+    }
+
+    // Current month days
+    for (let d = 1; d <= grid.total; d++) {
+      const date = new Date(year, month, d);
+      const k = dayKey(date);
+      allDays.push({
+        date,
+        dayNum: d,
+        isCurrentMonth: true,
+        isSelected: k === dayKey(selectedDate),
+        isToday: k === dayKey(today),
+        key: k,
+        hasHolidays: (holidays[d] ?? []).length > 0,
+        hasEvents: (eventsByDay[k] ?? []).length > 0,
+      });
+    }
+
+    // Trailing days
+    for (let d = 1; d <= grid.trailing; d++) {
+      const date = new Date(year, month + 1, d);
+      const k = dayKey(date);
+      allDays.push({
+        date,
+        dayNum: d,
+        isCurrentMonth: false,
+        isSelected: k === dayKey(selectedDate),
+        isToday: k === dayKey(today),
+        key: k,
+        hasHolidays: false,
+        hasEvents: (eventsByDay[k] ?? []).length > 0,
+      });
+    }
+
+    const weeks: (typeof allDays)[] = [];
+    for (let i = 0; i < allDays.length; i += 7) {
+      weeks.push(allDays.slice(i, i + 7));
+    }
+    return weeks;
+  }, [grid, year, month, selectedDate, today, holidays, eventsByDay]);
+
+  const selectedWeekIndex = useMemo(() => {
+    const idx = monthWeeks.findIndex((week) => week.some((d) => d.key === dayKey(selectedDate)));
+    return idx >= 0 ? idx : 0;
+  }, [monthWeeks, selectedDate]);
+
+  const scrollToDate = useCallback((date: Date) => {
+    const key = dayKey(date);
+    const target = dateItemRefs.current.get(key);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
+  const selectDate = useCallback(
+    (date: Date) => {
+      setSelectedDate(date);
+      if (
+        date.getMonth() !== currentDate.getMonth() ||
+        date.getFullYear() !== currentDate.getFullYear()
+      ) {
+        setCurrentDate(new Date(date.getFullYear(), date.getMonth(), 1));
+      }
+      scrollToDate(date);
+    },
+    [currentDate, scrollToDate],
+  );
+
+  const goMonth = useCallback((delta: number) => {
+    setCurrentDate((curr) => new Date(curr.getFullYear(), curr.getMonth() + delta, 1));
+  }, []);
+
+  const goToday = useCallback(() => {
+    const now = new Date();
+    setSelectedDate(now);
+    setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    scrollToDate(now);
+  }, [scrollToDate]);
+
+  // Dimension Constants for direct 1:1 finger tracking
+  const numWeeks = monthWeeks.length || 5;
+  const ROW_HEIGHT = 40;
+  const HEADER_HEIGHT = 28;
+  const MONTH_NAV_HEIGHT = 32;
+  const HANDLE_HEIGHT = 22;
+
+  const COLLAPSED_HEIGHT = HEADER_HEIGHT + ROW_HEIGHT + HANDLE_HEIGHT; // ~90px
+  const EXPANDED_HEIGHT = MONTH_NAV_HEIGHT + HEADER_HEIGHT + numWeeks * ROW_HEIGHT + HANDLE_HEIGHT; // ~282px
+
+  // Interactive real-time drag state
+  const [isDragging, setIsDragging] = useState(false);
+  const [currentHeight, setCurrentHeight] = useState(COLLAPSED_HEIGHT);
+  const pointerStartRef = useRef<{
+    startY: number;
+    startHeight: number;
+    startX: number;
+    time: number;
+  } | null>(null);
+
+  // Synchronize height when isMonthExpanded changes from external or programmatic action
+  useEffect(() => {
+    if (!isDragging) {
+      setCurrentHeight(isMonthExpanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT);
+    }
+  }, [isMonthExpanded, EXPANDED_HEIGHT, COLLAPSED_HEIGHT, isDragging]);
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      const initialH = isMonthExpanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT;
+      pointerStartRef.current = {
+        startY: e.clientY,
+        startHeight: initialH,
+        startX: e.clientX,
+        time: Date.now(),
       };
-    });
-  }, [selectedDate, today]);
+      setIsDragging(true);
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+    },
+    [isMonthExpanded, EXPANDED_HEIGHT, COLLAPSED_HEIGHT],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!pointerStartRef.current) return;
+      const deltaY = e.clientY - pointerStartRef.current.startY;
+      const targetH = pointerStartRef.current.startHeight + deltaY;
+      const clamped = Math.max(COLLAPSED_HEIGHT, Math.min(EXPANDED_HEIGHT, targetH));
+      setCurrentHeight(clamped);
+    },
+    [COLLAPSED_HEIGHT, EXPANDED_HEIGHT],
+  );
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!pointerStartRef.current) return;
+      const deltaY = e.clientY - pointerStartRef.current.startY;
+      const deltaX = e.clientX - pointerStartRef.current.startX;
+      const duration = Date.now() - pointerStartRef.current.time;
+      const velocityY = deltaY / (duration || 1);
+
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+
+      pointerStartRef.current = null;
+      setIsDragging(false);
+
+      // Quick tap detection: toggle between collapsed and expanded
+      if (Math.abs(deltaY) < 6 && Math.abs(deltaX) < 6 && duration < 300) {
+        setIsMonthExpanded((prev) => !prev);
+        return;
+      }
+
+      // Horizontal swipe to change month
+      if (Math.abs(deltaX) > 45 && Math.abs(deltaX) > Math.abs(deltaY) && isMonthExpanded) {
+        if (deltaX < 0) goMonth(1);
+        else goMonth(-1);
+        return;
+      }
+
+      // Continuous drag snapping based on threshold or velocity
+      const midpoint = (COLLAPSED_HEIGHT + EXPANDED_HEIGHT) / 2;
+      if (velocityY > 0.25 || currentHeight > midpoint + 15) {
+        setIsMonthExpanded(true);
+        setCurrentHeight(EXPANDED_HEIGHT);
+      } else if (velocityY < -0.25 || currentHeight < midpoint - 15) {
+        setIsMonthExpanded(false);
+        setCurrentHeight(COLLAPSED_HEIGHT);
+      } else {
+        if (currentHeight >= midpoint) {
+          setIsMonthExpanded(true);
+          setCurrentHeight(EXPANDED_HEIGHT);
+        } else {
+          setIsMonthExpanded(false);
+          setCurrentHeight(COLLAPSED_HEIGHT);
+        }
+      }
+    },
+    [COLLAPSED_HEIGHT, EXPANDED_HEIGHT, currentHeight, isMonthExpanded, goMonth],
+  );
+
+  const expansionProgress = useMemo(() => {
+    if (EXPANDED_HEIGHT === COLLAPSED_HEIGHT) return 0;
+    return Math.max(
+      0,
+      Math.min(1, (currentHeight - COLLAPSED_HEIGHT) / (EXPANDED_HEIGHT - COLLAPSED_HEIGHT)),
+    );
+  }, [currentHeight, COLLAPSED_HEIGHT, EXPANDED_HEIGHT]);
 
   // Infinite / Continuous Agenda Days
   const continuousAgendaDays = useMemo(() => {
@@ -205,39 +404,6 @@ export default function CalendarPage() {
     return list;
   }, [today, agendaRangeDays, eventsByDay, searchFilter]);
 
-  const scrollToDate = useCallback((date: Date) => {
-    const key = dayKey(date);
-    const target = dateItemRefs.current.get(key);
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
-
-  const selectDate = useCallback(
-    (date: Date) => {
-      setSelectedDate(date);
-      if (
-        date.getMonth() !== currentDate.getMonth() ||
-        date.getFullYear() !== currentDate.getFullYear()
-      ) {
-        setCurrentDate(new Date(date.getFullYear(), date.getMonth(), 1));
-      }
-      scrollToDate(date);
-    },
-    [currentDate, scrollToDate],
-  );
-
-  const goMonth = useCallback((delta: number) => {
-    setCurrentDate((curr) => new Date(curr.getFullYear(), curr.getMonth() + delta, 1));
-  }, []);
-
-  const goToday = useCallback(() => {
-    const now = new Date();
-    setSelectedDate(now);
-    setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
-    scrollToDate(now);
-  }, [scrollToDate]);
-
   const openCreate = useCallback(
     (date?: Date, hour = 10) => {
       const base = date ? new Date(date) : new Date(selectedDate);
@@ -261,82 +427,6 @@ export default function CalendarPage() {
     window.addEventListener('quant:calendar:create', handler);
     return () => window.removeEventListener('quant:calendar:create', handler);
   }, [openCreate]);
-
-  // Real-time Pointer & Touch Drag controller for smooth interactive pull-down/push-up
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragY, setDragY] = useState(0);
-  const pointerStartRef = useRef<{ y: number; x: number; time: number } | null>(null);
-
-  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
-    pointerStartRef.current = { y: e.clientY, x: e.clientX, time: Date.now() };
-    setIsDragging(true);
-    setDragY(0);
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!pointerStartRef.current) return;
-      const deltaY = e.clientY - pointerStartRef.current.y;
-      if (!isMonthExpanded) {
-        setDragY(Math.max(0, Math.min(240, deltaY)));
-      } else {
-        setDragY(Math.min(0, Math.max(-240, deltaY)));
-      }
-    },
-    [isMonthExpanded],
-  );
-
-  const handlePointerUp = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!pointerStartRef.current) return;
-      const deltaY = e.clientY - pointerStartRef.current.y;
-      const deltaX = e.clientX - pointerStartRef.current.x;
-      const duration = Date.now() - pointerStartRef.current.time;
-      const velocityY = deltaY / (duration || 1);
-
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch {
-        // ignore
-      }
-
-      pointerStartRef.current = null;
-      setIsDragging(false);
-      setDragY(0);
-
-      // Tap detection (minimal movement within 300ms)
-      if (Math.abs(deltaY) < 6 && Math.abs(deltaX) < 6 && duration < 300) {
-        setIsMonthExpanded((prev) => !prev);
-        return;
-      }
-
-      // Drag / Swipe detection: threshold 25px or velocity > 0.25
-      if (Math.abs(deltaY) > Math.abs(deltaX)) {
-        if (!isMonthExpanded) {
-          if (deltaY > 25 || velocityY > 0.25) {
-            setIsMonthExpanded(true);
-          }
-        } else {
-          if (deltaY < -25 || velocityY < -0.25) {
-            setIsMonthExpanded(false);
-          }
-        }
-      } else if (Math.abs(deltaX) > 40 && isMonthExpanded) {
-        if (deltaX < 0) {
-          goMonth(1);
-        } else {
-          goMonth(-1);
-        }
-      }
-    },
-    [isMonthExpanded, goMonth],
-  );
 
   const handleCreateEvent = useCallback(async () => {
     if (!newEvent.title.trim() || !newEvent.startTime || !newEvent.endTime) return;
@@ -485,25 +575,18 @@ export default function CalendarPage() {
     >
       <PageTransition className="flex flex-col h-full bg-black text-white relative">
         {/* Search Bar on Mobile when toggled */}
-        <AnimatePresence>
-          {isSearchOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="border-b border-zinc-800 bg-zinc-950 px-4 py-2"
-            >
-              <input
-                type="search"
-                placeholder="Search events, meetings, holidays…"
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#3b82f6]"
-                autoFocus
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {isSearchOpen && (
+          <div className="border-b border-zinc-800 bg-zinc-950 px-4 py-2">
+            <input
+              type="search"
+              placeholder="Search events, meetings, holidays…"
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#3b82f6]"
+              autoFocus
+            />
+          </div>
+        )}
 
         {/* Desktop Header Toolbar (Hidden on Mobile) */}
         <div className="hidden md:flex items-center justify-between border-b border-zinc-800 px-6 py-3 bg-zinc-950">
@@ -569,162 +652,132 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Outlook-Style Interactive Expandable Date Picker (Mobile + Desktop Top Bar) */}
+        {/* Outlook-Style Interactive Expandable Date Picker with 1:1 Direct Finger Physics */}
         <div
-          className="border-b border-zinc-800 bg-[#161618] select-none"
-          style={{ touchAction: 'pan-x' }}
+          className="border-b border-zinc-800 bg-[#161618] select-none overflow-hidden relative"
+          style={{
+            height: `${currentHeight}px`,
+            transition: isDragging ? 'none' : 'height 0.24s cubic-bezier(0.16, 1, 0.3, 1)',
+            touchAction: 'none',
+          }}
         >
-          <AnimatePresence initial={false} mode="wait">
-            {!isMonthExpanded ? (
-              <motion.div
-                key="week-strip"
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.15 }}
-                className="px-3 pt-2.5 pb-0.5"
-              >
-                <div className="grid grid-cols-7 text-center">
-                  {currentWeekDays.map((d, i) => (
-                    <button
-                      key={d.key}
-                      type="button"
-                      onClick={() => selectDate(d.date)}
-                      className="flex flex-col items-center justify-center py-1 group focus:outline-none"
-                    >
-                      <span className="text-[11px] font-semibold text-zinc-400 mb-1">
-                        {d.dayLetter}
-                      </span>
-                      <span
-                        className={`size-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                          d.isSelected
-                            ? 'bg-[#3b82f6] text-white shadow-md'
-                            : d.isToday
-                              ? 'border border-[#3b82f6] text-[#3b82f6]'
-                              : 'text-zinc-200 group-hover:bg-zinc-800'
-                        }`}
-                      >
-                        {d.dayNum}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Real-time Interactive Drag Handle to Expand Month */}
-                <div
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerCancel={handlePointerUp}
-                  className="w-full flex flex-col items-center justify-center py-2.5 cursor-grab active:cursor-grabbing group select-none touch-none"
-                  style={{ touchAction: 'none' }}
-                  title="Slide down or tap to expand full month"
+          <div className="flex flex-col h-full justify-between px-3 pt-2 pb-0.5">
+            {/* Top Month Header Navigation (fades in as expansionProgress increases) */}
+            <div
+              className="flex items-center justify-between px-2 overflow-hidden"
+              style={{
+                height: `${MONTH_NAV_HEIGHT * expansionProgress}px`,
+                opacity: expansionProgress,
+                transform: `translateY(${(1 - expansionProgress) * -10}px)`,
+                pointerEvents: expansionProgress > 0.4 ? 'auto' : 'none',
+                transition: isDragging ? 'none' : 'opacity 0.2s, height 0.2s',
+              }}
+            >
+              <span className="text-xs font-bold text-zinc-300">
+                {monthName} {year}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => goMonth(-1)}
+                  className="size-6 text-xs text-zinc-400 hover:text-white rounded hover:bg-zinc-800 flex items-center justify-center"
                 >
-                  <div
-                    className={`w-12 h-1.5 rounded-full transition-all ${
-                      isDragging ? 'bg-[#3b82f6] scale-110' : 'bg-zinc-700 group-hover:bg-zinc-500'
-                    }`}
-                  />
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onClick={() => goMonth(1)}
+                  className="size-6 text-xs text-zinc-400 hover:text-white rounded hover:bg-zinc-800 flex items-center justify-center"
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+
+            {/* Weekday Label Headers (S M T W T F S) — always fixed at top */}
+            <div className="grid grid-cols-7 text-center py-0.5">
+              {WEEKDAYS_SHORT.map((d, i) => (
+                <div key={i} className="text-[11px] font-semibold text-zinc-400">
+                  {d}
                 </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="month-grid"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="px-3 pt-2.5 pb-1 overflow-hidden"
+              ))}
+            </div>
+
+            {/* Month Weeks Container with 1:1 translation */}
+            <div className="overflow-hidden flex-1 relative">
+              <div
+                className="space-y-0"
+                style={{
+                  transform: `translateY(-${(1 - expansionProgress) * selectedWeekIndex * ROW_HEIGHT}px)`,
+                  transition: isDragging ? 'none' : 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
               >
-                <div className="flex items-center justify-between px-2 mb-2">
-                  <span className="text-xs font-bold text-zinc-300">
-                    {monthName} {year}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => goMonth(-1)}
-                      className="size-6 text-xs text-zinc-400 hover:text-white rounded hover:bg-zinc-800"
-                    >
-                      ‹
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => goMonth(1)}
-                      className="size-6 text-xs text-zinc-400 hover:text-white rounded hover:bg-zinc-800"
-                    >
-                      ›
-                    </button>
-                  </div>
-                </div>
+                {monthWeeks.map((week, weekIdx) => {
+                  const isSelectedWeek = weekIdx === selectedWeekIndex;
+                  const rowOpacity = isSelectedWeek
+                    ? 1
+                    : Math.max(0, (expansionProgress - 0.15) / 0.85);
 
-                <div className="grid grid-cols-7 gap-y-1 text-center">
-                  {WEEKDAYS_SHORT.map((d, i) => (
-                    <div key={i} className="text-[11px] font-semibold text-zinc-400 pb-1">
-                      {d}
-                    </div>
-                  ))}
-
-                  {/* Prev Month Offset */}
-                  {Array.from({ length: grid.offset }).map((_, i) => (
+                  return (
                     <div
-                      key={`offset-${i}`}
-                      className="size-8 mx-auto flex items-center justify-center text-xs text-zinc-700"
+                      key={`week-${weekIdx}`}
+                      className="grid grid-cols-7 text-center h-[40px] items-center"
+                      style={{
+                        opacity: isDragging
+                          ? rowOpacity
+                          : isMonthExpanded
+                            ? 1
+                            : isSelectedWeek
+                              ? 1
+                              : 0,
+                        transition: isDragging ? 'none' : 'opacity 0.2s',
+                      }}
                     >
-                      {grid.prevMonthTotal - grid.offset + i + 1}
-                    </div>
-                  ))}
-
-                  {/* Current Month Days */}
-                  {Array.from({ length: grid.total }).map((_, i) => {
-                    const dayNum = i + 1;
-                    const d = new Date(year, month, dayNum);
-                    const key = dayKey(d);
-                    const isSelected = key === dayKey(selectedDate);
-                    const isToday = key === dayKey(today);
-
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => selectDate(d)}
-                        className="flex items-center justify-center py-0.5 focus:outline-none"
-                      >
-                        <span
-                          className={`size-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
-                            isSelected
-                              ? 'bg-[#3b82f6] text-white font-bold shadow-md'
-                              : isToday
-                                ? 'border border-[#3b82f6] text-[#3b82f6]'
-                                : 'text-zinc-200 hover:bg-zinc-800'
-                          }`}
+                      {week.map((d) => (
+                        <button
+                          key={d.key}
+                          type="button"
+                          onClick={() => selectDate(d.date)}
+                          className="flex items-center justify-center py-0.5 focus:outline-none"
                         >
-                          {dayNum}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                          <span
+                            className={`size-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
+                              d.isSelected
+                                ? 'bg-[#3b82f6] text-white font-bold shadow-md scale-105'
+                                : d.isToday
+                                  ? 'border border-[#3b82f6] text-[#3b82f6]'
+                                  : d.isCurrentMonth
+                                    ? 'text-zinc-200 hover:bg-zinc-800'
+                                    : 'text-zinc-600'
+                            }`}
+                          >
+                            {d.dayNum}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
-                {/* Real-time Interactive Drag Handle to Collapse Month */}
-                <div
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerCancel={handlePointerUp}
-                  className="w-full flex flex-col items-center justify-center pt-2.5 pb-1.5 cursor-grab active:cursor-grabbing group select-none touch-none"
-                  style={{ touchAction: 'none' }}
-                  title="Slide up or tap to collapse to week strip"
-                >
-                  <div
-                    className={`w-12 h-1.5 rounded-full transition-all ${
-                      isDragging ? 'bg-[#3b82f6] scale-110' : 'bg-zinc-700 group-hover:bg-zinc-500'
-                    }`}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+            {/* Real-time Interactive Drag Handle at the Bottom */}
+            <div
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerUp}
+              className="w-full flex flex-col items-center justify-center py-2 cursor-grab active:cursor-grabbing group select-none touch-none"
+              style={{ touchAction: 'none' }}
+              title="Drag up or down to expand/collapse calendar"
+            >
+              <div
+                className={`w-12 h-1.5 rounded-full transition-all ${
+                  isDragging ? 'bg-[#3b82f6] scale-110' : 'bg-zinc-700 group-hover:bg-zinc-500'
+                }`}
+              />
+            </div>
+          </div>
         </div>
 
         {/* View Content: Infinite Continuous Agenda Feed */}
