@@ -14,6 +14,8 @@ export function useCalendarEvents(options?: {
       if (!response.success) throw new Error(response.error?.message || 'Failed to load events');
       return response.data ?? [];
     },
+    placeholderData: (previousData) => previousData,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

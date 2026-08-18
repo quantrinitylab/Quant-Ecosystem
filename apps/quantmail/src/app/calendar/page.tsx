@@ -73,7 +73,7 @@ export default function CalendarPage() {
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
 
   // Infinite agenda buffer: days from anchor date (-15 days to +45 days)
-  const [agendaRangeDays, setAgendaRangeDays] = useState({ past: 12, future: 40 });
+  const [agendaRangeDays, setAgendaRangeDays] = useState({ past: 15, future: 45 });
 
   const [newEvent, setNewEvent] = useState({
     title: '',
@@ -92,11 +92,24 @@ export default function CalendarPage() {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  const start = new Date(year, month - 1, 1).toISOString();
-  const end = new Date(year, month + 2, 0, 23, 59, 59).toISOString();
+  // Active month/year for top navigation headers based on selected date
+  const activeMonthName = MONTH_NAMES[selectedDate.getMonth()];
+  const activeYear = selectedDate.getFullYear();
+
+  // Broad half-year window so queries stay cached and never show loading skeletons during scrolling
+  const start = useMemo(
+    () => new Date(today.getFullYear(), today.getMonth() - 4, 1).toISOString(),
+    [today],
+  );
+  const end = useMemo(
+    () => new Date(today.getFullYear(), today.getMonth() + 8, 0, 23, 59, 59).toISOString(),
+    [today],
+  );
 
   const { data: rawEvents, isLoading, error, refetch } = useCalendarEvents({ start, end });
   const events = (rawEvents ?? []) as unknown as CalendarEventLike[];
+  const isInitialLoading = isLoading && !rawEvents;
+
   const createEvent = useCreateEvent();
   const deleteEvent = useDeleteEvent();
 
@@ -124,7 +137,32 @@ export default function CalendarPage() {
     return map;
   }, [events]);
 
-  // Month grid weeks data structure for continuous Outlook-style vertical drawer
+  // Current active 1-week strip (7 days computed directly from selectedDate: Sunday to Saturday)
+  const currentWeekDays = useMemo(() => {
+    const current = new Date(selectedDate);
+    const dayOfWeek = current.getDay();
+    const firstDay = new Date(current);
+    firstDay.setDate(current.getDate() - dayOfWeek);
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(firstDay);
+      d.setDate(firstDay.getDate() + i);
+      const isSelected = dayKey(d) === dayKey(selectedDate);
+      const isToday = dayKey(d) === dayKey(today);
+      const isCurrentSelectedMonth = d.getMonth() === selectedDate.getMonth();
+      return {
+        date: d,
+        dayNum: d.getDate(),
+        dayLetter: WEEKDAYS_SHORT[i],
+        isSelected,
+        isToday,
+        isCurrentMonth: isCurrentSelectedMonth,
+        key: dayKey(d),
+      };
+    });
+  }, [selectedDate, today]);
+
+  // Month grid weeks data structure for full month expanded mode
   const monthWeeks = useMemo(() => {
     const allDays: Array<{
       date: Date;
@@ -196,10 +234,6 @@ export default function CalendarPage() {
     const idx = monthWeeks.findIndex((week) => week.some((d) => d.key === dayKey(selectedDate)));
     return idx >= 0 ? idx : 0;
   }, [monthWeeks, selectedDate]);
-
-  const currentWeekDays = useMemo(() => {
-    return monthWeeks[selectedWeekIndex] ?? [];
-  }, [monthWeeks, selectedWeekIndex]);
 
   const scrollToDate = useCallback((date: Date) => {
     const key = dayKey(date);
@@ -545,9 +579,7 @@ export default function CalendarPage() {
     showToast({ text: 'Generated QuantMeet Video Link', type: 'info' });
   };
 
-  const monthName = MONTH_NAMES[month];
-
-  // Infinite scroll listener for agenda with bi-directional calendar date tracking
+  // Infinite scroll listener for agenda with rock-solid bi-directional calendar date tracking
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -560,10 +592,10 @@ export default function CalendarPage() {
         setAgendaRangeDays((prev) => ({ ...prev, past: prev.past + 20 }));
       }
 
-      // Bi-directional calendar synchronization: when user manually scrolls agenda, update top calendar date!
+      // Bi-directional calendar synchronization: update selected date smoothly
       if (!isProgrammaticScrollRef.current && scrollHostRef.current) {
         const containerRect = scrollHostRef.current.getBoundingClientRect();
-        const targetY = containerRect.top + 60; // Reference line near top of viewport
+        const targetY = containerRect.top + 70;
 
         let closestItem: { date: Date; key: string } | null = null;
         let minDistance = Infinity;
@@ -615,7 +647,7 @@ export default function CalendarPage() {
             onClick={() => setIsMonthExpanded((prev) => !prev)}
             className="flex items-center gap-1 text-base font-bold text-white hover:text-[#3b82f6] transition-colors"
           >
-            <span>{monthName}</span>
+            <span>{activeMonthName}</span>
             <svg
               className={`size-4 transition-transform duration-200 ${isMonthExpanded ? 'rotate-180' : ''}`}
               viewBox="0 0 24 24"
@@ -717,7 +749,7 @@ export default function CalendarPage() {
             </div>
 
             <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              {monthName} <span className="text-zinc-400 font-normal">{year}</span>
+              {activeMonthName} <span className="text-zinc-400 font-normal">{activeYear}</span>
             </h2>
 
             <button
@@ -784,7 +816,7 @@ export default function CalendarPage() {
               }}
             >
               <span className="text-xs font-bold text-zinc-300">
-                {monthName} {year}
+                {activeMonthName} {activeYear}
               </span>
               <div className="flex items-center gap-1">
                 <button
@@ -818,7 +850,7 @@ export default function CalendarPage() {
               <AnimatePresence initial={false} mode="wait">
                 {!isMonthExpanded && !isDragging ? (
                   <motion.div
-                    key={`week-${dayKey(selectedDate)}-${year}-${month}`}
+                    key={`week-${dayKey(selectedDate)}`}
                     initial={{
                       opacity: 0,
                       x: slideDirection === 'left' ? 30 : slideDirection === 'right' ? -30 : 0,
@@ -844,7 +876,9 @@ export default function CalendarPage() {
                               ? 'bg-[#3b82f6] text-white font-bold shadow-md scale-105'
                               : d.isToday
                                 ? 'border border-[#3b82f6] text-[#3b82f6]'
-                                : 'text-zinc-200 hover:bg-zinc-800'
+                                : d.isCurrentMonth
+                                  ? 'text-zinc-200 hover:bg-zinc-800'
+                                  : 'text-zinc-500'
                           }`}
                         >
                           {d.dayNum}
@@ -926,7 +960,7 @@ export default function CalendarPage() {
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto px-4 py-3 sm:px-6 space-y-6 pb-28 md:pb-6"
         >
-          {isLoading && (
+          {isInitialLoading && (
             <div className="space-y-4 py-4">
               {Array.from({ length: 4 }).map((_, i) => (
                 <Skeleton key={i} variant="rect" width="100%" height="72px" />
@@ -940,7 +974,7 @@ export default function CalendarPage() {
             </div>
           )}
 
-          {!isLoading && !error && (
+          {!isInitialLoading && !error && (
             <div className="space-y-5">
               {continuousAgendaDays.map((item) => {
                 const isSelected = dayKey(item.date) === dayKey(selectedDate);
