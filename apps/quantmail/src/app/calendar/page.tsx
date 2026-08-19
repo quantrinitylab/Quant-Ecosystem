@@ -440,6 +440,7 @@ export default function CalendarPage() {
 
   // Active Creation Sheet Type (Dedicated sheet per mode)
   const [activeSheetType, setActiveSheetType] = useState<EntryType | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [periodSubTab, setPeriodSubTab] = useState<'track' | 'cycle' | 'insights'>('track');
   const [isPeriodCustomizeOpen, setIsPeriodCustomizeOpen] = useState(false);
 
@@ -1112,15 +1113,20 @@ export default function CalendarPage() {
       cycleDay: activeSheetType === 'period' ? formState.currentCycleDay : undefined,
     };
 
+    setIsSaving(true);
     try {
       await createEvent.mutateAsync(payload as never);
-      setActiveSheetType(null);
-      showToast({
-        text: `${activeSheetType === 'task' ? 'Task' : activeSheetType === 'birthday' ? 'Birthday' : activeSheetType === 'period' ? 'Cycle entry' : 'Event'} "${finalTitle}" saved`,
-        type: 'success',
-      });
-      await refetch();
+      setTimeout(() => {
+        setIsSaving(false);
+        setActiveSheetType(null);
+        showToast({
+          text: `${activeSheetType === 'task' ? 'Task' : activeSheetType === 'birthday' ? 'Birthday' : activeSheetType === 'period' ? 'Cycle entry' : 'Event'} "${finalTitle}" saved`,
+          type: 'success',
+        });
+        void refetch();
+      }, 350);
     } catch {
+      setIsSaving(false);
       showToast({ text: 'Failed to save entry', type: 'error' });
     }
   }, [activeSheetType, formState, createEvent, refetch]);
@@ -1598,7 +1604,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Continuous Agenda Feed */}
+        {/* Continuous Agenda Feed with Dual-Split Category + Priority Accent Cards */}
         <div
           ref={scrollHostRef}
           onScroll={handleScroll}
@@ -1703,13 +1709,66 @@ export default function CalendarPage() {
                         const isBirthday = ev.type === 'birthday';
                         const isPeriod = ev.type === 'period';
 
+                        // Calculate dual-split accent colors
+                        let categoryColor = '#3b82f6';
+                        let categoryLabel = 'Event';
+                        let urgencyColor = '#60a5fa';
+                        let urgencyLabel = 'Standard';
+
+                        if (isTask) {
+                          categoryColor = '#f59e0b';
+                          categoryLabel = 'Task';
+                          if (ev.priority === 'urgent') {
+                            urgencyColor = '#ef4444';
+                            urgencyLabel = 'Urgent';
+                          } else if (ev.priority === 'low') {
+                            urgencyColor = '#10b981';
+                            urgencyLabel = 'Low';
+                          } else {
+                            urgencyColor = '#eab308';
+                            urgencyLabel = 'Medium';
+                          }
+                        } else if (isPeriod) {
+                          categoryColor = '#f43f5e';
+                          categoryLabel = 'Period';
+                          if (ev.flowIntensity === 'super_heavy') {
+                            urgencyColor = '#be123c';
+                            urgencyLabel = 'Super';
+                          } else if (ev.flowIntensity === 'heavy') {
+                            urgencyColor = '#e11d48';
+                            urgencyLabel = 'Heavy';
+                          } else if (ev.flowIntensity === 'light') {
+                            urgencyColor = '#fb7185';
+                            urgencyLabel = 'Light';
+                          } else {
+                            urgencyColor = '#f43f5e';
+                            urgencyLabel = 'Medium';
+                          }
+                        } else if (isBirthday) {
+                          categoryColor = '#10b981';
+                          categoryLabel = 'Birthday';
+                          urgencyColor = '#059669';
+                          urgencyLabel = 'Annual';
+                        } else {
+                          if (ev.location?.includes('meet')) {
+                            urgencyColor = '#8b5cf6';
+                            urgencyLabel = 'Video';
+                          }
+                        }
+
                         return (
                           <div
                             key={ev.id}
                             onClick={() => setSelectedEvent(ev)}
-                            className="flex items-center justify-between p-3 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-[#3b82f6]/50 transition-colors cursor-pointer shadow-sm"
+                            className="relative flex items-center justify-between p-3 rounded-2xl border border-zinc-800 bg-zinc-900/90 hover:border-zinc-700 transition-all cursor-pointer shadow-md overflow-hidden group"
                           >
-                            <div className="flex items-start gap-2.5">
+                            {/* Half Main Category Color + Half Urgency/Status Color Dual Accent Pillar */}
+                            <div className="absolute left-0 top-0 bottom-0 w-1.5 flex flex-col">
+                              <div className="flex-1" style={{ backgroundColor: categoryColor }} />
+                              <div className="flex-1" style={{ backgroundColor: urgencyColor }} />
+                            </div>
+
+                            <div className="flex items-start gap-2.5 pl-1.5">
                               {isTask ? (
                                 <button
                                   type="button"
@@ -1735,21 +1794,28 @@ export default function CalendarPage() {
                               <div>
                                 <div className="flex items-center gap-1.5">
                                   <h5 className="text-xs font-bold text-white">{ev.title}</h5>
-                                  {isPeriod && ev.flowIntensity && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 font-semibold uppercase">
-                                      {ev.flowIntensity}
+
+                                  {/* Dual Split Accent Pill (Half Main Type, Half Urgency Status) */}
+                                  <div className="inline-flex items-center rounded-full overflow-hidden text-[9px] font-bold border border-zinc-700/60 shadow-sm">
+                                    <span
+                                      className="px-1.5 py-0.5 uppercase"
+                                      style={{
+                                        backgroundColor: `${categoryColor}22`,
+                                        color: categoryColor,
+                                      }}
+                                    >
+                                      {categoryLabel}
                                     </span>
-                                  )}
-                                  {isBirthday && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-semibold">
-                                      Birthday
+                                    <span
+                                      className="px-1.5 py-0.5 uppercase border-l border-zinc-700/40"
+                                      style={{
+                                        backgroundColor: `${urgencyColor}33`,
+                                        color: urgencyColor,
+                                      }}
+                                    >
+                                      {urgencyLabel}
                                     </span>
-                                  )}
-                                  {isTask && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-semibold">
-                                      Task
-                                    </span>
-                                  )}
+                                  </div>
                                 </div>
 
                                 <p className="text-[11px] text-zinc-400 mt-0.5">
@@ -1893,7 +1959,7 @@ export default function CalendarPage() {
           </button>
         </div>
 
-        {/* Dedicated Slide-up Sheets with Safe Top Inset to Prevent URL Bar Clipping */}
+        {/* Dedicated Slide-up Sheets with Safe Top Inset and Animated Save Button */}
         <AnimatePresence>
           {activeSheetType && (
             <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
@@ -1901,7 +1967,7 @@ export default function CalendarPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                onClick={() => setActiveSheetType(null)}
+                onClick={() => !isSaving && setActiveSheetType(null)}
                 className="absolute inset-0 bg-black/70 backdrop-blur-sm"
               />
 
@@ -1931,12 +1997,12 @@ export default function CalendarPage() {
                     }`}
                   />
 
-                  {/* Header Bar: ✕ on Left, Title in Center, Save on Right */}
+                  {/* Header Bar: ✕ on Left, Title in Center, Animated Save on Right */}
                   <div className="flex items-center justify-between pb-1">
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setActiveSheetType(null)}
+                        onClick={() => !isSaving && setActiveSheetType(null)}
                         className="size-9 rounded-full hover:bg-zinc-800 text-zinc-300 hover:text-white flex items-center justify-center text-lg transition-colors"
                       >
                         ✕
@@ -1973,8 +2039,9 @@ export default function CalendarPage() {
 
                     <button
                       type="button"
+                      disabled={isSaving}
                       onClick={() => void handleSaveEntry()}
-                      className={`px-5 py-1.5 rounded-full text-white font-bold text-xs shadow-md transition-all active:scale-95 ${
+                      className={`px-5 py-1.5 rounded-full text-white font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 ${
                         activeSheetType === 'period'
                           ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-900/50'
                           : activeSheetType === 'task'
@@ -1984,7 +2051,28 @@ export default function CalendarPage() {
                               : 'bg-[#3b82f6] hover:bg-[#2563eb] shadow-blue-900/50'
                       }`}
                     >
-                      Save
+                      {isSaving ? (
+                        <>
+                          <svg className="animate-spin size-3.5" viewBox="0 0 24 24" fill="none">
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8v8H4z"
+                            />
+                          </svg>
+                          <span>Saving…</span>
+                        </>
+                      ) : (
+                        <span>Save</span>
+                      )}
                     </button>
                   </div>
 
