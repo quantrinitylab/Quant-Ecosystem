@@ -7,6 +7,7 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { useCalendarEvents, useCreateEvent, useDeleteEvent } from '../../hooks/useCalendar';
+import { useAuth } from '../../providers/auth-provider';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
 
@@ -55,6 +56,7 @@ export interface CalendarEventLike {
   completed?: boolean;
   flowIntensity?: 'light' | 'medium' | 'heavy' | 'spotting';
   symptoms?: string[];
+  accountEmail?: string;
 }
 
 const startOf = (event: CalendarEventLike) => new Date(event.startTime ?? event.start ?? '');
@@ -63,9 +65,6 @@ const hhmm = (date: Date) =>
   Number.isNaN(date.getTime())
     ? ''
     : date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-
-const toLocalInput = (date: Date) =>
-  `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}T${`${date.getHours()}`.padStart(2, '0')}:${`${date.getMinutes()}`.padStart(2, '0')}`;
 
 const toDateInput = (date: Date) =>
   `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
@@ -95,6 +94,9 @@ const PERIOD_SYMPTOMS = [
 
 export default function CalendarPage() {
   const today = useMemo(() => new Date(), []);
+  const { user } = useAuth();
+  const currentUserEmail = user?.email || 'kundan@quantmail.in';
+
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [activeView, setActiveView] = useState<CalendarView>('agenda');
@@ -122,6 +124,7 @@ export default function CalendarPage() {
     description: string;
     recurrence: string;
     color: string;
+    accountEmail: string;
     notifications: string[];
     attendeeInput: string;
     attendees: string[];
@@ -142,6 +145,7 @@ export default function CalendarPage() {
     description: '',
     recurrence: 'Does not repeat',
     color: '#3b82f6',
+    accountEmail: currentUserEmail,
     notifications: ['30 minutes before'],
     attendeeInput: '',
     attendees: [],
@@ -151,8 +155,18 @@ export default function CalendarPage() {
     cycleLength: 28,
   });
 
-  // Drag to expand/dismiss for create bottom sheet
+  // Always keep accountEmail in sync with authenticated user
+  useEffect(() => {
+    if (currentUserEmail) {
+      setNewEntry((prev) => ({ ...prev, accountEmail: currentUserEmail }));
+    }
+  }, [currentUserEmail]);
+
+  // Real-time 1:1 Physics Drag State for Create Bottom Sheet
   const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [sheetDragY, setSheetDragY] = useState(0);
+  const [isSheetDragging, setIsSheetDragging] = useState(false);
+  const sheetPointerRef = useRef<{ startY: number; time: number } | null>(null);
 
   const scrollHostRef = useRef<HTMLDivElement>(null);
   const dateItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -445,6 +459,73 @@ export default function CalendarPage() {
     [COLLAPSED_HEIGHT, EXPANDED_HEIGHT, currentHeight, isMonthExpanded, goMonth],
   );
 
+  // Bottom Sheet 1:1 Direct Finger Physics Handlers
+  const handleSheetPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    sheetPointerRef.current = {
+      startY: e.clientY,
+      time: Date.now(),
+    };
+    setIsSheetDragging(true);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleSheetPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!sheetPointerRef.current) return;
+    const deltaY = e.clientY - sheetPointerRef.current.startY;
+    // Allow dragging downwards (positive deltaY) or pulling upwards (negative deltaY)
+    setSheetDragY(deltaY);
+  }, []);
+
+  const handleSheetPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!sheetPointerRef.current) return;
+      const deltaY = e.clientY - sheetPointerRef.current.startY;
+      const duration = Date.now() - sheetPointerRef.current.time;
+      const velocityY = deltaY / (duration || 1);
+
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
+
+      sheetPointerRef.current = null;
+      setIsSheetDragging(false);
+      setSheetDragY(0);
+
+      // If quick tap on handle -> toggle expanded state
+      if (Math.abs(deltaY) < 8 && duration < 250) {
+        setSheetExpanded((prev) => !prev);
+        return;
+      }
+
+      // Downward swipe / pull down past threshold -> Close Sheet
+      if (deltaY > 100 || velocityY > 0.35) {
+        if (sheetExpanded && deltaY < 180) {
+          // If expanded, pull down snaps back to normal height
+          setSheetExpanded(false);
+        } else {
+          // Dismiss sheet
+          setShowCreateModal(false);
+          setSheetExpanded(false);
+        }
+        return;
+      }
+
+      // Upward swipe / pull up past threshold -> Expand to Full Screen
+      if (deltaY < -60 || velocityY < -0.35) {
+        setSheetExpanded(true);
+        return;
+      }
+    },
+    [sheetExpanded],
+  );
+
   // Dedicated touch swipe listener on the calendar container for horizontal month changing
   const swipeStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
@@ -548,7 +629,6 @@ export default function CalendarPage() {
   const openCreate = useCallback(
     (date?: Date, type: EntryType = 'event') => {
       const base = date ? new Date(date) : new Date(selectedDate);
-      const later = new Date(base.getTime() + 60 * 60 * 1000);
       const dateStr = toDateInput(base);
 
       setNewEntry({
@@ -575,6 +655,7 @@ export default function CalendarPage() {
               : type === 'task'
                 ? '#3b82f6'
                 : '#3b82f6',
+        accountEmail: currentUserEmail,
         notifications:
           type === 'birthday'
             ? ['1 week before at 9 AM', 'On the day at 9 AM']
@@ -586,10 +667,11 @@ export default function CalendarPage() {
         periodDays: 5,
         cycleLength: 28,
       });
+      setSheetDragY(0);
       setSheetExpanded(false);
       setShowCreateModal(true);
     },
-    [selectedDate],
+    [selectedDate, currentUserEmail],
   );
 
   useEffect(() => {
@@ -633,6 +715,7 @@ export default function CalendarPage() {
       recurrence: newEntry.recurrence,
       reminders: newEntry.notifications,
       attendees: newEntry.attendees,
+      accountEmail: newEntry.accountEmail,
       flowIntensity: newEntry.type === 'period' ? newEntry.flowIntensity : undefined,
       symptoms: newEntry.type === 'period' ? newEntry.symptoms : undefined,
     };
@@ -1309,7 +1392,7 @@ export default function CalendarPage() {
           </svg>
         </button>
 
-        {/* Google Calendar Style Slide-up Mobile Bottom Sheet / Modal */}
+        {/* Google Calendar Style Slide-up Mobile Bottom Sheet / Modal with 1:1 Finger Physics */}
         <AnimatePresence>
           {showCreateModal && (
             <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
@@ -1322,23 +1405,35 @@ export default function CalendarPage() {
                 className="absolute inset-0 bg-black/70 backdrop-blur-sm"
               />
 
-              {/* Sheet Container with drag handle */}
+              {/* Sheet Container with 1:1 Drag Gesture Physics */}
               <motion.div
                 initial={{ y: '100%' }}
-                animate={{ y: 0 }}
+                animate={{ y: isSheetDragging ? Math.max(-40, sheetDragY) : 0 }}
                 exit={{ y: '100%' }}
-                transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                transition={
+                  isSheetDragging
+                    ? { duration: 0 }
+                    : { type: 'spring', damping: 28, stiffness: 300 }
+                }
                 className={`relative w-full max-w-lg bg-[#1c1b20] border-t md:border border-zinc-800 rounded-t-3xl md:rounded-3xl shadow-2xl z-10 flex flex-col transition-all overflow-hidden ${
-                  sheetExpanded ? 'h-[92vh]' : 'max-h-[88vh] md:max-h-[85vh]'
+                  sheetExpanded ? 'h-[94vh]' : 'max-h-[88vh] md:max-h-[85vh]'
                 }`}
               >
-                {/* Drag Handle & Top App Bar matching Google Calendar */}
-                <div className="pt-2.5 pb-1 px-4 flex flex-col">
-                  {/* Visual Drag Handle Pill (tap/drag to expand full screen) */}
+                {/* Drag Handle & Top App Bar with 1:1 Pointer Tracking */}
+                <div
+                  onPointerDown={handleSheetPointerDown}
+                  onPointerMove={handleSheetPointerMove}
+                  onPointerUp={handleSheetPointerUp}
+                  onPointerCancel={handleSheetPointerUp}
+                  className="pt-2.5 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none"
+                  style={{ touchAction: 'none' }}
+                >
+                  {/* Visual Drag Handle Pill (Slide down to dismiss, slide up to full screen) */}
                   <div
-                    onClick={() => setSheetExpanded((prev) => !prev)}
-                    className="w-12 h-1.5 bg-zinc-600 hover:bg-zinc-400 rounded-full mx-auto cursor-pointer mb-2"
-                    title="Tap to expand/collapse"
+                    className={`w-14 h-1.5 rounded-full mx-auto mb-2 transition-all ${
+                      isSheetDragging ? 'bg-[#3b82f6] scale-110' : 'bg-zinc-600 hover:bg-zinc-400'
+                    }`}
+                    title="Drag down to close, drag up to expand"
                   />
 
                   {/* Header Row: Close ✕ on Left, Save on Right */}
@@ -1382,7 +1477,7 @@ export default function CalendarPage() {
                     />
                   </div>
 
-                  {/* Segmented Type Selector Pills (Red Circled Feature in Google Calendar + Period Tracker) */}
+                  {/* Segmented Type Selector Pills */}
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                     {(
                       [
@@ -1423,9 +1518,7 @@ export default function CalendarPage() {
                     ))}
                   </div>
 
-                  {/* Dynamic Form Sections based on Selected Pill */}
-
-                  {/* Account / Category Row */}
+                  {/* User Account / Email Selection Row (Dynamic Authenticated User Account) */}
                   <div className="flex items-center justify-between py-2 border-b border-zinc-800/60 text-zinc-300">
                     <div className="flex items-center gap-2.5">
                       <span
@@ -1442,9 +1535,11 @@ export default function CalendarPage() {
                               : 'Events'}
                       </span>
                     </div>
-                    <span className="text-[11px] text-zinc-400">
-                      kundansinghrajput31980@gmail.com
-                    </span>
+
+                    <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#3b82f6] bg-[#3b82f6]/10 px-2.5 py-1 rounded-full border border-[#3b82f6]/20">
+                      <span>👤</span>
+                      <span>{newEntry.accountEmail || currentUserEmail}</span>
+                    </div>
                   </div>
 
                   {/* Mode: Period Tracker Specific Fields */}
