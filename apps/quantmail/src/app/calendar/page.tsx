@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Modal, Skeleton, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
@@ -10,7 +11,6 @@ import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
 
 const WEEKDAYS_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const FULL_WEEKDAYS = [
   'Sunday',
   'Monday',
@@ -35,6 +35,8 @@ const MONTH_NAMES = [
   'December',
 ];
 
+export type EntryType = 'event' | 'task' | 'birthday' | 'period' | 'reminder';
+
 export interface CalendarEventLike {
   id: string;
   title: string;
@@ -45,6 +47,14 @@ export interface CalendarEventLike {
   location?: string;
   description?: string;
   allDay?: boolean;
+  type?: EntryType | string;
+  color?: string;
+  recurrence?: string;
+  reminders?: string[];
+  attendees?: string[];
+  completed?: boolean;
+  flowIntensity?: 'light' | 'medium' | 'heavy' | 'spotting';
+  symptoms?: string[];
 }
 
 const startOf = (event: CalendarEventLike) => new Date(event.startTime ?? event.start ?? '');
@@ -57,7 +67,31 @@ const hhmm = (date: Date) =>
 const toLocalInput = (date: Date) =>
   `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}T${`${date.getHours()}`.padStart(2, '0')}:${`${date.getMinutes()}`.padStart(2, '0')}`;
 
+const toDateInput = (date: Date) =>
+  `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
+
 type CalendarView = 'agenda' | 'week' | 'day' | 'month';
+
+const COLOR_OPTIONS = [
+  { name: 'Default Blue', value: '#3b82f6', bg: 'bg-[#3b82f6]' },
+  { name: 'Emerald Green', value: '#10b981', bg: 'bg-[#10b981]' },
+  { name: 'Purple Violet', value: '#8b5cf6', bg: 'bg-[#8b5cf6]' },
+  { name: 'Warm Amber', value: '#f59e0b', bg: 'bg-[#f59e0b]' },
+  { name: 'Rose Pink', value: '#ec4899', bg: 'bg-[#ec4899]' },
+  { name: 'Cyan Teal', value: '#06b6d4', bg: 'bg-[#06b6d4]' },
+  { name: 'Crimson Red', value: '#ef4444', bg: 'bg-[#ef4444]' },
+];
+
+const PERIOD_SYMPTOMS = [
+  '⚡ Cramps',
+  '🤕 Headache',
+  '😴 Fatigue',
+  '🎭 Mood Swings',
+  '🌸 Normal / Good',
+  '🎈 Bloating',
+  '🍫 Cravings',
+  '💆 Backache',
+];
 
 export default function CalendarPage() {
   const today = useMemo(() => new Date(), []);
@@ -75,14 +109,50 @@ export default function CalendarPage() {
   const [isLoadingFuture, setIsLoadingFuture] = useState(false);
   const [agendaRangeDays, setAgendaRangeDays] = useState({ past: 45, future: 90 });
 
-  const [newEvent, setNewEvent] = useState({
+  // Rich Create Entry State
+  const [newEntry, setNewEntry] = useState<{
+    type: EntryType;
+    title: string;
+    startDate: string;
+    endDate: string;
+    startTime: string;
+    endTime: string;
+    allDay: boolean;
+    location: string;
+    description: string;
+    recurrence: string;
+    color: string;
+    notifications: string[];
+    attendeeInput: string;
+    attendees: string[];
+    // Period tracker specific:
+    flowIntensity: 'light' | 'medium' | 'heavy' | 'spotting';
+    symptoms: string[];
+    periodDays: number;
+    cycleLength: number;
+  }>({
+    type: 'event',
     title: '',
-    startTime: '',
-    endTime: '',
+    startDate: toDateInput(new Date()),
+    endDate: toDateInput(new Date()),
+    startTime: '10:00',
+    endTime: '11:00',
+    allDay: false,
     location: '',
     description: '',
-    allDay: false,
+    recurrence: 'Does not repeat',
+    color: '#3b82f6',
+    notifications: ['30 minutes before'],
+    attendeeInput: '',
+    attendees: [],
+    flowIntensity: 'medium',
+    symptoms: ['⚡ Cramps'],
+    periodDays: 5,
+    cycleLength: 28,
   });
+
+  // Drag to expand/dismiss for create bottom sheet
+  const [sheetExpanded, setSheetExpanded] = useState(false);
 
   const scrollHostRef = useRef<HTMLDivElement>(null);
   const dateItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -277,10 +347,10 @@ export default function CalendarPage() {
   }, [scrollToDate]);
 
   // Dimension Constants for direct 1:1 finger tracking
-  const COLLAPSED_HEIGHT = 104; // ~104px for week header + 46px week row + handle
-  const EXPANDED_HEIGHT = 336; // ~336px for complete month view with all 6 weeks + nav + handle
+  const COLLAPSED_HEIGHT = 104;
+  const EXPANDED_HEIGHT = 336;
 
-  // Interactive real-time drag state
+  // Interactive real-time drag state for top calendar drawer
   const [isDragging, setIsDragging] = useState(false);
   const [currentHeight, setCurrentHeight] = useState(COLLAPSED_HEIGHT);
   const pointerStartRef = useRef<{
@@ -290,7 +360,6 @@ export default function CalendarPage() {
     time: number;
   } | null>(null);
 
-  // Synchronize height when isMonthExpanded changes from external or programmatic action
   useEffect(() => {
     if (!isDragging) {
       setCurrentHeight(isMonthExpanded ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT);
@@ -345,20 +414,17 @@ export default function CalendarPage() {
       pointerStartRef.current = null;
       setIsDragging(false);
 
-      // Quick tap detection: toggle between collapsed and expanded
       if (Math.abs(deltaY) < 6 && Math.abs(deltaX) < 6 && duration < 300) {
         setIsMonthExpanded((prev) => !prev);
         return;
       }
 
-      // Horizontal swipe to change month
       if (Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY)) {
         if (deltaX < 0) goMonth(1);
         else goMonth(-1);
         return;
       }
 
-      // Continuous drag snapping based on threshold or velocity
       const midpoint = (COLLAPSED_HEIGHT + EXPANDED_HEIGHT) / 2;
       if (velocityY > 0.25 || currentHeight > midpoint + 20) {
         setIsMonthExpanded(true);
@@ -403,15 +469,13 @@ export default function CalendarPage() {
       const absX = Math.abs(deltaX);
       const absY = Math.abs(deltaY);
 
-      // Horizontal swipe detected (threshold > 35px) -> Change Month!
       if (absX > absY && absX > 35) {
         if (deltaX < 0) {
-          goMonth(1); // Swipe Left -> Next Month
+          goMonth(1);
         } else {
-          goMonth(-1); // Swipe Right -> Prev Month
+          goMonth(-1);
         }
       } else if (absY > absX && absY > 40) {
-        // Vertical swipe on the grid area
         if (deltaY > 0 && !isMonthExpanded) {
           setIsMonthExpanded(true);
         } else if (deltaY < 0 && isMonthExpanded) {
@@ -449,10 +513,8 @@ export default function CalendarPage() {
       const isDayToday = key === dayKey(today);
       const isDayTomorrow = key === dayKey(tomorrow);
 
-      // Find events for this date
       const dayEvents = eventsByDay[key] ?? [];
 
-      // Find holidays
       const dayHolidays = HOLIDAYS.filter((h) => {
         const parts = h.date.split('-');
         if (parts.length === 3) {
@@ -484,18 +546,47 @@ export default function CalendarPage() {
   }, [today, agendaRangeDays, eventsByDay, searchFilter]);
 
   const openCreate = useCallback(
-    (date?: Date, hour = 10) => {
+    (date?: Date, type: EntryType = 'event') => {
       const base = date ? new Date(date) : new Date(selectedDate);
-      base.setHours(hour, 0, 0, 0);
       const later = new Date(base.getTime() + 60 * 60 * 1000);
-      setNewEvent({
+      const dateStr = toDateInput(base);
+
+      setNewEntry({
+        type,
         title: '',
-        startTime: toLocalInput(base),
-        endTime: toLocalInput(later),
+        startDate: dateStr,
+        endDate: dateStr,
+        startTime: '10:00',
+        endTime: '11:00',
+        allDay: type === 'birthday' || type === 'period',
         location: '',
         description: '',
-        allDay: false,
+        recurrence:
+          type === 'birthday'
+            ? 'Annually'
+            : type === 'period'
+              ? 'Every 28 days'
+              : 'Does not repeat',
+        color:
+          type === 'period'
+            ? '#ec4899'
+            : type === 'birthday'
+              ? '#10b981'
+              : type === 'task'
+                ? '#3b82f6'
+                : '#3b82f6',
+        notifications:
+          type === 'birthday'
+            ? ['1 week before at 9 AM', 'On the day at 9 AM']
+            : ['30 minutes before'],
+        attendeeInput: '',
+        attendees: [],
+        flowIntensity: 'medium',
+        symptoms: ['⚡ Cramps'],
+        periodDays: 5,
+        cycleLength: 28,
       });
+      setSheetExpanded(false);
       setShowCreateModal(true);
     },
     [selectedDate],
@@ -507,45 +598,69 @@ export default function CalendarPage() {
     return () => window.removeEventListener('quant:calendar:create', handler);
   }, [openCreate]);
 
-  const handleCreateEvent = useCallback(async () => {
-    if (!newEvent.title.trim() || !newEvent.startTime || !newEvent.endTime) return;
-    const payload = newEvent.allDay
-      ? {
-          title: newEvent.title.trim(),
-          startTime: new Date(`${newEvent.startTime.slice(0, 10)}T00:00:00`).toISOString(),
-          endTime: new Date(`${newEvent.endTime.slice(0, 10)}T23:59:59`).toISOString(),
-          description: newEvent.description,
-          location: newEvent.location,
-          allDay: true,
-        }
-      : {
-          title: newEvent.title.trim(),
-          startTime: new Date(newEvent.startTime).toISOString(),
-          endTime: new Date(newEvent.endTime).toISOString(),
-          description: newEvent.description,
-          location: newEvent.location,
-        };
+  const handleCreateEntry = useCallback(async () => {
+    if (!newEntry.title.trim() && newEntry.type !== 'period') return;
+
+    let finalTitle = newEntry.title.trim();
+    if (newEntry.type === 'period' && !finalTitle) {
+      finalTitle = `🌸 Period (${newEntry.flowIntensity} flow)`;
+    }
+
+    let startIso: string;
+    let endIso: string;
+
+    if (newEntry.allDay) {
+      startIso = new Date(`${newEntry.startDate}T00:00:00`).toISOString();
+      endIso = new Date(`${newEntry.endDate || newEntry.startDate}T23:59:59`).toISOString();
+    } else {
+      startIso = new Date(`${newEntry.startDate}T${newEntry.startTime}:00`).toISOString();
+      endIso = new Date(
+        `${newEntry.endDate || newEntry.startDate}T${newEntry.endTime}:00`,
+      ).toISOString();
+    }
+
+    const payload = {
+      title: finalTitle,
+      startTime: startIso,
+      endTime: endIso,
+      start: startIso,
+      end: endIso,
+      description: newEntry.description,
+      location: newEntry.location,
+      allDay: newEntry.allDay,
+      type: newEntry.type,
+      color: newEntry.color,
+      recurrence: newEntry.recurrence,
+      reminders: newEntry.notifications,
+      attendees: newEntry.attendees,
+      flowIntensity: newEntry.type === 'period' ? newEntry.flowIntensity : undefined,
+      symptoms: newEntry.type === 'period' ? newEntry.symptoms : undefined,
+    };
+
     try {
       await createEvent.mutateAsync(payload as never);
       setShowCreateModal(false);
-      showToast({ text: `Event "${newEvent.title.trim()}" scheduled`, type: 'success' });
+      showToast({
+        text: `${newEntry.type === 'task' ? 'Task' : newEntry.type === 'birthday' ? 'Birthday' : newEntry.type === 'period' ? 'Period entry' : 'Event'} "${finalTitle}" scheduled`,
+        type: 'success',
+      });
       await refetch();
     } catch {
-      showToast({ text: 'Failed to schedule event', type: 'error' });
+      showToast({ text: 'Failed to save entry', type: 'error' });
     }
-  }, [newEvent, createEvent, refetch]);
+  }, [newEntry, createEvent, refetch]);
 
   const handleDeleteEvent = useCallback(
     async (id: string, e?: React.MouseEvent) => {
       e?.stopPropagation();
-      if (confirm('Delete this event?')) {
+      if (confirm('Delete this entry?')) {
         try {
           await deleteEvent.mutateAsync(id);
           setSelectedEvent(null);
-          showToast({ text: 'Event deleted', type: 'info' });
+          showToast({ text: 'Entry deleted', type: 'info' });
           await refetch();
         } catch {
-          showToast({ text: 'Failed to delete event', type: 'error' });
+          showToast({ text: 'Failed to delete entry', type: 'error' });
         }
       }
     },
@@ -554,11 +669,57 @@ export default function CalendarPage() {
 
   const handleAddMeetLink = () => {
     const roomId = `meet-${Math.random().toString(36).substring(2, 8)}`;
-    setNewEvent((prev) => ({
+    setNewEntry((prev) => ({
       ...prev,
       location: `https://meet.quantrinity.in/${roomId}`,
     }));
     showToast({ text: 'Generated QuantMeet Video Link', type: 'info' });
+  };
+
+  const handleAddAttendee = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const val = newEntry.attendeeInput.trim().replace(',', '');
+      if (val && !newEntry.attendees.includes(val)) {
+        setNewEntry((prev) => ({
+          ...prev,
+          attendees: [...prev.attendees, val],
+          attendeeInput: '',
+        }));
+      }
+    }
+  };
+
+  const removeAttendee = (email: string) => {
+    setNewEntry((prev) => ({
+      ...prev,
+      attendees: prev.attendees.filter((a) => a !== email),
+    }));
+  };
+
+  const addNotificationReminder = (timeText: string) => {
+    if (!newEntry.notifications.includes(timeText)) {
+      setNewEntry((prev) => ({
+        ...prev,
+        notifications: [...prev.notifications, timeText],
+      }));
+    }
+  };
+
+  const removeNotificationReminder = (index: number) => {
+    setNewEntry((prev) => ({
+      ...prev,
+      notifications: prev.notifications.filter((_, i) => i !== index),
+    }));
+  };
+
+  const toggleSymptom = (symptom: string) => {
+    setNewEntry((prev) => ({
+      ...prev,
+      symptoms: prev.symptoms.includes(symptom)
+        ? prev.symptoms.filter((s) => s !== symptom)
+        : [...prev.symptoms, symptom],
+    }));
   };
 
   // Symmetrical bi-directional scroll listener for agenda with loading indicators
@@ -567,7 +728,6 @@ export default function CalendarPage() {
       const host = e.currentTarget;
       const { scrollTop, scrollHeight, clientHeight } = host;
 
-      // Infinite scroll buffer extensions for forward scrolling
       if (scrollHeight - scrollTop - clientHeight < 350 && !isLoadingFuture) {
         setIsLoadingFuture(true);
         setTimeout(() => {
@@ -576,7 +736,6 @@ export default function CalendarPage() {
         }, 250);
       }
 
-      // Infinite scroll buffer extensions for backward scrolling (scroll anchored)
       if (scrollTop < 120 && !isLoadingPast) {
         setIsLoadingPast(true);
         const prevScrollHeight = host.scrollHeight;
@@ -595,7 +754,6 @@ export default function CalendarPage() {
         }, 250);
       }
 
-      // Bi-directional calendar synchronization: update selected date smoothly in BOTH directions
       if (!isProgrammaticScrollRef.current && scrollHostRef.current) {
         const containerRect = scrollHostRef.current.getBoundingClientRect();
         const targetY = containerRect.top + 45;
@@ -651,7 +809,6 @@ export default function CalendarPage() {
       }
       mobileActions={
         <div className="flex items-center gap-1.5">
-          {/* View mode toggle */}
           <button
             type="button"
             onClick={() =>
@@ -672,7 +829,6 @@ export default function CalendarPage() {
             </svg>
           </button>
 
-          {/* Search Toggle */}
           <button
             type="button"
             onClick={() => setIsSearchOpen((prev) => !prev)}
@@ -691,7 +847,6 @@ export default function CalendarPage() {
             </svg>
           </button>
 
-          {/* Today Jump Chip */}
           <button
             type="button"
             onClick={goToday}
@@ -708,7 +863,7 @@ export default function CalendarPage() {
           <div className="border-b border-zinc-800 bg-zinc-950 px-4 py-2">
             <input
               type="search"
-              placeholder="Search events, meetings, holidays…"
+              placeholder="Search events, meetings, tasks, birthdays…"
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
               className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#3b82f6]"
@@ -717,7 +872,7 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {/* Desktop Header Toolbar (Hidden on Mobile) */}
+        {/* Desktop Header Toolbar */}
         <div className="hidden md:flex items-center justify-between border-b border-zinc-800 px-6 py-3 bg-zinc-950">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
@@ -776,7 +931,7 @@ export default function CalendarPage() {
             </div>
 
             <Button variant="primary" onClick={() => openCreate()}>
-              + New Event
+              + New Entry
             </Button>
           </div>
         </div>
@@ -793,7 +948,6 @@ export default function CalendarPage() {
           }}
         >
           <div className="flex flex-col h-full justify-between px-3 pt-2 pb-1">
-            {/* Top Month Header Navigation in Expanded View */}
             {isMonthExpanded && (
               <div className="flex items-center justify-between px-2 pb-1">
                 <span className="text-xs font-bold text-zinc-200">
@@ -818,7 +972,7 @@ export default function CalendarPage() {
               </div>
             )}
 
-            {/* Weekday Label Headers (S M T W T F S) — always fixed at top */}
+            {/* Weekday Label Headers */}
             <div className="grid grid-cols-7 text-center py-1">
               {WEEKDAYS_SHORT.map((d, i) => (
                 <div key={i} className="text-[11px] font-semibold text-zinc-400">
@@ -827,10 +981,9 @@ export default function CalendarPage() {
               ))}
             </div>
 
-            {/* Date Numbers: Collapsed 1-Week Strip vs Full Month Grid */}
+            {/* Date Numbers Strip / Grid */}
             <div className="flex-1 overflow-hidden">
               {!isMonthExpanded ? (
-                /* Collapsed 1-Week Strip */
                 <div className="grid grid-cols-7 text-center h-[46px] items-center">
                   {currentWeekDays.map((d) => (
                     <button
@@ -856,7 +1009,6 @@ export default function CalendarPage() {
                   ))}
                 </div>
               ) : (
-                /* Full Month Grid (All 5/6 weeks rendered clearly) */
                 <div className="space-y-0.5 pt-0.5">
                   {monthWeeks.map((week, weekIdx) => (
                     <div
@@ -891,7 +1043,7 @@ export default function CalendarPage() {
               )}
             </div>
 
-            {/* Real-time Interactive Drag Handle at the Bottom */}
+            {/* Bottom Drag Handle */}
             <div
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
@@ -916,7 +1068,6 @@ export default function CalendarPage() {
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto px-4 py-3 sm:px-6 space-y-6 pb-28 md:pb-6"
         >
-          {/* Top Loading Indicator when fetching past dates */}
           {isLoadingPast && (
             <div className="flex items-center justify-center gap-2 py-2 text-xs font-semibold text-[#3b82f6] animate-pulse">
               <svg className="animate-spin size-4" viewBox="0 0 24 24" fill="none">
@@ -966,7 +1117,7 @@ export default function CalendarPage() {
                       isSelected ? 'bg-zinc-900/40 rounded-2xl p-2' : ''
                     }`}
                   >
-                    {/* Day Heading matching Outlook format: 13 Thursday Today / 14 Friday Tomorrow */}
+                    {/* Day Heading */}
                     <div className="flex items-baseline gap-2 mb-1.5">
                       <span
                         className={`text-base font-extrabold ${
@@ -988,7 +1139,7 @@ export default function CalendarPage() {
                       )}
                     </div>
 
-                    {/* Content under Day: Events, Indian Holidays, or "No plans yet" */}
+                    {/* Content under Day */}
                     <div className="space-y-2">
                       {/* Holidays */}
                       {item.holidays.map((h, hi) => (
@@ -1011,49 +1162,99 @@ export default function CalendarPage() {
                         </div>
                       ))}
 
-                      {/* Scheduled Events */}
-                      {item.events.map((ev) => (
-                        <div
-                          key={ev.id}
-                          onClick={() => setSelectedEvent(ev)}
-                          className="flex items-center justify-between p-3 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-[#3b82f6]/50 transition-colors cursor-pointer shadow-sm"
-                        >
-                          <div className="flex items-start gap-2.5">
-                            <span className="size-2 rounded-full bg-[#3b82f6] mt-1.5 shrink-0" />
-                            <div>
-                              <h5 className="text-xs font-bold text-white">{ev.title}</h5>
-                              <p className="text-[11px] text-zinc-400 mt-0.5">
-                                {ev.allDay
-                                  ? 'All Day'
-                                  : `${hhmm(startOf(ev))} – ${hhmm(endOf(ev))}`}
-                                {ev.location ? ` · 📍 ${ev.location}` : ''}
-                              </p>
+                      {/* Scheduled Events, Tasks, Birthdays, Period tracker */}
+                      {item.events.map((ev) => {
+                        const isTask = ev.type === 'task';
+                        const isBirthday = ev.type === 'birthday';
+                        const isPeriod = ev.type === 'period';
+                        const isReminder = ev.type === 'reminder';
+
+                        return (
+                          <div
+                            key={ev.id}
+                            onClick={() => setSelectedEvent(ev)}
+                            className="flex items-center justify-between p-3 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-[#3b82f6]/50 transition-colors cursor-pointer shadow-sm"
+                          >
+                            <div className="flex items-start gap-2.5">
+                              {/* Type Icon / Indicator */}
+                              {isTask ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    showToast({
+                                      text: `Task "${ev.title}" completed`,
+                                      type: 'success',
+                                    });
+                                  }}
+                                  className="size-4 rounded border border-zinc-500 hover:border-[#3b82f6] mt-0.5 flex items-center justify-center text-[10px] text-transparent hover:text-white"
+                                >
+                                  ✓
+                                </button>
+                              ) : isBirthday ? (
+                                <span className="text-sm">🎂</span>
+                              ) : isPeriod ? (
+                                <span className="text-sm">🌸</span>
+                              ) : isReminder ? (
+                                <span className="text-sm">⏰</span>
+                              ) : (
+                                <span
+                                  className="size-2.5 rounded-full mt-1.5 shrink-0"
+                                  style={{ backgroundColor: ev.color || '#3b82f6' }}
+                                />
+                              )}
+
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <h5 className="text-xs font-bold text-white">{ev.title}</h5>
+                                  {isPeriod && ev.flowIntensity && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-pink-500/20 text-pink-300 font-semibold uppercase">
+                                      {ev.flowIntensity}
+                                    </span>
+                                  )}
+                                  {isBirthday && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-semibold">
+                                      Birthday
+                                    </span>
+                                  )}
+                                </div>
+
+                                <p className="text-[11px] text-zinc-400 mt-0.5">
+                                  {ev.allDay
+                                    ? 'All Day'
+                                    : `${hhmm(startOf(ev))} – ${hhmm(endOf(ev))}`}
+                                  {ev.location ? ` · 📍 ${ev.location}` : ''}
+                                  {ev.symptoms && ev.symptoms.length > 0
+                                    ? ` · ${ev.symptoms.join(', ')}`
+                                    : ''}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              {ev.location?.includes('meet.quantrinity.in') && (
+                                <a
+                                  href={ev.location}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="px-2.5 py-1 rounded-lg bg-[#3b82f6]/20 text-[#3b82f6] text-[11px] font-bold hover:bg-[#3b82f6]/30 transition-colors"
+                                >
+                                  🎥 Join Video
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteEvent(ev.id, e)}
+                                className="p-1 text-zinc-500 hover:text-rose-400 text-xs"
+                                title="Delete"
+                              >
+                                🗑
+                              </button>
                             </div>
                           </div>
-
-                          <div className="flex items-center gap-2">
-                            {ev.location?.includes('meet.quantrinity.in') && (
-                              <a
-                                href={ev.location}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="px-2.5 py-1 rounded-lg bg-[#3b82f6]/20 text-[#3b82f6] text-[11px] font-bold hover:bg-[#3b82f6]/30 transition-colors"
-                              >
-                                🎥 Join Video
-                              </a>
-                            )}
-                            <button
-                              type="button"
-                              onClick={(e) => handleDeleteEvent(ev.id, e)}
-                              className="p-1 text-zinc-500 hover:text-rose-400 text-xs"
-                              title="Delete"
-                            >
-                              🗑
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
 
                       {/* Empty State */}
                       {!hasEvents && !hasHolidays && (
@@ -1071,7 +1272,6 @@ export default function CalendarPage() {
             </div>
           )}
 
-          {/* Bottom Loading Indicator when fetching future dates */}
           {isLoadingFuture && (
             <div className="flex items-center justify-center gap-2 py-4 text-xs font-semibold text-[#3b82f6] animate-pulse">
               <svg className="animate-spin size-4" viewBox="0 0 24 24" fill="none">
@@ -1090,12 +1290,12 @@ export default function CalendarPage() {
           )}
         </div>
 
-        {/* Dedicated Calendar Floating Action Button (+) matching Outlook style — only on mobile */}
+        {/* Dedicated Calendar Floating Action Button (+) matching Google Calendar / Outlook */}
         <button
           type="button"
           onClick={() => openCreate()}
           className="fixed bottom-20 right-4 md:hidden z-40 size-14 rounded-full bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold shadow-2xl flex items-center justify-center active:scale-95 transition-all focus:outline-none focus:ring-4 focus:ring-[#3b82f6]/40"
-          aria-label="New calendar event"
+          aria-label="New calendar entry"
         >
           <svg
             className="size-6"
@@ -1109,95 +1309,510 @@ export default function CalendarPage() {
           </svg>
         </button>
 
-        {/* Create Event Modal */}
-        <Modal
-          isOpen={showCreateModal}
-          onClose={() => setShowCreateModal(false)}
-          title="Schedule Event"
-        >
-          <div className="space-y-4 text-xs text-white">
-            <div>
-              <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
-                Event Title *
-              </label>
-              <input
-                type="text"
-                value={newEvent.title}
-                onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-                placeholder="e.g. Product Review with Team"
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-[#3b82f6]"
-                autoFocus
+        {/* Google Calendar Style Slide-up Mobile Bottom Sheet / Modal */}
+        <AnimatePresence>
+          {showCreateModal && (
+            <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowCreateModal(false)}
+                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
               />
-            </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
-                  Start Time
-                </label>
-                <input
-                  type="datetime-local"
-                  value={newEvent.startTime}
-                  onChange={(e) => setNewEvent({ ...newEvent, startTime: e.target.value })}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#3b82f6]"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
-                  End Time
-                </label>
-                <input
-                  type="datetime-local"
-                  value={newEvent.endTime}
-                  onChange={(e) => setNewEvent({ ...newEvent, endTime: e.target.value })}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-[#3b82f6]"
-                />
-              </div>
-            </div>
+              {/* Sheet Container with drag handle */}
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                className={`relative w-full max-w-lg bg-[#1c1b20] border-t md:border border-zinc-800 rounded-t-3xl md:rounded-3xl shadow-2xl z-10 flex flex-col transition-all overflow-hidden ${
+                  sheetExpanded ? 'h-[92vh]' : 'max-h-[88vh] md:max-h-[85vh]'
+                }`}
+              >
+                {/* Drag Handle & Top App Bar matching Google Calendar */}
+                <div className="pt-2.5 pb-1 px-4 flex flex-col">
+                  {/* Visual Drag Handle Pill (tap/drag to expand full screen) */}
+                  <div
+                    onClick={() => setSheetExpanded((prev) => !prev)}
+                    className="w-12 h-1.5 bg-zinc-600 hover:bg-zinc-400 rounded-full mx-auto cursor-pointer mb-2"
+                    title="Tap to expand/collapse"
+                  />
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-[11px] font-semibold text-zinc-400">
-                  Location / Video Link
-                </label>
-                <button
-                  type="button"
-                  onClick={handleAddMeetLink}
-                  className="text-[11px] text-[#3b82f6] hover:underline font-semibold"
-                >
-                  + Add QuantMeet Link
-                </button>
-              </div>
-              <input
-                type="text"
-                value={newEvent.location}
-                onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
-                placeholder="Room 101 or https://meet.quantrinity.in/…"
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-[#3b82f6]"
-              />
-            </div>
+                  {/* Header Row: Close ✕ on Left, Save on Right */}
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateModal(false)}
+                      className="size-9 rounded-full hover:bg-zinc-800 text-zinc-300 hover:text-white flex items-center justify-center text-lg transition-colors"
+                      aria-label="Close"
+                    >
+                      ✕
+                    </button>
 
-            <div>
-              <label className="block text-[11px] font-semibold text-zinc-400 mb-1">Notes</label>
-              <textarea
-                value={newEvent.description}
-                onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
-                rows={3}
-                placeholder="Agenda, attendees, topics to discuss…"
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3.5 py-2 text-white placeholder-zinc-500 focus:outline-none focus:border-[#3b82f6]"
-              />
-            </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleCreateEntry()}
+                      className="px-5 py-1.5 rounded-full bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold text-xs shadow-md transition-all active:scale-95"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
-              <Button variant="ghost" onClick={() => setShowCreateModal(false)}>
-                Cancel
-              </Button>
-              <Button variant="primary" onClick={() => void handleCreateEvent()}>
-                Save Event
-              </Button>
+                {/* Form Body (Scrollable) */}
+                <div className="flex-1 overflow-y-auto px-5 py-2 space-y-4 text-xs text-white">
+                  {/* Large Minimalist Title Input */}
+                  <div>
+                    <input
+                      type="text"
+                      value={newEntry.title}
+                      onChange={(e) => setNewEntry({ ...newEntry, title: e.target.value })}
+                      placeholder={
+                        newEntry.type === 'birthday'
+                          ? 'Add name'
+                          : newEntry.type === 'period'
+                            ? 'Cycle notes / Period Log'
+                            : 'Add title'
+                      }
+                      className="w-full bg-transparent text-xl font-medium text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-[#3b82f6]"
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Segmented Type Selector Pills (Red Circled Feature in Google Calendar + Period Tracker) */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                    {(
+                      [
+                        { key: 'event', label: 'Event', icon: '📅' },
+                        { key: 'task', label: 'Task', icon: '🎯' },
+                        { key: 'birthday', label: 'Birthday', icon: '🎂' },
+                        { key: 'period', label: 'Period Tracker', icon: '🌸' },
+                        { key: 'reminder', label: 'Reminder', icon: '⏰' },
+                      ] as const
+                    ).map((t) => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() =>
+                          setNewEntry((prev) => ({
+                            ...prev,
+                            type: t.key,
+                            allDay: t.key === 'birthday' || t.key === 'period',
+                            color:
+                              t.key === 'period'
+                                ? '#ec4899'
+                                : t.key === 'birthday'
+                                  ? '#10b981'
+                                  : t.key === 'task'
+                                    ? '#3b82f6'
+                                    : '#3b82f6',
+                          }))
+                        }
+                        className={`flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+                          newEntry.type === t.key
+                            ? 'bg-[#3b82f6] text-white shadow-md font-bold'
+                            : 'bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 hover:bg-zinc-700'
+                        }`}
+                      >
+                        <span>{t.icon}</span>
+                        <span>{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Dynamic Form Sections based on Selected Pill */}
+
+                  {/* Account / Category Row */}
+                  <div className="flex items-center justify-between py-2 border-b border-zinc-800/60 text-zinc-300">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="size-3 rounded-full shrink-0"
+                        style={{ backgroundColor: newEntry.color }}
+                      />
+                      <span className="font-semibold text-zinc-200">
+                        {newEntry.type === 'birthday'
+                          ? 'Birthdays'
+                          : newEntry.type === 'period'
+                            ? 'Cycle & Period Tracker'
+                            : newEntry.type === 'task'
+                              ? 'Tasks'
+                              : 'Events'}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-zinc-400">
+                      kundansinghrajput31980@gmail.com
+                    </span>
+                  </div>
+
+                  {/* Mode: Period Tracker Specific Fields */}
+                  {newEntry.type === 'period' && (
+                    <div className="space-y-3.5 p-3 rounded-2xl bg-pink-950/20 border border-pink-500/20">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-pink-300 flex items-center gap-1.5">
+                          <span>🌸</span> Cycle Flow Intensity
+                        </span>
+                      </div>
+
+                      {/* Flow selection chips */}
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {(
+                          [
+                            { key: 'spotting', label: 'Spotting', icon: '⚪' },
+                            { key: 'light', label: 'Light', icon: '💧' },
+                            { key: 'medium', label: 'Medium', icon: '💧💧' },
+                            { key: 'heavy', label: 'Heavy', icon: '💧💧💧' },
+                          ] as const
+                        ).map((flow) => (
+                          <button
+                            key={flow.key}
+                            type="button"
+                            onClick={() => setNewEntry({ ...newEntry, flowIntensity: flow.key })}
+                            className={`flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-semibold border transition-all ${
+                              newEntry.flowIntensity === flow.key
+                                ? 'bg-pink-500/30 border-pink-400 text-white font-bold shadow'
+                                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                            }`}
+                          >
+                            <span className="text-xs">{flow.icon}</span>
+                            <span className="mt-0.5">{flow.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Symptoms & Mood Multi-select Tags */}
+                      <div>
+                        <span className="block text-[11px] font-semibold text-zinc-300 mb-1.5">
+                          Symptoms & Wellbeing Tags
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {PERIOD_SYMPTOMS.map((symptom) => {
+                            const isSelected = newEntry.symptoms.includes(symptom);
+                            return (
+                              <button
+                                key={symptom}
+                                type="button"
+                                onClick={() => toggleSymptom(symptom)}
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                                  isSelected
+                                    ? 'bg-pink-500/30 border-pink-400 text-pink-200 font-bold'
+                                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                }`}
+                              >
+                                {symptom}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Period Duration & Cycle Settings */}
+                      <div className="grid grid-cols-2 gap-2.5 pt-1 text-[11px]">
+                        <div>
+                          <label className="block text-zinc-400 mb-1">Expected Days</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={newEntry.periodDays}
+                            onChange={(e) =>
+                              setNewEntry({ ...newEntry, periodDays: Number(e.target.value) || 5 })
+                            }
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-zinc-400 mb-1">Cycle Length (Days)</label>
+                          <input
+                            type="number"
+                            min="20"
+                            max="45"
+                            value={newEntry.cycleLength}
+                            onChange={(e) =>
+                              setNewEntry({
+                                ...newEntry,
+                                cycleLength: Number(e.target.value) || 28,
+                              })
+                            }
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* All-Day Switch Toggle */}
+                  <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
+                    <div className="flex items-center gap-2.5 text-zinc-300">
+                      <span className="text-base">🕒</span>
+                      <span className="font-medium">All-day</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNewEntry({ ...newEntry, allDay: !newEntry.allDay })}
+                      className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
+                        newEntry.allDay ? 'bg-[#3b82f6]' : 'bg-zinc-700'
+                      }`}
+                    >
+                      <div
+                        className={`bg-white size-4 rounded-full shadow-md transform transition-transform ${
+                          newEntry.allDay ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Date & Time Selectors */}
+                  <div className="space-y-2 py-1">
+                    {/* Start Date & Time */}
+                    <div className="flex items-center justify-between">
+                      <input
+                        type="date"
+                        value={newEntry.startDate}
+                        onChange={(e) => setNewEntry({ ...newEntry, startDate: e.target.value })}
+                        className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#3b82f6]"
+                      />
+                      {!newEntry.allDay && (
+                        <input
+                          type="time"
+                          value={newEntry.startTime}
+                          onChange={(e) => setNewEntry({ ...newEntry, startTime: e.target.value })}
+                          className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#3b82f6]"
+                        />
+                      )}
+                    </div>
+
+                    {/* End Date & Time (for Event & Period) */}
+                    {newEntry.type === 'event' && (
+                      <div className="flex items-center justify-between">
+                        <input
+                          type="date"
+                          value={newEntry.endDate}
+                          onChange={(e) => setNewEntry({ ...newEntry, endDate: e.target.value })}
+                          className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#3b82f6]"
+                        />
+                        {!newEntry.allDay && (
+                          <input
+                            type="time"
+                            value={newEntry.endTime}
+                            onChange={(e) => setNewEntry({ ...newEntry, endTime: e.target.value })}
+                            className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#3b82f6]"
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Timezone */}
+                  <div className="flex items-center gap-2.5 text-zinc-400 py-1 text-[11px]">
+                    <span>🌐</span>
+                    <span>India Standard Time (IST)</span>
+                  </div>
+
+                  {/* Recurrence Dropdown */}
+                  <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
+                    <div className="flex items-center gap-2.5 text-zinc-300">
+                      <span className="text-base">🔁</span>
+                      <select
+                        value={newEntry.recurrence}
+                        onChange={(e) => setNewEntry({ ...newEntry, recurrence: e.target.value })}
+                        className="bg-transparent text-xs text-zinc-200 focus:outline-none cursor-pointer"
+                      >
+                        <option value="Does not repeat" className="bg-zinc-900">
+                          Does not repeat
+                        </option>
+                        <option value="Daily" className="bg-zinc-900">
+                          Daily
+                        </option>
+                        <option value="Every weekday" className="bg-zinc-900">
+                          Every weekday (Mon - Fri)
+                        </option>
+                        <option value="Weekly" className="bg-zinc-900">
+                          Weekly
+                        </option>
+                        <option value="Monthly" className="bg-zinc-900">
+                          Monthly
+                        </option>
+                        <option value="Annually" className="bg-zinc-900">
+                          Annually (Every year)
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* People / Attendees (Event Mode) */}
+                  {newEntry.type === 'event' && (
+                    <div className="py-2 border-b border-zinc-800/60 space-y-2">
+                      <div className="flex items-center gap-2.5 text-zinc-300">
+                        <span className="text-base">👥</span>
+                        <input
+                          type="email"
+                          placeholder="Add people (type email & hit enter)"
+                          value={newEntry.attendeeInput}
+                          onChange={(e) =>
+                            setNewEntry({ ...newEntry, attendeeInput: e.target.value })
+                          }
+                          onKeyDown={handleAddAttendee}
+                          className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                        />
+                      </div>
+
+                      {newEntry.attendees.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pl-7">
+                          {newEntry.attendees.map((email) => (
+                            <span
+                              key={email}
+                              className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-200 text-[11px]"
+                            >
+                              <span>{email}</span>
+                              <button
+                                type="button"
+                                onClick={() => removeAttendee(email)}
+                                className="text-zinc-400 hover:text-rose-400"
+                              >
+                                ✕
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Video Conferencing (QuantMeet Link) */}
+                  {newEntry.type === 'event' && (
+                    <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
+                      <div className="flex items-center gap-2.5 text-zinc-300">
+                        <span className="text-base">🎥</span>
+                        <button
+                          type="button"
+                          onClick={handleAddMeetLink}
+                          className="text-xs text-[#3b82f6] hover:underline font-semibold"
+                        >
+                          + Add QuantMeet video conferencing
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Location */}
+                  {(newEntry.type === 'event' || newEntry.type === 'task') && (
+                    <div className="flex items-center gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
+                      <span className="text-base">📍</span>
+                      <input
+                        type="text"
+                        placeholder="Add location (Room 101, Office, or Link)"
+                        value={newEntry.location}
+                        onChange={(e) => setNewEntry({ ...newEntry, location: e.target.value })}
+                        className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {/* Notifications / Reminders */}
+                  <div className="py-2 border-b border-zinc-800/60 space-y-2">
+                    <div className="flex items-center justify-between text-zinc-300">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-base">🔔</span>
+                        <span className="font-medium">Notifications</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => addNotificationReminder('10 minutes before')}
+                          className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-300 hover:text-white"
+                        >
+                          +10m
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addNotificationReminder('1 hour before')}
+                          className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-300 hover:text-white"
+                        >
+                          +1h
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addNotificationReminder('1 day before')}
+                          className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-300 hover:text-white"
+                        >
+                          +1d
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 pl-7">
+                      {newEntry.notifications.map((notif, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between text-[11px] text-zinc-400"
+                        >
+                          <span>{notif}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeNotificationReminder(idx)}
+                            className="text-zinc-500 hover:text-rose-400"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Color Picker */}
+                  <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
+                    <div className="flex items-center gap-2.5 text-zinc-300">
+                      <span className="text-base">🎨</span>
+                      <span>Color Tag</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {COLOR_OPTIONS.map((c) => (
+                        <button
+                          key={c.value}
+                          type="button"
+                          onClick={() => setNewEntry({ ...newEntry, color: c.value })}
+                          className={`size-5 rounded-full transition-transform ${c.bg} ${
+                            newEntry.color === c.value
+                              ? 'ring-2 ring-white scale-110'
+                              : 'opacity-70 hover:opacity-100'
+                          }`}
+                          title={c.name}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Notes / Description */}
+                  <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
+                    <span className="text-base mt-1">≡</span>
+                    <textarea
+                      rows={2}
+                      placeholder={
+                        newEntry.type === 'task'
+                          ? 'Add details / subtasks'
+                          : newEntry.type === 'birthday'
+                            ? 'Add gift ideas, address, notes'
+                            : 'Add description / agenda'
+                      }
+                      value={newEntry.description}
+                      onChange={(e) => setNewEntry({ ...newEntry, description: e.target.value })}
+                      className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none resize-none"
+                    />
+                  </div>
+
+                  {/* QuantDrive Attachment */}
+                  <div className="flex items-center gap-2.5 py-2 text-zinc-400 hover:text-white cursor-pointer transition-colors">
+                    <span className="text-base">📎</span>
+                    <span className="text-xs">Add QuantDrive attachment</span>
+                  </div>
+                </div>
+              </motion.div>
             </div>
-          </div>
-        </Modal>
+          )}
+        </AnimatePresence>
 
         {/* Event Detail Inspector Modal */}
         {selectedEvent && (
@@ -1211,10 +1826,23 @@ export default function CalendarPage() {
                 <span>🕒</span>
                 <span>
                   {selectedEvent.allDay
-                    ? 'All Day Event'
+                    ? 'All Day Entry'
                     : `${startOf(selectedEvent).toLocaleString()} – ${endOf(selectedEvent).toLocaleTimeString()}`}
                 </span>
               </div>
+
+              {selectedEvent.type && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-[#3b82f6]/20 text-[#3b82f6]">
+                    {selectedEvent.type}
+                  </span>
+                  {selectedEvent.flowIntensity && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-pink-500/20 text-pink-300 font-semibold">
+                      Flow: {selectedEvent.flowIntensity}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {selectedEvent.location && (
                 <div className="flex items-center gap-2">
@@ -1246,7 +1874,7 @@ export default function CalendarPage() {
                   onClick={() => handleDeleteEvent(selectedEvent.id)}
                   className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 text-xs font-semibold"
                 >
-                  Delete Event
+                  Delete Entry
                 </button>
                 <Button variant="ghost" onClick={() => setSelectedEvent(null)}>
                   Close
