@@ -36,7 +36,7 @@ const MONTH_NAMES = [
   'December',
 ];
 
-export type EntryType = 'event' | 'task' | 'birthday' | 'period' | 'reminder';
+export type EntryType = 'event' | 'task' | 'birthday' | 'period';
 
 export interface CalendarEventLike {
   id: string;
@@ -58,6 +58,8 @@ export interface CalendarEventLike {
   subtasks?: Array<{ text: string; done: boolean }>;
   flowIntensity?: 'light' | 'medium' | 'heavy' | 'spotting';
   symptoms?: string[];
+  moods?: string[];
+  cycleDay?: number;
   accountEmail?: string;
   driveLink?: string;
   timezone?: string;
@@ -99,17 +101,35 @@ const RECURRENCE_OPTIONS = [
   'Custom interval…',
 ];
 
+// Clue / Flo reference moods and feelings
+const CLUE_MOODS = [
+  { id: 'mood_swings', label: 'Mood swings', icon: '⛅' },
+  { id: 'not_in_control', label: 'Not in control', icon: '🌀' },
+  { id: 'fine', label: 'Fine', icon: '☁️' },
+  { id: 'happy', label: 'Happy', icon: '☀️' },
+  { id: 'sad', label: 'Sad', icon: '🌧️' },
+  { id: 'sensitive', label: 'Sensitive', icon: '💨' },
+  { id: 'angry', label: 'Angry', icon: '⚡' },
+  { id: 'confident', label: 'Confident', icon: '🌞' },
+  { id: 'excited', label: 'Excited', icon: '✨' },
+  { id: 'irritable', label: 'Irritable', icon: '🌩️' },
+  { id: 'anxious', label: 'Anxious', icon: '🌪️' },
+  { id: 'insecure', label: 'Insecure', icon: '🌧️' },
+  { id: 'grateful', label: 'Grateful', icon: '🌅' },
+  { id: 'indifferent', label: 'Indifferent', icon: '🌙' },
+];
+
 const PERIOD_SYMPTOMS = [
   '⚡ Cramps',
   '🤕 Headache',
   '😴 Fatigue',
-  '🎭 Mood Swings',
-  '🌸 Normal / Good',
   '🎈 Bloating',
   '🍫 Cravings',
   '💆 Backache',
   '💧 Spotting',
   '☕ Low Energy',
+  '🔥 Tender Breasts',
+  '🌸 Clear Skin',
 ];
 
 const NOTIFICATION_SLIDER_VALUES = [
@@ -137,7 +157,9 @@ export default function CalendarPage() {
 
   // Speed Dial FAB State
   const [isFabOpen, setIsFabOpen] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Active Creation Sheet Type (Dedicated sheet per mode)
+  const [activeSheetType, setActiveSheetType] = useState<EntryType | null>(null);
 
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventLike | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
@@ -154,9 +176,8 @@ export default function CalendarPage() {
   const [isLoadingFuture, setIsLoadingFuture] = useState(false);
   const [agendaRangeDays, setAgendaRangeDays] = useState({ past: 45, future: 90 });
 
-  // Rich Create Entry State
-  const [newEntry, setNewEntry] = useState<{
-    type: EntryType;
+  // Rich Entry Form State
+  const [formState, setFormState] = useState<{
     title: string;
     startDate: string;
     endDate: string;
@@ -183,10 +204,11 @@ export default function CalendarPage() {
     // Period tracker specific:
     flowIntensity: 'light' | 'medium' | 'heavy' | 'spotting';
     symptoms: string[];
+    moods: string[];
     periodDays: number;
     cycleLength: number;
+    currentCycleDay: number;
   }>({
-    type: 'event',
     title: '',
     startDate: toDateInput(new Date()),
     endDate: toDateInput(new Date()),
@@ -210,14 +232,15 @@ export default function CalendarPage() {
     giftIdeas: '',
     flowIntensity: 'medium',
     symptoms: ['⚡ Cramps'],
+    moods: ['Happy', 'Fine'],
     periodDays: 5,
     cycleLength: 28,
+    currentCycleDay: 1,
   });
 
-  // Always keep accountEmail in sync with authenticated user
   useEffect(() => {
     if (currentUserEmail) {
-      setNewEntry((prev) => ({ ...prev, accountEmail: currentUserEmail }));
+      setFormState((prev) => ({ ...prev, accountEmail: currentUserEmail }));
     }
   }, [currentUserEmail]);
 
@@ -239,7 +262,7 @@ export default function CalendarPage() {
   const activeMonthName = MONTH_NAMES[selectedDate.getMonth()];
   const activeYear = selectedDate.getFullYear();
 
-  // Broad cached window so queries stay cached and never show loading skeletons during scrolling
+  // Broad cached window so queries stay cached
   const start = useMemo(
     () => new Date(today.getFullYear(), today.getMonth() - 8, 1).toISOString(),
     [today],
@@ -565,7 +588,7 @@ export default function CalendarPage() {
         if (sheetExpanded && deltaY < 180) {
           setSheetExpanded(false);
         } else {
-          setShowCreateModal(false);
+          setActiveSheetType(null);
           setSheetExpanded(false);
         }
         return;
@@ -577,47 +600,6 @@ export default function CalendarPage() {
       }
     },
     [sheetExpanded],
-  );
-
-  // Dedicated touch swipe listener on the calendar container for horizontal month changing
-  const swipeStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
-
-  const handleCalendarTouchStart = useCallback((e: React.TouchEvent) => {
-    swipeStartRef.current = {
-      x: e.touches[0].clientX,
-      y: e.touches[0].clientY,
-      time: Date.now(),
-    };
-  }, []);
-
-  const handleCalendarTouchEnd = useCallback(
-    (e: React.TouchEvent) => {
-      if (!swipeStartRef.current) return;
-      const deltaX = e.changedTouches[0].clientX - swipeStartRef.current.x;
-      const deltaY = e.changedTouches[0].clientY - swipeStartRef.current.y;
-      const duration = Date.now() - swipeStartRef.current.time;
-
-      swipeStartRef.current = null;
-      if (duration > 600) return;
-
-      const absX = Math.abs(deltaX);
-      const absY = Math.abs(deltaY);
-
-      if (absX > absY && absX > 35) {
-        if (deltaX < 0) {
-          goMonth(1);
-        } else {
-          goMonth(-1);
-        }
-      } else if (absY > absX && absY > 40) {
-        if (deltaY > 0 && !isMonthExpanded) {
-          setIsMonthExpanded(true);
-        } else if (deltaY < 0 && isMonthExpanded) {
-          setIsMonthExpanded(false);
-        }
-      }
-    },
-    [goMonth, isMonthExpanded],
   );
 
   // Infinite / Continuous Agenda Days
@@ -679,13 +661,13 @@ export default function CalendarPage() {
     return list;
   }, [today, agendaRangeDays, eventsByDay, searchFilter]);
 
-  const openCreate = useCallback(
-    (date?: Date, type: EntryType = 'event') => {
+  // Open Dedicated Sheet for a specific type directly from Speed Dial FAB
+  const openDedicatedSheet = useCallback(
+    (type: EntryType, date?: Date) => {
       const base = date ? new Date(date) : new Date(selectedDate);
       const dateStr = toDateInput(base);
 
-      setNewEntry({
-        type,
+      setFormState({
         title: '',
         startDate: dateStr,
         endDate: dateStr,
@@ -701,14 +683,7 @@ export default function CalendarPage() {
             : type === 'period'
               ? 'Every 28 days'
               : 'Does not repeat',
-        color:
-          type === 'period'
-            ? '#ec4899'
-            : type === 'birthday'
-              ? '#10b981'
-              : type === 'task'
-                ? '#3b82f6'
-                : '#3b82f6',
+        color: type === 'period' ? '#ec4899' : type === 'birthday' ? '#10b981' : '#3b82f6',
         accountEmail: currentUserEmail,
         notifications:
           type === 'birthday'
@@ -724,41 +699,46 @@ export default function CalendarPage() {
         giftIdeas: '',
         flowIntensity: 'medium',
         symptoms: ['⚡ Cramps'],
+        moods: ['Happy'],
         periodDays: 5,
         cycleLength: 28,
+        currentCycleDay: 1,
       });
+
       setIsFabOpen(false);
       setSheetDragY(0);
-      setSheetExpanded(false);
-      setShowCreateModal(true);
+      setSheetExpanded(type === 'period'); // Period tracker opens in expansive view
+      setActiveSheetType(type);
     },
     [selectedDate, currentUserEmail],
   );
 
   useEffect(() => {
-    const handler = () => openCreate();
+    const handler = () => openDedicatedSheet('event');
     window.addEventListener('quant:calendar:create', handler);
     return () => window.removeEventListener('quant:calendar:create', handler);
-  }, [openCreate]);
+  }, [openDedicatedSheet]);
 
-  const handleCreateEntry = useCallback(async () => {
-    if (!newEntry.title.trim() && newEntry.type !== 'period') return;
+  const handleSaveEntry = useCallback(async () => {
+    if (!activeSheetType) return;
+    if (!formState.title.trim() && activeSheetType !== 'period') return;
 
-    let finalTitle = newEntry.title.trim();
-    if (newEntry.type === 'period' && !finalTitle) {
-      finalTitle = `🌸 Period (${newEntry.flowIntensity} flow)`;
+    let finalTitle = formState.title.trim();
+    if (activeSheetType === 'period') {
+      finalTitle =
+        finalTitle || `🌸 Cycle Day ${formState.currentCycleDay} (${formState.flowIntensity} flow)`;
     }
 
     let startIso: string;
     let endIso: string;
 
-    if (newEntry.allDay) {
-      startIso = new Date(`${newEntry.startDate}T00:00:00`).toISOString();
-      endIso = new Date(`${newEntry.endDate || newEntry.startDate}T23:59:59`).toISOString();
+    if (formState.allDay) {
+      startIso = new Date(`${formState.startDate}T00:00:00`).toISOString();
+      endIso = new Date(`${formState.endDate || formState.startDate}T23:59:59`).toISOString();
     } else {
-      startIso = new Date(`${newEntry.startDate}T${newEntry.startTime}:00`).toISOString();
+      startIso = new Date(`${formState.startDate}T${formState.startTime}:00`).toISOString();
       endIso = new Date(
-        `${newEntry.endDate || newEntry.startDate}T${newEntry.endTime}:00`,
+        `${formState.endDate || formState.startDate}T${formState.endTime}:00`,
       ).toISOString();
     }
 
@@ -768,35 +748,39 @@ export default function CalendarPage() {
       endTime: endIso,
       start: startIso,
       end: endIso,
-      description: newEntry.description,
-      location: newEntry.location,
-      allDay: newEntry.allDay,
-      type: newEntry.type,
-      color: newEntry.color,
-      recurrence: newEntry.recurrence,
-      reminders: newEntry.notifications,
-      attendees: newEntry.attendees,
-      accountEmail: newEntry.accountEmail,
-      timezone: newEntry.timezone,
-      driveLink: newEntry.driveLink,
-      priority: newEntry.type === 'task' ? newEntry.priority : undefined,
-      subtasks: newEntry.type === 'task' ? newEntry.subtasks : undefined,
-      flowIntensity: newEntry.type === 'period' ? newEntry.flowIntensity : undefined,
-      symptoms: newEntry.type === 'period' ? newEntry.symptoms : undefined,
+      description:
+        formState.description ||
+        (activeSheetType === 'period' ? `Moods: ${formState.moods.join(', ')}` : ''),
+      location: formState.location,
+      allDay: formState.allDay,
+      type: activeSheetType,
+      color: formState.color,
+      recurrence: formState.recurrence,
+      reminders: formState.notifications,
+      attendees: formState.attendees,
+      accountEmail: formState.accountEmail,
+      timezone: formState.timezone,
+      driveLink: formState.driveLink,
+      priority: activeSheetType === 'task' ? formState.priority : undefined,
+      subtasks: activeSheetType === 'task' ? formState.subtasks : undefined,
+      flowIntensity: activeSheetType === 'period' ? formState.flowIntensity : undefined,
+      symptoms: activeSheetType === 'period' ? formState.symptoms : undefined,
+      moods: activeSheetType === 'period' ? formState.moods : undefined,
+      cycleDay: activeSheetType === 'period' ? formState.currentCycleDay : undefined,
     };
 
     try {
       await createEvent.mutateAsync(payload as never);
-      setShowCreateModal(false);
+      setActiveSheetType(null);
       showToast({
-        text: `${newEntry.type === 'task' ? 'Task' : newEntry.type === 'birthday' ? 'Birthday' : newEntry.type === 'period' ? 'Period entry' : 'Event'} "${finalTitle}" saved`,
+        text: `${activeSheetType === 'task' ? 'Task' : activeSheetType === 'birthday' ? 'Birthday' : activeSheetType === 'period' ? 'Cycle entry' : 'Event'} "${finalTitle}" saved`,
         type: 'success',
       });
       await refetch();
     } catch {
       showToast({ text: 'Failed to save entry', type: 'error' });
     }
-  }, [newEntry, createEvent, refetch]);
+  }, [activeSheetType, formState, createEvent, refetch]);
 
   const handleDeleteEvent = useCallback(
     async (id: string, e?: React.MouseEvent) => {
@@ -817,7 +801,7 @@ export default function CalendarPage() {
 
   const handleAddMeetLink = () => {
     const roomId = `meet-${Math.random().toString(36).substring(2, 8)}`;
-    setNewEntry((prev) => ({
+    setFormState((prev) => ({
       ...prev,
       location: `https://meet.quantrinity.in/${roomId}`,
     }));
@@ -827,9 +811,9 @@ export default function CalendarPage() {
   const handleAddAttendee = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
-      const val = newEntry.attendeeInput.trim().replace(',', '');
-      if (val && !newEntry.attendees.includes(val)) {
-        setNewEntry((prev) => ({
+      const val = formState.attendeeInput.trim().replace(',', '');
+      if (val && !formState.attendees.includes(val)) {
+        setFormState((prev) => ({
           ...prev,
           attendees: [...prev.attendees, val],
           attendeeInput: '',
@@ -839,15 +823,15 @@ export default function CalendarPage() {
   };
 
   const removeAttendee = (email: string) => {
-    setNewEntry((prev) => ({
+    setFormState((prev) => ({
       ...prev,
       attendees: prev.attendees.filter((a) => a !== email),
     }));
   };
 
   const addNotificationReminder = (timeText: string) => {
-    if (!newEntry.notifications.includes(timeText)) {
-      setNewEntry((prev) => ({
+    if (!formState.notifications.includes(timeText)) {
+      setFormState((prev) => ({
         ...prev,
         notifications: [...prev.notifications, timeText],
       }));
@@ -855,14 +839,14 @@ export default function CalendarPage() {
   };
 
   const removeNotificationReminder = (index: number) => {
-    setNewEntry((prev) => ({
+    setFormState((prev) => ({
       ...prev,
       notifications: prev.notifications.filter((_, i) => i !== index),
     }));
   };
 
   const toggleSymptom = (symptom: string) => {
-    setNewEntry((prev) => ({
+    setFormState((prev) => ({
       ...prev,
       symptoms: prev.symptoms.includes(symptom)
         ? prev.symptoms.filter((s) => s !== symptom)
@@ -870,10 +854,19 @@ export default function CalendarPage() {
     }));
   };
 
+  const toggleMood = (moodLabel: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      moods: prev.moods.includes(moodLabel)
+        ? prev.moods.filter((m) => m !== moodLabel)
+        : [...prev.moods, moodLabel],
+    }));
+  };
+
   const handleAddSubtask = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && newEntry.subtaskInput.trim()) {
+    if (e.key === 'Enter' && formState.subtaskInput.trim()) {
       e.preventDefault();
-      setNewEntry((prev) => ({
+      setFormState((prev) => ({
         ...prev,
         subtasks: [...prev.subtasks, { text: prev.subtaskInput.trim(), done: false }],
         subtaskInput: '',
@@ -882,7 +875,7 @@ export default function CalendarPage() {
   };
 
   const toggleSubtask = (idx: number) => {
-    setNewEntry((prev) => ({
+    setFormState((prev) => ({
       ...prev,
       subtasks: prev.subtasks.map((st, i) => (i === idx ? { ...st, done: !st.done } : st)),
     }));
@@ -1096,7 +1089,7 @@ export default function CalendarPage() {
               ))}
             </div>
 
-            <Button variant="primary" onClick={() => openCreate()}>
+            <Button variant="primary" onClick={() => openDedicatedSheet('event')}>
               + New Entry
             </Button>
           </div>
@@ -1104,8 +1097,6 @@ export default function CalendarPage() {
 
         {/* Outlook-Style Interactive Expandable Date Picker with 1:1 Direct Finger Physics */}
         <div
-          onTouchStart={handleCalendarTouchStart}
-          onTouchEnd={handleCalendarTouchEnd}
           className="border-b border-zinc-800 bg-[#161618] select-none overflow-hidden relative"
           style={{
             height: `${currentHeight}px`,
@@ -1333,7 +1324,6 @@ export default function CalendarPage() {
                         const isTask = ev.type === 'task';
                         const isBirthday = ev.type === 'birthday';
                         const isPeriod = ev.type === 'period';
-                        const isReminder = ev.type === 'reminder';
 
                         return (
                           <div
@@ -1361,8 +1351,6 @@ export default function CalendarPage() {
                                 <span className="text-sm">🎂</span>
                               ) : isPeriod ? (
                                 <span className="text-sm">🌸</span>
-                              ) : isReminder ? (
-                                <span className="text-sm">⏰</span>
                               ) : (
                                 <span className="size-2.5 rounded-full mt-1.5 shrink-0 bg-[#3b82f6]" />
                               )}
@@ -1422,7 +1410,7 @@ export default function CalendarPage() {
                       {/* Empty State */}
                       {!hasEvents && !hasHolidays && (
                         <div
-                          onClick={() => openCreate(item.date)}
+                          onClick={() => openDedicatedSheet('event', item.date)}
                           className="text-xs text-zinc-500 font-normal hover:text-zinc-300 transition-colors cursor-pointer py-0.5"
                         >
                           No plans yet
@@ -1453,9 +1441,8 @@ export default function CalendarPage() {
           )}
         </div>
 
-        {/* Speed Dial Menu + Floating Action Button (Google Calendar Style Speed Dial) */}
+        {/* Speed Dial Menu + Floating Action Button */}
         <div className="fixed bottom-20 right-4 md:hidden z-40 flex flex-col items-end gap-2.5">
-          {/* Speed Dial Action Pills */}
           <AnimatePresence>
             {isFabOpen && (
               <motion.div
@@ -1468,7 +1455,7 @@ export default function CalendarPage() {
                 {/* Birthday Pill */}
                 <button
                   type="button"
-                  onClick={() => openCreate(selectedDate, 'birthday')}
+                  onClick={() => openDedicatedSheet('birthday')}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1e293b] hover:bg-[#334155] text-white text-xs font-bold shadow-xl border border-zinc-700/60 active:scale-95 transition-all"
                 >
                   <span className="text-sm">🎂</span>
@@ -1478,7 +1465,7 @@ export default function CalendarPage() {
                 {/* Task Pill */}
                 <button
                   type="button"
-                  onClick={() => openCreate(selectedDate, 'task')}
+                  onClick={() => openDedicatedSheet('task')}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1e293b] hover:bg-[#334155] text-white text-xs font-bold shadow-xl border border-zinc-700/60 active:scale-95 transition-all"
                 >
                   <span className="text-sm">🎯</span>
@@ -1488,8 +1475,8 @@ export default function CalendarPage() {
                 {/* Period Tracker Pill */}
                 <button
                   type="button"
-                  onClick={() => openCreate(selectedDate, 'period')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-pink-950/80 hover:bg-pink-900 text-pink-200 text-xs font-bold shadow-xl border border-pink-500/40 active:scale-95 transition-all"
+                  onClick={() => openDedicatedSheet('period')}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-pink-950/90 hover:bg-pink-900 text-pink-200 text-xs font-bold shadow-xl border border-pink-500/40 active:scale-95 transition-all"
                 >
                   <span className="text-sm">🌸</span>
                   <span>Period Tracker</span>
@@ -1498,7 +1485,7 @@ export default function CalendarPage() {
                 {/* Event Pill */}
                 <button
                   type="button"
-                  onClick={() => openCreate(selectedDate, 'event')}
+                  onClick={() => openDedicatedSheet('event')}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-bold shadow-xl active:scale-95 transition-all"
                 >
                   <span className="text-sm">📅</span>
@@ -1508,7 +1495,6 @@ export default function CalendarPage() {
             )}
           </AnimatePresence>
 
-          {/* Main FAB Toggle Button */}
           <button
             type="button"
             onClick={() => setIsFabOpen((prev) => !prev)}
@@ -1532,20 +1518,18 @@ export default function CalendarPage() {
           </button>
         </div>
 
-        {/* Google Calendar Style Slide-up Mobile Bottom Sheet / Modal with 1:1 Finger Physics */}
+        {/* Dedicated Slide-up Sheets for each Type */}
         <AnimatePresence>
-          {showCreateModal && (
+          {activeSheetType && (
             <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
-              {/* Backdrop */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => setActiveSheetType(null)}
                 className="absolute inset-0 bg-black/70 backdrop-blur-sm"
               />
 
-              {/* Sheet Container with 1:1 Drag Gesture Physics */}
               <motion.div
                 initial={{ y: '100%' }}
                 animate={{ y: isSheetDragging ? Math.max(-40, sheetDragY) : 0 }}
@@ -1556,10 +1540,12 @@ export default function CalendarPage() {
                     : { type: 'spring', damping: 28, stiffness: 300 }
                 }
                 className={`relative w-full max-w-lg bg-[#1c1b20] border-t md:border border-zinc-800 rounded-t-3xl md:rounded-3xl shadow-2xl z-10 flex flex-col transition-all overflow-hidden ${
-                  sheetExpanded ? 'h-[94vh]' : 'max-h-[88vh] md:max-h-[85vh]'
+                  sheetExpanded || activeSheetType === 'period'
+                    ? 'h-[94vh]'
+                    : 'max-h-[88vh] md:max-h-[85vh]'
                 }`}
               >
-                {/* Drag Handle & Top App Bar with 1:1 Pointer Tracking */}
+                {/* Drag Handle & Top Header */}
                 <div
                   onPointerDown={handleSheetPointerDown}
                   onPointerMove={handleSheetPointerMove}
@@ -1568,125 +1554,325 @@ export default function CalendarPage() {
                   className="pt-2.5 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none"
                   style={{ touchAction: 'none' }}
                 >
-                  {/* Visual Drag Handle Pill */}
                   <div
                     className={`w-14 h-1.5 rounded-full mx-auto mb-2 transition-all ${
                       isSheetDragging ? 'bg-[#3b82f6] scale-110' : 'bg-zinc-600 hover:bg-zinc-400'
                     }`}
-                    title="Drag down to close, drag up to expand"
                   />
 
-                  {/* Header Row: Close ✕ on Left, Save on Right */}
                   <div className="flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => setShowCreateModal(false)}
-                      className="size-9 rounded-full hover:bg-zinc-800 text-zinc-300 hover:text-white flex items-center justify-center text-lg transition-colors"
-                      aria-label="Close"
-                    >
-                      ✕
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveSheetType(null)}
+                        className="size-9 rounded-full hover:bg-zinc-800 text-zinc-300 hover:text-white flex items-center justify-center text-lg transition-colors"
+                      >
+                        ✕
+                      </button>
+                      <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                        {activeSheetType === 'event' && <span>📅 New Event</span>}
+                        {activeSheetType === 'task' && <span>🎯 New Task</span>}
+                        {activeSheetType === 'birthday' && <span>🎂 New Birthday</span>}
+                        {activeSheetType === 'period' && <span>🌸 Period & Cycle Tracker</span>}
+                      </span>
+                    </div>
 
                     <button
                       type="button"
-                      onClick={() => void handleCreateEntry()}
-                      className="px-5 py-1.5 rounded-full bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold text-xs shadow-md transition-all active:scale-95"
+                      onClick={() => void handleSaveEntry()}
+                      className={`px-5 py-1.5 rounded-full text-white font-bold text-xs shadow-md transition-all active:scale-95 ${
+                        activeSheetType === 'period'
+                          ? 'bg-pink-600 hover:bg-pink-500'
+                          : 'bg-[#3b82f6] hover:bg-[#2563eb]'
+                      }`}
                     >
                       Save
                     </button>
                   </div>
                 </div>
 
-                {/* Form Body (Scrollable) */}
+                {/* Form Content */}
                 <div className="flex-1 overflow-y-auto px-5 py-2 space-y-4 text-xs text-white">
-                  {/* Large Minimalist Title Input */}
-                  <div>
-                    <input
-                      type="text"
-                      value={newEntry.title}
-                      onChange={(e) => setNewEntry({ ...newEntry, title: e.target.value })}
-                      placeholder={
-                        newEntry.type === 'birthday'
-                          ? 'Add name'
-                          : newEntry.type === 'period'
-                            ? 'Cycle notes / Period Log'
-                            : 'Add title'
-                      }
-                      className="w-full bg-transparent text-xl font-medium text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-[#3b82f6]"
-                      autoFocus
-                    />
+                  {/* Account Row */}
+                  <div className="flex items-center justify-between py-1 border-b border-zinc-800/60 text-zinc-300">
+                    <span className="text-xs text-zinc-400">Account</span>
+                    <span className="text-[11px] font-medium text-[#3b82f6] bg-[#3b82f6]/10 px-2.5 py-0.5 rounded-full border border-[#3b82f6]/20">
+                      👤 {formState.accountEmail || currentUserEmail}
+                    </span>
                   </div>
 
-                  {/* Segmented Type Selector Pills */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-                    {(
-                      [
-                        { key: 'event', label: 'Event', icon: '📅' },
-                        { key: 'task', label: 'Task', icon: '🎯' },
-                        { key: 'birthday', label: 'Birthday', icon: '🎂' },
-                        { key: 'period', label: 'Period Tracker', icon: '🌸' },
-                        { key: 'reminder', label: 'Reminder', icon: '⏰' },
-                      ] as const
-                    ).map((t) => (
+                  {/* ----------------- 1. EVENT FORM ----------------- */}
+                  {activeSheetType === 'event' && (
+                    <div className="space-y-4">
+                      <div>
+                        <input
+                          type="text"
+                          value={formState.title}
+                          onChange={(e) => setFormState({ ...formState, title: e.target.value })}
+                          placeholder="Add event title"
+                          className="w-full bg-transparent text-xl font-medium text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-[#3b82f6]"
+                          autoFocus
+                        />
+                      </div>
+
+                      {/* All-Day Switch */}
+                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
+                        <div className="flex items-center gap-2.5 text-zinc-300">
+                          <span className="text-base">🕒</span>
+                          <span className="font-medium">All-day</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormState({ ...formState, allDay: !formState.allDay })}
+                          className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
+                            formState.allDay ? 'bg-[#3b82f6]' : 'bg-zinc-700'
+                          }`}
+                        >
+                          <div
+                            className={`bg-white size-4 rounded-full shadow-md transform transition-transform ${
+                              formState.allDay ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Date & Time */}
+                      <div className="space-y-2 py-1">
+                        <div className="flex items-center justify-between">
+                          <input
+                            type="date"
+                            value={formState.startDate}
+                            onChange={(e) =>
+                              setFormState({ ...formState, startDate: e.target.value })
+                            }
+                            className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                          />
+                          {!formState.allDay && (
+                            <input
+                              type="time"
+                              value={formState.startTime}
+                              onChange={(e) =>
+                                setFormState({ ...formState, startTime: e.target.value })
+                              }
+                              className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                            />
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <input
+                            type="date"
+                            value={formState.endDate}
+                            onChange={(e) =>
+                              setFormState({ ...formState, endDate: e.target.value })
+                            }
+                            className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                          />
+                          {!formState.allDay && (
+                            <input
+                              type="time"
+                              value={formState.endTime}
+                              onChange={(e) =>
+                                setFormState({ ...formState, endTime: e.target.value })
+                              }
+                              className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Timezone */}
                       <button
-                        key={t.key}
                         type="button"
-                        onClick={() =>
-                          setNewEntry((prev) => ({
-                            ...prev,
-                            type: t.key,
-                            allDay: t.key === 'birthday' || t.key === 'period',
-                            color:
-                              t.key === 'period'
-                                ? '#ec4899'
-                                : t.key === 'birthday'
-                                  ? '#10b981'
-                                  : t.key === 'task'
-                                    ? '#3b82f6'
-                                    : '#3b82f6',
-                          }))
-                        }
-                        className={`flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                          newEntry.type === t.key
-                            ? 'bg-[#3b82f6] text-white shadow-md font-bold'
-                            : 'bg-zinc-800/80 border border-zinc-700/60 text-zinc-300 hover:bg-zinc-700'
-                        }`}
+                        onClick={() => setIsTimezoneModalOpen(true)}
+                        className="w-full flex items-center justify-between text-left text-zinc-300 hover:text-white py-2 border-b border-zinc-800/60"
                       >
-                        <span>{t.icon}</span>
-                        <span>{t.label}</span>
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-base">🌐</span>
+                          <span>
+                            {TIMEZONES.find((tz) => tz.value === formState.timezone)?.label ||
+                              'India Standard Time (IST)'}
+                          </span>
+                        </div>
+                        <span className="text-zinc-500 text-xs">›</span>
                       </button>
-                    ))}
-                  </div>
 
-                  {/* User Account / Email Selection Row */}
-                  <div className="flex items-center justify-between py-2 border-b border-zinc-800/60 text-zinc-300">
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className="size-3 rounded-full shrink-0"
-                        style={{ backgroundColor: newEntry.color }}
-                      />
-                      <span className="font-semibold text-zinc-200">
-                        {newEntry.type === 'birthday'
-                          ? 'Birthdays'
-                          : newEntry.type === 'period'
-                            ? 'Cycle & Period Tracker'
-                            : newEntry.type === 'task'
-                              ? 'Tasks'
-                              : 'Events'}
-                      </span>
+                      {/* Recurrence */}
+                      <button
+                        type="button"
+                        onClick={() => setIsRecurrenceModalOpen(true)}
+                        className="w-full flex items-center justify-between text-left text-zinc-300 hover:text-white py-2 border-b border-zinc-800/60"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-base">🔁</span>
+                          <span>{formState.recurrence}</span>
+                        </div>
+                        <span className="text-zinc-500 text-xs">›</span>
+                      </button>
+
+                      {/* People */}
+                      <div className="py-2 border-b border-zinc-800/60 space-y-2">
+                        <div className="flex items-center gap-2.5 text-zinc-300">
+                          <span className="text-base">👥</span>
+                          <input
+                            type="email"
+                            placeholder="Add guests (type email & enter)"
+                            value={formState.attendeeInput}
+                            onChange={(e) =>
+                              setFormState({ ...formState, attendeeInput: e.target.value })
+                            }
+                            onKeyDown={handleAddAttendee}
+                            className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                          />
+                        </div>
+                        {formState.attendees.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 pl-7">
+                            {formState.attendees.map((email) => (
+                              <span
+                                key={email}
+                                className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-200 text-[11px]"
+                              >
+                                <span>{email}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeAttendee(email)}
+                                  className="text-zinc-400 hover:text-rose-400"
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* QuantMeet Video */}
+                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
+                        <div className="flex items-center gap-2.5 text-zinc-300">
+                          <span className="text-base">🎥</span>
+                          <button
+                            type="button"
+                            onClick={handleAddMeetLink}
+                            className="text-xs text-[#3b82f6] hover:underline font-semibold"
+                          >
+                            + Add QuantMeet / QuantChat video conferencing
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Location */}
+                      <div className="py-2 border-b border-zinc-800/60 space-y-1.5">
+                        <div className="flex items-center gap-2.5 text-zinc-300">
+                          <span className="text-base">📍</span>
+                          <input
+                            type="text"
+                            placeholder="Add location or QuantChat room"
+                            value={formState.location}
+                            onChange={(e) =>
+                              setFormState({ ...formState, location: e.target.value })
+                            }
+                            className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5 pl-7">
+                          {['🏢 QuantHQ Main', '💬 QuantChat Room', '🏠 Remote / WFH'].map(
+                            (loc) => (
+                              <button
+                                key={loc}
+                                type="button"
+                                onClick={() => setFormState({ ...formState, location: loc })}
+                                className="px-2 py-0.5 rounded-md bg-zinc-800 text-[10px] text-zinc-400 hover:text-white"
+                              >
+                                {loc}
+                              </button>
+                            ),
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Notifications with slider */}
+                      <div className="py-2 border-b border-zinc-800/60 space-y-2">
+                        <div className="flex items-center justify-between text-zinc-300">
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-base">🔔</span>
+                            <span>Notifications</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsNotificationSliderOpen(true)}
+                            className="px-2.5 py-1 rounded-lg bg-[#3b82f6]/20 text-[#3b82f6] text-[11px] font-bold"
+                          >
+                            + Custom Time Slider
+                          </button>
+                        </div>
+                        <div className="space-y-1.5 pl-7">
+                          {formState.notifications.map((notif, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center justify-between text-[11px] text-zinc-400"
+                            >
+                              <span>{notif}</span>
+                              <button
+                                type="button"
+                                onClick={() => removeNotificationReminder(idx)}
+                                className="text-zinc-500 hover:text-rose-400"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
+                        <span className="text-base mt-1">≡</span>
+                        <textarea
+                          rows={2}
+                          placeholder="Add description, meeting agenda…"
+                          value={formState.description}
+                          onChange={(e) =>
+                            setFormState({ ...formState, description: e.target.value })
+                          }
+                          className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none resize-none"
+                        />
+                      </div>
+
+                      {/* QuantDrive */}
+                      <div className="py-2 space-y-1.5 text-zinc-300">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-base">📎</span>
+                          <input
+                            type="text"
+                            placeholder="Attach QuantDrive file URL or link"
+                            value={formState.driveLink}
+                            onChange={(e) =>
+                              setFormState({ ...formState, driveLink: e.target.value })
+                            }
+                            className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
                     </div>
+                  )}
 
-                    <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#3b82f6] bg-[#3b82f6]/10 px-2.5 py-1 rounded-full border border-[#3b82f6]/20">
-                      <span>👤</span>
-                      <span>{newEntry.accountEmail || currentUserEmail}</span>
-                    </div>
-                  </div>
+                  {/* ----------------- 2. TASK FORM ----------------- */}
+                  {activeSheetType === 'task' && (
+                    <div className="space-y-4">
+                      <div>
+                        <input
+                          type="text"
+                          value={formState.title}
+                          onChange={(e) => setFormState({ ...formState, title: e.target.value })}
+                          placeholder="Add task title"
+                          className="w-full bg-transparent text-xl font-medium text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-[#3b82f6]"
+                          autoFocus
+                        />
+                      </div>
 
-                  {/* Mode: Task Specific Priority & Subtasks */}
-                  {newEntry.type === 'task' && (
-                    <div className="space-y-3 p-3 rounded-2xl bg-zinc-900 border border-zinc-800">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-zinc-400">Priority</span>
+                      {/* Priority */}
+                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
+                        <span className="text-zinc-400">Priority</span>
                         <div className="flex items-center gap-1.5">
                           {(
                             [
@@ -1698,11 +1884,11 @@ export default function CalendarPage() {
                             <button
                               key={p.key}
                               type="button"
-                              onClick={() => setNewEntry({ ...newEntry, priority: p.key })}
-                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
-                                newEntry.priority === p.key
-                                  ? 'bg-[#3b82f6]/20 border-[#3b82f6] text-white'
-                                  : 'bg-zinc-800 border-zinc-700 text-zinc-400'
+                              onClick={() => setFormState({ ...formState, priority: p.key })}
+                              className={`px-3 py-1 rounded-xl text-[11px] font-bold border transition-all ${
+                                formState.priority === p.key
+                                  ? 'bg-[#3b82f6]/30 border-[#3b82f6] text-white'
+                                  : 'bg-zinc-900 border-zinc-800 text-zinc-400'
                               }`}
                             >
                               {p.label}
@@ -1711,94 +1897,247 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      {/* Subtask list */}
-                      <div>
+                      {/* Due Date & Time */}
+                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
+                        <div className="flex items-center gap-2 text-zinc-300">
+                          <span>📅</span>
+                          <span>Due Date</span>
+                        </div>
+                        <input
+                          type="date"
+                          value={formState.startDate}
+                          onChange={(e) =>
+                            setFormState({ ...formState, startDate: e.target.value })
+                          }
+                          className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                        />
+                      </div>
+
+                      {/* Subtasks Checklist */}
+                      <div className="space-y-2 p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800">
+                        <span className="font-bold text-zinc-300">Checklist & Subtasks</span>
                         <input
                           type="text"
                           placeholder="+ Add subtask (press Enter)"
-                          value={newEntry.subtaskInput}
+                          value={formState.subtaskInput}
                           onChange={(e) =>
-                            setNewEntry({ ...newEntry, subtaskInput: e.target.value })
+                            setFormState({ ...formState, subtaskInput: e.target.value })
                           }
                           onKeyDown={handleAddSubtask}
-                          className="w-full bg-zinc-950 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#3b82f6]"
+                          className="w-full bg-zinc-950 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500"
                         />
-
-                        {newEntry.subtasks.length > 0 && (
-                          <div className="mt-2 space-y-1">
-                            {newEntry.subtasks.map((st, idx) => (
-                              <div
-                                key={idx}
-                                onClick={() => toggleSubtask(idx)}
-                                className="flex items-center gap-2 px-2 py-1 rounded-lg bg-zinc-950 text-xs cursor-pointer hover:bg-zinc-800"
-                              >
-                                <span className={st.done ? 'text-emerald-400' : 'text-zinc-500'}>
-                                  {st.done ? '☑' : '☐'}
-                                </span>
-                                <span
-                                  className={
-                                    st.done ? 'line-through text-zinc-500' : 'text-zinc-200'
-                                  }
-                                >
-                                  {st.text}
-                                </span>
-                              </div>
-                            ))}
+                        {formState.subtasks.map((st, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => toggleSubtask(idx)}
+                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-zinc-950 text-xs cursor-pointer hover:bg-zinc-800"
+                          >
+                            <span
+                              className={st.done ? 'text-emerald-400 font-bold' : 'text-zinc-500'}
+                            >
+                              {st.done ? '☑' : '☐'}
+                            </span>
+                            <span
+                              className={st.done ? 'line-through text-zinc-500' : 'text-zinc-200'}
+                            >
+                              {st.text}
+                            </span>
                           </div>
-                        )}
+                        ))}
+                      </div>
+
+                      {/* Task Notes */}
+                      <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
+                        <span className="text-base mt-1">≡</span>
+                        <textarea
+                          rows={2}
+                          placeholder="Add task notes or instructions…"
+                          value={formState.description}
+                          onChange={(e) =>
+                            setFormState({ ...formState, description: e.target.value })
+                          }
+                          className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none resize-none"
+                        />
                       </div>
                     </div>
                   )}
 
-                  {/* Mode: Period Tracker Specific Fields */}
-                  {newEntry.type === 'period' && (
-                    <div className="space-y-3.5 p-3 rounded-2xl bg-pink-950/20 border border-pink-500/20">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-pink-300 flex items-center gap-1.5">
-                          <span>🌸</span> Cycle Flow Intensity
-                        </span>
-                      </div>
-
-                      {/* Flow selection chips */}
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {(
-                          [
-                            { key: 'spotting', label: 'Spotting', icon: '⚪' },
-                            { key: 'light', label: 'Light', icon: '💧' },
-                            { key: 'medium', label: 'Medium', icon: '💧💧' },
-                            { key: 'heavy', label: 'Heavy', icon: '💧💧💧' },
-                          ] as const
-                        ).map((flow) => (
-                          <button
-                            key={flow.key}
-                            type="button"
-                            onClick={() => setNewEntry({ ...newEntry, flowIntensity: flow.key })}
-                            className={`flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-semibold border transition-all ${
-                              newEntry.flowIntensity === flow.key
-                                ? 'bg-pink-500/30 border-pink-400 text-white font-bold shadow'
-                                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                            }`}
-                          >
-                            <span className="text-xs">{flow.icon}</span>
-                            <span className="mt-0.5">{flow.label}</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Symptoms & Mood Multi-select Tags */}
+                  {/* ----------------- 3. BIRTHDAY FORM ----------------- */}
+                  {activeSheetType === 'birthday' && (
+                    <div className="space-y-4">
                       <div>
-                        <span className="block text-[11px] font-semibold text-zinc-300 mb-1.5">
-                          Symptoms & Wellbeing Tags
+                        <input
+                          type="text"
+                          value={formState.title}
+                          onChange={(e) => setFormState({ ...formState, title: e.target.value })}
+                          placeholder="Add person's name (e.g. Rahul's Birthday)"
+                          className="w-full bg-transparent text-xl font-medium text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-[#3b82f6]"
+                          autoFocus
+                        />
+                      </div>
+
+                      {/* Date of Birth */}
+                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
+                        <div className="flex items-center gap-2 text-zinc-300">
+                          <span>🎂</span>
+                          <span>Birthday Date</span>
+                        </div>
+                        <input
+                          type="date"
+                          value={formState.startDate}
+                          onChange={(e) =>
+                            setFormState({ ...formState, startDate: e.target.value })
+                          }
+                          className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                        />
+                      </div>
+
+                      {/* Birth Year */}
+                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
+                        <div className="flex items-center gap-2 text-zinc-300">
+                          <span>📅</span>
+                          <span>Birth Year (Optional)</span>
+                        </div>
+                        <input
+                          type="number"
+                          placeholder="e.g. 1998"
+                          value={formState.birthYear}
+                          onChange={(e) =>
+                            setFormState({ ...formState, birthYear: e.target.value })
+                          }
+                          className="w-24 bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white text-center"
+                        />
+                      </div>
+
+                      {/* Gift Ideas & Notes */}
+                      <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
+                        <span className="text-base mt-1">🎁</span>
+                        <textarea
+                          rows={2}
+                          placeholder="Gift ideas, party venue, wishlist notes…"
+                          value={formState.description}
+                          onChange={(e) =>
+                            setFormState({ ...formState, description: e.target.value })
+                          }
+                          className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none resize-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ----------------- 4. FULL CLUE / FLO STYLE PERIOD & CYCLE TRACKER ----------------- */}
+                  {activeSheetType === 'period' && (
+                    <div className="space-y-5 pb-6">
+                      {/* Clue Style Circular Cycle Dial Display */}
+                      <div className="flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-b from-zinc-900 via-pink-950/30 to-zinc-900 border border-pink-500/30 relative">
+                        {/* Circular Dial */}
+                        <div className="relative size-44 rounded-full border-4 border-zinc-800 flex items-center justify-center">
+                          {/* Period Arc Indicator */}
+                          <div className="absolute inset-0 rounded-full border-4 border-pink-500 border-t-transparent border-r-transparent rotate-45" />
+
+                          {/* Center Info */}
+                          <div className="text-center space-y-1">
+                            <span className="inline-block px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-[10px] font-bold">
+                              Day {formState.currentCycleDay} of {formState.cycleLength}
+                            </span>
+                            <h3 className="text-lg font-extrabold text-white">
+                              {formState.periodDays - formState.currentCycleDay + 1 > 0
+                                ? `${formState.periodDays - formState.currentCycleDay + 1} more days of period`
+                                : 'Fertile Window Forecast'}
+                            </h3>
+                            <p className="text-[10px] text-zinc-400">
+                              Next cycle in ~{formState.cycleLength - formState.currentCycleDay}{' '}
+                              days
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Cycle Phase Legend */}
+                        <div className="flex items-center gap-3 mt-4 text-[10px] text-zinc-400">
+                          <span className="flex items-center gap-1">
+                            <span className="size-2 rounded-full bg-pink-500" /> Period
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <span className="size-2 rounded-full bg-cyan-400" /> Fertile
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <span className="size-2 rounded-full bg-amber-400" /> Ovulation
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Flow Intensity Selector */}
+                      <div className="space-y-2">
+                        <span className="text-xs font-bold text-pink-300">Flow Intensity</span>
+                        <div className="grid grid-cols-4 gap-2">
+                          {(
+                            [
+                              { key: 'spotting', label: 'Spotting', icon: '⚪' },
+                              { key: 'light', label: 'Light', icon: '💧' },
+                              { key: 'medium', label: 'Medium', icon: '💧💧' },
+                              { key: 'heavy', label: 'Heavy', icon: '💧💧💧' },
+                            ] as const
+                          ).map((flow) => (
+                            <button
+                              key={flow.key}
+                              type="button"
+                              onClick={() =>
+                                setFormState({ ...formState, flowIntensity: flow.key })
+                              }
+                              className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all ${
+                                formState.flowIntensity === flow.key
+                                  ? 'bg-pink-500/30 border-pink-400 text-white font-bold scale-105 shadow-lg'
+                                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                              }`}
+                            >
+                              <span className="text-sm">{flow.icon}</span>
+                              <span className="text-[11px] mt-0.5">{flow.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Feelings & Moods Grid (Matching Reference Image 1) */}
+                      <div className="space-y-2.5">
+                        <span className="text-xs font-bold text-orange-400">
+                          How do you feel today? (Daily Feelings)
                         </span>
+                        <div className="grid grid-cols-3 gap-2">
+                          {CLUE_MOODS.map((m) => {
+                            const isSelected = formState.moods.includes(m.label);
+                            return (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => toggleMood(m.label)}
+                                className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all ${
+                                  isSelected
+                                    ? 'bg-orange-500/20 border-orange-400 text-orange-200 font-bold shadow'
+                                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                }`}
+                              >
+                                <span className="text-base">{m.icon}</span>
+                                <span className="text-[10px] mt-1 text-center font-medium leading-tight">
+                                  {m.label}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Physical Symptoms Multi-select */}
+                      <div className="space-y-2">
+                        <span className="text-xs font-bold text-zinc-300">Physical Symptoms</span>
                         <div className="flex flex-wrap gap-1.5">
                           {PERIOD_SYMPTOMS.map((symptom) => {
-                            const isSelected = newEntry.symptoms.includes(symptom);
+                            const isSelected = formState.symptoms.includes(symptom);
                             return (
                               <button
                                 key={symptom}
                                 type="button"
                                 onClick={() => toggleSymptom(symptom)}
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                                className={`px-3 py-1.5 rounded-full text-[11px] font-medium border transition-all ${
                                   isSelected
                                     ? 'bg-pink-500/30 border-pink-400 text-pink-200 font-bold'
                                     : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
@@ -1811,35 +2150,38 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      {/* Period Duration & Cycle Settings */}
-                      <div className="grid grid-cols-2 gap-2.5 pt-1 text-[11px]">
+                      {/* Cycle Settings Sliders */}
+                      <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800 text-[11px]">
                         <div>
                           <label className="block text-zinc-400 mb-1">
-                            Expected Days ({newEntry.periodDays}d)
+                            Period Length ({formState.periodDays}d)
                           </label>
                           <input
                             type="range"
                             min="2"
                             max="8"
-                            value={newEntry.periodDays}
+                            value={formState.periodDays}
                             onChange={(e) =>
-                              setNewEntry({ ...newEntry, periodDays: Number(e.target.value) || 5 })
+                              setFormState({
+                                ...formState,
+                                periodDays: Number(e.target.value) || 5,
+                              })
                             }
                             className="w-full accent-pink-500"
                           />
                         </div>
                         <div>
                           <label className="block text-zinc-400 mb-1">
-                            Cycle Length ({newEntry.cycleLength}d)
+                            Cycle Length ({formState.cycleLength}d)
                           </label>
                           <input
                             type="range"
                             min="21"
                             max="36"
-                            value={newEntry.cycleLength}
+                            value={formState.cycleLength}
                             onChange={(e) =>
-                              setNewEntry({
-                                ...newEntry,
+                              setFormState({
+                                ...formState,
                                 cycleLength: Number(e.target.value) || 28,
                               })
                             }
@@ -1849,254 +2191,6 @@ export default function CalendarPage() {
                       </div>
                     </div>
                   )}
-
-                  {/* All-Day Switch Toggle */}
-                  <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
-                    <div className="flex items-center gap-2.5 text-zinc-300">
-                      <span className="text-base">🕒</span>
-                      <span className="font-medium">All-day</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setNewEntry({ ...newEntry, allDay: !newEntry.allDay })}
-                      className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
-                        newEntry.allDay ? 'bg-[#3b82f6]' : 'bg-zinc-700'
-                      }`}
-                    >
-                      <div
-                        className={`bg-white size-4 rounded-full shadow-md transform transition-transform ${
-                          newEntry.allDay ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Date & Time Selectors */}
-                  <div className="space-y-2 py-1">
-                    {/* Start Date & Time */}
-                    <div className="flex items-center justify-between">
-                      <input
-                        type="date"
-                        value={newEntry.startDate}
-                        onChange={(e) => setNewEntry({ ...newEntry, startDate: e.target.value })}
-                        className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#3b82f6]"
-                      />
-                      {!newEntry.allDay && (
-                        <input
-                          type="time"
-                          value={newEntry.startTime}
-                          onChange={(e) => setNewEntry({ ...newEntry, startTime: e.target.value })}
-                          className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#3b82f6]"
-                        />
-                      )}
-                    </div>
-
-                    {/* End Date & Time (for Event & Period) */}
-                    {newEntry.type === 'event' && (
-                      <div className="flex items-center justify-between">
-                        <input
-                          type="date"
-                          value={newEntry.endDate}
-                          onChange={(e) => setNewEntry({ ...newEntry, endDate: e.target.value })}
-                          className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#3b82f6]"
-                        />
-                        {!newEntry.allDay && (
-                          <input
-                            type="time"
-                            value={newEntry.endTime}
-                            onChange={(e) => setNewEntry({ ...newEntry, endTime: e.target.value })}
-                            className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#3b82f6]"
-                          />
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Timezone Selector (Clickable to switch world timezones) */}
-                  <button
-                    type="button"
-                    onClick={() => setIsTimezoneModalOpen(true)}
-                    className="w-full flex items-center justify-between text-left text-zinc-300 hover:text-white py-2 border-b border-zinc-800/60"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-base">🌐</span>
-                      <span>
-                        {TIMEZONES.find((tz) => tz.value === newEntry.timezone)?.label ||
-                          'India Standard Time (IST)'}
-                      </span>
-                    </div>
-                    <span className="text-zinc-500 text-xs">›</span>
-                  </button>
-
-                  {/* Recurrence Selector (Clickable Modern Modal) */}
-                  <button
-                    type="button"
-                    onClick={() => setIsRecurrenceModalOpen(true)}
-                    className="w-full flex items-center justify-between text-left text-zinc-300 hover:text-white py-2 border-b border-zinc-800/60"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-base">🔁</span>
-                      <span>{newEntry.recurrence}</span>
-                    </div>
-                    <span className="text-zinc-500 text-xs">›</span>
-                  </button>
-
-                  {/* People / Attendees (Event Mode) */}
-                  {newEntry.type === 'event' && (
-                    <div className="py-2 border-b border-zinc-800/60 space-y-2">
-                      <div className="flex items-center gap-2.5 text-zinc-300">
-                        <span className="text-base">👥</span>
-                        <input
-                          type="email"
-                          placeholder="Add people (type email & hit enter)"
-                          value={newEntry.attendeeInput}
-                          onChange={(e) =>
-                            setNewEntry({ ...newEntry, attendeeInput: e.target.value })
-                          }
-                          onKeyDown={handleAddAttendee}
-                          className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
-                        />
-                      </div>
-
-                      {newEntry.attendees.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pl-7">
-                          {newEntry.attendees.map((email) => (
-                            <span
-                              key={email}
-                              className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-200 text-[11px]"
-                            >
-                              <span>{email}</span>
-                              <button
-                                type="button"
-                                onClick={() => removeAttendee(email)}
-                                className="text-zinc-400 hover:text-rose-400"
-                              >
-                                ✕
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Video Conferencing (QuantMeet / QuantChat Link) */}
-                  {newEntry.type === 'event' && (
-                    <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
-                      <div className="flex items-center gap-2.5 text-zinc-300">
-                        <span className="text-base">🎥</span>
-                        <button
-                          type="button"
-                          onClick={handleAddMeetLink}
-                          className="text-xs text-[#3b82f6] hover:underline font-semibold"
-                        >
-                          + Add QuantMeet / QuantChat video conferencing
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Location (with QuantChat Room Quick Chips) */}
-                  {(newEntry.type === 'event' || newEntry.type === 'task') && (
-                    <div className="py-2 border-b border-zinc-800/60 space-y-1.5">
-                      <div className="flex items-center gap-2.5 text-zinc-300">
-                        <span className="text-base">📍</span>
-                        <input
-                          type="text"
-                          placeholder="Add location or QuantChat room"
-                          value={newEntry.location}
-                          onChange={(e) => setNewEntry({ ...newEntry, location: e.target.value })}
-                          className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
-                        />
-                      </div>
-                      <div className="flex items-center gap-1.5 pl-7 overflow-x-auto no-scrollbar">
-                        {['🏢 QuantHQ Main', '💬 QuantChat Room', '🏠 Remote / WFH'].map((loc) => (
-                          <button
-                            key={loc}
-                            type="button"
-                            onClick={() => setNewEntry({ ...newEntry, location: loc })}
-                            className="px-2 py-0.5 rounded-md bg-zinc-800 text-[10px] text-zinc-400 hover:text-white whitespace-nowrap"
-                          >
-                            {loc}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Notifications / Reminders with Custom Slider Option */}
-                  <div className="py-2 border-b border-zinc-800/60 space-y-2">
-                    <div className="flex items-center justify-between text-zinc-300">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-base">🔔</span>
-                        <span className="font-medium">Notifications</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsNotificationSliderOpen(true)}
-                        className="px-2.5 py-1 rounded-lg bg-[#3b82f6]/20 text-[#3b82f6] text-[11px] font-bold hover:bg-[#3b82f6]/30"
-                      >
-                        + Custom Time Slider
-                      </button>
-                    </div>
-
-                    <div className="space-y-1.5 pl-7">
-                      {newEntry.notifications.map((notif, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between text-[11px] text-zinc-400"
-                        >
-                          <span>{notif}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeNotificationReminder(idx)}
-                            className="text-zinc-500 hover:text-rose-400"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Notes / Description */}
-                  <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
-                    <span className="text-base mt-1">≡</span>
-                    <textarea
-                      rows={2}
-                      placeholder={
-                        newEntry.type === 'task'
-                          ? 'Add task details, checklist, notes…'
-                          : newEntry.type === 'birthday'
-                            ? 'Add gift ideas, address, birthday wish notes…'
-                            : 'Add meeting agenda, discussion topics…'
-                      }
-                      value={newEntry.description}
-                      onChange={(e) => setNewEntry({ ...newEntry, description: e.target.value })}
-                      className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none resize-none"
-                    />
-                  </div>
-
-                  {/* QuantDrive Attachment (Interactive Link & Picker) */}
-                  <div className="py-2 space-y-1.5 text-zinc-300">
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-base">📎</span>
-                      <input
-                        type="text"
-                        placeholder="Attach QuantDrive link or file URL"
-                        value={newEntry.driveLink}
-                        onChange={(e) => setNewEntry({ ...newEntry, driveLink: e.target.value })}
-                        className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
-                      />
-                    </div>
-                    {newEntry.driveLink && (
-                      <div className="pl-7">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-[11px] font-bold">
-                          ✓ Linked: {newEntry.driveLink}
-                        </span>
-                      </div>
-                    )}
-                  </div>
                 </div>
               </motion.div>
             </div>
@@ -2115,17 +2209,17 @@ export default function CalendarPage() {
                 key={tz.value}
                 type="button"
                 onClick={() => {
-                  setNewEntry({ ...newEntry, timezone: tz.value });
+                  setFormState({ ...formState, timezone: tz.value });
                   setIsTimezoneModalOpen(false);
                 }}
                 className={`w-full text-left p-2.5 rounded-xl transition-colors flex items-center justify-between ${
-                  newEntry.timezone === tz.value
+                  formState.timezone === tz.value
                     ? 'bg-[#3b82f6] text-white font-bold'
                     : 'text-zinc-300 hover:bg-zinc-800'
                 }`}
               >
                 <span>{tz.label}</span>
-                {newEntry.timezone === tz.value && <span>✓</span>}
+                {formState.timezone === tz.value && <span>✓</span>}
               </button>
             ))}
           </div>
@@ -2143,17 +2237,17 @@ export default function CalendarPage() {
                 key={rec}
                 type="button"
                 onClick={() => {
-                  setNewEntry({ ...newEntry, recurrence: rec });
+                  setFormState({ ...formState, recurrence: rec });
                   setIsRecurrenceModalOpen(false);
                 }}
                 className={`w-full text-left p-2.5 rounded-xl transition-colors flex items-center justify-between ${
-                  newEntry.recurrence === rec
+                  formState.recurrence === rec
                     ? 'bg-[#3b82f6] text-white font-bold'
                     : 'text-zinc-300 hover:bg-zinc-800'
                 }`}
               >
                 <span>{rec}</span>
-                {newEntry.recurrence === rec && <span>✓</span>}
+                {formState.recurrence === rec && <span>✓</span>}
               </button>
             ))}
           </div>
@@ -2250,20 +2344,6 @@ export default function CalendarPage() {
                   ) : (
                     <span>{selectedEvent.location}</span>
                   )}
-                </div>
-              )}
-
-              {selectedEvent.driveLink && (
-                <div className="flex items-center gap-2">
-                  <span>📎</span>
-                  <a
-                    href={selectedEvent.driveLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-emerald-400 hover:underline font-bold"
-                  >
-                    QuantDrive Attachment
-                  </a>
                 </div>
               )}
 
