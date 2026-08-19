@@ -511,7 +511,7 @@ export default function CalendarPage() {
     location: '',
     description: '',
     recurrence: 'Does not repeat',
-    color: '#3b82f6',
+    color: '#ff9933',
     accountEmail: currentUserEmail,
     notifications: ['30 minutes before'],
     attendeeInput: '',
@@ -636,6 +636,9 @@ export default function CalendarPage() {
       const hasHoliday = (holidaysByDay[k] ?? []).length > 0;
       const dayEvts = eventsByDay[k] ?? [];
       const hasPeriod = dayEvts.some((e) => e.type === 'period');
+      const hasTask = dayEvts.some((e) => e.type === 'task');
+      const hasUrgentTask = dayEvts.some((e) => e.type === 'task' && e.priority === 'urgent');
+      const hasBirthday = dayEvts.some((e) => e.type === 'birthday');
       const hasEvent = dayEvts.length > 0;
 
       return {
@@ -647,6 +650,9 @@ export default function CalendarPage() {
         isCurrentMonth: isCurrentSelectedMonth,
         hasHoliday,
         hasPeriod,
+        hasTask,
+        hasUrgentTask,
+        hasBirthday,
         hasEvent,
         holidayName: (holidaysByDay[k] ?? [])[0]?.name,
         key: k,
@@ -665,6 +671,9 @@ export default function CalendarPage() {
       hasHolidays: boolean;
       hasEvents: boolean;
       hasPeriod: boolean;
+      hasTask: boolean;
+      hasUrgentTask: boolean;
+      hasBirthday: boolean;
       holidayName?: string;
     }> = [];
 
@@ -683,6 +692,9 @@ export default function CalendarPage() {
         hasHolidays: hols.length > 0,
         hasEvents: dayEvts.length > 0,
         hasPeriod: dayEvts.some((e) => e.type === 'period'),
+        hasTask: dayEvts.some((e) => e.type === 'task'),
+        hasUrgentTask: dayEvts.some((e) => e.type === 'task' && e.priority === 'urgent'),
+        hasBirthday: dayEvts.some((e) => e.type === 'birthday'),
         holidayName: hols[0]?.name,
       });
     }
@@ -702,6 +714,9 @@ export default function CalendarPage() {
         hasHolidays: hols.length > 0,
         hasEvents: dayEvts.length > 0,
         hasPeriod: dayEvts.some((e) => e.type === 'period'),
+        hasTask: dayEvts.some((e) => e.type === 'task'),
+        hasUrgentTask: dayEvts.some((e) => e.type === 'task' && e.priority === 'urgent'),
+        hasBirthday: dayEvts.some((e) => e.type === 'birthday'),
         holidayName: hols[0]?.name,
       });
     }
@@ -721,6 +736,9 @@ export default function CalendarPage() {
         hasHolidays: hols.length > 0,
         hasEvents: dayEvts.length > 0,
         hasPeriod: dayEvts.some((e) => e.type === 'period'),
+        hasTask: dayEvts.some((e) => e.type === 'task'),
+        hasUrgentTask: dayEvts.some((e) => e.type === 'task' && e.priority === 'urgent'),
+        hasBirthday: dayEvts.some((e) => e.type === 'birthday'),
         holidayName: hols[0]?.name,
       });
     }
@@ -997,12 +1015,12 @@ export default function CalendarPage() {
               : 'Does not repeat',
         color:
           type === 'period'
-            ? '#ec4899'
+            ? '#f43f5e'
             : type === 'birthday'
               ? '#10b981'
               : type === 'task'
                 ? '#f59e0b'
-                : '#3b82f6',
+                : '#ff9933',
         accountEmail: currentUserEmail,
         notifications:
           type === 'birthday'
@@ -1322,15 +1340,17 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => setIsMonthExpanded((prev) => !prev)}
-            className="flex items-center gap-1.5 text-base font-bold text-white hover:text-[#3b82f6] transition-colors"
+            className="flex items-center gap-1.5 text-base font-extrabold text-white hover:text-[#ff9933] transition-colors"
           >
-            <span>{activeMonthName}</span>
+            <span className="bg-gradient-to-r from-white via-orange-100 to-[#ff9933] bg-clip-text text-transparent">
+              {activeMonthName}
+            </span>
             <svg
-              className={`size-4 transition-transform duration-200 ${isMonthExpanded ? 'rotate-180' : ''}`}
+              className={`size-4 text-[#ff9933] transition-transform duration-200 ${isMonthExpanded ? 'rotate-180' : ''}`}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="2.5"
             >
               <path d="m6 9 6 6 6-6" />
             </svg>
@@ -1344,7 +1364,7 @@ export default function CalendarPage() {
             onClick={() =>
               setActiveView((v) => (v === 'agenda' ? 'month' : v === 'month' ? 'week' : 'agenda'))
             }
-            className="size-8 inline-flex items-center justify-center rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="size-8 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-800/80 transition-colors"
             aria-label="Toggle calendar view"
           >
             <IconCalendar className="size-4" />
@@ -1353,7 +1373,7 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => setIsSearchOpen((prev) => !prev)}
-            className="size-8 inline-flex items-center justify-center rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="size-8 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-800/80 transition-colors"
             aria-label="Search calendar"
           >
             <svg
@@ -1371,63 +1391,66 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={goToday}
-            className="px-2.5 py-1 text-xs font-semibold rounded-md border border-zinc-700 bg-zinc-900 text-[#3b82f6] hover:bg-zinc-800 transition-colors shadow-sm"
+            className="px-3 py-1 text-xs font-black rounded-xl border border-[#ff9933]/40 bg-gradient-to-r from-[#ff9933]/20 to-[#fbbf24]/10 text-[#ff9933] hover:from-[#ff9933]/30 hover:to-[#fbbf24]/20 shadow-[0_0_15px_rgba(255,153,51,0.25)] transition-all active:scale-95"
           >
             Today
           </button>
         </div>
       }
     >
-      <PageTransition className="flex flex-col h-full bg-black text-white relative">
+      <PageTransition className="flex flex-col h-full bg-[#08080a] text-white relative">
         {/* Search Bar on Mobile when toggled */}
         {isSearchOpen && (
-          <div className="border-b border-zinc-800 bg-zinc-950 px-4 py-2">
+          <div className="border-b border-zinc-800/80 bg-zinc-950 px-4 py-2">
             <input
               type="search"
               placeholder="Search events, meetings, tasks, birthdays…"
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#3b82f6]"
+              className="w-full bg-zinc-900/90 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
               autoFocus
             />
           </div>
         )}
 
         {/* Desktop Header Toolbar */}
-        <div className="hidden md:flex items-center justify-between border-b border-zinc-800 px-6 py-3 bg-zinc-950">
+        <div className="hidden md:flex items-center justify-between border-b border-zinc-800/80 px-6 py-3 bg-[#0c0c0f]">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => goMonth(-1)}
-                className="size-8 grid place-items-center rounded-lg border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                className="size-8 grid place-items-center rounded-xl border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition-colors"
               >
                 ‹
               </button>
               <button
                 type="button"
                 onClick={() => goMonth(1)}
-                className="size-8 grid place-items-center rounded-lg border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                className="size-8 grid place-items-center rounded-xl border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition-colors"
               >
                 ›
               </button>
             </div>
 
-            <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              {activeMonthName} <span className="text-zinc-400 font-normal">{activeYear}</span>
+            <h2 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
+              <span className="bg-gradient-to-r from-white via-orange-100 to-[#ff9933] bg-clip-text text-transparent">
+                {activeMonthName}
+              </span>
+              <span className="text-zinc-500 font-normal">{activeYear}</span>
             </h2>
 
             <button
               type="button"
               onClick={goToday}
-              className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-zinc-700 text-zinc-300 hover:text-white hover:border-[#ff9933] transition-colors"
+              className="px-3 py-1 text-xs font-black rounded-xl border border-[#ff9933]/40 bg-gradient-to-r from-[#ff9933]/20 to-[#fbbf24]/10 text-[#ff9933] hover:from-[#ff9933]/30 hover:to-[#fbbf24]/20 shadow-[0_0_15px_rgba(255,153,51,0.25)] transition-all"
             >
               Today
             </button>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-lg border border-zinc-800 bg-zinc-900 p-0.5">
+            <div className="flex items-center rounded-xl border border-zinc-800 bg-zinc-900/80 p-0.5 backdrop-blur-md">
               {(
                 [
                   { key: 'agenda', label: 'Agenda' },
@@ -1440,9 +1463,9 @@ export default function CalendarPage() {
                   key={v.key}
                   type="button"
                   onClick={() => setActiveView(v.key)}
-                  className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${
+                  className={`px-3.5 py-1 text-xs rounded-lg font-bold transition-all ${
                     activeView === v.key
-                      ? 'bg-[#ff9933] text-[#191008] font-bold'
+                      ? 'bg-gradient-to-r from-[#ff9933] to-[#fbbf24] text-[#0a0a0c] font-black shadow-md'
                       : 'text-zinc-400 hover:text-white'
                   }`}
                 >
@@ -1451,15 +1474,19 @@ export default function CalendarPage() {
               ))}
             </div>
 
-            <Button variant="primary" onClick={() => openDedicatedSheet('event')}>
+            <button
+              type="button"
+              onClick={() => openDedicatedSheet('event')}
+              className="px-4 py-1.5 rounded-xl font-black text-xs text-black bg-gradient-to-r from-[#ff9933] via-[#f97316] to-[#fbbf24] shadow-[0_0_20px_rgba(255,153,51,0.4)] hover:brightness-110 active:scale-95 transition-all"
+            >
               + New Entry
-            </Button>
+            </button>
           </div>
         </div>
 
-        {/* Outlook-Style Interactive Expandable Date Picker with Pulsing Holiday & Event Indicators */}
+        {/* Quant Brand 3D Glassmorphic Calendar Date Picker */}
         <div
-          className="border-b border-zinc-800 bg-[#161618] select-none overflow-hidden relative"
+          className="border-b border-zinc-800/80 bg-[#101014] select-none overflow-hidden relative"
           style={{
             height: `${currentHeight}px`,
             transition: isDragging ? 'none' : 'height 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -1469,21 +1496,21 @@ export default function CalendarPage() {
           <div className="flex flex-col h-full justify-between px-3 pt-2 pb-1">
             {isMonthExpanded && (
               <div className="flex items-center justify-between px-2 pb-1">
-                <span className="text-xs font-bold text-zinc-200">
+                <span className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-[#ff9933]">
                   {MONTH_NAMES[month]} {year}
                 </span>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => goMonth(-1)}
-                    className="size-7 text-sm text-zinc-400 hover:text-white rounded hover:bg-zinc-800 flex items-center justify-center"
+                    className="size-7 text-sm text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800/80 flex items-center justify-center"
                   >
                     ‹
                   </button>
                   <button
                     type="button"
                     onClick={() => goMonth(1)}
-                    className="size-7 text-sm text-zinc-400 hover:text-white rounded hover:bg-zinc-800 flex items-center justify-center"
+                    className="size-7 text-sm text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800/80 flex items-center justify-center"
                   >
                     ›
                   </button>
@@ -1493,7 +1520,7 @@ export default function CalendarPage() {
 
             <div className="grid grid-cols-7 text-center py-1">
               {WEEKDAYS_SHORT.map((d, i) => (
-                <div key={i} className="text-[11px] font-semibold text-zinc-400">
+                <div key={i} className="text-[11px] font-bold text-zinc-400">
                   {d}
                 </div>
               ))}
@@ -1502,45 +1529,71 @@ export default function CalendarPage() {
             <div className="flex-1 overflow-hidden">
               {!isMonthExpanded ? (
                 <div className="grid grid-cols-7 text-center h-[46px] items-center">
-                  {currentWeekDays.map((d) => (
-                    <button
-                      key={d.key}
-                      type="button"
-                      onClick={() => selectDate(d.date)}
-                      className="flex flex-col items-center justify-center py-0.5 focus:outline-none relative group"
-                    >
-                      <span
-                        className={`w-9 h-9 rounded-full flex flex-col items-center justify-center text-xs font-bold transition-all relative ${
-                          d.isSelected
-                            ? 'bg-[#3b82f6] text-white shadow-lg scale-105'
-                            : d.isToday
-                              ? 'border-2 border-[#3b82f6] text-[#3b82f6]'
-                              : d.isCurrentMonth
-                                ? 'text-zinc-200 hover:bg-zinc-800'
-                                : 'text-zinc-500'
-                        }`}
-                      >
-                        <span>{d.dayNum}</span>
+                  {currentWeekDays.map((d) => {
+                    // Determine 3D Glass Sphere styling based on type & urgency
+                    let sphereClass = 'text-zinc-300 hover:bg-zinc-800/60';
+                    let sphereStyle: React.CSSProperties = {};
 
-                        {/* Holiday & Event Indicators / Pulsing Dot */}
-                        {d.hasHoliday && !d.isSelected && (
-                          <span
-                            title={d.holidayName || 'Holiday'}
-                            className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 ring-2 ring-[#161618] animate-pulse"
-                          />
-                        )}
-                        {d.hasPeriod && !d.isSelected && (
-                          <span
-                            title="Period log"
-                            className="absolute -bottom-0.5 size-1.5 rounded-full bg-rose-400"
-                          />
-                        )}
-                        {!d.hasPeriod && d.hasEvent && !d.isSelected && !d.hasHoliday && (
-                          <span className="absolute -bottom-0.5 size-1 rounded-full bg-[#3b82f6]" />
-                        )}
-                      </span>
-                    </button>
-                  ))}
+                    if (d.isSelected) {
+                      sphereClass =
+                        'text-black font-black scale-110 shadow-[0_0_18px_rgba(255,153,51,0.6),inset_0_2px_4px_rgba(255,255,255,0.4)] ring-2 ring-[#ff9933]/60';
+                      sphereStyle = {
+                        background:
+                          'linear-gradient(135deg, #f97316 0%, #ff9933 50%, #fde047 100%)',
+                      };
+                    } else if (d.hasPeriod) {
+                      // 3D Pink Glass Sphere for Period dates
+                      sphereClass =
+                        'text-rose-200 font-bold border border-rose-400/50 shadow-[0_0_14px_rgba(244,63,94,0.4),inset_0_1px_2px_rgba(255,255,255,0.3)]';
+                      sphereStyle = {
+                        background:
+                          'radial-gradient(circle at 30% 30%, rgba(251,113,133,0.45) 0%, rgba(225,29,72,0.3) 100%)',
+                      };
+                    } else if (d.hasUrgentTask) {
+                      // 3D Fire Red-Amber Glass Sphere
+                      sphereClass =
+                        'text-amber-200 font-bold border border-red-500/50 shadow-[0_0_14px_rgba(239,68,68,0.4),inset_0_1px_2px_rgba(255,255,255,0.3)]';
+                      sphereStyle = {
+                        background:
+                          'radial-gradient(circle at 30% 30%, rgba(239,68,68,0.45) 0%, rgba(249,115,22,0.3) 100%)',
+                      };
+                    } else if (d.hasBirthday) {
+                      // 3D Emerald Glass Sphere
+                      sphereClass =
+                        'text-emerald-200 font-bold border border-emerald-400/50 shadow-[0_0_14px_rgba(16,185,129,0.4),inset_0_1px_2px_rgba(255,255,255,0.3)]';
+                      sphereStyle = {
+                        background:
+                          'radial-gradient(circle at 30% 30%, rgba(52,211,153,0.4) 0%, rgba(5,150,105,0.3) 100%)',
+                      };
+                    } else if (d.isToday) {
+                      sphereClass =
+                        'border-2 border-[#ff9933] text-[#ff9933] font-bold shadow-[0_0_12px_rgba(255,153,51,0.3)]';
+                    }
+
+                    return (
+                      <button
+                        key={d.key}
+                        type="button"
+                        onClick={() => selectDate(d.date)}
+                        className="flex flex-col items-center justify-center py-0.5 focus:outline-none relative group"
+                      >
+                        <span
+                          style={sphereStyle}
+                          className={`w-9 h-9 rounded-full flex flex-col items-center justify-center text-xs transition-all relative ${sphereClass}`}
+                        >
+                          <span className="relative z-10">{d.dayNum}</span>
+
+                          {/* Holiday Indicator Jewel */}
+                          {d.hasHoliday && !d.isSelected && (
+                            <span
+                              title={d.holidayName || 'Holiday'}
+                              className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-400 ring-2 ring-[#101014] animate-pulse shadow-[0_0_8px_#34d399]"
+                            />
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="space-y-0.5 pt-0.5">
@@ -1549,37 +1602,66 @@ export default function CalendarPage() {
                       key={`month-week-${weekIdx}`}
                       className="grid grid-cols-7 text-center h-[38px] items-center"
                     >
-                      {week.map((d) => (
-                        <button
-                          key={d.key}
-                          type="button"
-                          onClick={() => selectDate(d.date)}
-                          className="flex flex-col items-center justify-center py-0.5 focus:outline-none relative"
-                        >
-                          <span
-                            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all relative ${
-                              d.isSelected
-                                ? 'bg-[#3b82f6] text-white font-bold shadow-md scale-105'
-                                : d.isToday
-                                  ? 'border border-[#3b82f6] text-[#3b82f6]'
-                                  : d.isCurrentMonth
-                                    ? 'text-zinc-200 hover:bg-zinc-800'
-                                    : 'text-zinc-600'
-                            }`}
+                      {week.map((d) => {
+                        let sphereClass = d.isCurrentMonth
+                          ? 'text-zinc-300 hover:bg-zinc-800/60'
+                          : 'text-zinc-600';
+                        let sphereStyle: React.CSSProperties = {};
+
+                        if (d.isSelected) {
+                          sphereClass =
+                            'text-black font-black scale-105 shadow-[0_0_16px_rgba(255,153,51,0.6)]';
+                          sphereStyle = {
+                            background:
+                              'linear-gradient(135deg, #f97316 0%, #ff9933 50%, #fde047 100%)',
+                          };
+                        } else if (d.hasPeriod) {
+                          sphereClass =
+                            'text-rose-200 font-bold border border-rose-400/40 shadow-[0_0_10px_rgba(244,63,94,0.35)]';
+                          sphereStyle = {
+                            background:
+                              'radial-gradient(circle at 30% 30%, rgba(251,113,133,0.4) 0%, rgba(225,29,72,0.25) 100%)',
+                          };
+                        } else if (d.hasUrgentTask) {
+                          sphereClass =
+                            'text-amber-200 font-bold border border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.35)]';
+                          sphereStyle = {
+                            background:
+                              'radial-gradient(circle at 30% 30%, rgba(239,68,68,0.4) 0%, rgba(249,115,22,0.25) 100%)',
+                          };
+                        } else if (d.hasBirthday) {
+                          sphereClass =
+                            'text-emerald-200 font-bold border border-emerald-400/40 shadow-[0_0_10px_rgba(16,185,129,0.35)]';
+                          sphereStyle = {
+                            background:
+                              'radial-gradient(circle at 30% 30%, rgba(52,211,153,0.35) 0%, rgba(5,150,105,0.25) 100%)',
+                          };
+                        } else if (d.isToday) {
+                          sphereClass = 'border border-[#ff9933] text-[#ff9933] font-bold';
+                        }
+
+                        return (
+                          <button
+                            key={d.key}
+                            type="button"
+                            onClick={() => selectDate(d.date)}
+                            className="flex flex-col items-center justify-center py-0.5 focus:outline-none relative"
                           >
-                            <span>{d.dayNum}</span>
-                            {d.hasHolidays && !d.isSelected && (
-                              <span
-                                title={d.holidayName || 'Holiday'}
-                                className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 ring-2 ring-[#161618] animate-pulse"
-                              />
-                            )}
-                            {d.hasPeriod && !d.isSelected && (
-                              <span className="absolute -bottom-0.5 size-1.5 rounded-full bg-rose-400" />
-                            )}
-                          </span>
-                        </button>
-                      ))}
+                            <span
+                              style={sphereStyle}
+                              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all relative ${sphereClass}`}
+                            >
+                              <span>{d.dayNum}</span>
+                              {d.hasHolidays && !d.isSelected && (
+                                <span
+                                  title={d.holidayName || 'Holiday'}
+                                  className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 ring-2 ring-[#101014] animate-pulse"
+                                />
+                              )}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   ))}
                 </div>
@@ -1597,21 +1679,23 @@ export default function CalendarPage() {
             >
               <div
                 className={`w-12 h-1.5 rounded-full transition-all ${
-                  isDragging ? 'bg-[#3b82f6] scale-110' : 'bg-zinc-700 group-hover:bg-zinc-500'
+                  isDragging
+                    ? 'bg-[#ff9933] scale-110 shadow-[0_0_10px_#ff9933]'
+                    : 'bg-zinc-700 group-hover:bg-zinc-500'
                 }`}
               />
             </div>
           </div>
         </div>
 
-        {/* Continuous Agenda Feed with Dual-Split Category + Priority Accent Cards */}
+        {/* Continuous Agenda Feed with 3D Frosted Glass Liquid Water-Color Swirl Cards */}
         <div
           ref={scrollHostRef}
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto px-4 py-3 sm:px-6 space-y-6 pb-28 md:pb-6"
         >
           {isLoadingPast && (
-            <div className="flex items-center justify-center gap-2 py-2 text-xs font-semibold text-[#3b82f6] animate-pulse">
+            <div className="flex items-center justify-center gap-2 py-2 text-xs font-bold text-[#ff9933] animate-pulse">
               <svg className="animate-spin size-4" viewBox="0 0 24 24" fill="none">
                 <circle
                   className="opacity-25"
@@ -1630,7 +1714,7 @@ export default function CalendarPage() {
           {isInitialLoading && (
             <div className="space-y-4 py-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} variant="rect" width="100%" height="72px" />
+                <Skeleton key={i} variant="rect" width="100%" height="80px" />
               ))}
             </div>
           )}
@@ -1642,7 +1726,7 @@ export default function CalendarPage() {
           )}
 
           {!isInitialLoading && !error && (
-            <div className="space-y-5">
+            <div className="space-y-6">
               {continuousAgendaDays.map((item) => {
                 const isSelected = dayKey(item.date) === dayKey(selectedDate);
                 const hasEvents = item.events.length > 0;
@@ -1656,103 +1740,153 @@ export default function CalendarPage() {
                       else dateItemRefs.current.delete(item.key);
                     }}
                     className={`transition-all duration-200 ${
-                      isSelected ? 'bg-zinc-900/40 rounded-2xl p-2' : ''
+                      isSelected
+                        ? 'bg-gradient-to-r from-[#ff9933]/10 to-transparent rounded-2xl p-2.5 border-l-2 border-[#ff9933]'
+                        : ''
                     }`}
                   >
-                    <div className="flex items-baseline gap-2 mb-1.5">
+                    {/* Centered Date Header with 3D Aura */}
+                    <div className="flex items-baseline gap-2.5 mb-2">
                       <span
-                        className={`text-base font-extrabold ${
+                        className={`text-lg font-black tracking-tight ${
                           item.isToday
-                            ? 'text-[#3b82f6]'
+                            ? 'text-transparent bg-clip-text bg-gradient-to-r from-[#ff9933] to-[#fbbf24]'
                             : isSelected
-                              ? 'text-white'
-                              : 'text-zinc-100'
+                              ? 'text-white font-extrabold'
+                              : 'text-zinc-200'
                         }`}
                       >
                         {item.dayNum} {item.weekdayName}
                       </span>
 
                       {item.isToday && (
-                        <span className="text-xs font-bold text-[#3b82f6]">Today</span>
+                        <span className="text-[10px] uppercase tracking-wider font-black px-2 py-0.5 rounded-full bg-[#ff9933]/20 text-[#ff9933] border border-[#ff9933]/40 shadow-[0_0_10px_rgba(255,153,51,0.3)]">
+                          Today
+                        </span>
                       )}
                       {item.isTomorrow && (
-                        <span className="text-xs font-semibold text-zinc-400">Tomorrow</span>
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-zinc-400">
+                          Tomorrow
+                        </span>
                       )}
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
+                      {/* Holiday 3D Emerald Glass Card */}
                       {item.holidays.map((h, hi) => (
                         <div
                           key={hi}
-                          className="flex items-center justify-between px-3.5 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-950/25 text-xs shadow-sm"
+                          style={{
+                            background:
+                              'radial-gradient(circle at 10% 20%, rgba(16,185,129,0.25) 0%, transparent 60%), radial-gradient(circle at 90% 80%, rgba(5,150,105,0.2) 0%, transparent 60%), linear-gradient(135deg, rgba(12,24,18,0.85) 0%, rgba(8,16,12,0.95) 100%)',
+                          }}
+                          className="relative flex items-center justify-between px-4 py-3 rounded-2xl border border-emerald-500/40 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.15)] text-xs overflow-hidden"
                         >
-                          <div className="flex items-center gap-2.5">
-                            <span className="text-base">🇮🇳</span>
+                          <div className="flex items-center gap-3">
+                            <div className="size-8 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-base shadow-[0_0_10px_rgba(16,185,129,0.4)] shrink-0">
+                              🇮🇳
+                            </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="font-bold text-emerald-300">{h.name}</span>
-                                <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+                                <span className="font-extrabold text-sm text-emerald-200 tracking-wide">
+                                  {h.name}
+                                </span>
+                                <span className="size-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
                               </div>
                               {h.description && (
-                                <p className="text-[10px] text-zinc-400">{h.description}</p>
+                                <p className="text-[11px] text-zinc-400 mt-0.5">{h.description}</p>
                               )}
                             </div>
                           </div>
-                          <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">
+                          <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 shadow-sm">
                             Holiday
                           </span>
                         </div>
                       ))}
 
+                      {/* 3D Liquid Glass Watercolor Cards */}
                       {item.events.map((ev) => {
                         const isTask = ev.type === 'task';
                         const isBirthday = ev.type === 'birthday';
                         const isPeriod = ev.type === 'period';
 
-                        // Calculate dual-split accent colors
-                        let categoryColor = '#3b82f6';
+                        // 3D Liquid Watercolor Blends
+                        let cardBackground = '';
+                        let cardBorder = 'border-white/10';
+                        let categoryColor = '#ff9933';
                         let categoryLabel = 'Event';
-                        let urgencyColor = '#60a5fa';
+                        let urgencyColor = '#fbbf24';
                         let urgencyLabel = 'Standard';
+                        let glowColor = 'rgba(255,153,51,0.25)';
 
-                        if (isTask) {
+                        if (isPeriod) {
+                          categoryColor = '#f43f5e';
+                          categoryLabel = 'Period';
+                          urgencyColor =
+                            ev.flowIntensity === 'super_heavy'
+                              ? '#be123c'
+                              : ev.flowIntensity === 'heavy'
+                                ? '#e11d48'
+                                : '#fb7185';
+                          urgencyLabel = ev.flowIntensity
+                            ? `${ev.flowIntensity} flow`
+                            : 'Cycle Log';
+                          glowColor = 'rgba(244,63,94,0.35)';
+                          cardBorder = 'border-rose-500/40';
+                          // Liquid water-color swirl like pink paint in water
+                          cardBackground =
+                            'radial-gradient(circle at 10% 20%, rgba(244,63,94,0.35) 0%, transparent 60%), radial-gradient(circle at 90% 80%, rgba(225,29,72,0.25) 0%, transparent 60%), linear-gradient(135deg, rgba(28,16,22,0.9) 0%, rgba(16,10,14,0.95) 100%)';
+                        } else if (isTask) {
                           categoryColor = '#f59e0b';
                           categoryLabel = 'Task';
                           if (ev.priority === 'urgent') {
                             urgencyColor = '#ef4444';
                             urgencyLabel = 'Urgent';
+                            glowColor = 'rgba(239,68,68,0.4)';
+                            cardBorder = 'border-red-500/50';
+                            cardBackground =
+                              'radial-gradient(circle at 15% 25%, rgba(239,68,68,0.4) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(255,153,51,0.3) 0%, transparent 55%), linear-gradient(135deg, rgba(30,14,14,0.9) 0%, rgba(18,10,10,0.95) 100%)';
                           } else if (ev.priority === 'low') {
                             urgencyColor = '#10b981';
                             urgencyLabel = 'Low';
+                            cardBorder = 'border-amber-500/30';
+                            cardBackground =
+                              'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.3) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(16,185,129,0.2) 0%, transparent 55%), linear-gradient(135deg, rgba(24,20,14,0.9) 0%, rgba(14,12,10,0.95) 100%)';
                           } else {
-                            urgencyColor = '#eab308';
+                            urgencyColor = '#fbbf24';
                             urgencyLabel = 'Medium';
-                          }
-                        } else if (isPeriod) {
-                          categoryColor = '#f43f5e';
-                          categoryLabel = 'Period';
-                          if (ev.flowIntensity === 'super_heavy') {
-                            urgencyColor = '#be123c';
-                            urgencyLabel = 'Super';
-                          } else if (ev.flowIntensity === 'heavy') {
-                            urgencyColor = '#e11d48';
-                            urgencyLabel = 'Heavy';
-                          } else if (ev.flowIntensity === 'light') {
-                            urgencyColor = '#fb7185';
-                            urgencyLabel = 'Light';
-                          } else {
-                            urgencyColor = '#f43f5e';
-                            urgencyLabel = 'Medium';
+                            glowColor = 'rgba(245,158,11,0.3)';
+                            cardBorder = 'border-amber-500/40';
+                            cardBackground =
+                              'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.2) 0%, transparent 55%), linear-gradient(135deg, rgba(26,20,12,0.9) 0%, rgba(16,12,8,0.95) 100%)';
                           }
                         } else if (isBirthday) {
                           categoryColor = '#10b981';
                           categoryLabel = 'Birthday';
-                          urgencyColor = '#059669';
+                          urgencyColor = '#84cc16';
                           urgencyLabel = 'Annual';
+                          glowColor = 'rgba(16,185,129,0.3)';
+                          cardBorder = 'border-emerald-500/40';
+                          cardBackground =
+                            'radial-gradient(circle at 15% 25%, rgba(16,185,129,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(132,204,22,0.2) 0%, transparent 55%), linear-gradient(135deg, rgba(14,26,18,0.9) 0%, rgba(10,16,12,0.95) 100%)';
                         } else {
+                          // Quant Brand Event
+                          categoryColor = '#ff9933';
+                          categoryLabel = 'Event';
                           if (ev.location?.includes('meet')) {
-                            urgencyColor = '#8b5cf6';
-                            urgencyLabel = 'Video';
+                            urgencyColor = '#a855f7';
+                            urgencyLabel = 'Video Meet';
+                            glowColor = 'rgba(168,85,247,0.3)';
+                            cardBorder = 'border-purple-500/40';
+                            cardBackground =
+                              'radial-gradient(circle at 15% 25%, rgba(255,153,51,0.3) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(168,85,247,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(24,16,24,0.9) 0%, rgba(14,10,16,0.95) 100%)';
+                          } else {
+                            urgencyColor = '#fbbf24';
+                            urgencyLabel = 'Standard';
+                            glowColor = 'rgba(255,153,51,0.25)';
+                            cardBorder = 'border-[#ff9933]/40';
+                            cardBackground =
+                              'radial-gradient(circle at 15% 25%, rgba(255,153,51,0.3) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.2) 0%, transparent 55%), linear-gradient(135deg, rgba(26,18,12,0.9) 0%, rgba(14,10,8,0.95) 100%)';
                           }
                         }
 
@@ -1760,56 +1894,76 @@ export default function CalendarPage() {
                           <div
                             key={ev.id}
                             onClick={() => setSelectedEvent(ev)}
-                            className="relative flex items-center justify-between p-3 rounded-2xl border border-zinc-800 bg-zinc-900/90 hover:border-zinc-700 transition-all cursor-pointer shadow-md overflow-hidden group"
+                            style={{
+                              background: cardBackground,
+                              boxShadow: `0 12px 32px 0 rgba(0,0,0,0.5), 0 0 20px 0 ${glowColor}, inset 0 1px 1px 0 rgba(255,255,255,0.2)`,
+                            }}
+                            className={`relative flex items-center justify-between p-3.5 rounded-3xl border ${cardBorder} backdrop-blur-2xl transition-all cursor-pointer overflow-hidden group hover:scale-[1.01] hover:brightness-105 active:scale-[0.99]`}
                           >
-                            {/* Half Main Category Color + Half Urgency/Status Color Dual Accent Pillar */}
-                            <div className="absolute left-0 top-0 bottom-0 w-1.5 flex flex-col">
+                            {/* 3D Liquid Mixing Pillar Accent */}
+                            <div className="absolute left-0 top-0 bottom-0 w-2 flex flex-col">
                               <div className="flex-1" style={{ backgroundColor: categoryColor }} />
                               <div className="flex-1" style={{ backgroundColor: urgencyColor }} />
                             </div>
 
-                            <div className="flex items-start gap-2.5 pl-1.5">
-                              {isTask ? (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    showToast({
-                                      text: `Task "${ev.title}" completed`,
-                                      type: 'success',
-                                    });
-                                  }}
-                                  className="size-4 rounded border border-amber-500 hover:border-amber-400 mt-0.5 flex items-center justify-center text-[10px] text-transparent hover:text-white bg-amber-500/10"
-                                >
-                                  ✓
-                                </button>
-                              ) : isBirthday ? (
-                                <IconCake className="size-4 text-emerald-400 mt-0.5 shrink-0" />
-                              ) : isPeriod ? (
-                                <IconFlower className="size-4 text-rose-400 mt-0.5 shrink-0" />
-                              ) : (
-                                <span className="size-2.5 rounded-full mt-1.5 shrink-0 bg-[#3b82f6]" />
-                              )}
+                            <div className="flex items-start gap-3 pl-2.5">
+                              {/* 3D Glass Orb for Category Icon */}
+                              <div
+                                style={{
+                                  background: `radial-gradient(circle at 30% 30%, ${categoryColor}66 0%, ${urgencyColor}44 100%)`,
+                                  boxShadow: `0 0 12px ${categoryColor}55, inset 0 1px 2px rgba(255,255,255,0.4)`,
+                                }}
+                                className="size-9 rounded-2xl border border-white/20 flex items-center justify-center shrink-0 mt-0.5"
+                              >
+                                {isTask ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      showToast({
+                                        text: `Task "${ev.title}" completed`,
+                                        type: 'success',
+                                      });
+                                    }}
+                                    className="text-xs font-black text-amber-300 hover:text-white"
+                                  >
+                                    ✓
+                                  </button>
+                                ) : isBirthday ? (
+                                  <IconCake className="size-4 text-emerald-300" />
+                                ) : isPeriod ? (
+                                  <IconFlower className="size-4 text-rose-300" />
+                                ) : (
+                                  <IconCalendar className="size-4 text-[#ff9933]" />
+                                )}
+                              </div>
 
                               <div>
-                                <div className="flex items-center gap-1.5">
-                                  <h5 className="text-xs font-bold text-white">{ev.title}</h5>
+                                <div className="flex items-center gap-2">
+                                  <h5 className="text-sm font-black text-white tracking-wide">
+                                    {ev.title}
+                                  </h5>
 
-                                  {/* Dual Split Accent Pill (Half Main Type, Half Urgency Status) */}
-                                  <div className="inline-flex items-center rounded-full overflow-hidden text-[9px] font-bold border border-zinc-700/60 shadow-sm">
+                                  {/* 3D Liquid Dual Split Capsule */}
+                                  <div
+                                    style={{
+                                      boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.2)',
+                                    }}
+                                    className="inline-flex items-center rounded-full overflow-hidden text-[9px] font-black border border-white/15 bg-black/40 backdrop-blur-md"
+                                  >
                                     <span
-                                      className="px-1.5 py-0.5 uppercase"
+                                      className="px-2 py-0.5 uppercase tracking-wider"
                                       style={{
-                                        backgroundColor: `${categoryColor}22`,
+                                        backgroundColor: `${categoryColor}33`,
                                         color: categoryColor,
                                       }}
                                     >
                                       {categoryLabel}
                                     </span>
                                     <span
-                                      className="px-1.5 py-0.5 uppercase border-l border-zinc-700/40"
+                                      className="px-2 py-0.5 uppercase tracking-wider border-l border-white/10"
                                       style={{
-                                        backgroundColor: `${urgencyColor}33`,
+                                        backgroundColor: `${urgencyColor}44`,
                                         color: urgencyColor,
                                       }}
                                     >
@@ -1818,12 +1972,18 @@ export default function CalendarPage() {
                                   </div>
                                 </div>
 
-                                <p className="text-[11px] text-zinc-400 mt-0.5">
-                                  {ev.allDay
-                                    ? 'All Day'
-                                    : `${hhmm(startOf(ev))} – ${hhmm(endOf(ev))}`}
-                                  {ev.location ? ` · 📍 ${ev.location}` : ''}
-                                  {ev.description ? ` · ${ev.description}` : ''}
+                                <p className="text-[11px] text-zinc-300/90 mt-1 flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-white">
+                                    {ev.allDay
+                                      ? 'All Day'
+                                      : `${hhmm(startOf(ev))} – ${hhmm(endOf(ev))}`}
+                                  </span>
+                                  {ev.location && (
+                                    <span className="text-zinc-400">· 📍 {ev.location}</span>
+                                  )}
+                                  {ev.description && (
+                                    <span className="text-zinc-400">· {ev.description}</span>
+                                  )}
                                 </p>
                               </div>
                             </div>
@@ -1835,7 +1995,7 @@ export default function CalendarPage() {
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
-                                  className="px-2.5 py-1 rounded-lg bg-[#3b82f6]/20 text-[#3b82f6] text-[11px] font-bold hover:bg-[#3b82f6]/30 transition-colors"
+                                  className="px-3 py-1.5 rounded-xl bg-purple-500/25 text-purple-200 border border-purple-400/40 text-[11px] font-black shadow-[0_0_12px_rgba(168,85,247,0.3)] hover:brightness-110 transition-all"
                                 >
                                   🎥 Join Video
                                 </a>
@@ -1843,7 +2003,7 @@ export default function CalendarPage() {
                               <button
                                 type="button"
                                 onClick={(e) => handleDeleteEvent(ev.id, e)}
-                                className="p-1 text-zinc-500 hover:text-rose-400 text-xs"
+                                className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-950/30 text-xs transition-colors"
                                 title="Delete"
                               >
                                 🗑
@@ -1856,9 +2016,9 @@ export default function CalendarPage() {
                       {!hasEvents && !hasHolidays && (
                         <div
                           onClick={() => openDedicatedSheet('event', item.date)}
-                          className="text-xs text-zinc-500 font-normal hover:text-zinc-300 transition-colors cursor-pointer py-0.5"
+                          className="text-xs text-zinc-500 font-normal hover:text-zinc-300 transition-colors cursor-pointer py-1"
                         >
-                          No plans yet
+                          No plans yet — tap to add
                         </div>
                       )}
                     </div>
@@ -1869,7 +2029,7 @@ export default function CalendarPage() {
           )}
 
           {isLoadingFuture && (
-            <div className="flex items-center justify-center gap-2 py-4 text-xs font-semibold text-[#3b82f6] animate-pulse">
+            <div className="flex items-center justify-center gap-2 py-4 text-xs font-bold text-[#ff9933] animate-pulse">
               <svg className="animate-spin size-4" viewBox="0 0 24 24" fill="none">
                 <circle
                   className="opacity-25"
@@ -1886,7 +2046,7 @@ export default function CalendarPage() {
           )}
         </div>
 
-        {/* Speed Dial Menu + Floating Action Button */}
+        {/* 3D Floating Action Button with Quant Brand Liquid Gradient & Glow */}
         <div className="fixed bottom-20 right-4 md:hidden z-40 flex flex-col items-end gap-2.5">
           <AnimatePresence>
             {isFabOpen && (
@@ -1900,7 +2060,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('birthday')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-[#132d22] hover:bg-[#1a3d2e] text-emerald-300 text-xs font-bold shadow-xl border border-emerald-500/40 active:scale-95 transition-all"
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 text-xs font-extrabold shadow-xl border border-emerald-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(16,185,129,0.3)]"
                 >
                   <IconCake className="size-4 text-emerald-400" />
                   <span>Birthday</span>
@@ -1909,7 +2069,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('task')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-[#2b2210] hover:bg-[#3d3016] text-amber-300 text-xs font-bold shadow-xl border border-amber-500/40 active:scale-95 transition-all"
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-amber-950/90 hover:bg-amber-900 text-amber-200 text-xs font-extrabold shadow-xl border border-amber-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(245,158,11,0.3)]"
                 >
                   <IconTarget className="size-4 text-amber-400" />
                   <span>Task</span>
@@ -1918,7 +2078,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('period')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-rose-950/95 hover:bg-rose-900 text-rose-200 text-xs font-bold shadow-xl border border-rose-500/50 active:scale-95 transition-all"
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-rose-950/90 hover:bg-rose-900 text-rose-200 text-xs font-extrabold shadow-xl border border-rose-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(244,63,94,0.35)]"
                 >
                   <IconFlower className="size-4 text-rose-400" />
                   <span>Period Tracker</span>
@@ -1927,9 +2087,9 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('event')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-[#172554] hover:bg-[#1e3a8a] text-blue-200 text-xs font-bold shadow-xl border border-blue-500/50 active:scale-95 transition-all"
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#2a1b10]/95 hover:bg-[#3d2716] text-[#ff9933] text-xs font-extrabold shadow-xl border border-[#ff9933]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(255,153,51,0.35)]"
                 >
-                  <IconCalendar className="size-4 text-blue-400" />
+                  <IconCalendar className="size-4 text-[#ff9933]" />
                   <span>Event</span>
                 </button>
               </motion.div>
@@ -1939,10 +2099,12 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => setIsFabOpen((prev) => !prev)}
-            className={`size-14 rounded-full font-bold shadow-2xl flex items-center justify-center active:scale-95 transition-all focus:outline-none ${
-              isFabOpen
-                ? 'bg-zinc-800 text-white rotate-45'
-                : 'bg-[#3b82f6] hover:bg-[#2563eb] text-white'
+            style={{
+              background: 'linear-gradient(135deg, #f97316 0%, #ff9933 50%, #fde047 100%)',
+              boxShadow: '0 0 25px rgba(255,153,51,0.55), inset 0 2px 4px rgba(255,255,255,0.4)',
+            }}
+            className={`size-14 rounded-full font-black text-black flex items-center justify-center active:scale-95 transition-all focus:outline-none ${
+              isFabOpen ? 'rotate-45' : ''
             }`}
             aria-label="Toggle calendar speed dial"
           >
@@ -1951,7 +2113,7 @@ export default function CalendarPage() {
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2.5"
+              strokeWidth="3"
               strokeLinecap="round"
             >
               <path d="M12 5v14M5 12h14" />
@@ -1959,7 +2121,7 @@ export default function CalendarPage() {
           </button>
         </div>
 
-        {/* Dedicated Slide-up Sheets with Safe Top Inset and Animated Save Button */}
+        {/* Dedicated Slide-up Sheets with 3D Glass Surface & Animated Save Button */}
         <AnimatePresence>
           {activeSheetType && (
             <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
@@ -1968,7 +2130,7 @@ export default function CalendarPage() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => !isSaving && setActiveSheetType(null)}
-                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/75 backdrop-blur-md"
               />
 
               <motion.div
@@ -1980,7 +2142,7 @@ export default function CalendarPage() {
                     ? { duration: 0 }
                     : { type: 'spring', damping: 28, stiffness: 300 }
                 }
-                className="relative w-full max-w-lg bg-[#141416] border-t md:border border-zinc-800 rounded-t-3xl md:rounded-3xl shadow-2xl z-10 flex flex-col transition-all overflow-hidden h-[86vh] max-h-[86vh] mt-12 md:mt-0"
+                className="relative w-full max-w-lg bg-[#121216] border-t md:border border-zinc-700/60 rounded-t-3xl md:rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-10 flex flex-col transition-all overflow-hidden h-[86vh] max-h-[86vh] mt-12 md:mt-0"
               >
                 {/* Drag Handle & Sticky Top Header */}
                 <div
@@ -1988,16 +2150,18 @@ export default function CalendarPage() {
                   onPointerMove={handleSheetPointerMove}
                   onPointerUp={handleSheetPointerUp}
                   onPointerCancel={handleSheetPointerUp}
-                  className="pt-3 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none bg-[#141416] border-b border-zinc-800/80 shrink-0"
+                  className="pt-3 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none bg-[#121216] border-b border-zinc-800/80 shrink-0"
                   style={{ touchAction: 'none' }}
                 >
                   <div
                     className={`w-14 h-1.5 rounded-full mx-auto mb-2 transition-all ${
-                      isSheetDragging ? 'bg-[#3b82f6] scale-110' : 'bg-zinc-600 hover:bg-zinc-400'
+                      isSheetDragging
+                        ? 'bg-[#ff9933] scale-110 shadow-[0_0_10px_#ff9933]'
+                        : 'bg-zinc-600 hover:bg-zinc-400'
                     }`}
                   />
 
-                  {/* Header Bar: ✕ on Left, Title in Center, Animated Save on Right */}
+                  {/* Header Bar: ✕ on Left, Title in Center, 3D Animated Save on Right */}
                   <div className="flex items-center justify-between pb-1">
                     <div className="flex items-center gap-2">
                       <button
@@ -2007,19 +2171,19 @@ export default function CalendarPage() {
                       >
                         ✕
                       </button>
-                      <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                      <span className="text-sm font-black text-white flex items-center gap-1.5">
                         {activeSheetType === 'event' && (
-                          <span className="flex items-center gap-1.5 text-blue-300">
-                            <IconCalendar className="size-4 text-blue-400" /> New Event
+                          <span className="flex items-center gap-1.5 text-[#ff9933]">
+                            <IconCalendar className="size-4 text-[#ff9933]" /> New Event
                           </span>
                         )}
                         {activeSheetType === 'task' && (
-                          <span className="flex items-center gap-1.5 text-amber-300">
+                          <span className="flex items-center gap-1.5 text-amber-400">
                             <IconTarget className="size-4 text-amber-400" /> New Task
                           </span>
                         )}
                         {activeSheetType === 'birthday' && (
-                          <span className="flex items-center gap-1.5 text-emerald-300">
+                          <span className="flex items-center gap-1.5 text-emerald-400">
                             <IconCake className="size-4 text-emerald-400" /> New Birthday
                           </span>
                         )}
@@ -2041,15 +2205,28 @@ export default function CalendarPage() {
                       type="button"
                       disabled={isSaving}
                       onClick={() => void handleSaveEntry()}
-                      className={`px-5 py-1.5 rounded-full text-white font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 ${
+                      style={
                         activeSheetType === 'period'
-                          ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-900/50'
+                          ? {
+                              background: 'linear-gradient(135deg, #e11d48, #f43f5e)',
+                              boxShadow: '0 0 20px rgba(244,63,94,0.45)',
+                            }
                           : activeSheetType === 'task'
-                            ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/50'
+                            ? {
+                                background: 'linear-gradient(135deg, #d97706, #f59e0b)',
+                                boxShadow: '0 0 20px rgba(245,158,11,0.45)',
+                              }
                             : activeSheetType === 'birthday'
-                              ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/50'
-                              : 'bg-[#3b82f6] hover:bg-[#2563eb] shadow-blue-900/50'
-                      }`}
+                              ? {
+                                  background: 'linear-gradient(135deg, #059669, #10b981)',
+                                  boxShadow: '0 0 20px rgba(16,185,129,0.45)',
+                                }
+                              : {
+                                  background: 'linear-gradient(135deg, #ea580c, #ff9933, #fbbf24)',
+                                  boxShadow: '0 0 20px rgba(255,153,51,0.5)',
+                                }
+                      }
+                      className="px-5 py-1.5 rounded-full text-black font-black text-xs shadow-lg transition-all active:scale-95 flex items-center gap-1.5"
                     >
                       {isSaving ? (
                         <>
@@ -2090,9 +2267,9 @@ export default function CalendarPage() {
                           key={tab.key}
                           type="button"
                           onClick={() => setPeriodSubTab(tab.key)}
-                          className={`pb-1 px-3 font-semibold transition-colors border-b-2 flex items-center gap-1.5 ${
+                          className={`pb-1 px-3 font-bold transition-colors border-b-2 flex items-center gap-1.5 ${
                             periodSubTab === tab.key
-                              ? 'border-cyan-400 text-cyan-300 font-bold'
+                              ? 'border-rose-400 text-rose-300 font-black'
                               : 'border-transparent text-zinc-400 hover:text-zinc-200'
                           }`}
                         >
@@ -2109,7 +2286,7 @@ export default function CalendarPage() {
                   {/* Account Row */}
                   <div className="flex items-center justify-between py-1 border-b border-zinc-800/60 text-zinc-300">
                     <span className="text-xs text-zinc-400">Account</span>
-                    <span className="text-[11px] font-medium text-[#3b82f6] bg-[#3b82f6]/10 px-2.5 py-0.5 rounded-full border border-[#3b82f6]/20">
+                    <span className="text-[11px] font-bold text-[#ff9933] bg-[#ff9933]/10 px-2.5 py-0.5 rounded-full border border-[#ff9933]/30">
                       👤 {formState.accountEmail || currentUserEmail}
                     </span>
                   </div>
@@ -2123,21 +2300,21 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add event title"
-                          className="w-full bg-transparent text-xl font-medium text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-[#3b82f6]"
+                          className="w-full bg-transparent text-xl font-bold text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-[#ff9933]"
                           autoFocus
                         />
                       </div>
 
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2.5 text-zinc-300">
-                          <IconClock className="size-4 text-blue-400" />
-                          <span className="font-medium">All-day</span>
+                          <IconClock className="size-4 text-[#ff9933]" />
+                          <span className="font-semibold">All-day</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => setFormState({ ...formState, allDay: !formState.allDay })}
                           className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
-                            formState.allDay ? 'bg-[#3b82f6]' : 'bg-zinc-700'
+                            formState.allDay ? 'bg-[#ff9933]' : 'bg-zinc-700'
                           }`}
                         >
                           <div
@@ -2256,11 +2433,11 @@ export default function CalendarPage() {
 
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2.5 text-zinc-300">
-                          <IconVideo className="size-4 text-blue-400" />
+                          <IconVideo className="size-4 text-[#ff9933]" />
                           <button
                             type="button"
                             onClick={handleAddMeetLink}
-                            className="text-xs text-[#3b82f6] hover:underline font-semibold"
+                            className="text-xs text-[#ff9933] hover:underline font-bold"
                           >
                             + Add QuantMeet / QuantChat video conferencing
                           </button>
@@ -2300,12 +2477,12 @@ export default function CalendarPage() {
                         <div className="flex items-center justify-between text-zinc-300">
                           <div className="flex items-center gap-2.5">
                             <IconBell className="size-4 text-amber-400" />
-                            <span>Notifications</span>
+                            <span className="font-semibold">Notifications</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => setIsNotificationSliderOpen(true)}
-                            className="px-2.5 py-1 rounded-lg bg-[#3b82f6]/20 text-[#3b82f6] text-[11px] font-bold"
+                            className="px-2.5 py-1 rounded-xl bg-[#ff9933]/20 text-[#ff9933] text-[11px] font-bold border border-[#ff9933]/30"
                           >
                             + Custom Time Slider
                           </button>
@@ -2368,13 +2545,13 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add task title"
-                          className="w-full bg-transparent text-xl font-medium text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-amber-500"
+                          className="w-full bg-transparent text-xl font-bold text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-amber-500"
                           autoFocus
                         />
                       </div>
 
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
-                        <span className="text-zinc-400">Priority</span>
+                        <span className="text-zinc-400 font-semibold">Priority</span>
                         <div className="flex items-center gap-1.5">
                           {(
                             [
@@ -2391,7 +2568,8 @@ export default function CalendarPage() {
                               {
                                 key: 'urgent',
                                 label: 'Urgent',
-                                color: 'text-rose-400 border-rose-500/40 bg-rose-950/40',
+                                color:
+                                  'text-rose-400 border-rose-500/50 bg-rose-950/50 shadow-[0_0_12px_rgba(244,63,94,0.3)]',
                               },
                             ] as const
                           ).map((p) => (
@@ -2399,9 +2577,9 @@ export default function CalendarPage() {
                               key={p.key}
                               type="button"
                               onClick={() => setFormState({ ...formState, priority: p.key })}
-                              className={`px-3 py-1 rounded-xl text-[11px] font-bold border transition-all ${
+                              className={`px-3 py-1 rounded-xl text-[11px] font-black border transition-all ${
                                 formState.priority === p.key
-                                  ? `${p.color} ring-1 ring-white/20 font-extrabold scale-105 shadow-md`
+                                  ? `${p.color} ring-1 ring-white/20 scale-105 shadow-md`
                                   : 'bg-zinc-900 border-zinc-800 text-zinc-400'
                               }`}
                             >
@@ -2414,7 +2592,7 @@ export default function CalendarPage() {
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2 text-zinc-300">
                           <IconCalendar className="size-4 text-amber-400" />
-                          <span>Due Date</span>
+                          <span className="font-semibold">Due Date</span>
                         </div>
                         <input
                           type="date"
@@ -2482,7 +2660,7 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add person's name (e.g. Rahul's Birthday)"
-                          className="w-full bg-transparent text-xl font-medium text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-emerald-500"
+                          className="w-full bg-transparent text-xl font-bold text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-emerald-500"
                           autoFocus
                         />
                       </div>
@@ -2490,7 +2668,7 @@ export default function CalendarPage() {
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2 text-zinc-300">
                           <IconCake className="size-4 text-emerald-400" />
-                          <span>Birthday Date</span>
+                          <span className="font-semibold">Birthday Date</span>
                         </div>
                         <input
                           type="date"
@@ -2505,7 +2683,7 @@ export default function CalendarPage() {
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2 text-zinc-300">
                           <IconCalendar className="size-4 text-emerald-400" />
-                          <span>Birth Year (Optional)</span>
+                          <span className="font-semibold">Birth Year (Optional)</span>
                         </div>
                         <input
                           type="number"
@@ -2542,11 +2720,11 @@ export default function CalendarPage() {
                           {/* Mini Week Bar with Highlighted Period */}
                           <div className="p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800 space-y-2">
                             <div className="flex items-center justify-between text-xs text-zinc-400">
-                              <span>Cycle Dates</span>
+                              <span className="font-semibold">Cycle Dates</span>
                               <button
                                 type="button"
                                 onClick={() => setIsPeriodCustomizeOpen(true)}
-                                className="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
+                                className="px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-black border border-rose-500/30 hover:bg-rose-500/30 transition-colors shadow-sm"
                               >
                                 Customize ⇋
                               </button>
@@ -2563,9 +2741,9 @@ export default function CalendarPage() {
                                       endDate: toDateInput(d.date),
                                     }));
                                   }}
-                                  className={`py-1.5 rounded-lg flex flex-col items-center justify-center transition-all relative ${
+                                  className={`py-1.5 rounded-xl flex flex-col items-center justify-center transition-all relative ${
                                     formState.startDate === d.key
-                                      ? 'border-2 border-cyan-400 bg-rose-950/60 text-white font-bold scale-105 shadow-md'
+                                      ? 'border-2 border-rose-400 bg-rose-950/80 text-white font-black scale-105 shadow-md shadow-rose-900/40'
                                       : 'bg-zinc-950 text-zinc-400 hover:bg-zinc-800'
                                   }`}
                                 >
@@ -2581,7 +2759,7 @@ export default function CalendarPage() {
 
                           {/* 1. PERIOD FLOW */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="text-xs font-black text-white flex items-center gap-1.5">
                               <IconDrop className="size-3.5 text-rose-500" /> Period Flow
                             </span>
                             <div className="grid grid-cols-4 gap-2">
@@ -2601,14 +2779,12 @@ export default function CalendarPage() {
                                   }
                                   className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${
                                     formState.flowIntensity === flow.key
-                                      ? 'bg-rose-600 border-rose-400 text-white font-bold scale-105 shadow-lg shadow-rose-900/50'
+                                      ? 'bg-rose-600 border-rose-400 text-white font-black scale-105 shadow-lg shadow-rose-900/50'
                                       : 'bg-[#1e1e24] border-rose-500/20 text-rose-300 hover:bg-[#25252e]'
                                   }`}
                                 >
                                   <span className="text-base">{flow.icon}</span>
-                                  <span className="text-[11px] mt-1 font-semibold">
-                                    {flow.label}
-                                  </span>
+                                  <span className="text-[11px] mt-1 font-bold">{flow.label}</span>
                                 </button>
                               ))}
                             </div>
@@ -2616,7 +2792,7 @@ export default function CalendarPage() {
 
                           {/* 2. COLLECTION METHOD */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="text-xs font-black text-white flex items-center gap-1.5">
                               <span className="size-3.5 rounded-full bg-rose-500/30 flex items-center justify-center text-[10px]">
                                 🛡️
                               </span>{' '}
@@ -2632,12 +2808,12 @@ export default function CalendarPage() {
                                   }
                                   className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all ${
                                     formState.collectionMethod === cm.label
-                                      ? 'bg-rose-600/40 border-rose-400 text-white font-bold shadow'
+                                      ? 'bg-rose-600/40 border-rose-400 text-white font-black shadow'
                                       : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
                                   }`}
                                 >
                                   <span className="text-base">{cm.icon}</span>
-                                  <span className="text-[10px] mt-0.5 font-medium text-center leading-tight">
+                                  <span className="text-[10px] mt-0.5 font-semibold text-center leading-tight">
                                     {cm.label}
                                   </span>
                                 </button>
@@ -2647,7 +2823,7 @@ export default function CalendarPage() {
 
                           {/* 3. SPOTTING */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="text-xs font-black text-white flex items-center gap-1.5">
                               <IconFlower className="size-3.5 text-rose-400" /> Spotting
                             </span>
                             <div className="grid grid-cols-2 gap-2.5">
@@ -2665,12 +2841,12 @@ export default function CalendarPage() {
                                   }
                                   className={`flex items-center justify-center gap-2 p-3 rounded-2xl border transition-all ${
                                     formState.spottingColor === sp.key
-                                      ? 'bg-rose-600/30 border-rose-500 text-white font-bold shadow'
+                                      ? 'bg-rose-600/30 border-rose-500 text-white font-black shadow'
                                       : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
                                   }`}
                                 >
                                   <span>{sp.icon}</span>
-                                  <span className="text-[11px] font-semibold">{sp.label}</span>
+                                  <span className="text-[11px] font-bold">{sp.label}</span>
                                 </button>
                               ))}
                             </div>
@@ -2678,7 +2854,7 @@ export default function CalendarPage() {
 
                           {/* 4. FEELINGS / MOOD */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="text-xs font-black text-white flex items-center gap-1.5">
                               <span className="size-3.5 rounded-full bg-orange-500/30 flex items-center justify-center text-[10px]">
                                 🧡
                               </span>{' '}
@@ -2694,7 +2870,7 @@ export default function CalendarPage() {
                                     onClick={() => toggleFeeling(f.label)}
                                     className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${
                                       isSelected
-                                        ? 'bg-orange-600/30 border-orange-500 text-orange-100 font-bold shadow'
+                                        ? 'bg-orange-600/30 border-orange-500 text-orange-100 font-black shadow'
                                         : 'bg-[#1e1e24] border-orange-500/20 text-orange-300 hover:bg-[#25252e]'
                                     }`}
                                   >
@@ -2710,7 +2886,7 @@ export default function CalendarPage() {
 
                           {/* 5. PAIN & SYMPTOMS */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="text-xs font-black text-white flex items-center gap-1.5">
                               <span className="size-3.5 rounded-full bg-blue-500/30 flex items-center justify-center text-[10px]">
                                 💙
                               </span>{' '}
@@ -2726,7 +2902,7 @@ export default function CalendarPage() {
                                     onClick={() => togglePain(p.label)}
                                     className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${
                                       isSelected
-                                        ? 'bg-blue-600/30 border-blue-400 text-blue-100 font-bold shadow'
+                                        ? 'bg-blue-600/30 border-blue-400 text-blue-100 font-black shadow'
                                         : 'bg-[#1e1e24] border-blue-500/20 text-blue-300 hover:bg-[#25252e]'
                                     }`}
                                   >
@@ -2742,7 +2918,7 @@ export default function CalendarPage() {
 
                           {/* 6. VULVA & INTIMATE HEALTH */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="text-xs font-black text-white flex items-center gap-1.5">
                               <span className="size-3.5 rounded-full bg-blue-500/30 flex items-center justify-center text-[10px]">
                                 💧
                               </span>{' '}
@@ -2758,7 +2934,7 @@ export default function CalendarPage() {
                                   }
                                   className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all ${
                                     formState.intimateHealth === intm.label
-                                      ? 'bg-blue-600/30 border-blue-400 text-white font-bold shadow'
+                                      ? 'bg-blue-600/30 border-blue-400 text-white font-black shadow'
                                       : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
                                   }`}
                                 >
@@ -2773,7 +2949,7 @@ export default function CalendarPage() {
 
                           {/* 7. HOT FLASHES */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="text-xs font-black text-white flex items-center gap-1.5">
                               <span className="size-3.5 rounded-full bg-amber-500/30 flex items-center justify-center text-[10px]">
                                 🔥
                               </span>{' '}
@@ -2789,7 +2965,7 @@ export default function CalendarPage() {
                                   }
                                   className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
                                     formState.hotFlashes === hf.label
-                                      ? 'bg-amber-600/30 border-amber-400 text-white font-bold shadow'
+                                      ? 'bg-amber-600/30 border-amber-400 text-white font-black shadow'
                                       : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
                                   }`}
                                 >
@@ -2823,7 +2999,7 @@ export default function CalendarPage() {
 
                           {/* 9. SLEEP QUALITY */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="text-xs font-black text-white flex items-center gap-1.5">
                               <span className="size-3.5 rounded-full bg-amber-500/30 flex items-center justify-center text-[10px]">
                                 😴
                               </span>{' '}
@@ -2837,7 +3013,7 @@ export default function CalendarPage() {
                                   onClick={() => setFormState({ ...formState, sleep: sl.label })}
                                   className={`flex items-center gap-2 p-2.5 rounded-2xl border transition-all ${
                                     formState.sleep === sl.label
-                                      ? 'bg-amber-600/30 border-amber-400 text-white font-bold shadow'
+                                      ? 'bg-amber-600/30 border-amber-400 text-white font-black shadow'
                                       : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
                                   }`}
                                 >
@@ -2852,7 +3028,7 @@ export default function CalendarPage() {
 
                           {/* 10. SEX LIFE */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="text-xs font-black text-white flex items-center gap-1.5">
                               <span className="size-3.5 rounded-full bg-emerald-500/30 flex items-center justify-center text-[10px]">
                                 💚
                               </span>{' '}
@@ -2866,7 +3042,7 @@ export default function CalendarPage() {
                                   onClick={() => setFormState({ ...formState, sexLife: sx.label })}
                                   className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
                                     formState.sexLife === sx.label
-                                      ? 'bg-emerald-600/30 border-emerald-400 text-emerald-200 font-bold shadow'
+                                      ? 'bg-emerald-600/30 border-emerald-400 text-emerald-200 font-black shadow'
                                       : 'bg-[#1e1e24] border-emerald-500/20 text-emerald-300 hover:bg-[#25252e]'
                                   }`}
                                 >
@@ -2881,7 +3057,7 @@ export default function CalendarPage() {
 
                           {/* 11. ENERGY LEVEL */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                            <span className="text-xs font-black text-white flex items-center gap-1.5">
                               <span className="size-3.5 rounded-full bg-amber-500/30 flex items-center justify-center text-[10px]">
                                 🏃
                               </span>{' '}
@@ -2895,7 +3071,7 @@ export default function CalendarPage() {
                                   onClick={() => setFormState({ ...formState, energy: en.label })}
                                   className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
                                     formState.energy === en.label
-                                      ? 'bg-amber-600/30 border-amber-400 text-amber-200 font-bold shadow'
+                                      ? 'bg-amber-600/30 border-amber-400 text-amber-200 font-black shadow'
                                       : 'bg-[#1e1e24] border-amber-500/20 text-amber-300 hover:bg-[#25252e]'
                                   }`}
                                 >
@@ -2993,15 +3169,15 @@ export default function CalendarPage() {
                       {/* Sub-tab 2: CYCLE DIAL */}
                       {periodSubTab === 'cycle' && (
                         <div className="space-y-6">
-                          <div className="flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-b from-zinc-900 via-rose-950/30 to-zinc-900 border border-rose-500/30">
-                            <div className="relative size-48 rounded-full border-4 border-zinc-800 flex items-center justify-center">
-                              <div className="absolute inset-0 rounded-full border-4 border-rose-500 border-t-transparent border-r-transparent rotate-45" />
+                          <div className="flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-b from-zinc-900 via-rose-950/40 to-zinc-900 border border-rose-500/30 shadow-[0_0_30px_rgba(244,63,94,0.25)]">
+                            <div className="relative size-48 rounded-full border-4 border-zinc-800 flex items-center justify-center shadow-inner">
+                              <div className="absolute inset-0 rounded-full border-4 border-rose-500 border-t-transparent border-r-transparent rotate-45 animate-pulse" />
 
                               <div className="text-center space-y-1">
-                                <span className="inline-block px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-bold">
+                                <span className="inline-block px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-black">
                                   Day {formState.currentCycleDay} of {formState.cycleLength}
                                 </span>
-                                <h3 className="text-xl font-extrabold text-white">
+                                <h3 className="text-xl font-black text-white">
                                   {formState.periodDays - formState.currentCycleDay + 1 > 0
                                     ? `${formState.periodDays - formState.currentCycleDay + 1} more days of period`
                                     : 'Fertile Window Forecast'}
@@ -3015,13 +3191,16 @@ export default function CalendarPage() {
 
                             <div className="flex items-center gap-3 mt-4 text-[10px] text-zinc-400">
                               <span className="flex items-center gap-1">
-                                <span className="size-2 rounded-full bg-rose-500" /> Period
+                                <span className="size-2 rounded-full bg-rose-500 shadow-[0_0_6px_#f43f5e]" />{' '}
+                                Period
                               </span>
                               <span className="flex items-center gap-1">
-                                <span className="size-2 rounded-full bg-cyan-400" /> Fertile
+                                <span className="size-2 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee]" />{' '}
+                                Fertile
                               </span>
                               <span className="flex items-center gap-1">
-                                <span className="size-2 rounded-full bg-amber-400" /> Ovulation
+                                <span className="size-2 rounded-full bg-amber-400 shadow-[0_0_6px_#fbbf24]" />{' '}
+                                Ovulation
                               </span>
                             </div>
                           </div>
@@ -3080,7 +3259,7 @@ export default function CalendarPage() {
                               <div className="p-3 rounded-2xl bg-[#1e1e24] border border-zinc-800 flex items-center justify-between">
                                 <div>
                                   <span className="text-[10px] text-zinc-400">Cycle length</span>
-                                  <h4 className="text-base font-extrabold text-cyan-400">
+                                  <h4 className="text-base font-extrabold text-rose-400">
                                     {formState.cycleLength} days
                                   </h4>
                                 </div>
@@ -3100,7 +3279,7 @@ export default function CalendarPage() {
                           <div className="p-4 rounded-3xl bg-[#1e1e24] border border-zinc-800 space-y-3">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-white">Your cycle phase</span>
-                              <span className="text-[10px] text-cyan-400 font-semibold">
+                              <span className="text-[10px] text-rose-400 font-semibold">
                                 Early follicular phase
                               </span>
                             </div>
@@ -3141,7 +3320,7 @@ export default function CalendarPage() {
         >
           <div className="space-y-4 text-xs text-white">
             <div>
-              <label className="block text-zinc-400 mb-1">
+              <label className="block text-zinc-400 mb-1 font-semibold">
                 Period Length ({formState.periodDays} days)
               </label>
               <input
@@ -3157,7 +3336,7 @@ export default function CalendarPage() {
             </div>
 
             <div>
-              <label className="block text-zinc-400 mb-1">
+              <label className="block text-zinc-400 mb-1 font-semibold">
                 Cycle Length ({formState.cycleLength} days)
               </label>
               <input
@@ -3173,7 +3352,7 @@ export default function CalendarPage() {
             </div>
 
             <div>
-              <label className="block text-zinc-400 mb-1">
+              <label className="block text-zinc-400 mb-1 font-semibold">
                 Current Cycle Day ({formState.currentCycleDay})
               </label>
               <input
@@ -3213,7 +3392,7 @@ export default function CalendarPage() {
                 }}
                 className={`w-full text-left p-2.5 rounded-xl transition-colors flex items-center justify-between ${
                   formState.timezone === tz.value
-                    ? 'bg-[#3b82f6] text-white font-bold'
+                    ? 'bg-[#ff9933] text-black font-black'
                     : 'text-zinc-300 hover:bg-zinc-800'
                 }`}
               >
@@ -3241,7 +3420,7 @@ export default function CalendarPage() {
                 }}
                 className={`w-full text-left p-2.5 rounded-xl transition-colors flex items-center justify-between ${
                   formState.recurrence === rec
-                    ? 'bg-[#3b82f6] text-white font-bold'
+                    ? 'bg-[#ff9933] text-black font-black'
                     : 'text-zinc-300 hover:bg-zinc-800'
                 }`}
               >
@@ -3260,7 +3439,7 @@ export default function CalendarPage() {
         >
           <div className="space-y-4 text-xs text-white">
             <div className="text-center py-2">
-              <span className="text-lg font-bold text-[#3b82f6]">
+              <span className="text-lg font-black text-[#ff9933]">
                 {NOTIFICATION_SLIDER_VALUES[notifSliderIndex].label}
               </span>
             </div>
@@ -3271,7 +3450,7 @@ export default function CalendarPage() {
               max={NOTIFICATION_SLIDER_VALUES.length - 1}
               value={notifSliderIndex}
               onChange={(e) => setNotifSliderIndex(Number(e.target.value))}
-              className="w-full accent-[#3b82f6]"
+              className="w-full accent-[#ff9933]"
             />
 
             <div className="flex items-center justify-between text-[10px] text-zinc-500">
@@ -3307,7 +3486,7 @@ export default function CalendarPage() {
           >
             <div className="space-y-3 text-xs text-zinc-300">
               <div className="flex items-center gap-2 text-white font-semibold">
-                <IconClock className="size-4 text-blue-400" />
+                <IconClock className="size-4 text-[#ff9933]" />
                 <span>
                   {selectedEvent.allDay
                     ? 'All Day Entry'
@@ -3325,7 +3504,7 @@ export default function CalendarPage() {
                           ? 'bg-amber-500/20 text-amber-300'
                           : selectedEvent.type === 'birthday'
                             ? 'bg-emerald-500/20 text-emerald-300'
-                            : 'bg-blue-500/20 text-blue-300'
+                            : 'bg-[#ff9933]/20 text-[#ff9933]'
                     }`}
                   >
                     {selectedEvent.type}
@@ -3346,7 +3525,7 @@ export default function CalendarPage() {
                       href={selectedEvent.location}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[#3b82f6] hover:underline font-bold"
+                      className="text-[#ff9933] hover:underline font-bold"
                     >
                       {selectedEvent.location} (🎥 Join Meeting)
                     </a>
@@ -3366,7 +3545,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => handleDeleteEvent(selectedEvent.id)}
-                  className="px-3 py-1.5 rounded-lg bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 text-xs font-semibold"
+                  className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 text-xs font-bold"
                 >
                   Delete Entry
                 </button>
