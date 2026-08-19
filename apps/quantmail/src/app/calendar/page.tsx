@@ -112,7 +112,7 @@ const RECURRENCE_OPTIONS = [
   'Custom interval…',
 ];
 
-// Clue Reference Categories & Card Options (From user reference screenshots)
+// Clue Reference Categories & Card Options
 const CLUE_FEELINGS = [
   { id: 'mood_swings', label: 'Mood swings', icon: '⛅' },
   { id: 'not_in_control', label: 'Not in control', icon: '🌀' },
@@ -210,6 +210,7 @@ export default function CalendarPage() {
   // Active Creation Sheet Type (Dedicated sheet per mode)
   const [activeSheetType, setActiveSheetType] = useState<EntryType | null>(null);
   const [periodSubTab, setPeriodSubTab] = useState<'track' | 'cycle' | 'insights'>('track');
+  const [isPeriodCustomizeOpen, setIsPeriodCustomizeOpen] = useState(false);
 
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventLike | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
@@ -319,7 +320,6 @@ export default function CalendarPage() {
   }, [currentUserEmail]);
 
   // Real-time 1:1 Physics Drag State for Create Bottom Sheet
-  const [sheetExpanded, setSheetExpanded] = useState(false);
   const [sheetDragY, setSheetDragY] = useState(0);
   const [isSheetDragging, setIsSheetDragging] = useState(false);
   const sheetPointerRef = useRef<{ startY: number; time: number } | null>(null);
@@ -605,6 +605,7 @@ export default function CalendarPage() {
     [COLLAPSED_HEIGHT, EXPANDED_HEIGHT, currentHeight, isMonthExpanded, goMonth],
   );
 
+  // Bottom Sheet 1:1 Direct Finger Physics Handlers
   const handleSheetPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     sheetPointerRef.current = {
@@ -622,48 +623,32 @@ export default function CalendarPage() {
   const handleSheetPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!sheetPointerRef.current) return;
     const deltaY = e.clientY - sheetPointerRef.current.startY;
-    setSheetDragY(deltaY);
+    if (deltaY > 0) {
+      setSheetDragY(deltaY);
+    }
   }, []);
 
-  const handleSheetPointerUp = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!sheetPointerRef.current) return;
-      const deltaY = e.clientY - sheetPointerRef.current.startY;
-      const duration = Date.now() - sheetPointerRef.current.time;
-      const velocityY = deltaY / (duration || 1);
+  const handleSheetPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!sheetPointerRef.current) return;
+    const deltaY = e.clientY - sheetPointerRef.current.startY;
+    const duration = Date.now() - sheetPointerRef.current.time;
+    const velocityY = deltaY / (duration || 1);
 
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch {
-        // ignore
-      }
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
 
-      sheetPointerRef.current = null;
-      setIsSheetDragging(false);
-      setSheetDragY(0);
+    sheetPointerRef.current = null;
+    setIsSheetDragging(false);
+    setSheetDragY(0);
 
-      if (Math.abs(deltaY) < 8 && duration < 250) {
-        setSheetExpanded((prev) => !prev);
-        return;
-      }
-
-      if (deltaY > 100 || velocityY > 0.35) {
-        if (sheetExpanded && deltaY < 180) {
-          setSheetExpanded(false);
-        } else {
-          setActiveSheetType(null);
-          setSheetExpanded(false);
-        }
-        return;
-      }
-
-      if (deltaY < -60 || velocityY < -0.35) {
-        setSheetExpanded(true);
-        return;
-      }
-    },
-    [sheetExpanded],
-  );
+    if (deltaY > 120 || velocityY > 0.4) {
+      setActiveSheetType(null);
+      return;
+    }
+  }, []);
 
   const continuousAgendaDays = useMemo(() => {
     const list: Array<{
@@ -780,7 +765,6 @@ export default function CalendarPage() {
 
       setIsFabOpen(false);
       setSheetDragY(0);
-      setSheetExpanded(type === 'period');
       setPeriodSubTab('track');
       setActiveSheetType(type);
     },
@@ -1612,7 +1596,7 @@ export default function CalendarPage() {
           </button>
         </div>
 
-        {/* Dedicated Slide-up Sheets for each Type */}
+        {/* Dedicated Slide-up Sheets with Safe Top Inset to Prevent URL Bar Clipping */}
         <AnimatePresence>
           {activeSheetType && (
             <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
@@ -1626,26 +1610,22 @@ export default function CalendarPage() {
 
               <motion.div
                 initial={{ y: '100%' }}
-                animate={{ y: isSheetDragging ? Math.max(-40, sheetDragY) : 0 }}
+                animate={{ y: isSheetDragging ? Math.max(0, sheetDragY) : 0 }}
                 exit={{ y: '100%' }}
                 transition={
                   isSheetDragging
                     ? { duration: 0 }
                     : { type: 'spring', damping: 28, stiffness: 300 }
                 }
-                className={`relative w-full max-w-lg bg-[#141416] border-t md:border border-zinc-800 rounded-t-3xl md:rounded-3xl shadow-2xl z-10 flex flex-col transition-all overflow-hidden ${
-                  sheetExpanded || activeSheetType === 'period'
-                    ? 'h-[95vh]'
-                    : 'max-h-[88vh] md:max-h-[85vh]'
-                }`}
+                className="relative w-full max-w-lg bg-[#141416] border-t md:border border-zinc-800 rounded-t-3xl md:rounded-3xl shadow-2xl z-10 flex flex-col transition-all overflow-hidden h-[86vh] max-h-[86vh] mt-12 md:mt-0"
               >
-                {/* Drag Handle & Top Header */}
+                {/* Drag Handle & Sticky Top Header */}
                 <div
                   onPointerDown={handleSheetPointerDown}
                   onPointerMove={handleSheetPointerMove}
                   onPointerUp={handleSheetPointerUp}
                   onPointerCancel={handleSheetPointerUp}
-                  className="pt-2.5 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none bg-[#141416]"
+                  className="pt-3 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none bg-[#141416] border-b border-zinc-800/80 shrink-0"
                   style={{ touchAction: 'none' }}
                 >
                   <div
@@ -1654,8 +1634,8 @@ export default function CalendarPage() {
                     }`}
                   />
 
-                  {/* Header Bar */}
-                  <div className="flex items-center justify-between">
+                  {/* Header Bar: ✕ on Left, Date in Center, Save on Right */}
+                  <div className="flex items-center justify-between pb-1">
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -1694,9 +1674,9 @@ export default function CalendarPage() {
                     </button>
                   </div>
 
-                  {/* Period Tracker Sub-tabs (Track | Cycle Wheel | Insights) */}
+                  {/* Period Tracker Sub-tabs */}
                   {activeSheetType === 'period' && (
-                    <div className="flex items-center justify-around border-b border-zinc-800/80 pt-2 pb-1 text-xs">
+                    <div className="flex items-center justify-around pt-1 pb-1 text-xs">
                       {(
                         [
                           { key: 'track', label: '＋ Track', icon: '📝' },
@@ -1723,7 +1703,7 @@ export default function CalendarPage() {
                 </div>
 
                 {/* Form Content Body */}
-                <div className="flex-1 overflow-y-auto px-5 py-2 space-y-4 text-xs text-white pb-24">
+                <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4 text-xs text-white pb-24">
                   {/* Account Row */}
                   <div className="flex items-center justify-between py-1 border-b border-zinc-800/60 text-zinc-300">
                     <span className="text-xs text-zinc-400">Account</span>
@@ -2142,44 +2122,51 @@ export default function CalendarPage() {
                   {/* ----------------- 4. COMPREHENSIVE CLUE / FLO PERIOD TRACKER ----------------- */}
                   {activeSheetType === 'period' && (
                     <div className="space-y-6">
-                      {/* Sub-tab 1: DAILY TRACKING (Matches Reference Images 1, 2, 3, & new sets) */}
+                      {/* Sub-tab 1: DAILY TRACKING */}
                       {periodSubTab === 'track' && (
                         <div className="space-y-6">
                           {/* Mini Week Bar with Highlighted Period */}
                           <div className="p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800 space-y-2">
                             <div className="flex items-center justify-between text-xs text-zinc-400">
                               <span>Cycle Dates</span>
-                              <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => setIsPeriodCustomizeOpen(true)}
+                                className="px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
+                              >
                                 Customize ⇋
-                              </span>
+                              </button>
                             </div>
                             <div className="grid grid-cols-7 text-center gap-1">
                               {currentWeekDays.map((d) => (
-                                <div
+                                <button
                                   key={d.key}
-                                  className={`py-1.5 rounded-lg flex flex-col items-center justify-center ${
-                                    d.isSelected
-                                      ? 'border-2 border-cyan-400 bg-rose-950/40 text-white font-bold'
-                                      : 'bg-zinc-950 text-zinc-400'
+                                  type="button"
+                                  onClick={() => {
+                                    setFormState((prev) => ({
+                                      ...prev,
+                                      startDate: toDateInput(d.date),
+                                      endDate: toDateInput(d.date),
+                                    }));
+                                  }}
+                                  className={`py-1.5 rounded-lg flex flex-col items-center justify-center transition-all ${
+                                    formState.startDate === d.key
+                                      ? 'border-2 border-cyan-400 bg-rose-950/60 text-white font-bold scale-105 shadow-md'
+                                      : 'bg-zinc-950 text-zinc-400 hover:bg-zinc-800'
                                   }`}
                                 >
                                   <span className="text-[9px]">{d.dayLetter}</span>
                                   <span className="text-xs">{d.dayNum}</span>
-                                </div>
+                                </button>
                               ))}
                             </div>
                           </div>
 
-                          {/* 1. PERIOD FLOW (Reference Image 1) */}
+                          {/* 1. PERIOD FLOW */}
                           <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-white flex items-center gap-1">
-                                <span>🩸</span> Period Flow
-                              </span>
-                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
-                                Learn more ›
-                              </span>
-                            </div>
+                            <span className="text-xs font-bold text-white flex items-center gap-1">
+                              <span>🩸</span> Period Flow
+                            </span>
                             <div className="grid grid-cols-4 gap-2">
                               {(
                                 [
@@ -2210,16 +2197,11 @@ export default function CalendarPage() {
                             </div>
                           </div>
 
-                          {/* 2. COLLECTION METHOD (Tampon, Pad, Cup - New Reference 1) */}
+                          {/* 2. COLLECTION METHOD */}
                           <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-white flex items-center gap-1">
-                                <span>🛡️</span> Collection Method
-                              </span>
-                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
-                                Learn more ›
-                              </span>
-                            </div>
+                            <span className="text-xs font-bold text-white flex items-center gap-1">
+                              <span>🛡️</span> Collection Method
+                            </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_COLLECTION_METHODS.map((cm) => (
                                 <button
@@ -2243,16 +2225,11 @@ export default function CalendarPage() {
                             </div>
                           </div>
 
-                          {/* 3. SPOTTING (Reference Image 1) */}
+                          {/* 3. SPOTTING */}
                           <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-white flex items-center gap-1">
-                                <span>🌸</span> Spotting
-                              </span>
-                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
-                                Learn more ›
-                              </span>
-                            </div>
+                            <span className="text-xs font-bold text-white flex items-center gap-1">
+                              <span>🌸</span> Spotting
+                            </span>
                             <div className="grid grid-cols-2 gap-2.5">
                               {(
                                 [
@@ -2279,16 +2256,11 @@ export default function CalendarPage() {
                             </div>
                           </div>
 
-                          {/* 4. FEELINGS / MOOD (Reference Image 1) */}
+                          {/* 4. FEELINGS / MOOD */}
                           <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-white flex items-center gap-1">
-                                <span>🧡</span> Feelings & Mood
-                              </span>
-                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
-                                Learn more ›
-                              </span>
-                            </div>
+                            <span className="text-xs font-bold text-white flex items-center gap-1">
+                              <span>🧡</span> Feelings & Mood
+                            </span>
                             <div className="grid grid-cols-3 gap-2">
                               {CLUE_FEELINGS.map((f) => {
                                 const isSelected = formState.feelings.includes(f.label);
@@ -2313,16 +2285,11 @@ export default function CalendarPage() {
                             </div>
                           </div>
 
-                          {/* 5. PAIN & SYMPTOMS (Reference Image 2) */}
+                          {/* 5. PAIN & SYMPTOMS */}
                           <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-white flex items-center gap-1">
-                                <span>💙</span> Pain & Physical Symptoms
-                              </span>
-                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
-                                Learn more ›
-                              </span>
-                            </div>
+                            <span className="text-xs font-bold text-white flex items-center gap-1">
+                              <span>💙</span> Pain & Physical Symptoms
+                            </span>
                             <div className="grid grid-cols-3 gap-2">
                               {CLUE_PAIN.map((p) => {
                                 const isSelected = formState.pain.includes(p.label);
@@ -2347,16 +2314,11 @@ export default function CalendarPage() {
                             </div>
                           </div>
 
-                          {/* 6. VULVA & INTIMATE HEALTH (New Reference 3) */}
+                          {/* 6. VULVA & INTIMATE HEALTH */}
                           <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-white flex items-center gap-1">
-                                <span>💧</span> Vulva & Vagina
-                              </span>
-                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
-                                Learn more ›
-                              </span>
-                            </div>
+                            <span className="text-xs font-bold text-white flex items-center gap-1">
+                              <span>💧</span> Vulva & Vagina
+                            </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_INTIMATE.map((intm) => (
                                 <button
@@ -2380,16 +2342,11 @@ export default function CalendarPage() {
                             </div>
                           </div>
 
-                          {/* 7. HOT FLASHES (New Reference 3) */}
+                          {/* 7. HOT FLASHES */}
                           <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-white flex items-center gap-1">
-                                <span>🔥</span> Hot Flashes
-                              </span>
-                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
-                                Learn more ›
-                              </span>
-                            </div>
+                            <span className="text-xs font-bold text-white flex items-center gap-1">
+                              <span>🔥</span> Hot Flashes
+                            </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_HOT_FLASHES.map((hf) => (
                                 <button
@@ -2434,14 +2391,9 @@ export default function CalendarPage() {
 
                           {/* 9. SLEEP QUALITY */}
                           <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-white flex items-center gap-1">
-                                <span>😴</span> Sleep Quality
-                              </span>
-                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
-                                Learn more ›
-                              </span>
-                            </div>
+                            <span className="text-xs font-bold text-white flex items-center gap-1">
+                              <span>😴</span> Sleep Quality
+                            </span>
                             <div className="grid grid-cols-2 gap-2">
                               {CLUE_SLEEP.map((sl) => (
                                 <button
@@ -2465,14 +2417,9 @@ export default function CalendarPage() {
 
                           {/* 10. SEX LIFE */}
                           <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-white flex items-center gap-1">
-                                <span>💚</span> Sex Life & Protection
-                              </span>
-                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
-                                Learn more ›
-                              </span>
-                            </div>
+                            <span className="text-xs font-bold text-white flex items-center gap-1">
+                              <span>💚</span> Sex Life & Protection
+                            </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_SEX_LIFE.map((sx) => (
                                 <button
@@ -2496,14 +2443,9 @@ export default function CalendarPage() {
 
                           {/* 11. ENERGY LEVEL */}
                           <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-white flex items-center gap-1">
-                                <span>🏃</span> Energy Level
-                              </span>
-                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
-                                Learn more ›
-                              </span>
-                            </div>
+                            <span className="text-xs font-bold text-white flex items-center gap-1">
+                              <span>🏃</span> Energy Level
+                            </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_ENERGY.map((en) => (
                                 <button
@@ -2525,7 +2467,7 @@ export default function CalendarPage() {
                             </div>
                           </div>
 
-                          {/* 12. BODY METRICS (BBT & Weight - New Reference 2) */}
+                          {/* 12. BODY METRICS */}
                           <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-[#1e1e24] border border-zinc-800">
                             <div>
                               <span className="block text-[10px] text-zinc-400 mb-1">
@@ -2557,7 +2499,7 @@ export default function CalendarPage() {
                             </div>
                           </div>
 
-                          {/* 13. MY CUSTOM TAGS (New Reference 1) */}
+                          {/* 13. MY CUSTOM TAGS */}
                           <div className="space-y-2">
                             <span className="text-xs font-bold text-zinc-300">My tags</span>
                             <input
@@ -2749,6 +2691,69 @@ export default function CalendarPage() {
             </div>
           )}
         </AnimatePresence>
+
+        {/* Period Tracker Customize Settings Modal */}
+        <Modal
+          isOpen={isPeriodCustomizeOpen}
+          onClose={() => setIsPeriodCustomizeOpen(false)}
+          title="Customize Cycle Settings"
+        >
+          <div className="space-y-4 text-xs text-white">
+            <div>
+              <label className="block text-zinc-400 mb-1">
+                Period Length ({formState.periodDays} days)
+              </label>
+              <input
+                type="range"
+                min="2"
+                max="8"
+                value={formState.periodDays}
+                onChange={(e) =>
+                  setFormState({ ...formState, periodDays: Number(e.target.value) || 5 })
+                }
+                className="w-full accent-rose-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-zinc-400 mb-1">
+                Cycle Length ({formState.cycleLength} days)
+              </label>
+              <input
+                type="range"
+                min="21"
+                max="36"
+                value={formState.cycleLength}
+                onChange={(e) =>
+                  setFormState({ ...formState, cycleLength: Number(e.target.value) || 28 })
+                }
+                className="w-full accent-rose-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-zinc-400 mb-1">
+                Current Cycle Day ({formState.currentCycleDay})
+              </label>
+              <input
+                type="number"
+                min="1"
+                max={formState.cycleLength}
+                value={formState.currentCycleDay}
+                onChange={(e) =>
+                  setFormState({ ...formState, currentCycleDay: Number(e.target.value) || 1 })
+                }
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+              <Button variant="primary" onClick={() => setIsPeriodCustomizeOpen(false)}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </Modal>
 
         {/* Timezone Selector Modal */}
         <Modal
