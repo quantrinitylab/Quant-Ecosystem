@@ -54,9 +54,13 @@ export interface CalendarEventLike {
   reminders?: string[];
   attendees?: string[];
   completed?: boolean;
+  priority?: 'low' | 'medium' | 'urgent';
+  subtasks?: Array<{ text: string; done: boolean }>;
   flowIntensity?: 'light' | 'medium' | 'heavy' | 'spotting';
   symptoms?: string[];
   accountEmail?: string;
+  driveLink?: string;
+  timezone?: string;
 }
 
 const startOf = (event: CalendarEventLike) => new Date(event.startTime ?? event.start ?? '');
@@ -71,14 +75,28 @@ const toDateInput = (date: Date) =>
 
 type CalendarView = 'agenda' | 'week' | 'day' | 'month';
 
-const COLOR_OPTIONS = [
-  { name: 'Default Blue', value: '#3b82f6', bg: 'bg-[#3b82f6]' },
-  { name: 'Emerald Green', value: '#10b981', bg: 'bg-[#10b981]' },
-  { name: 'Purple Violet', value: '#8b5cf6', bg: 'bg-[#8b5cf6]' },
-  { name: 'Warm Amber', value: '#f59e0b', bg: 'bg-[#f59e0b]' },
-  { name: 'Rose Pink', value: '#ec4899', bg: 'bg-[#ec4899]' },
-  { name: 'Cyan Teal', value: '#06b6d4', bg: 'bg-[#06b6d4]' },
-  { name: 'Crimson Red', value: '#ef4444', bg: 'bg-[#ef4444]' },
+const TIMEZONES = [
+  { label: 'India Standard Time (IST, UTC+5:30)', value: 'Asia/Kolkata' },
+  { label: 'Greenwich Mean Time (UTC / GMT+0)', value: 'UTC' },
+  { label: 'US Eastern Time (EDT/EST, UTC-4)', value: 'America/New_York' },
+  { label: 'US Central Time (CDT/CST, UTC-5)', value: 'America/Chicago' },
+  { label: 'US Pacific Time (PDT/PST, UTC-7)', value: 'America/Los_Angeles' },
+  { label: 'British Summer Time (BST, UTC+1)', value: 'Europe/London' },
+  { label: 'Central European Time (CEST, UTC+2)', value: 'Europe/Berlin' },
+  { label: 'Gulf Standard Time (GST, UTC+4)', value: 'Asia/Dubai' },
+  { label: 'Singapore / Hong Kong (SGT/HKT, UTC+8)', value: 'Asia/Singapore' },
+  { label: 'Japan Standard Time (JST, UTC+9)', value: 'Asia/Tokyo' },
+  { label: 'Australian Eastern Time (AEST, UTC+10)', value: 'Australia/Sydney' },
+];
+
+const RECURRENCE_OPTIONS = [
+  'Does not repeat',
+  'Daily',
+  'Every weekday (Monday to Friday)',
+  'Weekly',
+  'Monthly',
+  'Annually (Every year)',
+  'Custom interval…',
 ];
 
 const PERIOD_SYMPTOMS = [
@@ -90,6 +108,21 @@ const PERIOD_SYMPTOMS = [
   '🎈 Bloating',
   '🍫 Cravings',
   '💆 Backache',
+  '💧 Spotting',
+  '☕ Low Energy',
+];
+
+const NOTIFICATION_SLIDER_VALUES = [
+  { minutes: 5, label: '5 minutes before' },
+  { minutes: 10, label: '10 minutes before' },
+  { minutes: 15, label: '15 minutes before' },
+  { minutes: 30, label: '30 minutes before' },
+  { minutes: 45, label: '45 minutes before' },
+  { minutes: 60, label: '1 hour before' },
+  { minutes: 120, label: '2 hours before' },
+  { minutes: 1440, label: '1 day before' },
+  { minutes: 2880, label: '2 days before' },
+  { minutes: 10080, label: '1 week before' },
 ];
 
 export default function CalendarPage() {
@@ -101,10 +134,20 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [activeView, setActiveView] = useState<CalendarView>('agenda');
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
+
+  // Speed Dial FAB State
+  const [isFabOpen, setIsFabOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventLike | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  // Selector sheets / modals
+  const [isTimezoneModalOpen, setIsTimezoneModalOpen] = useState(false);
+  const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
+  const [isNotificationSliderOpen, setIsNotificationSliderOpen] = useState(false);
+  const [notifSliderIndex, setNotifSliderIndex] = useState(3); // default 30 min
 
   // Infinite agenda loading states & buffer
   const [isLoadingPast, setIsLoadingPast] = useState(false);
@@ -120,6 +163,7 @@ export default function CalendarPage() {
     startTime: string;
     endTime: string;
     allDay: boolean;
+    timezone: string;
     location: string;
     description: string;
     recurrence: string;
@@ -128,6 +172,14 @@ export default function CalendarPage() {
     notifications: string[];
     attendeeInput: string;
     attendees: string[];
+    driveLink: string;
+    // Task specific
+    priority: 'low' | 'medium' | 'urgent';
+    subtaskInput: string;
+    subtasks: Array<{ text: string; done: boolean }>;
+    // Birthday specific
+    birthYear: string;
+    giftIdeas: string;
     // Period tracker specific:
     flowIntensity: 'light' | 'medium' | 'heavy' | 'spotting';
     symptoms: string[];
@@ -141,6 +193,7 @@ export default function CalendarPage() {
     startTime: '10:00',
     endTime: '11:00',
     allDay: false,
+    timezone: 'Asia/Kolkata',
     location: '',
     description: '',
     recurrence: 'Does not repeat',
@@ -149,6 +202,12 @@ export default function CalendarPage() {
     notifications: ['30 minutes before'],
     attendeeInput: '',
     attendees: [],
+    driveLink: '',
+    priority: 'medium',
+    subtaskInput: '',
+    subtasks: [],
+    birthYear: '',
+    giftIdeas: '',
     flowIntensity: 'medium',
     symptoms: ['⚡ Cramps'],
     periodDays: 5,
@@ -477,7 +536,6 @@ export default function CalendarPage() {
   const handleSheetPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!sheetPointerRef.current) return;
     const deltaY = e.clientY - sheetPointerRef.current.startY;
-    // Allow dragging downwards (positive deltaY) or pulling upwards (negative deltaY)
     setSheetDragY(deltaY);
   }, []);
 
@@ -498,26 +556,21 @@ export default function CalendarPage() {
       setIsSheetDragging(false);
       setSheetDragY(0);
 
-      // If quick tap on handle -> toggle expanded state
       if (Math.abs(deltaY) < 8 && duration < 250) {
         setSheetExpanded((prev) => !prev);
         return;
       }
 
-      // Downward swipe / pull down past threshold -> Close Sheet
       if (deltaY > 100 || velocityY > 0.35) {
         if (sheetExpanded && deltaY < 180) {
-          // If expanded, pull down snaps back to normal height
           setSheetExpanded(false);
         } else {
-          // Dismiss sheet
           setShowCreateModal(false);
           setSheetExpanded(false);
         }
         return;
       }
 
-      // Upward swipe / pull up past threshold -> Expand to Full Screen
       if (deltaY < -60 || velocityY < -0.35) {
         setSheetExpanded(true);
         return;
@@ -639,6 +692,7 @@ export default function CalendarPage() {
         startTime: '10:00',
         endTime: '11:00',
         allDay: type === 'birthday' || type === 'period',
+        timezone: 'Asia/Kolkata',
         location: '',
         description: '',
         recurrence:
@@ -662,11 +716,18 @@ export default function CalendarPage() {
             : ['30 minutes before'],
         attendeeInput: '',
         attendees: [],
+        driveLink: '',
+        priority: 'medium',
+        subtaskInput: '',
+        subtasks: [],
+        birthYear: '',
+        giftIdeas: '',
         flowIntensity: 'medium',
         symptoms: ['⚡ Cramps'],
         periodDays: 5,
         cycleLength: 28,
       });
+      setIsFabOpen(false);
       setSheetDragY(0);
       setSheetExpanded(false);
       setShowCreateModal(true);
@@ -716,6 +777,10 @@ export default function CalendarPage() {
       reminders: newEntry.notifications,
       attendees: newEntry.attendees,
       accountEmail: newEntry.accountEmail,
+      timezone: newEntry.timezone,
+      driveLink: newEntry.driveLink,
+      priority: newEntry.type === 'task' ? newEntry.priority : undefined,
+      subtasks: newEntry.type === 'task' ? newEntry.subtasks : undefined,
       flowIntensity: newEntry.type === 'period' ? newEntry.flowIntensity : undefined,
       symptoms: newEntry.type === 'period' ? newEntry.symptoms : undefined,
     };
@@ -724,7 +789,7 @@ export default function CalendarPage() {
       await createEvent.mutateAsync(payload as never);
       setShowCreateModal(false);
       showToast({
-        text: `${newEntry.type === 'task' ? 'Task' : newEntry.type === 'birthday' ? 'Birthday' : newEntry.type === 'period' ? 'Period entry' : 'Event'} "${finalTitle}" scheduled`,
+        text: `${newEntry.type === 'task' ? 'Task' : newEntry.type === 'birthday' ? 'Birthday' : newEntry.type === 'period' ? 'Period entry' : 'Event'} "${finalTitle}" saved`,
         type: 'success',
       });
       await refetch();
@@ -756,7 +821,7 @@ export default function CalendarPage() {
       ...prev,
       location: `https://meet.quantrinity.in/${roomId}`,
     }));
-    showToast({ text: 'Generated QuantMeet Video Link', type: 'info' });
+    showToast({ text: 'Generated QuantMeet / QuantChat Meeting Link', type: 'info' });
   };
 
   const handleAddAttendee = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -802,6 +867,24 @@ export default function CalendarPage() {
       symptoms: prev.symptoms.includes(symptom)
         ? prev.symptoms.filter((s) => s !== symptom)
         : [...prev.symptoms, symptom],
+    }));
+  };
+
+  const handleAddSubtask = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && newEntry.subtaskInput.trim()) {
+      e.preventDefault();
+      setNewEntry((prev) => ({
+        ...prev,
+        subtasks: [...prev.subtasks, { text: prev.subtaskInput.trim(), done: false }],
+        subtaskInput: '',
+      }));
+    }
+  };
+
+  const toggleSubtask = (idx: number) => {
+    setNewEntry((prev) => ({
+      ...prev,
+      subtasks: prev.subtasks.map((st, i) => (i === idx ? { ...st, done: !st.done } : st)),
     }));
   };
 
@@ -1281,10 +1364,7 @@ export default function CalendarPage() {
                               ) : isReminder ? (
                                 <span className="text-sm">⏰</span>
                               ) : (
-                                <span
-                                  className="size-2.5 rounded-full mt-1.5 shrink-0"
-                                  style={{ backgroundColor: ev.color || '#3b82f6' }}
-                                />
+                                <span className="size-2.5 rounded-full mt-1.5 shrink-0 bg-[#3b82f6]" />
                               )}
 
                               <div>
@@ -1373,24 +1453,84 @@ export default function CalendarPage() {
           )}
         </div>
 
-        {/* Dedicated Calendar Floating Action Button (+) matching Google Calendar / Outlook */}
-        <button
-          type="button"
-          onClick={() => openCreate()}
-          className="fixed bottom-20 right-4 md:hidden z-40 size-14 rounded-full bg-[#3b82f6] hover:bg-[#2563eb] text-white font-bold shadow-2xl flex items-center justify-center active:scale-95 transition-all focus:outline-none focus:ring-4 focus:ring-[#3b82f6]/40"
-          aria-label="New calendar entry"
-        >
-          <svg
-            className="size-6"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
+        {/* Speed Dial Menu + Floating Action Button (Google Calendar Style Speed Dial) */}
+        <div className="fixed bottom-20 right-4 md:hidden z-40 flex flex-col items-end gap-2.5">
+          {/* Speed Dial Action Pills */}
+          <AnimatePresence>
+            {isFabOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 15, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 15, scale: 0.9 }}
+                transition={{ duration: 0.18 }}
+                className="flex flex-col items-end gap-2.5 mb-1"
+              >
+                {/* Birthday Pill */}
+                <button
+                  type="button"
+                  onClick={() => openCreate(selectedDate, 'birthday')}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1e293b] hover:bg-[#334155] text-white text-xs font-bold shadow-xl border border-zinc-700/60 active:scale-95 transition-all"
+                >
+                  <span className="text-sm">🎂</span>
+                  <span>Birthday</span>
+                </button>
+
+                {/* Task Pill */}
+                <button
+                  type="button"
+                  onClick={() => openCreate(selectedDate, 'task')}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1e293b] hover:bg-[#334155] text-white text-xs font-bold shadow-xl border border-zinc-700/60 active:scale-95 transition-all"
+                >
+                  <span className="text-sm">🎯</span>
+                  <span>Task</span>
+                </button>
+
+                {/* Period Tracker Pill */}
+                <button
+                  type="button"
+                  onClick={() => openCreate(selectedDate, 'period')}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-pink-950/80 hover:bg-pink-900 text-pink-200 text-xs font-bold shadow-xl border border-pink-500/40 active:scale-95 transition-all"
+                >
+                  <span className="text-sm">🌸</span>
+                  <span>Period Tracker</span>
+                </button>
+
+                {/* Event Pill */}
+                <button
+                  type="button"
+                  onClick={() => openCreate(selectedDate, 'event')}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-bold shadow-xl active:scale-95 transition-all"
+                >
+                  <span className="text-sm">📅</span>
+                  <span>Event</span>
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Main FAB Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setIsFabOpen((prev) => !prev)}
+            className={`size-14 rounded-full font-bold shadow-2xl flex items-center justify-center active:scale-95 transition-all focus:outline-none ${
+              isFabOpen
+                ? 'bg-zinc-800 text-white rotate-45'
+                : 'bg-[#3b82f6] hover:bg-[#2563eb] text-white'
+            }`}
+            aria-label="Toggle calendar speed dial"
           >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
+            <svg
+              className="size-6 transition-transform duration-200"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+        </div>
 
         {/* Google Calendar Style Slide-up Mobile Bottom Sheet / Modal with 1:1 Finger Physics */}
         <AnimatePresence>
@@ -1428,7 +1568,7 @@ export default function CalendarPage() {
                   className="pt-2.5 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none"
                   style={{ touchAction: 'none' }}
                 >
-                  {/* Visual Drag Handle Pill (Slide down to dismiss, slide up to full screen) */}
+                  {/* Visual Drag Handle Pill */}
                   <div
                     className={`w-14 h-1.5 rounded-full mx-auto mb-2 transition-all ${
                       isSheetDragging ? 'bg-[#3b82f6] scale-110' : 'bg-zinc-600 hover:bg-zinc-400'
@@ -1518,7 +1658,7 @@ export default function CalendarPage() {
                     ))}
                   </div>
 
-                  {/* User Account / Email Selection Row (Dynamic Authenticated User Account) */}
+                  {/* User Account / Email Selection Row */}
                   <div className="flex items-center justify-between py-2 border-b border-zinc-800/60 text-zinc-300">
                     <div className="flex items-center gap-2.5">
                       <span
@@ -1541,6 +1681,74 @@ export default function CalendarPage() {
                       <span>{newEntry.accountEmail || currentUserEmail}</span>
                     </div>
                   </div>
+
+                  {/* Mode: Task Specific Priority & Subtasks */}
+                  {newEntry.type === 'task' && (
+                    <div className="space-y-3 p-3 rounded-2xl bg-zinc-900 border border-zinc-800">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-zinc-400">Priority</span>
+                        <div className="flex items-center gap-1.5">
+                          {(
+                            [
+                              { key: 'low', label: '🟢 Low' },
+                              { key: 'medium', label: '🟡 Medium' },
+                              { key: 'urgent', label: '🔴 Urgent' },
+                            ] as const
+                          ).map((p) => (
+                            <button
+                              key={p.key}
+                              type="button"
+                              onClick={() => setNewEntry({ ...newEntry, priority: p.key })}
+                              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                                newEntry.priority === p.key
+                                  ? 'bg-[#3b82f6]/20 border-[#3b82f6] text-white'
+                                  : 'bg-zinc-800 border-zinc-700 text-zinc-400'
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Subtask list */}
+                      <div>
+                        <input
+                          type="text"
+                          placeholder="+ Add subtask (press Enter)"
+                          value={newEntry.subtaskInput}
+                          onChange={(e) =>
+                            setNewEntry({ ...newEntry, subtaskInput: e.target.value })
+                          }
+                          onKeyDown={handleAddSubtask}
+                          className="w-full bg-zinc-950 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#3b82f6]"
+                        />
+
+                        {newEntry.subtasks.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {newEntry.subtasks.map((st, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => toggleSubtask(idx)}
+                                className="flex items-center gap-2 px-2 py-1 rounded-lg bg-zinc-950 text-xs cursor-pointer hover:bg-zinc-800"
+                              >
+                                <span className={st.done ? 'text-emerald-400' : 'text-zinc-500'}>
+                                  {st.done ? '☑' : '☐'}
+                                </span>
+                                <span
+                                  className={
+                                    st.done ? 'line-through text-zinc-500' : 'text-zinc-200'
+                                  }
+                                >
+                                  {st.text}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Mode: Period Tracker Specific Fields */}
                   {newEntry.type === 'period' && (
@@ -1606,24 +1814,28 @@ export default function CalendarPage() {
                       {/* Period Duration & Cycle Settings */}
                       <div className="grid grid-cols-2 gap-2.5 pt-1 text-[11px]">
                         <div>
-                          <label className="block text-zinc-400 mb-1">Expected Days</label>
+                          <label className="block text-zinc-400 mb-1">
+                            Expected Days ({newEntry.periodDays}d)
+                          </label>
                           <input
-                            type="number"
-                            min="1"
-                            max="10"
+                            type="range"
+                            min="2"
+                            max="8"
                             value={newEntry.periodDays}
                             onChange={(e) =>
                               setNewEntry({ ...newEntry, periodDays: Number(e.target.value) || 5 })
                             }
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-white"
+                            className="w-full accent-pink-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-zinc-400 mb-1">Cycle Length (Days)</label>
+                          <label className="block text-zinc-400 mb-1">
+                            Cycle Length ({newEntry.cycleLength}d)
+                          </label>
                           <input
-                            type="number"
-                            min="20"
-                            max="45"
+                            type="range"
+                            min="21"
+                            max="36"
                             value={newEntry.cycleLength}
                             onChange={(e) =>
                               setNewEntry({
@@ -1631,7 +1843,7 @@ export default function CalendarPage() {
                                 cycleLength: Number(e.target.value) || 28,
                               })
                             }
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-white"
+                            className="w-full accent-pink-500"
                           />
                         </div>
                       </div>
@@ -1700,42 +1912,34 @@ export default function CalendarPage() {
                     )}
                   </div>
 
-                  {/* Timezone */}
-                  <div className="flex items-center gap-2.5 text-zinc-400 py-1 text-[11px]">
-                    <span>🌐</span>
-                    <span>India Standard Time (IST)</span>
-                  </div>
-
-                  {/* Recurrence Dropdown */}
-                  <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
-                    <div className="flex items-center gap-2.5 text-zinc-300">
-                      <span className="text-base">🔁</span>
-                      <select
-                        value={newEntry.recurrence}
-                        onChange={(e) => setNewEntry({ ...newEntry, recurrence: e.target.value })}
-                        className="bg-transparent text-xs text-zinc-200 focus:outline-none cursor-pointer"
-                      >
-                        <option value="Does not repeat" className="bg-zinc-900">
-                          Does not repeat
-                        </option>
-                        <option value="Daily" className="bg-zinc-900">
-                          Daily
-                        </option>
-                        <option value="Every weekday" className="bg-zinc-900">
-                          Every weekday (Mon - Fri)
-                        </option>
-                        <option value="Weekly" className="bg-zinc-900">
-                          Weekly
-                        </option>
-                        <option value="Monthly" className="bg-zinc-900">
-                          Monthly
-                        </option>
-                        <option value="Annually" className="bg-zinc-900">
-                          Annually (Every year)
-                        </option>
-                      </select>
+                  {/* Timezone Selector (Clickable to switch world timezones) */}
+                  <button
+                    type="button"
+                    onClick={() => setIsTimezoneModalOpen(true)}
+                    className="w-full flex items-center justify-between text-left text-zinc-300 hover:text-white py-2 border-b border-zinc-800/60"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base">🌐</span>
+                      <span>
+                        {TIMEZONES.find((tz) => tz.value === newEntry.timezone)?.label ||
+                          'India Standard Time (IST)'}
+                      </span>
                     </div>
-                  </div>
+                    <span className="text-zinc-500 text-xs">›</span>
+                  </button>
+
+                  {/* Recurrence Selector (Clickable Modern Modal) */}
+                  <button
+                    type="button"
+                    onClick={() => setIsRecurrenceModalOpen(true)}
+                    className="w-full flex items-center justify-between text-left text-zinc-300 hover:text-white py-2 border-b border-zinc-800/60"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base">🔁</span>
+                      <span>{newEntry.recurrence}</span>
+                    </div>
+                    <span className="text-zinc-500 text-xs">›</span>
+                  </button>
 
                   {/* People / Attendees (Event Mode) */}
                   {newEntry.type === 'event' && (
@@ -1776,7 +1980,7 @@ export default function CalendarPage() {
                     </div>
                   )}
 
-                  {/* Video Conferencing (QuantMeet Link) */}
+                  {/* Video Conferencing (QuantMeet / QuantChat Link) */}
                   {newEntry.type === 'event' && (
                     <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                       <div className="flex items-center gap-2.5 text-zinc-300">
@@ -1786,56 +1990,54 @@ export default function CalendarPage() {
                           onClick={handleAddMeetLink}
                           className="text-xs text-[#3b82f6] hover:underline font-semibold"
                         >
-                          + Add QuantMeet video conferencing
+                          + Add QuantMeet / QuantChat video conferencing
                         </button>
                       </div>
                     </div>
                   )}
 
-                  {/* Location */}
+                  {/* Location (with QuantChat Room Quick Chips) */}
                   {(newEntry.type === 'event' || newEntry.type === 'task') && (
-                    <div className="flex items-center gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
-                      <span className="text-base">📍</span>
-                      <input
-                        type="text"
-                        placeholder="Add location (Room 101, Office, or Link)"
-                        value={newEntry.location}
-                        onChange={(e) => setNewEntry({ ...newEntry, location: e.target.value })}
-                        className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
-                      />
+                    <div className="py-2 border-b border-zinc-800/60 space-y-1.5">
+                      <div className="flex items-center gap-2.5 text-zinc-300">
+                        <span className="text-base">📍</span>
+                        <input
+                          type="text"
+                          placeholder="Add location or QuantChat room"
+                          value={newEntry.location}
+                          onChange={(e) => setNewEntry({ ...newEntry, location: e.target.value })}
+                          className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5 pl-7 overflow-x-auto no-scrollbar">
+                        {['🏢 QuantHQ Main', '💬 QuantChat Room', '🏠 Remote / WFH'].map((loc) => (
+                          <button
+                            key={loc}
+                            type="button"
+                            onClick={() => setNewEntry({ ...newEntry, location: loc })}
+                            className="px-2 py-0.5 rounded-md bg-zinc-800 text-[10px] text-zinc-400 hover:text-white whitespace-nowrap"
+                          >
+                            {loc}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {/* Notifications / Reminders */}
+                  {/* Notifications / Reminders with Custom Slider Option */}
                   <div className="py-2 border-b border-zinc-800/60 space-y-2">
                     <div className="flex items-center justify-between text-zinc-300">
                       <div className="flex items-center gap-2.5">
                         <span className="text-base">🔔</span>
                         <span className="font-medium">Notifications</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => addNotificationReminder('10 minutes before')}
-                          className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-300 hover:text-white"
-                        >
-                          +10m
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addNotificationReminder('1 hour before')}
-                          className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-300 hover:text-white"
-                        >
-                          +1h
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addNotificationReminder('1 day before')}
-                          className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-300 hover:text-white"
-                        >
-                          +1d
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsNotificationSliderOpen(true)}
+                        className="px-2.5 py-1 rounded-lg bg-[#3b82f6]/20 text-[#3b82f6] text-[11px] font-bold hover:bg-[#3b82f6]/30"
+                      >
+                        + Custom Time Slider
+                      </button>
                     </div>
 
                     <div className="space-y-1.5 pl-7">
@@ -1857,29 +2059,6 @@ export default function CalendarPage() {
                     </div>
                   </div>
 
-                  {/* Color Picker */}
-                  <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
-                    <div className="flex items-center gap-2.5 text-zinc-300">
-                      <span className="text-base">🎨</span>
-                      <span>Color Tag</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {COLOR_OPTIONS.map((c) => (
-                        <button
-                          key={c.value}
-                          type="button"
-                          onClick={() => setNewEntry({ ...newEntry, color: c.value })}
-                          className={`size-5 rounded-full transition-transform ${c.bg} ${
-                            newEntry.color === c.value
-                              ? 'ring-2 ring-white scale-110'
-                              : 'opacity-70 hover:opacity-100'
-                          }`}
-                          title={c.name}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
                   {/* Notes / Description */}
                   <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
                     <span className="text-base mt-1">≡</span>
@@ -1887,10 +2066,10 @@ export default function CalendarPage() {
                       rows={2}
                       placeholder={
                         newEntry.type === 'task'
-                          ? 'Add details / subtasks'
+                          ? 'Add task details, checklist, notes…'
                           : newEntry.type === 'birthday'
-                            ? 'Add gift ideas, address, notes'
-                            : 'Add description / agenda'
+                            ? 'Add gift ideas, address, birthday wish notes…'
+                            : 'Add meeting agenda, discussion topics…'
                       }
                       value={newEntry.description}
                       onChange={(e) => setNewEntry({ ...newEntry, description: e.target.value })}
@@ -1898,16 +2077,133 @@ export default function CalendarPage() {
                     />
                   </div>
 
-                  {/* QuantDrive Attachment */}
-                  <div className="flex items-center gap-2.5 py-2 text-zinc-400 hover:text-white cursor-pointer transition-colors">
-                    <span className="text-base">📎</span>
-                    <span className="text-xs">Add QuantDrive attachment</span>
+                  {/* QuantDrive Attachment (Interactive Link & Picker) */}
+                  <div className="py-2 space-y-1.5 text-zinc-300">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base">📎</span>
+                      <input
+                        type="text"
+                        placeholder="Attach QuantDrive link or file URL"
+                        value={newEntry.driveLink}
+                        onChange={(e) => setNewEntry({ ...newEntry, driveLink: e.target.value })}
+                        className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                      />
+                    </div>
+                    {newEntry.driveLink && (
+                      <div className="pl-7">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-[11px] font-bold">
+                          ✓ Linked: {newEntry.driveLink}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
             </div>
           )}
         </AnimatePresence>
+
+        {/* Timezone Selector Modal */}
+        <Modal
+          isOpen={isTimezoneModalOpen}
+          onClose={() => setIsTimezoneModalOpen(false)}
+          title="Select Timezone"
+        >
+          <div className="space-y-1 text-xs max-h-72 overflow-y-auto">
+            {TIMEZONES.map((tz) => (
+              <button
+                key={tz.value}
+                type="button"
+                onClick={() => {
+                  setNewEntry({ ...newEntry, timezone: tz.value });
+                  setIsTimezoneModalOpen(false);
+                }}
+                className={`w-full text-left p-2.5 rounded-xl transition-colors flex items-center justify-between ${
+                  newEntry.timezone === tz.value
+                    ? 'bg-[#3b82f6] text-white font-bold'
+                    : 'text-zinc-300 hover:bg-zinc-800'
+                }`}
+              >
+                <span>{tz.label}</span>
+                {newEntry.timezone === tz.value && <span>✓</span>}
+              </button>
+            ))}
+          </div>
+        </Modal>
+
+        {/* Recurrence Selector Modal */}
+        <Modal
+          isOpen={isRecurrenceModalOpen}
+          onClose={() => setIsRecurrenceModalOpen(false)}
+          title="Repeat Option"
+        >
+          <div className="space-y-1 text-xs">
+            {RECURRENCE_OPTIONS.map((rec) => (
+              <button
+                key={rec}
+                type="button"
+                onClick={() => {
+                  setNewEntry({ ...newEntry, recurrence: rec });
+                  setIsRecurrenceModalOpen(false);
+                }}
+                className={`w-full text-left p-2.5 rounded-xl transition-colors flex items-center justify-between ${
+                  newEntry.recurrence === rec
+                    ? 'bg-[#3b82f6] text-white font-bold'
+                    : 'text-zinc-300 hover:bg-zinc-800'
+                }`}
+              >
+                <span>{rec}</span>
+                {newEntry.recurrence === rec && <span>✓</span>}
+              </button>
+            ))}
+          </div>
+        </Modal>
+
+        {/* Custom Notification Slider Modal */}
+        <Modal
+          isOpen={isNotificationSliderOpen}
+          onClose={() => setIsNotificationSliderOpen(false)}
+          title="Custom Notification Timing"
+        >
+          <div className="space-y-4 text-xs text-white">
+            <div className="text-center py-2">
+              <span className="text-lg font-bold text-[#3b82f6]">
+                {NOTIFICATION_SLIDER_VALUES[notifSliderIndex].label}
+              </span>
+            </div>
+
+            <input
+              type="range"
+              min="0"
+              max={NOTIFICATION_SLIDER_VALUES.length - 1}
+              value={notifSliderIndex}
+              onChange={(e) => setNotifSliderIndex(Number(e.target.value))}
+              className="w-full accent-[#3b82f6]"
+            />
+
+            <div className="flex items-center justify-between text-[10px] text-zinc-500">
+              <span>5m</span>
+              <span>1h</span>
+              <span>1d</span>
+              <span>1w</span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+              <Button variant="ghost" onClick={() => setIsNotificationSliderOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  addNotificationReminder(NOTIFICATION_SLIDER_VALUES[notifSliderIndex].label);
+                  setIsNotificationSliderOpen(false);
+                }}
+              >
+                Add Notification
+              </Button>
+            </div>
+          </div>
+        </Modal>
 
         {/* Event Detail Inspector Modal */}
         {selectedEvent && (
@@ -1954,6 +2250,20 @@ export default function CalendarPage() {
                   ) : (
                     <span>{selectedEvent.location}</span>
                   )}
+                </div>
+              )}
+
+              {selectedEvent.driveLink && (
+                <div className="flex items-center gap-2">
+                  <span>📎</span>
+                  <a
+                    href={selectedEvent.driveLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-400 hover:underline font-bold"
+                  >
+                    QuantDrive Attachment
+                  </a>
                 </div>
               )}
 
