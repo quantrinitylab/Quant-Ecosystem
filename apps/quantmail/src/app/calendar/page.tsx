@@ -56,9 +56,20 @@ export interface CalendarEventLike {
   completed?: boolean;
   priority?: 'low' | 'medium' | 'urgent';
   subtasks?: Array<{ text: string; done: boolean }>;
-  flowIntensity?: 'light' | 'medium' | 'heavy' | 'spotting';
+  flowIntensity?: 'light' | 'medium' | 'heavy' | 'super_heavy' | 'spotting';
+  spottingColor?: 'red' | 'brown';
+  collectionMethod?: string;
   symptoms?: string[];
   moods?: string[];
+  pain?: string[];
+  sleep?: string;
+  sexLife?: string;
+  energy?: string;
+  intimateHealth?: string;
+  hotFlashes?: string;
+  bbt?: string;
+  weight?: string;
+  customTags?: string[];
   cycleDay?: number;
   accountEmail?: string;
   driveLink?: string;
@@ -101,8 +112,8 @@ const RECURRENCE_OPTIONS = [
   'Custom interval…',
 ];
 
-// Clue / Flo reference moods and feelings
-const CLUE_MOODS = [
+// Clue Reference Categories & Card Options (From user reference screenshots)
+const CLUE_FEELINGS = [
   { id: 'mood_swings', label: 'Mood swings', icon: '⛅' },
   { id: 'not_in_control', label: 'Not in control', icon: '🌀' },
   { id: 'fine', label: 'Fine', icon: '☁️' },
@@ -119,17 +130,55 @@ const CLUE_MOODS = [
   { id: 'indifferent', label: 'Indifferent', icon: '🌙' },
 ];
 
-const PERIOD_SYMPTOMS = [
-  '⚡ Cramps',
-  '🤕 Headache',
-  '😴 Fatigue',
-  '🎈 Bloating',
-  '🍫 Cravings',
-  '💆 Backache',
-  '💧 Spotting',
-  '☕ Low Energy',
-  '🔥 Tender Breasts',
-  '🌸 Clear Skin',
+const CLUE_COLLECTION_METHODS = [
+  { id: 'pad', label: 'Pad', icon: '🩸' },
+  { id: 'tampon', label: 'Tampon', icon: '🧵' },
+  { id: 'panty_liner', label: 'Panty liner', icon: '🩲' },
+  { id: 'cup', label: 'Menstrual cup', icon: '🍷' },
+];
+
+const CLUE_PAIN = [
+  { id: 'pain_free', label: 'Pain free', icon: '😊' },
+  { id: 'cramps', label: 'Cramps', icon: '⚡' },
+  { id: 'ovulation', label: 'Ovulation', icon: '🥚' },
+  { id: 'breast_tenderness', label: 'Breast tenderness', icon: '🍈' },
+  { id: 'headache', label: 'Headache', icon: '🤕' },
+  { id: 'backache', label: 'Backache', icon: '💆' },
+];
+
+const CLUE_SLEEP = [
+  { id: 'trouble_sleeping', label: 'Trouble falling asleep', icon: '😴' },
+  { id: 'refreshed', label: 'Woke up refreshed', icon: '😄' },
+  { id: 'tired', label: 'Woke up tired', icon: '🥱' },
+  { id: 'restless', label: 'Restless sleep', icon: '🔄' },
+];
+
+const CLUE_SEX_LIFE = [
+  { id: 'protected', label: 'Protected', icon: '☂️' },
+  { id: 'unprotected', label: 'Unprotected', icon: '⛱️' },
+  { id: 'withdrawal', label: 'Withdrawal', icon: '💧' },
+  { id: 'no_sex', label: 'No sex', icon: '🚫' },
+];
+
+const CLUE_ENERGY = [
+  { id: 'exhausted', label: 'Exhausted', icon: '🏊' },
+  { id: 'tired', label: 'Tired', icon: '🧍' },
+  { id: 'ok', label: 'OK', icon: '🚶' },
+  { id: 'energetic', label: 'Energetic', icon: '🏃' },
+];
+
+const CLUE_INTIMATE = [
+  { id: 'normal', label: 'Normal / Good', icon: '🌸' },
+  { id: 'dryness', label: 'Vaginal dryness', icon: '💧' },
+  { id: 'itchy', label: 'Itchy', icon: '⚡' },
+  { id: 'sore', label: 'Sore', icon: '😣' },
+];
+
+const CLUE_HOT_FLASHES = [
+  { id: 'none', label: 'None today', icon: '🚫' },
+  { id: 'mild', label: 'Mild', icon: '🚀' },
+  { id: 'moderate', label: 'Moderate', icon: '🚀' },
+  { id: 'severe', label: 'Severe', icon: '🔥' },
 ];
 
 const NOTIFICATION_SLIDER_VALUES = [
@@ -160,6 +209,7 @@ export default function CalendarPage() {
 
   // Active Creation Sheet Type (Dedicated sheet per mode)
   const [activeSheetType, setActiveSheetType] = useState<EntryType | null>(null);
+  const [periodSubTab, setPeriodSubTab] = useState<'track' | 'cycle' | 'insights'>('track');
 
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventLike | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
@@ -169,7 +219,7 @@ export default function CalendarPage() {
   const [isTimezoneModalOpen, setIsTimezoneModalOpen] = useState(false);
   const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
   const [isNotificationSliderOpen, setIsNotificationSliderOpen] = useState(false);
-  const [notifSliderIndex, setNotifSliderIndex] = useState(3); // default 30 min
+  const [notifSliderIndex, setNotifSliderIndex] = useState(3);
 
   // Infinite agenda loading states & buffer
   const [isLoadingPast, setIsLoadingPast] = useState(false);
@@ -201,10 +251,22 @@ export default function CalendarPage() {
     // Birthday specific
     birthYear: string;
     giftIdeas: string;
-    // Period tracker specific:
-    flowIntensity: 'light' | 'medium' | 'heavy' | 'spotting';
-    symptoms: string[];
-    moods: string[];
+    // Full Clue Period tracker specific:
+    flowIntensity: 'light' | 'medium' | 'heavy' | 'super_heavy' | 'spotting';
+    spottingColor: 'red' | 'brown';
+    collectionMethod: string;
+    feelings: string[];
+    pain: string[];
+    pms: boolean;
+    sleep: string;
+    sexLife: string;
+    energy: string;
+    intimateHealth: string;
+    hotFlashes: string;
+    bbt: string;
+    weight: string;
+    customTagInput: string;
+    customTags: string[];
     periodDays: number;
     cycleLength: number;
     currentCycleDay: number;
@@ -231,8 +293,20 @@ export default function CalendarPage() {
     birthYear: '',
     giftIdeas: '',
     flowIntensity: 'medium',
-    symptoms: ['⚡ Cramps'],
-    moods: ['Happy', 'Fine'],
+    spottingColor: 'red',
+    collectionMethod: 'Pad',
+    feelings: ['Happy'],
+    pain: ['Pain free'],
+    pms: false,
+    sleep: 'Woke up refreshed',
+    sexLife: 'Protected',
+    energy: 'Energetic',
+    intimateHealth: 'Normal / Good',
+    hotFlashes: 'None today',
+    bbt: '',
+    weight: '',
+    customTagInput: '',
+    customTags: [],
     periodDays: 5,
     cycleLength: 28,
     currentCycleDay: 1,
@@ -258,11 +332,9 @@ export default function CalendarPage() {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  // Active month/year for top navigation headers based on selected date
   const activeMonthName = MONTH_NAMES[selectedDate.getMonth()];
   const activeYear = selectedDate.getFullYear();
 
-  // Broad cached window so queries stay cached
   const start = useMemo(
     () => new Date(today.getFullYear(), today.getMonth() - 8, 1).toISOString(),
     [today],
@@ -282,7 +354,6 @@ export default function CalendarPage() {
   const dayKey = (date: Date) =>
     `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
 
-  // Month grid metrics
   const grid = useMemo(() => {
     const total = new Date(year, month + 1, 0).getDate();
     const offset = new Date(year, month, 1).getDay();
@@ -303,7 +374,6 @@ export default function CalendarPage() {
     return map;
   }, [events]);
 
-  // Current active 1-week strip (7 days computed directly from selectedDate: Sunday to Saturday)
   const currentWeekDays = useMemo(() => {
     const current = new Date(
       selectedDate.getFullYear(),
@@ -332,7 +402,6 @@ export default function CalendarPage() {
     });
   }, [selectedDate, today]);
 
-  // Month grid weeks data structure for full month expanded mode
   const monthWeeks = useMemo(() => {
     const allDays: Array<{
       date: Date;
@@ -345,7 +414,6 @@ export default function CalendarPage() {
       hasEvents: boolean;
     }> = [];
 
-    // Prev month days
     for (let i = grid.offset - 1; i >= 0; i--) {
       const d = new Date(year, month - 1, grid.prevMonthTotal - i);
       const k = dayKey(d);
@@ -361,7 +429,6 @@ export default function CalendarPage() {
       });
     }
 
-    // Current month days
     for (let d = 1; d <= grid.total; d++) {
       const date = new Date(year, month, d);
       const k = dayKey(date);
@@ -377,7 +444,6 @@ export default function CalendarPage() {
       });
     }
 
-    // Trailing days
     for (let d = 1; d <= grid.trailing; d++) {
       const date = new Date(year, month + 1, d);
       const k = dayKey(date);
@@ -442,11 +508,9 @@ export default function CalendarPage() {
     scrollToDate(now);
   }, [scrollToDate]);
 
-  // Dimension Constants for direct 1:1 finger tracking
   const COLLAPSED_HEIGHT = 104;
   const EXPANDED_HEIGHT = 336;
 
-  // Interactive real-time drag state for top calendar drawer
   const [isDragging, setIsDragging] = useState(false);
   const [currentHeight, setCurrentHeight] = useState(COLLAPSED_HEIGHT);
   const pointerStartRef = useRef<{
@@ -541,7 +605,6 @@ export default function CalendarPage() {
     [COLLAPSED_HEIGHT, EXPANDED_HEIGHT, currentHeight, isMonthExpanded, goMonth],
   );
 
-  // Bottom Sheet 1:1 Direct Finger Physics Handlers
   const handleSheetPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     sheetPointerRef.current = {
@@ -602,7 +665,6 @@ export default function CalendarPage() {
     [sheetExpanded],
   );
 
-  // Infinite / Continuous Agenda Days
   const continuousAgendaDays = useMemo(() => {
     const list: Array<{
       date: Date;
@@ -661,7 +723,6 @@ export default function CalendarPage() {
     return list;
   }, [today, agendaRangeDays, eventsByDay, searchFilter]);
 
-  // Open Dedicated Sheet for a specific type directly from Speed Dial FAB
   const openDedicatedSheet = useCallback(
     (type: EntryType, date?: Date) => {
       const base = date ? new Date(date) : new Date(selectedDate);
@@ -698,8 +759,20 @@ export default function CalendarPage() {
         birthYear: '',
         giftIdeas: '',
         flowIntensity: 'medium',
-        symptoms: ['⚡ Cramps'],
-        moods: ['Happy'],
+        spottingColor: 'red',
+        collectionMethod: 'Pad',
+        feelings: ['Happy'],
+        pain: ['Pain free'],
+        pms: false,
+        sleep: 'Woke up refreshed',
+        sexLife: 'Protected',
+        energy: 'Energetic',
+        intimateHealth: 'Normal / Good',
+        hotFlashes: 'None today',
+        bbt: '',
+        weight: '',
+        customTagInput: '',
+        customTags: [],
         periodDays: 5,
         cycleLength: 28,
         currentCycleDay: 1,
@@ -707,7 +780,8 @@ export default function CalendarPage() {
 
       setIsFabOpen(false);
       setSheetDragY(0);
-      setSheetExpanded(type === 'period'); // Period tracker opens in expansive view
+      setSheetExpanded(type === 'period');
+      setPeriodSubTab('track');
       setActiveSheetType(type);
     },
     [selectedDate, currentUserEmail],
@@ -726,7 +800,8 @@ export default function CalendarPage() {
     let finalTitle = formState.title.trim();
     if (activeSheetType === 'period') {
       finalTitle =
-        finalTitle || `🌸 Cycle Day ${formState.currentCycleDay} (${formState.flowIntensity} flow)`;
+        finalTitle ||
+        `🌸 Period Log (Day ${formState.currentCycleDay}, ${formState.flowIntensity} flow)`;
     }
 
     let startIso: string;
@@ -750,7 +825,9 @@ export default function CalendarPage() {
       end: endIso,
       description:
         formState.description ||
-        (activeSheetType === 'period' ? `Moods: ${formState.moods.join(', ')}` : ''),
+        (activeSheetType === 'period'
+          ? `Feelings: ${formState.feelings.join(', ')} | Pain: ${formState.pain.join(', ')} | Energy: ${formState.energy}`
+          : ''),
       location: formState.location,
       allDay: formState.allDay,
       type: activeSheetType,
@@ -764,8 +841,18 @@ export default function CalendarPage() {
       priority: activeSheetType === 'task' ? formState.priority : undefined,
       subtasks: activeSheetType === 'task' ? formState.subtasks : undefined,
       flowIntensity: activeSheetType === 'period' ? formState.flowIntensity : undefined,
-      symptoms: activeSheetType === 'period' ? formState.symptoms : undefined,
-      moods: activeSheetType === 'period' ? formState.moods : undefined,
+      spottingColor: activeSheetType === 'period' ? formState.spottingColor : undefined,
+      collectionMethod: activeSheetType === 'period' ? formState.collectionMethod : undefined,
+      moods: activeSheetType === 'period' ? formState.feelings : undefined,
+      pain: activeSheetType === 'period' ? formState.pain : undefined,
+      sleep: activeSheetType === 'period' ? formState.sleep : undefined,
+      sexLife: activeSheetType === 'period' ? formState.sexLife : undefined,
+      energy: activeSheetType === 'period' ? formState.energy : undefined,
+      intimateHealth: activeSheetType === 'period' ? formState.intimateHealth : undefined,
+      hotFlashes: activeSheetType === 'period' ? formState.hotFlashes : undefined,
+      bbt: activeSheetType === 'period' ? formState.bbt : undefined,
+      weight: activeSheetType === 'period' ? formState.weight : undefined,
+      customTags: activeSheetType === 'period' ? formState.customTags : undefined,
       cycleDay: activeSheetType === 'period' ? formState.currentCycleDay : undefined,
     };
 
@@ -845,21 +932,44 @@ export default function CalendarPage() {
     }));
   };
 
-  const toggleSymptom = (symptom: string) => {
+  const toggleFeeling = (feelingLabel: string) => {
     setFormState((prev) => ({
       ...prev,
-      symptoms: prev.symptoms.includes(symptom)
-        ? prev.symptoms.filter((s) => s !== symptom)
-        : [...prev.symptoms, symptom],
+      feelings: prev.feelings.includes(feelingLabel)
+        ? prev.feelings.filter((f) => f !== feelingLabel)
+        : [...prev.feelings, feelingLabel],
     }));
   };
 
-  const toggleMood = (moodLabel: string) => {
+  const togglePain = (painLabel: string) => {
     setFormState((prev) => ({
       ...prev,
-      moods: prev.moods.includes(moodLabel)
-        ? prev.moods.filter((m) => m !== moodLabel)
-        : [...prev.moods, moodLabel],
+      pain: prev.pain.includes(painLabel)
+        ? prev.pain.filter((p) => p !== painLabel)
+        : [...prev.pain, painLabel],
+    }));
+  };
+
+  const handleAddCustomTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && formState.customTagInput.trim()) {
+      e.preventDefault();
+      const tag = formState.customTagInput.trim().startsWith('#')
+        ? formState.customTagInput.trim()
+        : `#${formState.customTagInput.trim()}`;
+      if (!formState.customTags.includes(tag)) {
+        setFormState((prev) => ({
+          ...prev,
+          customTags: [...prev.customTags, tag],
+          customTagInput: '',
+        }));
+      }
+    }
+  };
+
+  const removeCustomTag = (tag: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      customTags: prev.customTags.filter((t) => t !== tag),
     }));
   };
 
@@ -881,7 +991,6 @@ export default function CalendarPage() {
     }));
   };
 
-  // Symmetrical bi-directional scroll listener for agenda with loading indicators
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       const host = e.currentTarget;
@@ -1129,7 +1238,6 @@ export default function CalendarPage() {
               </div>
             )}
 
-            {/* Weekday Label Headers */}
             <div className="grid grid-cols-7 text-center py-1">
               {WEEKDAYS_SHORT.map((d, i) => (
                 <div key={i} className="text-[11px] font-semibold text-zinc-400">
@@ -1138,7 +1246,6 @@ export default function CalendarPage() {
               ))}
             </div>
 
-            {/* Date Numbers Strip / Grid */}
             <div className="flex-1 overflow-hidden">
               {!isMonthExpanded ? (
                 <div className="grid grid-cols-7 text-center h-[46px] items-center">
@@ -1200,7 +1307,6 @@ export default function CalendarPage() {
               )}
             </div>
 
-            {/* Bottom Drag Handle */}
             <div
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
@@ -1219,7 +1325,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* View Content: Infinite Continuous Agenda Feed */}
+        {/* Continuous Agenda Feed */}
         <div
           ref={scrollHostRef}
           onScroll={handleScroll}
@@ -1274,7 +1380,6 @@ export default function CalendarPage() {
                       isSelected ? 'bg-zinc-900/40 rounded-2xl p-2' : ''
                     }`}
                   >
-                    {/* Day Heading */}
                     <div className="flex items-baseline gap-2 mb-1.5">
                       <span
                         className={`text-base font-extrabold ${
@@ -1296,9 +1401,7 @@ export default function CalendarPage() {
                       )}
                     </div>
 
-                    {/* Content under Day */}
                     <div className="space-y-2">
-                      {/* Holidays */}
                       {item.holidays.map((h, hi) => (
                         <div
                           key={hi}
@@ -1319,7 +1422,6 @@ export default function CalendarPage() {
                         </div>
                       ))}
 
-                      {/* Scheduled Events, Tasks, Birthdays, Period tracker */}
                       {item.events.map((ev) => {
                         const isTask = ev.type === 'task';
                         const isBirthday = ev.type === 'birthday';
@@ -1332,7 +1434,6 @@ export default function CalendarPage() {
                             className="flex items-center justify-between p-3 rounded-xl border border-zinc-800 bg-zinc-900 hover:border-[#3b82f6]/50 transition-colors cursor-pointer shadow-sm"
                           >
                             <div className="flex items-start gap-2.5">
-                              {/* Type Icon / Indicator */}
                               {isTask ? (
                                 <button
                                   type="button"
@@ -1359,7 +1460,7 @@ export default function CalendarPage() {
                                 <div className="flex items-center gap-1.5">
                                   <h5 className="text-xs font-bold text-white">{ev.title}</h5>
                                   {isPeriod && ev.flowIntensity && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-pink-500/20 text-pink-300 font-semibold uppercase">
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-rose-500/20 text-rose-300 font-semibold uppercase">
                                       {ev.flowIntensity}
                                     </span>
                                   )}
@@ -1375,9 +1476,7 @@ export default function CalendarPage() {
                                     ? 'All Day'
                                     : `${hhmm(startOf(ev))} – ${hhmm(endOf(ev))}`}
                                   {ev.location ? ` · 📍 ${ev.location}` : ''}
-                                  {ev.symptoms && ev.symptoms.length > 0
-                                    ? ` · ${ev.symptoms.join(', ')}`
-                                    : ''}
+                                  {ev.description ? ` · ${ev.description}` : ''}
                                 </p>
                               </div>
                             </div>
@@ -1407,7 +1506,6 @@ export default function CalendarPage() {
                         );
                       })}
 
-                      {/* Empty State */}
                       {!hasEvents && !hasHolidays && (
                         <div
                           onClick={() => openDedicatedSheet('event', item.date)}
@@ -1452,7 +1550,6 @@ export default function CalendarPage() {
                 transition={{ duration: 0.18 }}
                 className="flex flex-col items-end gap-2.5 mb-1"
               >
-                {/* Birthday Pill */}
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('birthday')}
@@ -1462,7 +1559,6 @@ export default function CalendarPage() {
                   <span>Birthday</span>
                 </button>
 
-                {/* Task Pill */}
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('task')}
@@ -1472,17 +1568,15 @@ export default function CalendarPage() {
                   <span>Task</span>
                 </button>
 
-                {/* Period Tracker Pill */}
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('period')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-pink-950/90 hover:bg-pink-900 text-pink-200 text-xs font-bold shadow-xl border border-pink-500/40 active:scale-95 transition-all"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-rose-950/90 hover:bg-rose-900 text-rose-200 text-xs font-bold shadow-xl border border-rose-500/40 active:scale-95 transition-all"
                 >
                   <span className="text-sm">🌸</span>
                   <span>Period Tracker</span>
                 </button>
 
-                {/* Event Pill */}
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('event')}
@@ -1539,9 +1633,9 @@ export default function CalendarPage() {
                     ? { duration: 0 }
                     : { type: 'spring', damping: 28, stiffness: 300 }
                 }
-                className={`relative w-full max-w-lg bg-[#1c1b20] border-t md:border border-zinc-800 rounded-t-3xl md:rounded-3xl shadow-2xl z-10 flex flex-col transition-all overflow-hidden ${
+                className={`relative w-full max-w-lg bg-[#141416] border-t md:border border-zinc-800 rounded-t-3xl md:rounded-3xl shadow-2xl z-10 flex flex-col transition-all overflow-hidden ${
                   sheetExpanded || activeSheetType === 'period'
-                    ? 'h-[94vh]'
+                    ? 'h-[95vh]'
                     : 'max-h-[88vh] md:max-h-[85vh]'
                 }`}
               >
@@ -1551,7 +1645,7 @@ export default function CalendarPage() {
                   onPointerMove={handleSheetPointerMove}
                   onPointerUp={handleSheetPointerUp}
                   onPointerCancel={handleSheetPointerUp}
-                  className="pt-2.5 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none"
+                  className="pt-2.5 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none bg-[#141416]"
                   style={{ touchAction: 'none' }}
                 >
                   <div
@@ -1560,6 +1654,7 @@ export default function CalendarPage() {
                     }`}
                   />
 
+                  {/* Header Bar */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <button
@@ -1573,7 +1668,16 @@ export default function CalendarPage() {
                         {activeSheetType === 'event' && <span>📅 New Event</span>}
                         {activeSheetType === 'task' && <span>🎯 New Task</span>}
                         {activeSheetType === 'birthday' && <span>🎂 New Birthday</span>}
-                        {activeSheetType === 'period' && <span>🌸 Period & Cycle Tracker</span>}
+                        {activeSheetType === 'period' && (
+                          <span className="text-rose-300">
+                            Today:{' '}
+                            {new Date(formState.startDate).toLocaleDateString('en-GB', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        )}
                       </span>
                     </div>
 
@@ -1582,17 +1686,44 @@ export default function CalendarPage() {
                       onClick={() => void handleSaveEntry()}
                       className={`px-5 py-1.5 rounded-full text-white font-bold text-xs shadow-md transition-all active:scale-95 ${
                         activeSheetType === 'period'
-                          ? 'bg-pink-600 hover:bg-pink-500'
+                          ? 'bg-rose-600 hover:bg-rose-500'
                           : 'bg-[#3b82f6] hover:bg-[#2563eb]'
                       }`}
                     >
                       Save
                     </button>
                   </div>
+
+                  {/* Period Tracker Sub-tabs (Track | Cycle Wheel | Insights) */}
+                  {activeSheetType === 'period' && (
+                    <div className="flex items-center justify-around border-b border-zinc-800/80 pt-2 pb-1 text-xs">
+                      {(
+                        [
+                          { key: 'track', label: '＋ Track', icon: '📝' },
+                          { key: 'cycle', label: '⭕ Cycle Dial', icon: '⭕' },
+                          { key: 'insights', label: '📊 Insights', icon: '📊' },
+                        ] as const
+                      ).map((tab) => (
+                        <button
+                          key={tab.key}
+                          type="button"
+                          onClick={() => setPeriodSubTab(tab.key)}
+                          className={`pb-1 px-3 font-semibold transition-colors border-b-2 flex items-center gap-1.5 ${
+                            periodSubTab === tab.key
+                              ? 'border-cyan-400 text-cyan-300 font-bold'
+                              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                          }`}
+                        >
+                          <span>{tab.icon}</span>
+                          <span>{tab.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Form Content */}
-                <div className="flex-1 overflow-y-auto px-5 py-2 space-y-4 text-xs text-white">
+                {/* Form Content Body */}
+                <div className="flex-1 overflow-y-auto px-5 py-2 space-y-4 text-xs text-white pb-24">
                   {/* Account Row */}
                   <div className="flex items-center justify-between py-1 border-b border-zinc-800/60 text-zinc-300">
                     <span className="text-xs text-zinc-400">Account</span>
@@ -1615,7 +1746,6 @@ export default function CalendarPage() {
                         />
                       </div>
 
-                      {/* All-Day Switch */}
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2.5 text-zinc-300">
                           <span className="text-base">🕒</span>
@@ -1636,7 +1766,6 @@ export default function CalendarPage() {
                         </button>
                       </div>
 
-                      {/* Date & Time */}
                       <div className="space-y-2 py-1">
                         <div className="flex items-center justify-between">
                           <input
@@ -1681,7 +1810,6 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      {/* Timezone */}
                       <button
                         type="button"
                         onClick={() => setIsTimezoneModalOpen(true)}
@@ -1697,7 +1825,6 @@ export default function CalendarPage() {
                         <span className="text-zinc-500 text-xs">›</span>
                       </button>
 
-                      {/* Recurrence */}
                       <button
                         type="button"
                         onClick={() => setIsRecurrenceModalOpen(true)}
@@ -1710,7 +1837,6 @@ export default function CalendarPage() {
                         <span className="text-zinc-500 text-xs">›</span>
                       </button>
 
-                      {/* People */}
                       <div className="py-2 border-b border-zinc-800/60 space-y-2">
                         <div className="flex items-center gap-2.5 text-zinc-300">
                           <span className="text-base">👥</span>
@@ -1746,7 +1872,6 @@ export default function CalendarPage() {
                         )}
                       </div>
 
-                      {/* QuantMeet Video */}
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2.5 text-zinc-300">
                           <span className="text-base">🎥</span>
@@ -1760,7 +1885,6 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      {/* Location */}
                       <div className="py-2 border-b border-zinc-800/60 space-y-1.5">
                         <div className="flex items-center gap-2.5 text-zinc-300">
                           <span className="text-base">📍</span>
@@ -1790,7 +1914,6 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      {/* Notifications with slider */}
                       <div className="py-2 border-b border-zinc-800/60 space-y-2">
                         <div className="flex items-center justify-between text-zinc-300">
                           <div className="flex items-center gap-2.5">
@@ -1824,7 +1947,6 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      {/* Description */}
                       <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
                         <span className="text-base mt-1">≡</span>
                         <textarea
@@ -1838,7 +1960,6 @@ export default function CalendarPage() {
                         />
                       </div>
 
-                      {/* QuantDrive */}
                       <div className="py-2 space-y-1.5 text-zinc-300">
                         <div className="flex items-center gap-2.5">
                           <span className="text-base">📎</span>
@@ -1870,7 +1991,6 @@ export default function CalendarPage() {
                         />
                       </div>
 
-                      {/* Priority */}
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <span className="text-zinc-400">Priority</span>
                         <div className="flex items-center gap-1.5">
@@ -1897,7 +2017,6 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      {/* Due Date & Time */}
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2 text-zinc-300">
                           <span>📅</span>
@@ -1913,7 +2032,6 @@ export default function CalendarPage() {
                         />
                       </div>
 
-                      {/* Subtasks Checklist */}
                       <div className="space-y-2 p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800">
                         <span className="font-bold text-zinc-300">Checklist & Subtasks</span>
                         <input
@@ -1946,7 +2064,6 @@ export default function CalendarPage() {
                         ))}
                       </div>
 
-                      {/* Task Notes */}
                       <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
                         <span className="text-base mt-1">≡</span>
                         <textarea
@@ -1976,7 +2093,6 @@ export default function CalendarPage() {
                         />
                       </div>
 
-                      {/* Date of Birth */}
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2 text-zinc-300">
                           <span>🎂</span>
@@ -1992,7 +2108,6 @@ export default function CalendarPage() {
                         />
                       </div>
 
-                      {/* Birth Year */}
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2 text-zinc-300">
                           <span>📅</span>
@@ -2009,7 +2124,6 @@ export default function CalendarPage() {
                         />
                       </div>
 
-                      {/* Gift Ideas & Notes */}
                       <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
                         <span className="text-base mt-1">🎁</span>
                         <textarea
@@ -2025,170 +2139,609 @@ export default function CalendarPage() {
                     </div>
                   )}
 
-                  {/* ----------------- 4. FULL CLUE / FLO STYLE PERIOD & CYCLE TRACKER ----------------- */}
+                  {/* ----------------- 4. COMPREHENSIVE CLUE / FLO PERIOD TRACKER ----------------- */}
                   {activeSheetType === 'period' && (
-                    <div className="space-y-5 pb-6">
-                      {/* Clue Style Circular Cycle Dial Display */}
-                      <div className="flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-b from-zinc-900 via-pink-950/30 to-zinc-900 border border-pink-500/30 relative">
-                        {/* Circular Dial */}
-                        <div className="relative size-44 rounded-full border-4 border-zinc-800 flex items-center justify-center">
-                          {/* Period Arc Indicator */}
-                          <div className="absolute inset-0 rounded-full border-4 border-pink-500 border-t-transparent border-r-transparent rotate-45" />
-
-                          {/* Center Info */}
-                          <div className="text-center space-y-1">
-                            <span className="inline-block px-2 py-0.5 rounded-full bg-pink-500/20 text-pink-300 text-[10px] font-bold">
-                              Day {formState.currentCycleDay} of {formState.cycleLength}
-                            </span>
-                            <h3 className="text-lg font-extrabold text-white">
-                              {formState.periodDays - formState.currentCycleDay + 1 > 0
-                                ? `${formState.periodDays - formState.currentCycleDay + 1} more days of period`
-                                : 'Fertile Window Forecast'}
-                            </h3>
-                            <p className="text-[10px] text-zinc-400">
-                              Next cycle in ~{formState.cycleLength - formState.currentCycleDay}{' '}
-                              days
-                            </p>
+                    <div className="space-y-6">
+                      {/* Sub-tab 1: DAILY TRACKING (Matches Reference Images 1, 2, 3, & new sets) */}
+                      {periodSubTab === 'track' && (
+                        <div className="space-y-6">
+                          {/* Mini Week Bar with Highlighted Period */}
+                          <div className="p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800 space-y-2">
+                            <div className="flex items-center justify-between text-xs text-zinc-400">
+                              <span>Cycle Dates</span>
+                              <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold">
+                                Customize ⇋
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-7 text-center gap-1">
+                              {currentWeekDays.map((d) => (
+                                <div
+                                  key={d.key}
+                                  className={`py-1.5 rounded-lg flex flex-col items-center justify-center ${
+                                    d.isSelected
+                                      ? 'border-2 border-cyan-400 bg-rose-950/40 text-white font-bold'
+                                      : 'bg-zinc-950 text-zinc-400'
+                                  }`}
+                                >
+                                  <span className="text-[9px]">{d.dayLetter}</span>
+                                  <span className="text-xs">{d.dayNum}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
 
-                        {/* Cycle Phase Legend */}
-                        <div className="flex items-center gap-3 mt-4 text-[10px] text-zinc-400">
-                          <span className="flex items-center gap-1">
-                            <span className="size-2 rounded-full bg-pink-500" /> Period
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="size-2 rounded-full bg-cyan-400" /> Fertile
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="size-2 rounded-full bg-amber-400" /> Ovulation
-                          </span>
-                        </div>
-                      </div>
+                          {/* 1. PERIOD FLOW (Reference Image 1) */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white flex items-center gap-1">
+                                <span>🩸</span> Period Flow
+                              </span>
+                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
+                                Learn more ›
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-2">
+                              {(
+                                [
+                                  { key: 'light', label: 'Light', icon: '💧' },
+                                  { key: 'medium', label: 'Medium', icon: '💧' },
+                                  { key: 'heavy', label: 'Heavy', icon: '💧' },
+                                  { key: 'super_heavy', label: 'Super', icon: '🩸' },
+                                ] as const
+                              ).map((flow) => (
+                                <button
+                                  key={flow.key}
+                                  type="button"
+                                  onClick={() =>
+                                    setFormState({ ...formState, flowIntensity: flow.key })
+                                  }
+                                  className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${
+                                    formState.flowIntensity === flow.key
+                                      ? 'bg-rose-600 border-rose-400 text-white font-bold scale-105 shadow-lg shadow-rose-900/50'
+                                      : 'bg-[#1e1e24] border-rose-500/20 text-rose-300 hover:bg-[#25252e]'
+                                  }`}
+                                >
+                                  <span className="text-base">{flow.icon}</span>
+                                  <span className="text-[11px] mt-1 font-semibold">
+                                    {flow.label}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
 
-                      {/* Flow Intensity Selector */}
-                      <div className="space-y-2">
-                        <span className="text-xs font-bold text-pink-300">Flow Intensity</span>
-                        <div className="grid grid-cols-4 gap-2">
-                          {(
-                            [
-                              { key: 'spotting', label: 'Spotting', icon: '⚪' },
-                              { key: 'light', label: 'Light', icon: '💧' },
-                              { key: 'medium', label: 'Medium', icon: '💧💧' },
-                              { key: 'heavy', label: 'Heavy', icon: '💧💧💧' },
-                            ] as const
-                          ).map((flow) => (
+                          {/* 2. COLLECTION METHOD (Tampon, Pad, Cup - New Reference 1) */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white flex items-center gap-1">
+                                <span>🛡️</span> Collection Method
+                              </span>
+                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
+                                Learn more ›
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {CLUE_COLLECTION_METHODS.map((cm) => (
+                                <button
+                                  key={cm.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setFormState({ ...formState, collectionMethod: cm.label })
+                                  }
+                                  className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all ${
+                                    formState.collectionMethod === cm.label
+                                      ? 'bg-rose-600/40 border-rose-400 text-white font-bold shadow'
+                                      : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                  }`}
+                                >
+                                  <span className="text-base">{cm.icon}</span>
+                                  <span className="text-[10px] mt-0.5 font-medium text-center leading-tight">
+                                    {cm.label}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 3. SPOTTING (Reference Image 1) */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white flex items-center gap-1">
+                                <span>🌸</span> Spotting
+                              </span>
+                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
+                                Learn more ›
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2.5">
+                              {(
+                                [
+                                  { key: 'red', label: 'Red Spotting', icon: '🔴' },
+                                  { key: 'brown', label: 'Brown Spotting', icon: '🟤' },
+                                ] as const
+                              ).map((sp) => (
+                                <button
+                                  key={sp.key}
+                                  type="button"
+                                  onClick={() =>
+                                    setFormState({ ...formState, spottingColor: sp.key })
+                                  }
+                                  className={`flex items-center justify-center gap-2 p-3 rounded-2xl border transition-all ${
+                                    formState.spottingColor === sp.key
+                                      ? 'bg-rose-600/30 border-rose-500 text-white font-bold shadow'
+                                      : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                  }`}
+                                >
+                                  <span>{sp.icon}</span>
+                                  <span className="text-[11px] font-semibold">{sp.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 4. FEELINGS / MOOD (Reference Image 1) */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white flex items-center gap-1">
+                                <span>🧡</span> Feelings & Mood
+                              </span>
+                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
+                                Learn more ›
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              {CLUE_FEELINGS.map((f) => {
+                                const isSelected = formState.feelings.includes(f.label);
+                                return (
+                                  <button
+                                    key={f.id}
+                                    type="button"
+                                    onClick={() => toggleFeeling(f.label)}
+                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${
+                                      isSelected
+                                        ? 'bg-orange-600/30 border-orange-500 text-orange-100 font-bold shadow'
+                                        : 'bg-[#1e1e24] border-orange-500/20 text-orange-300 hover:bg-[#25252e]'
+                                    }`}
+                                  >
+                                    <span className="text-lg">{f.icon}</span>
+                                    <span className="text-[10px] mt-1 text-center font-semibold leading-tight">
+                                      {f.label}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* 5. PAIN & SYMPTOMS (Reference Image 2) */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white flex items-center gap-1">
+                                <span>💙</span> Pain & Physical Symptoms
+                              </span>
+                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
+                                Learn more ›
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              {CLUE_PAIN.map((p) => {
+                                const isSelected = formState.pain.includes(p.label);
+                                return (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => togglePain(p.label)}
+                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${
+                                      isSelected
+                                        ? 'bg-blue-600/30 border-blue-400 text-blue-100 font-bold shadow'
+                                        : 'bg-[#1e1e24] border-blue-500/20 text-blue-300 hover:bg-[#25252e]'
+                                    }`}
+                                  >
+                                    <span className="text-lg">{p.icon}</span>
+                                    <span className="text-[10px] mt-1 text-center font-semibold leading-tight">
+                                      {p.label}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* 6. VULVA & INTIMATE HEALTH (New Reference 3) */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white flex items-center gap-1">
+                                <span>💧</span> Vulva & Vagina
+                              </span>
+                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
+                                Learn more ›
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {CLUE_INTIMATE.map((intm) => (
+                                <button
+                                  key={intm.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setFormState({ ...formState, intimateHealth: intm.label })
+                                  }
+                                  className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all ${
+                                    formState.intimateHealth === intm.label
+                                      ? 'bg-blue-600/30 border-blue-400 text-white font-bold shadow'
+                                      : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                  }`}
+                                >
+                                  <span className="text-base">{intm.icon}</span>
+                                  <span className="text-[9px] mt-0.5 font-medium text-center leading-tight">
+                                    {intm.label}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 7. HOT FLASHES (New Reference 3) */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white flex items-center gap-1">
+                                <span>🔥</span> Hot Flashes
+                              </span>
+                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
+                                Learn more ›
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {CLUE_HOT_FLASHES.map((hf) => (
+                                <button
+                                  key={hf.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setFormState({ ...formState, hotFlashes: hf.label })
+                                  }
+                                  className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
+                                    formState.hotFlashes === hf.label
+                                      ? 'bg-amber-600/30 border-amber-400 text-white font-bold shadow'
+                                      : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                  }`}
+                                >
+                                  <span className="text-base">{hf.icon}</span>
+                                  <span className="text-[10px] mt-0.5 font-medium">{hf.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 8. PMS TOGGLE */}
+                          <div className="flex items-center justify-between p-3 rounded-2xl bg-[#1e1e24] border border-orange-500/20">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">☁️</span>
+                              <span className="text-xs font-bold text-orange-300">
+                                Premenstrual Syndrome (PMS)
+                              </span>
+                            </div>
                             <button
-                              key={flow.key}
                               type="button"
-                              onClick={() =>
-                                setFormState({ ...formState, flowIntensity: flow.key })
-                              }
-                              className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all ${
-                                formState.flowIntensity === flow.key
-                                  ? 'bg-pink-500/30 border-pink-400 text-white font-bold scale-105 shadow-lg'
-                                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                              onClick={() => setFormState({ ...formState, pms: !formState.pms })}
+                              className={`px-3 py-1 rounded-xl text-[11px] font-bold border transition-all ${
+                                formState.pms
+                                  ? 'bg-orange-500 text-white font-bold border-orange-400'
+                                  : 'bg-zinc-800 text-zinc-400 border-zinc-700'
                               }`}
                             >
-                              <span className="text-sm">{flow.icon}</span>
-                              <span className="text-[11px] mt-0.5">{flow.label}</span>
+                              {formState.pms ? 'Active' : 'Off'}
                             </button>
-                          ))}
-                        </div>
-                      </div>
+                          </div>
 
-                      {/* Feelings & Moods Grid (Matching Reference Image 1) */}
-                      <div className="space-y-2.5">
-                        <span className="text-xs font-bold text-orange-400">
-                          How do you feel today? (Daily Feelings)
-                        </span>
-                        <div className="grid grid-cols-3 gap-2">
-                          {CLUE_MOODS.map((m) => {
-                            const isSelected = formState.moods.includes(m.label);
-                            return (
-                              <button
-                                key={m.id}
-                                type="button"
-                                onClick={() => toggleMood(m.label)}
-                                className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all ${
-                                  isSelected
-                                    ? 'bg-orange-500/20 border-orange-400 text-orange-200 font-bold shadow'
-                                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                                }`}
-                              >
-                                <span className="text-base">{m.icon}</span>
-                                <span className="text-[10px] mt-1 text-center font-medium leading-tight">
-                                  {m.label}
+                          {/* 9. SLEEP QUALITY */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white flex items-center gap-1">
+                                <span>😴</span> Sleep Quality
+                              </span>
+                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
+                                Learn more ›
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              {CLUE_SLEEP.map((sl) => (
+                                <button
+                                  key={sl.id}
+                                  type="button"
+                                  onClick={() => setFormState({ ...formState, sleep: sl.label })}
+                                  className={`flex items-center gap-2 p-2.5 rounded-2xl border transition-all ${
+                                    formState.sleep === sl.label
+                                      ? 'bg-amber-600/30 border-amber-400 text-white font-bold shadow'
+                                      : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                  }`}
+                                >
+                                  <span>{sl.icon}</span>
+                                  <span className="text-[10px] font-medium leading-tight">
+                                    {sl.label}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 10. SEX LIFE */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white flex items-center gap-1">
+                                <span>💚</span> Sex Life & Protection
+                              </span>
+                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
+                                Learn more ›
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {CLUE_SEX_LIFE.map((sx) => (
+                                <button
+                                  key={sx.id}
+                                  type="button"
+                                  onClick={() => setFormState({ ...formState, sexLife: sx.label })}
+                                  className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
+                                    formState.sexLife === sx.label
+                                      ? 'bg-emerald-600/30 border-emerald-400 text-emerald-200 font-bold shadow'
+                                      : 'bg-[#1e1e24] border-emerald-500/20 text-emerald-300 hover:bg-[#25252e]'
+                                  }`}
+                                >
+                                  <span className="text-base">{sx.icon}</span>
+                                  <span className="text-[9px] mt-0.5 font-semibold text-center leading-tight">
+                                    {sx.label}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 11. ENERGY LEVEL */}
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white flex items-center gap-1">
+                                <span>🏃</span> Energy Level
+                              </span>
+                              <span className="text-[10px] text-zinc-500 hover:text-zinc-300">
+                                Learn more ›
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {CLUE_ENERGY.map((en) => (
+                                <button
+                                  key={en.id}
+                                  type="button"
+                                  onClick={() => setFormState({ ...formState, energy: en.label })}
+                                  className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
+                                    formState.energy === en.label
+                                      ? 'bg-amber-600/30 border-amber-400 text-amber-200 font-bold shadow'
+                                      : 'bg-[#1e1e24] border-amber-500/20 text-amber-300 hover:bg-[#25252e]'
+                                  }`}
+                                >
+                                  <span className="text-base">{en.icon}</span>
+                                  <span className="text-[10px] mt-0.5 font-semibold text-center">
+                                    {en.label}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 12. BODY METRICS (BBT & Weight - New Reference 2) */}
+                          <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-[#1e1e24] border border-zinc-800">
+                            <div>
+                              <span className="block text-[10px] text-zinc-400 mb-1">
+                                🌡️ Basal Body Temp
+                              </span>
+                              <input
+                                type="text"
+                                placeholder="98.4 °F"
+                                value={formState.bbt}
+                                onChange={(e) =>
+                                  setFormState({ ...formState, bbt: e.target.value })
+                                }
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1 text-xs text-white"
+                              />
+                            </div>
+                            <div>
+                              <span className="block text-[10px] text-zinc-400 mb-1">
+                                ⚖️ Weight
+                              </span>
+                              <input
+                                type="text"
+                                placeholder="58.5 kg"
+                                value={formState.weight}
+                                onChange={(e) =>
+                                  setFormState({ ...formState, weight: e.target.value })
+                                }
+                                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1 text-xs text-white"
+                              />
+                            </div>
+                          </div>
+
+                          {/* 13. MY CUSTOM TAGS (New Reference 1) */}
+                          <div className="space-y-2">
+                            <span className="text-xs font-bold text-zinc-300">My tags</span>
+                            <input
+                              type="text"
+                              placeholder="+ Create new tag (press Enter)"
+                              value={formState.customTagInput}
+                              onChange={(e) =>
+                                setFormState({ ...formState, customTagInput: e.target.value })
+                              }
+                              onKeyDown={handleAddCustomTag}
+                              className="w-full bg-[#1e1e24] border border-zinc-800 rounded-2xl p-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none"
+                            />
+                            {formState.customTags.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 pt-1">
+                                {formState.customTags.map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zinc-800 text-cyan-300 text-[10px] font-semibold border border-cyan-500/20"
+                                  >
+                                    <span>{tag}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeCustomTag(tag)}
+                                      className="text-zinc-400 hover:text-rose-400"
+                                    >
+                                      ✕
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 14. DAILY NOTE */}
+                          <div className="space-y-2">
+                            <span className="text-xs font-bold text-zinc-300">Daily Note</span>
+                            <textarea
+                              rows={2}
+                              placeholder="Any extra details to add today?…"
+                              value={formState.description}
+                              onChange={(e) =>
+                                setFormState({ ...formState, description: e.target.value })
+                              }
+                              className="w-full bg-[#1e1e24] border border-zinc-800 rounded-2xl p-3 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-rose-500 resize-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Sub-tab 2: CYCLE DIAL */}
+                      {periodSubTab === 'cycle' && (
+                        <div className="space-y-6">
+                          <div className="flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-b from-zinc-900 via-rose-950/30 to-zinc-900 border border-rose-500/30">
+                            <div className="relative size-48 rounded-full border-4 border-zinc-800 flex items-center justify-center">
+                              <div className="absolute inset-0 rounded-full border-4 border-rose-500 border-t-transparent border-r-transparent rotate-45" />
+
+                              <div className="text-center space-y-1">
+                                <span className="inline-block px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-bold">
+                                  Day {formState.currentCycleDay} of {formState.cycleLength}
                                 </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                                <h3 className="text-xl font-extrabold text-white">
+                                  {formState.periodDays - formState.currentCycleDay + 1 > 0
+                                    ? `${formState.periodDays - formState.currentCycleDay + 1} more days of period`
+                                    : 'Fertile Window Forecast'}
+                                </h3>
+                                <p className="text-[10px] text-zinc-400">
+                                  Next cycle in ~{formState.cycleLength - formState.currentCycleDay}{' '}
+                                  days
+                                </p>
+                              </div>
+                            </div>
 
-                      {/* Physical Symptoms Multi-select */}
-                      <div className="space-y-2">
-                        <span className="text-xs font-bold text-zinc-300">Physical Symptoms</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {PERIOD_SYMPTOMS.map((symptom) => {
-                            const isSelected = formState.symptoms.includes(symptom);
-                            return (
-                              <button
-                                key={symptom}
-                                type="button"
-                                onClick={() => toggleSymptom(symptom)}
-                                className={`px-3 py-1.5 rounded-full text-[11px] font-medium border transition-all ${
-                                  isSelected
-                                    ? 'bg-pink-500/30 border-pink-400 text-pink-200 font-bold'
-                                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                                }`}
-                              >
-                                {symptom}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                            <div className="flex items-center gap-3 mt-4 text-[10px] text-zinc-400">
+                              <span className="flex items-center gap-1">
+                                <span className="size-2 rounded-full bg-rose-500" /> Period
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="size-2 rounded-full bg-cyan-400" /> Fertile
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <span className="size-2 rounded-full bg-amber-400" /> Ovulation
+                              </span>
+                            </div>
+                          </div>
 
-                      {/* Cycle Settings Sliders */}
-                      <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800 text-[11px]">
-                        <div>
-                          <label className="block text-zinc-400 mb-1">
-                            Period Length ({formState.periodDays}d)
-                          </label>
-                          <input
-                            type="range"
-                            min="2"
-                            max="8"
-                            value={formState.periodDays}
-                            onChange={(e) =>
-                              setFormState({
-                                ...formState,
-                                periodDays: Number(e.target.value) || 5,
-                              })
-                            }
-                            className="w-full accent-pink-500"
-                          />
+                          <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-[#1e1e24] border border-zinc-800 text-[11px]">
+                            <div>
+                              <label className="block text-zinc-400 mb-1">
+                                Period Length ({formState.periodDays}d)
+                              </label>
+                              <input
+                                type="range"
+                                min="2"
+                                max="8"
+                                value={formState.periodDays}
+                                onChange={(e) =>
+                                  setFormState({
+                                    ...formState,
+                                    periodDays: Number(e.target.value) || 5,
+                                  })
+                                }
+                                className="w-full accent-rose-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-zinc-400 mb-1">
+                                Cycle Length ({formState.cycleLength}d)
+                              </label>
+                              <input
+                                type="range"
+                                min="21"
+                                max="36"
+                                value={formState.cycleLength}
+                                onChange={(e) =>
+                                  setFormState({
+                                    ...formState,
+                                    cycleLength: Number(e.target.value) || 28,
+                                  })
+                                }
+                                className="w-full accent-rose-500"
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <label className="block text-zinc-400 mb-1">
-                            Cycle Length ({formState.cycleLength}d)
-                          </label>
-                          <input
-                            type="range"
-                            min="21"
-                            max="36"
-                            value={formState.cycleLength}
-                            onChange={(e) =>
-                              setFormState({
-                                ...formState,
-                                cycleLength: Number(e.target.value) || 28,
-                              })
-                            }
-                            className="w-full accent-pink-500"
-                          />
+                      )}
+
+                      {/* Sub-tab 3: INSIGHTS & GRAPHS */}
+                      {periodSubTab === 'insights' && (
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <span className="text-xs font-bold text-white">Cycle statistics</span>
+                            <p className="text-[10px] text-zinc-400">
+                              Averages are based on your cycle inputs.
+                            </p>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="p-3 rounded-2xl bg-[#1e1e24] border border-zinc-800 flex items-center justify-between">
+                                <div>
+                                  <span className="text-[10px] text-zinc-400">Cycle length</span>
+                                  <h4 className="text-base font-extrabold text-cyan-400">
+                                    {formState.cycleLength} days
+                                  </h4>
+                                </div>
+                                <span className="text-base">⭕</span>
+                              </div>
+
+                              <div className="p-3 rounded-2xl bg-[#1e1e24] border border-zinc-800 flex items-center justify-between">
+                                <div>
+                                  <span className="text-[10px] text-zinc-400">Cycle variation</span>
+                                  <h4 className="text-base font-extrabold text-zinc-300">±1 day</h4>
+                                </div>
+                                <span className="text-base">🔄</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="p-4 rounded-3xl bg-[#1e1e24] border border-zinc-800 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-white">Your cycle phase</span>
+                              <span className="text-[10px] text-cyan-400 font-semibold">
+                                Early follicular phase
+                              </span>
+                            </div>
+
+                            <div className="h-14 w-full rounded-2xl bg-zinc-950 border border-zinc-800 overflow-hidden flex relative">
+                              <div className="w-[45%] bg-rose-900/60 border-r border-rose-500/40 flex items-center justify-center text-[10px] text-rose-200 font-bold">
+                                Follicular
+                              </div>
+                              <div className="w-[10%] bg-cyan-900/60 border-r border-cyan-400 flex items-center justify-center text-[10px] text-cyan-300 font-extrabold">
+                                🔵
+                              </div>
+                              <div className="w-[45%] bg-emerald-900/60 flex items-center justify-center text-[10px] text-emerald-200 font-bold">
+                                Luteal
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                              <span>Period (Day 1-{formState.periodDays})</span>
+                              <span>Ovulation (~Day 14)</span>
+                              <span>PMS (Day 24-28)</span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2322,7 +2875,7 @@ export default function CalendarPage() {
                     {selectedEvent.type}
                   </span>
                   {selectedEvent.flowIntensity && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-pink-500/20 text-pink-300 font-semibold">
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 font-semibold">
                       Flow: {selectedEvent.flowIntensity}
                     </span>
                   )}
