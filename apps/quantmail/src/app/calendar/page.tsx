@@ -112,22 +112,253 @@ const RECURRENCE_OPTIONS = [
   'Custom interval…',
 ];
 
+// Clean SVGs for categories and items
+function IconCalendar({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="18" rx="3" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function IconClock({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function IconGlobe({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+}
+
+function IconRepeat({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="17 1 21 5 17 9" />
+      <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+      <polyline points="7 23 3 19 7 15" />
+      <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+    </svg>
+  );
+}
+
+function IconUsers({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function IconVideo({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polygon points="23 7 16 12 23 17 23 7" />
+      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+    </svg>
+  );
+}
+
+function IconMapPin({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+
+function IconBell({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    </svg>
+  );
+}
+
+function IconPaperclip({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+    </svg>
+  );
+}
+
+function IconCake({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" />
+      <path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1" />
+      <path d="M2 21h20" />
+      <line x1="7" y1="8" x2="7" y2="11" />
+      <line x1="12" y1="8" x2="12" y2="11" />
+      <line x1="17" y1="8" x2="17" y2="11" />
+      <line x1="7" y1="4" x2="7.01" y2="4" />
+      <line x1="12" y1="4" x2="12.01" y2="4" />
+      <line x1="17" y1="4" x2="17.01" y2="4" />
+    </svg>
+  );
+}
+
+function IconTarget({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </svg>
+  );
+}
+
+function IconFlower({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 16.5A4.5 4.5 0 1 1 7.5 12 4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 1 1 4.5 4.5 4.5 4.5 0 1 1-4.5 4.5" />
+      <path d="M12 7.5V3" />
+      <path d="M12 21v-4.5" />
+      <path d="M16.5 12H21" />
+      <path d="M3 12h4.5" />
+    </svg>
+  );
+}
+
+function IconDrop({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+    </svg>
+  );
+}
+
 // Clue Reference Categories & Card Options
 const CLUE_FEELINGS = [
-  { id: 'mood_swings', label: 'Mood swings', icon: '⛅' },
-  { id: 'not_in_control', label: 'Not in control', icon: '🌀' },
-  { id: 'fine', label: 'Fine', icon: '☁️' },
-  { id: 'happy', label: 'Happy', icon: '☀️' },
-  { id: 'sad', label: 'Sad', icon: '🌧️' },
-  { id: 'sensitive', label: 'Sensitive', icon: '💨' },
-  { id: 'angry', label: 'Angry', icon: '⚡' },
-  { id: 'confident', label: 'Confident', icon: '🌞' },
-  { id: 'excited', label: 'Excited', icon: '✨' },
-  { id: 'irritable', label: 'Irritable', icon: '🌩️' },
-  { id: 'anxious', label: 'Anxious', icon: '🌪️' },
-  { id: 'insecure', label: 'Insecure', icon: '🌧️' },
-  { id: 'grateful', label: 'Grateful', icon: '🌅' },
-  { id: 'indifferent', label: 'Indifferent', icon: '🌙' },
+  { id: 'mood_swings', label: 'Mood swings', symbol: '⛅' },
+  { id: 'not_in_control', label: 'Not in control', symbol: '🌀' },
+  { id: 'fine', label: 'Fine', symbol: '☁️' },
+  { id: 'happy', label: 'Happy', symbol: '☀️' },
+  { id: 'sad', label: 'Sad', symbol: '🌧️' },
+  { id: 'sensitive', label: 'Sensitive', symbol: '💨' },
+  { id: 'angry', label: 'Angry', symbol: '⚡' },
+  { id: 'confident', label: 'Confident', symbol: '🌞' },
+  { id: 'excited', label: 'Excited', symbol: '✨' },
+  { id: 'irritable', label: 'Irritable', symbol: '🌩️' },
+  { id: 'anxious', label: 'Anxious', symbol: '🌪️' },
+  { id: 'insecure', label: 'Insecure', symbol: '🌧️' },
+  { id: 'grateful', label: 'Grateful', symbol: '🌅' },
+  { id: 'indifferent', label: 'Indifferent', symbol: '🌙' },
 ];
 
 const CLUE_COLLECTION_METHODS = [
@@ -138,47 +369,47 @@ const CLUE_COLLECTION_METHODS = [
 ];
 
 const CLUE_PAIN = [
-  { id: 'pain_free', label: 'Pain free', icon: '😊' },
-  { id: 'cramps', label: 'Cramps', icon: '⚡' },
-  { id: 'ovulation', label: 'Ovulation', icon: '🥚' },
-  { id: 'breast_tenderness', label: 'Breast tenderness', icon: '🍈' },
-  { id: 'headache', label: 'Headache', icon: '🤕' },
-  { id: 'backache', label: 'Backache', icon: '💆' },
+  { id: 'pain_free', label: 'Pain free', symbol: '😊' },
+  { id: 'cramps', label: 'Cramps', symbol: '⚡' },
+  { id: 'ovulation', label: 'Ovulation', symbol: '🥚' },
+  { id: 'breast_tenderness', label: 'Breast tenderness', symbol: '🍈' },
+  { id: 'headache', label: 'Headache', symbol: '🤕' },
+  { id: 'backache', label: 'Backache', symbol: '💆' },
 ];
 
 const CLUE_SLEEP = [
-  { id: 'trouble_sleeping', label: 'Trouble falling asleep', icon: '😴' },
-  { id: 'refreshed', label: 'Woke up refreshed', icon: '😄' },
-  { id: 'tired', label: 'Woke up tired', icon: '🥱' },
-  { id: 'restless', label: 'Restless sleep', icon: '🔄' },
+  { id: 'trouble_sleeping', label: 'Trouble falling asleep', symbol: '😴' },
+  { id: 'refreshed', label: 'Woke up refreshed', symbol: '😄' },
+  { id: 'tired', label: 'Woke up tired', symbol: '🥱' },
+  { id: 'restless', label: 'Restless sleep', symbol: '🔄' },
 ];
 
 const CLUE_SEX_LIFE = [
-  { id: 'protected', label: 'Protected', icon: '☂️' },
-  { id: 'unprotected', label: 'Unprotected', icon: '⛱️' },
-  { id: 'withdrawal', label: 'Withdrawal', icon: '💧' },
-  { id: 'no_sex', label: 'No sex', icon: '🚫' },
+  { id: 'protected', label: 'Protected', symbol: '☂️' },
+  { id: 'unprotected', label: 'Unprotected', symbol: '⛱️' },
+  { id: 'withdrawal', label: 'Withdrawal', symbol: '💧' },
+  { id: 'no_sex', label: 'No sex', symbol: '🚫' },
 ];
 
 const CLUE_ENERGY = [
-  { id: 'exhausted', label: 'Exhausted', icon: '🏊' },
-  { id: 'tired', label: 'Tired', icon: '🧍' },
-  { id: 'ok', label: 'OK', icon: '🚶' },
-  { id: 'energetic', label: 'Energetic', icon: '🏃' },
+  { id: 'exhausted', label: 'Exhausted', symbol: '🏊' },
+  { id: 'tired', label: 'Tired', symbol: '🧍' },
+  { id: 'ok', label: 'OK', symbol: '🚶' },
+  { id: 'energetic', label: 'Energetic', symbol: '🏃' },
 ];
 
 const CLUE_INTIMATE = [
-  { id: 'normal', label: 'Normal / Good', icon: '🌸' },
-  { id: 'dryness', label: 'Vaginal dryness', icon: '💧' },
-  { id: 'itchy', label: 'Itchy', icon: '⚡' },
-  { id: 'sore', label: 'Sore', icon: '😣' },
+  { id: 'normal', label: 'Normal / Good', symbol: '🌸' },
+  { id: 'dryness', label: 'Vaginal dryness', symbol: '💧' },
+  { id: 'itchy', label: 'Itchy', symbol: '⚡' },
+  { id: 'sore', label: 'Sore', symbol: '😣' },
 ];
 
 const CLUE_HOT_FLASHES = [
-  { id: 'none', label: 'None today', icon: '🚫' },
-  { id: 'mild', label: 'Mild', icon: '🚀' },
-  { id: 'moderate', label: 'Moderate', icon: '🚀' },
-  { id: 'severe', label: 'Severe', icon: '🔥' },
+  { id: 'none', label: 'None today', symbol: '🚫' },
+  { id: 'mild', label: 'Mild', symbol: '🚀' },
+  { id: 'moderate', label: 'Moderate', symbol: '🚀' },
+  { id: 'severe', label: 'Severe', symbol: '🔥' },
 ];
 
 const NOTIFICATION_SLIDER_VALUES = [
@@ -245,14 +476,11 @@ export default function CalendarPage() {
     attendeeInput: string;
     attendees: string[];
     driveLink: string;
-    // Task specific
     priority: 'low' | 'medium' | 'urgent';
     subtaskInput: string;
     subtasks: Array<{ text: string; done: boolean }>;
-    // Birthday specific
     birthYear: string;
     giftIdeas: string;
-    // Full Clue Period tracker specific:
     flowIntensity: 'light' | 'medium' | 'heavy' | 'super_heavy' | 'spotting';
     spottingColor: 'red' | 'brown';
     collectionMethod: string;
@@ -374,6 +602,19 @@ export default function CalendarPage() {
     return map;
   }, [events]);
 
+  const holidaysByDay = useMemo(() => {
+    const map: Record<string, Holiday[]> = {};
+    for (const h of HOLIDAYS) {
+      const parts = h.date.split('-');
+      if (parts.length === 3) {
+        const hd = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        const k = dayKey(hd);
+        map[k] = [...(map[k] ?? []), h];
+      }
+    }
+    return map;
+  }, []);
+
   const currentWeekDays = useMemo(() => {
     const current = new Date(
       selectedDate.getFullYear(),
@@ -387,9 +628,15 @@ export default function CalendarPage() {
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(sunday);
       d.setDate(sunday.getDate() + i);
-      const isSelected = dayKey(d) === dayKey(selectedDate);
-      const isToday = dayKey(d) === dayKey(today);
+      const k = dayKey(d);
+      const isSelected = k === dayKey(selectedDate);
+      const isToday = k === dayKey(today);
       const isCurrentSelectedMonth = d.getMonth() === selectedDate.getMonth();
+      const hasHoliday = (holidaysByDay[k] ?? []).length > 0;
+      const dayEvts = eventsByDay[k] ?? [];
+      const hasPeriod = dayEvts.some((e) => e.type === 'period');
+      const hasEvent = dayEvts.length > 0;
+
       return {
         date: d,
         dayNum: d.getDate(),
@@ -397,10 +644,14 @@ export default function CalendarPage() {
         isSelected,
         isToday,
         isCurrentMonth: isCurrentSelectedMonth,
-        key: dayKey(d),
+        hasHoliday,
+        hasPeriod,
+        hasEvent,
+        holidayName: (holidaysByDay[k] ?? [])[0]?.name,
+        key: k,
       };
     });
-  }, [selectedDate, today]);
+  }, [selectedDate, today, holidaysByDay, eventsByDay]);
 
   const monthWeeks = useMemo(() => {
     const allDays: Array<{
@@ -412,11 +663,15 @@ export default function CalendarPage() {
       key: string;
       hasHolidays: boolean;
       hasEvents: boolean;
+      hasPeriod: boolean;
+      holidayName?: string;
     }> = [];
 
     for (let i = grid.offset - 1; i >= 0; i--) {
       const d = new Date(year, month - 1, grid.prevMonthTotal - i);
       const k = dayKey(d);
+      const hols = holidaysByDay[k] ?? [];
+      const dayEvts = eventsByDay[k] ?? [];
       allDays.push({
         date: d,
         dayNum: d.getDate(),
@@ -424,14 +679,18 @@ export default function CalendarPage() {
         isSelected: k === dayKey(selectedDate),
         isToday: k === dayKey(today),
         key: k,
-        hasHolidays: (holidays[d.getDate()] ?? []).length > 0,
-        hasEvents: (eventsByDay[k] ?? []).length > 0,
+        hasHolidays: hols.length > 0,
+        hasEvents: dayEvts.length > 0,
+        hasPeriod: dayEvts.some((e) => e.type === 'period'),
+        holidayName: hols[0]?.name,
       });
     }
 
     for (let d = 1; d <= grid.total; d++) {
       const date = new Date(year, month, d);
       const k = dayKey(date);
+      const hols = holidaysByDay[k] ?? [];
+      const dayEvts = eventsByDay[k] ?? [];
       allDays.push({
         date,
         dayNum: d,
@@ -439,14 +698,18 @@ export default function CalendarPage() {
         isSelected: k === dayKey(selectedDate),
         isToday: k === dayKey(today),
         key: k,
-        hasHolidays: (holidays[d] ?? []).length > 0,
-        hasEvents: (eventsByDay[k] ?? []).length > 0,
+        hasHolidays: hols.length > 0,
+        hasEvents: dayEvts.length > 0,
+        hasPeriod: dayEvts.some((e) => e.type === 'period'),
+        holidayName: hols[0]?.name,
       });
     }
 
     for (let d = 1; d <= grid.trailing; d++) {
       const date = new Date(year, month + 1, d);
       const k = dayKey(date);
+      const hols = holidaysByDay[k] ?? [];
+      const dayEvts = eventsByDay[k] ?? [];
       allDays.push({
         date,
         dayNum: d,
@@ -454,8 +717,10 @@ export default function CalendarPage() {
         isSelected: k === dayKey(selectedDate),
         isToday: k === dayKey(today),
         key: k,
-        hasHolidays: false,
-        hasEvents: (eventsByDay[k] ?? []).length > 0,
+        hasHolidays: hols.length > 0,
+        hasEvents: dayEvts.length > 0,
+        hasPeriod: dayEvts.some((e) => e.type === 'period'),
+        holidayName: hols[0]?.name,
       });
     }
 
@@ -464,7 +729,7 @@ export default function CalendarPage() {
       weeks.push(allDays.slice(i, i + 7));
     }
     return weeks;
-  }, [grid, year, month, selectedDate, today, holidays, eventsByDay]);
+  }, [grid, year, month, selectedDate, today, holidaysByDay, eventsByDay]);
 
   const scrollToDate = useCallback((date: Date) => {
     const key = dayKey(date);
@@ -729,7 +994,14 @@ export default function CalendarPage() {
             : type === 'period'
               ? 'Every 28 days'
               : 'Does not repeat',
-        color: type === 'period' ? '#ec4899' : type === 'birthday' ? '#10b981' : '#3b82f6',
+        color:
+          type === 'period'
+            ? '#ec4899'
+            : type === 'birthday'
+              ? '#10b981'
+              : type === 'task'
+                ? '#f59e0b'
+                : '#3b82f6',
         accountEmail: currentUserEmail,
         notifications:
           type === 'birthday'
@@ -1044,7 +1316,7 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => setIsMonthExpanded((prev) => !prev)}
-            className="flex items-center gap-1 text-base font-bold text-white hover:text-[#3b82f6] transition-colors"
+            className="flex items-center gap-1.5 text-base font-bold text-white hover:text-[#3b82f6] transition-colors"
           >
             <span>{activeMonthName}</span>
             <svg
@@ -1069,16 +1341,7 @@ export default function CalendarPage() {
             className="size-8 inline-flex items-center justify-center rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors"
             aria-label="Toggle calendar view"
           >
-            <svg
-              className="size-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <rect x="3" y="4" width="18" height="18" rx="2" />
-              <path d="M3 10h18M8 2v4M16 2v4" />
-            </svg>
+            <IconCalendar className="size-4" />
           </button>
 
           <button
@@ -1102,7 +1365,7 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={goToday}
-            className="px-2 py-1 text-xs font-semibold rounded-md border border-zinc-700 bg-zinc-900 text-[#3b82f6] hover:bg-zinc-800 transition-colors"
+            className="px-2.5 py-1 text-xs font-semibold rounded-md border border-zinc-700 bg-zinc-900 text-[#3b82f6] hover:bg-zinc-800 transition-colors shadow-sm"
           >
             Today
           </button>
@@ -1188,7 +1451,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Outlook-Style Interactive Expandable Date Picker with 1:1 Direct Finger Physics */}
+        {/* Outlook-Style Interactive Expandable Date Picker with Pulsing Holiday & Event Indicators */}
         <div
           className="border-b border-zinc-800 bg-[#161618] select-none overflow-hidden relative"
           style={{
@@ -1238,10 +1501,10 @@ export default function CalendarPage() {
                       key={d.key}
                       type="button"
                       onClick={() => selectDate(d.date)}
-                      className="flex items-center justify-center py-0.5 focus:outline-none"
+                      className="flex flex-col items-center justify-center py-0.5 focus:outline-none relative group"
                     >
                       <span
-                        className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                        className={`w-9 h-9 rounded-full flex flex-col items-center justify-center text-xs font-bold transition-all relative ${
                           d.isSelected
                             ? 'bg-[#3b82f6] text-white shadow-lg scale-105'
                             : d.isToday
@@ -1251,7 +1514,24 @@ export default function CalendarPage() {
                                 : 'text-zinc-500'
                         }`}
                       >
-                        {d.dayNum}
+                        <span>{d.dayNum}</span>
+
+                        {/* Holiday & Event Indicators / Pulsing Dot */}
+                        {d.hasHoliday && !d.isSelected && (
+                          <span
+                            title={d.holidayName || 'Holiday'}
+                            className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 ring-2 ring-[#161618] animate-pulse"
+                          />
+                        )}
+                        {d.hasPeriod && !d.isSelected && (
+                          <span
+                            title="Period log"
+                            className="absolute -bottom-0.5 size-1.5 rounded-full bg-rose-400"
+                          />
+                        )}
+                        {!d.hasPeriod && d.hasEvent && !d.isSelected && !d.hasHoliday && (
+                          <span className="absolute -bottom-0.5 size-1 rounded-full bg-[#3b82f6]" />
+                        )}
                       </span>
                     </button>
                   ))}
@@ -1268,10 +1548,10 @@ export default function CalendarPage() {
                           key={d.key}
                           type="button"
                           onClick={() => selectDate(d.date)}
-                          className="flex items-center justify-center py-0.5 focus:outline-none"
+                          className="flex flex-col items-center justify-center py-0.5 focus:outline-none relative"
                         >
                           <span
-                            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all relative ${
                               d.isSelected
                                 ? 'bg-[#3b82f6] text-white font-bold shadow-md scale-105'
                                 : d.isToday
@@ -1281,7 +1561,16 @@ export default function CalendarPage() {
                                     : 'text-zinc-600'
                             }`}
                           >
-                            {d.dayNum}
+                            <span>{d.dayNum}</span>
+                            {d.hasHolidays && !d.isSelected && (
+                              <span
+                                title={d.holidayName || 'Holiday'}
+                                className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 ring-2 ring-[#161618] animate-pulse"
+                              />
+                            )}
+                            {d.hasPeriod && !d.isSelected && (
+                              <span className="absolute -bottom-0.5 size-1.5 rounded-full bg-rose-400" />
+                            )}
                           </span>
                         </button>
                       ))}
@@ -1389,18 +1678,21 @@ export default function CalendarPage() {
                       {item.holidays.map((h, hi) => (
                         <div
                           key={hi}
-                          className="flex items-center justify-between px-3.5 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-950/25 text-xs"
+                          className="flex items-center justify-between px-3.5 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-950/25 text-xs shadow-sm"
                         >
-                          <div className="flex items-center gap-2">
-                            <span>🇮🇳</span>
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-base">🇮🇳</span>
                             <div>
-                              <span className="font-bold text-emerald-300">{h.name}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-emerald-300">{h.name}</span>
+                                <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
+                              </div>
                               {h.description && (
                                 <p className="text-[10px] text-zinc-400">{h.description}</p>
                               )}
                             </div>
                           </div>
-                          <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+                          <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">
                             Holiday
                           </span>
                         </div>
@@ -1428,14 +1720,14 @@ export default function CalendarPage() {
                                       type: 'success',
                                     });
                                   }}
-                                  className="size-4 rounded border border-zinc-500 hover:border-[#3b82f6] mt-0.5 flex items-center justify-center text-[10px] text-transparent hover:text-white"
+                                  className="size-4 rounded border border-amber-500 hover:border-amber-400 mt-0.5 flex items-center justify-center text-[10px] text-transparent hover:text-white bg-amber-500/10"
                                 >
                                   ✓
                                 </button>
                               ) : isBirthday ? (
-                                <span className="text-sm">🎂</span>
+                                <IconCake className="size-4 text-emerald-400 mt-0.5 shrink-0" />
                               ) : isPeriod ? (
-                                <span className="text-sm">🌸</span>
+                                <IconFlower className="size-4 text-rose-400 mt-0.5 shrink-0" />
                               ) : (
                                 <span className="size-2.5 rounded-full mt-1.5 shrink-0 bg-[#3b82f6]" />
                               )}
@@ -1451,6 +1743,11 @@ export default function CalendarPage() {
                                   {isBirthday && (
                                     <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-semibold">
                                       Birthday
+                                    </span>
+                                  )}
+                                  {isTask && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-semibold">
+                                      Task
                                     </span>
                                   )}
                                 </div>
@@ -1537,36 +1834,36 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('birthday')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1e293b] hover:bg-[#334155] text-white text-xs font-bold shadow-xl border border-zinc-700/60 active:scale-95 transition-all"
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-[#132d22] hover:bg-[#1a3d2e] text-emerald-300 text-xs font-bold shadow-xl border border-emerald-500/40 active:scale-95 transition-all"
                 >
-                  <span className="text-sm">🎂</span>
+                  <IconCake className="size-4 text-emerald-400" />
                   <span>Birthday</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('task')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1e293b] hover:bg-[#334155] text-white text-xs font-bold shadow-xl border border-zinc-700/60 active:scale-95 transition-all"
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-[#2b2210] hover:bg-[#3d3016] text-amber-300 text-xs font-bold shadow-xl border border-amber-500/40 active:scale-95 transition-all"
                 >
-                  <span className="text-sm">🎯</span>
+                  <IconTarget className="size-4 text-amber-400" />
                   <span>Task</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('period')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-rose-950/90 hover:bg-rose-900 text-rose-200 text-xs font-bold shadow-xl border border-rose-500/40 active:scale-95 transition-all"
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-rose-950/95 hover:bg-rose-900 text-rose-200 text-xs font-bold shadow-xl border border-rose-500/50 active:scale-95 transition-all"
                 >
-                  <span className="text-sm">🌸</span>
+                  <IconFlower className="size-4 text-rose-400" />
                   <span>Period Tracker</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('event')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-xs font-bold shadow-xl active:scale-95 transition-all"
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-[#172554] hover:bg-[#1e3a8a] text-blue-200 text-xs font-bold shadow-xl border border-blue-500/50 active:scale-95 transition-all"
                 >
-                  <span className="text-sm">📅</span>
+                  <IconCalendar className="size-4 text-blue-400" />
                   <span>Event</span>
                 </button>
               </motion.div>
@@ -1634,7 +1931,7 @@ export default function CalendarPage() {
                     }`}
                   />
 
-                  {/* Header Bar: ✕ on Left, Date in Center, Save on Right */}
+                  {/* Header Bar: ✕ on Left, Title in Center, Save on Right */}
                   <div className="flex items-center justify-between pb-1">
                     <div className="flex items-center gap-2">
                       <button
@@ -1645,11 +1942,24 @@ export default function CalendarPage() {
                         ✕
                       </button>
                       <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                        {activeSheetType === 'event' && <span>📅 New Event</span>}
-                        {activeSheetType === 'task' && <span>🎯 New Task</span>}
-                        {activeSheetType === 'birthday' && <span>🎂 New Birthday</span>}
+                        {activeSheetType === 'event' && (
+                          <span className="flex items-center gap-1.5 text-blue-300">
+                            <IconCalendar className="size-4 text-blue-400" /> New Event
+                          </span>
+                        )}
+                        {activeSheetType === 'task' && (
+                          <span className="flex items-center gap-1.5 text-amber-300">
+                            <IconTarget className="size-4 text-amber-400" /> New Task
+                          </span>
+                        )}
+                        {activeSheetType === 'birthday' && (
+                          <span className="flex items-center gap-1.5 text-emerald-300">
+                            <IconCake className="size-4 text-emerald-400" /> New Birthday
+                          </span>
+                        )}
                         {activeSheetType === 'period' && (
-                          <span className="text-rose-300">
+                          <span className="flex items-center gap-1.5 text-rose-300">
+                            <IconFlower className="size-4 text-rose-400" />
                             Today:{' '}
                             {new Date(formState.startDate).toLocaleDateString('en-GB', {
                               day: 'numeric',
@@ -1666,8 +1976,12 @@ export default function CalendarPage() {
                       onClick={() => void handleSaveEntry()}
                       className={`px-5 py-1.5 rounded-full text-white font-bold text-xs shadow-md transition-all active:scale-95 ${
                         activeSheetType === 'period'
-                          ? 'bg-rose-600 hover:bg-rose-500'
-                          : 'bg-[#3b82f6] hover:bg-[#2563eb]'
+                          ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-900/50'
+                          : activeSheetType === 'task'
+                            ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/50'
+                            : activeSheetType === 'birthday'
+                              ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/50'
+                              : 'bg-[#3b82f6] hover:bg-[#2563eb] shadow-blue-900/50'
                       }`}
                     >
                       Save
@@ -1679,9 +1993,9 @@ export default function CalendarPage() {
                     <div className="flex items-center justify-around pt-1 pb-1 text-xs">
                       {(
                         [
-                          { key: 'track', label: '＋ Track', icon: '📝' },
-                          { key: 'cycle', label: '⭕ Cycle Dial', icon: '⭕' },
-                          { key: 'insights', label: '📊 Insights', icon: '📊' },
+                          { key: 'track', label: 'Track', icon: '📝' },
+                          { key: 'cycle', label: 'Cycle Dial', icon: '⭕' },
+                          { key: 'insights', label: 'Insights', icon: '📊' },
                         ] as const
                       ).map((tab) => (
                         <button
@@ -1728,7 +2042,7 @@ export default function CalendarPage() {
 
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2.5 text-zinc-300">
-                          <span className="text-base">🕒</span>
+                          <IconClock className="size-4 text-blue-400" />
                           <span className="font-medium">All-day</span>
                         </div>
                         <button
@@ -1796,7 +2110,7 @@ export default function CalendarPage() {
                         className="w-full flex items-center justify-between text-left text-zinc-300 hover:text-white py-2 border-b border-zinc-800/60"
                       >
                         <div className="flex items-center gap-2.5">
-                          <span className="text-base">🌐</span>
+                          <IconGlobe className="size-4 text-cyan-400" />
                           <span>
                             {TIMEZONES.find((tz) => tz.value === formState.timezone)?.label ||
                               'India Standard Time (IST)'}
@@ -1811,7 +2125,7 @@ export default function CalendarPage() {
                         className="w-full flex items-center justify-between text-left text-zinc-300 hover:text-white py-2 border-b border-zinc-800/60"
                       >
                         <div className="flex items-center gap-2.5">
-                          <span className="text-base">🔁</span>
+                          <IconRepeat className="size-4 text-amber-400" />
                           <span>{formState.recurrence}</span>
                         </div>
                         <span className="text-zinc-500 text-xs">›</span>
@@ -1819,7 +2133,7 @@ export default function CalendarPage() {
 
                       <div className="py-2 border-b border-zinc-800/60 space-y-2">
                         <div className="flex items-center gap-2.5 text-zinc-300">
-                          <span className="text-base">👥</span>
+                          <IconUsers className="size-4 text-indigo-400" />
                           <input
                             type="email"
                             placeholder="Add guests (type email & enter)"
@@ -1854,7 +2168,7 @@ export default function CalendarPage() {
 
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2.5 text-zinc-300">
-                          <span className="text-base">🎥</span>
+                          <IconVideo className="size-4 text-blue-400" />
                           <button
                             type="button"
                             onClick={handleAddMeetLink}
@@ -1867,7 +2181,7 @@ export default function CalendarPage() {
 
                       <div className="py-2 border-b border-zinc-800/60 space-y-1.5">
                         <div className="flex items-center gap-2.5 text-zinc-300">
-                          <span className="text-base">📍</span>
+                          <IconMapPin className="size-4 text-rose-400" />
                           <input
                             type="text"
                             placeholder="Add location or QuantChat room"
@@ -1897,7 +2211,7 @@ export default function CalendarPage() {
                       <div className="py-2 border-b border-zinc-800/60 space-y-2">
                         <div className="flex items-center justify-between text-zinc-300">
                           <div className="flex items-center gap-2.5">
-                            <span className="text-base">🔔</span>
+                            <IconBell className="size-4 text-amber-400" />
                             <span>Notifications</span>
                           </div>
                           <button
@@ -1942,7 +2256,7 @@ export default function CalendarPage() {
 
                       <div className="py-2 space-y-1.5 text-zinc-300">
                         <div className="flex items-center gap-2.5">
-                          <span className="text-base">📎</span>
+                          <IconPaperclip className="size-4 text-zinc-400" />
                           <input
                             type="text"
                             placeholder="Attach QuantDrive file URL or link"
@@ -1966,7 +2280,7 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add task title"
-                          className="w-full bg-transparent text-xl font-medium text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-[#3b82f6]"
+                          className="w-full bg-transparent text-xl font-medium text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-amber-500"
                           autoFocus
                         />
                       </div>
@@ -1976,9 +2290,21 @@ export default function CalendarPage() {
                         <div className="flex items-center gap-1.5">
                           {(
                             [
-                              { key: 'low', label: '🟢 Low' },
-                              { key: 'medium', label: '🟡 Medium' },
-                              { key: 'urgent', label: '🔴 Urgent' },
+                              {
+                                key: 'low',
+                                label: 'Low',
+                                color: 'text-emerald-400 border-emerald-500/40 bg-emerald-950/40',
+                              },
+                              {
+                                key: 'medium',
+                                label: 'Medium',
+                                color: 'text-amber-400 border-amber-500/40 bg-amber-950/40',
+                              },
+                              {
+                                key: 'urgent',
+                                label: 'Urgent',
+                                color: 'text-rose-400 border-rose-500/40 bg-rose-950/40',
+                              },
                             ] as const
                           ).map((p) => (
                             <button
@@ -1987,7 +2313,7 @@ export default function CalendarPage() {
                               onClick={() => setFormState({ ...formState, priority: p.key })}
                               className={`px-3 py-1 rounded-xl text-[11px] font-bold border transition-all ${
                                 formState.priority === p.key
-                                  ? 'bg-[#3b82f6]/30 border-[#3b82f6] text-white'
+                                  ? `${p.color} ring-1 ring-white/20 font-extrabold scale-105 shadow-md`
                                   : 'bg-zinc-900 border-zinc-800 text-zinc-400'
                               }`}
                             >
@@ -1999,7 +2325,7 @@ export default function CalendarPage() {
 
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2 text-zinc-300">
-                          <span>📅</span>
+                          <IconCalendar className="size-4 text-amber-400" />
                           <span>Due Date</span>
                         </div>
                         <input
@@ -2068,14 +2394,14 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add person's name (e.g. Rahul's Birthday)"
-                          className="w-full bg-transparent text-xl font-medium text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-[#3b82f6]"
+                          className="w-full bg-transparent text-xl font-medium text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-emerald-500"
                           autoFocus
                         />
                       </div>
 
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2 text-zinc-300">
-                          <span>🎂</span>
+                          <IconCake className="size-4 text-emerald-400" />
                           <span>Birthday Date</span>
                         </div>
                         <input
@@ -2090,7 +2416,7 @@ export default function CalendarPage() {
 
                       <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
                         <div className="flex items-center gap-2 text-zinc-300">
-                          <span>📅</span>
+                          <IconCalendar className="size-4 text-emerald-400" />
                           <span>Birth Year (Optional)</span>
                         </div>
                         <input
@@ -2149,7 +2475,7 @@ export default function CalendarPage() {
                                       endDate: toDateInput(d.date),
                                     }));
                                   }}
-                                  className={`py-1.5 rounded-lg flex flex-col items-center justify-center transition-all ${
+                                  className={`py-1.5 rounded-lg flex flex-col items-center justify-center transition-all relative ${
                                     formState.startDate === d.key
                                       ? 'border-2 border-cyan-400 bg-rose-950/60 text-white font-bold scale-105 shadow-md'
                                       : 'bg-zinc-950 text-zinc-400 hover:bg-zinc-800'
@@ -2157,6 +2483,9 @@ export default function CalendarPage() {
                                 >
                                   <span className="text-[9px]">{d.dayLetter}</span>
                                   <span className="text-xs">{d.dayNum}</span>
+                                  {d.hasHoliday && (
+                                    <span className="absolute top-1 right-1 size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                  )}
                                 </button>
                               ))}
                             </div>
@@ -2164,8 +2493,8 @@ export default function CalendarPage() {
 
                           {/* 1. PERIOD FLOW */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1">
-                              <span>🩸</span> Period Flow
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <IconDrop className="size-3.5 text-rose-500" /> Period Flow
                             </span>
                             <div className="grid grid-cols-4 gap-2">
                               {(
@@ -2199,8 +2528,11 @@ export default function CalendarPage() {
 
                           {/* 2. COLLECTION METHOD */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1">
-                              <span>🛡️</span> Collection Method
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span className="size-3.5 rounded-full bg-rose-500/30 flex items-center justify-center text-[10px]">
+                                🛡️
+                              </span>{' '}
+                              Collection Method
                             </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_COLLECTION_METHODS.map((cm) => (
@@ -2227,8 +2559,8 @@ export default function CalendarPage() {
 
                           {/* 3. SPOTTING */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1">
-                              <span>🌸</span> Spotting
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <IconFlower className="size-3.5 text-rose-400" /> Spotting
                             </span>
                             <div className="grid grid-cols-2 gap-2.5">
                               {(
@@ -2258,8 +2590,11 @@ export default function CalendarPage() {
 
                           {/* 4. FEELINGS / MOOD */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1">
-                              <span>🧡</span> Feelings & Mood
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span className="size-3.5 rounded-full bg-orange-500/30 flex items-center justify-center text-[10px]">
+                                🧡
+                              </span>{' '}
+                              Feelings & Mood
                             </span>
                             <div className="grid grid-cols-3 gap-2">
                               {CLUE_FEELINGS.map((f) => {
@@ -2275,7 +2610,7 @@ export default function CalendarPage() {
                                         : 'bg-[#1e1e24] border-orange-500/20 text-orange-300 hover:bg-[#25252e]'
                                     }`}
                                   >
-                                    <span className="text-lg">{f.icon}</span>
+                                    <span className="text-lg">{f.symbol}</span>
                                     <span className="text-[10px] mt-1 text-center font-semibold leading-tight">
                                       {f.label}
                                     </span>
@@ -2287,8 +2622,11 @@ export default function CalendarPage() {
 
                           {/* 5. PAIN & SYMPTOMS */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1">
-                              <span>💙</span> Pain & Physical Symptoms
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span className="size-3.5 rounded-full bg-blue-500/30 flex items-center justify-center text-[10px]">
+                                💙
+                              </span>{' '}
+                              Pain & Physical Symptoms
                             </span>
                             <div className="grid grid-cols-3 gap-2">
                               {CLUE_PAIN.map((p) => {
@@ -2304,7 +2642,7 @@ export default function CalendarPage() {
                                         : 'bg-[#1e1e24] border-blue-500/20 text-blue-300 hover:bg-[#25252e]'
                                     }`}
                                   >
-                                    <span className="text-lg">{p.icon}</span>
+                                    <span className="text-lg">{p.symbol}</span>
                                     <span className="text-[10px] mt-1 text-center font-semibold leading-tight">
                                       {p.label}
                                     </span>
@@ -2316,8 +2654,11 @@ export default function CalendarPage() {
 
                           {/* 6. VULVA & INTIMATE HEALTH */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1">
-                              <span>💧</span> Vulva & Vagina
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span className="size-3.5 rounded-full bg-blue-500/30 flex items-center justify-center text-[10px]">
+                                💧
+                              </span>{' '}
+                              Vulva & Vagina
                             </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_INTIMATE.map((intm) => (
@@ -2333,7 +2674,7 @@ export default function CalendarPage() {
                                       : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
                                   }`}
                                 >
-                                  <span className="text-base">{intm.icon}</span>
+                                  <span className="text-base">{intm.symbol}</span>
                                   <span className="text-[9px] mt-0.5 font-medium text-center leading-tight">
                                     {intm.label}
                                   </span>
@@ -2344,8 +2685,11 @@ export default function CalendarPage() {
 
                           {/* 7. HOT FLASHES */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1">
-                              <span>🔥</span> Hot Flashes
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span className="size-3.5 rounded-full bg-amber-500/30 flex items-center justify-center text-[10px]">
+                                🔥
+                              </span>{' '}
+                              Hot Flashes
                             </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_HOT_FLASHES.map((hf) => (
@@ -2361,7 +2705,7 @@ export default function CalendarPage() {
                                       : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
                                   }`}
                                 >
-                                  <span className="text-base">{hf.icon}</span>
+                                  <span className="text-base">{hf.symbol}</span>
                                   <span className="text-[10px] mt-0.5 font-medium">{hf.label}</span>
                                 </button>
                               ))}
@@ -2391,8 +2735,11 @@ export default function CalendarPage() {
 
                           {/* 9. SLEEP QUALITY */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1">
-                              <span>😴</span> Sleep Quality
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span className="size-3.5 rounded-full bg-amber-500/30 flex items-center justify-center text-[10px]">
+                                😴
+                              </span>{' '}
+                              Sleep Quality
                             </span>
                             <div className="grid grid-cols-2 gap-2">
                               {CLUE_SLEEP.map((sl) => (
@@ -2406,7 +2753,7 @@ export default function CalendarPage() {
                                       : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
                                   }`}
                                 >
-                                  <span>{sl.icon}</span>
+                                  <span>{sl.symbol}</span>
                                   <span className="text-[10px] font-medium leading-tight">
                                     {sl.label}
                                   </span>
@@ -2417,8 +2764,11 @@ export default function CalendarPage() {
 
                           {/* 10. SEX LIFE */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1">
-                              <span>💚</span> Sex Life & Protection
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span className="size-3.5 rounded-full bg-emerald-500/30 flex items-center justify-center text-[10px]">
+                                💚
+                              </span>{' '}
+                              Sex Life & Protection
                             </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_SEX_LIFE.map((sx) => (
@@ -2432,7 +2782,7 @@ export default function CalendarPage() {
                                       : 'bg-[#1e1e24] border-emerald-500/20 text-emerald-300 hover:bg-[#25252e]'
                                   }`}
                                 >
-                                  <span className="text-base">{sx.icon}</span>
+                                  <span className="text-base">{sx.symbol}</span>
                                   <span className="text-[9px] mt-0.5 font-semibold text-center leading-tight">
                                     {sx.label}
                                   </span>
@@ -2443,8 +2793,11 @@ export default function CalendarPage() {
 
                           {/* 11. ENERGY LEVEL */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-white flex items-center gap-1">
-                              <span>🏃</span> Energy Level
+                            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span className="size-3.5 rounded-full bg-amber-500/30 flex items-center justify-center text-[10px]">
+                                🏃
+                              </span>{' '}
+                              Energy Level
                             </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_ENERGY.map((en) => (
@@ -2458,7 +2811,7 @@ export default function CalendarPage() {
                                       : 'bg-[#1e1e24] border-amber-500/20 text-amber-300 hover:bg-[#25252e]'
                                   }`}
                                 >
-                                  <span className="text-base">{en.icon}</span>
+                                  <span className="text-base">{en.symbol}</span>
                                   <span className="text-[10px] mt-0.5 font-semibold text-center">
                                     {en.label}
                                   </span>
@@ -2866,7 +3219,7 @@ export default function CalendarPage() {
           >
             <div className="space-y-3 text-xs text-zinc-300">
               <div className="flex items-center gap-2 text-white font-semibold">
-                <span>🕒</span>
+                <IconClock className="size-4 text-blue-400" />
                 <span>
                   {selectedEvent.allDay
                     ? 'All Day Entry'
@@ -2876,7 +3229,17 @@ export default function CalendarPage() {
 
               {selectedEvent.type && (
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-[#3b82f6]/20 text-[#3b82f6]">
+                  <span
+                    className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-md ${
+                      selectedEvent.type === 'period'
+                        ? 'bg-rose-500/20 text-rose-300'
+                        : selectedEvent.type === 'task'
+                          ? 'bg-amber-500/20 text-amber-300'
+                          : selectedEvent.type === 'birthday'
+                            ? 'bg-emerald-500/20 text-emerald-300'
+                            : 'bg-blue-500/20 text-blue-300'
+                    }`}
+                  >
                     {selectedEvent.type}
                   </span>
                   {selectedEvent.flowIntensity && (
@@ -2889,7 +3252,7 @@ export default function CalendarPage() {
 
               {selectedEvent.location && (
                 <div className="flex items-center gap-2">
-                  <span>📍</span>
+                  <IconMapPin className="size-4 text-rose-400" />
                   {selectedEvent.location.includes('meet.quantrinity.in') ? (
                     <a
                       href={selectedEvent.location}
