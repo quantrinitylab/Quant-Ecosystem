@@ -24,18 +24,25 @@ const focusableSelector =
 
 const PIN_STORAGE_KEY = 'quant.shell.sidebarPinned';
 
-/* Mobile bottom navigation — ONLY visible on mobile screens (md:hidden) */
+/* Mobile bottom navigation — ONLY visible on mobile screens (md:hidden) — 100% SVG Vector Engine */
 const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNode }> = [
   {
     id: 'mail',
     label: 'Mail',
     path: '/',
     icon: (
-      <img
-        src="/quantmail-logo.png"
-        alt="QuantMail"
-        className="size-6 object-contain rounded-md drop-shadow-[0_2px_8px_rgba(255,153,51,0.5)] transition-transform"
-      />
+      <svg
+        className="size-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="2" y="4" width="20" height="16" rx="2" />
+        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+      </svg>
     ),
   },
   {
@@ -43,11 +50,18 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
     label: 'Calendar',
     path: '/calendar',
     icon: (
-      <img
-        src="/quant-calendar-logo.png"
-        alt="Calendar"
-        className="size-6 object-contain rounded-md drop-shadow-[0_2px_8px_rgba(255,153,51,0.5)] transition-transform"
-      />
+      <svg
+        className="size-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path d="M16 2v4M8 2v4M3 10h18" />
+      </svg>
     ),
   },
   {
@@ -55,11 +69,17 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
     label: 'Drive',
     path: '/drive',
     icon: (
-      <img
-        src="/quant-drive-logo.png"
-        alt="Drive"
-        className="size-6 object-contain rounded-md drop-shadow-[0_2px_8px_rgba(255,153,51,0.5)] transition-transform"
-      />
+      <svg
+        className="size-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+      </svg>
     ),
   },
   {
@@ -73,6 +93,8 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
         fill="none"
         stroke="currentColor"
         strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       >
         <circle cx="9" cy="8" r="3" />
         <path d="M3 20c0-4 2-6 6-6s6 2 6 6M16 7a3 3 0 0 1 0 6M17 14c2.7.4 4 2.4 4 5" />
@@ -90,6 +112,8 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
         fill="none"
         stroke="currentColor"
         strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       >
         <path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14" />
       </svg>
@@ -387,21 +411,48 @@ export function AppShell({
               </button>
 
               <div
-                className="flex items-center cursor-pointer select-none"
+                className="flex items-center gap-2.5 cursor-pointer select-none"
                 onClick={() => router.push(pathname.startsWith('/drive') ? '/drive' : '/')}
                 title={pathname.startsWith('/drive') ? 'QuantDrive' : 'QuantMail'}
               >
                 {pathname.startsWith('/drive') ? (
-                  <img
-                    src="/quant-drive-logo.png"
-                    alt="QuantDrive"
-                    width={32}
-                    height={32}
-                    className="size-8 object-contain rounded-lg drop-shadow-[0_4px_12px_rgba(255,153,51,0.45)] transition-transform hover:scale-105"
-                  />
+                  <div className="size-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-[#FF7A00]">
+                    <svg
+                      className="size-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+                    </svg>
+                  </div>
                 ) : (
                   <QuantMailLogo size={32} />
                 )}
+                <span className="font-semibold tracking-tight text-sm text-[#F4F5F7]">
+                  {pathname.startsWith('/drive') ? (
+                    <>
+                      Quant<span className="text-[#FF7A00]">Drive</span>
+                    </>
+                  ) : pathname.startsWith('/calendar') ? (
+                    <>
+                      Quant<span className="text-[#FF7A00]">Calendar</span>
+                    </>
+                  ) : pathname.startsWith('/contacts') ? (
+                    <>
+                      Quant<span className="text-[#FF7A00]">People</span>
+                    </>
+                  ) : pathname.startsWith('/codehub') ? (
+                    <>
+                      Quant<span className="text-[#FF7A00]">CodeHub</span>
+                    </>
+                  ) : (
+                    <>
+                      Quant<span className="text-[#FF7A00]">Mail</span>
+                    </>
+                  )}
+                </span>
               </div>
             </div>
 
@@ -412,7 +463,7 @@ export function AppShell({
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('quant:command-palette:open'));
                 }}
-                className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-400 hover:border-[#ff9933]/50 hover:text-zinc-200 transition-all shadow-inner"
+                className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-400 hover:border-[#FF7A00]/50 hover:text-zinc-200 transition-all shadow-inner"
               >
                 <div className="flex items-center gap-2.5">
                   <svg
@@ -448,26 +499,30 @@ export function AppShell({
         </main>
       </div>
 
-      {/* Floating Action Button (FAB) — only on mobile, excluding dedicated pages like calendar */}
-      {!pathname.startsWith('/calendar') && (
-        <button
-          type="button"
-          onClick={handleFabClick}
-          className="fixed bottom-20 right-4 md:hidden z-40 size-14 rounded-full bg-gradient-to-r from-[#ff9933] to-[#ffaa4d] text-[#191008] font-bold shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#ff9933]/40"
-          aria-label="Create new item"
-        >
-          <svg
-            className="size-6"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
+      {/* Floating Action Button (FAB) — Intelligent visibility (hidden on compose, reading view, settings, and drawer open) */}
+      {!isSidebarOpen &&
+        !pathname.startsWith('/compose') &&
+        !pathname.startsWith('/calendar') &&
+        !pathname.startsWith('/thread') &&
+        !pathname.includes('/settings') && (
+          <button
+            type="button"
+            onClick={handleFabClick}
+            className="fixed bottom-20 right-4 md:hidden z-40 size-14 rounded-full bg-[#FF7A00] text-[#090A0C] font-bold shadow-[0_4px_16px_rgba(255,122,0,0.35)] flex items-center justify-center hover:bg-[#FFA800] active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#FF7A00]/40"
+            aria-label="Create new item"
           >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
-      )}
+            <svg
+              className="size-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
+        )}
 
       {/* Mobile Bottom Navigation — strictly md:hidden */}
       <MobileBottomNav />

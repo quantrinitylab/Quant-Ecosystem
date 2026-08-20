@@ -52,11 +52,10 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   calendar: (
-    <img
-      src="/quant-calendar-logo.png"
-      alt="Calendar"
-      className="size-6 object-contain rounded drop-shadow-[0_2px_6px_rgba(255,153,51,0.4)]"
-    />
+    <>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </>
   ),
   chevron: <path d="m9 18 6-6-6-6" />,
   clock: (
@@ -89,11 +88,9 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   drive: (
-    <img
-      src="/quant-drive-logo.png"
-      alt="Drive"
-      className="size-6 object-contain rounded drop-shadow-[0_2px_6px_rgba(255,153,51,0.4)]"
-    />
+    <>
+      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+    </>
   ),
   inbox: (
     <>
@@ -356,21 +353,28 @@ export function AppSidebar() {
 
   return (
     <nav className="quant-sidebar" aria-label="QuantMail navigation">
-      <header className="sidebar-brand">
-        <QuantMailLogo />
-        <NotificationBell />
-        <span
-          className="sidebar-live-dot"
-          title="All systems operational"
-          aria-label="All systems operational"
-        />
+      <header className="sidebar-brand flex items-center justify-between px-3 py-3 border-b border-[var(--quant-border-subtle)]">
+        <div className="flex items-center gap-2">
+          <QuantMailLogo size={28} />
+          <span className="font-semibold text-sm tracking-tight text-[#F4F5F7]">
+            Quant<span className="text-[#FF7A00]">Mail</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <NotificationBell />
+          <span
+            className="size-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+            title="All systems operational"
+            aria-label="All systems operational"
+          />
+        </div>
       </header>
 
       <div className="sidebar-compose-wrap">
         <button type="button" onClick={() => router.push('/compose')} className="sidebar-compose">
           <Icon name="compose" className="h-[18px] w-[18px]" />
           <span>New message</span>
-          <kbd>C</kbd>
+          <kbd className="hidden md:inline-flex">C</kbd>
         </button>
       </div>
 

@@ -167,12 +167,13 @@ function EmailRow({
     if (info.offset.x < -96) void onArchive();
   };
 
+  const priorityLower = email.priority?.toLowerCase();
+  const isHighPriority =
+    priorityLower === 'high' || priorityLower === 'urgent' || priorityLower === 'critical';
   const priorityColor =
-    email.priority === 'high'
-      ? 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-      : email.priority === 'low'
-        ? 'bg-zinc-800 text-zinc-400 border-zinc-700/40'
-        : 'bg-amber-500/10 text-amber-300/80 border-amber-500/20';
+    priorityLower === 'critical'
+      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+      : 'bg-amber-500/15 text-amber-300 border-amber-500/30';
 
   return (
     <div className="mail-row-shell">
@@ -209,11 +210,11 @@ function EmailRow({
           <div className="mail-row-meta">
             <strong>{email.from?.name || email.from?.email}</strong>
             {!email.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
-            {email.priority && email.priority !== 'normal' && (
+            {isHighPriority && (
               <span
                 className={`text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded border ${priorityColor}`}
               >
-                {email.priority}
+                {priorityLower}
               </span>
             )}
             <time>{formatReceivedAt(email.receivedAt)}</time>
