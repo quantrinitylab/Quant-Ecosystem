@@ -34,7 +34,7 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
       <img
         src="/quantmail-logo.png"
         alt="QuantMail"
-        className="size-5 object-contain rounded-md drop-shadow-[0_2px_8px_rgba(255,153,51,0.5)] transition-transform"
+        className="size-6 object-contain rounded-md drop-shadow-[0_2px_8px_rgba(255,153,51,0.5)] transition-transform"
       />
     ),
   },
@@ -46,7 +46,7 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
       <img
         src="/quant-calendar-logo.png"
         alt="Calendar"
-        className="size-5 object-contain rounded-md drop-shadow-[0_2px_8px_rgba(255,153,51,0.5)] transition-transform"
+        className="size-6 object-contain rounded-md drop-shadow-[0_2px_8px_rgba(255,153,51,0.5)] transition-transform"
       />
     ),
   },

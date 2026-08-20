@@ -55,7 +55,7 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
     <img
       src="/quant-calendar-logo.png"
       alt="Calendar"
-      className="size-5 object-contain rounded drop-shadow-[0_2px_6px_rgba(255,153,51,0.4)]"
+      className="size-6 object-contain rounded drop-shadow-[0_2px_6px_rgba(255,153,51,0.4)]"
     />
   ),
   chevron: <path d="m9 18 6-6-6-6" />,
