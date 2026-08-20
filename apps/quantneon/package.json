@@ -33,21 +33,21 @@
     "@quant/server-core": "workspace:*",
     "@quant/triton-client": "workspace:*",
     "@quant/shared-ui": "workspace:*",
-    "fastify": "^5.3.3",
-    "ioredis": "^5.6.1",
-    "next": "^15.5.16",
+    "fastify": "^5.12.0",
+    "ioredis": "^5.11.1",
+    "next": "^15.5.23",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@tanstack/react-query": "^5.60.0",
+    "@tanstack/react-query": "^5.101.4",
     "zod": "^3.25.23",
     "framer-motion": "^11.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.47",
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.26",
     "tailwindcss": "^3.4.13",
-    "vitest": "^4"
+    "vitest": "^3"
   }
 }

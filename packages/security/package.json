@@ -14,13 +14,13 @@
   "dependencies": {
     "zod": "^3.24.2",
     "@quant/common": "workspace:*",
-    "argon2": "^0.43.0",
+    "argon2": "^0.45.1",
     "pino": "^9.6.0",
-    "ioredis": "^5.6.1"
+    "ioredis": "^5.11.1"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "vitest": "^4",
-    "typescript": "~5.5.0"
+    "@types/node": "^22.20.1",
+    "vitest": "^3",
+    "typescript": "~5.9.3"
   }
 }

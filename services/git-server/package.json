@@ -16,12 +16,12 @@
     "@quant/auth": "workspace:*",
     "@quant/queue": "workspace:*",
     "@fastify/rate-limit": "^10.2.1",
-    "fastify": "^5.2.1",
+    "fastify": "^5.12.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "vitest": "^4",
-    "typescript": "~5.5.0"
+    "@types/node": "^22.20.1",
+    "vitest": "^3",
+    "typescript": "~5.9.3"
   }
 }
