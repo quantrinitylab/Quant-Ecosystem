@@ -127,8 +127,90 @@ function formatReceivedAt(value?: string | Date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+export interface ConversationThread {
+  id: string;
+  threadId: string;
+  subject: string;
+  normalizedSubject: string;
+  latestEmail: Email;
+  messages: Email[];
+  count: number;
+  sendersSummary: string;
+  isRead: boolean;
+  isStarred: boolean;
+  receivedAt: string | Date;
+  category: EmailCategory;
+  priority?: string;
+  labels: string[];
+}
+
+export function normalizeSubject(subject: string = ''): string {
+  return subject
+    .replace(/^(re|fwd|fw):\s*/i, '')
+    .replace(/^(re|fwd|fw)\[\d+\]:\s*/i, '')
+    .trim()
+    .toLowerCase();
+}
+
+export function groupEmailsIntoThreads(emails: Email[] = []): ConversationThread[] {
+  if (!emails || emails.length === 0) return [];
+
+  const threadMap = new Map<string, Email[]>();
+
+  for (const email of emails) {
+    const key =
+      email.threadId ||
+      (email.subject ? `subj:${normalizeSubject(email.subject)}` : `email:${email.id}`);
+    const existing = threadMap.get(key) || [];
+    existing.push(email);
+    threadMap.set(key, existing);
+  }
+
+  const threads: ConversationThread[] = [];
+
+  for (const [key, msgList] of threadMap.entries()) {
+    msgList.sort(
+      (a, b) =>
+        new Date(a.receivedAt || a.createdAt || 0).getTime() -
+        new Date(b.receivedAt || b.createdAt || 0).getTime(),
+    );
+
+    const latest = msgList[msgList.length - 1];
+    const isRead = msgList.every((m) => m.isRead);
+    const isStarred = msgList.some((m) => m.isStarred);
+
+    const senderNames: string[] = [];
+    for (const m of msgList) {
+      const name = m.from?.name || m.from?.email?.split('@')[0] || 'Unknown';
+      if (!senderNames.includes(name)) senderNames.push(name);
+    }
+    const sendersSummary = senderNames.join(', ');
+
+    threads.push({
+      id: latest.id,
+      threadId: latest.threadId || (key.startsWith('subj:') ? latest.id : key),
+      subject: latest.subject || '(no subject)',
+      normalizedSubject: normalizeSubject(latest.subject),
+      latestEmail: latest,
+      messages: msgList,
+      count: msgList.length,
+      sendersSummary,
+      isRead,
+      isStarred,
+      receivedAt: latest.receivedAt || latest.createdAt || new Date(),
+      category: latest.category || 'primary',
+      priority: latest.priority,
+      labels: Array.from(new Set(msgList.flatMap((m) => m.labels || []))),
+    });
+  }
+
+  threads.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+
+  return threads;
+}
+
 type EmailRowProps = {
-  email: Email;
+  thread: ConversationThread;
   isChecked: boolean;
   isActive: boolean;
   isFocused: boolean;
@@ -143,7 +225,7 @@ type EmailRowProps = {
 };
 
 function EmailRow({
-  email,
+  thread,
   isChecked,
   isActive,
   isFocused,
@@ -167,7 +249,8 @@ function EmailRow({
     if (info.offset.x < -96) void onArchive();
   };
 
-  const priorityLower = email.priority?.toLowerCase();
+  const email = thread.latestEmail;
+  const priorityLower = thread.priority?.toLowerCase();
   const isHighPriority =
     priorityLower === 'high' || priorityLower === 'urgent' || priorityLower === 'critical';
   const priorityColor =
@@ -193,7 +276,7 @@ function EmailRow({
         onDragEnd={handleDragEnd}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`mail-row ${email.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''}`}
+        className={`mail-row ${thread.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''}`}
         onClick={() => {
           if (!isDragging) onOpen();
         }}
@@ -203,13 +286,20 @@ function EmailRow({
           checked={isChecked}
           onChange={onToggleSelect}
           onClick={(event) => event.stopPropagation()}
-          aria-label={`Select email from ${email.from?.name || email.from?.email}`}
+          aria-label={`Select conversation with ${thread.sendersSummary}`}
         />
-        <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="sm" />
+        <IdentityAvatar name={thread.sendersSummary || '?'} size="sm" />
         <div className="mail-row-copy">
           <div className="mail-row-meta">
-            <strong>{email.from?.name || email.from?.email}</strong>
-            {!email.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
+            <div className="flex items-center gap-1.5 min-w-0">
+              <strong className="truncate text-zinc-100">{thread.sendersSummary}</strong>
+              {thread.count > 1 && (
+                <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-full bg-zinc-800 text-[#FF7A00] border border-zinc-700/80">
+                  {thread.count}
+                </span>
+              )}
+            </div>
+            {!thread.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
             {isHighPriority && (
               <span
                 className={`text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded border ${priorityColor}`}
@@ -217,17 +307,17 @@ function EmailRow({
                 {priorityLower}
               </span>
             )}
-            <time>{formatReceivedAt(email.receivedAt)}</time>
+            <time>{formatReceivedAt(thread.receivedAt)}</time>
           </div>
-          <h3>{email.subject || '(no subject)'}</h3>
+          <h3>{thread.subject || '(no subject)'}</h3>
           <p>{email.snippet}</p>
         </div>
         {/* Hover actions bar — quick actions on hover */}
         <AnimatePresence>
           {isHovered && !isDragging && (
             <HoverActions
-              emailId={email.id}
-              isRead={email.isRead}
+              emailId={thread.id}
+              isRead={thread.isRead}
               onArchive={onArchive}
               onDelete={onDelete}
               onMarkRead={onMarkRead}
@@ -561,43 +651,43 @@ export default function InboxPage() {
   }, [searchQuery]);
 
   const emails = debouncedQuery ? searchResults : allEmails;
-  const unreadCount = useMemo(
-    () => allEmails?.filter((email) => !email.isRead).length ?? 0,
-    [allEmails],
-  );
+  const allThreads = useMemo(() => groupEmailsIntoThreads(allEmails ?? []), [allEmails]);
+  const threads = useMemo(() => groupEmailsIntoThreads(emails ?? []), [emails]);
+
+  const unreadCount = useMemo(() => allThreads.filter((t) => !t.isRead).length, [allThreads]);
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<EmailCategory, number>> = {};
-    allEmails?.forEach((email) => {
-      if (!email.isRead) counts[email.category] = (counts[email.category] ?? 0) + 1;
+    allThreads.forEach((t) => {
+      if (!t.isRead) counts[t.category] = (counts[t.category] ?? 0) + 1;
     });
     return counts;
-  }, [allEmails]);
+  }, [allThreads]);
 
   const toggleSelect = useCallback(
     (id: string, event?: React.MouseEvent) => {
       setSelectedIds((current) => {
         const next = new Set(current);
-        if (event?.shiftKey && emails && lastSelectedIndex.current >= 0) {
-          const currentIndex = emails.findIndex((e) => e.id === id);
+        if (event?.shiftKey && threads && lastSelectedIndex.current >= 0) {
+          const currentIndex = threads.findIndex((t) => t.id === id);
           if (currentIndex >= 0) {
             const start = Math.min(lastSelectedIndex.current, currentIndex);
             const end = Math.max(lastSelectedIndex.current, currentIndex);
             for (let i = start; i <= end; i++) {
-              next.add(emails[i].id);
+              next.add(threads[i].id);
             }
             return next;
           }
         }
         if (next.has(id)) next.delete(id);
         else next.add(id);
-        if (emails) {
-          const idx = emails.findIndex((e) => e.id === id);
+        if (threads) {
+          const idx = threads.findIndex((t) => t.id === id);
           if (idx >= 0) lastSelectedIndex.current = idx;
         }
         return next;
       });
     },
-    [emails],
+    [threads],
   );
 
   const batchAction = useCallback(
@@ -902,29 +992,29 @@ export default function InboxPage() {
               ) : (
                 <InboxZeroState />
               ))}
-            {!isLoading && !isSearching && !error && emails && emails.length > 0 && (
+            {!isLoading && !isSearching && !error && threads && threads.length > 0 && (
               <motion.div
                 initial="hidden"
                 animate="visible"
                 variants={{ visible: { transition: { staggerChildren: 0.025 } } }}
               >
-                {emails.map((email, index) => (
+                {threads.map((thread, index) => (
                   <motion.div
-                    key={email.id}
+                    key={thread.id}
                     variants={{ hidden: { opacity: 0, y: 5 }, visible: { opacity: 1, y: 0 } }}
                   >
                     <EmailRow
-                      email={email}
-                      isChecked={selectedIds.has(email.id)}
-                      isActive={selectedEmail?.id === email.id}
+                      thread={thread}
+                      isChecked={selectedIds.has(thread.id)}
+                      isActive={selectedEmail?.id === thread.id}
                       isFocused={focusedIndex === index}
-                      onToggleSelect={() => toggleSelect(email.id)}
-                      onToggleStar={(event) => void toggleStar(event, email.id)}
-                      onOpen={() => openEmail(email)}
-                      onArchive={() => void archiveEmail(email.id)}
-                      onDelete={() => void deleteEmail(email.id)}
-                      onMarkRead={() => void markRead(email.id)}
-                      onMarkUnread={() => void markUnread(email.id)}
+                      onToggleSelect={() => toggleSelect(thread.id)}
+                      onToggleStar={(event) => void toggleStar(event, thread.id)}
+                      onOpen={() => openEmail(thread.latestEmail)}
+                      onArchive={() => void archiveEmail(thread.id)}
+                      onDelete={() => void deleteEmail(thread.id)}
+                      onMarkRead={() => void markRead(thread.id)}
+                      onMarkUnread={() => void markUnread(thread.id)}
                       onSnooze={snoozeEmail}
                     />
                   </motion.div>
@@ -933,7 +1023,9 @@ export default function InboxPage() {
             )}
           </div>
           <footer className="inbox-list-footer">
-            <span>{emails?.length ?? 0} messages</span>
+            <span>
+              {threads?.length ?? 0} conversation{threads?.length === 1 ? '' : 's'}
+            </span>
             <span>Ecosystem connected · SES/DKIM active</span>
           </footer>
         </section>

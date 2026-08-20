@@ -7,6 +7,7 @@ import { useCreateLabel, useLabels } from '../hooks/useLabels';
 import { useInbox } from '../hooks/useInbox';
 import { NotificationBell } from './NotificationBell';
 import { QuantMailLogo } from './QuantMailLogo';
+import { BrandWordmark } from './BrandWordmark';
 import type { EmailLabel } from '../types';
 import { AccountBadge } from './AccountBadge';
 
@@ -198,7 +199,7 @@ const NAV_GROUPS: Array<{
   },
   {
     label: 'Code',
-    items: [{ id: 'codehub', label: 'CodeHub', icon: 'code', path: '/codehub' }],
+    items: [{ id: 'code', label: 'Code', icon: 'code', path: '/codehub' }],
   },
   {
     label: 'Control',
@@ -356,9 +357,7 @@ export function AppSidebar() {
       <header className="sidebar-brand flex items-center justify-between px-3 py-3 border-b border-[var(--quant-border-subtle)]">
         <div className="flex items-center gap-2">
           <QuantMailLogo size={28} />
-          <span className="font-semibold text-sm tracking-tight text-[#F4F5F7]">
-            Quant<span className="text-[#FF7A00]">Mail</span>
-          </span>
+          <BrandWordmark app="mail" size="text-sm" />
         </div>
         <div className="flex items-center gap-1.5">
           <NotificationBell />

@@ -1,22 +1,12 @@
 'use client';
 
-export type QuantMailLogoProps = {
-  /** Rendered square size in px. */
+export type QuantLogoProps = {
   size?: number;
-  /** Extra class names */
   className?: string;
-  /** Title / accessible label */
   title?: string;
 };
 
-/**
- * QuantMail official brand mark — Precision geometric SVG Envelope Vector Mark.
- */
-export function QuantMailLogo({
-  size = 32,
-  className = '',
-  title = 'QuantMail',
-}: QuantMailLogoProps) {
+export function QuantCodeLogo({ size = 32, className = '', title = 'QuantCode' }: QuantLogoProps) {
   return (
     <span
       className={`inline-flex items-center justify-center shrink-0 ${className}`}
@@ -35,7 +25,7 @@ export function QuantMailLogo({
       >
         <defs>
           <linearGradient
-            id="qm-brand-grad"
+            id="qcode-grad"
             x1="4"
             y1="4"
             x2="28"
@@ -46,25 +36,10 @@ export function QuantMailLogo({
             <stop offset="1" stopColor="#FFA800" />
           </linearGradient>
         </defs>
-
-        {/* Rounded dark background tile */}
         <rect width="32" height="32" rx="8" fill="#111318" stroke="#283042" strokeWidth="1" />
-
-        {/* Envelope Base Body */}
-        <rect
-          x="6.5"
-          y="8.5"
-          width="19"
-          height="15"
-          rx="2.5"
-          stroke="url(#qm-brand-grad)"
-          strokeWidth="1.8"
-        />
-
-        {/* Envelope Top V-Fold */}
         <path
-          d="M7 9.5L16 16.5L25 9.5"
-          stroke="url(#qm-brand-grad)"
+          d="M11 12L7 16L11 20M21 12L25 16L21 20M18 9L14 23"
+          stroke="url(#qcode-grad)"
           strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -74,4 +49,4 @@ export function QuantMailLogo({
   );
 }
 
-export default QuantMailLogo;
+export default QuantCodeLogo;

@@ -567,55 +567,47 @@ export default function CodeHubPage() {
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page codehub-workspace flex flex-col h-full overflow-hidden">
-        {/* Top bar — official Quant logo family mark (no more “CH” tile) */}
-        <header className="flex flex-wrap items-center gap-3 px-5 py-4 border-b border-[var(--quant-border)] bg-[color-mix(in_srgb,var(--quant-card)_86%,transparent)]">
-          <div className="flex items-center gap-3 min-w-0">
-            <QuantMailLogo size={36} title="QuantHub" />
-            <div className="min-w-0">
-              <h1 className="text-base font-semibold leading-tight">CodeHub</h1>
-              <p className="text-xs text-[var(--quant-muted-foreground)] truncate">
-                Repositories, pipelines and deployments — with Quanty at the helm
-              </p>
-            </div>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="w-64 max-w-[52vw]">
-              <SearchInput placeholder="Search repositories…" value={query} onChange={setQuery} />
-            </div>
-            <Button variant="primary" onClick={() => setShowCreate(true)}>
-              New repository
-            </Button>
-          </div>
-        </header>
-
         <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-0">
           {/* Main column */}
-          <section className="min-h-0 overflow-y-auto p-5">
+          <section className="min-h-0 overflow-y-auto p-4 sm:p-5">
             <QuantyBuildChat repoNames={repoNames} onNewRepo={() => setShowCreate(true)} />
             <AgentsStrip builds={builds} deployments={deployments} />
             <ConnectorsRow />
 
-            <div className="flex items-center gap-2 mb-4 mt-6 flex-wrap">
-              {VISIBILITY_FILTERS.map((option) => {
-                const active = visibility === option;
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => setVisibility(option)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium border transition-colors ${
-                      active
-                        ? 'border-[var(--quant-primary)] bg-[color-mix(in_srgb,var(--quant-primary)_18%,transparent)] text-[var(--quant-foreground)]'
-                        : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
-                    }`}
-                  >
-                    {option === 'all' ? 'All' : option.charAt(0).toUpperCase() + option.slice(1)}
-                  </button>
-                );
-              })}
-              <span className="ml-auto text-xs text-[var(--quant-muted-foreground)]">
-                {filtered.length} of {repos.length} repositories
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 mt-6">
+              <div className="flex items-center gap-2 flex-wrap">
+                {VISIBILITY_FILTERS.map((option) => {
+                  const active = visibility === option;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setVisibility(option)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium border transition-colors ${
+                        active
+                          ? 'border-[var(--quant-primary)] bg-[color-mix(in_srgb,var(--quant-primary)_18%,transparent)] text-[var(--quant-foreground)] font-bold'
+                          : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
+                      }`}
+                    >
+                      {option === 'all'
+                        ? 'All Repos'
+                        : option.charAt(0).toUpperCase() + option.slice(1)}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-2 flex-1 sm:flex-initial justify-end">
+                <span className="hidden sm:inline text-xs text-[var(--quant-muted-foreground)] mr-1">
+                  {filtered.length} of {repos.length} repos
+                </span>
+                <div className="w-48 sm:w-56">
+                  <SearchInput placeholder="Search repos…" value={query} onChange={setQuery} />
+                </div>
+                <Button variant="primary" onClick={() => setShowCreate(true)}>
+                  + New repository
+                </Button>
+              </div>
             </div>
 
             {isLoading && (

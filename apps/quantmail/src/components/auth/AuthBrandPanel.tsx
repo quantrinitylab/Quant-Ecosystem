@@ -1,4 +1,5 @@
-import { QuantrinityMark } from '../QuantrinityMark';
+import { QuantMailLogo } from '../QuantMailLogo';
+import { BrandWordmark } from '../BrandWordmark';
 import { quantMailAuthLockup } from './auth-brand-contract';
 
 interface AuthBrandPanelProps {
@@ -85,9 +86,9 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
 function BrandLockup({ compact = false }: { compact?: boolean }) {
   return (
     <div className="auth-brand-lockup" aria-label={quantMailAuthLockup.accessibleName}>
-      <QuantrinityMark compact={compact} label={quantMailAuthLockup.accessibleName} />
+      <QuantMailLogo size={compact ? 32 : 36} />
       <div aria-hidden="true">
-        <p>{quantMailAuthLockup.productName}</p>
+        <BrandWordmark app="mail" size={compact ? 'text-base' : 'text-lg'} />
         <span>{quantMailAuthLockup.byline}</span>
       </div>
     </div>

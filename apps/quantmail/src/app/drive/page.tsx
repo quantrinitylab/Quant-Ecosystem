@@ -271,32 +271,7 @@ export default function DrivePage() {
   const usedPct = Math.min(100, Math.round((usedBytes / totalBytes) * 100));
 
   return (
-    <AppShell
-      sidebar={<AppSidebar />}
-      theme="dark"
-      className="quantmail-shell"
-      mobileTitle={
-        <div className="flex items-center gap-2">
-          <img
-            src="/quant-drive-logo.png"
-            alt="Drive"
-            className="size-6 object-contain rounded drop-shadow-[0_2px_8px_rgba(255,153,51,0.5)]"
-          />
-          <span className="text-base font-black bg-gradient-to-r from-white via-orange-100 to-[#ff9933] bg-clip-text text-transparent">
-            Drive
-          </span>
-        </div>
-      }
-      mobileActions={
-        <button
-          type="button"
-          onClick={handleUploadTrigger}
-          className="px-3.5 py-1 text-xs font-black rounded-xl bg-gradient-to-r from-[#ff9933] to-[#fbbf24] text-black shadow-[0_0_12px_rgba(255,153,51,0.35)] active:scale-95 transition-all"
-        >
-          Upload
-        </button>
-      }
-    >
+    <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page drive-workspace flex flex-col h-full bg-[#0a0a0c]">
         <input
           ref={fileInputRef}

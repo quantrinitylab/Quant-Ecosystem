@@ -6,6 +6,11 @@ import { PageTransition } from '@quant/shared-ui';
 import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
 import { CommandPalette } from './CommandPalette';
 import { QuantMailLogo } from './QuantMailLogo';
+import { QuantCalendarLogo } from './QuantCalendarLogo';
+import { QuantDriveLogo } from './QuantDriveLogo';
+import { QuantContactsLogo } from './QuantContactsLogo';
+import { QuantCodeLogo } from './QuantCodeLogo';
+import { BrandWordmark } from './BrandWordmark';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -84,7 +89,7 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
   },
   {
     id: 'contacts',
-    label: 'People',
+    label: 'Contacts',
     path: '/contacts',
     icon: (
       <svg
@@ -102,8 +107,8 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
     ),
   },
   {
-    id: 'codehub',
-    label: 'CodeHub',
+    id: 'code',
+    label: 'Code',
     path: '/codehub',
     icon: (
       <svg
@@ -412,47 +417,51 @@ export function AppShell({
 
               <div
                 className="flex items-center gap-2.5 cursor-pointer select-none"
-                onClick={() => router.push(pathname.startsWith('/drive') ? '/drive' : '/')}
-                title={pathname.startsWith('/drive') ? 'QuantDrive' : 'QuantMail'}
+                onClick={() => {
+                  if (pathname.startsWith('/calendar')) router.push('/calendar');
+                  else if (pathname.startsWith('/drive')) router.push('/drive');
+                  else if (pathname.startsWith('/contacts')) router.push('/contacts');
+                  else if (pathname.startsWith('/codehub')) router.push('/codehub');
+                  else router.push('/');
+                }}
+                title={
+                  pathname.startsWith('/calendar')
+                    ? 'QuantCalendar'
+                    : pathname.startsWith('/drive')
+                      ? 'QuantDrive'
+                      : pathname.startsWith('/contacts')
+                        ? 'QuantContacts'
+                        : pathname.startsWith('/codehub')
+                          ? 'QuantCode'
+                          : 'QuantMail'
+                }
               >
-                {pathname.startsWith('/drive') ? (
-                  <div className="size-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-[#FF7A00]">
-                    <svg
-                      className="size-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                    >
-                      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
-                    </svg>
-                  </div>
+                {pathname.startsWith('/calendar') ? (
+                  <QuantCalendarLogo size={32} />
+                ) : pathname.startsWith('/drive') ? (
+                  <QuantDriveLogo size={32} />
+                ) : pathname.startsWith('/contacts') ? (
+                  <QuantContactsLogo size={32} />
+                ) : pathname.startsWith('/codehub') ? (
+                  <QuantCodeLogo size={32} />
                 ) : (
                   <QuantMailLogo size={32} />
                 )}
-                <span className="font-semibold tracking-tight text-sm text-[#F4F5F7]">
-                  {pathname.startsWith('/drive') ? (
-                    <>
-                      Quant<span className="text-[#FF7A00]">Drive</span>
-                    </>
-                  ) : pathname.startsWith('/calendar') ? (
-                    <>
-                      Quant<span className="text-[#FF7A00]">Calendar</span>
-                    </>
-                  ) : pathname.startsWith('/contacts') ? (
-                    <>
-                      Quant<span className="text-[#FF7A00]">People</span>
-                    </>
-                  ) : pathname.startsWith('/codehub') ? (
-                    <>
-                      Quant<span className="text-[#FF7A00]">CodeHub</span>
-                    </>
-                  ) : (
-                    <>
-                      Quant<span className="text-[#FF7A00]">Mail</span>
-                    </>
-                  )}
-                </span>
+
+                <BrandWordmark
+                  app={
+                    pathname.startsWith('/calendar')
+                      ? 'calendar'
+                      : pathname.startsWith('/drive')
+                        ? 'drive'
+                        : pathname.startsWith('/contacts')
+                          ? 'contacts'
+                          : pathname.startsWith('/codehub')
+                            ? 'code'
+                            : 'mail'
+                  }
+                  size="text-lg"
+                />
               </div>
             </div>
 

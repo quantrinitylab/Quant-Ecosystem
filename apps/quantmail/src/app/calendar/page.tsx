@@ -1428,18 +1428,16 @@ export default function CalendarPage() {
       sidebar={<AppSidebar />}
       theme="dark"
       className="quantmail-shell"
-      mobileTitle={
-        <div className="flex items-center gap-2">
+      mobileActions={
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => setIsMonthExpanded((prev) => !prev)}
-            className="flex items-center gap-1.5 text-base font-black text-white hover:text-[#ff9933] transition-colors"
+            className="md:hidden flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg border border-zinc-800 bg-zinc-900/80 text-zinc-200 hover:text-[#ff9933] transition-colors"
           >
-            <span className="bg-gradient-to-r from-white via-orange-100 to-[#ff9933] bg-clip-text text-transparent">
-              {activeMonthName}
-            </span>
+            <span>{activeMonthName}</span>
             <svg
-              className={`size-4 text-[#ff9933] transition-transform duration-200 ${isMonthExpanded ? 'rotate-180' : ''}`}
+              className={`size-3 text-[#ff9933] transition-transform duration-200 ${isMonthExpanded ? 'rotate-180' : ''}`}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -1448,10 +1446,7 @@ export default function CalendarPage() {
               <path d="m6 9 6 6 6-6" />
             </svg>
           </button>
-        </div>
-      }
-      mobileActions={
-        <div className="flex items-center gap-1.5">
+
           <button
             type="button"
             onClick={() => setIsSearchOpen((prev) => !prev)}
@@ -1473,7 +1468,7 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={goToday}
-            className="px-3 py-1 text-xs font-black rounded-xl border border-[#ff9933]/40 bg-gradient-to-r from-[#ff9933]/20 to-[#fbbf24]/10 text-[#ff9933] hover:from-[#ff9933]/30 hover:to-[#fbbf24]/20 shadow-[0_0_15px_rgba(255,153,51,0.25)] transition-all active:scale-95"
+            className="px-2.5 py-1 text-xs font-bold rounded-lg border border-[#ff9933]/40 bg-[#ff9933]/15 text-[#ff9933] hover:bg-[#ff9933]/25 transition-all active:scale-95"
           >
             Today
           </button>

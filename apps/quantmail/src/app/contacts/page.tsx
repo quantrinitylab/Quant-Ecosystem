@@ -197,21 +197,7 @@ export default function ContactsPage() {
   };
 
   return (
-    <AppShell
-      sidebar={<AppSidebar />}
-      theme="dark"
-      className="quantmail-shell"
-      mobileTitle={<h1 className="text-base font-bold text-white">Contacts & Directory</h1>}
-      mobileActions={
-        <button
-          type="button"
-          onClick={handleOpenCreate}
-          className="px-3 py-1 text-xs font-semibold rounded-lg bg-[#ff9933] text-[#191008]"
-        >
-          + Add
-        </button>
-      }
-    >
+    <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page contacts-workspace flex flex-col h-full bg-[#0a0a0c]">
         <input
           ref={vcardInputRef}
