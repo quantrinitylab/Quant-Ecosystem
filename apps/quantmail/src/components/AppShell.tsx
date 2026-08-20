@@ -457,15 +457,15 @@ export function AppShell({
                 title={`Quant${currentApp.charAt(0).toUpperCase() + currentApp.slice(1)} — Click to refresh`}
               >
                 {currentApp === 'calendar' ? (
-                  <QuantCalendarLogo size={32} />
+                  <QuantCalendarLogo size={36} />
                 ) : currentApp === 'drive' ? (
-                  <QuantDriveLogo size={32} />
+                  <QuantDriveLogo size={36} />
                 ) : currentApp === 'contacts' ? (
-                  <QuantContactsLogo size={32} />
+                  <QuantContactsLogo size={36} />
                 ) : currentApp === 'code' ? (
-                  <QuantCodeLogo size={32} />
+                  <QuantCodeLogo size={36} />
                 ) : (
-                  <QuantMailLogo size={32} unreadCount={unreadCount} onClick={handleLogoClick} />
+                  <QuantMailLogo size={38} unreadCount={unreadCount} onClick={handleLogoClick} />
                 )}
 
                 <BrandWordmark app={currentApp} size="text-xl" />
