@@ -86,11 +86,14 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
 
 function BrandLockup({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="auth-brand-lockup" aria-label={quantMailAuthLockup.accessibleName}>
+    <div
+      className="auth-brand-lockup flex items-center gap-3"
+      aria-label={quantMailAuthLockup.accessibleName}
+    >
       <Interactive3DLogo app="mail" size={compact ? 32 : 38} showBadge={false} />
-      <div aria-hidden="true">
-        <BrandWordmark app="mail" size={compact ? 'text-base' : 'text-lg'} />
-        <span>{quantMailAuthLockup.byline}</span>
+      <div className="flex flex-col" aria-hidden="true">
+        <BrandWordmark app="mail" size={compact ? 'text-lg' : 'text-xl'} />
+        <span className="auth-byline">{quantMailAuthLockup.byline}</span>
       </div>
     </div>
   );

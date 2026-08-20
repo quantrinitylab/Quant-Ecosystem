@@ -199,7 +199,6 @@ export function AppShell({
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
-  const [isWarpOpen, setIsWarpOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname() ?? '/';
   const { data: inboxEmails, refetch: refetchInbox } = useInbox({ folderType: 'INBOX' });
@@ -214,6 +213,26 @@ export function AppShell({
         : pathname.startsWith('/codehub')
           ? 'code'
           : 'mail';
+
+  const handleLogoClick = useCallback(() => {
+    void refetchInbox();
+    window.dispatchEvent(new CustomEvent('quant:refresh'));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (pathname.startsWith('/calendar') && pathname !== '/calendar') router.push('/calendar');
+    else if (pathname.startsWith('/drive') && pathname !== '/drive') router.push('/drive');
+    else if (pathname.startsWith('/contacts') && pathname !== '/contacts') router.push('/contacts');
+    else if (pathname.startsWith('/codehub') && pathname !== '/codehub') router.push('/codehub');
+    else if (
+      !pathname.startsWith('/calendar') &&
+      !pathname.startsWith('/drive') &&
+      !pathname.startsWith('/contacts') &&
+      !pathname.startsWith('/codehub') &&
+      pathname !== '/'
+    ) {
+      router.push('/');
+    }
+  }, [pathname, refetchInbox, router]);
 
   useEffect(() => {
     try {
@@ -434,15 +453,15 @@ export function AppShell({
 
               <div
                 className="flex items-center gap-2.5 cursor-pointer select-none group"
-                onClick={() => setIsWarpOpen(true)}
-                title={`Quant${currentApp.charAt(0).toUpperCase() + currentApp.slice(1)} — Tap to open Intelligence Matrix`}
+                onClick={handleLogoClick}
+                title={`Quant${currentApp.charAt(0).toUpperCase() + currentApp.slice(1)} — Click to refresh`}
               >
                 <Interactive3DLogo
                   app={currentApp}
                   size={34}
                   unreadCount={unreadCount}
                   showBadge={true}
-                  onClick={() => setIsWarpOpen(true)}
+                  onClick={handleLogoClick}
                 />
 
                 <BrandWordmark app={currentApp} size="text-lg" />
@@ -519,14 +538,6 @@ export function AppShell({
 
       {/* Mobile Bottom Navigation — strictly md:hidden */}
       <MobileBottomNav />
-
-      {/* Ecosystem Intelligence Warp Matrix HUD */}
-      <EcosystemWarpMatrix
-        isOpen={isWarpOpen}
-        onClose={() => setIsWarpOpen(false)}
-        unreadCount={unreadCount}
-        onRefresh={() => void refetchInbox()}
-      />
 
       {/* Cinematic Quantum Ignition Startup Intro */}
       <QuantumSplashIntro />

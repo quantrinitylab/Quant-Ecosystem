@@ -26,11 +26,15 @@ export function BrandWordmark({
 
   return (
     <span
-      className={`inline-flex items-baseline select-none font-normal tracking-tight ${size} ${className}`}
+      className={`inline-flex items-baseline flex-row flex-nowrap whitespace-nowrap select-none font-normal tracking-tight ${size} ${className}`}
       style={{ fontFamily: 'var(--font-brand), cursive, sans-serif' }}
     >
-      <span className="text-[#F4F5F7]">{meta.prefix}</span>
-      <span className="text-[#FF7A00] ml-0.5">{meta.name}</span>
+      <span className="!inline !text-[#F4F5F7] !m-0 !p-0 !text-inherit !normal-case !tracking-tight">
+        {meta.prefix}
+      </span>
+      <span className="!inline !text-[#FF7A00] !m-0 !p-0 !text-inherit !normal-case !tracking-tight ml-0.5">
+        {meta.name}
+      </span>
     </span>
   );
 }

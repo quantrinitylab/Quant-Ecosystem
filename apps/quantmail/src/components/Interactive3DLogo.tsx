@@ -29,6 +29,7 @@ export function Interactive3DLogo({
   const [tilt, setTilt] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isHovered, setIsHovered] = useState(false);
   const [isPressed, setIsPressed] = useState(false);
+  const [isSpinning, setIsSpinning] = useState(false);
   const [pulseKey, setPulseKey] = useState(0);
 
   // Animation frame loop refs
@@ -67,6 +68,8 @@ export function Interactive3DLogo({
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       setPulseKey((k) => k + 1);
+      setIsSpinning(true);
+      setTimeout(() => setIsSpinning(false), 700);
       if (onClick) onClick();
     },
     [onClick],
@@ -384,8 +387,12 @@ export function Interactive3DLogo({
         className="relative flex items-center justify-center w-full h-full"
         animate={{
           scale: isPressed ? 0.92 : isHovered ? 1.06 : 1,
+          rotate: isSpinning ? 360 : 0,
         }}
-        transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+        transition={{
+          scale: { type: 'spring', stiffness: 450, damping: 25 },
+          rotate: { duration: 0.65, ease: [0.34, 1.56, 0.64, 1] },
+        }}
       >
         <canvas
           ref={canvasRef}
