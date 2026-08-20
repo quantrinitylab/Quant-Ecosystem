@@ -89,10 +89,11 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   drive: (
-    <>
-      <path d="M3 7h7l2 2h9v10H3z" />
-      <path d="M3 7v12" />
-    </>
+    <img
+      src="/quant-drive-logo.png"
+      alt="Drive"
+      className="size-6 object-contain rounded drop-shadow-[0_2px_6px_rgba(255,153,51,0.4)]"
+    />
   ),
   inbox: (
     <>

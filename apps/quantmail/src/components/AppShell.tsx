@@ -55,16 +55,11 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
     label: 'Drive',
     path: '/drive',
     icon: (
-      <svg
-        className="size-5"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-      >
-        <path d="M3 7h7l2 2h9v10H3z" />
-        <path d="M3 7v12" />
-      </svg>
+      <img
+        src="/quant-drive-logo.png"
+        alt="Drive"
+        className="size-6 object-contain rounded-md drop-shadow-[0_2px_8px_rgba(255,153,51,0.5)] transition-transform"
+      />
     ),
   },
   {
@@ -393,10 +388,20 @@ export function AppShell({
 
               <div
                 className="flex items-center cursor-pointer select-none"
-                onClick={() => router.push('/')}
-                title="QuantMail"
+                onClick={() => router.push(pathname.startsWith('/drive') ? '/drive' : '/')}
+                title={pathname.startsWith('/drive') ? 'QuantDrive' : 'QuantMail'}
               >
-                <QuantMailLogo size={32} />
+                {pathname.startsWith('/drive') ? (
+                  <img
+                    src="/quant-drive-logo.png"
+                    alt="QuantDrive"
+                    width={32}
+                    height={32}
+                    className="size-8 object-contain rounded-lg drop-shadow-[0_4px_12px_rgba(255,153,51,0.45)] transition-transform hover:scale-105"
+                  />
+                ) : (
+                  <QuantMailLogo size={32} />
+                )}
               </div>
             </div>
 

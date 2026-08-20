@@ -275,12 +275,23 @@ export default function DrivePage() {
       sidebar={<AppSidebar />}
       theme="dark"
       className="quantmail-shell"
-      mobileTitle={<h1 className="text-base font-bold text-white">QuantDrive</h1>}
+      mobileTitle={
+        <div className="flex items-center gap-2">
+          <img
+            src="/quant-drive-logo.png"
+            alt="Drive"
+            className="size-6 object-contain rounded drop-shadow-[0_2px_8px_rgba(255,153,51,0.5)]"
+          />
+          <span className="text-base font-black bg-gradient-to-r from-white via-orange-100 to-[#ff9933] bg-clip-text text-transparent">
+            Drive
+          </span>
+        </div>
+      }
       mobileActions={
         <button
           type="button"
           onClick={handleUploadTrigger}
-          className="px-3 py-1 text-xs font-semibold rounded-lg bg-[#ff9933] text-[#191008]"
+          className="px-3.5 py-1 text-xs font-black rounded-xl bg-gradient-to-r from-[#ff9933] to-[#fbbf24] text-black shadow-[0_0_12px_rgba(255,153,51,0.35)] active:scale-95 transition-all"
         >
           Upload
         </button>
@@ -515,9 +526,15 @@ export default function DrivePage() {
           {error && <ErrorState message={error} onRetry={() => void fetchFiles(currentFolderId)} />}
 
           {!loading && !error && filteredItems.length === 0 && (
-            <div className="text-center py-16 space-y-3">
-              <span className="text-5xl block">📂</span>
-              <h3 className="text-lg font-bold text-white">
+            <div className="text-center py-16 space-y-4">
+              <div className="flex justify-center">
+                <img
+                  src="/quant-drive-logo.png"
+                  alt="Drive"
+                  className="size-28 object-contain drop-shadow-[0_12px_32px_rgba(255,153,51,0.45)] hover:scale-105 transition-transform"
+                />
+              </div>
+              <h3 className="text-xl font-extrabold text-white">
                 {searchQuery ? 'No matching files found' : 'This folder is empty'}
               </h3>
               <p className="text-xs text-zinc-400 max-w-sm mx-auto">
