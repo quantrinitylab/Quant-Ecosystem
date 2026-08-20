@@ -76,6 +76,86 @@ export interface CalendarEventLike {
   timezone?: string;
 }
 
+function parseCalendarEvent(raw: any): CalendarEventLike {
+  let title: string = raw.title || '';
+  let description: string = raw.description || '';
+  let type: EntryType = 'event';
+  let priority: 'low' | 'medium' | 'urgent' | undefined = undefined;
+  let flowIntensity: 'light' | 'medium' | 'heavy' | 'super_heavy' | 'spotting' | undefined =
+    undefined;
+  let spottingColor: 'red' | 'brown' | undefined = undefined;
+  let cycleDay: number | undefined = undefined;
+  let subtasks: Array<{ text: string; done: boolean }> | undefined = undefined;
+  let birthYear: string | undefined = undefined;
+
+  // Extract structured metadata if present
+  const metaMatch = description.match(/__QUANT_META__:([\s\S]*?):__END_QUANT_META__/);
+  if (metaMatch) {
+    try {
+      const parsed = JSON.parse(metaMatch[1]);
+      if (parsed.type) type = parsed.type;
+      if (parsed.priority) priority = parsed.priority;
+      if (parsed.flowIntensity) flowIntensity = parsed.flowIntensity;
+      if (parsed.spottingColor) spottingColor = parsed.spottingColor;
+      if (parsed.cycleDay) cycleDay = parsed.cycleDay;
+      if (parsed.subtasks) subtasks = parsed.subtasks;
+      if (parsed.birthYear) birthYear = parsed.birthYear;
+      description = description.replace(/__QUANT_META__:[\s\S]*?:__END_QUANT_META__\n?/, '').trim();
+    } catch {
+      // ignore JSON parse failure
+    }
+  }
+
+  // Fallback heuristic inference if metadata wasn't present
+  if (!metaMatch) {
+    const tLow = title.toLowerCase();
+    if (
+      title.includes('🌸') ||
+      tLow.includes('period') ||
+      tLow.includes('cycle') ||
+      tLow.includes('menstrual') ||
+      tLow.includes('flow')
+    ) {
+      type = 'period';
+      if (tLow.includes('super_heavy') || tLow.includes('super heavy') || tLow.includes('super')) {
+        flowIntensity = 'super_heavy';
+      } else if (tLow.includes('heavy')) {
+        flowIntensity = 'heavy';
+      } else if (tLow.includes('light')) {
+        flowIntensity = 'light';
+      } else {
+        flowIntensity = 'medium';
+      }
+    } else if (
+      title.includes('🎯') ||
+      tLow.includes('task') ||
+      tLow.includes('urgent') ||
+      tLow.includes('todo') ||
+      tLow.includes('audit')
+    ) {
+      type = 'task';
+      if (tLow.includes('urgent')) priority = 'urgent';
+      else if (tLow.includes('low')) priority = 'low';
+      else priority = 'medium';
+    } else if (title.includes('🎂') || tLow.includes('birthday') || tLow.includes('bday')) {
+      type = 'birthday';
+    }
+  }
+
+  return {
+    ...raw,
+    title,
+    description,
+    type,
+    priority,
+    flowIntensity,
+    spottingColor,
+    cycleDay,
+    subtasks,
+    birthYear,
+  };
+}
+
 const startOf = (event: CalendarEventLike) => new Date(event.startTime ?? event.start ?? '');
 const endOf = (event: CalendarEventLike) => new Date(event.endTime ?? event.end ?? '');
 const hhmm = (date: Date) =>
@@ -574,7 +654,12 @@ export default function CalendarPage() {
   );
 
   const { data: rawEvents, isLoading, error, refetch } = useCalendarEvents({ start, end });
-  const events = (rawEvents ?? []) as unknown as CalendarEventLike[];
+
+  // Normalization with structured metadata parser
+  const events = useMemo(() => {
+    return ((rawEvents ?? []) as any[]).map(parseCalendarEvent);
+  }, [rawEvents]);
+
   const isInitialLoading = isLoading && !rawEvents;
 
   const createEvent = useCreateEvent();
@@ -1092,17 +1177,34 @@ export default function CalendarPage() {
       ).toISOString();
     }
 
+    // Embed structured metadata header in description for robust type & color preservation
+    const metaObj = {
+      type: activeSheetType,
+      priority: activeSheetType === 'task' ? formState.priority : undefined,
+      flowIntensity: activeSheetType === 'period' ? formState.flowIntensity : undefined,
+      spottingColor: activeSheetType === 'period' ? formState.spottingColor : undefined,
+      cycleDay: activeSheetType === 'period' ? formState.currentCycleDay : undefined,
+      feelings: activeSheetType === 'period' ? formState.feelings : undefined,
+      pain: activeSheetType === 'period' ? formState.pain : undefined,
+      energy: activeSheetType === 'period' ? formState.energy : undefined,
+      subtasks: activeSheetType === 'task' ? formState.subtasks : undefined,
+      birthYear: activeSheetType === 'birthday' ? formState.birthYear : undefined,
+    };
+    const metaHeader = `__QUANT_META__:${JSON.stringify(metaObj)}:__END_QUANT_META__\n`;
+    const userDesc =
+      formState.description ||
+      (activeSheetType === 'period'
+        ? `Feelings: ${formState.feelings.join(', ')} | Pain: ${formState.pain.join(', ')} | Energy: ${formState.energy}`
+        : '');
+    const finalDescription = metaHeader + userDesc;
+
     const payload = {
       title: finalTitle,
       startTime: startIso,
       endTime: endIso,
       start: startIso,
       end: endIso,
-      description:
-        formState.description ||
-        (activeSheetType === 'period'
-          ? `Feelings: ${formState.feelings.join(', ')} | Pain: ${formState.pain.join(', ')} | Energy: ${formState.energy}`
-          : ''),
+      description: finalDescription,
       location: formState.location,
       allDay: formState.allDay,
       type: activeSheetType,
@@ -1340,7 +1442,7 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => setIsMonthExpanded((prev) => !prev)}
-            className="flex items-center gap-1.5 text-base font-extrabold text-white hover:text-[#ff9933] transition-colors"
+            className="flex items-center gap-1.5 text-base font-black text-white hover:text-[#ff9933] transition-colors"
           >
             <span className="bg-gradient-to-r from-white via-orange-100 to-[#ff9933] bg-clip-text text-transparent">
               {activeMonthName}
@@ -1484,7 +1586,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Quant Brand 3D Glassmorphic Calendar Date Picker */}
+        {/* Quant Brand 3D Glassmorphic Calendar Date Picker with Permanent Glowing Holiday Dots */}
         <div
           className="border-b border-zinc-800/80 bg-[#101014] select-none overflow-hidden relative"
           style={{
@@ -1535,35 +1637,58 @@ export default function CalendarPage() {
                     let sphereStyle: React.CSSProperties = {};
 
                     if (d.isSelected) {
-                      sphereClass =
-                        'text-black font-black scale-110 shadow-[0_0_18px_rgba(255,153,51,0.6),inset_0_2px_4px_rgba(255,255,255,0.4)] ring-2 ring-[#ff9933]/60';
-                      sphereStyle = {
-                        background:
-                          'linear-gradient(135deg, #f97316 0%, #ff9933 50%, #fde047 100%)',
-                      };
+                      if (d.hasPeriod) {
+                        sphereClass =
+                          'text-white font-black scale-110 shadow-[0_0_20px_rgba(244,63,94,0.7)] ring-2 ring-rose-400';
+                        sphereStyle = {
+                          background:
+                            'linear-gradient(135deg, #e11d48 0%, #f43f5e 50%, #fda4af 100%)',
+                        };
+                      } else if (d.hasUrgentTask) {
+                        sphereClass =
+                          'text-white font-black scale-110 shadow-[0_0_20px_rgba(239,68,68,0.7)] ring-2 ring-red-400';
+                        sphereStyle = {
+                          background:
+                            'linear-gradient(135deg, #dc2626 0%, #ef4444 50%, #fbbf24 100%)',
+                        };
+                      } else if (d.hasBirthday) {
+                        sphereClass =
+                          'text-black font-black scale-110 shadow-[0_0_20px_rgba(16,185,129,0.7)] ring-2 ring-emerald-400';
+                        sphereStyle = {
+                          background:
+                            'linear-gradient(135deg, #059669 0%, #10b981 50%, #86efac 100%)',
+                        };
+                      } else {
+                        sphereClass =
+                          'text-black font-black scale-110 shadow-[0_0_18px_rgba(255,153,51,0.65),inset_0_2px_4px_rgba(255,255,255,0.4)] ring-2 ring-[#ff9933]/70';
+                        sphereStyle = {
+                          background:
+                            'linear-gradient(135deg, #f97316 0%, #ff9933 50%, #fde047 100%)',
+                        };
+                      }
                     } else if (d.hasPeriod) {
                       // 3D Pink Glass Sphere for Period dates
                       sphereClass =
-                        'text-rose-200 font-bold border border-rose-400/50 shadow-[0_0_14px_rgba(244,63,94,0.4),inset_0_1px_2px_rgba(255,255,255,0.3)]';
+                        'text-rose-200 font-bold border border-rose-400/60 shadow-[0_0_14px_rgba(244,63,94,0.45),inset_0_1px_2px_rgba(255,255,255,0.3)]';
                       sphereStyle = {
                         background:
-                          'radial-gradient(circle at 30% 30%, rgba(251,113,133,0.45) 0%, rgba(225,29,72,0.3) 100%)',
+                          'radial-gradient(circle at 30% 30%, rgba(251,113,133,0.5) 0%, rgba(225,29,72,0.35) 100%)',
                       };
                     } else if (d.hasUrgentTask) {
                       // 3D Fire Red-Amber Glass Sphere
                       sphereClass =
-                        'text-amber-200 font-bold border border-red-500/50 shadow-[0_0_14px_rgba(239,68,68,0.4),inset_0_1px_2px_rgba(255,255,255,0.3)]';
+                        'text-amber-200 font-bold border border-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.45),inset_0_1px_2px_rgba(255,255,255,0.3)]';
                       sphereStyle = {
                         background:
-                          'radial-gradient(circle at 30% 30%, rgba(239,68,68,0.45) 0%, rgba(249,115,22,0.3) 100%)',
+                          'radial-gradient(circle at 30% 30%, rgba(239,68,68,0.5) 0%, rgba(249,115,22,0.35) 100%)',
                       };
                     } else if (d.hasBirthday) {
                       // 3D Emerald Glass Sphere
                       sphereClass =
-                        'text-emerald-200 font-bold border border-emerald-400/50 shadow-[0_0_14px_rgba(16,185,129,0.4),inset_0_1px_2px_rgba(255,255,255,0.3)]';
+                        'text-emerald-200 font-bold border border-emerald-400/60 shadow-[0_0_14px_rgba(16,185,129,0.45),inset_0_1px_2px_rgba(255,255,255,0.3)]';
                       sphereStyle = {
                         background:
-                          'radial-gradient(circle at 30% 30%, rgba(52,211,153,0.4) 0%, rgba(5,150,105,0.3) 100%)',
+                          'radial-gradient(circle at 30% 30%, rgba(52,211,153,0.45) 0%, rgba(5,150,105,0.35) 100%)',
                       };
                     } else if (d.isToday) {
                       sphereClass =
@@ -1583,12 +1708,16 @@ export default function CalendarPage() {
                         >
                           <span className="relative z-10">{d.dayNum}</span>
 
-                          {/* Holiday Indicator Jewel */}
-                          {d.hasHoliday && !d.isSelected && (
+                          {/* Holiday Indicator Jewel — ALWAYS VISIBLE, even when selected */}
+                          {d.hasHoliday && (
                             <span
                               title={d.holidayName || 'Holiday'}
-                              className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-400 ring-2 ring-[#101014] animate-pulse shadow-[0_0_8px_#34d399]"
-                            />
+                              className={`absolute -top-1 -right-1 size-3 rounded-full bg-emerald-400 ring-2 ${
+                                d.isSelected ? 'ring-amber-500 scale-110' : 'ring-[#101014]'
+                              } animate-pulse shadow-[0_0_10px_#34d399] z-20 flex items-center justify-center`}
+                            >
+                              <span className="size-1 rounded-full bg-white" />
+                            </span>
                           )}
                         </span>
                       </button>
@@ -1609,32 +1738,55 @@ export default function CalendarPage() {
                         let sphereStyle: React.CSSProperties = {};
 
                         if (d.isSelected) {
-                          sphereClass =
-                            'text-black font-black scale-105 shadow-[0_0_16px_rgba(255,153,51,0.6)]';
-                          sphereStyle = {
-                            background:
-                              'linear-gradient(135deg, #f97316 0%, #ff9933 50%, #fde047 100%)',
-                          };
+                          if (d.hasPeriod) {
+                            sphereClass =
+                              'text-white font-black scale-105 shadow-[0_0_18px_rgba(244,63,94,0.7)]';
+                            sphereStyle = {
+                              background:
+                                'linear-gradient(135deg, #e11d48 0%, #f43f5e 50%, #fda4af 100%)',
+                            };
+                          } else if (d.hasUrgentTask) {
+                            sphereClass =
+                              'text-white font-black scale-105 shadow-[0_0_18px_rgba(239,68,68,0.7)]';
+                            sphereStyle = {
+                              background:
+                                'linear-gradient(135deg, #dc2626 0%, #ef4444 50%, #fbbf24 100%)',
+                            };
+                          } else if (d.hasBirthday) {
+                            sphereClass =
+                              'text-black font-black scale-105 shadow-[0_0_18px_rgba(16,185,129,0.7)]';
+                            sphereStyle = {
+                              background:
+                                'linear-gradient(135deg, #059669 0%, #10b981 50%, #86efac 100%)',
+                            };
+                          } else {
+                            sphereClass =
+                              'text-black font-black scale-105 shadow-[0_0_16px_rgba(255,153,51,0.6)]';
+                            sphereStyle = {
+                              background:
+                                'linear-gradient(135deg, #f97316 0%, #ff9933 50%, #fde047 100%)',
+                            };
+                          }
                         } else if (d.hasPeriod) {
                           sphereClass =
-                            'text-rose-200 font-bold border border-rose-400/40 shadow-[0_0_10px_rgba(244,63,94,0.35)]';
+                            'text-rose-200 font-bold border border-rose-400/50 shadow-[0_0_10px_rgba(244,63,94,0.4)]';
                           sphereStyle = {
                             background:
-                              'radial-gradient(circle at 30% 30%, rgba(251,113,133,0.4) 0%, rgba(225,29,72,0.25) 100%)',
+                              'radial-gradient(circle at 30% 30%, rgba(251,113,133,0.45) 0%, rgba(225,29,72,0.3) 100%)',
                           };
                         } else if (d.hasUrgentTask) {
                           sphereClass =
-                            'text-amber-200 font-bold border border-red-500/40 shadow-[0_0_10px_rgba(239,68,68,0.35)]';
+                            'text-amber-200 font-bold border border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
                           sphereStyle = {
                             background:
-                              'radial-gradient(circle at 30% 30%, rgba(239,68,68,0.4) 0%, rgba(249,115,22,0.25) 100%)',
+                              'radial-gradient(circle at 30% 30%, rgba(239,68,68,0.45) 0%, rgba(249,115,22,0.3) 100%)',
                           };
                         } else if (d.hasBirthday) {
                           sphereClass =
-                            'text-emerald-200 font-bold border border-emerald-400/40 shadow-[0_0_10px_rgba(16,185,129,0.35)]';
+                            'text-emerald-200 font-bold border border-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.4)]';
                           sphereStyle = {
                             background:
-                              'radial-gradient(circle at 30% 30%, rgba(52,211,153,0.35) 0%, rgba(5,150,105,0.25) 100%)',
+                              'radial-gradient(circle at 30% 30%, rgba(52,211,153,0.4) 0%, rgba(5,150,105,0.3) 100%)',
                           };
                         } else if (d.isToday) {
                           sphereClass = 'border border-[#ff9933] text-[#ff9933] font-bold';
@@ -1652,10 +1804,12 @@ export default function CalendarPage() {
                               className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all relative ${sphereClass}`}
                             >
                               <span>{d.dayNum}</span>
-                              {d.hasHolidays && !d.isSelected && (
+                              {d.hasHolidays && (
                                 <span
                                   title={d.holidayName || 'Holiday'}
-                                  className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 ring-2 ring-[#101014] animate-pulse"
+                                  className={`absolute -top-1 -right-1 size-2.5 rounded-full bg-emerald-400 ring-1 ${
+                                    d.isSelected ? 'ring-amber-500 scale-110' : 'ring-[#101014]'
+                                  } animate-pulse shadow-[0_0_8px_#34d399] z-20`}
                                 />
                               )}
                             </span>
@@ -1688,7 +1842,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Continuous Agenda Feed with 3D Frosted Glass Liquid Water-Color Swirl Cards */}
+        {/* Continuous Agenda Feed with Vivid Distinct 3D Liquid Watercolor Cards */}
         <div
           ref={scrollHostRef}
           onScroll={handleScroll}
@@ -1741,18 +1895,18 @@ export default function CalendarPage() {
                     }}
                     className={`transition-all duration-200 ${
                       isSelected
-                        ? 'bg-gradient-to-r from-[#ff9933]/10 to-transparent rounded-2xl p-2.5 border-l-2 border-[#ff9933]'
+                        ? 'bg-gradient-to-r from-[#ff9933]/15 via-[#ff9933]/5 to-transparent rounded-3xl p-3 border-l-4 border-[#ff9933] shadow-[0_8px_30px_rgba(255,153,51,0.15)]'
                         : ''
                     }`}
                   >
                     {/* Centered Date Header with 3D Aura */}
-                    <div className="flex items-baseline gap-2.5 mb-2">
+                    <div className="flex items-baseline gap-2.5 mb-2.5">
                       <span
                         className={`text-lg font-black tracking-tight ${
                           item.isToday
                             ? 'text-transparent bg-clip-text bg-gradient-to-r from-[#ff9933] to-[#fbbf24]'
                             : isSelected
-                              ? 'text-white font-extrabold'
+                              ? 'text-white font-black'
                               : 'text-zinc-200'
                         }`}
                       >
@@ -1771,19 +1925,19 @@ export default function CalendarPage() {
                       )}
                     </div>
 
-                    <div className="space-y-2.5">
+                    <div className="space-y-3">
                       {/* Holiday 3D Emerald Glass Card */}
                       {item.holidays.map((h, hi) => (
                         <div
                           key={hi}
                           style={{
                             background:
-                              'radial-gradient(circle at 10% 20%, rgba(16,185,129,0.25) 0%, transparent 60%), radial-gradient(circle at 90% 80%, rgba(5,150,105,0.2) 0%, transparent 60%), linear-gradient(135deg, rgba(12,24,18,0.85) 0%, rgba(8,16,12,0.95) 100%)',
+                              'radial-gradient(circle at 10% 20%, rgba(16,185,129,0.3) 0%, transparent 60%), radial-gradient(circle at 90% 80%, rgba(5,150,105,0.25) 0%, transparent 60%), linear-gradient(135deg, rgba(12,28,20,0.92) 0%, rgba(8,18,14,0.98) 100%)',
                           }}
-                          className="relative flex items-center justify-between px-4 py-3 rounded-2xl border border-emerald-500/40 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.4),inset_0_1px_1px_rgba(255,255,255,0.15)] text-xs overflow-hidden"
+                          className="relative flex items-center justify-between px-4 py-3 rounded-2xl border border-emerald-500/50 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_15px_rgba(16,185,129,0.25),inset_0_1px_1px_rgba(255,255,255,0.2)] text-xs overflow-hidden"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="size-8 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-base shadow-[0_0_10px_rgba(16,185,129,0.4)] shrink-0">
+                            <div className="size-8 rounded-full bg-emerald-500/25 border border-emerald-400/50 flex items-center justify-center text-base shadow-[0_0_10px_rgba(16,185,129,0.4)] shrink-0">
                               🇮🇳
                             </div>
                             <div>
@@ -1791,20 +1945,20 @@ export default function CalendarPage() {
                                 <span className="font-extrabold text-sm text-emerald-200 tracking-wide">
                                   {h.name}
                                 </span>
-                                <span className="size-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+                                <span className="size-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
                               </div>
                               {h.description && (
                                 <p className="text-[11px] text-zinc-400 mt-0.5">{h.description}</p>
                               )}
                             </div>
                           </div>
-                          <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 shadow-sm">
+                          <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 shadow-sm">
                             Holiday
                           </span>
                         </div>
                       ))}
 
-                      {/* 3D Liquid Glass Watercolor Cards */}
+                      {/* 3D Liquid Glass Watercolor Cards with Guaranteed Distinct Category Colors */}
                       {item.events.map((ev) => {
                         const isTask = ev.type === 'task';
                         const isBirthday = ev.type === 'birthday';
@@ -1827,48 +1981,51 @@ export default function CalendarPage() {
                               ? '#be123c'
                               : ev.flowIntensity === 'heavy'
                                 ? '#e11d48'
-                                : '#fb7185';
+                                : ev.flowIntensity === 'light'
+                                  ? '#fda4af'
+                                  : '#f43f5e';
                           urgencyLabel = ev.flowIntensity
-                            ? `${ev.flowIntensity} flow`
+                            ? `${ev.flowIntensity.replace('_', ' ')}`
                             : 'Cycle Log';
-                          glowColor = 'rgba(244,63,94,0.35)';
-                          cardBorder = 'border-rose-500/40';
-                          // Liquid water-color swirl like pink paint in water
+                          glowColor = 'rgba(244,63,94,0.4)';
+                          cardBorder = 'border-rose-500/60';
+                          // Distinct 3D Pink / Rose watercolor liquid blend
                           cardBackground =
-                            'radial-gradient(circle at 10% 20%, rgba(244,63,94,0.35) 0%, transparent 60%), radial-gradient(circle at 90% 80%, rgba(225,29,72,0.25) 0%, transparent 60%), linear-gradient(135deg, rgba(28,16,22,0.9) 0%, rgba(16,10,14,0.95) 100%)';
+                            'radial-gradient(circle at 12% 20%, rgba(244,63,94,0.45) 0%, transparent 60%), radial-gradient(circle at 88% 80%, rgba(225,29,72,0.3) 0%, transparent 60%), linear-gradient(135deg, rgba(38,14,24,0.94) 0%, rgba(20,8,14,0.98) 100%)';
                         } else if (isTask) {
                           categoryColor = '#f59e0b';
                           categoryLabel = 'Task';
                           if (ev.priority === 'urgent') {
                             urgencyColor = '#ef4444';
                             urgencyLabel = 'Urgent';
-                            glowColor = 'rgba(239,68,68,0.4)';
-                            cardBorder = 'border-red-500/50';
+                            glowColor = 'rgba(239,68,68,0.45)';
+                            cardBorder = 'border-red-500/60';
                             cardBackground =
-                              'radial-gradient(circle at 15% 25%, rgba(239,68,68,0.4) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(255,153,51,0.3) 0%, transparent 55%), linear-gradient(135deg, rgba(30,14,14,0.9) 0%, rgba(18,10,10,0.95) 100%)';
+                              'radial-gradient(circle at 15% 25%, rgba(239,68,68,0.45) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(255,153,51,0.35) 0%, transparent 55%), linear-gradient(135deg, rgba(36,14,14,0.94) 0%, rgba(20,10,10,0.98) 100%)';
                           } else if (ev.priority === 'low') {
                             urgencyColor = '#10b981';
                             urgencyLabel = 'Low';
-                            cardBorder = 'border-amber-500/30';
+                            glowColor = 'rgba(16,185,129,0.3)';
+                            cardBorder = 'border-amber-500/40';
                             cardBackground =
-                              'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.3) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(16,185,129,0.2) 0%, transparent 55%), linear-gradient(135deg, rgba(24,20,14,0.9) 0%, rgba(14,12,10,0.95) 100%)';
+                              'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(16,185,129,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(28,22,14,0.94) 0%, rgba(16,12,10,0.98) 100%)';
                           } else {
                             urgencyColor = '#fbbf24';
                             urgencyLabel = 'Medium';
-                            glowColor = 'rgba(245,158,11,0.3)';
-                            cardBorder = 'border-amber-500/40';
+                            glowColor = 'rgba(245,158,11,0.35)';
+                            cardBorder = 'border-amber-500/50';
                             cardBackground =
-                              'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.2) 0%, transparent 55%), linear-gradient(135deg, rgba(26,20,12,0.9) 0%, rgba(16,12,8,0.95) 100%)';
+                              'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.4) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(32,22,12,0.94) 0%, rgba(18,12,8,0.98) 100%)';
                           }
                         } else if (isBirthday) {
                           categoryColor = '#10b981';
                           categoryLabel = 'Birthday';
                           urgencyColor = '#84cc16';
                           urgencyLabel = 'Annual';
-                          glowColor = 'rgba(16,185,129,0.3)';
-                          cardBorder = 'border-emerald-500/40';
+                          glowColor = 'rgba(16,185,129,0.35)';
+                          cardBorder = 'border-emerald-500/50';
                           cardBackground =
-                            'radial-gradient(circle at 15% 25%, rgba(16,185,129,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(132,204,22,0.2) 0%, transparent 55%), linear-gradient(135deg, rgba(14,26,18,0.9) 0%, rgba(10,16,12,0.95) 100%)';
+                            'radial-gradient(circle at 15% 25%, rgba(16,185,129,0.4) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(132,204,22,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(14,30,20,0.94) 0%, rgba(10,18,14,0.98) 100%)';
                         } else {
                           // Quant Brand Event
                           categoryColor = '#ff9933';
@@ -1876,17 +2033,17 @@ export default function CalendarPage() {
                           if (ev.location?.includes('meet')) {
                             urgencyColor = '#a855f7';
                             urgencyLabel = 'Video Meet';
-                            glowColor = 'rgba(168,85,247,0.3)';
-                            cardBorder = 'border-purple-500/40';
+                            glowColor = 'rgba(168,85,247,0.35)';
+                            cardBorder = 'border-purple-500/50';
                             cardBackground =
-                              'radial-gradient(circle at 15% 25%, rgba(255,153,51,0.3) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(168,85,247,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(24,16,24,0.9) 0%, rgba(14,10,16,0.95) 100%)';
+                              'radial-gradient(circle at 15% 25%, rgba(255,153,51,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(168,85,247,0.3) 0%, transparent 55%), linear-gradient(135deg, rgba(28,18,28,0.94) 0%, rgba(16,10,18,0.98) 100%)';
                           } else {
                             urgencyColor = '#fbbf24';
                             urgencyLabel = 'Standard';
-                            glowColor = 'rgba(255,153,51,0.25)';
-                            cardBorder = 'border-[#ff9933]/40';
+                            glowColor = 'rgba(255,153,51,0.3)';
+                            cardBorder = 'border-[#ff9933]/50';
                             cardBackground =
-                              'radial-gradient(circle at 15% 25%, rgba(255,153,51,0.3) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.2) 0%, transparent 55%), linear-gradient(135deg, rgba(26,18,12,0.9) 0%, rgba(14,10,8,0.95) 100%)';
+                              'radial-gradient(circle at 15% 25%, rgba(255,153,51,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(30,20,12,0.94) 0%, rgba(16,10,8,0.98) 100%)';
                           }
                         }
 
@@ -1896,7 +2053,7 @@ export default function CalendarPage() {
                             onClick={() => setSelectedEvent(ev)}
                             style={{
                               background: cardBackground,
-                              boxShadow: `0 12px 32px 0 rgba(0,0,0,0.5), 0 0 20px 0 ${glowColor}, inset 0 1px 1px 0 rgba(255,255,255,0.2)`,
+                              boxShadow: `0 12px 32px 0 rgba(0,0,0,0.6), 0 0 25px 0 ${glowColor}, inset 0 1px 1px 0 rgba(255,255,255,0.25)`,
                             }}
                             className={`relative flex items-center justify-between p-3.5 rounded-3xl border ${cardBorder} backdrop-blur-2xl transition-all cursor-pointer overflow-hidden group hover:scale-[1.01] hover:brightness-105 active:scale-[0.99]`}
                           >
@@ -1906,14 +2063,14 @@ export default function CalendarPage() {
                               <div className="flex-1" style={{ backgroundColor: urgencyColor }} />
                             </div>
 
-                            <div className="flex items-start gap-3 pl-2.5">
+                            <div className="flex items-start gap-3 pl-2.5 flex-1 min-w-0 pr-2">
                               {/* 3D Glass Orb for Category Icon */}
                               <div
                                 style={{
                                   background: `radial-gradient(circle at 30% 30%, ${categoryColor}66 0%, ${urgencyColor}44 100%)`,
-                                  boxShadow: `0 0 12px ${categoryColor}55, inset 0 1px 2px rgba(255,255,255,0.4)`,
+                                  boxShadow: `0 0 12px ${categoryColor}66, inset 0 1px 2px rgba(255,255,255,0.4)`,
                                 }}
-                                className="size-9 rounded-2xl border border-white/20 flex items-center justify-center shrink-0 mt-0.5"
+                                className="size-9 rounded-2xl border border-white/25 flex items-center justify-center shrink-0 mt-0.5"
                               >
                                 {isTask ? (
                                   <button
@@ -1938,9 +2095,9 @@ export default function CalendarPage() {
                                 )}
                               </div>
 
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <h5 className="text-sm font-black text-white tracking-wide">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h5 className="text-sm font-black text-white tracking-wide truncate">
                                     {ev.title}
                                   </h5>
 
@@ -1949,21 +2106,21 @@ export default function CalendarPage() {
                                     style={{
                                       boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.2)',
                                     }}
-                                    className="inline-flex items-center rounded-full overflow-hidden text-[9px] font-black border border-white/15 bg-black/40 backdrop-blur-md"
+                                    className="inline-flex items-center rounded-full overflow-hidden text-[9px] font-black border border-white/20 bg-black/50 backdrop-blur-md shrink-0"
                                   >
                                     <span
                                       className="px-2 py-0.5 uppercase tracking-wider"
                                       style={{
-                                        backgroundColor: `${categoryColor}33`,
+                                        backgroundColor: `${categoryColor}44`,
                                         color: categoryColor,
                                       }}
                                     >
                                       {categoryLabel}
                                     </span>
                                     <span
-                                      className="px-2 py-0.5 uppercase tracking-wider border-l border-white/10"
+                                      className="px-2 py-0.5 uppercase tracking-wider border-l border-white/15"
                                       style={{
-                                        backgroundColor: `${urgencyColor}44`,
+                                        backgroundColor: `${urgencyColor}55`,
                                         color: urgencyColor,
                                       }}
                                     >
@@ -1988,7 +2145,7 @@ export default function CalendarPage() {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 shrink-0">
                               {ev.location?.includes('meet.quantrinity.in') && (
                                 <a
                                   href={ev.location}
@@ -2013,12 +2170,18 @@ export default function CalendarPage() {
                         );
                       })}
 
+                      {/* Empty state when no events or holidays on this date */}
                       {!hasEvents && !hasHolidays && (
                         <div
                           onClick={() => openDedicatedSheet('event', item.date)}
-                          className="text-xs text-zinc-500 font-normal hover:text-zinc-300 transition-colors cursor-pointer py-1"
+                          className="flex items-center justify-between p-3.5 rounded-2xl border border-white/5 bg-zinc-900/40 hover:bg-zinc-900/70 backdrop-blur-xl text-zinc-400 text-xs cursor-pointer transition-all group"
                         >
-                          No plans yet — tap to add
+                          <span className="font-medium text-zinc-500 group-hover:text-zinc-300">
+                            ✨ No events scheduled for this day
+                          </span>
+                          <span className="text-xs font-black text-[#ff9933] group-hover:underline">
+                            + Add plan
+                          </span>
                         </div>
                       )}
                     </div>
