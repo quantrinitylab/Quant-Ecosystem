@@ -357,7 +357,7 @@ export function AppSidebar() {
     <nav className="quant-sidebar" aria-label="QuantMail navigation">
       <header className="sidebar-brand flex items-center justify-between px-3 py-3 border-b border-[var(--quant-border-subtle)]">
         <div className="flex items-center gap-2">
-          <Interactive3DLogo app="mail" size={28} showBadge={false} />
+          <QuantMailLogo size={28} showBadge={false} />
           <BrandWordmark app="mail" size="text-sm" />
         </div>
         <div className="flex items-center gap-1.5">

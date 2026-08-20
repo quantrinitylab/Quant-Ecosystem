@@ -452,19 +452,23 @@ export function AppShell({
               </button>
 
               <div
-                className="flex items-center gap-2.5 cursor-pointer select-none group"
+                className="flex items-center gap-3 cursor-pointer select-none group"
                 onClick={handleLogoClick}
                 title={`Quant${currentApp.charAt(0).toUpperCase() + currentApp.slice(1)} — Click to refresh`}
               >
-                <Interactive3DLogo
-                  app={currentApp}
-                  size={34}
-                  unreadCount={unreadCount}
-                  showBadge={true}
-                  onClick={handleLogoClick}
-                />
+                {currentApp === 'calendar' ? (
+                  <QuantCalendarLogo size={32} />
+                ) : currentApp === 'drive' ? (
+                  <QuantDriveLogo size={32} />
+                ) : currentApp === 'contacts' ? (
+                  <QuantContactsLogo size={32} />
+                ) : currentApp === 'code' ? (
+                  <QuantCodeLogo size={32} />
+                ) : (
+                  <QuantMailLogo size={32} unreadCount={unreadCount} onClick={handleLogoClick} />
+                )}
 
-                <BrandWordmark app={currentApp} size="text-lg" />
+                <BrandWordmark app={currentApp} size="text-xl" />
               </div>
             </div>
 

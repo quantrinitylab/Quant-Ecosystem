@@ -1,39 +1,56 @@
 'use client';
 
+import React from 'react';
+
 export type BrandWordmarkProps = {
   app?: 'mail' | 'calendar' | 'drive' | 'contacts' | 'code';
-  size?: string;
+  size?: 'text-sm' | 'text-base' | 'text-lg' | 'text-xl' | 'text-2xl' | 'text-4xl';
   className?: string;
 };
 
-const APP_META = {
-  mail: { prefix: 'Quant', name: 'Mail' },
-  calendar: { prefix: 'Quant', name: 'Calendar' },
-  drive: { prefix: 'Quant', name: 'Drive' },
-  contacts: { prefix: 'Quant', name: 'Contacts' },
-  code: { prefix: 'Quant', name: 'Code' },
+const APP_TITLES: Record<string, { brand: string; name: string }> = {
+  mail: { brand: 'Quant', name: 'Mail' },
+  calendar: { brand: 'Quant', name: 'Calendar' },
+  drive: { brand: 'Quant', name: 'Drive' },
+  contacts: { brand: 'Quant', name: 'Contacts' },
+  code: { brand: 'Quant', name: 'Code' },
 };
 
 /**
- * Instagram-Style Cursive Script Brand Wordmark for Quant Ecosystem.
+ * World-Class Instagram-Style Signature Wordmark
  */
 export function BrandWordmark({
   app = 'mail',
-  size = 'text-lg',
+  size = 'text-xl',
   className = '',
 }: BrandWordmarkProps) {
-  const meta = APP_META[app] || APP_META.mail;
+  const item = APP_TITLES[app] || APP_TITLES.mail;
+
+  const fontSizes = {
+    'text-sm': 'text-[15px]',
+    'text-base': 'text-[18px]',
+    'text-lg': 'text-[22px]',
+    'text-xl': 'text-[26px]',
+    'text-2xl': 'text-[32px]',
+    'text-4xl': 'text-[44px]',
+  };
+
+  const chosenSize = fontSizes[size] || 'text-[24px]';
 
   return (
     <span
-      className={`inline-flex items-baseline flex-row flex-nowrap whitespace-nowrap select-none font-normal tracking-tight ${size} ${className}`}
-      style={{ fontFamily: 'var(--font-brand), cursive, sans-serif' }}
+      className={`inline-flex items-baseline flex-nowrap whitespace-nowrap select-none tracking-normal ${chosenSize} ${className}`}
+      style={{
+        fontFamily: '"Billabong", "Grand Hotel", "Brush Script MT", cursive, sans-serif',
+        fontStyle: 'italic',
+        lineHeight: 1.1,
+      }}
     >
-      <span className="!inline !text-[#F4F5F7] !m-0 !p-0 !text-inherit !normal-case !tracking-tight">
-        {meta.prefix}
+      <span className="text-[#F8FAFC] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] font-medium">
+        {item.brand}
       </span>
-      <span className="!inline !text-[#FF7A00] !m-0 !p-0 !text-inherit !normal-case !tracking-tight ml-0.5">
-        {meta.name}
+      <span className="bg-gradient-to-r from-[#FF7A00] via-[#FFA726] to-[#FFD54F] bg-clip-text text-transparent ml-0.5 font-semibold drop-shadow-[0_2px_8px_rgba(255,122,0,0.4)]">
+        {item.name}
       </span>
     </span>
   );
