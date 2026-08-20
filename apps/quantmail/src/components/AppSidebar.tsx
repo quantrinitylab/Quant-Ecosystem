@@ -52,10 +52,11 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   calendar: (
-    <>
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M8 3v4M16 3v4M3 10h18" />
-    </>
+    <img
+      src="/quant-calendar-logo.png"
+      alt="Calendar"
+      className="size-5 object-contain rounded drop-shadow-[0_2px_6px_rgba(255,153,51,0.4)]"
+    />
   ),
   chevron: <path d="m9 18 6-6-6-6" />,
   clock: (

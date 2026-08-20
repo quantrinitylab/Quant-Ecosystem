@@ -192,23 +192,14 @@ const RECURRENCE_OPTIONS = [
   'Custom interval…',
 ];
 
-// Clean SVGs for categories and items
+// Clean 3D Calendar Logo Component
 function IconCalendar({ className = 'size-4' }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="4" width="18" height="18" rx="3" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
+    <img
+      src="/quant-calendar-logo.png"
+      alt="Calendar"
+      className={`${className} object-contain rounded drop-shadow-sm`}
+    />
   );
 }
 
@@ -1461,17 +1452,6 @@ export default function CalendarPage() {
       }
       mobileActions={
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() =>
-              setActiveView((v) => (v === 'agenda' ? 'month' : v === 'month' ? 'week' : 'agenda'))
-            }
-            className="size-8 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-800/80 transition-colors"
-            aria-label="Toggle calendar view"
-          >
-            <IconCalendar className="size-4" />
-          </button>
-
           <button
             type="button"
             onClick={() => setIsSearchOpen((prev) => !prev)}
