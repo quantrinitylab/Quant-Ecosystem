@@ -13,10 +13,10 @@ interface QuantMailLogoProps {
 }
 
 /**
- * World-Class Living AI Mascot & Fluid Lava Squircle Logo
+ * World-Class Living AI Mascot & Fluid Lava Squircle Logo for QuantMail
  * Features:
- * 1. 60FPS Hardware-Accelerated Liquid Lava Fluid Shader (Gold -> Amber -> Crimson -> Obsidian).
- * 2. Signature "M" Quanty Mascot with dynamic eye reactions based on unread inbox count.
+ * 1. 60FPS Hardware-Accelerated Liquid Lava Fluid Shader (Solar Gold -> Fire Orange -> Crimson -> Obsidian).
+ * 2. Signature "M" Quanty Mascot with dynamic eye expressions based on unread inbox count.
  * 3. Smart Head HUD Badge: Emerald Zen '✓' on 0 unread, Glowing Amber pill with count on >0 unread.
  * 4. Interactive pointer tracking, natural blinking, spring bounce, and one-tap instant inbox navigation.
  */
@@ -64,14 +64,14 @@ export function QuantMailLogo({
     if (!ctx) return;
 
     const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 2, 3) : 2;
-    const res = 160; // High-res internal rendering buffer for ultra-sharp Retina output
+    const res = 100; // Optimal 1:1 internal rendering buffer
     canvas.width = res * dpr;
     canvas.height = res * dpr;
 
     let time = Math.random() * 100;
 
     const render = () => {
-      time += 0.022;
+      time += 0.024;
 
       // Smooth damping for tilt
       const { targetX, targetY } = tiltRef.current;
@@ -88,8 +88,8 @@ export function QuantMailLogo({
 
       const cx = res / 2;
       const cy = res / 2;
-      const squircleRadius = 38;
-      const cornerRadius = 32;
+      const squircleRadius = 45; // 90px out of 100px with 5px padding
+      const cornerRadius = 24;
 
       // -------------------------------------------------------------
       // 1. APPLE SQUIRCLE CLIPPING PATH
@@ -108,25 +108,24 @@ export function QuantMailLogo({
       // -------------------------------------------------------------
       // 2. PROCEDURAL 60FPS LIQUID LAVA / SMOKE FLUID GRADIENT
       // -------------------------------------------------------------
-      // Fluid Wave Centers calculated using harmonic trigonometric waves
-      const tX = tiltRef.current.x * 12 + mouseVelocityRef.current.x * 20;
-      const tY = tiltRef.current.y * 12 + mouseVelocityRef.current.y * 20;
+      const tX = tiltRef.current.x * 8 + mouseVelocityRef.current.x * 12;
+      const tY = tiltRef.current.y * 8 + mouseVelocityRef.current.y * 12;
 
-      const p1x = cx - 18 + Math.cos(time * 0.9) * 14 + tX * 0.5;
-      const p1y = cy + 22 + Math.sin(time * 0.8) * 12 + tY * 0.5; // Solar Gold center (Bottom-Left)
+      const p1x = cx - 12 + Math.cos(time * 0.9) * 10 + tX * 0.5;
+      const p1y = cy + 14 + Math.sin(time * 0.8) * 8 + tY * 0.5; // Solar Gold (Bottom-Left)
 
-      const p2x = cx + 8 + Math.sin(time * 1.1) * 16 + tX * 0.7;
-      const p2y = cy - 20 + Math.cos(time * 0.95) * 14 + tY * 0.7; // Fire Orange center (Top)
+      const p2x = cx + 5 + Math.sin(time * 1.1) * 12 + tX * 0.7;
+      const p2y = cy - 14 + Math.cos(time * 0.95) * 10 + tY * 0.7; // Fire Orange (Top)
 
-      const p3x = cx + 24 + Math.cos(time * 0.75) * 12 + tX * 0.4;
-      const p3y = cy + 18 + Math.sin(time * 1.2) * 14 + tY * 0.4; // Crimson Red center (Bottom-Right)
+      const p3x = cx + 16 + Math.cos(time * 0.75) * 8 + tX * 0.4;
+      const p3y = cy + 12 + Math.sin(time * 1.2) * 10 + tY * 0.4; // Crimson (Bottom-Right)
 
       // Base Obsidian Background
       ctx.fillStyle = '#060709';
       ctx.fillRect(0, 0, res, res);
 
       // Layer 1: Crimson Scarlet Fluid Mass (Right / Deep)
-      const gradCrimson = ctx.createRadialGradient(p3x, p3y, 4, p3x, p3y, 55);
+      const gradCrimson = ctx.createRadialGradient(p3x, p3y, 2, p3x, p3y, 48);
       gradCrimson.addColorStop(0, '#E52E14');
       gradCrimson.addColorStop(0.4, '#C61E08');
       gradCrimson.addColorStop(0.75, '#7F0A00');
@@ -135,7 +134,7 @@ export function QuantMailLogo({
       ctx.fillRect(0, 0, res, res);
 
       // Layer 2: Electric Fire Orange Silk Swirl (Top-Center)
-      const gradOrange = ctx.createRadialGradient(p2x, p2y, 4, p2x, p2y, 58);
+      const gradOrange = ctx.createRadialGradient(p2x, p2y, 2, p2x, p2y, 48);
       gradOrange.addColorStop(0, '#FF5500');
       gradOrange.addColorStop(0.35, '#FF3300');
       gradOrange.addColorStop(0.7, '#D62000');
@@ -144,7 +143,7 @@ export function QuantMailLogo({
       ctx.fillRect(0, 0, res, res);
 
       // Layer 3: Intense Solar Gold Flame (Bottom-Left)
-      const gradGold = ctx.createRadialGradient(p1x, p1y, 2, p1x, p1y, 48);
+      const gradGold = ctx.createRadialGradient(p1x, p1y, 1, p1x, p1y, 40);
       gradGold.addColorStop(0, '#FFC700');
       gradGold.addColorStop(0.28, '#FF8A00');
       gradGold.addColorStop(0.65, '#FF4500');
@@ -152,10 +151,10 @@ export function QuantMailLogo({
       ctx.fillStyle = gradGold;
       ctx.fillRect(0, 0, res, res);
 
-      // Layer 4: Deep Obsidian Contrast Vortex Crevices
-      const voidX = cx + Math.sin(time * 0.85) * 10 - tX * 0.4;
-      const voidY = cy + Math.cos(time * 0.7) * 8 - tY * 0.4;
-      const gradVoid = ctx.createRadialGradient(voidX, voidY, 2, voidX, voidY, 40);
+      // Layer 4: Deep Obsidian Contrast Crevices
+      const voidX = cx + Math.sin(time * 0.85) * 8 - tX * 0.4;
+      const voidY = cy + Math.cos(time * 0.7) * 6 - tY * 0.4;
+      const gradVoid = ctx.createRadialGradient(voidX, voidY, 1, voidX, voidY, 34);
       gradVoid.addColorStop(0, 'rgba(6, 7, 10, 0.92)');
       gradVoid.addColorStop(0.5, 'rgba(12, 14, 20, 0.6)');
       gradVoid.addColorStop(1, 'rgba(0, 0, 0, 0)');
@@ -167,39 +166,39 @@ export function QuantMailLogo({
       // -------------------------------------------------------------
       ctx.save();
       // Apply slight 3D perspective parallax to mascot relative to background
-      const mx = cx + tiltRef.current.x * 3.5;
-      const my = cy + tiltRef.current.y * 3.5 + 1;
+      const mx = cx + tiltRef.current.x * 2.5;
+      const my = cy + tiltRef.current.y * 2.5 + 2;
 
-      // Mascot Dimensions: W: 44, H: 44
-      const mw = 44;
-      const mh = 44;
+      // Mascot Dimensions: W: 52, H: 42
+      const mw = 52;
+      const mh = 42;
       const x0 = mx - mw / 2;
       const y0 = my - mh / 2;
 
       // Draw Mascot Soft Drop Shadow for real 3D lift
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
-      ctx.shadowBlur = 12;
-      ctx.shadowOffsetY = 4;
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 3;
 
       ctx.beginPath();
       // Start Bottom-Left
-      ctx.moveTo(x0 + 8, y0 + mh);
+      ctx.moveTo(x0 + 7, y0 + mh);
       // Bottom flat edge with rounded bottom-left corner
-      ctx.arcTo(x0, y0 + mh, x0, y0 + mh - 8, 8);
+      ctx.arcTo(x0, y0 + mh, x0, y0 + mh - 7, 7);
       // Left vertical wall
-      ctx.lineTo(x0, y0 + 12);
+      ctx.lineTo(x0, y0 + 11);
       // Left Ear Outer Curve to Left Peak
-      ctx.bezierCurveTo(x0, y0 + 4, x0 + 4, y0, x0 + 8, y0);
+      ctx.bezierCurveTo(x0, y0 + 3, x0 + 4, y0, x0 + 8, y0);
       // Left Ear Peak to Center 'M' Valley
-      ctx.bezierCurveTo(x0 + 13, y0 + 3, x0 + 17, y0 + 16, x0 + 22, y0 + 16);
+      ctx.bezierCurveTo(x0 + 14, y0 + 2, x0 + 20, y0 + 16, x0 + 26, y0 + 16);
       // Center 'M' Valley to Right Ear Peak
-      ctx.bezierCurveTo(x0 + 27, y0 + 16, x0 + 31, y0 + 3, x0 + 36, y0);
+      ctx.bezierCurveTo(x0 + 32, y0 + 16, x0 + 38, y0 + 2, x0 + 44, y0);
       // Right Peak to Right Outer Wall
-      ctx.bezierCurveTo(x0 + 40, y0, x0 + mw, y0 + 4, x0 + mw, y0 + 12);
+      ctx.bezierCurveTo(x0 + 48, y0, x0 + mw, y0 + 3, x0 + mw, y0 + 11);
       // Right vertical wall
-      ctx.lineTo(x0 + mw, y0 + mh - 8);
+      ctx.lineTo(x0 + mw, y0 + mh - 7);
       // Bottom-Right rounded corner
-      ctx.arcTo(x0 + mw, y0 + mh, x0 + mw - 8, y0 + mh, 8);
+      ctx.arcTo(x0 + mw, y0 + mh, x0 + mw - 7, y0 + mh, 7);
       // Close back to bottom-left
       ctx.closePath();
 
@@ -211,7 +210,7 @@ export function QuantMailLogo({
       // 4. DYNAMIC MASCOT EYES (State Machine by Unread Count & Interaction)
       // -------------------------------------------------------------
       const eyeY = my + 7;
-      const eyeSpacing = 8;
+      const eyeSpacing = 9;
       const leftEyeX = mx - eyeSpacing;
       const rightEyeX = mx + eyeSpacing;
       const eyeColor = '#060709'; // Deep obsidian pupil
@@ -232,56 +231,56 @@ export function QuantMailLogo({
       if (isBlinking) {
         // Natural Blink: Flat closed line for a split millisecond
         ctx.beginPath();
-        ctx.moveTo(leftEyeX - 3.5, eyeY);
-        ctx.lineTo(leftEyeX + 3.5, eyeY);
-        ctx.moveTo(rightEyeX - 3.5, eyeY);
-        ctx.lineTo(rightEyeX + 3.5, eyeY);
+        ctx.moveTo(leftEyeX - 4, eyeY);
+        ctx.lineTo(leftEyeX + 4, eyeY);
+        ctx.moveTo(rightEyeX - 4, eyeY);
+        ctx.lineTo(rightEyeX + 4, eyeY);
         ctx.stroke();
       } else if (isHappyClosed) {
-        // Joyful Closed Arch Smiling Eyes: "◠  ◠" (Matching user image reference)
+        // Joyful Closed Arch Smiling Eyes: "◠  ◠" (Matching reference artwork)
         // Left Eye Arch
         ctx.beginPath();
-        ctx.arc(leftEyeX, eyeY + 1.5, 4.2, Math.PI * 1.15, Math.PI * 1.85, false);
+        ctx.arc(leftEyeX, eyeY + 1.5, 4.4, Math.PI * 1.15, Math.PI * 1.85, false);
         ctx.stroke();
 
         // Right Eye Arch
         ctx.beginPath();
-        ctx.arc(rightEyeX, eyeY + 1.5, 4.2, Math.PI * 1.15, Math.PI * 1.85, false);
+        ctx.arc(rightEyeX, eyeY + 1.5, 4.4, Math.PI * 1.15, Math.PI * 1.85, false);
         ctx.stroke();
 
         // Subtle cute warm blush spots on cheeks when 0 unread
         if (unreadCount === 0) {
           ctx.beginPath();
-          ctx.arc(leftEyeX - 6.5, eyeY + 5, 2.5, 0, Math.PI * 2);
-          ctx.arc(rightEyeX + 6.5, eyeY + 5, 2.5, 0, Math.PI * 2);
+          ctx.arc(leftEyeX - 7, eyeY + 5.5, 2.8, 0, Math.PI * 2);
+          ctx.arc(rightEyeX + 7, eyeY + 5.5, 2.8, 0, Math.PI * 2);
           ctx.fillStyle = 'rgba(255, 122, 0, 0.35)';
           ctx.fill();
         }
       } else if (unreadCount <= 5) {
         // Low Unread (1 - 5): Curious Round Pupils tracking the mouse
         ctx.beginPath();
-        ctx.arc(leftEyeX + lookOffsetX, eyeY + lookOffsetY, 3.2, 0, Math.PI * 2);
-        ctx.arc(rightEyeX + lookOffsetX, eyeY + lookOffsetY, 3.2, 0, Math.PI * 2);
+        ctx.arc(leftEyeX + lookOffsetX, eyeY + lookOffsetY, 3.4, 0, Math.PI * 2);
+        ctx.arc(rightEyeX + lookOffsetX, eyeY + lookOffsetY, 3.4, 0, Math.PI * 2);
         ctx.fill();
 
         // White Specular Catchlight Sparkle in pupils
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
-        ctx.arc(leftEyeX + lookOffsetX + 1, eyeY + lookOffsetY - 1, 1.1, 0, Math.PI * 2);
-        ctx.arc(rightEyeX + lookOffsetX + 1, eyeY + lookOffsetY - 1, 1.1, 0, Math.PI * 2);
+        ctx.arc(leftEyeX + lookOffsetX + 1.1, eyeY + lookOffsetY - 1.1, 1.2, 0, Math.PI * 2);
+        ctx.arc(rightEyeX + lookOffsetX + 1.1, eyeY + lookOffsetY - 1.1, 1.2, 0, Math.PI * 2);
         ctx.fill();
       } else {
         // High Unread (6+): Alert Energetic Wide Pupils
         ctx.beginPath();
-        ctx.arc(leftEyeX + lookOffsetX, eyeY + lookOffsetY, 3.8, 0, Math.PI * 2);
-        ctx.arc(rightEyeX + lookOffsetX, eyeY + lookOffsetY, 3.8, 0, Math.PI * 2);
+        ctx.arc(leftEyeX + lookOffsetX, eyeY + lookOffsetY, 4.0, 0, Math.PI * 2);
+        ctx.arc(rightEyeX + lookOffsetX, eyeY + lookOffsetY, 4.0, 0, Math.PI * 2);
         ctx.fill();
 
         // Specular Catchlights
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
-        ctx.arc(leftEyeX + lookOffsetX + 1.2, eyeY + lookOffsetY - 1.2, 1.3, 0, Math.PI * 2);
-        ctx.arc(rightEyeX + lookOffsetX + 1.2, eyeY + lookOffsetY - 1.2, 1.3, 0, Math.PI * 2);
+        ctx.arc(leftEyeX + lookOffsetX + 1.3, eyeY + lookOffsetY - 1.3, 1.4, 0, Math.PI * 2);
+        ctx.arc(rightEyeX + lookOffsetX + 1.3, eyeY + lookOffsetY - 1.3, 1.4, 0, Math.PI * 2);
         ctx.fill();
       }
 
