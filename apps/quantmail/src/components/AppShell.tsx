@@ -11,6 +11,10 @@ import { QuantDriveLogo } from './QuantDriveLogo';
 import { QuantContactsLogo } from './QuantContactsLogo';
 import { QuantCodeLogo } from './QuantCodeLogo';
 import { BrandWordmark } from './BrandWordmark';
+import { Interactive3DLogo, type LogoAppType } from './Interactive3DLogo';
+import { EcosystemWarpMatrix } from './EcosystemWarpMatrix';
+import { QuantumSplashIntro } from './QuantumSplashIntro';
+import { useInbox } from '../hooks/useInbox';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -195,8 +199,21 @@ export function AppShell({
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
+  const [isWarpOpen, setIsWarpOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname() ?? '/';
+  const { data: inboxEmails, refetch: refetchInbox } = useInbox({ folderType: 'INBOX' });
+  const unreadCount = inboxEmails?.filter((e) => !e.isRead).length ?? 0;
+
+  const currentApp: LogoAppType = pathname.startsWith('/calendar')
+    ? 'calendar'
+    : pathname.startsWith('/drive')
+      ? 'drive'
+      : pathname.startsWith('/contacts')
+        ? 'contacts'
+        : pathname.startsWith('/codehub')
+          ? 'code'
+          : 'mail';
 
   useEffect(() => {
     try {
@@ -416,52 +433,19 @@ export function AppShell({
               </button>
 
               <div
-                className="flex items-center gap-2.5 cursor-pointer select-none"
-                onClick={() => {
-                  if (pathname.startsWith('/calendar')) router.push('/calendar');
-                  else if (pathname.startsWith('/drive')) router.push('/drive');
-                  else if (pathname.startsWith('/contacts')) router.push('/contacts');
-                  else if (pathname.startsWith('/codehub')) router.push('/codehub');
-                  else router.push('/');
-                }}
-                title={
-                  pathname.startsWith('/calendar')
-                    ? 'QuantCalendar'
-                    : pathname.startsWith('/drive')
-                      ? 'QuantDrive'
-                      : pathname.startsWith('/contacts')
-                        ? 'QuantContacts'
-                        : pathname.startsWith('/codehub')
-                          ? 'QuantCode'
-                          : 'QuantMail'
-                }
+                className="flex items-center gap-2.5 cursor-pointer select-none group"
+                onClick={() => setIsWarpOpen(true)}
+                title={`Quant${currentApp.charAt(0).toUpperCase() + currentApp.slice(1)} — Tap to open Intelligence Matrix`}
               >
-                {pathname.startsWith('/calendar') ? (
-                  <QuantCalendarLogo size={32} />
-                ) : pathname.startsWith('/drive') ? (
-                  <QuantDriveLogo size={32} />
-                ) : pathname.startsWith('/contacts') ? (
-                  <QuantContactsLogo size={32} />
-                ) : pathname.startsWith('/codehub') ? (
-                  <QuantCodeLogo size={32} />
-                ) : (
-                  <QuantMailLogo size={32} />
-                )}
-
-                <BrandWordmark
-                  app={
-                    pathname.startsWith('/calendar')
-                      ? 'calendar'
-                      : pathname.startsWith('/drive')
-                        ? 'drive'
-                        : pathname.startsWith('/contacts')
-                          ? 'contacts'
-                          : pathname.startsWith('/codehub')
-                            ? 'code'
-                            : 'mail'
-                  }
-                  size="text-lg"
+                <Interactive3DLogo
+                  app={currentApp}
+                  size={34}
+                  unreadCount={unreadCount}
+                  showBadge={true}
+                  onClick={() => setIsWarpOpen(true)}
                 />
+
+                <BrandWordmark app={currentApp} size="text-lg" />
               </div>
             </div>
 
@@ -535,6 +519,17 @@ export function AppShell({
 
       {/* Mobile Bottom Navigation — strictly md:hidden */}
       <MobileBottomNav />
+
+      {/* Ecosystem Intelligence Warp Matrix HUD */}
+      <EcosystemWarpMatrix
+        isOpen={isWarpOpen}
+        onClose={() => setIsWarpOpen(false)}
+        unreadCount={unreadCount}
+        onRefresh={() => void refetchInbox()}
+      />
+
+      {/* Cinematic Quantum Ignition Startup Intro */}
+      <QuantumSplashIntro />
     </section>
   );
 }

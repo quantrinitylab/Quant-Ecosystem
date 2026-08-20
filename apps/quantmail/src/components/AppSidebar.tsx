@@ -8,6 +8,7 @@ import { useInbox } from '../hooks/useInbox';
 import { NotificationBell } from './NotificationBell';
 import { QuantMailLogo } from './QuantMailLogo';
 import { BrandWordmark } from './BrandWordmark';
+import { Interactive3DLogo } from './Interactive3DLogo';
 import type { EmailLabel } from '../types';
 import { AccountBadge } from './AccountBadge';
 
@@ -356,7 +357,7 @@ export function AppSidebar() {
     <nav className="quant-sidebar" aria-label="QuantMail navigation">
       <header className="sidebar-brand flex items-center justify-between px-3 py-3 border-b border-[var(--quant-border-subtle)]">
         <div className="flex items-center gap-2">
-          <QuantMailLogo size={28} />
+          <Interactive3DLogo app="mail" size={28} showBadge={false} />
           <BrandWordmark app="mail" size="text-sm" />
         </div>
         <div className="flex items-center gap-1.5">
