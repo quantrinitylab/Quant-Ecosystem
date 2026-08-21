@@ -48,7 +48,15 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
     // 1) Try the id as a real thread id first.
     try {
       const thread = await service.getThread(request.params.id, userId);
-      if (thread) return reply.send({ success: true, data: thread });
+      if (thread) {
+        return reply.send({
+          success: true,
+          data: {
+            ...thread,
+            messages: thread.emails ?? (thread as any).messages ?? [],
+          },
+        });
+      }
     } catch {
       /* fall through to email-id resolution */
     }
@@ -63,7 +71,15 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
     if (email.threadId) {
       try {
         const thread = await service.getThread(email.threadId, userId);
-        if (thread) return reply.send({ success: true, data: thread });
+        if (thread) {
+          return reply.send({
+            success: true,
+            data: {
+              ...thread,
+              messages: thread.emails ?? (thread as any).messages ?? [],
+            },
+          });
+        }
       } catch {
         /* fall through to the single-message view */
       }

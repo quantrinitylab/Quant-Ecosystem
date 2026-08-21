@@ -327,11 +327,6 @@ function EmailRow({
           <div className="mail-row-meta">
             <div className="flex items-center gap-1.5 min-w-0">
               <strong className="truncate text-zinc-100">{thread.sendersSummary}</strong>
-              {thread.count > 1 && (
-                <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded-full bg-zinc-800 text-[#FF7A00] border border-zinc-700/80">
-                  {thread.count}
-                </span>
-              )}
             </div>
             {!thread.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
             {isHighPriority && (
@@ -508,7 +503,7 @@ function ReadingPane({
             <button
               type="button"
               onClick={() => setIsQuantyDrawerOpen(true)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 text-xs font-bold transition-all ml-1"
+              className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition-all ml-1"
               title="Ask Quanty AI"
             >
               <Quanty size={18} expression="happy" bob={false} />
@@ -527,7 +522,7 @@ function ReadingPane({
             </button>
             <button
               type="button"
-              className="px-3 py-1 rounded-xl text-xs font-semibold bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30 transition-colors"
+              className="px-3 py-1 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/30 transition-colors"
               onClick={() => router.push(`/thread/${email.threadId || email.id}`)}
             >
               Open thread <span aria-hidden="true">↗</span>
@@ -555,7 +550,7 @@ function ReadingPane({
           <div className="flex items-center gap-2 w-full">
             <input
               type="text"
-              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/70 transition-colors"
+              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/70 transition-colors"
               placeholder="Type a quick reply or pick a suggestion above…"
               value={quickReplyText}
               onChange={(e) => setQuickReplyText(e.target.value)}
@@ -571,7 +566,7 @@ function ReadingPane({
                 type="button"
                 disabled={isSendingQuickReply}
                 onClick={() => void handleSendQuickReply()}
-                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold transition-all"
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] hover:from-[#e06c00] hover:to-[#d04e06] text-white text-xs font-semibold transition-all"
               >
                 {isSendingQuickReply ? 'Sending…' : 'Send (↵)'}
               </button>
@@ -883,7 +878,7 @@ export default function InboxPage() {
           <button
             type="button"
             onClick={() => setIsGlobalQuantyOpen(true)}
-            className="inline-flex size-9 items-center justify-center rounded-lg text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition-colors"
+            className="inline-flex size-9 items-center justify-center rounded-lg text-amber-400 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-colors"
             aria-label="Ask Quanty AI"
           >
             <Quanty size={20} expression="happy" bob={false} />
@@ -934,7 +929,7 @@ export default function InboxPage() {
             <button
               type="button"
               onClick={() => setIsGlobalQuantyOpen(true)}
-              className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 shrink-0"
+              className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 shrink-0"
               title="Ask Quanty AI"
             >
               <Quanty size={20} expression="happy" bob={false} />

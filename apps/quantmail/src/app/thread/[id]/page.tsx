@@ -47,16 +47,19 @@ export default function ThreadPage() {
   const [replyError, setReplyError] = useState<string | null>(null);
   const [showReplyBox, setShowReplyBox] = useState(false);
 
-  // Accordion state: track expanded message indices
+  // Normalize messages array (supporting both backend .emails and .messages properties)
+  const messages: Email[] = (thread?.messages || (thread as any)?.emails || []) as Email[];
+
+  // Accordion state: initialize all messages as expanded in thread view for continuous reading
   const [expandedIndices, setExpandedIndices] = useState<Set<number>>(new Set());
   const [expandedDetailsIndices, setExpandedDetailsIndices] = useState<Set<number>>(new Set());
 
-  // Initialize latest message as expanded
   useEffect(() => {
-    if (thread?.messages && thread.messages.length > 0) {
-      setExpandedIndices(new Set([thread.messages.length - 1]));
+    if (messages.length > 0) {
+      // Expand all messages by default so it reads as a continuous letter stream
+      setExpandedIndices(new Set(messages.map((_, i) => i)));
     }
-  }, [thread?.messages?.length]);
+  }, [messages.length]);
 
   const toggleMessageExpand = (index: number) => {
     setExpandedIndices((prev) => {
@@ -81,12 +84,11 @@ export default function ThreadPage() {
   }, [threadId, router]);
 
   useEffect(() => {
-    const messages = thread?.messages;
     if (!messages || messages.length === 0) return;
     const unread = messages.filter((m: Email) => !m.isRead);
     if (unread.length === 0) return;
     void Promise.all(unread.map((m: Email) => apiClient.markAsRead(m.id).catch(() => null)));
-  }, [thread]);
+  }, [messages]);
 
   // Keyboard navigation shortcuts
   useEffect(() => {
@@ -111,38 +113,35 @@ export default function ThreadPage() {
   }, [thread, router]);
 
   const handleArchive = useCallback(async () => {
-    if (!thread?.messages?.[0]) return;
-    await apiClient.archiveEmail(thread.messages[0].id);
+    if (!messages[0]) return;
+    await apiClient.archiveEmail(messages[0].id);
     showToast({ text: 'Conversation archived', type: 'info' });
     router.push('/');
-  }, [thread, router]);
+  }, [messages, router]);
 
   const handleStar = useCallback(async () => {
-    if (!thread?.messages?.[0]) return;
-    await apiClient.toggleStar(thread.messages[0].id);
+    if (!messages[0]) return;
+    await apiClient.toggleStar(messages[0].id);
     showToast({
-      text: thread.isStarred ? 'Conversation unstarred' : 'Conversation starred',
+      text: thread?.isStarred ? 'Conversation unstarred' : 'Conversation starred',
       type: 'info',
     });
     refetch();
-  }, [thread, refetch]);
+  }, [messages, thread, refetch]);
 
   const handleDelete = useCallback(async () => {
-    if (!thread?.messages?.[0]) return;
-    await apiClient.deleteEmail(thread.messages[0].id);
+    if (!messages[0]) return;
+    await apiClient.deleteEmail(messages[0].id);
     showToast({ text: 'Conversation moved to trash', type: 'info' });
     router.push('/');
-  }, [thread, router]);
+  }, [messages, router]);
 
   const handleSendReply = useCallback(async () => {
     if (!replyText.trim() || isSendingReply) return;
     setIsSendingReply(true);
     setReplyError(null);
     try {
-      const replyTarget =
-        thread?.messages && thread.messages.length > 0
-          ? thread.messages[thread.messages.length - 1].id
-          : threadId;
+      const replyTarget = messages.length > 0 ? messages[messages.length - 1].id : threadId;
       const res = await apiClient.replyToEmail(replyTarget, replyText);
       if (!res.success) {
         setReplyError(res.error?.message || 'Failed to send reply');
@@ -157,7 +156,7 @@ export default function ThreadPage() {
     } finally {
       setIsSendingReply(false);
     }
-  }, [replyText, isSendingReply, thread, threadId, refetch]);
+  }, [replyText, isSendingReply, messages, threadId, refetch]);
 
   if (!threadId) {
     return (
@@ -171,14 +170,14 @@ export default function ThreadPage() {
     );
   }
 
-  const primaryMessage = thread?.messages?.[0];
+  const primaryMessage = messages[0];
   const senderName = primaryMessage?.from?.name || primaryMessage?.from?.email || 'Sender';
   const senderEmail = primaryMessage?.from?.email || '';
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page thread-workspace flex flex-col h-full bg-[#0a0d14]">
-        {/* Top Header Action Bar (Clean Gmail Layout) */}
+        {/* Top Header Action Bar (Clean Amber/Gold Theme) */}
         <EmailReaderHeader
           subject={thread?.subject || '(No Subject)'}
           senderName={senderName}
@@ -192,7 +191,7 @@ export default function ThreadPage() {
           onToggleStar={() => void handleStar()}
         />
 
-        {/* Main Reading Canvas */}
+        {/* Main Continuous Reading Canvas */}
         <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4 max-w-4xl mx-auto w-full">
           {isLoading && (
             <div className="space-y-4 pt-2">
@@ -208,14 +207,14 @@ export default function ThreadPage() {
 
           {!isLoading && !error && thread && (
             <>
-              {/* Subject Title & Category Badges Row (Gmail standard) */}
+              {/* Subject Title & Category Badges Row */}
               <div className="flex items-start justify-between gap-3 pb-3 border-b border-zinc-800/80">
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h1 className="text-lg sm:text-2xl font-bold text-white tracking-tight break-words">
                       {thread.subject || '(No Subject)'}
                     </h1>
-                    <span className="px-2 py-0.5 rounded-full bg-blue-600/20 border border-blue-500/30 text-[11px] font-semibold text-blue-400">
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-[11px] font-bold text-amber-400">
                       Inbox
                     </span>
                   </div>
@@ -243,19 +242,17 @@ export default function ThreadPage() {
                 </button>
               </div>
 
-              {/* Messages Stack */}
+              {/* Chronological Messages Stack as Continuous Luxury Letters */}
               <div className="space-y-4 pt-1">
-                {thread.messages?.map((message: Email, index: number) => {
+                {messages.map((message: Email, index: number) => {
                   const isPostcard = message.bodyText?.includes('<!-- QUANTMAIL_POSTCARD:');
                   const isExpanded = expandedIndices.has(index);
                   const isDetailsExpanded = expandedDetailsIndices.has(index);
-                  const isSenderSelf = message.from?.email?.toLowerCase().includes('me') || false;
-                  const isShortChat = (message.bodyText?.length || 0) < 140 && !isPostcard;
 
                   return (
-                    <div key={message.id} className="w-full">
+                    <div key={message.id || index} className="w-full">
                       {!isExpanded ? (
-                        /* Collapsed 1-Line Strip */
+                        /* Collapsed Strip */
                         <div
                           onClick={() => toggleMessageExpand(index)}
                           className="flex items-center justify-between gap-3 p-3.5 rounded-2xl border border-zinc-800 bg-[#121622]/90 hover:bg-zinc-800/80 cursor-pointer w-full transition-all shadow-sm select-none"
@@ -291,9 +288,9 @@ export default function ThreadPage() {
                           </div>
                         </div>
                       ) : (
-                        /* Expanded Full Message */
+                        /* Expanded Continuous Luxury Letter Page */
                         <div className="rounded-2xl sm:rounded-3xl border border-zinc-800/90 bg-[#10141d] shadow-xl overflow-hidden">
-                          {/* Sender Row (Gmail Style) */}
+                          {/* Sender Metadata Bar */}
                           <div className="flex items-start justify-between gap-3 p-4 sm:p-5 pb-3">
                             <div className="flex items-start gap-3 min-w-0">
                               <IdentityAvatar
@@ -315,7 +312,7 @@ export default function ThreadPage() {
                                 <button
                                   type="button"
                                   onClick={() => toggleDetailsExpand(index)}
-                                  className="group inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 text-left pt-0.5 font-mono"
+                                  className="group inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-amber-300 text-left pt-0.5 font-mono"
                                 >
                                   <span>to me</span>
                                   <svg
@@ -333,7 +330,7 @@ export default function ThreadPage() {
                               </div>
                             </div>
 
-                            {/* Right Action Icons: Emoji, Reply, More */}
+                            {/* Right Action Icons: Reply & Collapse */}
                             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                               <button
                                 type="button"
@@ -344,7 +341,7 @@ export default function ThreadPage() {
                                     100,
                                   );
                                 }}
-                                className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                                className="p-2 rounded-xl text-zinc-400 hover:text-amber-300 hover:bg-zinc-800 transition-colors"
                                 title="Reply"
                               >
                                 <svg
@@ -359,7 +356,6 @@ export default function ThreadPage() {
                                 </svg>
                               </button>
 
-                              {/* Message Collapse Toggle Chevron */}
                               <button
                                 type="button"
                                 onClick={() => toggleMessageExpand(index)}
@@ -379,7 +375,7 @@ export default function ThreadPage() {
                             </div>
                           </div>
 
-                          {/* Expandable "to me ⌵" Details Box */}
+                          {/* Expandable "to me ⌵" Security Details */}
                           <AnimatePresence>
                             {isDetailsExpanded && (
                               <motion.div
@@ -421,22 +417,10 @@ export default function ThreadPage() {
                             )}
                           </AnimatePresence>
 
-                          {/* Email Body: Postcard, Luxury Letterhead, or Chat Bubble */}
+                          {/* Email Body: Postcard or Luxury Continuous Letterhead */}
                           <div className="p-3 sm:p-5 pt-0">
                             {isPostcard ? (
                               <PostcardReader email={message} />
-                            ) : isShortChat ? (
-                              <div
-                                className={`rounded-2xl p-4 text-xs sm:text-sm leading-relaxed ${
-                                  isSenderSelf
-                                    ? 'bg-[#1a73e8] text-white ml-auto max-w-[88%]'
-                                    : 'bg-[#1a1e2a] border border-zinc-800 text-zinc-200'
-                                }`}
-                              >
-                                <p className="whitespace-pre-wrap">
-                                  {message.bodyText || message.snippet}
-                                </p>
-                              </div>
                             ) : (
                               <EmailLetterCard email={message} />
                             )}
@@ -448,7 +432,7 @@ export default function ThreadPage() {
                 })}
               </div>
 
-              {/* Bottom Unified Quick Reply Area (Gmail Style) */}
+              {/* Bottom Unified Quick Reply Area (QuantMail Amber/Orange Style) */}
               <div className="pt-2">
                 {!showReplyBox ? (
                   <div className="flex items-center gap-2.5 p-2 rounded-2xl border border-zinc-800 bg-[#121622]/90 shadow-md">
@@ -464,7 +448,7 @@ export default function ThreadPage() {
                       className="flex-1 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 text-xs text-zinc-400 text-left border border-zinc-800 transition-all cursor-text"
                     >
                       <svg
-                        className="size-4 text-zinc-500"
+                        className="size-4 text-amber-400"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -489,10 +473,10 @@ export default function ThreadPage() {
                     <button
                       type="button"
                       onClick={() => setIsQuantyOpen(true)}
-                      className="p-2.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 transition-all"
+                      className="p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 transition-all"
                       title="Ask Quanty AI"
                     >
-                      ✨
+                      <Quanty size={18} expression="happy" bob={false} />
                     </button>
                   </div>
                 ) : (
@@ -517,7 +501,7 @@ export default function ThreadPage() {
                       onChange={(e) => setReplyText(e.target.value)}
                       placeholder="Write your reply here…"
                       rows={4}
-                      className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-3.5 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[#64b5f6] focus:ring-1 focus:ring-[#64b5f6]/40 transition-all resize-none shadow-inner leading-relaxed"
+                      className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-3.5 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[#FF7A00] focus:ring-1 focus:ring-[#FF7A00]/40 transition-all resize-none shadow-inner leading-relaxed"
                     />
 
                     {replyError && <p className="text-xs text-rose-400">{replyError}</p>}
@@ -526,9 +510,9 @@ export default function ThreadPage() {
                       <button
                         type="button"
                         onClick={() => setIsQuantyOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 transition-all"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 transition-all"
                       >
-                        <span>✨</span>
+                        <Quanty size={16} expression="happy" bob={false} />
                         <span>Draft with Quanty AI</span>
                       </button>
 
@@ -547,7 +531,7 @@ export default function ThreadPage() {
                           type="button"
                           onClick={handleSendReply}
                           disabled={!replyText.trim() || isSendingReply}
-                          className="px-4 py-2 rounded-xl bg-[#1a73e8] hover:bg-[#1557b0] text-white text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-40"
+                          className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] hover:from-[#e06c00] hover:to-[#d04e06] text-white text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-40"
                         >
                           {isSendingReply ? 'Sending…' : 'Send'}
                         </button>

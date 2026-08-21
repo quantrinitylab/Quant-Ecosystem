@@ -122,14 +122,14 @@ export function EmailReaderHeader({
         <button
           type="button"
           onClick={onOpenQuanty}
-          className="group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/15 via-blue-500/15 to-indigo-500/15 border border-cyan-500/30 hover:border-cyan-400 hover:shadow-[0_0_15px_rgba(6,182,212,0.25)] transition-all cursor-pointer select-none active:scale-95"
+          className="group relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 hover:border-amber-400 hover:shadow-[0_0_15px_rgba(245,158,11,0.25)] transition-all cursor-pointer select-none active:scale-95"
           title="Ask Quanty AI"
         >
           <div className="relative size-5 flex items-center justify-center">
             <Quanty size={20} expression="happy" bob={false} />
-            <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-cyan-400 animate-ping" />
+            <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-[#FF7A00] animate-ping" />
           </div>
-          <span className="text-[11px] sm:text-xs font-bold bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent hidden xs:inline">
+          <span className="text-[11px] sm:text-xs font-bold text-amber-400 hidden xs:inline">
             Quanty
           </span>
         </button>

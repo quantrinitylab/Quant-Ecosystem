@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Quanty } from './Quanty';
 import { showToast } from './InboxToast';
 import type { Email } from '../types';
-import { useRouter } from 'next/navigation';
 
 export interface QuantyAssistantDrawerProps {
   isOpen: boolean;
@@ -16,6 +15,15 @@ export interface QuantyAssistantDrawerProps {
   onInsertReply?: (text: string) => void;
 }
 
+interface ChatHistoryItem {
+  id: string;
+  date: string;
+  preview: string;
+  messages: Array<{ role: 'user' | 'assistant'; text: string }>;
+}
+
+const STORAGE_KEY = 'quantmail_quanty_chats_v1';
+
 export function QuantyCopilotDrawer({
   isOpen,
   onClose,
@@ -24,7 +32,6 @@ export function QuantyCopilotDrawer({
   isInboxContext = false,
   onInsertReply,
 }: QuantyAssistantDrawerProps) {
-  const router = useRouter();
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -32,17 +39,30 @@ export function QuantyCopilotDrawer({
     'idle' | 'happy' | 'thinking' | 'wink' | 'shock'
   >('happy');
 
+  const [showHistoryMenu, setShowHistoryMenu] = useState(false);
+  const [historyList, setHistoryList] = useState<ChatHistoryItem[]>([]);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load history from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        setHistoryList(JSON.parse(saved));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 150);
+      setShowHistoryMenu(false);
     } else {
-      // Reset conversation when closed
-      setMessages([]);
-      setInputValue('');
-      setIsLoading(false);
+      setShowHistoryMenu(false);
     }
   }, [isOpen]);
 
@@ -51,6 +71,29 @@ export function QuantyCopilotDrawer({
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     }
   }, [messages, isLoading]);
+
+  const saveCurrentConversation = (
+    newMsgs: Array<{ role: 'user' | 'assistant'; text: string }>,
+  ) => {
+    if (newMsgs.length < 2) return;
+    try {
+      const firstUserMsg = newMsgs.find((m) => m.role === 'user')?.text || 'Conversation';
+      const newItem: ChatHistoryItem = {
+        id: Date.now().toString(),
+        date: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        preview: firstUserMsg.slice(0, 45),
+        messages: newMsgs,
+      };
+      const updated = [newItem, ...historyList.filter((h) => h.preview !== newItem.preview)].slice(
+        0,
+        15,
+      );
+      setHistoryList(updated);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  };
 
   const handleSend = async (userPrompt?: string) => {
     const promptToSend = userPrompt || inputValue;
@@ -92,24 +135,28 @@ export function QuantyCopilotDrawer({
         const data = await res.json();
         const responseText = data?.data?.message || data?.content;
         if (responseText) {
-          setMessages([...newMsgs, { role: 'assistant', text: responseText }]);
+          const finalMsgs = [...newMsgs, { role: 'assistant' as const, text: responseText }];
+          setMessages(finalMsgs);
           setQuantyExpression('happy');
+          saveCurrentConversation(finalMsgs);
           return;
         }
       }
 
-      // High-quality local simulated response fallback
+      // High-quality local simulated fallback
       setTimeout(() => {
         let simulated =
-          "I've analyzed this conversation. Everything looks in order. Let me know if you need to draft a reply or create a calendar reminder.";
+          "I've analyzed this conversation. Everything looks in order. Let me know if you need to draft a reply or schedule a reminder.";
         if (promptToSend.toLowerCase().includes('hindi')) {
-          simulated = `यह ईमेल "${contextThreadSubject || contextEmail?.subject || 'संदेश'}" के संदर्भ में है। यदि आप चाहें तो मैं इसका एक औपचारिक या त्वरित उत्तर तैयार कर सकता हूँ।`;
+          simulated = `यह ईमेल "${contextThreadSubject || contextEmail?.subject || 'संदेश'}" के संदर्भ में है। यदि आप चाहें तो मैं इसका औपचारिक उत्तर तैयार कर सकता हूँ।`;
         } else if (promptToSend.toLowerCase().includes('summar')) {
           simulated = `• Main topic: ${contextThreadSubject || contextEmail?.subject || 'Inbox message'}\n• Sender: ${contextEmail?.from?.name || 'Verified Sender'}\n• Next Step: Review details and reply at your convenience.`;
         }
-        setMessages([...newMsgs, { role: 'assistant', text: simulated }]);
+        const finalMsgs = [...newMsgs, { role: 'assistant' as const, text: simulated }];
+        setMessages(finalMsgs);
         setQuantyExpression('happy');
-      }, 600);
+        saveCurrentConversation(finalMsgs);
+      }, 500);
     } catch {
       setMessages([
         ...newMsgs,
@@ -124,6 +171,13 @@ export function QuantyCopilotDrawer({
     }
   };
 
+  const clearHistory = () => {
+    setHistoryList([]);
+    localStorage.removeItem(STORAGE_KEY);
+    setShowHistoryMenu(false);
+    showToast({ text: 'Recent chat history cleared', type: 'info' });
+  };
+
   const hasConversation = messages.length > 0;
 
   return (
@@ -136,52 +190,142 @@ export function QuantyCopilotDrawer({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-black/65 backdrop-blur-sm"
           />
 
-          {/* Compact Bottom-Anchored Sheet (Gmail/Gemini Style) */}
+          {/* Full-Width Mobile & Centered Desktop Bottom Sheet with Swipe-to-Dismiss */}
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 320 }}
-            className={`fixed bottom-0 left-0 right-0 z-50 max-w-xl mx-auto rounded-t-[28px] border-t border-x border-zinc-800/90 bg-[#161a22]/98 backdrop-blur-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden transition-all duration-300 ${
+            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+            drag="y"
+            dragConstraints={{ top: 0 }}
+            dragElastic={{ top: 0, bottom: 0.6 }}
+            onDragEnd={(_, info) => {
+              if (info.offset.y > 100 || info.velocity.y > 400) {
+                onClose();
+              }
+            }}
+            className={`fixed bottom-0 left-0 right-0 z-50 w-full sm:max-w-xl sm:mx-auto rounded-t-[28px] border-t border-x border-amber-500/20 bg-[#121620] shadow-[0_-12px_45px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden transition-all duration-300 ${
               hasConversation ? 'h-[520px] max-h-[85vh]' : 'h-auto max-h-[75vh]'
             }`}
           >
             {/* Top Drag Handle */}
-            <div className="flex justify-center pt-2.5 pb-1 cursor-grab" onClick={onClose}>
-              <div className="w-10 h-1 rounded-full bg-zinc-600/80" />
+            <div className="flex justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing">
+              <div className="w-12 h-1 rounded-full bg-zinc-600/80" />
             </div>
 
-            {/* Header: Sparkle + "How can I help you today?" + Close 'X' */}
-            <div className="flex items-center justify-between px-5 pt-1 pb-3">
+            {/* Header: Quanty Mascot Robot Icon + "How can I help you today?" + 3-Dots + Close */}
+            <div className="flex items-center justify-between px-4 sm:px-5 pt-1 pb-3 relative">
               <div className="flex items-center gap-2.5">
-                <span className="text-base text-cyan-400">✦</span>
-                <h3 className="text-[17px] font-semibold text-[#64b5f6] tracking-tight">
+                {/* Clean Living Mascot Robot Icon with zero blue square layer */}
+                <div className="relative flex items-center justify-center size-8">
+                  <Quanty size={24} expression={quantyExpression} bob={false} />
+                </div>
+                <h3 className="text-base sm:text-[17px] font-bold text-amber-300 tracking-tight">
                   How can I help you today?
                 </h3>
               </div>
 
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-                aria-label="Close"
-              >
-                <svg
-                  className="size-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
+              <div className="flex items-center gap-1">
+                {/* 3-Dots Recent History Menu */}
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryMenu(!showHistoryMenu)}
+                  className={`p-1.5 rounded-full transition-colors ${
+                    showHistoryMenu
+                      ? 'text-amber-300 bg-amber-500/20'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                  }`}
+                  title="Chat History"
                 >
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </button>
+                  <svg
+                    className="size-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <circle cx="12" cy="12" r="1" fill="currentColor" />
+                    <circle cx="12" cy="5" r="1" fill="currentColor" />
+                    <circle cx="12" cy="19" r="1" fill="currentColor" />
+                  </svg>
+                </button>
+
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                  aria-label="Close"
+                >
+                  <svg
+                    className="size-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* History Dropdown Panel */}
+              <AnimatePresence>
+                {showHistoryMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                    className="absolute right-4 top-12 z-50 w-64 rounded-2xl border border-amber-500/30 bg-[#161a26] p-3 shadow-2xl space-y-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between pb-1.5 border-b border-zinc-800">
+                      <span className="font-bold text-amber-300">Recent Chats</span>
+                      {historyList.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={clearHistory}
+                          className="text-[10px] text-rose-400 hover:underline"
+                        >
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+
+                    {historyList.length === 0 ? (
+                      <p className="text-[11px] text-zinc-500 py-2 text-center">
+                        No previous chats recorded
+                      </p>
+                    ) : (
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {historyList.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              setMessages(item.messages);
+                              setShowHistoryMenu(false);
+                            }}
+                            className="w-full text-left p-2 rounded-xl hover:bg-zinc-800/80 transition-colors text-zinc-300 flex items-center justify-between"
+                          >
+                            <span className="truncate flex-1 min-w-0 mr-2 text-[11px]">
+                              {item.preview}
+                            </span>
+                            <span className="text-[9px] text-zinc-500 font-mono shrink-0">
+                              {item.date}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
-            {/* If NO conversation yet: Show clean 1-tap Suggestion Card(s) (Gmail Style) */}
+            {/* Quick Action Suggestion Cards (QuantMail Gold / Amber Theme) */}
             {!hasConversation && (
               <div className="px-4 pb-2 space-y-2">
                 {contextEmail || contextThreadSubject ? (
@@ -191,11 +335,11 @@ export function QuantyCopilotDrawer({
                       onClick={() =>
                         void handleSend('Please summarize this email in 3 crisp bullet points.')
                       }
-                      className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-[#242834] hover:bg-[#2b3040] border border-zinc-700/50 text-left transition-all active:scale-[0.99] group shadow-sm"
+                      className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-[#1a1f2c] hover:bg-[#222838] border border-amber-500/20 text-left transition-all active:scale-[0.99] group shadow-md"
                     >
-                      <div className="size-8 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-300 text-sm shrink-0 group-hover:scale-105 transition-transform">
+                      <div className="size-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-300 text-sm shrink-0 group-hover:scale-105 transition-transform">
                         <svg
-                          className="size-4 text-zinc-300"
+                          className="size-4 text-amber-400"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -206,7 +350,7 @@ export function QuantyCopilotDrawer({
                         </svg>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-zinc-100">
+                        <p className="text-[13px] font-semibold text-zinc-100">
                           Summarize this email
                         </p>
                       </div>
@@ -220,7 +364,7 @@ export function QuantyCopilotDrawer({
                             'Draft a polite, professional, and concise smart reply to this email.',
                           )
                         }
-                        className="flex-1 flex items-center gap-2 p-2.5 rounded-xl bg-[#1e222c] hover:bg-[#272c38] border border-zinc-800 text-left transition-all text-xs text-zinc-300"
+                        className="flex-1 flex items-center gap-2 p-2.5 rounded-xl bg-[#161a26] hover:bg-[#1d2232] border border-zinc-800 text-left transition-all text-xs text-zinc-300 font-medium"
                       >
                         <span>✍️</span>
                         <span className="truncate">Draft a reply</span>
@@ -233,7 +377,7 @@ export function QuantyCopilotDrawer({
                             'कृपया इस ईमेल का हिंदी में मुख्य सारांश (Summary) बताएं।',
                           )
                         }
-                        className="flex-1 flex items-center gap-2 p-2.5 rounded-xl bg-[#1e222c] hover:bg-[#272c38] border border-zinc-800 text-left transition-all text-xs text-zinc-300"
+                        className="flex-1 flex items-center gap-2 p-2.5 rounded-xl bg-[#161a26] hover:bg-[#1d2232] border border-zinc-800 text-left transition-all text-xs text-zinc-300 font-medium"
                       >
                         <span>🇮🇳</span>
                         <span className="truncate">Hindi Summary</span>
@@ -243,14 +387,16 @@ export function QuantyCopilotDrawer({
                 ) : (
                   <button
                     type="button"
-                    onClick={() => void handleSend('What are my top priority unread emails today?')}
-                    className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-[#242834] hover:bg-[#2b3040] border border-zinc-700/50 text-left transition-all active:scale-[0.99] group shadow-sm"
+                    onClick={() =>
+                      void handleSend('What can Quanty do to manage my emails and daily tasks?')
+                    }
+                    className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-[#1a1f2c] hover:bg-[#222838] border border-amber-500/20 text-left transition-all active:scale-[0.99] group shadow-md"
                   >
-                    <div className="size-8 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-300 text-sm shrink-0 group-hover:scale-105 transition-transform">
-                      <span className="text-cyan-400">✨</span>
+                    <div className="size-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Quanty size={18} expression="happy" bob={false} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-zinc-100">
+                      <p className="text-[13px] font-semibold text-zinc-100">
                         What can Quanty do in QuantMail?
                       </p>
                     </div>
@@ -259,7 +405,7 @@ export function QuantyCopilotDrawer({
               </div>
             )}
 
-            {/* If conversation active: Messages Stack */}
+            {/* Conversation Active: Messages Stack */}
             {hasConversation && (
               <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-2 space-y-3">
                 {messages.map((m, i) => (
@@ -272,16 +418,16 @@ export function QuantyCopilotDrawer({
                     }`}
                   >
                     {m.role === 'assistant' && (
-                      <div className="size-7 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0 mt-0.5">
-                        <span className="text-xs text-cyan-300">✦</span>
+                      <div className="size-7 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                        <Quanty size={16} expression={quantyExpression} bob={false} />
                       </div>
                     )}
 
                     <div
                       className={`max-w-[86%] rounded-2xl px-4 py-3 text-xs sm:text-[13px] leading-relaxed ${
                         m.role === 'user'
-                          ? 'bg-[#1a73e8] text-white rounded-br-none shadow-md font-medium'
-                          : 'bg-[#242834] border border-zinc-700/60 text-zinc-100 rounded-bl-none shadow-lg'
+                          ? 'bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-white rounded-br-none shadow-md font-medium'
+                          : 'bg-[#181c26] border border-amber-500/20 text-zinc-100 rounded-bl-none shadow-lg'
                       }`}
                     >
                       <p className="whitespace-pre-wrap">{m.text}</p>
@@ -294,7 +440,7 @@ export function QuantyCopilotDrawer({
                             onClose();
                             showToast({ text: 'Inserted draft into reply', type: 'success' });
                           }}
-                          className="mt-2.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-cyan-300 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 transition-all"
+                          className="mt-2.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-all"
                         >
                           <span>↩ Insert into reply</span>
                         </button>
@@ -305,21 +451,21 @@ export function QuantyCopilotDrawer({
 
                 {isLoading && (
                   <div className="flex gap-2.5 items-center">
-                    <div className="size-7 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
-                      <span className="text-xs text-cyan-300 animate-spin">✦</span>
+                    <div className="size-7 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+                      <Quanty size={16} expression="thinking" bob={false} />
                     </div>
-                    <div className="px-3.5 py-2 rounded-2xl bg-[#242834] border border-zinc-700/60 text-xs text-zinc-400 flex items-center gap-1.5">
-                      <span className="size-1.5 rounded-full bg-cyan-400 animate-bounce" />
-                      <span className="size-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.15s]" />
-                      <span className="size-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.3s]" />
-                      <span className="ml-1 text-[11px]">Thinking…</span>
+                    <div className="px-3.5 py-2 rounded-2xl bg-[#181c26] border border-amber-500/20 text-xs text-amber-400 flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-[#FF7A00] animate-bounce" />
+                      <span className="size-1.5 rounded-full bg-[#FF7A00] animate-bounce [animation-delay:0.15s]" />
+                      <span className="size-1.5 rounded-full bg-[#FF7A00] animate-bounce [animation-delay:0.3s]" />
+                      <span className="ml-1 text-[11px] text-zinc-400">Quanty is thinking…</span>
                     </div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Bottom Rounded Pill Prompt Input (Gmail Style) */}
+            {/* Bottom Rounded Pill Prompt Input + "Quanty can make mistakes." Disclaimer */}
             <div className="p-3.5 pt-2">
               <form
                 onSubmit={(e) => {
@@ -334,17 +480,17 @@ export function QuantyCopilotDrawer({
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   placeholder="Enter a prompt here"
-                  className="w-full rounded-full border border-zinc-700/70 bg-[#20242f] pl-4 pr-11 py-3 text-xs sm:text-[13px] text-white placeholder-zinc-400 focus:outline-none focus:border-[#64b5f6] focus:ring-1 focus:ring-[#64b5f6]/40 transition-all shadow-inner"
+                  className="w-full rounded-full border border-zinc-700/80 bg-[#1a1f2c] pl-4 pr-11 py-3 text-xs sm:text-[13px] text-white placeholder-zinc-400 focus:outline-none focus:border-[#FF7A00] focus:ring-1 focus:ring-[#FF7A00]/40 transition-all shadow-inner font-sans"
                 />
 
                 <button
                   type="submit"
                   disabled={!inputValue.trim() || isLoading}
-                  className="absolute right-2 p-1.5 rounded-full text-zinc-400 hover:text-white disabled:opacity-30 transition-all active:scale-95"
+                  className="absolute right-2 p-1.5 rounded-full text-amber-400 hover:text-amber-300 disabled:opacity-30 transition-all active:scale-95"
                   title="Send"
                 >
                   <svg
-                    className="size-5 text-zinc-300"
+                    className="size-5"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -356,8 +502,8 @@ export function QuantyCopilotDrawer({
               </form>
 
               <div className="pt-2 text-center">
-                <span className="text-[10px] text-zinc-500 font-sans">
-                  Quanty AI · Quantum Intelligence can make mistakes.
+                <span className="text-[10px] text-zinc-500 font-sans tracking-wide">
+                  Quanty can make mistakes.
                 </span>
               </div>
             </div>
@@ -367,3 +513,5 @@ export function QuantyCopilotDrawer({
     </AnimatePresence>
   );
 }
+
+export default QuantyCopilotDrawer;

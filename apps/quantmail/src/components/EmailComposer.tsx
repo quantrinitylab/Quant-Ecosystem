@@ -8,7 +8,6 @@ import { showToast } from './InboxToast';
 import { Quanty } from './Quanty';
 import { PostcardCanvas } from './postcard/PostcardCanvas';
 import { PostcardPicker } from './postcard/PostcardPicker';
-import { browserAuthSession } from '../services/browser-auth-session';
 import type { EmailAddress, EmailPriority } from '../types';
 import type { PostcardTemplate, PostcardPayload } from '../types/postcard';
 
@@ -40,14 +39,6 @@ export interface EmailComposerProps {
 }
 
 type LocalAttachment = { id: string; name: string; size: number; type: string };
-
-const SCHEDULE_OPTIONS = [
-  { label: 'In 1 hour', hours: 1 },
-  { label: 'In 2 hours', hours: 2 },
-  { label: 'Tomorrow morning, 9:00 AM', hours: 0, preset: 'tomorrow_9am' },
-  { label: 'Tomorrow afternoon, 2:00 PM', hours: 0, preset: 'tomorrow_2pm' },
-  { label: 'Monday morning, 9:00 AM', hours: 0, preset: 'monday_9am' },
-] as const;
 
 function escapeHtml(value: string): string {
   return value
@@ -81,7 +72,6 @@ export function EmailComposer({
   onDiscard,
   onAIAssist,
 }: EmailComposerProps): React.ReactElement {
-  const fieldId = useId();
   const router = useRouter();
   const [to, setTo] = useState(initialTo?.map((address) => address.email).join(', ') ?? '');
   const [cc, setCc] = useState('');
@@ -90,7 +80,6 @@ export function EmailComposer({
   const [body, setBody] = useState(initialBody ?? '');
   const [priority, setPriority] = useState<EmailPriority>('normal');
   const [showCcBcc, setShowCcBcc] = useState(false);
-  const [showScheduleMenu, setShowScheduleMenu] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -104,8 +93,6 @@ export function EmailComposer({
   const [quantyPromptInput, setQuantyPromptInput] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const scheduleButtonRef = useRef<HTMLButtonElement>(null);
-  const scheduleMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -218,8 +205,8 @@ export function EmailComposer({
 
   return (
     <div className="flex flex-col h-full bg-[#0a0d14] max-w-4xl mx-auto w-full">
-      {/* Top App Bar (Clean Gmail Standard) */}
-      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 px-4 sm:px-6 py-3 border-b border-zinc-800/90 bg-[#0c1017]/95 backdrop-blur-xl">
+      {/* Top App Bar */}
+      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 px-4 sm:px-6 py-2.5 border-b border-zinc-800/90 bg-[#0c1017]/95 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -255,7 +242,7 @@ export function EmailComposer({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="p-2 rounded-xl text-zinc-400 hover:text-amber-400 hover:bg-zinc-800 transition-colors"
             title="Attach file"
           >
             <svg
@@ -269,12 +256,12 @@ export function EmailComposer({
             </svg>
           </button>
 
-          {/* Primary Send Button */}
+          {/* Primary Send Button (Vibrant Orange/Amber) */}
           <button
             type="button"
             onClick={handleSend}
             disabled={busy || !to.trim()}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#1a73e8] hover:bg-[#1557b0] text-white text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-40"
+            className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] hover:from-[#e06c00] hover:to-[#d04e06] text-white text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-40"
           >
             {isSending ? (
               <span>Sending…</span>
@@ -296,16 +283,16 @@ export function EmailComposer({
         </div>
       </header>
 
-      {/* Main Composer Scroll Area */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
+      {/* Main Single-Sheet Luxury Letterhead Area */}
+      <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-3">
         {/* Modern Segmented Stationery Switcher */}
-        <div className="flex items-center justify-between gap-3 p-1.5 rounded-2xl bg-[#121622] border border-zinc-800/80">
+        <div className="flex items-center justify-between gap-2 p-1 rounded-2xl bg-[#121622] border border-zinc-800/80 max-w-md mx-auto w-full">
           <button
             type="button"
             onClick={() => setSelectedPostcard(null)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-semibold transition-all ${
               !selectedPostcard
-                ? 'bg-zinc-800 text-white shadow-md'
+                ? 'bg-zinc-800 text-amber-300 border border-amber-500/30 shadow-md'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -316,118 +303,30 @@ export function EmailComposer({
           <button
             type="button"
             onClick={() => setShowPostcardPicker(true)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-semibold transition-all ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-semibold transition-all ${
               selectedPostcard
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-md'
                 : 'text-zinc-400 hover:text-amber-300'
             }`}
           >
             <span>💌</span>
-            <span>{selectedPostcard ? selectedPostcard.title : 'Choose Luxury Postcard'}</span>
+            <span>{selectedPostcard ? selectedPostcard.title : 'Luxury Postcard'}</span>
           </button>
         </div>
 
-        {/* Input Fields: To, Cc/Bcc, Subject */}
-        <div className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-4 space-y-3">
-          {/* To Field */}
-          <div className="flex items-center gap-3">
-            <span className="w-12 text-xs font-semibold text-zinc-400">To</span>
-            <div className="flex-1">
-              <ContactAutocomplete
-                value={to}
-                onChange={setTo}
-                suggestions={contacts}
-                placeholder="name@example.com"
-                aria-label="To"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowCcBcc(!showCcBcc)}
-              className="text-xs text-zinc-400 hover:text-zinc-200 font-mono"
-            >
-              Cc/Bcc
-            </button>
-          </div>
-
-          {/* Optional Cc/Bcc */}
-          {showCcBcc && (
-            <>
-              <div className="flex items-center gap-3 pt-1 border-t border-zinc-800/60">
-                <span className="w-12 text-xs font-semibold text-zinc-400">Cc</span>
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    value={cc}
-                    onChange={(e) => setCc(e.target.value)}
-                    placeholder="Cc recipients"
-                    className="w-full bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-3 pt-1 border-t border-zinc-800/60">
-                <span className="w-12 text-xs font-semibold text-zinc-400">Bcc</span>
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    value={bcc}
-                    onChange={(e) => setBcc(e.target.value)}
-                    placeholder="Bcc recipients"
-                    className="w-full bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* Subject Field */}
-          <div className="flex items-center gap-3 pt-2 border-t border-zinc-800/60">
-            <span className="w-12 text-xs font-semibold text-zinc-400">Subject</span>
-            <input
-              type="text"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="Subject"
-              className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none font-medium"
-            />
-          </div>
-        </div>
-
-        {/* Quanty AI Writer Trigger Banner */}
-        <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-indigo-500/10 border border-cyan-500/25">
-          <div className="flex items-center gap-2.5">
-            <div className="size-7 rounded-xl bg-cyan-500/20 flex items-center justify-center">
-              <Quanty size={20} expression="happy" bob={false} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-white">Help me write with Quanty AI</p>
-              <p className="text-[10px] text-cyan-400/80 font-mono">
-                Draft professional emails in seconds
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setQuantyPromptOpen(!quantyPromptOpen)}
-            className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-zinc-950 text-xs font-bold transition-all active:scale-95"
-          >
-            {quantyPromptOpen ? 'Close' : 'Draft Email ✨'}
-          </button>
-        </div>
-
-        {/* Quanty Prompt Input Drawer */}
+        {/* Quanty AI Prompt Drawer */}
         {quantyPromptOpen && (
-          <div className="rounded-2xl border border-cyan-500/30 bg-[#121622] p-4 space-y-3 shadow-xl">
-            <label className="text-xs font-semibold text-cyan-300">
-              Tell Quanty what to write:
-            </label>
+          <div className="rounded-2xl border border-amber-500/30 bg-[#141824] p-4 space-y-3 shadow-xl">
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-300">
+              <Quanty size={18} expression="happy" bob={false} />
+              <span>Tell Quanty what to write:</span>
+            </div>
             <textarea
               value={quantyPromptInput}
               onChange={(e) => setQuantyPromptInput(e.target.value)}
-              placeholder="e.g. Write a polite follow-up email regarding the quarterly roadmap meeting..."
+              placeholder="e.g. Write a formal partnership proposal to team@quantrinity.in..."
               rows={3}
-              className="w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-400 resize-none"
+              className="w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#FF7A00] resize-none"
             />
             <div className="flex justify-end gap-2">
               <button
@@ -441,15 +340,15 @@ export function EmailComposer({
                 type="button"
                 onClick={handleQuantyDraft}
                 disabled={!quantyPromptInput.trim() || aiLoading}
-                className="px-4 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-zinc-950 text-xs font-bold disabled:opacity-40"
+                className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-white text-xs font-bold disabled:opacity-40"
               >
-                {aiLoading ? 'Generating…' : 'Generate Draft'}
+                {aiLoading ? 'Generating…' : 'Generate Draft ✨'}
               </button>
             </div>
           </div>
         )}
 
-        {/* Message Writing Area: Postcard Canvas or Official Letterhead */}
+        {/* The Entire Integrated Luxury Letterhead Sheet */}
         {selectedPostcard ? (
           <div className="rounded-3xl border border-amber-500/30 bg-[#141722] p-4 sm:p-6 shadow-2xl space-y-4">
             <PostcardCanvas
@@ -476,14 +375,14 @@ export function EmailComposer({
             </div>
           </div>
         ) : (
-          /* Official Luxury Letterhead Canvas */
-          <div className="relative rounded-3xl border border-zinc-800/90 bg-gradient-to-b from-[#141722] via-[#0f121a] to-[#0b0e14] shadow-2xl p-5 sm:p-8 space-y-4">
-            {/* Top Letterhead Header: Official Circular Stamp + Cursive Signature */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800/80">
-              <div className="space-y-1">
+          /* Single Complete Luxury Letter Page with Header, Stamp & Canvas */
+          <div className="relative rounded-3xl border border-zinc-800/90 bg-gradient-to-b from-[#141722] via-[#0f121a] to-[#0b0e14] shadow-2xl p-4 sm:p-7 space-y-4">
+            {/* Top of Letter: Brand + Official Circular Stamp */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800/80">
+              <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
                   <span
-                    className="text-lg sm:text-xl font-serif font-black tracking-wider uppercase text-amber-300"
+                    className="text-base sm:text-lg font-serif font-black tracking-wider uppercase text-amber-300"
                     style={{ fontFamily: '"Cinzel", "Georgia", serif' }}
                   >
                     QuantMail
@@ -492,53 +391,134 @@ export function EmailComposer({
                     · Official Transmission Letterhead ·
                   </span>
                 </div>
-                <div className="text-[11px] text-zinc-400 font-mono">
-                  To: <span className="text-zinc-200">{to || 'Recipient'}</span> · Subject:{' '}
-                  <span className="text-white font-semibold">{subject || 'Untitled'}</span>
-                </div>
               </div>
 
-              {/* Official Stamp & Cursive Signature */}
+              {/* Official Stamp & Cursive Signature Seal */}
               <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
                 <div className="text-right hidden sm:block">
                   <div
-                    className="text-sm text-amber-200/90 font-serif italic tracking-wide"
+                    className="text-xs sm:text-sm text-amber-200/90 font-serif italic tracking-wide"
                     style={{ fontFamily: '"Caveat", "Brush Script MT", cursive' }}
                   >
                     Verified Electronic Transmission
                   </div>
-                  <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">
+                  <div className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-wider">
                     Quantrinity Network
                   </div>
                 </div>
 
-                <div className="relative size-16 sm:size-18 rounded-full border-2 border-amber-500/60 flex flex-col items-center justify-center text-amber-400 p-1 select-none shadow-[0_0_15px_rgba(245,158,11,0.18)] bg-amber-500/5 transform -rotate-6 shrink-0">
+                <div className="relative size-14 sm:size-16 rounded-full border-2 border-amber-500/60 flex flex-col items-center justify-center text-amber-400 p-1 select-none shadow-[0_0_15px_rgba(245,158,11,0.18)] bg-amber-500/5 transform -rotate-6 shrink-0">
                   <div className="absolute inset-1 rounded-full border border-dashed border-amber-500/40" />
                   <span
-                    className="text-[7px] font-serif font-black tracking-wider text-amber-300 uppercase"
+                    className="text-[6.5px] font-serif font-black tracking-wider text-amber-300 uppercase"
                     style={{ fontFamily: '"Cinzel", serif' }}
                   >
                     quantmail.in
                   </span>
-                  <div className="my-0.5 h-px w-7 bg-amber-500/40" />
-                  <span className="text-[5.5px] font-mono tracking-widest uppercase text-amber-400/80">
+                  <div className="my-0.5 h-px w-6 bg-amber-500/40" />
+                  <span className="text-[5px] font-mono tracking-widest uppercase text-amber-400/80">
                     by
                   </span>
-                  <span className="text-[6.5px] font-mono font-black tracking-widest uppercase text-amber-300">
+                  <span className="text-[6px] font-mono font-black tracking-widest uppercase text-amber-300">
                     QUANTRINITY
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Clean, Non-Escaped Textarea */}
+            {/* Integrated Letterhead Fields: To, Cc/Bcc, Subject */}
+            <div className="space-y-2 pb-3 border-b border-zinc-800/60 text-xs">
+              <div className="flex items-center gap-3">
+                <span className="w-14 font-mono font-bold text-amber-400/90">To:</span>
+                <div className="flex-1">
+                  <ContactAutocomplete
+                    value={to}
+                    onChange={setTo}
+                    suggestions={contacts}
+                    placeholder="name@example.com (or external email)"
+                    aria-label="To"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCcBcc(!showCcBcc)}
+                  className="text-[11px] text-zinc-400 hover:text-amber-300 font-mono"
+                >
+                  Cc/Bcc
+                </button>
+              </div>
+
+              {showCcBcc && (
+                <>
+                  <div className="flex items-center gap-3 pt-1 border-t border-zinc-800/40">
+                    <span className="w-14 font-mono font-bold text-amber-400/90">Cc:</span>
+                    <input
+                      type="text"
+                      value={cc}
+                      onChange={(e) => setCc(e.target.value)}
+                      placeholder="Cc recipients"
+                      className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 pt-1 border-t border-zinc-800/40">
+                    <span className="w-14 font-mono font-bold text-amber-400/90">Bcc:</span>
+                    <input
+                      type="text"
+                      value={bcc}
+                      onChange={(e) => setBcc(e.target.value)}
+                      placeholder="Bcc recipients"
+                      className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="flex items-center gap-3 pt-1 border-t border-zinc-800/40">
+                <span className="w-14 font-mono font-bold text-amber-400/90">Subject:</span>
+                <input
+                  type="text"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="Enter email subject"
+                  className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none font-medium"
+                />
+              </div>
+            </div>
+
+            {/* AI Assistant Quick Writer Trigger */}
+            <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
+              <div className="flex items-center gap-2">
+                <Quanty size={18} expression="happy" bob={false} />
+                <span className="text-[11px] font-semibold text-zinc-200">
+                  Draft with Quanty AI Assistant
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuantyPromptOpen(!quantyPromptOpen)}
+                className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[11px] font-bold transition-all"
+              >
+                {quantyPromptOpen ? 'Close' : 'Help me write ✨'}
+              </button>
+            </div>
+
+            {/* Main Letter Content Writing Canvas */}
             <textarea
-              className="w-full bg-transparent text-sm sm:text-base text-zinc-100 placeholder-zinc-500 focus:outline-none leading-relaxed resize-none font-sans min-h-[260px]"
+              className="w-full bg-transparent text-sm sm:text-base text-zinc-100 placeholder-zinc-600 focus:outline-none leading-relaxed resize-none font-sans min-h-[220px]"
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder="Write your email here with clarity and elegance..."
-              rows={12}
+              rows={9}
             />
+
+            {/* Bottom Signoff Block */}
+            <div className="pt-3 border-t border-zinc-800/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+              <div className="space-y-0.5">
+                <p className="text-zinc-500 italic font-serif">Yours faithfully,</p>
+                <p className="font-bold text-zinc-200">Verified QuantMail Sender</p>
+              </div>
+              <div className="text-[10px] font-mono text-zinc-500">256-bit TLS · E2EE Signed</div>
+            </div>
           </div>
         )}
 
@@ -590,7 +570,7 @@ export function EmailComposer({
       </div>
 
       {/* Bottom Footer Action Controls */}
-      <footer className="sticky bottom-0 z-20 flex items-center justify-between gap-3 px-4 sm:px-6 py-3 border-t border-zinc-800/90 bg-[#0c1017]/95 backdrop-blur-xl">
+      <footer className="sticky bottom-0 z-20 flex items-center justify-between gap-3 px-4 sm:px-6 py-2.5 border-t border-zinc-800/90 bg-[#0c1017]/95 backdrop-blur-xl">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -614,7 +594,7 @@ export function EmailComposer({
           type="button"
           onClick={handleSend}
           disabled={busy || !to.trim()}
-          className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#1a73e8] hover:bg-[#1557b0] text-white text-xs font-bold transition-all shadow-lg active:scale-95 disabled:opacity-40"
+          className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] hover:from-[#e06c00] hover:to-[#d04e06] text-white text-xs font-bold transition-all shadow-lg active:scale-95 disabled:opacity-40"
         >
           {isSending ? (
             <span>Sending…</span>

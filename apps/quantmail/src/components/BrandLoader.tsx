@@ -11,15 +11,17 @@ interface BrandLoaderProps {
 }
 
 const inlineCss = `
-.qm-bl-inline{position:relative;display:inline-flex;width:22px;height:22px;}
-.qm-bl-ring{position:absolute;inset:0;border-radius:9999px;border:2px solid rgba(255,255,255,0.12);border-top-color:#ff9933;animation:qm-bl-spin 0.8s linear infinite;}
+.qm-bl-inline{position:relative;display:inline-flex;width:20px;height:20px;}
+.qm-bl-ring{position:absolute;inset:0;border-radius:9999px;border:2px solid rgba(245,158,11,0.18);border-top-color:#FF7A00;animation:qm-bl-spin 0.75s cubic-bezier(0.4, 0, 0.2, 1) infinite;}
 @keyframes qm-bl-spin{to{transform:rotate(360deg);}}
 @media (prefers-reduced-motion: reduce){.qm-bl-ring{animation:none;}}
 `;
 
 /**
- * QuantMail loader — living mascot with active fast spin, glowing orbit ring,
- * and Instagram-by-Meta style footer branding.
+ * QuantMail Apple/Google-tier luxury loader:
+ * - Living mascot badge with subtle breathing amber glow.
+ * - Precision smooth orbital spinner ring.
+ * - Modern, clean typographic hierarchy with letterspaced QUANTRINITY branding.
  */
 export function BrandLoader({
   variant = 'splash',
@@ -44,44 +46,46 @@ export function BrandLoader({
       aria-live="polite"
       aria-busy="true"
     >
-      <div className="w-full flex justify-end" />
+      <div className="w-full" />
 
-      {/* Center Active Rotating Mascot + Orbit Rings */}
+      {/* Center Precision Mascot & Smooth Orbital Progress */}
       <div className="relative flex flex-col items-center justify-center">
-        {/* Outer glowing pulsing background */}
-        <div className="absolute -inset-10 rounded-full bg-gradient-to-r from-amber-500/25 via-orange-500/15 to-transparent blur-2xl animate-pulse" />
+        {/* Soft Ambient Warm Glow */}
+        <div className="absolute -inset-12 rounded-full bg-gradient-to-tr from-amber-500/20 via-orange-500/10 to-transparent blur-3xl" />
 
-        {/* Outer Spinning Dash Ring */}
-        <div className="absolute -inset-6 rounded-full border-2 border-dashed border-amber-500/30 animate-[spin_4s_linear_infinite]" />
+        <div className="relative flex items-center justify-center size-24 sm:size-28">
+          {/* Track Ring */}
+          <div className="absolute inset-0 rounded-full border border-zinc-800/80" />
 
-        {/* Middle Glowing Orbit Ring */}
-        <div className="absolute -inset-3 rounded-full border-2 border-transparent border-t-amber-400 border-r-orange-500 animate-[spin_1.2s_linear_infinite]" />
+          {/* Smooth Conic Orbital Spinner */}
+          <div
+            className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#FF7A00] border-r-amber-400/80 animate-[spin_1s_cubic-bezier(0.4,0,0.2,1)_infinite]"
+            style={{ filter: 'drop-shadow(0 0 8px rgba(255, 122, 0, 0.4))' }}
+          />
 
-        {/* Center Mascot Logo Fast Spin */}
-        <div className="relative z-10 animate-[spin_3s_ease-in-out_infinite]">
-          <QuantMailLogo size={68} variant="full" interactive={false} />
+          {/* Center Mascot Logo */}
+          <div className="relative z-10 flex items-center justify-center size-14 sm:size-16 rounded-2xl bg-zinc-950/80 border border-zinc-800/90 shadow-2xl">
+            <QuantMailLogo size={42} variant="full" interactive={false} />
+          </div>
         </div>
 
-        {/* Message below mascot */}
-        <p className="mt-8 text-xs font-medium text-zinc-400 tracking-wider animate-pulse">
+        {/* Crisp Modern Loading Subtitle */}
+        <p className="mt-8 text-[13px] font-medium text-zinc-400 tracking-wide font-sans">
           {message}
         </p>
-        {hint ? <div className="text-center text-xs text-zinc-500 mt-1">{hint}</div> : null}
+        {hint ? (
+          <div className="text-center text-xs text-zinc-500 mt-1 font-sans">{hint}</div>
+        ) : null}
       </div>
 
-      {/* Bottom Instagram-by-Meta Style Branding */}
-      <div className="flex flex-col items-center gap-0.5 pb-2 text-center">
-        <span
-          className="text-lg font-normal tracking-wide bg-gradient-to-r from-[#ff9933] via-[#ff5e62] to-[#e64980] bg-clip-text text-transparent"
-          style={{
-            fontFamily: 'var(--font-brand), "Segoe Script", "Comic Sans MS", cursive',
-          }}
-        >
-          QuantMail
+      {/* Minimalist Tech Hierarchy (Apple/Google style) */}
+      <div className="flex flex-col items-center gap-1 pb-4 text-center">
+        <span className="text-sm font-semibold tracking-wider text-zinc-200 font-sans">
+          QUANTMAIL
         </span>
-        <div className="flex items-center gap-1.5 text-[11px] font-mono tracking-widest text-zinc-400 uppercase">
-          <span>by</span>
-          <span className="font-bold text-amber-400 tracking-[0.2em]">QUANTRINITY</span>
+        <div className="flex items-center gap-1.5 text-[10px] font-mono tracking-[0.25em] text-zinc-500 uppercase">
+          <span>BY</span>
+          <span className="font-bold text-[#FF7A00] tracking-[0.3em]">QUANTRINITY</span>
         </div>
       </div>
 
@@ -89,3 +93,5 @@ export function BrandLoader({
     </div>
   );
 }
+
+export default BrandLoader;
