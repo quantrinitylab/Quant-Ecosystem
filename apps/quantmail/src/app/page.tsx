@@ -1138,6 +1138,7 @@ export default function InboxPage() {
       <QuantyCopilotDrawer
         isOpen={isGlobalQuantyOpen}
         onClose={() => setIsGlobalQuantyOpen(false)}
+        isInboxContext={true}
       />
     </AppShell>
   );

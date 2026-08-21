@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppShell } from '../../../components/AppShell';
-import { ErrorState, EmptyState, Skeleton, Button } from '@quant/shared-ui';
+import { ErrorState, EmptyState, Skeleton } from '@quant/shared-ui';
 import { AppSidebar } from '../../../components/AppSidebar';
 import { PageTransition } from '../../../components/PageTransition';
 import { useThread } from '../../../hooks/useThread';
@@ -14,9 +14,7 @@ import { showToast } from '../../../components/InboxToast';
 import { IdentityAvatar } from '../../../components/IdentityAvatar';
 import { PostcardReader } from '../../../components/postcard/PostcardReader';
 import { EmailReaderHeader } from '../../../components/EmailReaderHeader';
-import { EmailSenderHeader } from '../../../components/EmailSenderHeader';
 import { EmailLetterCard } from '../../../components/EmailLetterCard';
-import { EmailBottomBar } from '../../../components/EmailBottomBar';
 import { QuantyCopilotDrawer } from '../../../components/QuantyCopilotDrawer';
 
 function formatMessageDate(value?: string | Date): string {
@@ -47,9 +45,11 @@ export default function ThreadPage() {
   const [replyText, setReplyText] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  const [showReplyBox, setShowReplyBox] = useState(false);
 
   // Accordion state: track expanded message indices
   const [expandedIndices, setExpandedIndices] = useState<Set<number>>(new Set());
+  const [expandedDetailsIndices, setExpandedDetailsIndices] = useState<Set<number>>(new Set());
 
   // Initialize latest message as expanded
   useEffect(() => {
@@ -60,6 +60,15 @@ export default function ThreadPage() {
 
   const toggleMessageExpand = (index: number) => {
     setExpandedIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  };
+
+  const toggleDetailsExpand = (index: number) => {
+    setExpandedDetailsIndices((prev) => {
       const next = new Set(prev);
       if (next.has(index)) next.delete(index);
       else next.add(index);
@@ -140,6 +149,7 @@ export default function ThreadPage() {
         return;
       }
       setReplyText('');
+      setShowReplyBox(false);
       showToast({ text: 'Reply sent successfully', type: 'success' });
       refetch();
     } catch {
@@ -162,13 +172,13 @@ export default function ThreadPage() {
   }
 
   const primaryMessage = thread?.messages?.[0];
-  const senderName = primaryMessage?.from?.name || primaryMessage?.from?.email || '';
+  const senderName = primaryMessage?.from?.name || primaryMessage?.from?.email || 'Sender';
   const senderEmail = primaryMessage?.from?.email || '';
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page thread-workspace flex flex-col h-full">
-        {/* Top Action Header Bar with Back, Quanty AI, Archive, Delete, Star, Red Important */}
+      <PageTransition className="workspace-page thread-workspace flex flex-col h-full bg-[#0a0d14]">
+        {/* Top Header Action Bar (Clean Gmail Layout) */}
         <EmailReaderHeader
           subject={thread?.subject || '(No Subject)'}
           senderName={senderName}
@@ -182,12 +192,12 @@ export default function ThreadPage() {
           onToggleStar={() => void handleStar()}
         />
 
-        {/* Main Reading Canvas Body */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-6 space-y-4 max-w-4xl mx-auto w-full">
+        {/* Main Reading Canvas */}
+        <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4 max-w-4xl mx-auto w-full">
           {isLoading && (
-            <div className="space-y-4">
-              <Skeleton variant="rect" width="60%" height="36px" />
-              <Skeleton variant="rect" width="100%" height="350px" />
+            <div className="space-y-4 pt-2">
+              <Skeleton variant="rect" width="70%" height="32px" />
+              <Skeleton variant="rect" width="100%" height="280px" />
             </div>
           )}
 
@@ -198,26 +208,57 @@ export default function ThreadPage() {
 
           {!isLoading && !error && thread && (
             <>
-              {/* Messages Stack (Gmail-style Accordion Collapse + Chat/Email Hybrid) */}
-              <div className="space-y-3.5">
+              {/* Subject Title & Category Badges Row (Gmail standard) */}
+              <div className="flex items-start justify-between gap-3 pb-3 border-b border-zinc-800/80">
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="text-lg sm:text-2xl font-bold text-white tracking-tight break-words">
+                      {thread.subject || '(No Subject)'}
+                    </h1>
+                    <span className="px-2 py-0.5 rounded-full bg-blue-600/20 border border-blue-500/30 text-[11px] font-semibold text-blue-400">
+                      Inbox
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleStar}
+                  className={`p-2 rounded-xl transition-all active:scale-95 shrink-0 ${
+                    thread.isStarred
+                      ? 'text-amber-400 bg-amber-400/10'
+                      : 'text-zinc-500 hover:text-amber-300 hover:bg-zinc-800'
+                  }`}
+                  title={thread.isStarred ? 'Starred' : 'Not starred'}
+                >
+                  <svg
+                    className="size-5"
+                    viewBox="0 0 24 24"
+                    fill={thread.isStarred ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Messages Stack */}
+              <div className="space-y-4 pt-1">
                 {thread.messages?.map((message: Email, index: number) => {
                   const isPostcard = message.bodyText?.includes('<!-- QUANTMAIL_POSTCARD:');
                   const isExpanded = expandedIndices.has(index);
+                  const isDetailsExpanded = expandedDetailsIndices.has(index);
                   const isSenderSelf = message.from?.email?.toLowerCase().includes('me') || false;
-                  const isShortChat = (message.bodyText?.length || 0) < 120 && !isPostcard;
+                  const isShortChat = (message.bodyText?.length || 0) < 140 && !isPostcard;
 
                   return (
-                    <div
-                      key={message.id}
-                      className={`flex flex-col transition-all ${
-                        isSenderSelf ? 'items-end' : 'items-start'
-                      } w-full`}
-                    >
-                      {/* Collapsed 1-Line Strip Header */}
+                    <div key={message.id} className="w-full">
                       {!isExpanded ? (
+                        /* Collapsed 1-Line Strip */
                         <div
                           onClick={() => toggleMessageExpand(index)}
-                          className="flex items-center justify-between gap-3 p-3.5 rounded-2xl border border-zinc-800/80 bg-[#121622]/90 hover:bg-zinc-800/80 cursor-pointer w-full transition-all shadow-sm select-none"
+                          className="flex items-center justify-between gap-3 p-3.5 rounded-2xl border border-zinc-800 bg-[#121622]/90 hover:bg-zinc-800/80 cursor-pointer w-full transition-all shadow-sm select-none"
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <IdentityAvatar
@@ -238,67 +279,168 @@ export default function ThreadPage() {
                             <span className="text-[11px] text-zinc-500 font-mono">
                               {formatMessageDate(message.receivedAt)}
                             </span>
-                            <span className="text-xs text-zinc-500">▼</span>
+                            <svg
+                              className="size-4 text-zinc-500"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path d="m6 9 6 6 6-6" />
+                            </svg>
                           </div>
                         </div>
                       ) : (
-                        /* Expanded Full Message (Letterhead or Chat Bubble) */
-                        <div className="w-full space-y-2">
-                          {/* Accordion Collapse Trigger Bar */}
-                          <div
-                            onClick={() => toggleMessageExpand(index)}
-                            className="flex items-center justify-between px-3 py-1 cursor-pointer select-none text-zinc-500 hover:text-zinc-300 transition-colors"
-                          >
-                            <span className="text-[11px] font-mono">
-                              Message {index + 1} of {thread.messages?.length}
-                            </span>
-                            <span className="text-[11px] text-amber-400 hover:underline flex items-center gap-1">
-                              <span>▲ Click to collapse</span>
-                            </span>
-                          </div>
-
-                          {/* Chat Bubble for Short Messages or Luxury Letterhead for Formal Emails */}
-                          {isShortChat ? (
-                            <div
-                              className={`max-w-[85%] rounded-3xl p-4 sm:p-5 shadow-xl ${
-                                isSenderSelf
-                                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-br-none ml-auto'
-                                  : 'bg-[#141722] border border-zinc-800 text-zinc-200 rounded-bl-none'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-3 mb-1.5 pb-1 border-b border-white/10">
-                                <span className="text-xs font-bold">
-                                  {message.from?.name || message.from?.email}
-                                </span>
-                                <span className="text-[10px] opacity-70 font-mono">
-                                  {formatMessageDate(message.receivedAt)}
-                                </span>
-                              </div>
-                              <p className="text-xs sm:text-sm whitespace-pre-wrap leading-relaxed">
-                                {message.bodyText || message.snippet}
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="rounded-3xl border border-zinc-800 bg-[#10131c] shadow-2xl overflow-hidden">
-                              {/* Sender Header Row with Expandable "to me ⌵" */}
-                              <EmailSenderHeader
-                                email={message}
-                                onQuickReply={() => {
-                                  const target = document.getElementById('inline-reply-input');
-                                  target?.focus();
-                                }}
+                        /* Expanded Full Message */
+                        <div className="rounded-2xl sm:rounded-3xl border border-zinc-800/90 bg-[#10141d] shadow-xl overflow-hidden">
+                          {/* Sender Row (Gmail Style) */}
+                          <div className="flex items-start justify-between gap-3 p-4 sm:p-5 pb-3">
+                            <div className="flex items-start gap-3 min-w-0">
+                              <IdentityAvatar
+                                name={message.from?.name || message.from?.email || ''}
+                                size="md"
                               />
 
-                              {/* Message Content: Postcard or Luxury Letterhead */}
-                              <div className="p-3 sm:p-6">
-                                {isPostcard ? (
-                                  <PostcardReader email={message} />
-                                ) : (
-                                  <EmailLetterCard email={message} />
-                                )}
+                              <div className="flex flex-col min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-bold text-white">
+                                    {message.from?.name || message.from?.email || 'Sender'}
+                                  </span>
+                                  <span className="text-xs text-zinc-400 font-mono">
+                                    {formatMessageDate(message.receivedAt)}
+                                  </span>
+                                </div>
+
+                                {/* "to me ⌵" Accordion Trigger */}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleDetailsExpand(index)}
+                                  className="group inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-200 text-left pt-0.5 font-mono"
+                                >
+                                  <span>to me</span>
+                                  <svg
+                                    className={`size-3 transition-transform ${
+                                      isDetailsExpanded ? 'rotate-180' : ''
+                                    }`}
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                  >
+                                    <path d="m6 9 6 6 6-6" />
+                                  </svg>
+                                </button>
                               </div>
                             </div>
-                          )}
+
+                            {/* Right Action Icons: Emoji, Reply, More */}
+                            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowReplyBox(true);
+                                  setTimeout(
+                                    () => document.getElementById('inline-reply-input')?.focus(),
+                                    100,
+                                  );
+                                }}
+                                className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                                title="Reply"
+                              >
+                                <svg
+                                  className="size-4.5"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.2"
+                                >
+                                  <path d="M9 14L4 9l5-5" />
+                                  <path d="M4 9h11a5 5 0 015 5v5" />
+                                </svg>
+                              </button>
+
+                              {/* Message Collapse Toggle Chevron */}
+                              <button
+                                type="button"
+                                onClick={() => toggleMessageExpand(index)}
+                                className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                                title="Collapse message"
+                              >
+                                <svg
+                                  className="size-4.5"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.2"
+                                >
+                                  <path d="m18 15-6-6-6 6" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Expandable "to me ⌵" Details Box */}
+                          <AnimatePresence>
+                            {isDetailsExpanded && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="px-4 sm:px-5 pb-3"
+                              >
+                                <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/80 p-3.5 text-xs text-zinc-300 font-mono space-y-1.5">
+                                  <div className="flex">
+                                    <span className="w-20 text-zinc-500">From:</span>
+                                    <span className="text-white font-medium">
+                                      {message.from?.name} &lt;{message.from?.email}&gt;
+                                    </span>
+                                  </div>
+                                  <div className="flex">
+                                    <span className="w-20 text-zinc-500">To:</span>
+                                    <span className="text-zinc-300">me</span>
+                                  </div>
+                                  <div className="flex">
+                                    <span className="w-20 text-zinc-500">Date:</span>
+                                    <span className="text-zinc-300">
+                                      {message.receivedAt
+                                        ? new Date(message.receivedAt).toLocaleString()
+                                        : 'N/A'}
+                                    </span>
+                                  </div>
+                                  <div className="flex">
+                                    <span className="w-20 text-zinc-500">Security:</span>
+                                    <span className="text-emerald-400 flex items-center gap-1">
+                                      <span>🔐</span>
+                                      <span>
+                                        Standard Encryption (TLS 1.3 · E2EE Authenticated)
+                                      </span>
+                                    </span>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          {/* Email Body: Postcard, Luxury Letterhead, or Chat Bubble */}
+                          <div className="p-3 sm:p-5 pt-0">
+                            {isPostcard ? (
+                              <PostcardReader email={message} />
+                            ) : isShortChat ? (
+                              <div
+                                className={`rounded-2xl p-4 text-xs sm:text-sm leading-relaxed ${
+                                  isSenderSelf
+                                    ? 'bg-[#1a73e8] text-white ml-auto max-w-[88%]'
+                                    : 'bg-[#1a1e2a] border border-zinc-800 text-zinc-200'
+                                }`}
+                              >
+                                <p className="whitespace-pre-wrap">
+                                  {message.bodyText || message.snippet}
+                                </p>
+                              </div>
+                            ) : (
+                              <EmailLetterCard email={message} />
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -306,88 +448,128 @@ export default function ThreadPage() {
                 })}
               </div>
 
-              {/* Instant Inline Reply & Chat Input Bar */}
-              <div className="rounded-3xl border border-zinc-800 bg-[#10131c] p-4 sm:p-5 space-y-3 shadow-xl mt-6">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-white flex items-center gap-2">
-                    <span>↩</span>
-                    <span>Quick Reply</span>
-                  </span>
-                  <span className="text-[10px] text-zinc-500 font-mono">
-                    Press Ctrl+Enter to send instantly
-                  </span>
-                </div>
+              {/* Bottom Unified Quick Reply Area (Gmail Style) */}
+              <div className="pt-2">
+                {!showReplyBox ? (
+                  <div className="flex items-center gap-2.5 p-2 rounded-2xl border border-zinc-800 bg-[#121622]/90 shadow-md">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowReplyBox(true);
+                        setTimeout(
+                          () => document.getElementById('inline-reply-input')?.focus(),
+                          100,
+                        );
+                      }}
+                      className="flex-1 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 text-xs text-zinc-400 text-left border border-zinc-800 transition-all cursor-text"
+                    >
+                      <svg
+                        className="size-4 text-zinc-500"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M9 14L4 9l5-5" />
+                        <path d="M4 9h11a5 5 0 015 5v5" />
+                      </svg>
+                      <span>Reply to this conversation…</span>
+                    </button>
 
-                <textarea
-                  id="inline-reply-input"
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                      e.preventDefault();
-                      void handleSendReply();
-                    }
-                  }}
-                  placeholder="Write your reply or ask Quanty AI to draft one…"
-                  rows={3}
-                  className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-3.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/70 focus:ring-1 focus:ring-cyan-500/40 transition-all resize-none shadow-inner"
-                />
-
-                {replyError && <p className="text-xs text-rose-400">{replyError}</p>}
-
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setIsQuantyOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 transition-all"
-                  >
-                    <span>✨</span>
-                    <span>Draft reply with Quanty AI</span>
-                  </button>
-
-                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() =>
-                        router.push(`/compose?replyTo=${primaryMessage?.id || thread.id}`)
+                        router.push(`/compose?forward=${primaryMessage?.id || thread.id}`)
                       }
-                      className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-all"
+                      className="px-3.5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-300 transition-all"
                     >
-                      Open Full Composer
+                      Forward
                     </button>
 
-                    <Button
-                      variant="primary"
-                      onClick={handleSendReply}
-                      disabled={!replyText.trim() || isSendingReply}
+                    <button
+                      type="button"
+                      onClick={() => setIsQuantyOpen(true)}
+                      className="p-2.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 transition-all"
+                      title="Ask Quanty AI"
                     >
-                      {isSendingReply ? 'Sending…' : 'Send reply'}
-                    </Button>
+                      ✨
+                    </button>
                   </div>
-                </div>
+                ) : (
+                  <div className="rounded-3xl border border-zinc-800 bg-[#10141d] p-4 sm:p-5 space-y-3 shadow-xl">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white flex items-center gap-2">
+                        <span>↩</span>
+                        <span>Reply</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowReplyBox(false)}
+                        className="text-xs text-zinc-500 hover:text-zinc-300"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+
+                    <textarea
+                      id="inline-reply-input"
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Write your reply here…"
+                      rows={4}
+                      className="w-full rounded-2xl border border-zinc-800 bg-zinc-950 p-3.5 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[#64b5f6] focus:ring-1 focus:ring-[#64b5f6]/40 transition-all resize-none shadow-inner leading-relaxed"
+                    />
+
+                    {replyError && <p className="text-xs text-rose-400">{replyError}</p>}
+
+                    <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsQuantyOpen(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 transition-all"
+                      >
+                        <span>✨</span>
+                        <span>Draft with Quanty AI</span>
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            router.push(`/compose?replyTo=${primaryMessage?.id || thread.id}`)
+                          }
+                          className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-all"
+                        >
+                          Full Composer
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleSendReply}
+                          disabled={!replyText.trim() || isSendingReply}
+                          className="px-4 py-2 rounded-xl bg-[#1a73e8] hover:bg-[#1557b0] text-white text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-40"
+                        >
+                          {isSendingReply ? 'Sending…' : 'Send'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
         </div>
 
-        {/* Sticky Bottom Bar */}
-        {thread && (
-          <EmailBottomBar
-            onReply={() => {
-              const target = document.getElementById('inline-reply-input');
-              target?.focus();
-            }}
-            onForward={() => router.push(`/compose?forward=${primaryMessage?.id || thread.id}`)}
-          />
-        )}
-
-        {/* Interactive Quanty Assistant Slide-Up Drawer */}
+        {/* Quanty Assistant Bottom Sheet */}
         <QuantyCopilotDrawer
           isOpen={isQuantyOpen}
           onClose={() => setIsQuantyOpen(false)}
           contextEmail={primaryMessage}
           contextThreadSubject={thread?.subject}
-          onInsertReply={(text) => setReplyText(text)}
+          onInsertReply={(text) => {
+            setReplyText(text);
+            setShowReplyBox(true);
+          }}
         />
       </PageTransition>
     </AppShell>

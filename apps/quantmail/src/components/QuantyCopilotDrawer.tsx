@@ -12,6 +12,7 @@ export interface QuantyAssistantDrawerProps {
   onClose: () => void;
   contextEmail?: Email | null;
   contextThreadSubject?: string;
+  isInboxContext?: boolean;
   onInsertReply?: (text: string) => void;
 }
 
@@ -20,15 +21,11 @@ export function QuantyCopilotDrawer({
   onClose,
   contextEmail,
   contextThreadSubject,
+  isInboxContext = false,
   onInsertReply,
 }: QuantyAssistantDrawerProps) {
   const router = useRouter();
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([
-    {
-      role: 'assistant',
-      text: "Namaste! I'm Quanty, your Quantum Intelligence assistant. How can I help you with your messages today?",
-    },
-  ]);
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [quantyExpression, setQuantyExpression] = useState<
@@ -41,11 +38,18 @@ export function QuantyCopilotDrawer({
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => inputRef.current?.focus(), 150);
+    } else {
+      // Reset conversation when closed
+      setMessages([]);
+      setInputValue('');
+      setIsLoading(false);
     }
   }, [isOpen]);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    if (messages.length > 0) {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
   }, [messages, isLoading]);
 
   const handleSend = async (userPrompt?: string) => {
@@ -59,13 +63,14 @@ export function QuantyCopilotDrawer({
     setQuantyExpression('thinking');
 
     try {
-      // Build context from email if present
       let systemContext = '';
       if (contextEmail) {
         systemContext = `Context Email Subject: "${contextEmail.subject || contextThreadSubject || ''}"\nFrom: "${contextEmail.from?.name || contextEmail.from?.email}"\nBody: "${contextEmail.bodyText || contextEmail.snippet || ''}"`;
+      } else if (isInboxContext) {
+        systemContext = `Context: User is browsing their primary QuantMail inbox.`;
       }
 
-      const res = await fetch('/api/ai/copilot', {
+      const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -74,7 +79,7 @@ export function QuantyCopilotDrawer({
               ? [
                   {
                     role: 'system',
-                    content: `You are Quanty AI assistant inside QuantMail. Be helpful, concise, smart, and polite.\n${systemContext}`,
+                    content: `You are Quanty AI assistant inside QuantMail. Keep answers crisp, smart, elegant, and directly helpful.\n${systemContext}`,
                   },
                 ]
               : []),
@@ -85,31 +90,32 @@ export function QuantyCopilotDrawer({
 
       if (res.ok) {
         const data = await res.json();
-        if (data?.content) {
-          setMessages([...newMsgs, { role: 'assistant', text: data.content }]);
+        const responseText = data?.data?.message || data?.content;
+        if (responseText) {
+          setMessages([...newMsgs, { role: 'assistant', text: responseText }]);
           setQuantyExpression('happy');
           return;
         }
       }
 
-      // Fallback response if offline/simulated
+      // High-quality local simulated response fallback
       setTimeout(() => {
         let simulated =
-          "I have analyzed this thread. Let me know if you'd like me to draft a reply or schedule a follow-up.";
+          "I've analyzed this conversation. Everything looks in order. Let me know if you need to draft a reply or create a calendar reminder.";
         if (promptToSend.toLowerCase().includes('hindi')) {
-          simulated = `यह ईमेल "${contextThreadSubject || contextEmail?.subject || 'संदेश'}" के बारे में है। क्या आप चाहते हैं कि मैं इसका संक्षिप्त उत्तर तैयार करूँ?`;
+          simulated = `यह ईमेल "${contextThreadSubject || contextEmail?.subject || 'संदेश'}" के संदर्भ में है। यदि आप चाहें तो मैं इसका एक औपचारिक या त्वरित उत्तर तैयार कर सकता हूँ।`;
         } else if (promptToSend.toLowerCase().includes('summar')) {
-          simulated = `Key Highlights:\n• Main topic: ${contextThreadSubject || contextEmail?.subject || 'Inbox update'}\n• Sender: ${contextEmail?.from?.name || 'Verified Sender'}\n• Action: Review and reply when convenient.`;
+          simulated = `• Main topic: ${contextThreadSubject || contextEmail?.subject || 'Inbox message'}\n• Sender: ${contextEmail?.from?.name || 'Verified Sender'}\n• Next Step: Review details and reply at your convenience.`;
         }
         setMessages([...newMsgs, { role: 'assistant', text: simulated }]);
         setQuantyExpression('happy');
-      }, 700);
+      }, 600);
     } catch {
       setMessages([
         ...newMsgs,
         {
           role: 'assistant',
-          text: 'I could not connect right now, but your request is saved.',
+          text: 'I could not connect to the assistant service right now. Please try again.',
         },
       ]);
       setQuantyExpression('shock');
@@ -118,29 +124,7 @@ export function QuantyCopilotDrawer({
     }
   };
 
-  const handleQuickChip = (chipType: string) => {
-    if (chipType === 'summarize') {
-      void handleSend('Please summarize this email in 3 crisp bullet points.');
-    } else if (chipType === 'hindi') {
-      void handleSend('कृपया इस ईमेल का हिंदी में मुख्य सारांश (Summary) बताएं।');
-    } else if (chipType === 'actions') {
-      void handleSend('Extract all action items, decisions, and deadlines from this email.');
-    } else if (chipType === 'reply') {
-      void handleSend('Draft a polite, professional, and concise smart reply to this email.');
-    } else if (chipType === 'draft_full_email') {
-      // Direct user into Full Compose window
-      onClose();
-      router.push(`/compose?replyTo=${contextEmail?.id || ''}&aiAssist=true`);
-    } else if (chipType === 'receipts') {
-      void handleSend(
-        'Find and extract any payment receipts, tracking numbers, or ticket details.',
-      );
-    }
-  };
-
-  const placeholderText = contextEmail
-    ? 'Ask Quanty anything about this email…'
-    : 'Ask Quanty anything…';
+  const hasConversation = messages.length > 0;
 
   return (
     <AnimatePresence>
@@ -155,41 +139,35 @@ export function QuantyCopilotDrawer({
             className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
           />
 
-          {/* Slide-Up Bottom Sheet Drawer */}
+          {/* Compact Bottom-Anchored Sheet (Gmail/Gemini Style) */}
           <motion.div
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 max-w-2xl mx-auto rounded-t-3xl border-t border-x border-zinc-800 bg-[#0e1118]/98 backdrop-blur-2xl shadow-2xl flex flex-col max-h-[85vh] h-[600px] overflow-hidden"
+            transition={{ type: 'spring', damping: 30, stiffness: 320 }}
+            className={`fixed bottom-0 left-0 right-0 z-50 max-w-xl mx-auto rounded-t-[28px] border-t border-x border-zinc-800/90 bg-[#161a22]/98 backdrop-blur-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden transition-all duration-300 ${
+              hasConversation ? 'h-[520px] max-h-[85vh]' : 'h-auto max-h-[75vh]'
+            }`}
           >
             {/* Top Drag Handle */}
-            <div className="flex justify-center pt-3 pb-1 cursor-grab">
-              <div className="w-12 h-1.5 rounded-full bg-zinc-700/80" />
+            <div className="flex justify-center pt-2.5 pb-1 cursor-grab" onClick={onClose}>
+              <div className="w-10 h-1 rounded-full bg-zinc-600/80" />
             </div>
 
-            {/* Header: Quanty Mascot + "How can I help you today?" */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/80">
-              <div className="flex items-center gap-3">
-                <div className="relative size-9 flex items-center justify-center rounded-2xl bg-gradient-to-tr from-cyan-500/20 to-blue-500/20 border border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.2)]">
-                  <Quanty size={28} expression={quantyExpression} bob={false} />
-                  <span className="absolute -bottom-0.5 -right-0.5 size-2 rounded-full bg-emerald-400 ring-2 ring-[#0e1118]" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-extrabold bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-300 bg-clip-text text-transparent">
-                    How can I help you today?
-                  </h3>
-                  <p className="text-[11px] text-zinc-400 font-mono">
-                    Quanty AI · Quantum Intelligence
-                  </p>
-                </div>
+            {/* Header: Sparkle + "How can I help you today?" + Close 'X' */}
+            <div className="flex items-center justify-between px-5 pt-1 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-base text-cyan-400">✦</span>
+                <h3 className="text-[17px] font-semibold text-[#64b5f6] tracking-tight">
+                  How can I help you today?
+                </h3>
               </div>
 
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition-colors"
-                aria-label="Close Quanty"
+                className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                aria-label="Close"
               >
                 <svg
                   className="size-5"
@@ -203,113 +181,146 @@ export function QuantyCopilotDrawer({
               </button>
             </div>
 
-            {/* Quick Action Suggestion Chips */}
-            <div className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar border-b border-zinc-800/50 bg-zinc-950/40">
-              <button
-                type="button"
-                onClick={() => handleQuickChip('summarize')}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/25 transition-all shadow-sm active:scale-95"
-              >
-                <span>📑</span>
-                <span>Summarize email</span>
-              </button>
+            {/* If NO conversation yet: Show clean 1-tap Suggestion Card(s) (Gmail Style) */}
+            {!hasConversation && (
+              <div className="px-4 pb-2 space-y-2">
+                {contextEmail || contextThreadSubject ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void handleSend('Please summarize this email in 3 crisp bullet points.')
+                      }
+                      className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-[#242834] hover:bg-[#2b3040] border border-zinc-700/50 text-left transition-all active:scale-[0.99] group shadow-sm"
+                    >
+                      <div className="size-8 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-300 text-sm shrink-0 group-hover:scale-105 transition-transform">
+                        <svg
+                          className="size-4 text-zinc-300"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+                        </svg>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium text-zinc-100">
+                          Summarize this email
+                        </p>
+                      </div>
+                    </button>
 
-              <button
-                type="button"
-                onClick={() => handleQuickChip('hindi')}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/25 transition-all shadow-sm active:scale-95"
-              >
-                <span>🇮🇳</span>
-                <span>Translate to Hindi</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickChip('actions')}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/25 transition-all shadow-sm active:scale-95"
-              >
-                <span>📌</span>
-                <span>Action Items</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickChip('reply')}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/25 transition-all shadow-sm active:scale-95"
-              >
-                <span>✍️</span>
-                <span>Draft Smart Reply</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickChip('draft_full_email')}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/25 transition-all shadow-sm active:scale-95"
-              >
-                <span>✉️</span>
-                <span>Draft Full Email</span>
-              </button>
-            </div>
-
-            {/* Chat Messages Body */}
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3.5">
-              {messages.map((m, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex gap-2.5 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  {m.role === 'assistant' && (
-                    <div className="size-7 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center shrink-0">
-                      <Quanty size={18} expression="happy" bob={false} />
-                    </div>
-                  )}
-
-                  <div
-                    className={`max-w-[85%] rounded-2xl p-3.5 text-xs leading-relaxed ${
-                      m.role === 'user'
-                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-br-none shadow-md font-medium'
-                        : 'bg-zinc-900/90 border border-zinc-800 text-zinc-200 rounded-bl-none shadow-lg'
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap">{m.text}</p>
-
-                    {/* Quick "Insert into Reply" button for assistant drafts */}
-                    {m.role === 'assistant' && i > 0 && onInsertReply && (
+                    <div className="flex items-center gap-2 pt-0.5">
                       <button
                         type="button"
-                        onClick={() => {
-                          onInsertReply(m.text);
-                          onClose();
-                          showToast({ text: 'Inserted draft into reply box', type: 'success' });
-                        }}
-                        className="mt-2.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 transition-all"
+                        onClick={() =>
+                          void handleSend(
+                            'Draft a polite, professional, and concise smart reply to this email.',
+                          )
+                        }
+                        className="flex-1 flex items-center gap-2 p-2.5 rounded-xl bg-[#1e222c] hover:bg-[#272c38] border border-zinc-800 text-left transition-all text-xs text-zinc-300"
                       >
-                        <span>↩ Insert into reply</span>
+                        <span>✍️</span>
+                        <span className="truncate">Draft a reply</span>
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleSend(
+                            'कृपया इस ईमेल का हिंदी में मुख्य सारांश (Summary) बताएं।',
+                          )
+                        }
+                        className="flex-1 flex items-center gap-2 p-2.5 rounded-xl bg-[#1e222c] hover:bg-[#272c38] border border-zinc-800 text-left transition-all text-xs text-zinc-300"
+                      >
+                        <span>🇮🇳</span>
+                        <span className="truncate">Hindi Summary</span>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void handleSend('What are my top priority unread emails today?')}
+                    className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-[#242834] hover:bg-[#2b3040] border border-zinc-700/50 text-left transition-all active:scale-[0.99] group shadow-sm"
+                  >
+                    <div className="size-8 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-300 text-sm shrink-0 group-hover:scale-105 transition-transform">
+                      <span className="text-cyan-400">✨</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium text-zinc-100">
+                        What can Quanty do in QuantMail?
+                      </p>
+                    </div>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* If conversation active: Messages Stack */}
+            {hasConversation && (
+              <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-2 space-y-3">
+                {messages.map((m, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex gap-2.5 ${
+                      m.role === 'user' ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    {m.role === 'assistant' && (
+                      <div className="size-7 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                        <span className="text-xs text-cyan-300">✦</span>
+                      </div>
                     )}
-                  </div>
-                </motion.div>
-              ))}
 
-              {isLoading && (
-                <div className="flex gap-2.5 items-center">
-                  <div className="size-7 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center shrink-0">
-                    <Quanty size={18} expression="thinking" bob={true} />
-                  </div>
-                  <div className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-xs text-cyan-400">
-                    <span className="size-1.5 rounded-full bg-cyan-400 animate-bounce" />
-                    <span className="size-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.15s]" />
-                    <span className="size-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.3s]" />
-                    <span className="ml-1 text-zinc-400 text-[11px]">Quanty is thinking…</span>
-                  </div>
-                </div>
-              )}
-            </div>
+                    <div
+                      className={`max-w-[86%] rounded-2xl px-4 py-3 text-xs sm:text-[13px] leading-relaxed ${
+                        m.role === 'user'
+                          ? 'bg-[#1a73e8] text-white rounded-br-none shadow-md font-medium'
+                          : 'bg-[#242834] border border-zinc-700/60 text-zinc-100 rounded-bl-none shadow-lg'
+                      }`}
+                    >
+                      <p className="whitespace-pre-wrap">{m.text}</p>
 
-            {/* Bottom Prompt Input Bar */}
-            <div className="p-3.5 border-t border-zinc-800/80 bg-zinc-950/80">
+                      {m.role === 'assistant' && onInsertReply && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onInsertReply(m.text);
+                            onClose();
+                            showToast({ text: 'Inserted draft into reply', type: 'success' });
+                          }}
+                          className="mt-2.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-cyan-300 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 transition-all"
+                        >
+                          <span>↩ Insert into reply</span>
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+
+                {isLoading && (
+                  <div className="flex gap-2.5 items-center">
+                    <div className="size-7 rounded-full bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+                      <span className="text-xs text-cyan-300 animate-spin">✦</span>
+                    </div>
+                    <div className="px-3.5 py-2 rounded-2xl bg-[#242834] border border-zinc-700/60 text-xs text-zinc-400 flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-cyan-400 animate-bounce" />
+                      <span className="size-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.15s]" />
+                      <span className="size-1.5 rounded-full bg-cyan-400 animate-bounce [animation-delay:0.3s]" />
+                      <span className="ml-1 text-[11px]">Thinking…</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Bottom Rounded Pill Prompt Input (Gmail Style) */}
+            <div className="p-3.5 pt-2">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -322,27 +333,33 @@ export function QuantyCopilotDrawer({
                   type="text"
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
-                  placeholder={placeholderText}
-                  className="w-full rounded-2xl border border-zinc-800 bg-[#121620] pl-4 pr-12 py-3 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/70 focus:ring-1 focus:ring-cyan-500/40 transition-all shadow-inner"
+                  placeholder="Enter a prompt here"
+                  className="w-full rounded-full border border-zinc-700/70 bg-[#20242f] pl-4 pr-11 py-3 text-xs sm:text-[13px] text-white placeholder-zinc-400 focus:outline-none focus:border-[#64b5f6] focus:ring-1 focus:ring-[#64b5f6]/40 transition-all shadow-inner"
                 />
 
                 <button
                   type="submit"
                   disabled={!inputValue.trim() || isLoading}
-                  className="absolute right-2 p-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-zinc-950 disabled:opacity-30 disabled:hover:bg-cyan-500 transition-all shadow-md active:scale-95"
-                  title="Send prompt to Quanty"
+                  className="absolute right-2 p-1.5 rounded-full text-zinc-400 hover:text-white disabled:opacity-30 transition-all active:scale-95"
+                  title="Send"
                 >
                   <svg
-                    className="size-4"
+                    className="size-5 text-zinc-300"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
-                    strokeWidth="2.5"
+                    strokeWidth="2"
                   >
-                    <path d="M5 12h14M12 5l7 7-7 7" />
+                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
                   </svg>
                 </button>
               </form>
+
+              <div className="pt-2 text-center">
+                <span className="text-[10px] text-zinc-500 font-sans">
+                  Quanty AI · Quantum Intelligence can make mistakes.
+                </span>
+              </div>
             </div>
           </motion.div>
         </>
