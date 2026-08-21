@@ -10,10 +10,12 @@ export type { ContactSuggestion } from '../types';
 interface ContactAutocompleteProps {
   value: string;
   onChange: (value: string) => void;
-  contacts: ContactSuggestion[];
+  contacts?: ContactSuggestion[];
+  suggestions?: ContactSuggestion[];
   placeholder?: string;
-  label: string;
+  label?: string;
   id?: string;
+  'aria-label'?: string;
 }
 
 /**
@@ -24,11 +26,17 @@ interface ContactAutocompleteProps {
 export function ContactAutocomplete({
   value,
   onChange,
-  contacts,
+  contacts = [],
+  suggestions: suggestionsProp,
   placeholder = 'Recipients',
   label,
   id,
+  'aria-label': ariaLabel,
 }: ContactAutocompleteProps) {
+  const contactList = useMemo(
+    () => (contacts?.length ? contacts : suggestionsProp || []),
+    [contacts, suggestionsProp],
+  );
   const [inputValue, setInputValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -47,7 +55,7 @@ export function ContactAutocomplete({
   const suggestions = useMemo(() => {
     if (!inputValue.trim()) return [];
     const q = inputValue.toLowerCase();
-    return contacts
+    return contactList
       .filter(
         (c) =>
           !chips.includes(c.email) &&
@@ -55,7 +63,7 @@ export function ContactAutocomplete({
       )
       .sort((a, b) => (b.frequency ?? 0) - (a.frequency ?? 0))
       .slice(0, 6);
-  }, [inputValue, contacts, chips]);
+  }, [inputValue, contactList, chips]);
 
   const addChip = useCallback(
     (email: string) => {
@@ -127,15 +135,17 @@ export function ContactAutocomplete({
 
   return (
     <div className="contact-autocomplete">
-      <label className="autocomplete-label" htmlFor={id}>
-        {label}
-      </label>
+      {label && (
+        <label className="autocomplete-label" htmlFor={id}>
+          {label}
+        </label>
+      )}
       <div
         className={`autocomplete-input-area ${isFocused ? 'is-focused' : ''}`}
         onClick={() => inputRef.current?.focus()}
       >
         {chips.map((email) => {
-          const contact = contacts.find((c) => c.email === email);
+          const contact = contactList.find((c) => c.email === email);
           return (
             <span key={email} className="autocomplete-chip">
               <span className="chip-text">{contact?.name || email}</span>

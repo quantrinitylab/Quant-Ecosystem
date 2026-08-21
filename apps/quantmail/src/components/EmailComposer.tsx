@@ -366,7 +366,7 @@ export function EmailComposer({
                 <ContactAutocomplete
                   value={to}
                   onChange={setTo}
-                  suggestions={contacts}
+                  contacts={contacts}
                   placeholder="name@example.com (or external email)"
                   aria-label="To"
                 />
