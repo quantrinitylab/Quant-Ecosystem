@@ -26,6 +26,9 @@ import { QuantMailLogo } from '../components/QuantMailLogo';
 import { Quanty } from '../components/Quanty';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { PostcardReader } from '../components/postcard/PostcardReader';
+import { EmailSenderHeader } from '../components/EmailSenderHeader';
+import { EmailLetterCard } from '../components/EmailLetterCard';
+import { QuantyCopilotDrawer } from '../components/QuantyCopilotDrawer';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { apiClient } from '../services/api-client';
 import type { Email, EmailCategory } from '../types';
@@ -390,6 +393,8 @@ function ReadingPane({
   const router = useRouter();
   const [quickReplyText, setQuickReplyText] = useState('');
   const [isSendingQuickReply, setIsSendingQuickReply] = useState(false);
+  const [isQuantyDrawerOpen, setIsQuantyDrawerOpen] = useState(false);
+  const isPostcard = email?.bodyText?.includes('<!-- QUANTMAIL_POSTCARD:');
 
   const handleSendQuickReply = async () => {
     if (!email || !quickReplyText.trim()) return;
@@ -442,21 +447,20 @@ function ReadingPane({
   }
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.section
-        key={email.id}
-        className="reading-pane"
-        aria-label={`Preview: ${email.subject}`}
+    <>
+      <motion.aside
+        className="reading-pane overflow-hidden flex flex-col"
+        aria-label="Message preview"
         initial={{ opacity: 0, x: 14 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -10 }}
         transition={{ duration: 0.2 }}
       >
-        <header className="reading-header">
+        <header className="reading-header bg-zinc-950/90 border-b border-zinc-800/80 px-4 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              className="icon-button"
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
               onClick={onClose}
               aria-label="Close preview"
             >
@@ -465,7 +469,7 @@ function ReadingPane({
             {onArchive && (
               <button
                 type="button"
-                className="icon-button"
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
                 onClick={() => onArchive(email.id)}
                 title="Archive (E)"
                 aria-label="Archive"
@@ -476,7 +480,7 @@ function ReadingPane({
             {onDelete && (
               <button
                 type="button"
-                className="icon-button"
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                 onClick={() => onDelete(email.id)}
                 title="Delete (#)"
                 aria-label="Delete"
@@ -487,7 +491,11 @@ function ReadingPane({
             {onToggleStar && (
               <button
                 type="button"
-                className={`icon-button ${email.isStarred ? 'text-[#ffb547]' : ''}`}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  email.isStarred
+                    ? 'text-amber-400 bg-amber-400/10'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
                 onClick={() => onToggleStar(email.id)}
                 title="Star (S)"
                 aria-label="Star"
@@ -495,12 +503,23 @@ function ReadingPane({
                 <MailIcon name="star" />
               </button>
             )}
-          </div>
 
-          <div className="reading-header-actions">
+            {/* Quanty Robo Button */}
             <button
               type="button"
-              className="quiet-button"
+              onClick={() => setIsQuantyDrawerOpen(true)}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 text-xs font-bold transition-all ml-1"
+              title="Ask Quanty AI"
+            >
+              <Quanty size={18} expression="happy" bob={false} />
+              <span className="hidden sm:inline text-[11px]">Quanty</span>
+            </button>
+          </div>
+
+          <div className="reading-header-actions flex items-center gap-2">
+            <button
+              type="button"
+              className="px-3 py-1 rounded-xl text-xs font-semibold bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
               onClick={() => router.push(`/compose?replyTo=${email.threadId || email.id}`)}
             >
               <MailIcon name="reply" className="h-3.5 w-3.5 inline mr-1" />
@@ -508,7 +527,7 @@ function ReadingPane({
             </button>
             <button
               type="button"
-              className="signal-button"
+              className="px-3 py-1 rounded-xl text-xs font-semibold bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30 transition-colors"
               onClick={() => router.push(`/thread/${email.threadId || email.id}`)}
             >
               Open thread <span aria-hidden="true">↗</span>
@@ -516,93 +535,16 @@ function ReadingPane({
           </div>
         </header>
 
-        <div className="reading-content">
-          {/* Security & Verification Banner */}
-          <div className="flex items-center justify-between gap-2 px-3 py-1.5 mb-4 rounded-lg bg-[var(--quant-surface-subtle)] border border-[var(--quant-border-subtle)] text-[11px] text-[var(--quant-muted-foreground)]">
-            <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
-              <MailIcon name="shield" className="h-3.5 w-3.5" />
-              Verified Sender · SPF Pass · DKIM Signed
-            </span>
-            <span className="font-mono text-[10px]">E2EE Encrypted</span>
-          </div>
+        <div className="reading-content flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Sender Header Row with Expandable "to me ⌵" */}
+          <EmailSenderHeader email={email} />
 
-          <p className="reading-eyebrow">
-            {email.category} · {email.priority} priority
-            {(email.bodyText || email.snippet) && (
-              <ReadTimeEstimate text={email.bodyText || email.snippet} className="ml-2" />
-            )}
-          </p>
-          <h1>{email.subject || '(no subject)'}</h1>
-
-          <div className="reading-sender">
-            <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="lg" />
-            <div>
-              <strong>{email.from?.name || email.from?.email}</strong>
-              <span>{email.from?.email}</span>
-            </div>
-            <time>{email.receivedAt ? new Date(email.receivedAt).toLocaleString() : ''}</time>
-          </div>
-
-          {/* QuantAI Brief & Summary */}
-          {email.aiSummary ? (
-            <aside className="reading-ai-summary">
-              <span aria-hidden="true" className="text-[#ffad5c]">
-                <MailIcon name="sparkles" className="h-4 w-4" />
-              </span>
-              <div>
-                <strong>QuantAI Executive Brief</strong>
-                <p>{email.aiSummary}</p>
-              </div>
-            </aside>
-          ) : (
-            <aside className="reading-ai-summary bg-opacity-40">
-              <span aria-hidden="true" className="text-[#ffad5c]">
-                <MailIcon name="sparkles" className="h-4 w-4" />
-              </span>
-              <div className="flex items-center justify-between w-full">
-                <div>
-                  <strong>QuantAI Copilot</strong>
-                  <p className="text-xs text-[var(--quant-muted-foreground)]">
-                    Auto-triage and thread context analyzed.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(`/compose?replyTo=${email.threadId || email.id}&aiAssist=true`)
-                  }
-                  className="text-xs text-[#ffad5c] hover:underline font-semibold"
-                >
-                  Generate Draft ⚡
-                </button>
-              </div>
-            </aside>
-          )}
-
-          <EmailSafetyBanner email={email} />
-          <div className="reading-message my-4">
-            <PostcardReader email={email} />
-          </div>
-
-          {email.attachments && email.attachments.length > 0 && (
-            <section className="reading-attachments" aria-label="Attachments">
-              <h2>
-                {email.attachments.length} attachment{email.attachments.length === 1 ? '' : 's'}
-              </h2>
-              <div>
-                {email.attachments.map((attachment) => (
-                  <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer">
-                    <span>{attachment.filename}</span>
-                    <small>{(attachment.size / 1024).toFixed(1)} KB</small>
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
+          {/* Email Body: Postcard or Luxury Letterhead */}
+          {isPostcard ? <PostcardReader email={email} /> : <EmailLetterCard email={email} />}
         </div>
 
         {/* Inline Quick Reply & Smart Replies Footer */}
-        <footer className="reading-reply-bar flex-col gap-2.5">
+        <footer className="reading-reply-bar flex-col gap-2.5 p-3.5 bg-zinc-950/90 border-t border-zinc-800">
           <SmartReplySuggestions
             emailId={email.id}
             onSelectReply={(text) => {
@@ -613,7 +555,7 @@ function ReadingPane({
           <div className="flex items-center gap-2 w-full">
             <input
               type="text"
-              className="flex-1 bg-[#151517] border border-[var(--quant-border)] rounded-lg px-3.5 py-2 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[#ff9933]/60 transition-colors"
+              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/70 transition-colors"
               placeholder="Type a quick reply or pick a suggestion above…"
               value={quickReplyText}
               onChange={(e) => setQuickReplyText(e.target.value)}
@@ -629,14 +571,14 @@ function ReadingPane({
                 type="button"
                 disabled={isSendingQuickReply}
                 onClick={() => void handleSendQuickReply()}
-                className="reading-send-shortcut px-4 py-2 text-xs font-semibold"
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold transition-all"
               >
                 {isSendingQuickReply ? 'Sending…' : 'Send (↵)'}
               </button>
             ) : (
               <button
                 type="button"
-                className="quiet-button text-xs"
+                className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-all"
                 onClick={() => router.push(`/compose?replyTo=${email.threadId || email.id}`)}
               >
                 Full Composer
@@ -644,15 +586,22 @@ function ReadingPane({
             )}
             <button
               type="button"
-              className="quiet-button text-xs"
+              className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-all"
               onClick={() => router.push(`/compose?forward=${email.id}`)}
             >
               Forward <span aria-hidden="true">→</span>
             </button>
           </div>
         </footer>
-      </motion.section>
-    </AnimatePresence>
+      </motion.aside>
+
+      <QuantyCopilotDrawer
+        isOpen={isQuantyDrawerOpen}
+        onClose={() => setIsQuantyDrawerOpen(false)}
+        contextEmail={email}
+        onInsertReply={(text) => setQuickReplyText(text)}
+      />
+    </>
   );
 }
 
@@ -680,6 +629,7 @@ export default function InboxPage() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
+  const [isGlobalQuantyOpen, setIsGlobalQuantyOpen] = useState(false);
   const touchStartY = useRef(0);
   const isPulling = useRef(false);
 
@@ -929,14 +879,24 @@ export default function InboxPage() {
       theme="dark"
       className="quantmail-shell"
       mobileActions={
-        <button
-          type="button"
-          className="inline-flex size-9 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-          onClick={() => router.push('/search')}
-          aria-label="Search messages"
-        >
-          <MailIcon name="search" className="size-5" />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setIsGlobalQuantyOpen(true)}
+            className="inline-flex size-9 items-center justify-center rounded-lg text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 transition-colors"
+            aria-label="Ask Quanty AI"
+          >
+            <Quanty size={20} expression="happy" bob={false} />
+          </button>
+          <button
+            type="button"
+            className="inline-flex size-9 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            onClick={() => router.push('/search')}
+            aria-label="Search messages"
+          >
+            <MailIcon name="search" className="size-5" />
+          </button>
+        </div>
       }
       aria-label="QuantMail inbox"
     >
@@ -959,8 +919,8 @@ export default function InboxPage() {
             </button>
           </header>
 
-          <div className="inbox-search-wrap md:hidden">
-            <label htmlFor="inbox-search" className="inbox-search">
+          <div className="inbox-search-wrap md:hidden flex items-center gap-2">
+            <label htmlFor="inbox-search" className="inbox-search flex-1">
               <MailIcon name="search" />
               <input
                 id="inbox-search"
@@ -971,6 +931,14 @@ export default function InboxPage() {
               />
               <kbd>/</kbd>
             </label>
+            <button
+              type="button"
+              onClick={() => setIsGlobalQuantyOpen(true)}
+              className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 shrink-0"
+              title="Ask Quanty AI"
+            >
+              <Quanty size={20} expression="happy" bob={false} />
+            </button>
           </div>
 
           <nav className="inbox-categories" aria-label="Inbox categories">
@@ -1166,6 +1134,11 @@ export default function InboxPage() {
       </div>
 
       <Quanty />
+
+      <QuantyCopilotDrawer
+        isOpen={isGlobalQuantyOpen}
+        onClose={() => setIsGlobalQuantyOpen(false)}
+      />
     </AppShell>
   );
 }

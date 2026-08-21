@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { QuantMailLogo } from './QuantMailLogo';
 
 interface BrandLoaderProps {
   variant?: 'splash' | 'inline';
@@ -8,17 +9,6 @@ interface BrandLoaderProps {
   hint?: ReactNode;
   className?: string;
 }
-
-const splashCss = `
-.qm-bl-splash{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--quant-background,var(--quant-surface,#0b0f14));}
-.qm-bl-wordmark{font-family:var(--font-brand),'Segoe Script','Comic Sans MS',cursive;font-size:34px;font-weight:400;letter-spacing:0.005em;line-height:1.5;padding:0 10px 6px;background:linear-gradient(95deg,#ff9933 0%,#ff5e62 34%,#e64980 64%,#8b5cf6 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 12px rgba(230,73,128,0.3));}
-.qm-bl-track{position:relative;width:148px;height:3px;border-radius:9999px;background:rgba(255,255,255,0.08);overflow:hidden;}
-.qm-bl-fill{position:absolute;top:0;left:0;width:38%;height:100%;border-radius:9999px;background:linear-gradient(90deg,#ff9933,#e64980);animation:qm-bl-slide 1.05s ease-in-out infinite;}
-.qm-bl-message{margin:0;font-size:12.5px;letter-spacing:0.01em;color:var(--quant-muted-foreground,#8a94a3);}
-.qm-bl-hint{text-align:center;}
-@keyframes qm-bl-slide{0%{transform:translateX(-110%);}55%{transform:translateX(160%);}100%{transform:translateX(290%);}}
-@media (prefers-reduced-motion: reduce){.qm-bl-fill{animation:none;width:60%;left:20%;}}
-`;
 
 const inlineCss = `
 .qm-bl-inline{position:relative;display:inline-flex;width:22px;height:22px;}
@@ -28,11 +18,8 @@ const inlineCss = `
 `;
 
 /**
- * QuantMail loader — intentionally minimal and calm.
- *
- * Splash: the cursive QuantMail wordmark (the logo) with a thin sliding
- * progress bar. No 3D, no gimmicks — fast, quiet, brand-first.
- * Inline: a small spinner ring for in-panel loads.
+ * QuantMail loader — living mascot with active fast spin, glowing orbit ring,
+ * and Instagram-by-Meta style footer branding.
  */
 export function BrandLoader({
   variant = 'splash',
@@ -51,17 +38,54 @@ export function BrandLoader({
   }
 
   return (
-    <div className={`qm-bl-splash ${className}`} role="status" aria-live="polite" aria-busy="true">
-      <span className="qm-bl-wordmark" aria-hidden="true">
-        QuantMail
-      </span>
-      <span className="qm-bl-track" aria-hidden="true">
-        <span className="qm-bl-fill" />
-      </span>
-      <p className="qm-bl-message">{message}</p>
-      {hint ? <div className="qm-bl-hint">{hint}</div> : null}
+    <div
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-between bg-[#080a0f] p-8 select-none ${className}`}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div className="w-full flex justify-end" />
+
+      {/* Center Active Rotating Mascot + Orbit Rings */}
+      <div className="relative flex flex-col items-center justify-center">
+        {/* Outer glowing pulsing background */}
+        <div className="absolute -inset-10 rounded-full bg-gradient-to-r from-amber-500/25 via-orange-500/15 to-transparent blur-2xl animate-pulse" />
+
+        {/* Outer Spinning Dash Ring */}
+        <div className="absolute -inset-6 rounded-full border-2 border-dashed border-amber-500/30 animate-[spin_4s_linear_infinite]" />
+
+        {/* Middle Glowing Orbit Ring */}
+        <div className="absolute -inset-3 rounded-full border-2 border-transparent border-t-amber-400 border-r-orange-500 animate-[spin_1.2s_linear_infinite]" />
+
+        {/* Center Mascot Logo Fast Spin */}
+        <div className="relative z-10 animate-[spin_3s_ease-in-out_infinite]">
+          <QuantMailLogo size={68} variant="full" interactive={false} />
+        </div>
+
+        {/* Message below mascot */}
+        <p className="mt-8 text-xs font-medium text-zinc-400 tracking-wider animate-pulse">
+          {message}
+        </p>
+        {hint ? <div className="text-center text-xs text-zinc-500 mt-1">{hint}</div> : null}
+      </div>
+
+      {/* Bottom Instagram-by-Meta Style Branding */}
+      <div className="flex flex-col items-center gap-0.5 pb-2 text-center">
+        <span
+          className="text-lg font-normal tracking-wide bg-gradient-to-r from-[#ff9933] via-[#ff5e62] to-[#e64980] bg-clip-text text-transparent"
+          style={{
+            fontFamily: 'var(--font-brand), "Segoe Script", "Comic Sans MS", cursive',
+          }}
+        >
+          QuantMail
+        </span>
+        <div className="flex items-center gap-1.5 text-[11px] font-mono tracking-widest text-zinc-400 uppercase">
+          <span>by</span>
+          <span className="font-bold text-amber-400 tracking-[0.2em]">QUANTRINITY</span>
+        </div>
+      </div>
+
       <span className="sr-only">{message}</span>
-      <style>{splashCss}</style>
     </div>
   );
 }

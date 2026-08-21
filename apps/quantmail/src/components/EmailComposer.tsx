@@ -876,7 +876,9 @@ export function EmailComposer({
           </div>
         ) : (
           <div
-            className={`composer-writing-area ${isDragOver ? 'is-dragging' : ''}`}
+            className={`mx-5 my-3 p-6 sm:p-8 rounded-3xl border border-zinc-800/80 bg-gradient-to-b from-[#141722] via-[#0f121a] to-[#0b0e14] shadow-2xl relative overflow-hidden ${
+              isDragOver ? 'ring-2 ring-amber-500' : ''
+            }`}
             onDragOver={(event) => {
               event.preventDefault();
               setIsDragOver(true);
@@ -888,20 +890,76 @@ export function EmailComposer({
               reportFiles(Array.from(event.dataTransfer.files));
             }}
           >
+            {/* Background Luxury Ambient Glows */}
+            <div className="absolute top-0 right-0 w-72 h-72 bg-gradient-to-bl from-amber-500/5 via-cyan-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
+
+            {/* Official Letterhead Header: Stamp & Dispatch Metadata */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-zinc-800/70 mb-5">
+              <div className="flex flex-col space-y-1">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="text-lg sm:text-xl font-serif font-black tracking-wider uppercase text-amber-300"
+                    style={{ fontFamily: '"Cinzel", "Georgia", serif' }}
+                  >
+                    QuantMail
+                  </span>
+                  <span className="text-[9px] font-mono tracking-widest text-zinc-500 uppercase">
+                    · Official Transmission Letterhead ·
+                  </span>
+                </div>
+                <div className="text-[11px] text-zinc-400 font-mono">
+                  To: <span className="text-zinc-200">{to || 'Recipient'}</span> · Subject:{' '}
+                  <span className="text-white font-semibold">{subject || 'Untitled'}</span>
+                </div>
+              </div>
+
+              {/* Official Stamp & Cursive Signature */}
+              <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
+                <div className="text-right hidden sm:block">
+                  <div
+                    className="text-sm text-amber-200/90 font-serif italic tracking-wide"
+                    style={{ fontFamily: '"Caveat", "Brush Script MT", cursive' }}
+                  >
+                    Verified Electronic Transmission
+                  </div>
+                  <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">
+                    Quantrinity Network
+                  </div>
+                </div>
+
+                <div className="relative size-18 rounded-full border-2 border-amber-500/60 flex flex-col items-center justify-center text-amber-400 p-1 select-none shadow-[0_0_15px_rgba(245,158,11,0.18)] bg-amber-500/5 transform -rotate-6 shrink-0">
+                  <div className="absolute inset-1 rounded-full border border-dashed border-amber-500/40" />
+                  <span
+                    className="text-[7.5px] font-serif font-black tracking-wider text-amber-300 uppercase"
+                    style={{ fontFamily: '"Cinzel", serif' }}
+                  >
+                    quantmail.in
+                  </span>
+                  <div className="my-0.5 h-px w-8 bg-amber-500/40" />
+                  <span className="text-[6px] font-mono tracking-widest uppercase text-amber-400/80">
+                    by
+                  </span>
+                  <span className="text-[7px] font-mono font-black tracking-widest uppercase text-amber-300">
+                    QUANTRINITY
+                  </span>
+                </div>
+              </div>
+            </div>
+
             {isDragOver && (
               <div className="composer-drop-message">Release to select files locally</div>
             )}
-            <label className="composer-body-label" htmlFor={bodyId}>
-              Message
+
+            <label className="sr-only" htmlFor={bodyId}>
+              Message Body
             </label>
             <textarea
               id={bodyId}
-              className="composer-body"
-              ref={undefined}
+              className="w-full bg-transparent text-sm sm:text-base text-zinc-100 placeholder-zinc-500 focus:outline-none leading-relaxed resize-none font-sans min-h-[260px]"
               value={body}
               onChange={(event) => setBody(event.target.value)}
-              placeholder="Write with clarity. Keep only what matters."
-              rows={14}
+              placeholder="Dear recipient,\n\nWrite your message here with clarity and elegance.\n\nYours faithfully,\n[Your Name]"
+              rows={12}
             />
           </div>
         )}
