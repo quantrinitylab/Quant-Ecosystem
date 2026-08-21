@@ -27,6 +27,7 @@ import calendarRoutes from './routes/calendar';
 import driveRoutes from './routes/drive';
 import aiComposeRoutes from './routes/ai-compose';
 import aiChatRoutes from './routes/ai-chat';
+import inboundWebhookRoutes from './routes/inbound-webhook';
 import { InMemoryE2EERelay } from './lib/e2ee-relay';
 
 export function getConfig(): AppConfig {
@@ -63,6 +64,7 @@ export function getConfig(): AppConfig {
       // have an account yet. Accepting an invite stays authenticated.
       '/public/invites',
       '/.well-known',
+      '/webhook/inbound',
     ],
     env,
   };
@@ -167,6 +169,9 @@ export async function buildApp(config?: AppConfig) {
   // auth hook. In-memory persistence (no new schema — Req 9.5).
   app.decorate('federation', createFederationService());
   await app.register(federationRoutes, { prefix: '/federation' });
+
+  // SES inbound email webhook — called by AWS SNS, no JWT required.
+  await app.register(inboundWebhookRoutes);
 
   return app;
 }

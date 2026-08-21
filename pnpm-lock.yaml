@@ -179,7 +179,7 @@ importers:
         version: 3.4.19(tsx@4.22.3)(yaml@2.9.0)
       vitest:
         specifier: ^4
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@1.21.7)(tsx@4.22.3)(yaml@2.9.0))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
 
   apps/marketing:
     dependencies:
@@ -906,6 +906,9 @@ importers:
 
   apps/quantmail:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.1053.0
+        version: 3.1053.0
       '@aws-sdk/client-sesv2':
         specifier: ^3.700.0
         version: 3.1080.0
@@ -1008,7 +1011,7 @@ importers:
         version: 4.22.3
       vitest:
         specifier: ^4
-        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(jsdom@29.1.1)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@1.21.7)(tsx@4.22.3)(yaml@2.9.0))
 
   apps/quantmax:
     dependencies:
