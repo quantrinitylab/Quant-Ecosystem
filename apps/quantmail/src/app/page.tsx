@@ -25,7 +25,6 @@ import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
 import { QuantMailLogo } from '../components/QuantMailLogo';
 import { Quanty } from '../components/Quanty';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
-import { PostcardReader } from '../components/postcard/PostcardReader';
 import { EmailSenderHeader } from '../components/EmailSenderHeader';
 import { EmailLetterCard } from '../components/EmailLetterCard';
 import { QuantyCopilotDrawer } from '../components/QuantyCopilotDrawer';

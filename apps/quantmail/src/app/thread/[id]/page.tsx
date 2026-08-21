@@ -12,10 +12,10 @@ import { apiClient } from '../../../services/api-client';
 import type { Email } from '../../../types';
 import { showToast } from '../../../components/InboxToast';
 import { IdentityAvatar } from '../../../components/IdentityAvatar';
-import { PostcardReader } from '../../../components/postcard/PostcardReader';
 import { EmailReaderHeader } from '../../../components/EmailReaderHeader';
 import { EmailLetterCard } from '../../../components/EmailLetterCard';
 import { QuantyCopilotDrawer } from '../../../components/QuantyCopilotDrawer';
+import { Quanty } from '../../../components/Quanty';
 
 function formatMessageDate(value?: string | Date): string {
   if (!value) return '';
