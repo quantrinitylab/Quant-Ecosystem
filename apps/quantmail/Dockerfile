@@ -20,6 +20,8 @@ RUN pnpm --filter @quant/brand exec tsc --project tsconfig.json --noEmit false -
 # and brand/common have dist/ for any CJS imports.
 RUN cd apps/quantmail && pnpm exec next build
 RUN rm -rf apps/quantmail/.next/cache /root/.cache /root/.pnpm-store /root/.local
+RUN find /app/node_modules -type d \( -name "win32" -o -name "darwin" -o -name "win32-x64" -o -name "darwin-x64" -o -name "darwin-arm64" \) -prune -exec rm -rf {} + 2>/dev/null || true
+RUN find /app/node_modules -type f \( -name "*.dll" -o -name "*.dylib" -o -name "*.exe" \) -delete 2>/dev/null || true
 
 FROM node:22-slim AS runner
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
