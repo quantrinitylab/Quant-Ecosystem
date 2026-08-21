@@ -6,8 +6,11 @@ import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomple
 import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
 import { showToast } from './InboxToast';
 import { Quanty, type QuantyExpression } from './Quanty';
+import { PostcardCanvas } from './postcard/PostcardCanvas';
+import { PostcardPicker } from './postcard/PostcardPicker';
 import { browserAuthSession } from '../services/browser-auth-session';
 import type { EmailAddress, EmailPriority } from '../types';
+import type { PostcardTemplate, PostcardPayload } from '../types/postcard';
 
 export interface ComposerMessageData {
   to: EmailAddress[];
@@ -174,6 +177,21 @@ export function EmailComposer({
   const [isDragOver, setIsDragOver] = useState(false);
   const [lastDraftSavedAt, setLastDraftSavedAt] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [selectedPostcard, setSelectedPostcard] = useState<PostcardTemplate | null>(null);
+  const [showPostcardPicker, setShowPostcardPicker] = useState(false);
+
+  useEffect(() => {
+    try {
+      const active = sessionStorage.getItem('quantmail_active_postcard');
+      if (active) {
+        setSelectedPostcard(JSON.parse(active));
+        sessionStorage.removeItem('quantmail_active_postcard');
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const [contacts] = useState<ContactSuggestion[]>([
     // Pre-seeded contacts for autocomplete — in production these come from the contacts API
     { email: 'team@quantrinity.in', name: 'Quantrinity Team', frequency: 10 },
@@ -196,10 +214,12 @@ export function EmailComposer({
   const hasSubject = subject.trim().length > 0;
   const hasMessageBody = body.trim().length > 0;
   const draftStatusLabel = isSaving
-    ? 'Saving draft…'
-    : lastDraftSavedAt
-      ? `Saved at ${lastDraftSavedAt}`
-      : 'Not saved yet';
+    ? 'Saving…'
+    : isSending
+      ? 'Sending…'
+      : lastDraftSavedAt
+        ? `Saved at ${lastDraftSavedAt}`
+        : 'Not saved yet';
 
   // Undo-restore (msg#30 P07): if the user pressed Undo, reopen their message
   // exactly as it was.
@@ -264,17 +284,39 @@ export function EmailComposer({
   }, [showScheduleMenu]);
 
   const buildMessage = useCallback(
-    (scheduledAt?: string): ComposerMessageData => ({
-      to: parseEmails(to),
-      cc: parseEmails(cc),
-      bcc: parseEmails(bcc),
-      subject: subject.trim(),
-      bodyText: body,
-      bodyHtml: `<div>${escapeHtml(body).replace(/\r?\n/g, '<br />')}</div>`,
-      priority,
-      ...(scheduledAt ? { scheduledAt } : {}),
-    }),
-    [to, cc, bcc, subject, body, priority],
+    (scheduledAt?: string): ComposerMessageData => {
+      let finalBodyText = body;
+      const finalBodyHtml = `<div>${escapeHtml(body).replace(/\r?\n/g, '<br />')}</div>`;
+
+      if (selectedPostcard) {
+        const parsedTo = parseEmails(to);
+        const postcardPayload: PostcardPayload = {
+          template: selectedPostcard,
+          message: body,
+          recipientName: parsedTo[0]?.name || parsedTo[0]?.email || 'Recipient',
+          recipientEmail: parsedTo[0]?.email || '',
+          dateString: new Date().toLocaleDateString(undefined, {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          }),
+          locationString: 'QUANTUM TRANSIT',
+        };
+        finalBodyText = `<!-- QUANTMAIL_POSTCARD:${JSON.stringify(postcardPayload)} -->\n${body}`;
+      }
+
+      return {
+        to: parseEmails(to),
+        cc: parseEmails(cc),
+        bcc: parseEmails(bcc),
+        subject: subject.trim(),
+        bodyText: finalBodyText,
+        bodyHtml: finalBodyHtml,
+        priority,
+        ...(scheduledAt ? { scheduledAt } : {}),
+      };
+    },
+    [to, cc, bcc, subject, body, priority, selectedPostcard],
   );
 
   const validateRequired = useCallback((): boolean => {
@@ -779,35 +821,90 @@ export function EmailComposer({
           )}
         </section>
 
-        <div
-          className={`composer-writing-area ${isDragOver ? 'is-dragging' : ''}`}
-          onDragOver={(event) => {
-            event.preventDefault();
-            setIsDragOver(true);
-          }}
-          onDragLeave={() => setIsDragOver(false)}
-          onDrop={(event) => {
-            event.preventDefault();
-            setIsDragOver(false);
-            reportFiles(Array.from(event.dataTransfer.files));
-          }}
-        >
-          {isDragOver && (
-            <div className="composer-drop-message">Release to select files locally</div>
-          )}
-          <label className="composer-body-label" htmlFor={bodyId}>
-            Message
-          </label>
-          <textarea
-            id={bodyId}
-            className="composer-body"
-            ref={undefined}
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            placeholder="Write with clarity. Keep only what matters."
-            rows={14}
-          />
+        {/* Postcard Mode Selector Header */}
+        <div className="mx-5 my-3 flex items-center justify-between bg-zinc-900/80 border border-zinc-800/80 rounded-xl px-4 py-2.5 shadow-md">
+          <div className="flex items-center gap-2.5">
+            <span className="text-lg">💌</span>
+            <div>
+              <span className="text-xs font-serif font-bold text-amber-400">
+                Stationery: {selectedPostcard ? selectedPostcard.name : 'Standard Email'}
+              </span>
+              <p className="text-[10px] text-zinc-400">
+                {selectedPostcard
+                  ? `${selectedPostcard.paperTexture.replace('-', ' ')} · ${selectedPostcard.stamp.value} stamp`
+                  : 'Traditional text email layout'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {selectedPostcard && (
+              <button
+                type="button"
+                onClick={() => setSelectedPostcard(null)}
+                className="text-[11px] text-zinc-400 hover:text-rose-400 transition-colors"
+              >
+                Clear Postcard
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowPostcardPicker(true)}
+              className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-500/40 text-amber-300 text-xs font-semibold rounded-lg shadow-sm transition-all"
+            >
+              {selectedPostcard ? 'Change Postcard 🎨' : 'Choose Postcard 💌'}
+            </button>
+          </div>
         </div>
+
+        {selectedPostcard ? (
+          <div className="mx-5 my-2 p-5 flex flex-col items-center bg-zinc-950/60 rounded-2xl border border-zinc-800 shadow-xl">
+            <div className="w-full flex items-center justify-between text-xs text-zinc-400 font-mono mb-3">
+              <span>TYPE YOUR MESSAGE DIRECTLY ON THE CARD</span>
+              <span className="text-amber-400 font-bold">VINTAGE POSTCARD ACTIVE</span>
+            </div>
+            <PostcardCanvas
+              template={selectedPostcard}
+              message={body}
+              recipientName={
+                parseEmails(to)[0]?.name || parseEmails(to)[0]?.email || 'Dear Recipient'
+              }
+              recipientEmail={parseEmails(to)[0]?.email || ''}
+              editable={true}
+              onMessageChange={setBody}
+              className="w-full"
+            />
+          </div>
+        ) : (
+          <div
+            className={`composer-writing-area ${isDragOver ? 'is-dragging' : ''}`}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setIsDragOver(true);
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDragOver(false);
+              reportFiles(Array.from(event.dataTransfer.files));
+            }}
+          >
+            {isDragOver && (
+              <div className="composer-drop-message">Release to select files locally</div>
+            )}
+            <label className="composer-body-label" htmlFor={bodyId}>
+              Message
+            </label>
+            <textarea
+              id={bodyId}
+              className="composer-body"
+              ref={undefined}
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+              placeholder="Write with clarity. Keep only what matters."
+              rows={14}
+            />
+          </div>
+        )}
 
         {attachments.length > 0 && (
           <section className="local-attachments" aria-labelledby={`${fieldId}-attachments-title`}>
@@ -957,6 +1054,13 @@ export function EmailComposer({
           if (template.subject) setSubject(template.subject);
           if (template.body) setBody(template.body);
         }}
+      />
+
+      <PostcardPicker
+        isOpen={showPostcardPicker}
+        selectedTemplate={selectedPostcard}
+        onSelectTemplate={setSelectedPostcard}
+        onClose={() => setShowPostcardPicker(false)}
       />
     </main>
   );

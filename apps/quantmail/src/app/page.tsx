@@ -25,6 +25,7 @@ import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
 import { QuantMailLogo } from '../components/QuantMailLogo';
 import { Quanty } from '../components/Quanty';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
+import { PostcardReader } from '../components/postcard/PostcardReader';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { apiClient } from '../services/api-client';
 import type { Email, EmailCategory } from '../types';
@@ -579,12 +580,8 @@ function ReadingPane({
           )}
 
           <EmailSafetyBanner email={email} />
-          <div className="reading-message text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
-            {email.bodyHtml ? (
-              <div dangerouslySetInnerHTML={{ __html: email.bodyHtml }} />
-            ) : (
-              email.bodyText || email.snippet || 'No message content.'
-            )}
+          <div className="reading-message my-4">
+            <PostcardReader email={email} />
           </div>
 
           {email.attachments && email.attachments.length > 0 && (

@@ -14,6 +14,7 @@ import { apiClient } from '../../../services/api-client';
 import { expandCollapseVariants, attachmentItemVariants } from '../../../lib/motion-variants';
 import type { Email, EmailAttachment } from '../../../types';
 import { showToast } from '../../../components/InboxToast';
+import { PostcardReader } from '../../../components/postcard/PostcardReader';
 
 type TbIconName = 'archive' | 'back' | 'spark' | 'star' | 'trash';
 
@@ -593,8 +594,14 @@ export default function ThreadPage() {
 
                       {expanded && (
                         <div className="px-5 pb-5 border-t border-zinc-800">
-                          <BodyWithExpand text={parsed.regular} />
-                          {parsed.quoted && <QuotedText text={parsed.quoted} />}
+                          {message.bodyText?.includes('<!-- QUANTMAIL_POSTCARD:') ? (
+                            <PostcardReader email={message} className="my-3" />
+                          ) : (
+                            <>
+                              <BodyWithExpand text={parsed.regular} />
+                              {parsed.quoted && <QuotedText text={parsed.quoted} />}
+                            </>
+                          )}
                           <AttachmentGallery attachments={message.attachments} />
                           <div className="flex gap-2 mt-4 pt-3 border-t border-zinc-800/80">
                             <button

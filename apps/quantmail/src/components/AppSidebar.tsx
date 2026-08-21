@@ -37,6 +37,7 @@ type IconName =
   | 'drive'
   | 'inbox'
   | 'pipeline'
+  | 'postcard'
   | 'search'
   | 'security'
   | 'sent'
@@ -79,14 +80,15 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   ),
   contacts: (
     <>
-      <circle cx="9" cy="8" r="3" />
-      <path d="M3 20c0-4 2-6 6-6s6 2 6 6M16 7a3 3 0 0 1 0 6M17 14c2.7.4 4 2.4 4 5" />
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
     </>
   ),
   drafts: (
     <>
-      <path d="M5 3h10l4 4v14H5z" />
-      <path d="M14 3v5h5M8 13h8M8 17h5" />
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
     </>
   ),
   drive: (
@@ -96,8 +98,8 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   ),
   inbox: (
     <>
-      <path d="M4 4h16v16H4z" />
-      <path d="M4 14h5l2 3h2l2-3h5" />
+      <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+      <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
     </>
   ),
   pipeline: (
@@ -106,6 +108,13 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
       <circle cx="18" cy="12" r="2" />
       <circle cx="6" cy="19" r="2" />
       <path d="M8 5h3a3 3 0 0 1 3 3v1a3 3 0 0 0 3 3M8 19h3a3 3 0 0 0 3-3v-1a3 3 0 0 1 3-3" />
+    </>
+  ),
+  postcard: (
+    <>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M12 4v16M17 7h2v3h-2z" />
+      <path d="M5 9h4M5 12h4M5 15h3" />
     </>
   ),
   search: (
@@ -178,6 +187,7 @@ const NAV_GROUPS: Array<{
     label: 'Mail',
     items: [
       { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
+      { id: 'postcards', label: 'Postcards', icon: 'postcard', path: '/postcards' },
       { id: 'snoozed', label: 'Snoozed', icon: 'clock', path: '/snoozed' },
       { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
