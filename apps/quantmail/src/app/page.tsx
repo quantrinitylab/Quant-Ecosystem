@@ -503,10 +503,10 @@ function ReadingPane({
             <button
               type="button"
               onClick={() => setIsQuantyDrawerOpen(true)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition-all ml-1"
+              className="flex items-center gap-1.5 px-2 py-1 rounded-xl text-amber-400 hover:bg-amber-500/10 text-xs font-bold transition-all ml-1"
               title="Ask Quanty AI"
             >
-              <Quanty size={18} expression="happy" bob={false} />
+              <Quanty size={22} expression="happy" bob={false} />
               <span className="hidden sm:inline text-[11px]">Quanty</span>
             </button>
           </div>
@@ -534,8 +534,8 @@ function ReadingPane({
           {/* Sender Header Row with Expandable "to me ⌵" */}
           <EmailSenderHeader email={email} />
 
-          {/* Email Body: Postcard or Luxury Letterhead */}
-          {isPostcard ? <PostcardReader email={email} /> : <EmailLetterCard email={email} />}
+          {/* Email Body: Luxury Letterhead */}
+          <EmailLetterCard email={email} />
         </div>
 
         {/* Inline Quick Reply & Smart Replies Footer */}
@@ -878,10 +878,10 @@ export default function InboxPage() {
           <button
             type="button"
             onClick={() => setIsGlobalQuantyOpen(true)}
-            className="inline-flex size-9 items-center justify-center rounded-lg text-amber-400 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-colors"
+            className="inline-flex size-9 items-center justify-center rounded-lg text-amber-400 hover:bg-zinc-800 transition-colors"
             aria-label="Ask Quanty AI"
           >
-            <Quanty size={20} expression="happy" bob={false} />
+            <Quanty size={24} expression="happy" bob={false} />
           </button>
           <button
             type="button"
@@ -929,10 +929,10 @@ export default function InboxPage() {
             <button
               type="button"
               onClick={() => setIsGlobalQuantyOpen(true)}
-              className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 shrink-0"
+              className="p-1 rounded-xl text-amber-400 hover:bg-zinc-800 shrink-0"
               title="Ask Quanty AI"
             >
-              <Quanty size={20} expression="happy" bob={false} />
+              <Quanty size={24} expression="happy" bob={false} />
             </button>
           </div>
 

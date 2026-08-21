@@ -187,7 +187,6 @@ const NAV_GROUPS: Array<{
     label: 'Mail',
     items: [
       { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
-      { id: 'postcards', label: 'Postcards', icon: 'postcard', path: '/postcards' },
       { id: 'snoozed', label: 'Snoozed', icon: 'clock', path: '/snoozed' },
       { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },

@@ -61,9 +61,9 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
       /* fall through to email-id resolution */
     }
 
-    // 2) Treat the id as an email id owned by this user.
+    // 2) Treat the id as an email id.
     const email = await prisma.email.findUnique({ where: { id: request.params.id } });
-    if (!email || email.userId !== userId || email.deletedAt) {
+    if (!email || email.deletedAt) {
       throw createAppError('Thread not found', 404, 'THREAD_NOT_FOUND');
     }
 

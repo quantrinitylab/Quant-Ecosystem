@@ -417,13 +417,9 @@ export default function ThreadPage() {
                             )}
                           </AnimatePresence>
 
-                          {/* Email Body: Postcard or Luxury Continuous Letterhead */}
+                          {/* Email Body: Luxury Continuous Letterhead */}
                           <div className="p-3 sm:p-5 pt-0">
-                            {isPostcard ? (
-                              <PostcardReader email={message} />
-                            ) : (
-                              <EmailLetterCard email={message} />
-                            )}
+                            <EmailLetterCard email={message} />
                           </div>
                         </div>
                       )}
@@ -473,10 +469,10 @@ export default function ThreadPage() {
                     <button
                       type="button"
                       onClick={() => setIsQuantyOpen(true)}
-                      className="p-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 transition-all"
+                      className="p-2 rounded-xl text-amber-400 hover:bg-amber-500/10 transition-all"
                       title="Ask Quanty AI"
                     >
-                      <Quanty size={18} expression="happy" bob={false} />
+                      <Quanty size={22} expression="happy" bob={false} />
                     </button>
                   </div>
                 ) : (
@@ -510,9 +506,9 @@ export default function ThreadPage() {
                       <button
                         type="button"
                         onClick={() => setIsQuantyOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 transition-all"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-amber-300 hover:bg-amber-500/10 transition-all"
                       >
-                        <Quanty size={16} expression="happy" bob={false} />
+                        <Quanty size={20} expression="happy" bob={false} />
                         <span>Draft with Quanty AI</span>
                       </button>
 

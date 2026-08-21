@@ -218,11 +218,9 @@ export function QuantyCopilotDrawer({
 
             {/* Header: Quanty Mascot Robot Icon + "How can I help you today?" + 3-Dots + Close */}
             <div className="flex items-center justify-between px-4 sm:px-5 pt-1 pb-3 relative">
-              <div className="flex items-center gap-2.5">
-                {/* Clean Living Mascot Robot Icon with zero blue square layer */}
-                <div className="relative flex items-center justify-center size-8">
-                  <Quanty size={24} expression={quantyExpression} bob={false} />
-                </div>
+              <div className="flex items-center gap-3">
+                {/* Standalone Living Mascot Robot Icon with zero background layer */}
+                <Quanty size={32} expression={quantyExpression} bob={false} />
                 <h3 className="text-base sm:text-[17px] font-bold text-amber-300 tracking-tight">
                   How can I help you today?
                 </h3>
@@ -392,9 +390,7 @@ export function QuantyCopilotDrawer({
                     }
                     className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-[#1a1f2c] hover:bg-[#222838] border border-amber-500/20 text-left transition-all active:scale-[0.99] group shadow-md"
                   >
-                    <div className="size-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                      <Quanty size={18} expression="happy" bob={false} />
-                    </div>
+                    <Quanty size={26} expression="happy" bob={false} />
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-semibold text-zinc-100">
                         What can Quanty do in QuantMail?
@@ -418,8 +414,8 @@ export function QuantyCopilotDrawer({
                     }`}
                   >
                     {m.role === 'assistant' && (
-                      <div className="size-7 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5">
-                        <Quanty size={16} expression={quantyExpression} bob={false} />
+                      <div className="shrink-0 mt-0.5">
+                        <Quanty size={22} expression={quantyExpression} bob={false} />
                       </div>
                     )}
 
@@ -451,8 +447,8 @@ export function QuantyCopilotDrawer({
 
                 {isLoading && (
                   <div className="flex gap-2.5 items-center">
-                    <div className="size-7 rounded-full bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-                      <Quanty size={16} expression="thinking" bob={false} />
+                    <div className="shrink-0">
+                      <Quanty size={22} expression="thinking" bob={false} />
                     </div>
                     <div className="px-3.5 py-2 rounded-2xl bg-[#181c26] border border-amber-500/20 text-xs text-amber-400 flex items-center gap-1.5">
                       <span className="size-1.5 rounded-full bg-[#FF7A00] animate-bounce" />

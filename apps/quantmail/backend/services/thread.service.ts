@@ -64,7 +64,7 @@ export class ThreadService {
     }
 
     const emails = await this.prisma.email.findMany({
-      where: { threadId, userId, deletedAt: null },
+      where: { threadId, deletedAt: null },
       orderBy: { receivedAt: 'asc' },
     });
 
