@@ -1,4 +1,4 @@
-﻿/**
+/**
  * POST /webhook/inbound
  *
  * AWS SNS → SES Inbound Email Webhook
@@ -21,11 +21,12 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { prisma } from '@quant/database';
 import { parseRawEmail } from '../lib/mime-parser';
 
 const REGION = process.env['AWS_REGION'] ?? 'us-east-1';
+const S3_BUCKET = process.env['INBOUND_S3_BUCKET'] ?? 'quantmail-inbound-emails';
 const s3 = new S3Client({ region: REGION });
 
 const QUANTMAIL_DOMAINS = ['quantmail.in', 'quantrinity.in', 'quantchat.online'];
@@ -47,21 +48,24 @@ async function fetchRawFromS3(bucket: string, key: string): Promise<string> {
 }
 
 interface SnsNotification {
-  Type: string;
+  Type?: string;
   SubscribeURL?: string;
   Message?: string;
   MessageId?: string;
+  objectKey?: string;
+  bucket?: string;
 }
 
-interface SesS3Action {
-  type: string;
-  bucketName: string;
-  objectKey: string;
+interface SesAction {
+  type?: string;
+  bucketName?: string;
+  objectKey?: string;
+  topicArn?: string;
 }
 
 interface SesMessage {
   receipt?: {
-    action?: SesS3Action;
+    action?: SesAction;
     recipients?: string[];
     spfVerdict?: { status: string };
     dkimVerdict?: { status: string };
@@ -69,6 +73,7 @@ interface SesMessage {
     spamVerdict?: { status: string };
   };
   mail?: {
+    messageId?: string;
     destination?: string[];
     commonHeaders?: {
       from?: string[];
@@ -107,24 +112,28 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
       }
 
       // ── Step 2: Handle inbound email notification ───────────────────────────
-      if (msgType === 'Notification' || sns?.Type === 'Notification') {
+      if (msgType === 'Notification' || sns?.Type === 'Notification' || sns?.Message) {
         const rawMessage =
-          typeof sns.Message === 'string' ? sns.Message : JSON.stringify(sns.Message);
-        let sesMsg: SesMessage;
+          typeof sns.Message === 'string' ? sns.Message : JSON.stringify(sns.Message ?? sns);
+        let sesMsg: SesMessage | undefined;
         try {
           sesMsg = JSON.parse(rawMessage) as SesMessage;
         } catch {
-          app.log.warn('[inbound] Failed to parse SES message JSON');
+          sesMsg = undefined;
+        }
+
+        const bucketName = sesMsg?.receipt?.action?.bucketName || sns.bucket || S3_BUCKET;
+        let objectKey = sesMsg?.receipt?.action?.objectKey || sns.objectKey;
+
+        if (!objectKey && sesMsg?.mail?.messageId) {
+          objectKey = `emails/${sesMsg.mail.messageId}`;
+        }
+
+        if (!objectKey) {
+          app.log.warn({ sesMsg, sns }, '[inbound] Could not determine S3 objectKey, ignoring');
           return reply.status(200).send({ ok: true });
         }
 
-        const action = sesMsg?.receipt?.action;
-        if (!action || action.type !== 'S3') {
-          app.log.warn({ action }, '[inbound] Not an S3 action, skipping');
-          return reply.status(200).send({ ok: true });
-        }
-
-        const { bucketName, objectKey } = action;
         app.log.info({ bucketName, objectKey }, '[inbound] Fetching raw email from S3');
 
         let rawEmail: string;
@@ -142,22 +151,24 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
         );
 
         // Spam verdict
-        const isSpam = sesMsg.receipt?.spamVerdict?.status?.toUpperCase() === 'FAIL';
+        const isSpam = sesMsg?.receipt?.spamVerdict?.status?.toUpperCase() === 'FAIL';
 
         // Collect all destination addresses from SES receipt + parsed headers
         const allRecipients = Array.from(
           new Set(
             [
-              ...(sesMsg.receipt?.recipients ?? []),
+              ...(sesMsg?.receipt?.recipients ?? []),
+              ...(sesMsg?.mail?.destination ?? []),
               ...parsed.toAddresses,
               ...parsed.ccAddresses,
             ].map((a) => a.trim().toLowerCase()),
           ),
-        ).filter((a) => isQuantMailAddress(a));
+        );
 
-        if (allRecipients.length === 0) {
-          app.log.warn('[inbound] No QuantMail recipients found, skipping');
-          return reply.status(200).send({ ok: true });
+        let quantmailRecipients = allRecipients.filter((a) => isQuantMailAddress(a));
+        if (quantmailRecipients.length === 0) {
+          const handles = allRecipients.map((r) => r.split('@')[0].toLowerCase());
+          quantmailRecipients = handles.map((h) => `${h}@quantmail.in`);
         }
 
         const userModel = prisma as unknown as {
@@ -171,16 +182,24 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
           };
           email: {
             create(a: unknown): Promise<unknown>;
+            findFirst(a: unknown): Promise<{ id: string } | null>;
           };
         };
 
-        // Build lookup: try exact email match OR username@domain match
-        const handles = allRecipients.map((r) => r.split('@')[0]);
+        const handles = quantmailRecipients.map((r) => r.split('@')[0]);
         const matchedUsers = await userModel.user.findMany({
           where: {
             OR: [
-              { email: { in: allRecipients, mode: 'insensitive' } as never },
+              { email: { in: quantmailRecipients, mode: 'insensitive' } as never },
               { username: { in: handles, mode: 'insensitive' } as never },
+              ...quantmailRecipients.flatMap((r) => {
+                const h = r.split('@')[0].toLowerCase();
+                return [
+                  { email: { equals: `${h}@quantmail.in`, mode: 'insensitive' as const } },
+                  { email: { equals: `${h}@quantrinity.in`, mode: 'insensitive' as const } },
+                  { email: { equals: `${h}@quantchat.online`, mode: 'insensitive' as const } },
+                ];
+              }),
             ],
           },
           select: { id: true, email: true, username: true },
@@ -196,21 +215,43 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
             .findFirst({ where: { userId: user.id, type: 'INBOX' } })
             .catch(() => null);
 
+          // Idempotency check: don't insert duplicates
+          const existing = await userModel.email
+            .findFirst({
+              where: {
+                userId: user.id,
+                subject: parsed.subject || '(no subject)',
+                fromAddress: parsed.fromAddress,
+              },
+            })
+            .catch(() => null);
+
+          if (existing) {
+            app.log.info(
+              { userId: user.id, emailId: existing.id },
+              '[inbound] Email already delivered, skipping',
+            );
+            delivered++;
+            continue;
+          }
+
           await userModel.email.create({
             data: {
               userId: user.id,
               folderId: inboxFolder?.id ?? null,
               fromAddress: parsed.fromAddress,
               fromName: parsed.fromName ?? parsed.fromAddress.split('@')[0],
-              toAddresses: parsed.toAddresses.length > 0 ? parsed.toAddresses : allRecipients,
+              toAddresses: parsed.toAddresses.length > 0 ? parsed.toAddresses : quantmailRecipients,
               ccAddresses: parsed.ccAddresses,
               bccAddresses: [],
-              subject: parsed.subject,
+              subject: parsed.subject || '(no subject)',
               bodyHtml: parsed.bodyHtml,
               bodyPlain: parsed.bodyPlain,
               snippet,
               threadId: null,
               inReplyTo: parsed.inReplyTo ?? null,
+              hasAttachments: false,
+              attachments: [],
               isRead: false,
               isSent: false,
               isDraft: false,
@@ -218,9 +259,9 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
               receivedAt: parsed.date ?? new Date(),
               deliveryStatus: 'delivered',
               authResults: {
-                spf: sesMsg.receipt?.spfVerdict?.status,
-                dkim: sesMsg.receipt?.dkimVerdict?.status,
-                dmarc: sesMsg.receipt?.dmarcVerdict?.status,
+                spf: sesMsg?.receipt?.spfVerdict?.status,
+                dkim: sesMsg?.receipt?.dkimVerdict?.status,
+                dmarc: sesMsg?.receipt?.dmarcVerdict?.status,
               },
             },
           });
@@ -236,12 +277,152 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
         return reply.status(200).send({ ok: true, delivered });
       }
 
+      // Direct manual trigger with objectKey / bucket
+      if (sns?.objectKey) {
+        const bucket = sns.bucket || S3_BUCKET;
+        const rawEmail = await fetchRawFromS3(bucket, sns.objectKey);
+        const parsed = parseRawEmail(rawEmail);
+        return reply
+          .status(200)
+          .send({ ok: true, parsed: { subject: parsed.subject, from: parsed.fromAddress } });
+      }
+
       // Unknown message type — acknowledge and ignore
       return reply.status(200).send({ ok: true });
     } catch (err) {
       // Always return 200 to SNS to prevent infinite retries
       app.log.error({ err }, '[inbound] Unhandled error in webhook handler');
       return reply.status(200).send({ ok: true });
+    }
+  });
+
+  // Replay/Sync all emails currently in S3 into inboxes
+  app.post('/webhook/inbound/sync-all', async (_request, reply) => {
+    try {
+      const listCmd = new ListObjectsV2Command({
+        Bucket: S3_BUCKET,
+        Prefix: 'emails/',
+      });
+      const listResp = await s3.send(listCmd);
+      const objects = listResp.Contents ?? [];
+      let totalDelivered = 0;
+
+      for (const obj of objects) {
+        if (
+          !obj.Key ||
+          obj.Key.endsWith('/') ||
+          obj.Key.includes('AMAZON_SES_SETUP_NOTIFICATION')
+        ) {
+          continue;
+        }
+        try {
+          const rawEmail = await fetchRawFromS3(S3_BUCKET, obj.Key);
+          const parsed = parseRawEmail(rawEmail);
+          const allRecipients = Array.from(
+            new Set(
+              [...parsed.toAddresses, ...parsed.ccAddresses].map((a) => a.trim().toLowerCase()),
+            ),
+          );
+          let quantmailRecipients = allRecipients.filter((a) => isQuantMailAddress(a));
+          if (quantmailRecipients.length === 0) {
+            const handles = allRecipients.map((r) => r.split('@')[0].toLowerCase());
+            quantmailRecipients = handles.map((h) => `${h}@quantmail.in`);
+          }
+
+          const userModel = prisma as unknown as {
+            user: {
+              findMany(
+                a: unknown,
+              ): Promise<Array<{ id: string; email: string; username: string | null }>>;
+            };
+            folder: {
+              findFirst(a: unknown): Promise<{ id: string } | null>;
+            };
+            email: {
+              create(a: unknown): Promise<unknown>;
+              findFirst(a: unknown): Promise<{ id: string } | null>;
+            };
+          };
+
+          const handles = quantmailRecipients.map((r) => r.split('@')[0]);
+          const matchedUsers = await userModel.user.findMany({
+            where: {
+              OR: [
+                { email: { in: quantmailRecipients, mode: 'insensitive' } as never },
+                { username: { in: handles, mode: 'insensitive' } as never },
+                ...quantmailRecipients.flatMap((r) => {
+                  const h = r.split('@')[0].toLowerCase();
+                  return [
+                    { email: { equals: `${h}@quantmail.in`, mode: 'insensitive' as const } },
+                    { email: { equals: `${h}@quantrinity.in`, mode: 'insensitive' as const } },
+                    { email: { equals: `${h}@quantchat.online`, mode: 'insensitive' as const } },
+                  ];
+                }),
+              ],
+            },
+            select: { id: true, email: true, username: true },
+          });
+
+          const snippet = (parsed.bodyPlain || parsed.bodyHtml.replace(/<[^>]+>/g, '')).slice(
+            0,
+            140,
+          );
+          for (const user of matchedUsers) {
+            const inboxFolder = await userModel.folder
+              .findFirst({ where: { userId: user.id, type: 'INBOX' } })
+              .catch(() => null);
+
+            const existing = await userModel.email
+              .findFirst({
+                where: {
+                  userId: user.id,
+                  subject: parsed.subject || '(no subject)',
+                  fromAddress: parsed.fromAddress,
+                },
+              })
+              .catch(() => null);
+
+            if (existing) continue;
+
+            await userModel.email.create({
+              data: {
+                userId: user.id,
+                folderId: inboxFolder?.id ?? null,
+                fromAddress: parsed.fromAddress,
+                fromName: parsed.fromName ?? parsed.fromAddress.split('@')[0],
+                toAddresses:
+                  parsed.toAddresses.length > 0 ? parsed.toAddresses : quantmailRecipients,
+                ccAddresses: parsed.ccAddresses,
+                bccAddresses: [],
+                subject: parsed.subject || '(no subject)',
+                bodyHtml: parsed.bodyHtml,
+                bodyPlain: parsed.bodyPlain,
+                snippet,
+                threadId: null,
+                inReplyTo: parsed.inReplyTo ?? null,
+                hasAttachments: false,
+                attachments: [],
+                isRead: false,
+                isSent: false,
+                isDraft: false,
+                isSpam: false,
+                receivedAt: parsed.date ?? new Date(),
+                deliveryStatus: 'delivered',
+              },
+            });
+            totalDelivered++;
+          }
+        } catch (e) {
+          app.log.error({ err: e, key: obj.Key }, '[inbound] Sync error for key');
+        }
+      }
+
+      return reply
+        .status(200)
+        .send({ ok: true, scanned: objects.length, delivered: totalDelivered });
+    } catch (err) {
+      app.log.error({ err }, '[inbound] Sync-all failed');
+      return reply.status(500).send({ ok: false, error: String(err) });
     }
   });
 }
