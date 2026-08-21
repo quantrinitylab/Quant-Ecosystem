@@ -19,6 +19,7 @@ RUN pnpm --filter @quant/brand exec tsc --project tsconfig.json --noEmit false -
 # Now run next build — transpilePackages handles shared-ui from source,
 # and brand/common have dist/ for any CJS imports.
 RUN cd apps/quantmail && pnpm exec next build
+RUN rm -rf apps/quantmail/.next/cache /root/.cache /root/.pnpm-store /root/.local
 
 FROM node:22-slim AS runner
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
