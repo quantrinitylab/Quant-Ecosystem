@@ -298,8 +298,11 @@ export function PostcardCanvas({
                     value={message}
                     onChange={(e) => onMessageChange?.(e.target.value)}
                     placeholder="Write your heartfelt postcard message here…"
-                    className={`w-full flex-1 bg-transparent resize-none focus:outline-none ${fontClass} text-xs sm:text-sm leading-relaxed ${currentTheme.text}`}
-                    style={{ color: template.inkColor }}
+                    className={`w-full flex-1 !bg-transparent resize-none border-none shadow-none focus:outline-none focus:ring-0 ${fontClass} text-xs sm:text-sm leading-relaxed p-0`}
+                    style={{
+                      backgroundColor: 'transparent',
+                      color: template.inkColor,
+                    }}
                   />
                 ) : (
                   <div
@@ -340,27 +343,52 @@ export function PostcardCanvas({
                 {/* Classic Dotted Delivery Lines */}
                 <div className="space-y-3 pb-1">
                   {/* Recipient Name Line */}
-                  <div className="border-b border-dashed border-zinc-400 dark:border-zinc-700 pb-0.5">
-                    <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mr-2">
+                  <div
+                    className="border-b border-dashed pb-0.5"
+                    style={{
+                      borderColor: isDark ? 'rgba(245,158,11,0.3)' : 'rgba(140,109,82,0.4)',
+                    }}
+                  >
+                    <span
+                      className="text-[9px] font-mono uppercase tracking-widest mr-2 opacity-70"
+                      style={{ color: template.inkColor }}
+                    >
                       To:
                     </span>
-                    <strong className="text-xs sm:text-[13px] font-serif text-zinc-800 dark:text-zinc-100">
+                    <strong
+                      className="text-xs sm:text-[13px] font-serif"
+                      style={{ color: template.inkColor }}
+                    >
                       {recipientName}
                     </strong>
                   </div>
 
                   {/* Recipient Address / Email Line */}
-                  <div className="border-b border-dashed border-zinc-400 dark:border-zinc-700 pb-0.5">
-                    <span className="text-[9px] font-mono uppercase tracking-widest text-zinc-500 dark:text-zinc-400 mr-2">
+                  <div
+                    className="border-b border-dashed pb-0.5"
+                    style={{
+                      borderColor: isDark ? 'rgba(245,158,11,0.3)' : 'rgba(140,109,82,0.4)',
+                    }}
+                  >
+                    <span
+                      className="text-[9px] font-mono uppercase tracking-widest mr-2 opacity-70"
+                      style={{ color: template.inkColor }}
+                    >
                       Addr:
                     </span>
-                    <span className="text-xs font-mono text-zinc-700 dark:text-zinc-300">
+                    <span className="text-xs font-mono" style={{ color: template.inkColor }}>
                       {recipientEmail}
                     </span>
                   </div>
 
                   {/* Encrypted Transit Hash Line */}
-                  <div className="border-b border-dashed border-zinc-400 dark:border-zinc-700 pb-0.5 flex items-center justify-between text-[8px] font-mono text-zinc-500 dark:text-zinc-400">
+                  <div
+                    className="border-b border-dashed pb-0.5 flex items-center justify-between text-[8px] font-mono opacity-70"
+                    style={{
+                      borderColor: isDark ? 'rgba(245,158,11,0.3)' : 'rgba(140,109,82,0.4)',
+                      color: template.inkColor,
+                    }}
+                  >
                     <span>SEAL: QM-SEC-2026-TLS</span>
                     <span>✓ E2EE VERIFIED</span>
                   </div>
