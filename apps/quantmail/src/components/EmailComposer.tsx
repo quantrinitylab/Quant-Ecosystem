@@ -397,23 +397,27 @@ export function EmailComposer({
               <>
                 <div className="flex items-center gap-3 pt-1 border-t border-zinc-800/40">
                   <span className="w-16 font-mono font-bold text-amber-400/90">Cc:</span>
-                  <input
-                    type="text"
-                    value={cc}
-                    onChange={(e) => setCc(e.target.value)}
-                    placeholder="Cc recipients"
-                    className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
-                  />
+                  <div className="flex-1">
+                    <ContactAutocomplete
+                      value={cc}
+                      onChange={setCc}
+                      contacts={contacts}
+                      placeholder="Cc recipients"
+                      aria-label="Cc"
+                    />
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 pt-1 border-t border-zinc-800/40">
                   <span className="w-16 font-mono font-bold text-amber-400/90">Bcc:</span>
-                  <input
-                    type="text"
-                    value={bcc}
-                    onChange={(e) => setBcc(e.target.value)}
-                    placeholder="Bcc recipients"
-                    className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
-                  />
+                  <div className="flex-1">
+                    <ContactAutocomplete
+                      value={bcc}
+                      onChange={setBcc}
+                      contacts={contacts}
+                      placeholder="Bcc recipients"
+                      aria-label="Bcc"
+                    />
+                  </div>
                 </div>
               </>
             )}

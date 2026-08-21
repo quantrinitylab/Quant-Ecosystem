@@ -133,29 +133,60 @@ export class EmailService {
 
     const userModel = this.prisma as unknown as {
       user: {
-        findUnique(a: unknown): Promise<{ email: string; displayName: string | null } | null>;
-        findMany(a: unknown): Promise<Array<{ id: string; email: string }>>;
+        findUnique(
+          a: unknown,
+        ): Promise<{ email: string; displayName: string | null; username: string | null } | null>;
+        findMany(
+          a: unknown,
+        ): Promise<Array<{ id: string; email: string; username: string | null }>>;
+      };
+      folder: {
+        findFirst(a: unknown): Promise<{ id: string } | null>;
       };
     };
 
     const sender = await userModel.user.findUnique({
       where: { id: input.fromUserId },
-      select: { email: true, displayName: true },
+      select: { email: true, displayName: true, username: true },
     });
+
+    const targetHandles = recipients.map((r) => r.split('@')[0].toLowerCase());
     const matches = await userModel.user.findMany({
-      where: { email: { in: recipients } },
-      select: { id: true, email: true },
+      where: {
+        OR: [
+          { email: { in: recipients, mode: 'insensitive' } },
+          { username: { in: targetHandles, mode: 'insensitive' } },
+          ...recipients.flatMap((r) => {
+            const h = r.split('@')[0].toLowerCase();
+            return [
+              { email: { equals: `${h}@quantmail.in`, mode: 'insensitive' as const } },
+              { email: { equals: `${h}@quantrinity.in`, mode: 'insensitive' as const } },
+              { email: { equals: `${h}@quantchat.online`, mode: 'insensitive' as const } },
+            ];
+          }),
+        ],
+      },
+      select: { id: true, email: true, username: true },
     });
 
     const snippet = (input.bodyPlain ?? input.bodyHtml ?? '').replace(/<[^>]+>/g, '').slice(0, 140);
+    const senderEmail = sender?.email?.includes('@')
+      ? sender.email
+      : `${sender?.username || 'user'}@quantmail.in`;
 
     let delivered = 0;
     for (const recipient of matches) {
+      const inboxFolder = await userModel.folder
+        .findFirst({
+          where: { userId: recipient.id, type: 'INBOX' },
+        })
+        .catch(() => null);
+
       await this.prisma.email.create({
         data: {
           userId: recipient.id,
-          folderId: null,
-          fromAddress: sender?.email ?? '',
+          folderId: inboxFolder?.id ?? null,
+          fromAddress: senderEmail,
           fromName: sender?.displayName ?? null,
           toAddresses: input.toAddresses,
           ccAddresses: input.ccAddresses ?? [],
@@ -219,13 +250,37 @@ export class EmailService {
     if (recipients.length > 0) {
       try {
         const userModel = this.prisma as unknown as {
-          user: { findMany(a: unknown): Promise<Array<{ email: string }>> };
+          user: {
+            findMany(a: unknown): Promise<Array<{ email: string; username: string | null }>>;
+          };
         };
+        const targetHandles = recipients.map((r) => r.split('@')[0].toLowerCase());
         const matches = await userModel.user.findMany({
-          where: { email: { in: recipients } },
-          select: { email: true },
+          where: {
+            OR: [
+              { email: { in: recipients, mode: 'insensitive' } },
+              { username: { in: targetHandles, mode: 'insensitive' } },
+              ...recipients.flatMap((r) => {
+                const h = r.split('@')[0].toLowerCase();
+                return [
+                  { email: { equals: `${h}@quantmail.in`, mode: 'insensitive' as const } },
+                  { email: { equals: `${h}@quantrinity.in`, mode: 'insensitive' as const } },
+                  { email: { equals: `${h}@quantchat.online`, mode: 'insensitive' as const } },
+                ];
+              }),
+            ],
+          },
+          select: { email: true, username: true },
         });
-        internal = matches.map((u) => u.email.toLowerCase());
+        internal = matches.flatMap((u) => [
+          u.email.toLowerCase(),
+          ...(u.username
+            ? [
+                `${u.username.toLowerCase()}@quantmail.in`,
+                `${u.username.toLowerCase()}@quantrinity.in`,
+              ]
+            : []),
+        ]);
       } catch {
         internal = [];
       }
@@ -250,16 +305,19 @@ export class EmailService {
       // Immediate transmission so delivery does not depend on a worker being up.
       if (isSesConfigured()) {
         try {
-          const from = email.fromName
-            ? `${email.fromName} <${email.fromAddress}>`
-            : email.fromAddress;
+          const fromDomain = process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.in';
+          let fromAddress = email.fromAddress;
+          if (!fromAddress || !fromAddress.includes('@')) {
+            fromAddress = `${fromAddress || 'noreply'}@${fromDomain}`;
+          }
+          const from = email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress;
           await sendViaSes({
             from,
             to: external,
             subject: email.subject,
             ...(email.bodyHtml ? { bodyHtml: email.bodyHtml } : {}),
             ...(email.bodyPlain ? { bodyText: email.bodyPlain } : {}),
-            replyTo: email.fromAddress,
+            replyTo: fromAddress,
           });
           deliveryStatus = 'delivered';
           deliveryError = undefined;
