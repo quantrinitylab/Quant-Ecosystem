@@ -15,10 +15,10 @@ interface QuantMailLogoProps {
 /**
  * World-Class Living AI Mascot & Fluid Lava Squircle Logo for QuantMail
  * Features:
- * 1. 60FPS Hardware-Accelerated Liquid Lava Fluid Shader (Solar Gold -> Fire Orange -> Crimson -> Obsidian).
- * 2. Signature "M" Quanty Mascot with dynamic eye expressions based on unread inbox count.
- * 3. Smart Head HUD Badge: Emerald Zen '✓' on 0 unread, Glowing Amber pill with count on >0 unread.
- * 4. Interactive pointer tracking, natural blinking, spring bounce, and one-tap instant inbox navigation.
+ * 1. 60FPS Continuous Uninterrupted Liquid Lava Fluid Shader (Solar Gold -> Fire Orange -> Crimson -> Obsidian).
+ * 2. Signature "M" Quanty Mascot with lively open eyes (●  ●), real-time pointer tracking, and natural organic blinking.
+ * 3. Smart Unread HUD Badge: Only appears when unreadCount > 0 with glowing amber pill and exact count (Zero clutter when 0 unread).
+ * 4. Interactive pointer tracking, spring bounce, and one-tap instant inbox refresh & navigation.
  */
 export function QuantMailLogo({
   size = 40,
@@ -31,32 +31,42 @@ export function QuantMailLogo({
   const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [isWinking, setIsWinking] = useState(false);
-  const [isBlinking, setIsBlinking] = useState(false);
 
-  // Physics & Animation State Refs
+  // Persistent Physics & Animation State Refs (Never restart the animation loop!)
+  const timeRef = useRef(Math.random() * 100);
+  const unreadRef = useRef(unreadCount);
+  const blinkRef = useRef(false);
+  const winkRef = useRef(false);
   const tiltRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
   const mouseVelocityRef = useRef({ x: 0, y: 0 });
   const animFrameRef = useRef<number | null>(null);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
-  const blinkTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Natural Blinking Cycle (Every 3.5s - 6s)
+  // Keep unread count ref in sync without remounting canvas
   useEffect(() => {
+    unreadRef.current = unreadCount;
+  }, [unreadCount]);
+
+  // Natural Organic Blinking Cycle (Every 3.5s - 5.5s)
+  useEffect(() => {
+    let blinkTimer: NodeJS.Timeout | null = null;
+
     const triggerBlink = () => {
-      setIsBlinking(true);
-      setTimeout(() => setIsBlinking(false), 160);
-      const nextDelay = 3500 + Math.random() * 2500;
-      blinkTimerRef.current = setTimeout(triggerBlink, nextDelay);
+      blinkRef.current = true;
+      setTimeout(() => {
+        blinkRef.current = false;
+      }, 150);
+      const nextDelay = 3500 + Math.random() * 2000;
+      blinkTimer = setTimeout(triggerBlink, nextDelay);
     };
 
-    blinkTimerRef.current = setTimeout(triggerBlink, 3000);
+    blinkTimer = setTimeout(triggerBlink, 3000);
     return () => {
-      if (blinkTimerRef.current) clearTimeout(blinkTimerRef.current);
+      if (blinkTimer) clearTimeout(blinkTimer);
     };
   }, []);
 
-  // 60FPS Fluid Lava & Mascot Canvas Renderer
+  // 60FPS Continuous Fluid Lava & Mascot Canvas Renderer (Mounted once, runs forever seamlessly)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -68,10 +78,10 @@ export function QuantMailLogo({
     canvas.width = res * dpr;
     canvas.height = res * dpr;
 
-    let time = Math.random() * 100;
-
     const render = () => {
-      time += 0.024;
+      // Continuous smooth time increment (never resets or jumps)
+      timeRef.current += 0.024;
+      const time = timeRef.current;
 
       // Smooth damping for tilt
       const { targetX, targetY } = tiltRef.current;
@@ -207,7 +217,7 @@ export function QuantMailLogo({
       ctx.restore(); // restore shadow
 
       // -------------------------------------------------------------
-      // 4. DYNAMIC MASCOT EYES (State Machine by Unread Count & Interaction)
+      // 4. DYNAMIC MASCOT EYES (Always Lively Open, Eye Tracking & Blinking)
       // -------------------------------------------------------------
       const eyeY = my + 8;
       const eyeSpacing = 9.5;
@@ -226,61 +236,54 @@ export function QuantMailLogo({
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
-      const isHappyClosed = unreadCount === 0 || isWinking;
+      const isBlinkingNow = blinkRef.current;
+      const isWinkingNow = winkRef.current;
 
-      if (isBlinking) {
-        // Natural Blink: Flat closed line for a split millisecond
+      if (isBlinkingNow) {
+        // Natural Smooth Blink: Horizontal closed line
         ctx.beginPath();
         ctx.moveTo(leftEyeX - 4, eyeY);
         ctx.lineTo(leftEyeX + 4, eyeY);
         ctx.moveTo(rightEyeX - 4, eyeY);
         ctx.lineTo(rightEyeX + 4, eyeY);
         ctx.stroke();
-      } else if (isHappyClosed) {
-        // Joyful Closed Arch Smiling Eyes: "◠  ◠" (Matching reference artwork)
-        // Left Eye Arch
+      } else if (isWinkingNow) {
+        // Playful Wink on click: Left eye winks `^`, right eye looks open
         ctx.beginPath();
         ctx.arc(leftEyeX, eyeY + 1.5, 4.4, Math.PI * 1.15, Math.PI * 1.85, false);
         ctx.stroke();
 
-        // Right Eye Arch
         ctx.beginPath();
-        ctx.arc(rightEyeX, eyeY + 1.5, 4.4, Math.PI * 1.15, Math.PI * 1.85, false);
-        ctx.stroke();
-
-        // Subtle cute warm blush spots on cheeks when 0 unread
-        if (unreadCount === 0) {
-          ctx.beginPath();
-          ctx.arc(leftEyeX - 7.5, eyeY + 5.5, 2.8, 0, Math.PI * 2);
-          ctx.arc(rightEyeX + 7.5, eyeY + 5.5, 2.8, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(255, 122, 0, 0.4)';
-          ctx.fill();
-        }
-      } else if (unreadCount <= 5) {
-        // Low Unread (1 - 5): Curious Round Pupils tracking the mouse
-        ctx.beginPath();
-        ctx.arc(leftEyeX + lookOffsetX, eyeY + lookOffsetY, 3.5, 0, Math.PI * 2);
-        ctx.arc(rightEyeX + lookOffsetX, eyeY + lookOffsetY, 3.5, 0, Math.PI * 2);
+        ctx.arc(rightEyeX + lookOffsetX, eyeY + lookOffsetY, 3.6, 0, Math.PI * 2);
         ctx.fill();
 
-        // White Specular Catchlight Sparkle in pupils
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(rightEyeX + lookOffsetX + 1.1, eyeY + lookOffsetY - 1.1, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // Open Lively Eyes: Round curious pupils tracking the cursor with specular catchlights
+        const currentUnread = unreadRef.current;
+        const pupilRadius = currentUnread > 5 ? 4.2 : 3.5;
+
+        // Draw Left and Right Pupils
+        ctx.beginPath();
+        ctx.arc(leftEyeX + lookOffsetX, eyeY + lookOffsetY, pupilRadius, 0, Math.PI * 2);
+        ctx.arc(rightEyeX + lookOffsetX, eyeY + lookOffsetY, pupilRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // White Specular Catchlight Sparkle in pupils (gives life and depth)
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
         ctx.arc(leftEyeX + lookOffsetX + 1.1, eyeY + lookOffsetY - 1.1, 1.2, 0, Math.PI * 2);
         ctx.arc(rightEyeX + lookOffsetX + 1.1, eyeY + lookOffsetY - 1.1, 1.2, 0, Math.PI * 2);
         ctx.fill();
-      } else {
-        // High Unread (6+): Alert Energetic Wide Pupils
-        ctx.beginPath();
-        ctx.arc(leftEyeX + lookOffsetX, eyeY + lookOffsetY, 4.2, 0, Math.PI * 2);
-        ctx.arc(rightEyeX + lookOffsetX, eyeY + lookOffsetY, 4.2, 0, Math.PI * 2);
-        ctx.fill();
 
-        // Specular Catchlights
-        ctx.fillStyle = '#FFFFFF';
+        // Subtle cute warm blush spots on cheeks
         ctx.beginPath();
-        ctx.arc(leftEyeX + lookOffsetX + 1.3, eyeY + lookOffsetY - 1.3, 1.4, 0, Math.PI * 2);
-        ctx.arc(rightEyeX + lookOffsetX + 1.3, eyeY + lookOffsetY - 1.3, 1.4, 0, Math.PI * 2);
+        ctx.arc(leftEyeX - 7.5, eyeY + 5.5, 2.6, 0, Math.PI * 2);
+        ctx.arc(rightEyeX + 7.5, eyeY + 5.5, 2.6, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 122, 0, 0.35)';
         ctx.fill();
       }
 
@@ -323,7 +326,7 @@ export function QuantMailLogo({
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [unreadCount, isWinking, isBlinking]);
+  }, []); // Run once on mount!
 
   // Pointer Interaction
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -350,11 +353,11 @@ export function QuantMailLogo({
   // One-Tap Instant Refresh & Inbox Navigation
   const handleClick = useCallback(() => {
     setIsSpinning(true);
-    setIsWinking(true);
+    winkRef.current = true;
     setTimeout(() => {
       setIsSpinning(false);
-      setIsWinking(false);
-    }, 700);
+      winkRef.current = false;
+    }, 650);
 
     // Dispatch global refresh event
     if (typeof window !== 'undefined') {
@@ -377,11 +380,7 @@ export function QuantMailLogo({
       onClick={handleClick}
       className={`relative inline-flex items-center justify-center cursor-pointer select-none group ${className}`}
       style={{ width: size, height: size }}
-      title={
-        unreadCount > 0
-          ? `QuantMail — ${unreadCount} unread`
-          : 'QuantMail — You are all caught up! (Click to refresh)'
-      }
+      title={unreadCount > 0 ? `QuantMail — ${unreadCount} unread` : 'QuantMail — Click to refresh'}
     >
       <motion.div
         className="relative flex items-center justify-center w-full h-full"
@@ -402,31 +401,13 @@ export function QuantMailLogo({
       </motion.div>
 
       {/* ------------------------------------------------------------- */}
-      {/* 6. SMART HEAD HUD BADGE (Zen '✓' on 0, Amber Pill on >0)     */}
+      {/* 6. SMART HEAD HUD BADGE (ONLY rendered when unreadCount > 0)  */}
       {/* ------------------------------------------------------------- */}
-      {showBadge && (
+      {showBadge && unreadCount > 0 && (
         <div className="absolute -top-1 -right-1.5 z-20 pointer-events-none transition-transform duration-200 group-hover:scale-110">
-          {unreadCount > 0 ? (
-            // Amber Glowing Pill Badge with unread count
-            <span className="relative inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[9.5px] font-black text-[#0B0C10] bg-gradient-to-r from-[#FFB700] via-[#FF8A00] to-[#FF5500] rounded-full shadow-[0_0_10px_rgba(255,138,0,0.9)] border border-white/70 animate-pulse">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          ) : (
-            // Emerald Zen Shield with Checkmark '✓'
-            <span
-              className="flex items-center justify-center size-4 rounded-full bg-[#052E16]/90 border border-emerald-400 text-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.85)]"
-              title="Inbox Zero (All caught up)"
-            >
-              <svg
-                className="size-2.5 stroke-[3.5]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </span>
-          )}
+          <span className="relative inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[9.5px] font-black text-[#0B0C10] bg-gradient-to-r from-[#FFB700] via-[#FF8A00] to-[#FF5500] rounded-full shadow-[0_0_10px_rgba(255,138,0,0.9)] border border-white/70 animate-pulse">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
         </div>
       )}
     </div>

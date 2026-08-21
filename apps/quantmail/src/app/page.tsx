@@ -654,6 +654,72 @@ export default function InboxPage() {
   const allThreads = useMemo(() => groupEmailsIntoThreads(allEmails ?? []), [allEmails]);
   const threads = useMemo(() => groupEmailsIntoThreads(emails ?? []), [emails]);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const touchStartY = useRef(0);
+  const isPulling = useRef(false);
+
+  useEffect(() => {
+    const handleGlobalRefresh = async () => {
+      setIsRefreshing(true);
+      setPullDistance(40);
+      try {
+        await refetch();
+        showToast({ text: 'Inbox up to date', type: 'info' });
+      } finally {
+        setTimeout(() => {
+          setIsRefreshing(false);
+          setPullDistance(0);
+        }, 450);
+      }
+    };
+
+    window.addEventListener('quant:refresh', handleGlobalRefresh);
+    return () => window.removeEventListener('quant:refresh', handleGlobalRefresh);
+  }, [refetch]);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const listEl = listRef.current;
+    if (listEl && listEl.scrollTop <= 5) {
+      touchStartY.current = e.touches[0].clientY;
+      isPulling.current = true;
+    } else {
+      isPulling.current = false;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isPulling.current || isRefreshing) return;
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - touchStartY.current;
+    if (diff > 0) {
+      const distance = Math.min(diff * 0.42, 60);
+      setPullDistance(distance);
+    } else {
+      setPullDistance(0);
+    }
+  };
+
+  const handleTouchEnd = async () => {
+    if (!isPulling.current) return;
+    isPulling.current = false;
+    if (pullDistance >= 36 && !isRefreshing) {
+      setIsRefreshing(true);
+      setPullDistance(40);
+      try {
+        await refetch();
+        showToast({ text: 'Inbox up to date', type: 'info' });
+      } finally {
+        setTimeout(() => {
+          setIsRefreshing(false);
+          setPullDistance(0);
+        }, 450);
+      }
+    } else {
+      setPullDistance(0);
+    }
+  };
+
   const unreadCount = useMemo(() => allThreads.filter((t) => !t.isRead).length, [allThreads]);
   const categoryCounts = useMemo(() => {
     const counts: Partial<Record<EmailCategory, number>> = {};
@@ -946,7 +1012,43 @@ export default function InboxPage() {
             )}
           </AnimatePresence>
 
-          <div className="mail-list" ref={listRef} aria-busy={isLoading || isSearching}>
+          {/* Pull to Refresh Indicator Bar */}
+          <AnimatePresence>
+            {(pullDistance > 0 || isRefreshing) && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: pullDistance > 0 ? pullDistance : 42, opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="overflow-hidden flex items-center justify-center gap-2.5 text-xs font-semibold text-amber-400 bg-amber-500/10 border-b border-amber-500/20 py-2 select-none"
+              >
+                <div
+                  className={`size-4 rounded-full border-2 border-amber-400 border-t-transparent ${
+                    isRefreshing ? 'animate-spin' : ''
+                  }`}
+                  style={{
+                    transform: isRefreshing ? undefined : `rotate(${pullDistance * 6}deg)`,
+                  }}
+                />
+                <span>
+                  {isRefreshing
+                    ? 'Refreshing inbox…'
+                    : pullDistance >= 36
+                      ? 'Release to refresh'
+                      : 'Pull down to refresh'}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div
+            className="mail-list"
+            ref={listRef}
+            aria-busy={isLoading || isSearching}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             {(isLoading || isSearching) && (
               <div className="mail-loading">
                 {Array.from({ length: 6 }, (_, index) => (
