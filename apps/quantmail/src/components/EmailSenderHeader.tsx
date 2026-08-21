@@ -20,9 +20,18 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const senderMenuRef = useRef<HTMLDivElement>(null);
 
-  const senderName = email.from?.name || email.from?.email || 'Unknown Sender';
-  const senderEmail = email.from?.email || '';
-  const recipientName = email.to?.[0]?.name || email.to?.[0]?.email || 'me';
+  const senderName =
+    email.from?.name ||
+    email.from?.email ||
+    (email as any).fromName ||
+    (email as any).fromAddress ||
+    'Unknown Sender';
+  const senderEmail = email.from?.email || (email as any).fromAddress || '';
+  const recipientName =
+    email.to?.[0]?.name ||
+    email.to?.[0]?.email ||
+    (Array.isArray((email as any).toAddresses) ? (email as any).toAddresses[0] : '') ||
+    'me';
 
   const dateObj = email.receivedAt ? new Date(email.receivedAt) : new Date();
   const dateFormatted = dateObj.toLocaleDateString(undefined, {

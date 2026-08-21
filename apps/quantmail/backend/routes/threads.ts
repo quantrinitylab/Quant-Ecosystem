@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { ThreadService } from '../services/thread.service';
+import { formatEmailRecord } from '../lib/format-email';
 
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
@@ -49,11 +50,14 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
     try {
       const thread = await service.getThread(request.params.id, userId);
       if (thread) {
+        const rawMsgs = thread.emails ?? (thread as any).messages ?? [];
+        const formattedMsgs = rawMsgs.map(formatEmailRecord);
         return reply.send({
           success: true,
           data: {
             ...thread,
-            messages: thread.emails ?? (thread as any).messages ?? [],
+            messages: formattedMsgs,
+            emails: formattedMsgs,
           },
         });
       }
@@ -72,11 +76,14 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
       try {
         const thread = await service.getThread(email.threadId, userId);
         if (thread) {
+          const rawMsgs = thread.emails ?? (thread as any).messages ?? [];
+          const formattedMsgs = rawMsgs.map(formatEmailRecord);
           return reply.send({
             success: true,
             data: {
               ...thread,
-              messages: thread.emails ?? (thread as any).messages ?? [],
+              messages: formattedMsgs,
+              emails: formattedMsgs,
             },
           });
         }
@@ -87,7 +94,7 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
 
     // 2b) No thread row yet - present the email as a single-message thread so
     // the thread page renders the message instead of an error.
-    const message = { ...email, category: email.aiCategory || 'primary' };
+    const message = formatEmailRecord(email);
     return reply.send({
       success: true,
       data: {
@@ -97,8 +104,9 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
         isRead: email.isRead,
         isStarred: email.isStarred,
         lastEmailAt: email.receivedAt ?? email.createdAt,
-        participants: [],
+        participants: [message.from],
         messages: [message],
+        emails: [message],
       },
     });
   });

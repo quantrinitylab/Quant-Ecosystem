@@ -49,18 +49,30 @@ export function useThread(threadId: string) {
             }
           }
 
+          const fromAddress = email.from?.email || (email as any).fromAddress || '';
+          const fromName =
+            email.from?.name || (email as any).fromName || fromAddress.split('@')[0] || 'Sender';
+          const fromObj = { email: fromAddress, name: fromName };
+
+          const formattedEmail = {
+            ...email,
+            from: fromObj,
+            fromAddress,
+            fromName,
+          };
+
           return {
             id: email.threadId || email.id,
             userId: email.userId || '',
             subject: email.subject || '(No Subject)',
-            participants: [email.from, ...(email.to || [])].filter(Boolean),
+            participants: [fromObj, ...(email.to || [])].filter(Boolean),
             messageCount: 1,
             lastMessageAt: email.receivedAt || new Date(),
             isRead: email.isRead,
             isStarred: email.isStarred,
             labels: email.labels || [],
             snippet: email.snippet || '',
-            messages: [email],
+            messages: [formattedEmail],
             createdAt: email.createdAt || new Date(),
             updatedAt: email.updatedAt || new Date(),
           };

@@ -5,6 +5,7 @@ import { CrossAppDispatcher } from '@quant/notifications';
 import { EmailService } from '../services/email.service';
 import { OutboundDeliveryPipeline } from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
+import { formatEmailRecord } from '../lib/format-email';
 
 const notifier = new CrossAppDispatcher('quantmail');
 
@@ -143,10 +144,10 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         /* notification failure should not block email sending */
       }
 
-      return reply.status(201).send({ success: true, data: sent });
+      return reply.status(201).send({ success: true, data: formatEmailRecord(sent) });
     }
 
-    return reply.status(201).send({ success: true, data: email });
+    return reply.status(201).send({ success: true, data: formatEmailRecord(email) });
   });
 
   // POST /emails/compose - create a draft (frontend composer contract).
@@ -186,7 +187,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       inReplyTo: d.inReplyTo,
       threadId: d.threadId,
     });
-    return reply.status(201).send({ success: true, data: email });
+    return reply.status(201).send({ success: true, data: formatEmailRecord(email) });
   });
 
   // PUT /emails/:id - update an owned draft without creating duplicates.
@@ -220,7 +221,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       },
     });
 
-    return reply.send({ success: true, data: email });
+    return reply.send({ success: true, data: formatEmailRecord(email) });
   });
 
   // POST /emails/:id/send - durably queue an owned draft for delivery.
@@ -668,7 +669,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     // Augment each email with a category (used by inbox tabs) and return a
     // shape that satisfies both consumers: useInbox reads response.data (the
     // array), useEmail reads response.emails.
-    const items = data.map((e: any) => ({ ...e, category: e.aiCategory || 'primary' }));
+    const items = data.map(formatEmailRecord);
     return reply.send({
       success: true,
       data: items,
@@ -701,7 +702,11 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       pageSize: queryResult.data.pageSize,
     });
 
-    return reply.send({ success: true, data: result });
+    const formattedData = {
+      ...result,
+      data: (result.data || []).map(formatEmailRecord),
+    };
+    return reply.send({ success: true, data: formattedData });
   });
 
   // GET /emails/:id
@@ -715,7 +720,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     const service = new EmailService(prisma as never);
     const email = await service.getEmail(request.params.id, userId);
 
-    return reply.send({ success: true, data: email });
+    return reply.send({ success: true, data: formatEmailRecord(email) });
   });
 
   // DELETE /emails/:id - first call moves to trash; a second call from trash

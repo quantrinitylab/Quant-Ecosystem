@@ -75,13 +75,21 @@ export class EmailService {
     const sender = await (
       this.prisma as unknown as {
         user: {
-          findUnique(a: unknown): Promise<{ email: string; displayName: string | null } | null>;
+          findUnique(
+            a: unknown,
+          ): Promise<{ email: string; displayName: string | null; username: string | null } | null>;
         };
       }
     ).user.findUnique({
       where: { id: input.userId },
-      select: { email: true, displayName: true },
+      select: { email: true, displayName: true, username: true },
     });
+
+    const senderEmail = sender?.email?.includes('@')
+      ? sender.email
+      : `${sender?.username || sender?.email || 'user'}@quantmail.in`;
+    const senderName =
+      sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
 
     const email = await this.prisma.email.create({
       data: {
@@ -92,8 +100,8 @@ export class EmailService {
         subject: input.subject,
         bodyHtml: input.bodyHtml ?? '',
         bodyPlain: input.bodyPlain ?? '',
-        fromAddress: sender?.email ?? '',
-        fromName: sender?.displayName ?? null,
+        fromAddress: senderEmail,
+        fromName: senderName,
         isDraft: true,
         threadId: input.threadId ?? null,
         inReplyTo: input.inReplyTo ?? null,
@@ -172,7 +180,9 @@ export class EmailService {
     const snippet = (input.bodyPlain ?? input.bodyHtml ?? '').replace(/<[^>]+>/g, '').slice(0, 140);
     const senderEmail = sender?.email?.includes('@')
       ? sender.email
-      : `${sender?.username || 'user'}@quantmail.in`;
+      : `${sender?.username || sender?.email || 'user'}@quantmail.in`;
+    const senderName =
+      sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
 
     let delivered = 0;
     for (const recipient of matches) {
@@ -187,7 +197,7 @@ export class EmailService {
           userId: recipient.id,
           folderId: inboxFolder?.id ?? null,
           fromAddress: senderEmail,
-          fromName: sender?.displayName ?? null,
+          fromName: senderName,
           toAddresses: input.toAddresses,
           ccAddresses: input.ccAddresses ?? [],
           bccAddresses: [],

@@ -171,8 +171,13 @@ export default function ThreadPage() {
   }
 
   const primaryMessage = messages[0];
-  const senderName = primaryMessage?.from?.name || primaryMessage?.from?.email || 'Sender';
-  const senderEmail = primaryMessage?.from?.email || '';
+  const senderName =
+    primaryMessage?.from?.name ||
+    primaryMessage?.from?.email ||
+    (primaryMessage as any)?.fromName ||
+    (primaryMessage as any)?.fromAddress ||
+    'Sender';
+  const senderEmail = primaryMessage?.from?.email || (primaryMessage as any)?.fromAddress || '';
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
@@ -249,6 +254,14 @@ export default function ThreadPage() {
                   const isExpanded = expandedIndices.has(index);
                   const isDetailsExpanded = expandedDetailsIndices.has(index);
 
+                  const msgFromName =
+                    message.from?.name ||
+                    message.from?.email ||
+                    (message as any).fromName ||
+                    (message as any).fromAddress ||
+                    'Sender';
+                  const msgFromEmail = message.from?.email || (message as any).fromAddress || '';
+
                   return (
                     <div key={message.id || index} className="w-full">
                       {!isExpanded ? (
@@ -258,13 +271,10 @@ export default function ThreadPage() {
                           className="flex items-center justify-between gap-3 p-3.5 rounded-2xl border border-zinc-800 bg-[#121622]/90 hover:bg-zinc-800/80 cursor-pointer w-full transition-all shadow-sm select-none"
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <IdentityAvatar
-                              name={message.from?.name || message.from?.email || ''}
-                              size="sm"
-                            />
+                            <IdentityAvatar name={msgFromName} size="sm" />
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="text-xs font-bold text-white truncate">
-                                {message.from?.name || message.from?.email}
+                                {msgFromName}
                               </span>
                               <span className="text-xs text-zinc-400 truncate max-w-xs sm:max-w-md">
                                 — {message.snippet}
@@ -293,15 +303,12 @@ export default function ThreadPage() {
                           {/* Sender Metadata Bar */}
                           <div className="flex items-start justify-between gap-3 p-4 sm:p-5 pb-3">
                             <div className="flex items-start gap-3 min-w-0">
-                              <IdentityAvatar
-                                name={message.from?.name || message.from?.email || ''}
-                                size="md"
-                              />
+                              <IdentityAvatar name={msgFromName} size="md" />
 
                               <div className="flex flex-col min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="text-sm font-bold text-white">
-                                    {message.from?.name || message.from?.email || 'Sender'}
+                                    {msgFromName}
                                   </span>
                                   <span className="text-xs text-zinc-400 font-mono">
                                     {formatMessageDate(message.receivedAt)}
@@ -388,7 +395,7 @@ export default function ThreadPage() {
                                   <div className="flex">
                                     <span className="w-20 text-zinc-500">From:</span>
                                     <span className="text-white font-medium">
-                                      {message.from?.name} &lt;{message.from?.email}&gt;
+                                      {msgFromName} {msgFromEmail ? `<${msgFromEmail}>` : ''}
                                     </span>
                                   </div>
                                   <div className="flex">

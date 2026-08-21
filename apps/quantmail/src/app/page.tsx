@@ -184,7 +184,12 @@ export function groupEmailsIntoThreads(emails: Email[] = []): ConversationThread
 
     const senderNames: string[] = [];
     for (const m of msgList) {
-      const name = m.from?.name || m.from?.email?.split('@')[0] || 'Unknown';
+      const name =
+        m.from?.name ||
+        m.from?.email?.split('@')[0] ||
+        (m as any).fromName ||
+        (m as any).fromAddress?.split('@')[0] ||
+        'Unknown';
       if (!senderNames.includes(name)) senderNames.push(name);
     }
     const sendersSummary = senderNames.join(', ');
