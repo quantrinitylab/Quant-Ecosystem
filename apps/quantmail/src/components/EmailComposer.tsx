@@ -17,6 +17,7 @@ export interface ComposerMessageData {
   bodyHtml: string;
   priority: EmailPriority;
   scheduledAt?: string;
+  attachments?: LocalAttachment[];
 }
 
 export interface EmailComposerProps {
@@ -35,7 +36,15 @@ export interface EmailComposerProps {
   onToggleMinimize?: () => void;
 }
 
-type LocalAttachment = { id: string; name: string; size: number; type: string };
+export type LocalAttachment = {
+  id: string;
+  name: string;
+  filename?: string;
+  size: number;
+  type: string;
+  mimeType?: string;
+  url?: string;
+};
 
 function escapeHtml(value: string): string {
   return value
@@ -115,9 +124,10 @@ export function EmailComposer({
         bodyHtml: finalBodyHtml,
         priority,
         scheduledAt,
+        attachments: attachments.length > 0 ? attachments : undefined,
       };
     },
-    [to, cc, bcc, subject, body, priority],
+    [to, cc, bcc, subject, body, priority, attachments],
   );
 
   const handleSend = async () => {
@@ -450,15 +460,26 @@ export function EmailComposer({
           className="hidden"
           onChange={(event) => {
             const selected = Array.from(event.target.files ?? []);
-            setAttachments((prev) => [
-              ...prev,
-              ...selected.map((f) => ({
-                id: Math.random().toString(),
-                name: f.name,
-                size: f.size,
-                type: f.type,
-              })),
-            ]);
+            if (selected.length === 0) return;
+            for (const file of selected) {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+                setAttachments((prev) => [
+                  ...prev,
+                  {
+                    id: `att_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                    name: file.name,
+                    filename: file.name,
+                    size: file.size,
+                    type: file.type || 'application/octet-stream',
+                    mimeType: file.type || 'application/octet-stream',
+                    url: dataUrl,
+                  },
+                ]);
+              };
+              reader.readAsDataURL(file);
+            }
             event.target.value = '';
           }}
         />

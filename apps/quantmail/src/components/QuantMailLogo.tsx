@@ -10,6 +10,9 @@ interface QuantMailLogoProps {
   showBadge?: boolean;
   className?: string;
   onClick?: () => void;
+  variant?: string;
+  interactive?: boolean;
+  title?: string;
 }
 
 /**

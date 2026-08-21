@@ -183,25 +183,53 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             {attachments.map((att) => {
               const isImg = att.mimeType?.startsWith('image/');
+              const handleDownload = (e: React.MouseEvent) => {
+                e.stopPropagation();
+                if (att.url) {
+                  const a = document.createElement('a');
+                  a.href = att.url;
+                  a.download = att.filename || 'attachment';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  showToast({ text: `Downloading ${att.filename}…`, type: 'success' });
+                } else {
+                  showToast({ text: `Downloading ${att.filename}…`, type: 'info' });
+                }
+              };
+
               return (
                 <div
                   key={att.id}
-                  onClick={() => showToast({ text: `Downloading ${att.filename}…`, type: 'info' })}
+                  onClick={handleDownload}
                   className="flex items-center gap-3 p-3 rounded-2xl border border-zinc-800 bg-zinc-900/90 hover:border-amber-500/50 hover:bg-zinc-800/90 transition-all cursor-pointer group shadow-md"
                 >
-                  <div className="size-10 rounded-xl bg-zinc-950 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform">
-                    {isImg ? '🖼️' : '📄'}
+                  <div className="size-10 rounded-xl bg-zinc-950 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform overflow-hidden">
+                    {isImg && att.url ? (
+                      <img
+                        src={att.url}
+                        alt={att.filename}
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                    ) : isImg ? (
+                      '🖼️'
+                    ) : (
+                      '📄'
+                    )}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold text-white truncate" title={att.filename}>
                       {att.filename}
                     </p>
-                    <p className="text-[10px] text-zinc-400">{(att.size / 1024).toFixed(1)} KB</p>
+                    <p className="text-[10px] text-zinc-400">
+                      {att.size > 0 ? `${(att.size / 1024).toFixed(1)} KB` : 'Attachment'}
+                    </p>
                   </div>
 
                   <button
                     type="button"
+                    onClick={handleDownload}
                     className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-zinc-700/50 transition-colors"
                     title="Download"
                   >

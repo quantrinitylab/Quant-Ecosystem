@@ -91,6 +91,7 @@ export class EmailService {
     const senderName =
       sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
 
+    const hasAttachments = Array.isArray(input.attachments) && input.attachments.length > 0;
     const email = await this.prisma.email.create({
       data: {
         userId: input.userId,
@@ -105,6 +106,7 @@ export class EmailService {
         isDraft: true,
         threadId: input.threadId ?? null,
         inReplyTo: input.inReplyTo ?? null,
+        hasAttachments,
         attachments: input.attachments ?? [],
       },
     });
@@ -129,6 +131,7 @@ export class EmailService {
     bccAddresses?: string[];
     threadId?: string;
     inReplyTo?: string;
+    attachments?: unknown[];
   }): Promise<number> {
     const recipients = Array.from(
       new Set(
@@ -184,6 +187,7 @@ export class EmailService {
     const senderName =
       sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
 
+    const hasAttachments = Array.isArray(input.attachments) && input.attachments.length > 0;
     let delivered = 0;
     for (const recipient of matches) {
       const inboxFolder = await userModel.folder
@@ -207,6 +211,8 @@ export class EmailService {
           snippet,
           threadId: input.threadId ?? null,
           inReplyTo: input.inReplyTo ?? null,
+          hasAttachments,
+          attachments: input.attachments ?? [],
           isRead: false,
           isSent: false,
           isDraft: false,

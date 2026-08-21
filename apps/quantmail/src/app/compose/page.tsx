@@ -68,6 +68,7 @@ export default function ComposePage() {
         priority: data.priority,
         scheduledAt: data.scheduledAt,
         inReplyTo: replyTo || undefined,
+        attachments: data.attachments,
         isDraft: true,
       };
       const response = currentDraftId

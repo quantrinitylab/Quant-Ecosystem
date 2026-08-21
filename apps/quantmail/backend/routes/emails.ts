@@ -40,6 +40,7 @@ const composeSchema = z.object({
   bodyPlain: z.string().optional(),
   threadId: z.string().optional(),
   inReplyTo: z.string().optional(),
+  attachments: z.array(z.any()).optional(),
   send: z.boolean().optional(),
   sentFolderId: z.string().optional(),
 });
@@ -76,22 +77,17 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
   fastify.post('/', async (request, reply) => {
     const parseResult = composeSchema.safeParse(request.body);
     if (!parseResult.success) {
-      throw parseResult.error;
+      throw createAppError(
+        `Invalid request: ${parseResult.error.issues.map((i) => i.message).join(', ')}`,
+        400,
+        'VALIDATION_ERROR',
+      );
     }
 
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
-
-    validateComposeEmail({
-      toAddresses: parseResult.data.toAddresses,
-      ccAddresses: parseResult.data.ccAddresses,
-      bccAddresses: parseResult.data.bccAddresses,
-      subject: parseResult.data.subject,
-      bodyHtml: parseResult.data.bodyHtml,
-      bodyPlain: parseResult.data.bodyPlain,
-    });
 
     const sanitizedHtml = parseResult.data.bodyHtml
       ? sanitizeHtml(parseResult.data.bodyHtml)
@@ -104,6 +100,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       userId,
       ...parseResult.data,
       bodyHtml: sanitizedHtml,
+      attachments: parseResult.data.attachments ?? [],
     });
 
     if (parseResult.data.send && parseResult.data.sentFolderId) {
@@ -127,6 +124,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
           bccAddresses: parseResult.data.bccAddresses,
           threadId: parseResult.data.threadId,
           inReplyTo: parseResult.data.inReplyTo,
+          attachments: parseResult.data.attachments ?? [],
         });
       } catch {
         /* internal delivery failure must not block the send response */
@@ -163,6 +161,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     priority: z.enum(['high', 'normal', 'low']).optional(),
     inReplyTo: z.string().optional(),
     threadId: z.string().optional(),
+    attachments: z.array(z.any()).optional(),
   });
 
   fastify.post('/compose', async (request, reply) => {
@@ -186,6 +185,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       bodyPlain: d.bodyText,
       inReplyTo: d.inReplyTo,
       threadId: d.threadId,
+      attachments: d.attachments ?? [],
     });
     return reply.status(201).send({ success: true, data: formatEmailRecord(email) });
   });
@@ -218,6 +218,12 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         priority: d.priority?.toUpperCase(),
         inReplyTo: d.inReplyTo ?? null,
         threadId: d.threadId ?? null,
+        ...(d.attachments
+          ? {
+              attachments: d.attachments,
+              hasAttachments: d.attachments.length > 0,
+            }
+          : {}),
       },
     });
 
@@ -261,6 +267,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         bccAddresses: asArray(email.bccAddresses),
         threadId: email.threadId ?? undefined,
         inReplyTo: email.inReplyTo ?? undefined,
+        attachments: (email.attachments as any[]) ?? [],
       });
     } catch (error) {
       request.log.warn({ err: error, emailId: email.id }, 'internal mailbox delivery failed');

@@ -38,6 +38,28 @@ export function formatEmailRecord<T extends Record<string, any>>(email: T): T {
   const bodyPlain: string = email.bodyPlain ?? email.bodyText ?? '';
   const bodyHtml: string = email.bodyHtml ?? '';
 
+  const rawAttachments = Array.isArray(email.attachments) ? email.attachments : [];
+  const attachments = rawAttachments.map((att: any, idx: number) => {
+    if (typeof att === 'string') {
+      return {
+        id: `att_${idx}`,
+        filename: att.split('/').pop() || `attachment_${idx + 1}`,
+        mimeType: 'application/octet-stream',
+        size: 0,
+        url: att,
+      };
+    }
+    return {
+      id: att.id || `att_${idx}_${Date.now()}`,
+      filename: att.filename || att.name || `attachment_${idx + 1}`,
+      mimeType: att.mimeType || att.contentType || att.type || 'application/octet-stream',
+      size: typeof att.size === 'number' ? att.size : 0,
+      url: att.url || att.dataUrl || '',
+      contentId: att.contentId,
+      isInline: Boolean(att.isInline),
+    };
+  });
+
   return {
     ...email,
     fromAddress,
@@ -64,6 +86,8 @@ export function formatEmailRecord<T extends Record<string, any>>(email: T): T {
     bodyPlain,
     bodyText: bodyPlain,
     bodyHtml,
+    hasAttachments: attachments.length > 0,
+    attachments,
     category: email.aiCategory || email.category || 'primary',
   };
 }

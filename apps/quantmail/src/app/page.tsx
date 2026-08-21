@@ -147,7 +147,7 @@ export interface ConversationThread {
   labels: string[];
 }
 
-export function normalizeSubject(subject: string = ''): string {
+function normalizeSubject(subject: string = ''): string {
   return subject
     .replace(/^(re|fwd|fw):\s*/i, '')
     .replace(/^(re|fwd|fw)\[\d+\]:\s*/i, '')
@@ -155,7 +155,7 @@ export function normalizeSubject(subject: string = ''): string {
     .toLowerCase();
 }
 
-export function groupEmailsIntoThreads(emails: Email[] = []): ConversationThread[] {
+function groupEmailsIntoThreads(emails: Email[] = []): ConversationThread[] {
   if (!emails || emails.length === 0) return [];
 
   const threadMap = new Map<string, Email[]>();
