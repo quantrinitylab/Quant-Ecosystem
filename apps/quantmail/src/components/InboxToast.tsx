@@ -15,7 +15,10 @@ let toastSubscribers: Array<(msg: ToastMessage) => void> = [];
 
 /** Fire a toast from anywhere (no provider needed). */
 export function showToast(msg: Omit<ToastMessage, 'id'>) {
-  const toast: ToastMessage = { ...msg, id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` };
+  const toast: ToastMessage = {
+    ...msg,
+    id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+  };
   toastSubscribers.forEach((fn) => fn(toast));
 }
 
@@ -31,22 +34,19 @@ export function InboxToastContainer() {
 
   useEffect(() => {
     const handler = (msg: ToastMessage) => {
-      setToasts((prev) => [...prev.slice(-4), msg]); // max 5
+      // Remove any existing toast with the same text so it doesn't pile up
+      setToasts((prev) => [...prev.filter((t) => t.text !== msg.text), msg]);
+
+      // Auto-dismiss this specific toast
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== msg.id));
+      }, msg.duration ?? 3200);
     };
     toastSubscribers.push(handler);
     return () => {
       toastSubscribers = toastSubscribers.filter((fn) => fn !== handler);
     };
   }, []);
-
-  useEffect(() => {
-    if (toasts.length === 0) return;
-    const oldest = toasts[0];
-    const timeout = setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== oldest.id));
-    }, oldest.duration ?? 4000);
-    return () => clearTimeout(timeout);
-  }, [toasts]);
 
   const dismiss = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -65,7 +65,9 @@ export function InboxToastContainer() {
             transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
             role="status"
           >
-            <span className="inbox-toast-icon" aria-hidden="true">{ICONS[toast.type]}</span>
+            <span className="inbox-toast-icon" aria-hidden="true">
+              {ICONS[toast.type]}
+            </span>
             <span className="inbox-toast-text">{toast.text}</span>
             {toast.undoAction && (
               <button

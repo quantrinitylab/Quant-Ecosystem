@@ -355,18 +355,17 @@ export function AppSidebar() {
 
   return (
     <nav className="quant-sidebar" aria-label="QuantMail navigation">
-      <header className="sidebar-brand flex items-center justify-between px-3 py-3 border-b border-[var(--quant-border-subtle)]">
-        <div className="flex items-center gap-2">
-          <QuantMailLogo size={28} showBadge={false} />
-          <BrandWordmark app="mail" size="text-sm" />
+      <header className="sidebar-brand flex items-center justify-between px-3.5 py-3 border-b border-[var(--quant-border-subtle)]">
+        <div
+          className="flex items-center gap-2.5 cursor-pointer select-none group"
+          onClick={() => router.push('/')}
+          title="QuantMail — Go to Inbox"
+        >
+          <QuantMailLogo size={36} showBadge={false} />
+          <BrandWordmark app="mail" size="text-lg" />
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <NotificationBell />
-          <span
-            className="size-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
-            title="All systems operational"
-            aria-label="All systems operational"
-          />
         </div>
       </header>
 

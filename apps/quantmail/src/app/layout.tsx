@@ -32,9 +32,12 @@ export const metadata: Metadata = {
   description: quantMailBrandMetadata.description,
   applicationName: quantMailBrandMetadata.applicationName,
   icons: {
-    icon: '/quantrinity-mark.svg',
-    shortcut: '/quantrinity-mark.svg',
-    apple: '/quantrinity-mark.svg',
+    icon: [
+      { url: '/quantmail-mascot.svg', type: 'image/svg+xml' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/quantmail-mascot.svg',
+    apple: '/quantmail-mascot.svg',
   },
 };
 

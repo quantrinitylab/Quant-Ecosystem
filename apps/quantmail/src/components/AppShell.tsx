@@ -390,23 +390,6 @@ export function AppShell({
             <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
               <button
                 type="button"
-                className="hidden size-9 items-center justify-center rounded-md text-[var(--foreground)]/70 outline-none hover:bg-[var(--muted)] hover:text-[var(--foreground)] md:inline-flex"
-                aria-label={isPinned ? 'Unpin navigation' : 'Pin navigation'}
-                aria-pressed={isPinned}
-                onClick={togglePinned}
-              >
-                <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
-                  <path
-                    d="M9 4h6l-1 6 4 4H6l4-4-1-6Zm3 10v6"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeWidth="2"
-                  />
-                </svg>
-              </button>
-              <button
-                type="button"
                 className="inline-flex size-9 items-center justify-center rounded-md text-[var(--foreground)] outline-none hover:bg-[var(--muted)]"
                 aria-label="Close navigation menu"
                 onClick={() => closeSidebar()}

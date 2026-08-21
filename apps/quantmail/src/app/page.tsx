@@ -243,6 +243,33 @@ function EmailRow({
   const prefersReducedMotion = useReducedMotion();
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressRef = useRef(false);
+
+  const handleTouchStart = () => {
+    isLongPressRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      onToggleSelect();
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(35);
+      }
+    }, 450);
+  };
+
+  const handleTouchMove = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
 
   const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     setIsDragging(false);
@@ -276,9 +303,12 @@ function EmailRow({
         onDragEnd={handleDragEnd}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         className={`mail-row ${thread.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''}`}
         onClick={() => {
-          if (!isDragging) onOpen();
+          if (!isDragging && !isLongPressRef.current) onOpen();
         }}
       >
         <input
@@ -312,7 +342,7 @@ function EmailRow({
           <h3>{thread.subject || '(no subject)'}</h3>
           <p>{email.snippet}</p>
         </div>
-        {/* Hover actions bar — quick actions on hover */}
+        {/* Hover actions bar — quick actions on hover (Desktop) */}
         <AnimatePresence>
           {isHovered && !isDragging && (
             <HoverActions
@@ -326,20 +356,17 @@ function EmailRow({
             />
           )}
         </AnimatePresence>
-        {/* Star + Snooze only visible when NOT hovered */}
+        {/* Star button only (no snooze clutter) */}
         {!isHovered && (
-          <>
-            <button
-              type="button"
-              className={`mail-star ${email.isStarred ? 'is-starred' : ''}`}
-              onClick={onToggleStar}
-              aria-label={email.isStarred ? 'Unstar email' : 'Star email'}
-              aria-pressed={email.isStarred}
-            >
-              <MailIcon name="star" />
-            </button>
-            <EmailSnooze emailId={email.id} onSnooze={onSnooze} />
-          </>
+          <button
+            type="button"
+            className={`mail-star ${email.isStarred ? 'is-starred' : ''}`}
+            onClick={onToggleStar}
+            aria-label={email.isStarred ? 'Unstar email' : 'Star email'}
+            aria-pressed={email.isStarred}
+          >
+            <MailIcon name="star" />
+          </button>
         )}
       </motion.article>
     </div>

@@ -39,7 +39,7 @@ export function BrandWordmark({
 
   return (
     <span
-      className={`inline-flex items-baseline flex-nowrap whitespace-nowrap select-none tracking-normal ${chosenSize} ${className}`}
+      className={`inline-flex items-baseline flex-nowrap whitespace-nowrap select-none tracking-normal pr-1 ${chosenSize} ${className}`}
       style={{
         fontFamily: '"Billabong", "Grand Hotel", "Brush Script MT", cursive, sans-serif',
         fontStyle: 'italic',
@@ -49,7 +49,7 @@ export function BrandWordmark({
       <span className="text-[#F8FAFC] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] font-medium">
         {item.brand}
       </span>
-      <span className="bg-gradient-to-r from-[#FF7A00] via-[#FFA726] to-[#FFD54F] bg-clip-text text-transparent ml-0.5 font-semibold drop-shadow-[0_2px_8px_rgba(255,122,0,0.4)]">
+      <span className="bg-gradient-to-r from-[#FF7A00] via-[#FFA726] to-[#FFD54F] bg-clip-text text-transparent ml-1 pr-2.5 font-semibold drop-shadow-[0_2px_8px_rgba(255,122,0,0.4)]">
         {item.name}
       </span>
     </span>
