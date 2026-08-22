@@ -351,9 +351,9 @@ export function ConversationalThreadView({
   const allExpanded = messages.length > 0 && expandedIndices.size === messages.length;
 
   return (
-    <div className={`flex flex-col h-full bg-[#0a0d14] text-white select-text ${className}`}>
+    <div className={`flex flex-col h-full bg-[#090A0C] text-white select-text ${className}`}>
       {/* Top Header Actions Bar */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-zinc-800/90 bg-[#0d1017]/95 backdrop-blur-md sticky top-0 z-20">
+      <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-zinc-800/90 bg-[#090A0C]/95 backdrop-blur-md sticky top-0 z-20">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {onClose && (
             <button
@@ -534,12 +534,13 @@ export function ConversationalThreadView({
               (message as any).fromAddress?.toLowerCase().includes('@quantmail.in'),
             );
 
-            const msgFromName =
-              message.from?.name ||
-              message.from?.email ||
-              (message as any).fromName ||
-              (message as any).fromAddress ||
-              (isOutbound ? 'You' : 'Sender');
+            const msgFromName = isOutbound
+              ? 'You'
+              : message.from?.name ||
+                message.from?.email ||
+                (message as any).fromName ||
+                (message as any).fromAddress ||
+                'Sender';
 
             const msgFromEmail = message.from?.email || (message as any).fromAddress || '';
             const msgAttachments = message.attachments || [];
@@ -549,45 +550,55 @@ export function ConversationalThreadView({
               (message as any).toAddresses?.join(', ') ||
               'me';
 
+            // Detect if this message is a full rich email or a chat quick thread
+            const isThreadQuick = Boolean(
+              !message.subject ||
+              message.subject.toLowerCase() === '(no subject)' ||
+              message.subject.toLowerCase() === 'quick reply' ||
+              (message.bodyText && message.bodyText.length < 120 && !message.bodyHtml),
+            );
+            const messageTypeBadge = isThreadQuick ? 'Thread' : 'Mail';
+
             return (
               <motion.div
                 key={message.id || index}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
-                className={`w-full ${isOutbound ? 'conversation-outgoing' : 'conversation-incoming'}`}
+                className={`w-full flex flex-col ${isOutbound ? 'items-end' : 'items-start'}`}
               >
                 {!isExpanded ? (
                   /* Collapsed 1-Line Strip */
                   <div
                     onClick={() => toggleMessageExpand(index)}
-                    className={`group flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-2xl border transition-all cursor-pointer shadow-sm select-none hover:shadow-md ${
+                    className={`group w-full max-w-[95%] sm:max-w-[88%] flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-2xl border transition-all cursor-pointer shadow-sm select-none hover:shadow-md ${
                       isOutbound
-                        ? 'border-amber-500/25 bg-gradient-to-r from-[#17141f] to-[#121622] hover:border-amber-500/40'
-                        : 'border-zinc-800/90 bg-[#111522]/90 hover:bg-[#151a2b] hover:border-zinc-700'
+                        ? 'border-amber-500/30 bg-[#121016] hover:border-amber-500/50'
+                        : 'border-zinc-800/90 bg-[#0d0e14] hover:bg-[#12141c] hover:border-zinc-700'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <IdentityAvatar name={msgFromName} size="sm" />
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <span
-                          className={`text-xs font-bold truncate ${isOutbound ? 'text-amber-300' : 'text-white'}`}
+                          className={`text-xs font-bold truncate ${isOutbound ? 'text-amber-400' : 'text-white'}`}
                         >
                           {msgFromName}
                         </span>
 
-                        {/* Badges */}
+                        {/* Badges: Mail or Thread */}
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="px-1.5 py-0.2 rounded bg-zinc-800/80 border border-zinc-700/70 text-[9px] font-bold text-zinc-300 font-mono">
-                            #{index + 1}
+                          <span
+                            className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                              messageTypeBadge === 'Mail'
+                                ? 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
+                                : 'bg-zinc-800/80 border border-zinc-700/70 text-zinc-300'
+                            }`}
+                          >
+                            {messageTypeBadge}
                           </span>
-                          {isOutbound && (
-                            <span className="px-1.5 py-0.2 rounded bg-amber-500/15 border border-amber-500/30 text-[9px] font-bold text-amber-400">
-                              Sent
-                            </span>
-                          )}
                           {hasAtt && (
-                            <span className="px-1.5 py-0.2 rounded bg-cyan-500/15 border border-cyan-500/30 text-[9px] font-bold text-cyan-400 flex items-center gap-0.5">
+                            <span className="px-1.5 py-0.2 rounded bg-amber-500/15 border border-amber-500/30 text-[9px] font-bold text-amber-400 flex items-center gap-0.5">
                               <span>📎</span>
                               <span>{msgAttachments.length}</span>
                             </span>
@@ -618,10 +629,10 @@ export function ConversationalThreadView({
                 ) : (
                   /* Expanded Rich Card */
                   <div
-                    className={`rounded-2xl sm:rounded-3xl border shadow-xl overflow-hidden transition-all ${
+                    className={`w-full max-w-[96%] sm:max-w-[90%] rounded-2xl sm:rounded-3xl border shadow-xl overflow-hidden transition-all ${
                       isOutbound
-                        ? 'border-amber-500/30 bg-[#12141f]'
-                        : 'border-zinc-800/90 bg-[#10141d]'
+                        ? 'border-amber-500/30 bg-[#0f0e14]'
+                        : 'border-zinc-800/90 bg-[#0a0c10]'
                     }`}
                   >
                     {/* Header Bar */}
@@ -632,18 +643,19 @@ export function ConversationalThreadView({
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span
-                              className={`text-sm font-bold ${isOutbound ? 'text-amber-300' : 'text-white'}`}
+                              className={`text-sm font-bold ${isOutbound ? 'text-amber-400' : 'text-white'}`}
                             >
                               {msgFromName}
                             </span>
-                            <span className="px-2 py-0.5 rounded-md bg-zinc-800/80 border border-zinc-700/80 text-[10px] font-mono text-zinc-300">
-                              Message #{index + 1}
+                            <span
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold font-mono ${
+                                messageTypeBadge === 'Mail'
+                                  ? 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
+                                  : 'bg-zinc-800/80 border border-zinc-700/80 text-zinc-300'
+                              }`}
+                            >
+                              {messageTypeBadge}
                             </span>
-                            {isOutbound && (
-                              <span className="px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-[10px] font-bold text-amber-400">
-                                Outgoing Reply
-                              </span>
-                            )}
                             <span className="text-xs text-zinc-400 font-mono">
                               {formatMessageDate(message.receivedAt)}
                             </span>
@@ -718,13 +730,6 @@ export function ConversationalThreadView({
                                   : 'N/A'}
                               </span>
                             </div>
-                            <div className="flex">
-                              <span className="w-20 text-zinc-500">Security:</span>
-                              <span className="text-emerald-400 flex items-center gap-1">
-                                <span>🔐</span>
-                                <span>Standard Encryption (TLS 1.3 · E2EE Authenticated)</span>
-                              </span>
-                            </div>
                           </div>
                         </motion.div>
                       )}
@@ -744,7 +749,7 @@ export function ConversationalThreadView({
       </div>
 
       {/* Chatbot-Style Bottom Floating Quick Reply Bar */}
-      <div className="p-3 sm:p-4 bg-[#0d1017]/95 border-t border-zinc-800/90 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
+      <div className="p-3 sm:p-4 bg-[#08090d]/95 border-t border-zinc-800/90 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
         {/* Smart Suggestions Chips */}
         {primaryMessage && (
           <SmartReplySuggestions
@@ -780,7 +785,7 @@ export function ConversationalThreadView({
         )}
 
         {/* Main Floating Input Bar */}
-        <div className="flex items-center gap-2 p-1.5 sm:p-2 rounded-2xl border border-zinc-700/80 bg-[#121624] shadow-2xl">
+        <div className="flex items-center gap-2 p-1.5 sm:p-2 rounded-2xl border border-zinc-700/80 bg-[#0e1017] shadow-2xl">
           {/* File Attachment Hidden Input */}
           <input
             type="file"
@@ -834,7 +839,7 @@ export function ConversationalThreadView({
             className="flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none px-2 py-1.5"
           />
 
-          {/* Full Composer Trigger */}
+          {/* Mail Button (Formerly Full Composer) */}
           <button
             type="button"
             onClick={() =>
@@ -842,10 +847,20 @@ export function ConversationalThreadView({
                 `/compose?replyTo=${primaryMessage?.threadId || primaryMessage?.id || threadId}`,
               )
             }
-            className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-all shrink-0 border border-zinc-700/60"
-            title="Open Rich Full Composer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 text-amber-400 text-xs font-semibold transition-all shrink-0 border border-zinc-700/70 shadow-sm active:scale-95"
+            title="Open Full Mail Composer"
           >
-            <span>Full Composer</span>
+            <svg
+              className="size-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <rect width="20" height="16" x="2" y="4" rx="2" />
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+            </svg>
+            <span>Mail</span>
           </button>
 
           {/* Send Button */}

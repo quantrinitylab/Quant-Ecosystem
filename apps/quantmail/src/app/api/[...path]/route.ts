@@ -36,6 +36,9 @@ const ALLOWED_BACKEND_ROUTES: Array<{ pattern: RegExp; methods: readonly string[
   { pattern: /^public\/invites\/[^/]+$/, methods: ['GET'] },
   { pattern: /^invites\/[^/]+\/accept$/, methods: ['POST'] },
   { pattern: /^webhook\/inbound$/, methods: ['POST'] },
+  { pattern: /^threads(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+  { pattern: /^emails(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+  { pattern: /^labels(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
 ];
 
 const handle = async (

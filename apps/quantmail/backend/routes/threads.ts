@@ -52,14 +52,16 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
       if (thread) {
         const rawMsgs = thread.emails ?? (thread as any).messages ?? [];
         const formattedMsgs = rawMsgs.map(formatEmailRecord);
-        return reply.send({
-          success: true,
-          data: {
-            ...thread,
-            messages: formattedMsgs,
-            emails: formattedMsgs,
-          },
-        });
+        if (formattedMsgs.length > 0) {
+          return reply.send({
+            success: true,
+            data: {
+              ...thread,
+              messages: formattedMsgs,
+              emails: formattedMsgs,
+            },
+          });
+        }
       }
     } catch {
       /* fall through to email-id resolution */

@@ -26,7 +26,7 @@ export default function ThreadPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page thread-workspace flex flex-col h-full bg-[#0a0d14]">
+      <PageTransition className="workspace-page thread-workspace flex flex-col h-full bg-[#090A0C]">
         <ConversationalThreadView
           threadId={threadId}
           onClose={() => router.push('/')}

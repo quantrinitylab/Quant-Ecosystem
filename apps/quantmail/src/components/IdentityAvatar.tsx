@@ -20,11 +20,11 @@ function gradientFor(seed: string): string {
 function initials(name: string): string {
   const parts = name
     .replace(/@.*/, '')
+    .trim()
     .split(/[.\s_-]+/)
     .filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  const single = parts[0] || name;
-  return (single.length >= 2 ? single.slice(0, 2) : single[0] || '').toUpperCase();
+  const first = parts[0] || name.trim();
+  return (first[0] || '').toUpperCase();
 }
 
 /** True when the name cannot be resolved to a real identity or is unknown. */
