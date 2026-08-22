@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { CrossAppDispatcher } from '@quant/notifications';
 import { EmailService } from '../services/email.service';
+import { ThreadService } from '../services/thread.service';
 import { OutboundDeliveryPipeline } from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
 import { formatEmailRecord } from '../lib/format-email';
@@ -349,6 +350,26 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     const baseSubject = (original.subject ?? '') as string;
     const subject = /^re:/i.test(baseSubject) ? baseSubject : `Re: ${baseSubject}`.trim();
 
+    // Ensure both original and reply are linked under a unified EmailThread
+    let targetThreadId = original.threadId;
+    if (!targetThreadId) {
+      try {
+        const threadService = new ThreadService(prisma);
+        targetThreadId = await threadService.stitchInbound({
+          userId,
+          subject: baseSubject || 'Conversation',
+          participants: [original.fromAddress, ...to],
+          at: original.receivedAt || new Date(),
+        });
+        await prisma.email.update({
+          where: { id: original.id },
+          data: { threadId: targetThreadId },
+        });
+      } catch {
+        targetThreadId = undefined;
+      }
+    }
+
     const sendService = createSendService(prisma);
     const draft = await sendService.compose({
       userId,
@@ -357,7 +378,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       bccAddresses: [],
       subject,
       bodyPlain: parsed.data.body,
-      threadId: original.threadId ?? undefined,
+      threadId: targetThreadId ?? undefined,
       inReplyTo: original.id,
     });
 
@@ -375,7 +396,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         bodyPlain: parsed.data.body,
         toAddresses: to,
         ccAddresses: cc,
-        threadId: original.threadId ?? undefined,
+        threadId: targetThreadId ?? undefined,
         inReplyTo: original.id,
       });
     } catch (error) {

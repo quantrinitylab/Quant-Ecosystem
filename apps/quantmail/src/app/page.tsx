@@ -28,6 +28,7 @@ import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { EmailSenderHeader } from '../components/EmailSenderHeader';
 import { EmailLetterCard } from '../components/EmailLetterCard';
 import { QuantyCopilotDrawer } from '../components/QuantyCopilotDrawer';
+import { ConversationalThreadView } from '../components/ConversationalThreadView';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { apiClient } from '../services/api-client';
 import type { Email, EmailCategory } from '../types';
@@ -377,43 +378,21 @@ function EmailRow({
 }
 
 function ReadingPane({
+  thread,
   email,
   onClose,
   onArchive,
   onDelete,
   onToggleStar,
 }: {
+  thread?: ConversationThread | null;
   email: Email | null;
   onClose: () => void;
   onArchive?: (id: string) => void;
   onDelete?: (id: string) => void;
   onToggleStar?: (id: string) => void;
 }) {
-  const router = useRouter();
-  const [quickReplyText, setQuickReplyText] = useState('');
-  const [isSendingQuickReply, setIsSendingQuickReply] = useState(false);
-  const [isQuantyDrawerOpen, setIsQuantyDrawerOpen] = useState(false);
-  const isPostcard = email?.bodyText?.includes('<!-- QUANTMAIL_POSTCARD:');
-
-  const handleSendQuickReply = async () => {
-    if (!email || !quickReplyText.trim()) return;
-    setIsSendingQuickReply(true);
-    try {
-      const res = await apiClient.replyToEmail(email.id, quickReplyText);
-      if (res.success) {
-        showToast({ text: 'Quick reply sent', type: 'success' });
-        setQuickReplyText('');
-      } else {
-        showToast({ text: res.error?.message || 'Failed to send reply', type: 'error' });
-      }
-    } catch {
-      showToast({ text: 'Failed to send reply', type: 'error' });
-    } finally {
-      setIsSendingQuickReply(false);
-    }
-  };
-
-  if (!email) {
+  if (!email && !thread) {
     return (
       <section className="reading-pane reading-pane-empty" aria-label="Message preview">
         <div className="reading-ambient" aria-hidden="true" />
@@ -445,162 +424,30 @@ function ReadingPane({
     );
   }
 
+  const activeId = thread?.threadId || thread?.id || email?.threadId || email?.id || '';
+  const initialEmails = thread?.messages || (email ? [email] : []);
+
   return (
-    <>
-      <motion.aside
-        className="reading-pane overflow-hidden flex flex-col"
-        aria-label="Message preview"
-        initial={{ opacity: 0, x: 14 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -10 }}
-        transition={{ duration: 0.2 }}
-      >
-        <header className="reading-header bg-zinc-950/90 border-b border-zinc-800/80 px-4 py-2.5 flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-              onClick={onClose}
-              aria-label="Close preview"
-            >
-              <MailIcon name="close" />
-            </button>
-            {onArchive && (
-              <button
-                type="button"
-                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-                onClick={() => onArchive(email.id)}
-                title="Archive (E)"
-                aria-label="Archive"
-              >
-                <MailIcon name="archive" />
-              </button>
-            )}
-            {onDelete && (
-              <button
-                type="button"
-                className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                onClick={() => onDelete(email.id)}
-                title="Delete (#)"
-                aria-label="Delete"
-              >
-                <MailIcon name="trash" />
-              </button>
-            )}
-            {onToggleStar && (
-              <button
-                type="button"
-                className={`p-1.5 rounded-lg transition-colors ${
-                  email.isStarred
-                    ? 'text-amber-400 bg-amber-400/10'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-                onClick={() => onToggleStar(email.id)}
-                title="Star (S)"
-                aria-label="Star"
-              >
-                <MailIcon name="star" />
-              </button>
-            )}
-
-            {/* Quanty Robo Button */}
-            <button
-              type="button"
-              onClick={() => setIsQuantyDrawerOpen(true)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-xl text-amber-400 hover:bg-amber-500/10 text-xs font-bold transition-all ml-1"
-              title="Ask Quanty AI"
-            >
-              <Quanty size={22} expression="happy" bob={false} />
-              <span className="hidden sm:inline text-[11px]">Quanty</span>
-            </button>
-          </div>
-
-          <div className="reading-header-actions flex items-center gap-2">
-            <button
-              type="button"
-              className="px-3 py-1 rounded-xl text-xs font-semibold bg-zinc-800 text-zinc-200 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
-              onClick={() => router.push(`/compose?replyTo=${email.threadId || email.id}`)}
-            >
-              <MailIcon name="reply" className="h-3.5 w-3.5 inline mr-1" />
-              Reply
-            </button>
-            <button
-              type="button"
-              className="px-3 py-1 rounded-xl text-xs font-semibold bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/30 transition-colors"
-              onClick={() => router.push(`/thread/${email.threadId || email.id}`)}
-            >
-              Open thread <span aria-hidden="true">↗</span>
-            </button>
-          </div>
-        </header>
-
-        <div className="reading-content flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Sender Header Row with Expandable "to me ⌵" */}
-          <EmailSenderHeader email={email} />
-
-          {/* Email Body: Luxury Letterhead */}
-          <EmailLetterCard email={email} />
-        </div>
-
-        {/* Inline Quick Reply & Smart Replies Footer */}
-        <footer className="reading-reply-bar flex-col gap-2.5 p-3.5 bg-zinc-950/90 border-t border-zinc-800">
-          <SmartReplySuggestions
-            emailId={email.id}
-            onSelectReply={(text) => {
-              setQuickReplyText(text);
-            }}
-          />
-
-          <div className="flex items-center gap-2 w-full">
-            <input
-              type="text"
-              className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/70 transition-colors"
-              placeholder="Type a quick reply or pick a suggestion above…"
-              value={quickReplyText}
-              onChange={(e) => setQuickReplyText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  void handleSendQuickReply();
-                }
-              }}
-            />
-            {quickReplyText.trim() ? (
-              <button
-                type="button"
-                disabled={isSendingQuickReply}
-                onClick={() => void handleSendQuickReply()}
-                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] hover:from-[#e06c00] hover:to-[#d04e06] text-white text-xs font-semibold transition-all"
-              >
-                {isSendingQuickReply ? 'Sending…' : 'Send (↵)'}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-all"
-                onClick={() => router.push(`/compose?replyTo=${email.threadId || email.id}`)}
-              >
-                Full Composer
-              </button>
-            )}
-            <button
-              type="button"
-              className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-all"
-              onClick={() => router.push(`/compose?forward=${email.id}`)}
-            >
-              Forward <span aria-hidden="true">→</span>
-            </button>
-          </div>
-        </footer>
-      </motion.aside>
-
-      <QuantyCopilotDrawer
-        isOpen={isQuantyDrawerOpen}
-        onClose={() => setIsQuantyDrawerOpen(false)}
-        contextEmail={email}
-        onInsertReply={(text) => setQuickReplyText(text)}
+    <motion.aside
+      className="reading-pane overflow-hidden flex flex-col"
+      aria-label="Message preview"
+      initial={{ opacity: 0, x: 14 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -10 }}
+      transition={{ duration: 0.2 }}
+    >
+      <ConversationalThreadView
+        threadId={activeId}
+        initialEmails={initialEmails}
+        subject={thread?.subject || email?.subject || '(No Subject)'}
+        isStarred={thread?.isStarred ?? email?.isStarred ?? false}
+        onClose={onClose}
+        onArchive={onArchive ? () => onArchive(activeId) : undefined}
+        onDelete={onDelete ? () => onDelete(activeId) : undefined}
+        onStarToggle={onToggleStar ? () => onToggleStar(activeId) : undefined}
+        variant="pane"
       />
-    </>
+    </motion.aside>
   );
 }
 
@@ -611,6 +458,7 @@ export default function InboxPage() {
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
+  const [selectedThread, setSelectedThread] = useState<ConversationThread | null>(null);
   const lastSelectedIndex = useRef<number>(-1);
   const { data: allEmails, isLoading, error, refetch } = useInbox({ category: activeCategory });
   const { data: searchResults, isLoading: isSearching } = useSearchEmails(
@@ -844,19 +692,31 @@ export default function InboxPage() {
   );
 
   const openEmail = useCallback(
-    (email: Email | null) => {
+    (email: Email | null, explicitThread?: ConversationThread | null) => {
       if (!email) {
         setSelectedEmail(null);
+        setSelectedThread(null);
         return;
       }
       setSelectedEmail(email);
+      if (explicitThread) {
+        setSelectedThread(explicitThread);
+      } else {
+        const matching = threads?.find(
+          (t) =>
+            t.id === email.id ||
+            t.threadId === email.threadId ||
+            t.messages.some((m) => m.id === email.id),
+        );
+        setSelectedThread(matching || null);
+      }
       void apiClient.markAsRead?.(email.id).catch(() => {});
       const targetId = email.threadId || email.id;
       if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 900px)').matches) {
         router.push(`/thread/${targetId}`);
       }
     },
-    [router],
+    [router, threads],
   );
 
   // Superhuman-style keyboard navigation
@@ -1099,11 +959,11 @@ export default function InboxPage() {
                     <EmailRow
                       thread={thread}
                       isChecked={selectedIds.has(thread.id)}
-                      isActive={selectedEmail?.id === thread.id}
+                      isActive={selectedEmail?.id === thread.id || selectedThread?.id === thread.id}
                       isFocused={focusedIndex === index}
                       onToggleSelect={() => toggleSelect(thread.id)}
                       onToggleStar={(event) => void toggleStar(event, thread.id)}
-                      onOpen={() => openEmail(thread.latestEmail)}
+                      onOpen={() => openEmail(thread.latestEmail, thread)}
                       onArchive={() => void archiveEmail(thread.id)}
                       onDelete={() => void deleteEmail(thread.id)}
                       onMarkRead={() => void markRead(thread.id)}
@@ -1124,8 +984,12 @@ export default function InboxPage() {
         </section>
 
         <ReadingPane
+          thread={selectedThread}
           email={selectedEmail}
-          onClose={() => setSelectedEmail(null)}
+          onClose={() => {
+            setSelectedEmail(null);
+            setSelectedThread(null);
+          }}
           onArchive={(id) => void archiveEmail(id)}
           onDelete={(id) => void deleteEmail(id)}
           onToggleStar={(id) => void toggleStar(null, id)}
