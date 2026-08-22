@@ -12,6 +12,26 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
+    - host: quantmail.in
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: quant-quantmail-backend
+                port:
+                  number: 3011
+    - host: www.quantmail.in
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: quant-quantmail-backend
+                port:
+                  number: 3011
     - host: quantmail.quantrinity.in
       http:
         paths:

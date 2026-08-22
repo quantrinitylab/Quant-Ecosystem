@@ -203,9 +203,9 @@ export default function CodeHubRepoPage() {
 
   const latestCommit = commits[0];
   const defaultBranch = repoInfo?.defaultBranch ?? 'main';
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://quantmail.in';
   const cloneUrl =
-    repoInfo?.cloneUrl ??
-    `https://quantmail.quantrinity.in/git/${repoInfo?.fullName ?? repoInfo?.name ?? repoId}.git`;
+    repoInfo?.cloneUrl ?? `${baseUrl}/git/${repoInfo?.fullName ?? repoInfo?.name ?? repoId}.git`;
 
   const readmeNode = tree.find((node) => /^readme(\.md|\.mdx)?$/i.test(node.name ?? ''));
   const { data: readmeContent } = useFileContent(repoId, readmeNode?.path ?? null);

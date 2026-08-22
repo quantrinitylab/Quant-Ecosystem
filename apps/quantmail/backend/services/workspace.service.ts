@@ -84,7 +84,7 @@ function appUrl(): string {
   return (
     process.env['WORKSPACE_APP_URL'] ??
     process.env['NEXT_PUBLIC_APP_URL'] ??
-    'https://quantmail.quantrinity.in'
+    'https://quantmail.in'
   ).replace(/\/$/, '');
 }
 
