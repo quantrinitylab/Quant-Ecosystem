@@ -42,7 +42,7 @@ export function getConfig(): AppConfig {
     host: process.env['HOST'] ?? '0.0.0.0',
     logLevel: process.env['LOG_LEVEL'] ?? 'info',
     corsOrigins: (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000').split(','),
-    rateLimitMax: Number(process.env['RATE_LIMIT_MAX'] ?? 100),
+    rateLimitMax: Number(process.env['RATE_LIMIT_MAX'] ?? 1000),
     rateLimitWindow: process.env['RATE_LIMIT_WINDOW'] ?? '1 minute',
     redisUrl: process.env['REDIS_URL'],
     jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',

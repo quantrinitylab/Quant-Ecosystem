@@ -88,6 +88,8 @@ export function ConversationalThreadView({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const loadedThreadIdRef = useRef<string | null>(null);
+
   // Fetch thread messages if not pre-populated or update when threadId changes
   useEffect(() => {
     let isMounted = true;
@@ -96,14 +98,20 @@ export function ConversationalThreadView({
       return;
     }
 
-    if (initialEmails.length > 0) {
+    if (initialEmails && initialEmails.length > 0) {
       setMessages(initialEmails);
       setExpandedIndices(new Set([initialEmails.length - 1]));
       setIsLoading(false);
       return;
     }
 
+    if (loadedThreadIdRef.current === threadId && messages.length > 0) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
+    loadedThreadIdRef.current = threadId;
 
     const loadData = async () => {
       try {
@@ -125,11 +133,7 @@ export function ConversationalThreadView({
             return;
           }
         }
-      } catch {
-        /* proceed to email fallback */
-      }
 
-      try {
         // 2. Fallback: Fetch as single email
         const emailRes = await apiClient.getEmail(threadId).catch(() => null);
         if (emailRes && emailRes.success && emailRes.data) {
@@ -167,11 +171,11 @@ export function ConversationalThreadView({
           return;
         }
       } catch {
-        /* ignore */
-      }
-
-      if (isMounted) {
-        setIsLoading(false);
+        /* proceed */
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -180,7 +184,7 @@ export function ConversationalThreadView({
     return () => {
       isMounted = false;
     };
-  }, [threadId, initialEmails]);
+  }, [threadId]);
 
   // Expand / Collapse Helpers
   const toggleMessageExpand = (index: number) => {
@@ -785,7 +789,7 @@ export function ConversationalThreadView({
         )}
 
         {/* Main Floating Input Bar */}
-        <div className="flex items-center gap-2 p-1.5 sm:p-2 rounded-2xl border border-zinc-700/80 bg-[#0e1017] shadow-2xl">
+        <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl border border-zinc-700/80 bg-[#0e1017] shadow-2xl">
           {/* File Attachment Hidden Input */}
           <input
             type="file"
@@ -799,11 +803,11 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all shrink-0"
+            className="p-1.5 sm:p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all shrink-0"
             title="Attach Files / Photos"
           >
             <svg
-              className="size-5"
+              className="size-4.5 sm:size-5"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -817,10 +821,10 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={() => setIsQuantyOpen(true)}
-            className="p-1.5 rounded-xl text-amber-400 hover:bg-amber-500/10 transition-all shrink-0"
+            className="p-1 sm:p-1.5 rounded-xl text-amber-400 hover:bg-amber-500/10 transition-all shrink-0"
             title="Ask Quanty AI to write response"
           >
-            <Quanty size={22} expression="happy" bob={false} />
+            <Quanty size={20} expression="happy" bob={false} />
           </button>
 
           {/* Chat Input Text Area */}
@@ -835,8 +839,8 @@ export function ConversationalThreadView({
                 void handleSendReply();
               }
             }}
-            placeholder="Type a quick reply (press Enter to send ↵)…"
-            className="flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none px-2 py-1.5"
+            placeholder="Quick reply (↵ to send)…"
+            className="min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none px-1 sm:px-2 py-1.5"
           />
 
           {/* Mail Button (Formerly Full Composer) */}
@@ -847,7 +851,7 @@ export function ConversationalThreadView({
                 `/compose?replyTo=${primaryMessage?.threadId || primaryMessage?.id || threadId}`,
               )
             }
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 text-amber-400 text-xs font-semibold transition-all shrink-0 border border-zinc-700/70 shadow-sm active:scale-95"
+            className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 text-amber-400 text-xs font-semibold transition-all shrink-0 border border-zinc-700/70 shadow-sm active:scale-95"
             title="Open Full Mail Composer"
           >
             <svg
@@ -860,7 +864,7 @@ export function ConversationalThreadView({
               <rect width="20" height="16" x="2" y="4" rx="2" />
               <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
             </svg>
-            <span>Mail</span>
+            <span className="text-xs">Mail</span>
           </button>
 
           {/* Send Button */}
@@ -870,9 +874,9 @@ export function ConversationalThreadView({
             disabled={
               (!quickReplyText.trim() && pendingAttachments.length === 0) || isSendingQuickReply
             }
-            className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] hover:from-[#e06c00] hover:to-[#d04e06] text-white text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1.5"
+            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] hover:from-[#e06c00] hover:to-[#d04e06] text-white text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1"
           >
-            <span>{isSendingQuickReply ? 'Sending…' : 'Send'}</span>
+            <span>{isSendingQuickReply ? '…' : 'Send'}</span>
             <svg
               className="size-3.5"
               viewBox="0 0 24 24"

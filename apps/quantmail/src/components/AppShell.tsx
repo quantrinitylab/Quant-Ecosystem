@@ -148,6 +148,11 @@ function MobileBottomNav() {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
 
+  // Do not render bottom mobile tab bar inside individual thread chat view or compose view
+  if (pathname.startsWith('/thread') || pathname.startsWith('/compose')) {
+    return null;
+  }
+
   const isActive = (item: (typeof BOTTOM_NAV)[number]) => {
     if (item.path === '/') {
       return pathname === '/' || MAIL_PREFIXES.some((prefix) => pathname.startsWith(prefix));

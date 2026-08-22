@@ -12,7 +12,7 @@ interface SmartReplySuggestionsProps {
 const FALLBACK_REPLIES = [
   'Thanks, got it!',
   'Sounds good, let me take a look.',
-  'I\'ll get back to you on this shortly.',
+  "I'll get back to you on this shortly.",
 ];
 
 export function SmartReplySuggestions({ emailId, onSelectReply }: SmartReplySuggestionsProps) {
@@ -42,7 +42,9 @@ export function SmartReplySuggestions({ emailId, onSelectReply }: SmartReplySugg
         if (active) setLoading(false);
       });
 
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [emailId]);
 
   const handleSelect = useCallback(
@@ -67,17 +69,24 @@ export function SmartReplySuggestions({ emailId, onSelectReply }: SmartReplySugg
           aria-label="Quick reply suggestions"
         >
           <span className="smart-replies-label" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="m12 3 1.4 4.6L18 9l-4.6 1.4L12 15l-1.4-4.6L6 9l4.6-1.4L12 3Z" />
             </svg>
             Quick replies
           </span>
-          <div className="smart-replies-options">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full scrollbar-none">
             {suggestions.map((text) => (
               <button
                 key={text}
                 type="button"
-                className="smart-reply-chip"
+                className="smart-reply-chip shrink-0 whitespace-nowrap text-[11px] sm:text-xs px-2.5 py-1"
                 onClick={() => handleSelect(text)}
               >
                 {text}
