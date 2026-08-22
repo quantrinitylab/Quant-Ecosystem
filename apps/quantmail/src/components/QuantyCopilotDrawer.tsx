@@ -428,19 +428,28 @@ export function QuantyCopilotDrawer({
                     >
                       <p className="whitespace-pre-wrap">{m.text}</p>
 
-                      {m.role === 'assistant' && onInsertReply && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onInsertReply(m.text);
-                            onClose();
-                            showToast({ text: 'Inserted draft into reply', type: 'success' });
-                          }}
-                          className="mt-2.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-all"
-                        >
-                          <span>↩ Insert into reply</span>
-                        </button>
-                      )}
+                      {m.role === 'assistant' &&
+                        onInsertReply &&
+                        i > 0 &&
+                        messages[i - 1]?.role === 'user' &&
+                        (messages[i - 1].text.toLowerCase().includes('draft') ||
+                          messages[i - 1].text.toLowerCase().includes('write a reply') ||
+                          messages[i - 1].text.toLowerCase().includes('compose') ||
+                          messages[i - 1].text.toLowerCase().includes('formalize') ||
+                          messages[i - 1].text.toLowerCase().includes('उत्तर तैयार') ||
+                          messages[i - 1].text.toLowerCase().includes('reply to')) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onInsertReply(m.text);
+                              onClose();
+                              showToast({ text: 'Inserted draft into reply', type: 'success' });
+                            }}
+                            className="mt-2.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-all"
+                          >
+                            <span>↩ Insert into reply</span>
+                          </button>
+                        )}
                     </div>
                   </motion.div>
                 ))}

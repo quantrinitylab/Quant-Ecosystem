@@ -147,8 +147,7 @@ export default function ComposePage() {
             initialTo={draftData?.to ?? (prefillTo ? [{ email: prefillTo }] : undefined)}
             initialSubject={
               draftData?.subject ??
-              prefillSubject ??
-              (forwardId ? 'Fwd: ' : replyTo ? 'Re: ' : undefined)
+              (prefillSubject ? prefillSubject.replace(/^(Re:\s*)+/i, '').trim() : '')
             }
             initialBody={draftData?.body ?? prefillBody ?? undefined}
             inReplyTo={replyTo || undefined}

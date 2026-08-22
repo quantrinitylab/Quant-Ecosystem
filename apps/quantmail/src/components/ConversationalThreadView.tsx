@@ -8,7 +8,6 @@ import type { Email, EmailAttachment, EmailThread } from '../types';
 import { showToast } from './InboxToast';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
-import { SmartReplySuggestions } from './SmartReplySuggestions';
 import { QuantyCopilotDrawer } from './QuantyCopilotDrawer';
 import { Quanty } from './Quanty';
 
@@ -754,19 +753,6 @@ export function ConversationalThreadView({
 
       {/* Chatbot-Style Bottom Floating Quick Reply Bar */}
       <div className="p-3 sm:p-4 bg-[#08090d]/95 border-t border-zinc-800/90 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
-        {/* Smart Suggestions Chips */}
-        {primaryMessage && (
-          <SmartReplySuggestions
-            emailId={primaryMessage.id}
-            onSelectReply={(text) => {
-              setQuickReplyText(text);
-              setTimeout(() => {
-                document.getElementById('chatbot-reply-input')?.focus();
-              }, 50);
-            }}
-          />
-        )}
-
         {/* Pending Attachment Previews */}
         {pendingAttachments.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap px-2 py-1">
@@ -843,14 +829,33 @@ export function ConversationalThreadView({
             className="min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none px-1 sm:px-2 py-1.5"
           />
 
-          {/* Mail Button (Formerly Full Composer) */}
+          {/* Mail Button (Opens Full Corporate Composer with Prefilled To) */}
           <button
             type="button"
-            onClick={() =>
-              router.push(
-                `/compose?replyTo=${primaryMessage?.threadId || primaryMessage?.id || threadId}`,
-              )
-            }
+            onClick={() => {
+              const isOut =
+                primaryMessage &&
+                Boolean(
+                  (primaryMessage as any).isOutbound ||
+                  (primaryMessage as any).folder === 'SENT' ||
+                  (primaryMessage as any).folder === 'sent' ||
+                  (primaryMessage as any).folderType === 'SENT',
+                );
+              const recipientEmail = isOut
+                ? primaryMessage?.to?.[0]?.email || (primaryMessage as any)?.toAddresses?.[0] || ''
+                : primaryMessage?.from?.email || (primaryMessage as any)?.fromAddress || '';
+              const cleanSubject =
+                threadSubject?.replace(/^(Re:\s*)+/i, '').trim() ||
+                primaryMessage?.subject?.replace(/^(Re:\s*)+/i, '').trim() ||
+                '';
+              const params = new URLSearchParams();
+              if (recipientEmail) params.set('to', recipientEmail);
+              if (cleanSubject) params.set('subject', cleanSubject);
+              if (primaryMessage?.id || threadId) {
+                params.set('replyTo', primaryMessage?.id || threadId);
+              }
+              router.push(`/compose?${params.toString()}`);
+            }}
             className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 text-amber-400 text-xs font-semibold transition-all shrink-0 border border-zinc-700/70 shadow-sm active:scale-95"
             title="Open Full Mail Composer"
           >

@@ -415,10 +415,14 @@ export function AppShell({
         </>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col pb-14 md:pb-0">
+      <div
+        className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-14 md:pb-0'}`}
+      >
         {/* Top Header bar with Logo + Search in QuantMail */}
         {sidebar && (
-          <header className="flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--border)] bg-zinc-950/90 backdrop-blur px-3 md:px-5">
+          <header
+            className={`flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--border)] bg-zinc-950/90 backdrop-blur px-3 md:px-5 ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'hidden md:flex' : ''}`}
+          >
             {/* Left: Menu trigger + Brand Logo & Title */}
             <div className="flex items-center gap-3">
               <button
