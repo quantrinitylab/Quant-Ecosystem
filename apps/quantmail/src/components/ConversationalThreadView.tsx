@@ -91,54 +91,91 @@ export function ConversationalThreadView({
   // Fetch thread messages if not pre-populated or update when threadId changes
   useEffect(() => {
     let isMounted = true;
-    if (!threadId) return;
+    if (!threadId) {
+      setIsLoading(false);
+      return;
+    }
 
     if (initialEmails.length > 0) {
       setMessages(initialEmails);
-      setExpandedIndices(new Set([initialEmails.length - 1])); // Expand latest by default
+      setExpandedIndices(new Set([initialEmails.length - 1]));
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
-    apiClient
-      .getThread(threadId)
-      .then((res) => {
-        if (!isMounted) return;
-        if (res.success && res.data) {
-          const msgs = (res.data.messages || (res.data as any).emails || []) as Email[];
+
+    const loadData = async () => {
+      try {
+        // 1. Try fetching as thread
+        const threadRes = await apiClient.getThread(threadId).catch(() => null);
+        if (threadRes && threadRes.success && threadRes.data) {
+          const msgs = (threadRes.data.messages || (threadRes.data as any).emails || []) as Email[];
           if (msgs.length > 0) {
+            if (!isMounted) return;
             setMessages(msgs);
-            setThreadSubject(res.data.subject || msgs[0]?.subject || '(No Subject)');
-            setStarred(res.data.isStarred || false);
-            // Default: expand the latest message (or all if short thread)
+            setThreadSubject(threadRes.data.subject || msgs[0]?.subject || '(No Subject)');
+            setStarred(threadRes.data.isStarred || false);
             if (msgs.length <= 2) {
               setExpandedIndices(new Set(msgs.map((_, i) => i)));
             } else {
               setExpandedIndices(new Set([msgs.length - 1]));
             }
+            setIsLoading(false);
+            return;
           }
         }
-      })
-      .catch(() => {
-        // Fallback to single email fetch
-        apiClient
-          .getEmail(threadId)
-          .then((emailRes) => {
-            if (!isMounted) return;
-            if (emailRes.success && emailRes.data) {
-              const email = emailRes.data;
-              setMessages([email]);
-              setThreadSubject(email.subject || '(No Subject)');
-              setStarred(email.isStarred || false);
-              setExpandedIndices(new Set([0]));
+      } catch {
+        /* proceed to email fallback */
+      }
+
+      try {
+        // 2. Fallback: Fetch as single email
+        const emailRes = await apiClient.getEmail(threadId).catch(() => null);
+        if (emailRes && emailRes.success && emailRes.data) {
+          if (!isMounted) return;
+          const email = emailRes.data;
+          // If the email belongs to a thread, try fetching the full thread
+          if (email.threadId && email.threadId !== threadId) {
+            const fullThreadRes = await apiClient.getThread(email.threadId).catch(() => null);
+            if (fullThreadRes && fullThreadRes.success && fullThreadRes.data) {
+              const fullMsgs = (fullThreadRes.data.messages ||
+                (fullThreadRes.data as any).emails ||
+                []) as Email[];
+              if (fullMsgs.length > 0) {
+                setMessages(fullMsgs);
+                setThreadSubject(
+                  fullThreadRes.data.subject ||
+                    fullMsgs[0]?.subject ||
+                    email.subject ||
+                    '(No Subject)',
+                );
+                setStarred(fullThreadRes.data.isStarred || email.isStarred || false);
+                setExpandedIndices(
+                  new Set(fullMsgs.length <= 2 ? fullMsgs.map((_, i) => i) : [fullMsgs.length - 1]),
+                );
+                setIsLoading(false);
+                return;
+              }
             }
-          })
-          .catch(() => null);
-      })
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+          }
+          setMessages([email]);
+          setThreadSubject(email.subject || '(No Subject)');
+          setStarred(email.isStarred || false);
+          setExpandedIndices(new Set([0]));
+          setIsLoading(false);
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
+
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    };
+
+    void loadData();
 
     return () => {
       isMounted = false;

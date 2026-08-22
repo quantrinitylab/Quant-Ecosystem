@@ -7,8 +7,55 @@ import { ThreadService } from '../services/thread.service';
 import { OutboundDeliveryPipeline } from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
 import { formatEmailRecord } from '../lib/format-email';
+import { sendViaSes, isSesConfigured } from '../lib/ses-sender';
 
 const notifier = new CrossAppDispatcher('quantmail');
+
+async function transmitExternalViaSes(params: {
+  fromEmail: string;
+  fromName?: string;
+  toAddresses: string[];
+  ccAddresses?: string[];
+  bccAddresses?: string[];
+  subject: string;
+  bodyPlain?: string;
+  bodyHtml?: string;
+  logger?: any;
+}) {
+  if (!isSesConfigured()) return;
+  const isExternal = (addr: string) => {
+    if (!addr || typeof addr !== 'string') return false;
+    const domain = addr.split('@')[1]?.toLowerCase();
+    return domain && !['quantmail.in', 'quantrinity.in', 'quantchat.online'].includes(domain);
+  };
+
+  const externalTo = params.toAddresses.filter(isExternal);
+  const externalCc = params.ccAddresses?.filter(isExternal) ?? [];
+  const externalBcc = params.bccAddresses?.filter(isExternal) ?? [];
+
+  if (externalTo.length === 0 && externalCc.length === 0 && externalBcc.length === 0) {
+    return;
+  }
+
+  try {
+    const fromStr = params.fromName ? `${params.fromName} <${params.fromEmail}>` : params.fromEmail;
+    await sendViaSes({
+      from: fromStr,
+      to: externalTo.length > 0 ? externalTo : externalCc,
+      cc: externalTo.length > 0 ? externalCc : [],
+      bcc: externalBcc,
+      subject: params.subject,
+      bodyText: params.bodyPlain,
+      bodyHtml: params.bodyHtml,
+    });
+    params.logger?.info(
+      { to: externalTo, subject: params.subject },
+      'external SES transmission succeeded',
+    );
+  } catch (error) {
+    params.logger?.error({ err: error, to: externalTo }, 'external SES transmission failed');
+  }
+}
 
 // Recipients typed as a bare handle ("krish") or as "Name <a@b.com>" are
 // normalised to a real address before validation, so the composer no longer
@@ -133,14 +180,23 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
 
       // Notify recipients about the new email
       try {
-        notifier.notifyNewEmail(
-          parseResult.data.toAddresses,
-          userId,
-          parseResult.data.subject,
-          email.id,
-        );
-      } catch {
-        /* notification failure should not block email sending */
+        const me = await (prisma as any).user.findUnique({
+          where: { id: userId },
+          select: { email: true, username: true },
+        });
+        await transmitExternalViaSes({
+          fromEmail: me?.email || `${userId}@quantmail.in`,
+          fromName: me?.username || undefined,
+          toAddresses: parseResult.data.toAddresses,
+          ccAddresses: parseResult.data.ccAddresses,
+          bccAddresses: parseResult.data.bccAddresses,
+          subject: parseResult.data.subject,
+          bodyPlain: parseResult.data.bodyPlain,
+          bodyHtml: sanitizedHtml,
+          logger: request.log,
+        });
+      } catch (err) {
+        request.log.warn({ err }, 'direct SES send attempt failed');
       }
 
       return reply.status(201).send({ success: true, data: formatEmailRecord(sent) });
@@ -275,9 +331,23 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      notifier.notifyNewEmail(asArray(email.toAddresses), userId, email.subject, email.id);
-    } catch (error) {
-      request.log.warn({ err: error, emailId: email.id }, 'new-email notification failed');
+      const me = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, username: true },
+      });
+      await transmitExternalViaSes({
+        fromEmail: email.fromAddress || me?.email || `${userId}@quantmail.in`,
+        fromName: me?.username || undefined,
+        toAddresses: asArray(email.toAddresses),
+        ccAddresses: asArray(email.ccAddresses),
+        bccAddresses: asArray(email.bccAddresses),
+        subject: email.subject,
+        bodyPlain: email.bodyPlain ?? undefined,
+        bodyHtml: email.bodyHtml ?? undefined,
+        logger: request.log,
+      });
+    } catch (err) {
+      request.log.warn({ err }, 'direct SES send attempt in /:id/send failed');
     }
 
     return reply.status(202).send({
@@ -404,9 +474,16 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      notifier.notifyNewEmail(to, userId, subject, sent.id);
-    } catch {
-      /* notification failure should not block the reply */
+      await transmitExternalViaSes({
+        fromEmail: myEmail || `${userId}@quantmail.in`,
+        toAddresses: to,
+        ccAddresses: cc,
+        subject,
+        bodyPlain: parsed.data.body,
+        logger: request.log,
+      });
+    } catch (err) {
+      request.log.warn({ err }, 'direct SES send attempt in /:id/reply failed');
     }
 
     return reply.status(201).send({ success: true, data: sent });

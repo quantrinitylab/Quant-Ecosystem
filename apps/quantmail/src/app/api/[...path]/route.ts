@@ -35,6 +35,7 @@ const ALLOWED_BACKEND_ROUTES: Array<{ pattern: RegExp; methods: readonly string[
   { pattern: /^workspaces\/[^/]+\/invites\/[^/]+\/resend$/, methods: ['POST'] },
   { pattern: /^public\/invites\/[^/]+$/, methods: ['GET'] },
   { pattern: /^invites\/[^/]+\/accept$/, methods: ['POST'] },
+  { pattern: /^webhook\/inbound$/, methods: ['POST'] },
 ];
 
 const handle = async (

@@ -181,14 +181,19 @@ function Icon({ name, className = 'h-4 w-4' }: { name: IconName; className?: str
 
 const NAV_GROUPS: Array<{
   label: string;
-  items: Array<{ id: string; label: string; icon: IconName; path: string; shortcut?: string }>;
+  items: Array<{
+    id: string;
+    label: string;
+    icon: IconName;
+    path: string;
+    shortcut?: string;
+    desktopOnly?: boolean;
+  }>;
 }> = [
   {
     label: 'Mail',
     items: [
-      { id: 'inbox', label: 'Inbox', icon: 'inbox', path: '/' },
-      { id: 'snoozed', label: 'Snoozed', icon: 'clock', path: '/snoozed' },
-      { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
+      { id: 'inbox', label: 'Mail', icon: 'inbox', path: '/' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
       { id: 'archive', label: 'Archive', icon: 'archive', path: '/archive' },
       { id: 'spam', label: 'Spam', icon: 'spam', path: '/spam' },
@@ -196,20 +201,14 @@ const NAV_GROUPS: Array<{
     ],
   },
   {
-    label: 'Context',
+    label: 'Workspace',
     items: [
-      { id: 'calendar', label: 'Calendar', icon: 'calendar', path: '/calendar' },
-      { id: 'contacts', label: 'Contacts', icon: 'contacts', path: '/contacts' },
-      { id: 'drive', label: 'Drive', icon: 'drive', path: '/drive' },
+      { id: 'teams', label: 'Teams', icon: 'workspaces', path: '/workspaces' },
+      { id: 'calendar', label: 'Calendar', icon: 'calendar', path: '/calendar', desktopOnly: true },
+      { id: 'contacts', label: 'Contacts', icon: 'contacts', path: '/contacts', desktopOnly: true },
+      { id: 'drive', label: 'Drive', icon: 'drive', path: '/drive', desktopOnly: true },
+      { id: 'code', label: 'Code', icon: 'code', path: '/codehub', desktopOnly: true },
     ],
-  },
-  {
-    label: 'Team',
-    items: [{ id: 'workspaces', label: 'Workspaces', icon: 'workspaces', path: '/workspaces' }],
-  },
-  {
-    label: 'Code',
-    items: [{ id: 'code', label: 'Code', icon: 'code', path: '/codehub' }],
   },
   {
     label: 'Control',
@@ -398,7 +397,7 @@ export function AppSidebar() {
               {group.items.map((item) => {
                 const active = isActive(item.path);
                 return (
-                  <li key={item.id}>
+                  <li key={item.id} className={item.desktopOnly ? 'hidden md:block' : ''}>
                     <button
                       type="button"
                       onClick={() => router.push(item.path)}
