@@ -873,11 +873,14 @@ export default function InboxPage() {
       theme="dark"
       className="quantmail-shell"
       customHeader={selectedIds.size > 0 ? selectionHeader : undefined}
+      searchValue={searchQuery}
+      onSearchChange={setSearchQuery}
+      searchPlaceholder="Search in QuantMail (sender, subject, keyword)…"
       mobileActions={
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            className={`inline-flex size-9 items-center justify-center rounded-lg transition-colors ${
+            className={`md:hidden inline-flex size-9 items-center justify-center rounded-lg transition-colors ${
               isSearchOpen
                 ? 'bg-zinc-800 text-[#FF7A00]'
                 : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
@@ -918,7 +921,7 @@ export default function InboxPage() {
             </button>
           </header>
 
-          {/* Unified Expandable Search Dropdown Tab */}
+          {/* Unified Expandable Search Dropdown Tab (Mobile ONLY) */}
           <AnimatePresence>
             {isSearchOpen && (
               <motion.div
@@ -926,7 +929,7 @@ export default function InboxPage() {
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.18 }}
-                className="overflow-hidden border-b border-zinc-800/80 bg-zinc-950 px-3 sm:px-4 py-2.5 flex items-center gap-2"
+                className="md:hidden overflow-hidden border-b border-zinc-800/80 bg-zinc-950 px-3 sm:px-4 py-2.5 flex items-center gap-2"
               >
                 <div className="flex-1 flex items-center gap-2 bg-zinc-900/90 border border-zinc-700/80 rounded-xl px-3 py-1.5 shadow-inner">
                   <MailIcon name="search" className="size-4 text-zinc-400 shrink-0" />

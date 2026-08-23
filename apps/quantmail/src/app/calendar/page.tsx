@@ -1431,13 +1431,16 @@ export default function CalendarPage() {
       sidebar={<AppSidebar />}
       theme="dark"
       className="quantmail-shell"
+      searchValue={searchFilter}
+      onSearchChange={setSearchFilter}
+      searchPlaceholder="Search events, meetings, tasks, birthdays…"
       mobileActions={
         <div className="flex items-center gap-2">
-          {/* Search Button */}
+          {/* Search Button (Mobile ONLY — on desktop, search is in top header) */}
           <button
             type="button"
             onClick={() => setIsSearchOpen((prev) => !prev)}
-            className="size-8 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-800/80 transition-colors"
+            className="md:hidden size-8 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-800/80 transition-colors"
             aria-label="Search calendar"
           >
             <svg
@@ -1474,9 +1477,9 @@ export default function CalendarPage() {
       }
     >
       <PageTransition className="flex flex-col h-full bg-[#08080a] text-white relative">
-        {/* Search Bar on Mobile when toggled */}
+        {/* Search Bar on Mobile ONLY when toggled */}
         {isSearchOpen && (
-          <div className="border-b border-zinc-800/80 bg-zinc-950 px-4 py-2">
+          <div className="md:hidden border-b border-zinc-800/80 bg-zinc-950 px-4 py-2 flex items-center gap-2">
             <input
               type="search"
               placeholder="Search events, meetings, tasks, birthdays…"
@@ -1485,6 +1488,16 @@ export default function CalendarPage() {
               className="w-full bg-zinc-900/90 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
               autoFocus
             />
+            <button
+              type="button"
+              onClick={() => {
+                setIsSearchOpen(false);
+                setSearchFilter('');
+              }}
+              className="text-xs text-zinc-400 hover:text-white px-2 py-1"
+            >
+              Cancel
+            </button>
           </div>
         )}
 

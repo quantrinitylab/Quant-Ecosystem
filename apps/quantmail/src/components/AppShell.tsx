@@ -26,6 +26,9 @@ export interface AppShellProps {
   animated?: boolean;
   mobileTitle?: ReactNode;
   mobileActions?: ReactNode;
+  searchValue?: string;
+  onSearchChange?: (val: string) => void;
+  searchPlaceholder?: string;
   'aria-label'?: string;
 }
 
@@ -199,6 +202,9 @@ export function AppShell({
   animated = true,
   mobileTitle,
   mobileActions,
+  searchValue,
+  onSearchChange,
+  searchPlaceholder,
   'aria-label': ariaLabel = 'Application shell',
 }: AppShellProps) {
   const drawerId = useId();
@@ -469,18 +475,12 @@ export function AppShell({
                 </div>
               </div>
 
-              {/* Center: Search in QuantMail bar (Desktop) */}
+              {/* Center: Real Contextual Live Search Bar (Desktop) */}
               <div className="hidden md:flex flex-1 max-w-xl mx-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.dispatchEvent(new CustomEvent('quant:command-palette:open'));
-                  }}
-                  className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-400 hover:border-[#FF7A00]/50 hover:text-zinc-200 transition-all shadow-inner"
-                >
-                  <div className="flex items-center gap-2.5">
+                {onSearchChange ? (
+                  <div className="w-full flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 focus-within:border-[#FF7A00]/60 focus-within:ring-1 focus-within:ring-[#FF7A00]/30 transition-all shadow-inner">
                     <svg
-                      className="size-4 text-zinc-400"
+                      className="size-4 text-zinc-400 shrink-0"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -489,12 +489,62 @@ export function AppShell({
                       <circle cx="11" cy="11" r="7" />
                       <path d="m20 20-4-4" />
                     </svg>
-                    <span>Search in QuantMail…</span>
+                    <input
+                      type="search"
+                      value={searchValue ?? ''}
+                      onChange={(e) => onSearchChange(e.target.value)}
+                      placeholder={
+                        searchPlaceholder ||
+                        (currentApp === 'calendar'
+                          ? 'Search in QuantCalendar…'
+                          : currentApp === 'drive'
+                            ? 'Search in QuantDrive…'
+                            : currentApp === 'contacts'
+                              ? 'Search in QuantContacts…'
+                              : 'Search in QuantMail (sender, subject, keyword)…')
+                      }
+                      className="w-full bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                    />
+                    {searchValue && (
+                      <button
+                        type="button"
+                        onClick={() => onSearchChange('')}
+                        className="text-zinc-400 hover:text-white shrink-0 p-0.5"
+                        title="Clear search"
+                      >
+                        <svg
+                          className="size-3.5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    )}
+                    <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-mono text-zinc-500 border border-zinc-700/60 shrink-0">
+                      /
+                    </kbd>
                   </div>
-                  <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-mono text-zinc-400 border border-zinc-700">
-                    ⌘K
-                  </kbd>
-                </button>
+                ) : (
+                  <div className="w-full flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-400">
+                    <svg
+                      className="size-4 text-zinc-400 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <circle cx="11" cy="11" r="7" />
+                      <path d="m20 20-4-4" />
+                    </svg>
+                    <span>
+                      Search in Quant{currentApp.charAt(0).toUpperCase() + currentApp.slice(1)}…
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Right: Mobile Title / Actions */}
