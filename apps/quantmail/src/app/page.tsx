@@ -36,11 +36,11 @@ import type { Email, EmailCategory } from '../types';
 const TELEGRAM_CATEGORIES: Array<{ key: string; label: string }> = [
   { key: 'all', label: 'All' },
   { key: 'unread', label: 'Unread' },
-  { key: 'primary', label: 'Primary' },
-  { key: 'pinned', label: 'Pinned 📌' },
+  { key: 'contacts', label: 'Contacts' },
+  { key: 'groups', label: 'Groups' },
   { key: 'updates', label: 'Updates' },
   { key: 'promotions', label: 'Offers' },
-  { key: 'forums', label: 'Groups' },
+  { key: 'pinned', label: 'Pinned 📌' },
 ];
 
 type MailIconName =
@@ -474,17 +474,211 @@ function ReadingPane({
   );
 }
 
+function CreateGroupModal({
+  isOpen,
+  onClose,
+  onCreated,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreated: (groupName: string, members: string[]) => void;
+}) {
+  const [groupName, setGroupName] = useState('');
+  const [memberInput, setMemberInput] = useState('');
+  const [members, setMembers] = useState<string[]>([]);
+  const [error, setError] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleAddMember = () => {
+    const trimmed = memberInput.trim().toLowerCase();
+    if (!trimmed) return;
+    if (!trimmed.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+    if (members.includes(trimmed)) {
+      setError('Email already added');
+      return;
+    }
+    setMembers((prev) => [...prev, trimmed]);
+    setMemberInput('');
+    setError('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      handleAddMember();
+    }
+  };
+
+  const handleRemoveMember = (emailToRemove: string) => {
+    setMembers((prev) => prev.filter((m) => m !== emailToRemove));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!groupName.trim()) {
+      setError('Please enter a group name');
+      return;
+    }
+    const finalMembers = [...members];
+    if (
+      memberInput.trim() &&
+      memberInput.includes('@') &&
+      !finalMembers.includes(memberInput.trim().toLowerCase())
+    ) {
+      finalMembers.push(memberInput.trim().toLowerCase());
+    }
+    if (finalMembers.length === 0) {
+      setError('Please add at least one member email');
+      return;
+    }
+    onCreated(groupName.trim(), finalMembers);
+    setGroupName('');
+    setMembers([]);
+    setMemberInput('');
+    setError('');
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+      <div
+        className="w-full max-w-md bg-[#121622] border border-zinc-700/80 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="size-9 rounded-xl bg-[#FF7A00]/20 border border-[#FF7A00]/40 flex items-center justify-center text-[#FF7A00]">
+              <svg
+                className="size-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white">Create New Group</h2>
+              <p className="text-xs text-zinc-400">Group mailing list & shared conversation</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="size-8 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center transition-colors"
+          >
+            <MailIcon name="close" className="size-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+              Group Name <span className="text-[#FF7A00]">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Founders, Core Team, Project Alpha"
+              value={groupName}
+              onChange={(e) => {
+                setGroupName(e.target.value);
+                if (error) setError('');
+              }}
+              className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[#FF7A00]"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+              Add Members (Emails) <span className="text-[#FF7A00]">*</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="email"
+                placeholder="colleague@domain.com"
+                value={memberInput}
+                onChange={(e) => {
+                  setMemberInput(e.target.value);
+                  if (error) setError('');
+                }}
+                onKeyDown={handleKeyDown}
+                className="flex-1 bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[#FF7A00]"
+              />
+              <button
+                type="button"
+                onClick={handleAddMember}
+                className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-white transition-colors shrink-0"
+              >
+                + Add
+              </button>
+            </div>
+            {members.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2.5 max-h-28 overflow-y-auto">
+                {members.map((email) => (
+                  <span
+                    key={email}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800/90 border border-zinc-700 text-xs text-zinc-200"
+                  >
+                    <span>{email}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveMember(email)}
+                      className="text-zinc-400 hover:text-rose-400 ml-0.5 font-bold"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {error && <p className="text-xs text-rose-400 font-medium">{error}</p>}
+
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl bg-zinc-900 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-xs font-bold text-white shadow-lg shadow-orange-500/25 hover:opacity-95 transition-all"
+            >
+              Create Group & Compose
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function InboxPage() {
   const router = useRouter();
   const [activeCategoryTab, setActiveCategoryTab] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [showArchivedView, setShowArchivedView] = useState(false);
+  const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [selectedThread, setSelectedThread] = useState<ConversationThread | null>(null);
   const lastSelectedIndex = useRef<number>(-1);
-  const { data: allEmails, isLoading, error, refetch } = useInbox();
+  const { data: allEmails, isLoading, error, refetch } = useInbox({ folderType: 'INBOX' });
+  const { data: archivedEmails, refetch: refetchArchived } = useInbox({ folderType: 'ARCHIVE' });
   const { data: searchResults, isLoading: isSearching } = useSearchEmails(
     debouncedQuery ? { query: debouncedQuery } : null,
   );
@@ -497,37 +691,74 @@ export default function InboxPage() {
   const emails = debouncedQuery ? searchResults : allEmails;
   const allThreads = useMemo(() => groupEmailsIntoThreads(allEmails ?? []), [allEmails]);
   const threads = useMemo(() => groupEmailsIntoThreads(emails ?? []), [emails]);
+  const allArchivedThreads = useMemo(
+    () => groupEmailsIntoThreads(archivedEmails ?? []),
+    [archivedEmails],
+  );
+
+  const isContactThread = useCallback((t: ConversationThread) => {
+    const fromAddr = (
+      t.latestEmail.from?.email ||
+      (t.latestEmail as any).fromAddress ||
+      ''
+    ).toLowerCase();
+    const isAutomated =
+      /no-?reply|notification|alert|newsletter|marketing|updates?@|promo|mailer|support@|digest|bot@/i.test(
+        fromAddr,
+      );
+    return !isAutomated && (t.count <= 2 || t.category === 'primary');
+  }, []);
+
+  const isGroupThread = useCallback((t: ConversationThread) => {
+    if (t.category === 'forums') return true;
+    const msg = t.latestEmail;
+    const toCount = Array.isArray(msg.to) ? msg.to.length : 0;
+    const ccCount = Array.isArray(msg.cc) ? msg.cc.length : 0;
+    return toCount + ccCount > 1 || (msg as any).isGroup === true;
+  }, []);
+
+  const filterThreads = useCallback(
+    (list: ConversationThread[], tab: string) => {
+      if (tab === 'unread') return list.filter((t) => !t.isRead);
+      if (tab === 'pinned') return list.filter((t) => t.isStarred);
+      if (tab === 'contacts') return list.filter((t) => isContactThread(t));
+      if (tab === 'groups') return list.filter((t) => isGroupThread(t));
+      if (tab === 'updates') return list.filter((t) => t.category === 'updates');
+      if (tab === 'promotions') return list.filter((t) => t.category === 'promotions');
+      return list; // 'all'
+    },
+    [isContactThread, isGroupThread],
+  );
 
   const tabCounts = useMemo(() => {
     const counts: Record<string, number> = {
       all: allThreads.length,
       unread: allThreads.filter((t) => !t.isRead).length,
-      primary: allThreads.filter((t) => t.category === 'primary').length,
-      pinned: allThreads.filter((t) => t.isStarred).length,
+      contacts: allThreads.filter((t) => isContactThread(t)).length,
+      groups: allThreads.filter((t) => isGroupThread(t)).length,
       updates: allThreads.filter((t) => t.category === 'updates').length,
       promotions: allThreads.filter((t) => t.category === 'promotions').length,
-      forums: allThreads.filter((t) => t.category === 'forums').length,
+      pinned: allThreads.filter((t) => t.isStarred).length,
     };
     return counts;
-  }, [allThreads]);
+  }, [allThreads, isContactThread, isGroupThread]);
+
+  const currentArchivedThreads = useMemo(() => {
+    return filterThreads(allArchivedThreads, activeCategoryTab);
+  }, [allArchivedThreads, activeCategoryTab, filterThreads]);
 
   const displayThreads = useMemo(() => {
-    if (!threads) return [];
-    let list = threads;
-    if (activeCategoryTab === 'unread') {
-      list = list.filter((t) => !t.isRead);
-    } else if (activeCategoryTab === 'pinned') {
-      list = list.filter((t) => t.isStarred);
-    } else if (activeCategoryTab !== 'all') {
-      list = list.filter((t) => t.category === activeCategoryTab);
-    }
-    return [...list].sort((a, b) => {
+    const sourceThreads = showArchivedView
+      ? currentArchivedThreads
+      : filterThreads(threads ?? [], activeCategoryTab);
+
+    return [...sourceThreads].sort((a, b) => {
       if (a.isStarred !== b.isStarred) {
         return a.isStarred ? -1 : 1;
       }
       return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
     });
-  }, [threads, activeCategoryTab]);
+  }, [showArchivedView, currentArchivedThreads, threads, activeCategoryTab, filterThreads]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
@@ -679,7 +910,7 @@ export default function InboxPage() {
       }
       if (selectedEmail?.id === id) setSelectedEmail(null);
       showToast({
-        text: 'Conversation archived',
+        text: 'Conversation archived 📥',
         type: 'success',
         undoAction: async () => {
           const undoResponse = await apiClient.unarchiveEmail(id);
@@ -690,12 +921,12 @@ export default function InboxPage() {
             });
             return;
           }
-          await refetch();
+          await Promise.all([refetch(), refetchArchived()]);
         },
       });
-      await refetch();
+      await Promise.all([refetch(), refetchArchived()]);
     },
-    [refetch, selectedEmail],
+    [refetch, refetchArchived, selectedEmail],
   );
 
   const deleteEmail = useCallback(
@@ -876,6 +1107,9 @@ export default function InboxPage() {
       searchValue={searchQuery}
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search in QuantMail (sender, subject, keyword)…"
+      onFabClick={() =>
+        activeCategoryTab === 'groups' ? setIsCreateGroupModalOpen(true) : router.push('/compose')
+      }
       mobileActions={
         <div className="flex items-center gap-1.5">
           <button
@@ -916,8 +1150,17 @@ export default function InboxPage() {
                   : 'You are completely caught up.'}
               </p>
             </div>
-            <button type="button" className="hero-compose" onClick={() => router.push('/compose')}>
-              <MailIcon name="compose" /> New Message
+            <button
+              type="button"
+              className="hero-compose"
+              onClick={() =>
+                activeCategoryTab === 'groups'
+                  ? setIsCreateGroupModalOpen(true)
+                  : router.push('/compose')
+              }
+            >
+              <MailIcon name="compose" />{' '}
+              {activeCategoryTab === 'groups' ? 'Create Group' : 'New Message'}
             </button>
           </header>
 
@@ -967,7 +1210,7 @@ export default function InboxPage() {
           </AnimatePresence>
 
           {/* Telegram-Style Sleek Horizontal Category Pill Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto py-2.5 px-3 sm:px-4 no-scrollbar select-none border-b border-zinc-800/80 bg-[#0d1017]/80 backdrop-blur-md">
+          <div className="flex items-center gap-2 overflow-x-auto py-3 px-3 sm:px-4 no-scrollbar select-none border-b border-zinc-800/80 bg-[#0d1017]/95 backdrop-blur-md">
             {TELEGRAM_CATEGORIES.map((cat) => {
               const isActive = activeCategoryTab === cat.key;
               const count = tabCounts[cat.key] || 0;
@@ -975,8 +1218,11 @@ export default function InboxPage() {
                 <button
                   key={cat.key}
                   type="button"
-                  onClick={() => setActiveCategoryTab(cat.key)}
-                  className={`relative px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 ${
+                  onClick={() => {
+                    setActiveCategoryTab(cat.key);
+                    setShowArchivedView(false);
+                  }}
+                  className={`relative px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 ${
                     isActive
                       ? 'bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-white shadow-lg shadow-orange-500/25 font-bold scale-[1.02]'
                       : 'bg-zinc-900/80 hover:bg-zinc-800/90 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80'
@@ -1036,6 +1282,34 @@ export default function InboxPage() {
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
+            {/* WhatsApp-Style Archived Row at Top of List */}
+            {currentArchivedThreads.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowArchivedView((prev) => !prev)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-zinc-900/40 hover:bg-zinc-800/70 border-b border-zinc-800/80 transition-all select-none group text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="size-8 rounded-full bg-zinc-800/90 flex items-center justify-center text-zinc-400 group-hover:text-[#FF7A00] transition-colors">
+                    <MailIcon name="archive" className="size-4" />
+                  </div>
+                  <div className="flex flex-col text-left">
+                    <span className="text-sm font-semibold text-zinc-100 group-hover:text-white">
+                      {showArchivedView ? '‹ Back to Inbox' : 'Archived'}
+                    </span>
+                    <span className="text-[11px] text-zinc-400">
+                      {showArchivedView
+                        ? `Viewing archived ${activeCategoryTab === 'all' ? 'conversations' : activeCategoryTab}`
+                        : `${currentArchivedThreads.length} archived ${currentArchivedThreads.length === 1 ? 'conversation' : 'conversations'}`}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#FF7A00]/20 text-[#FF7A00] border border-[#FF7A00]/30">
+                  {currentArchivedThreads.length}
+                </span>
+              </button>
+            )}
+
             {(isLoading || isSearching) && (
               <div className="mail-loading">
                 {Array.from({ length: 6 }, (_, index) => (
@@ -1144,6 +1418,21 @@ export default function InboxPage() {
         isOpen={isGlobalQuantyOpen}
         onClose={() => setIsGlobalQuantyOpen(false)}
         isInboxContext={true}
+      />
+
+      <CreateGroupModal
+        isOpen={isCreateGroupModalOpen}
+        onClose={() => setIsCreateGroupModalOpen(false)}
+        onCreated={(groupName, members) => {
+          setIsCreateGroupModalOpen(false);
+          showToast({
+            text: `Group "${groupName}" created with ${members.length} members! 👥`,
+            type: 'success',
+          });
+          router.push(
+            `/compose?to=${encodeURIComponent(members.join(','))}&subject=${encodeURIComponent(`[${groupName}] `)}`,
+          );
+        }}
       />
     </AppShell>
   );

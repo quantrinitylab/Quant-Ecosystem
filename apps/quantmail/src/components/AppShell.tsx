@@ -29,6 +29,7 @@ export interface AppShellProps {
   searchValue?: string;
   onSearchChange?: (val: string) => void;
   searchPlaceholder?: string;
+  onFabClick?: () => void;
   'aria-label'?: string;
 }
 
@@ -205,6 +206,7 @@ export function AppShell({
   searchValue,
   onSearchChange,
   searchPlaceholder,
+  onFabClick,
   'aria-label': ariaLabel = 'Application shell',
 }: AppShellProps) {
   const drawerId = useId();
@@ -317,6 +319,10 @@ export function AppShell({
 
   // Contextual FAB Action Handler
   const handleFabClick = () => {
+    if (onFabClick) {
+      onFabClick();
+      return;
+    }
     if (pathname.startsWith('/calendar')) {
       window.dispatchEvent(new CustomEvent('quant:calendar:create'));
     } else if (pathname.startsWith('/drive')) {
