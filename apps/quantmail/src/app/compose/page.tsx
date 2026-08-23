@@ -151,7 +151,11 @@ export default function ComposePage() {
   );
 
   const handleDiscard = useCallback(() => {
-    router.push('/');
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
   }, [router]);
 
   const handleAIAssist = useCallback(
@@ -171,34 +175,29 @@ export default function ComposePage() {
     [],
   );
 
+  if (draftLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0d1017] text-zinc-400 text-sm">
+        <p>Loading draft…</p>
+      </div>
+    );
+  }
+
   return (
-    <AppShell
-      sidebar={<AppSidebar />}
-      theme="dark"
-      className="quantmail-shell"
-      aria-label="Compose a QuantMail message"
-    >
-      <PageTransition className="compose-page">
-        {draftLoading ? (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-[var(--quant-muted-foreground)]">Loading draft…</p>
-          </div>
-        ) : (
-          <EmailComposer
-            initialTo={draftData?.to ?? (prefillTo ? [{ email: prefillTo }] : undefined)}
-            initialSubject={
-              draftData?.subject ??
-              (prefillSubject ? prefillSubject.replace(/^(Re:\s*)+/i, '').trim() : '')
-            }
-            initialBody={draftData?.body ?? prefillBody ?? undefined}
-            inReplyTo={replyTo || undefined}
-            onSend={handleSend}
-            onSaveDraft={handleSaveDraft}
-            onDiscard={handleDiscard}
-            onAIAssist={handleAIAssist}
-          />
-        )}
-      </PageTransition>
-    </AppShell>
+    <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#0d1017]">
+      <EmailComposer
+        initialTo={draftData?.to ?? (prefillTo ? [{ email: prefillTo }] : undefined)}
+        initialSubject={
+          draftData?.subject ??
+          (prefillSubject ? prefillSubject.replace(/^(Re:\s*)+/i, '').trim() : '')
+        }
+        initialBody={draftData?.body ?? prefillBody ?? undefined}
+        inReplyTo={replyTo || undefined}
+        onSend={handleSend}
+        onSaveDraft={handleSaveDraft}
+        onDiscard={handleDiscard}
+        onAIAssist={handleAIAssist}
+      />
+    </div>
   );
 }

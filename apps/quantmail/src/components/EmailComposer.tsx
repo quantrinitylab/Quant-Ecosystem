@@ -96,6 +96,17 @@ export function EmailComposer({
 }: EmailComposerProps) {
   const router = useRouter();
 
+  // Back Navigation Helper (Back exactly 1 page in history)
+  const handleBack = () => {
+    if (onDiscard) {
+      onDiscard();
+    } else if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
+  };
+
   // Core Fields
   const formattedInitialTo = useMemo(() => {
     if (Array.isArray(initialTo)) {
@@ -286,11 +297,7 @@ export function EmailComposer({
         type: 'success',
       });
 
-      if (onDiscard) {
-        onDiscard();
-      } else {
-        router.push('/');
-      }
+      handleBack();
     } catch (err: any) {
       showToast({ text: err.message || 'Failed to send message', type: 'error' });
     } finally {
@@ -385,15 +392,15 @@ export function EmailComposer({
   const busy = isSending || isSaving;
 
   return (
-    <div className="flex flex-col h-full w-full min-h-screen max-w-full bg-[#0d1017] text-white select-text overflow-x-hidden box-border">
+    <div className="flex flex-col h-[100dvh] max-h-[100dvh] w-full max-w-full bg-[#0d1017] text-white select-text overflow-hidden box-border">
       {/* Top Header Bar */}
       <div className="flex items-center justify-between px-3 sm:px-5 py-3 border-b border-zinc-800/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
-            onClick={onDiscard || (() => router.back())}
+            onClick={handleBack}
             className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
-            title="Back / Discard"
+            title="Back (1 page)"
           >
             <svg
               className="size-4"
@@ -408,16 +415,16 @@ export function EmailComposer({
           <span className="text-sm font-semibold text-white tracking-wide">New message</span>
         </div>
 
-        {/* Header Right Group: Clean Quanty Robot, Three-Dots Menu, Close */}
+        {/* Header Right Group: Mobile Quanty Robot, Three-Dots Menu, Close */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Clean Quanty Robot (Larger, No Yellow Badge) */}
+          {/* Mobile Quanty Robot (Shown only on mobile screens) */}
           <button
             type="button"
             onClick={() => setIsQuantyDrawerOpen(true)}
-            className="p-1.5 rounded-xl hover:bg-zinc-800 text-amber-400 hover:text-amber-300 transition-all flex items-center gap-1.5"
+            className="flex sm:hidden p-1.5 rounded-xl hover:bg-zinc-800 text-amber-400 hover:text-amber-300 transition-all items-center gap-1.5"
             title="Open Quanty AI Copilot"
           >
-            <Quanty size={26} expression="happy" bob={false} />
+            <Quanty size={24} expression="happy" bob={false} />
           </button>
 
           {/* Three-Dots Menu Dropdown */}
@@ -507,7 +514,7 @@ export function EmailComposer({
                   <button
                     type="button"
                     onClick={() => {
-                      onDiscard?.();
+                      handleBack();
                       setShowThreeDotsMenu(false);
                     }}
                     className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-rose-400 hover:bg-rose-500/10"
@@ -530,7 +537,7 @@ export function EmailComposer({
 
           <button
             type="button"
-            onClick={onDiscard || (() => router.back())}
+            onClick={handleBack}
             className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
             title="Close"
           >
@@ -539,8 +546,8 @@ export function EmailComposer({
         </div>
       </div>
 
-      {/* Main Composer Scrollable Body */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border">
+      {/* Main Composer Scrollable Body (Only body scrolls if content is large) */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border">
         {/* Recipient Rows (To, Cc, Bcc) */}
         <div className="border-b border-zinc-800/80 pb-2 space-y-2 w-full max-w-full">
           {/* To: Row */}
@@ -1094,9 +1101,9 @@ export function EmailComposer({
         )}
       </AnimatePresence>
 
-      {/* Bottom Unified Action Toolbar (Gmail / Superhuman Style) */}
-      <div className="flex items-center justify-between px-3 sm:px-5 py-3 border-t border-zinc-800/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
-        {/* Left Toolbar Group */}
+      {/* Bottom Unified Action Toolbar (Pinned at bottom, never pushed down) */}
+      <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 border-t border-zinc-800/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
+        {/* Left Toolbar Group: Send + Dropup, Formatting, Attach, Link, Drive, Discard, Desktop Quanty */}
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Primary Send Button with Dropup Menu for Save draft & Schedule send */}
           <div className="relative flex items-center rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] shadow-lg">
@@ -1256,13 +1263,11 @@ export function EmailComposer({
               <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
             </svg>
           </button>
-        </div>
 
-        {/* Right Toolbar Group: Discard Draft Trash Button */}
-        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Discard Draft Trash Button (Right next to QuantDrive) */}
           <button
             type="button"
-            onClick={onDiscard || (() => router.back())}
+            onClick={handleBack}
             className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-zinc-900 transition-all"
             title="Discard draft"
           >
@@ -1276,10 +1281,21 @@ export function EmailComposer({
               <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
             </svg>
           </button>
+
+          {/* Desktop Quanty Copilot Robot (Shown next to Discard on desktop) */}
+          <button
+            type="button"
+            onClick={() => setIsQuantyDrawerOpen(true)}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs font-semibold transition-all ml-1"
+            title="Open Quanty AI Copilot"
+          >
+            <Quanty size={20} expression="happy" bob={false} />
+            <span>Quanty AI</span>
+          </button>
         </div>
       </div>
 
-      {/* Schedule Send Modal (Interactive Calendar & Google-Style Clock) */}
+      {/* Schedule Send Modal (Interactive Calendar with Swipe & Google-Style Clock Dial) */}
       <ScheduleSendModal
         isOpen={showScheduleModal}
         onClose={() => setShowScheduleModal(false)}
