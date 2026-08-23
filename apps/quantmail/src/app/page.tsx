@@ -33,10 +33,12 @@ import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { apiClient } from '../services/api-client';
 import type { Email, EmailCategory } from '../types';
 
-const CATEGORIES: Array<{ key: EmailCategory; label: string }> = [
-  { key: 'primary', label: 'Focus' },
+const TELEGRAM_CATEGORIES: Array<{ key: string; label: string }> = [
+  { key: 'all', label: 'All' },
+  { key: 'unread', label: 'Unread' },
+  { key: 'primary', label: 'Primary' },
+  { key: 'pinned', label: 'Pinned 📌' },
   { key: 'updates', label: 'Updates' },
-  { key: 'social', label: 'People' },
   { key: 'promotions', label: 'Offers' },
   { key: 'forums', label: 'Groups' },
 ];
@@ -48,6 +50,7 @@ type MailIconName =
   | 'mail'
   | 'search'
   | 'star'
+  | 'pin'
   | 'trash'
   | 'reply'
   | 'forward'
@@ -83,6 +86,12 @@ function MailIcon({ name, className = 'h-4 w-4' }: { name: MailIconName; classNa
       </>
     ),
     star: <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />,
+    pin: (
+      <>
+        <line x1="12" y1="17" x2="12" y2="22" />
+        <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
+      </>
+    ),
     trash: (
       <>
         <path d="M3 6h18" />
@@ -360,16 +369,30 @@ function EmailRow({
             />
           )}
         </AnimatePresence>
-        {/* Star button only (no snooze clutter) */}
+        {/* Pin button */}
         {!isHovered && (
           <button
             type="button"
-            className={`mail-star ${email.isStarred ? 'is-starred' : ''}`}
+            className={`p-1.5 rounded-xl transition-all ${
+              email.isStarred
+                ? 'text-amber-400 fill-amber-400 bg-amber-500/15'
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
+            }`}
             onClick={onToggleStar}
-            aria-label={email.isStarred ? 'Unstar email' : 'Star email'}
+            aria-label={email.isStarred ? 'Unpin email' : 'Pin email'}
             aria-pressed={email.isStarred}
+            title={email.isStarred ? 'Pinned to top' : 'Pin to top'}
           >
-            <MailIcon name="star" />
+            <svg
+              className="size-4"
+              viewBox="0 0 24 24"
+              fill={email.isStarred ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <line x1="12" y1="17" x2="12" y2="22" />
+              <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
+            </svg>
           </button>
         )}
       </motion.article>
@@ -453,14 +476,14 @@ function ReadingPane({
 
 export default function InboxPage() {
   const router = useRouter();
-  const [activeCategory, setActiveCategory] = useState<EmailCategory>('primary');
+  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [selectedThread, setSelectedThread] = useState<ConversationThread | null>(null);
   const lastSelectedIndex = useRef<number>(-1);
-  const { data: allEmails, isLoading, error, refetch } = useInbox({ category: activeCategory });
+  const { data: allEmails, isLoading, error, refetch } = useInbox();
   const { data: searchResults, isLoading: isSearching } = useSearchEmails(
     debouncedQuery ? { query: debouncedQuery } : null,
   );
@@ -473,6 +496,37 @@ export default function InboxPage() {
   const emails = debouncedQuery ? searchResults : allEmails;
   const allThreads = useMemo(() => groupEmailsIntoThreads(allEmails ?? []), [allEmails]);
   const threads = useMemo(() => groupEmailsIntoThreads(emails ?? []), [emails]);
+
+  const tabCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: allThreads.length,
+      unread: allThreads.filter((t) => !t.isRead).length,
+      primary: allThreads.filter((t) => t.category === 'primary').length,
+      pinned: allThreads.filter((t) => t.isStarred).length,
+      updates: allThreads.filter((t) => t.category === 'updates').length,
+      promotions: allThreads.filter((t) => t.category === 'promotions').length,
+      forums: allThreads.filter((t) => t.category === 'forums').length,
+    };
+    return counts;
+  }, [allThreads]);
+
+  const displayThreads = useMemo(() => {
+    if (!threads) return [];
+    let list = threads;
+    if (activeCategoryTab === 'unread') {
+      list = list.filter((t) => !t.isRead);
+    } else if (activeCategoryTab === 'pinned') {
+      list = list.filter((t) => t.isStarred);
+    } else if (activeCategoryTab !== 'all') {
+      list = list.filter((t) => t.category === activeCategoryTab);
+    }
+    return [...list].sort((a, b) => {
+      if (a.isStarred !== b.isStarred) {
+        return a.isStarred ? -1 : 1;
+      }
+      return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
+    });
+  }, [threads, activeCategoryTab]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
@@ -800,65 +854,117 @@ export default function InboxPage() {
             </button>
           </div>
 
-          <nav className="inbox-categories" aria-label="Inbox categories">
-            {CATEGORIES.map((category) => (
-              <button
-                key={category.key}
-                type="button"
-                onClick={() => setActiveCategory(category.key)}
-                className={activeCategory === category.key ? 'is-active' : ''}
-                aria-current={activeCategory === category.key ? 'page' : undefined}
-              >
-                {category.label}
-                {categoryCounts[category.key] ? <span>{categoryCounts[category.key]}</span> : null}
-              </button>
-            ))}
-          </nav>
+          {/* Telegram-Style Sleek Horizontal Category Pill Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto py-2.5 px-3 sm:px-4 no-scrollbar select-none border-b border-zinc-800/80 bg-[#0d1017]/80 backdrop-blur-md">
+            {TELEGRAM_CATEGORIES.map((cat) => {
+              const isActive = activeCategoryTab === cat.key;
+              const count = tabCounts[cat.key] || 0;
+              return (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => setActiveCategoryTab(cat.key)}
+                  className={`relative px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-white shadow-lg shadow-orange-500/25 font-bold scale-[1.02]'
+                      : 'bg-zinc-900/80 hover:bg-zinc-800/90 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80'
+                  }`}
+                >
+                  <span>{cat.label}</span>
+                  {count > 0 && (
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold leading-tight ${
+                        isActive
+                          ? 'bg-white/30 text-white'
+                          : 'bg-zinc-800 text-zinc-400 border border-zinc-700/50'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
+          {/* WhatsApp-Style Multi-Select Floating Top Action Bar */}
           <AnimatePresence initial={false}>
             {selectedIds.size > 0 && (
               <motion.div
-                className="batch-toolbar"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
+                initial={{ height: 0, opacity: 0, y: -10 }}
+                animate={{ height: 'auto', opacity: 1, y: 0 }}
+                exit={{ height: 0, opacity: 0, y: -10 }}
+                transition={{ duration: 0.18 }}
+                className="sticky top-0 z-30 flex items-center justify-between px-3 sm:px-4 py-2 bg-[#121622] border-b border-zinc-800 shadow-xl"
               >
-                <strong>{selectedIds.size} selected</strong>
-                <button type="button" onClick={() => void batchAction('archive')}>
-                  Archive
-                </button>
-                <button type="button" onClick={() => void batchAction('delete')}>
-                  Delete
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await Promise.all(Array.from(selectedIds, (id) => apiClient.markAsRead(id)));
-                    setSelectedIds(new Set());
-                    showToast({ text: `${selectedIds.size} marked as read`, type: 'info' });
-                    await refetch();
-                  }}
-                >
-                  Mark read
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await Promise.all(Array.from(selectedIds, (id) => apiClient.markAsUnread(id)));
-                    setSelectedIds(new Set());
-                    showToast({ text: `${selectedIds.size} marked as unread`, type: 'info' });
-                    await refetch();
-                  }}
-                >
-                  Mark unread
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedIds(new Set())}
-                  aria-label="Clear selection"
-                >
-                  <MailIcon name="close" />
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIds(new Set())}
+                    className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+                    title="Clear selection"
+                  >
+                    <MailIcon name="close" className="size-4" />
+                  </button>
+                  <strong className="text-sm font-bold text-white tracking-wide">
+                    {selectedIds.size}
+                  </strong>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  {/* Pin / Unpin */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await Promise.all(Array.from(selectedIds, (id) => apiClient.toggleStar(id)));
+                      setSelectedIds(new Set());
+                      showToast({
+                        text: 'Updated pin status for selected messages 📌',
+                        type: 'success',
+                      });
+                      await refetch();
+                    }}
+                    className="p-2 rounded-xl text-zinc-300 hover:text-amber-400 hover:bg-zinc-800 transition-all"
+                    title="Pin / Unpin to top"
+                  >
+                    <MailIcon name="pin" className="size-4" />
+                  </button>
+
+                  {/* Delete */}
+                  <button
+                    type="button"
+                    onClick={() => void batchAction('delete')}
+                    className="p-2 rounded-xl text-zinc-300 hover:text-rose-400 hover:bg-zinc-800 transition-all"
+                    title="Delete"
+                  >
+                    <MailIcon name="trash" className="size-4" />
+                  </button>
+
+                  {/* Mark Read */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await Promise.all(Array.from(selectedIds, (id) => apiClient.markAsRead(id)));
+                      setSelectedIds(new Set());
+                      showToast({ text: `${selectedIds.size} marked as read`, type: 'info' });
+                      await refetch();
+                    }}
+                    className="p-2 rounded-xl text-zinc-300 hover:text-sky-400 hover:bg-zinc-800 transition-all"
+                    title="Mark as read"
+                  >
+                    <MailIcon name="mail" className="size-4" />
+                  </button>
+
+                  {/* Archive */}
+                  <button
+                    type="button"
+                    onClick={() => void batchAction('archive')}
+                    className="p-2 rounded-xl text-zinc-300 hover:text-emerald-400 hover:bg-zinc-800 transition-all"
+                    title="Archive"
+                  >
+                    <MailIcon name="archive" className="size-4" />
+                  </button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -945,35 +1051,41 @@ export default function InboxPage() {
               ) : (
                 <InboxZeroState />
               ))}
-            {!isLoading && !isSearching && !error && threads && threads.length > 0 && (
-              <motion.div
-                initial="hidden"
-                animate="visible"
-                variants={{ visible: { transition: { staggerChildren: 0.025 } } }}
-              >
-                {threads.map((thread, index) => (
-                  <motion.div
-                    key={thread.id}
-                    variants={{ hidden: { opacity: 0, y: 5 }, visible: { opacity: 1, y: 0 } }}
-                  >
-                    <EmailRow
-                      thread={thread}
-                      isChecked={selectedIds.has(thread.id)}
-                      isActive={selectedEmail?.id === thread.id || selectedThread?.id === thread.id}
-                      isFocused={focusedIndex === index}
-                      onToggleSelect={() => toggleSelect(thread.id)}
-                      onToggleStar={(event) => void toggleStar(event, thread.id)}
-                      onOpen={() => openEmail(thread.latestEmail, thread)}
-                      onArchive={() => void archiveEmail(thread.id)}
-                      onDelete={() => void deleteEmail(thread.id)}
-                      onMarkRead={() => void markRead(thread.id)}
-                      onMarkUnread={() => void markUnread(thread.id)}
-                      onSnooze={snoozeEmail}
-                    />
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
+            {!isLoading &&
+              !isSearching &&
+              !error &&
+              displayThreads &&
+              displayThreads.length > 0 && (
+                <motion.div
+                  initial="hidden"
+                  animate="visible"
+                  variants={{ visible: { transition: { staggerChildren: 0.025 } } }}
+                >
+                  {displayThreads.map((thread, index) => (
+                    <motion.div
+                      key={thread.id}
+                      variants={{ hidden: { opacity: 0, y: 5 }, visible: { opacity: 1, y: 0 } }}
+                    >
+                      <EmailRow
+                        thread={thread}
+                        isChecked={selectedIds.has(thread.id)}
+                        isActive={
+                          selectedEmail?.id === thread.id || selectedThread?.id === thread.id
+                        }
+                        isFocused={focusedIndex === index}
+                        onToggleSelect={() => toggleSelect(thread.id)}
+                        onToggleStar={(event) => void toggleStar(event, thread.id)}
+                        onOpen={() => openEmail(thread.latestEmail, thread)}
+                        onArchive={() => void archiveEmail(thread.id)}
+                        onDelete={() => void deleteEmail(thread.id)}
+                        onMarkRead={() => void markRead(thread.id)}
+                        onMarkUnread={() => void markUnread(thread.id)}
+                        onSnooze={snoozeEmail}
+                      />
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
           </div>
           <footer className="inbox-list-footer">
             <span>

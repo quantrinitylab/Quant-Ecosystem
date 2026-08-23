@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Quanty } from './Quanty';
@@ -77,6 +77,27 @@ const TEXT_COLORS = [
   { id: 'zinc', color: '#a1a1aa', label: 'Muted' },
 ];
 
+const SMART_PREDICTIONS: Array<{ regex: RegExp; suggestion: string }> = [
+  { regex: /\bhow\s*$/i, suggestion: ' are you doing?' },
+  { regex: /\bhow are\s*$/i, suggestion: ' you doing today?' },
+  { regex: /\bhope this\s*$/i, suggestion: ' email finds you well.' },
+  { regex: /\bhope all\s*$/i, suggestion: ' is well with you.' },
+  { regex: /\bthank you\s*$/i, suggestion: ' for your time and assistance.' },
+  { regex: /\bthanks for\s*$/i, suggestion: ' reaching out.' },
+  { regex: /\bplease find\s*$/i, suggestion: ' attached the required details.' },
+  { regex: /\bplease let\s*$/i, suggestion: ' me know if you have any questions.' },
+  { regex: /\blet me\s*$/i, suggestion: ' know if you have any questions.' },
+  { regex: /\blooking forward\s*$/i, suggestion: ' to hearing from you soon.' },
+  { regex: /\bcould you\s*$/i, suggestion: ' please provide an update on this?' },
+  { regex: /\bsorry for\s*$/i, suggestion: ' the delay in getting back to you.' },
+  { regex: /\bi would like\s*$/i, suggestion: ' to follow up regarding our discussion.' },
+  { regex: /\bi am writing\s*$/i, suggestion: ' to inquire about the current status.' },
+  { regex: /\bas discussed\s*$/i, suggestion: ', please find the updated document below.' },
+  { regex: /\bfeel free to\s*$/i, suggestion: ' reach out if you have any questions.' },
+  { regex: /\bhave a great\s*$/i, suggestion: ' day ahead.' },
+  { regex: /\bhave a wonderful\s*$/i, suggestion: ' weekend.' },
+];
+
 function formatFileSize(bytes: number): string {
   if (!bytes || bytes === 0) return '0 B';
   const k = 1024;
@@ -140,6 +161,30 @@ export function EmailComposer({
   const [signoff, setSignoff] = useState('Best regards,');
   const [senderName, setSenderName] = useState(authUser?.displayName || 'Kundan Kumar');
   const [customDetails, setCustomDetails] = useState<string[]>([]);
+
+  // Smart Compose Prediction Logic
+  const activePrediction = useMemo(() => {
+    if (!body || body.length < 2) return '';
+    const trimmed = body.trimEnd();
+    for (const item of SMART_PREDICTIONS) {
+      if (item.regex.test(trimmed)) {
+        return item.suggestion;
+      }
+    }
+    return '';
+  }, [body]);
+
+  const acceptPrediction = useCallback(() => {
+    if (!activePrediction) return;
+    setBody((prev) => prev.trimEnd() + activePrediction + ' ');
+  }, [activePrediction]);
+
+  const handleBodyKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab' && activePrediction) {
+      e.preventDefault();
+      acceptPrediction();
+    }
+  };
 
   // Attachments
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -705,6 +750,7 @@ export function EmailComposer({
               ref={bodyTextareaRef}
               value={body}
               onChange={(e) => setBody(e.target.value)}
+              onKeyDown={handleBodyKeyDown}
               placeholder="Write your core message, details, deliverables, action items, or bullet points here..."
               rows={8}
               style={{
@@ -718,6 +764,25 @@ export function EmailComposer({
               }}
               className={`w-full max-w-full box-border bg-zinc-950/40 border border-zinc-800/80 rounded-2xl p-3.5 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 resize-y leading-relaxed shadow-inner`}
             />
+
+            {/* Smart Compose Predictive Autocomplete Chip */}
+            {activePrediction && (
+              <div
+                onClick={acceptPrediction}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs shadow-md cursor-pointer hover:bg-amber-500/20 transition-all select-none"
+              >
+                <span className="text-[10px] font-black uppercase text-amber-400 bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 rounded-md">
+                  Tab ⇥
+                </span>
+                <span className="text-zinc-300 text-xs">
+                  Next word suggestion:{' '}
+                  <strong className="text-amber-300 font-semibold">{activePrediction}</strong>
+                </span>
+                <span className="ml-auto text-[10px] text-amber-400 font-medium underline">
+                  Tap to apply
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Closing Row */}
@@ -1294,15 +1359,14 @@ export function EmailComposer({
             </svg>
           </button>
 
-          {/* Desktop Quanty Copilot Robot (Shown next to Discard on desktop) */}
+          {/* Desktop Quanty Copilot Robot (Shown next to Discard on desktop - Icon only) */}
           <button
             type="button"
             onClick={() => setIsQuantyDrawerOpen(true)}
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs font-semibold transition-all ml-1"
+            className="hidden sm:flex p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all ml-0.5 items-center justify-center"
             title="Open Quanty AI Copilot"
           >
             <Quanty size={20} expression="happy" bob={false} />
-            <span>Quanty AI</span>
           </button>
         </div>
       </div>

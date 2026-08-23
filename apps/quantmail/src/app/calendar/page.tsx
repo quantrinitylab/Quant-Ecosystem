@@ -6,6 +6,8 @@ import { Button, Modal, Skeleton, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
+import { Quanty } from '../../components/Quanty';
+import { QuantyCopilotDrawer } from '../../components/QuantyCopilotDrawer';
 import { useCalendarEvents, useCreateEvent, useDeleteEvent } from '../../hooks/useCalendar';
 import { useAuth } from '../../providers/auth-provider';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
@@ -518,6 +520,7 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventLike | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isQuantyDrawerOpen, setIsQuantyDrawerOpen] = useState(false);
 
   // Selector sheets / modals
   const [isTimezoneModalOpen, setIsTimezoneModalOpen] = useState(false);
@@ -868,7 +871,7 @@ export default function CalendarPage() {
     scrollToDate(now);
   }, [scrollToDate]);
 
-  const COLLAPSED_HEIGHT = 104;
+  const COLLAPSED_HEIGHT = 114;
   const EXPANDED_HEIGHT = 336;
 
   const [isDragging, setIsDragging] = useState(false);
@@ -1429,24 +1432,8 @@ export default function CalendarPage() {
       theme="dark"
       className="quantmail-shell"
       mobileActions={
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setIsMonthExpanded((prev) => !prev)}
-            className="md:hidden flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg border border-zinc-800 bg-zinc-900/80 text-zinc-200 hover:text-[#ff9933] transition-colors"
-          >
-            <span>{activeMonthName}</span>
-            <svg
-              className={`size-3 text-[#ff9933] transition-transform duration-200 ${isMonthExpanded ? 'rotate-180' : ''}`}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-            >
-              <path d="m6 9 6 6 6-6" />
-            </svg>
-          </button>
-
+        <div className="flex items-center gap-2">
+          {/* Search Button */}
           <button
             type="button"
             onClick={() => setIsSearchOpen((prev) => !prev)}
@@ -1465,10 +1452,21 @@ export default function CalendarPage() {
             </svg>
           </button>
 
+          {/* Quanty Copilot Robot Icon Button */}
+          <button
+            type="button"
+            onClick={() => setIsQuantyDrawerOpen(true)}
+            className="p-1 rounded-xl hover:bg-zinc-800 text-amber-400 hover:text-amber-300 transition-all flex items-center justify-center"
+            title="Open Quanty AI Copilot"
+          >
+            <Quanty size={22} expression="happy" bob={false} />
+          </button>
+
+          {/* Today Button */}
           <button
             type="button"
             onClick={goToday}
-            className="px-2.5 py-1 text-xs font-bold rounded-lg border border-[#ff9933]/40 bg-[#ff9933]/15 text-[#ff9933] hover:bg-[#ff9933]/25 transition-all active:scale-95"
+            className="px-3 py-1 text-xs font-bold rounded-xl border border-[#ff9933]/40 bg-gradient-to-r from-[#ff9933]/20 to-[#fbbf24]/10 text-[#ff9933] hover:from-[#ff9933]/30 hover:to-[#fbbf24]/20 shadow-[0_0_15px_rgba(255,153,51,0.25)] transition-all active:scale-95"
           >
             Today
           </button>
@@ -3694,6 +3692,12 @@ export default function CalendarPage() {
             </div>
           </Modal>
         )}
+
+        {/* Quanty AI Copilot Drawer */}
+        <QuantyCopilotDrawer
+          isOpen={isQuantyDrawerOpen}
+          onClose={() => setIsQuantyDrawerOpen(false)}
+        />
       </PageTransition>
     </AppShell>
   );

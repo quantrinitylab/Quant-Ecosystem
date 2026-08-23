@@ -417,7 +417,7 @@ export function ConversationalThreadView({
             <span className="hidden sm:inline">{allExpanded ? 'Collapse All' : 'Expand All'}</span>
           </button>
 
-          {/* Star Button */}
+          {/* Pin Button */}
           <button
             type="button"
             onClick={handleToggleStar}
@@ -426,7 +426,7 @@ export function ConversationalThreadView({
                 ? 'text-amber-400 bg-amber-400/10'
                 : 'text-zinc-400 hover:text-amber-300 hover:bg-zinc-800'
             }`}
-            title={starred ? 'Starred' : 'Not starred'}
+            title={starred ? 'Pinned to top' : 'Pin to top'}
           >
             <svg
               className="size-4.5"
@@ -435,7 +435,8 @@ export function ConversationalThreadView({
               stroke="currentColor"
               strokeWidth="2"
             >
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              <line x1="12" y1="17" x2="12" y2="22" />
+              <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
             </svg>
           </button>
 
