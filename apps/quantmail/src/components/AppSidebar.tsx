@@ -317,14 +317,9 @@ export function AppSidebar() {
 
       <AccountBadge />
       <footer className="sidebar-footer">
-        <span className="sidebar-india" aria-hidden="true">
-          <i />
-          <i />
-          <i />
-        </span>
         <span>QuantMail by Quantrinity</span>
-        <span className="ml-auto text-[9px] uppercase tracking-[0.16em] text-[var(--quant-muted-foreground)]">
-          v1.0 Live
+        <span className="ml-auto text-[10px] font-mono text-[var(--quant-muted-foreground)]">
+          v1.0
         </span>
       </footer>
     </nav>

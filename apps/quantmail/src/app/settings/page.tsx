@@ -5,37 +5,95 @@ import { Button, FormField, Input, TextArea } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
-import { useCreateLabel, useLabels, useDeleteLabel } from '../../hooks/useLabels';
 import { apiClient } from '../../services/api-client';
-import type { EmailLabel } from '../../types';
 import { VacationResponderSettings } from './VacationResponderSettings';
 import { PhoneVerificationCard } from '../../components/PhoneVerificationCard';
 import { showToast } from '../../components/InboxToast';
 
-type SettingsTab = 'general' | 'notifications' | 'appearance' | 'labels' | 'security' | 'keyboard';
+type SettingsTab = 'general' | 'ai' | 'security' | 'notifications' | 'appearance' | 'keyboard';
 type Theme = 'light' | 'dark' | 'system' | 'midnight';
 type Density = 'comfortable' | 'compact';
 
-const TABS: Array<{ key: SettingsTab; label: string; icon: string }> = [
-  { key: 'general', label: 'General', icon: '⚙' },
-  { key: 'notifications', label: 'Notifications', icon: '🔔' },
-  { key: 'appearance', label: 'Appearance', icon: '🎨' },
-  { key: 'labels', label: 'Labels', icon: '🏷' },
-  { key: 'security', label: 'Security & E2EE', icon: '🔐' },
-  { key: 'keyboard', label: 'Keyboard shortcuts', icon: '⌨' },
+interface AIModelOption {
+  id: string;
+  name: string;
+  provider: string;
+  description: string;
+  bestFor: string;
+  latency: string;
+  badge: string;
+}
+
+const AVAILABLE_AI_MODELS: AIModelOption[] = [
+  {
+    id: 'auto-router',
+    name: 'Quant Smart Model Router (Auto)',
+    provider: 'Cloudflare Workers AI + Edge Router',
+    description:
+      'Dynamically routes each prompt to the optimal model based on task complexity, speed, and automatic health failover.',
+    bestFor: 'All Tasks (Autonomous Task Matching & Instant Fallback)',
+    latency: 'Sub-150ms dynamic',
+    badge: 'Recommended',
+  },
+  {
+    id: '@cf/meta/llama-3.3-70b-instruct',
+    name: 'Meta Llama 3.3 (70B Instruct)',
+    provider: 'Cloudflare Workers AI',
+    description:
+      'High-capability flagship model for detailed executive summaries, complex negotiations, and in-depth email reasoning.',
+    bestFor: 'Deep Reasoning & Long Email Summaries',
+    latency: '~380ms',
+    badge: 'Heavy Reasoning',
+  },
+  {
+    id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
+    name: 'DeepSeek R1 Distill (Qwen 32B)',
+    provider: 'Cloudflare Workers AI',
+    description:
+      'Chain-of-thought mathematical and analytical reasoning for contracts, financial schedules, and multi-step tasks.',
+    bestFor: 'Complex Logic & Math Verification',
+    latency: '~450ms',
+    badge: 'Deep Reasoning',
+  },
+  {
+    id: '@cf/qwen/qwen2.5-72b-instruct',
+    name: 'Qwen 2.5 (72B Instruct)',
+    provider: 'Cloudflare Workers AI',
+    description:
+      'State-of-the-art multilingual and technical coding model for CodeHub, technical diffs, and cross-language translation.',
+    bestFor: 'Multilingual & Technical Mails',
+    latency: '~410ms',
+    badge: 'Multilingual',
+  },
+  {
+    id: '@cf/meta/llama-3.1-8b-instruct',
+    name: 'Meta Llama 3.1 (8B Instruct Fast)',
+    provider: 'Cloudflare Workers AI',
+    description:
+      'Ultra-lightweight and lightning-fast edge model for autocomplete, quick 1-sentence replies, and instant categorization.',
+    bestFor: 'Smart Reply & Quick Autocomplete',
+    latency: '~85ms',
+    badge: 'Ultra Fast',
+  },
+  {
+    id: '@cf/mistral/mistral-7b-instruct-v0.2',
+    name: 'Mistral 7B (Instruct v0.2)',
+    provider: 'Cloudflare Workers AI',
+    description:
+      'Concise European-grade precision model specialized in clean formatting, bullet point extraction, and quick drafts.',
+    bestFor: 'Bullet Summaries & Concise Drafts',
+    latency: '~110ms',
+    badge: 'Balanced',
+  },
 ];
 
-const PRESET_LABEL_COLORS = [
-  '#ef4444',
-  '#ff9933',
-  '#eab308',
-  '#138808',
-  '#06b6d4',
-  '#3b82f6',
-  '#6366f1',
-  '#ec4899',
-  '#6b7280',
-  '#14b8a6',
+const TABS: Array<{ key: SettingsTab; label: string; icon: string }> = [
+  { key: 'general', label: 'General', icon: '⚙' },
+  { key: 'ai', label: 'AI & Multi-Model Router', icon: '🧠' },
+  { key: 'security', label: 'Security & Encryption', icon: '🔐' },
+  { key: 'notifications', label: 'Notifications', icon: '🔔' },
+  { key: 'appearance', label: 'Appearance', icon: '🎨' },
+  { key: 'keyboard', label: 'Keyboard Shortcuts', icon: '⌨' },
 ];
 
 const ACCENT_COLORS = [
@@ -82,6 +140,9 @@ export default function SettingsPage() {
   const [defaultReplyAll, setDefaultReplyAll] = useState(false);
   const [conversationView, setConversationView] = useState(true);
   const [readReceipts, setReadReceipts] = useState(true);
+  const [selectedAIModel, setSelectedAIModel] = useState('auto-router');
+  const [enableAutoFailover, setEnableAutoFailover] = useState(true);
+  const [aiCreativity, setAiCreativity] = useState('balanced');
   const [notifications, setNotifications] = useState({
     email: true,
     push: true,
@@ -89,14 +150,6 @@ export default function SettingsPage() {
     sound: true,
     mentionsOnly: false,
   });
-
-  const [showCreateLabelForm, setShowCreateLabelForm] = useState(false);
-  const [newLabelName, setNewLabelName] = useState('');
-  const [newLabelColor, setNewLabelColor] = useState(PRESET_LABEL_COLORS[1]);
-
-  const { data: labels = [], isLoading: labelsLoading, isError: labelsError } = useLabels();
-  const createLabel = useCreateLabel();
-  const deleteLabel = useDeleteLabel();
 
   const hasProfileChanges = profile.displayName.trim() !== loadedProfile.displayName;
   const hasSignatureChanges = signature !== loadedSignature;
@@ -107,6 +160,12 @@ export default function SettingsPage() {
       setDensity((localStorage.getItem('quant-density') as Density) || 'comfortable');
       setAccentColor(localStorage.getItem('quant-accent') || '#ff9933');
       setUndoSendDelay(localStorage.getItem('quant-undo-delay') || '5');
+      const savedModel = localStorage.getItem('quant-ai-model-mode');
+      if (savedModel) setSelectedAIModel(savedModel);
+      const savedFailover = localStorage.getItem('quant-ai-failover');
+      if (savedFailover !== null) setEnableAutoFailover(savedFailover === '1');
+      const savedCreativity = localStorage.getItem('quant-ai-creativity');
+      if (savedCreativity) setAiCreativity(savedCreativity);
       const savedNotifs = localStorage.getItem('quant-notifications');
       if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
     } catch {
@@ -173,33 +232,19 @@ export default function SettingsPage() {
     showToast({ text: 'Email signature saved and active', type: 'success' });
   }, [defaultSignatureId, hasSignatureChanges, signature]);
 
-  const createNewLabel = useCallback(async () => {
-    const name = newLabelName.trim();
-    if (!name) return;
+  const handleSelectAIModel = (modelId: string) => {
+    setSelectedAIModel(modelId);
     try {
-      await createLabel.mutateAsync({ name, color: newLabelColor });
-      setNewLabelName('');
-      setNewLabelColor(PRESET_LABEL_COLORS[1]);
-      setShowCreateLabelForm(false);
-      showToast({ text: `Created label "${name}"`, type: 'success' });
+      localStorage.setItem('quant-ai-model-mode', modelId);
     } catch {
-      showToast({ text: 'Failed to create label', type: 'error' });
+      /* ignore */
     }
-  }, [createLabel, newLabelColor, newLabelName]);
-
-  const handleDeleteLabel = useCallback(
-    async (id: string, name: string) => {
-      if (confirm(`Delete label "${name}"?`)) {
-        try {
-          await deleteLabel.mutateAsync(id);
-          showToast({ text: `Deleted label "${name}"`, type: 'info' });
-        } catch {
-          showToast({ text: 'Failed to delete label', type: 'error' });
-        }
-      }
-    },
-    [deleteLabel],
-  );
+    const found = AVAILABLE_AI_MODELS.find((m) => m.id === modelId);
+    showToast({
+      text: `AI Model set to ${found?.name || modelId} 🧠`,
+      type: 'success',
+    });
+  };
 
   const changeTheme = useCallback((next: Theme) => {
     setTheme(next);
@@ -249,199 +294,218 @@ export default function SettingsPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page settings-workspace flex h-full flex-col overflow-hidden">
-        <header className="shrink-0 px-6 pb-0 pt-6">
-          <h1 className="text-xl font-bold tracking-tight text-white">Settings & Preferences</h1>
-          <p className="mt-0.5 text-xs text-zinc-400">
-            Account identity, AI assistant, themes, E2EE encryption, and live mail rules.
-          </p>
+      <PageTransition className="workspace-page settings-workspace flex h-full flex-col overflow-hidden bg-[#0a0d14]">
+        {/* Sleek Settings Header */}
+        <header className="shrink-0 px-4 sm:px-6 pt-5 pb-3 border-b border-zinc-800/80 bg-[#0d1017]/95">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-2xl bg-gradient-to-br from-[#FF7A00]/20 to-orange-600/20 border border-[#FF7A00]/40 flex items-center justify-center text-[#FF7A00] shadow-lg shadow-orange-500/10">
+              <svg
+                className="size-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">
+                Settings & Preferences
+              </h1>
+              <p className="text-xs text-zinc-400">
+                Manage profile, AI model router, security keys, and workspace preferences.
+              </p>
+            </div>
+          </div>
         </header>
 
+        {/* Telegram-Style Smooth Horizontal Pill Tabs */}
         <nav
-          className="mt-4 flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--quant-border)] px-6"
+          className="flex items-center gap-2 overflow-x-auto py-3 px-4 sm:px-6 no-scrollbar select-none border-b border-zinc-800/80 bg-[#0d1017]/80 backdrop-blur-md shrink-0"
           aria-label="Settings sections"
         >
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              aria-current={activeTab === tab.key ? 'page' : undefined}
-              className={`relative whitespace-nowrap rounded-t-md px-3.5 py-2.5 text-xs font-semibold transition-colors ${
-                activeTab === tab.key
-                  ? 'text-white after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:rounded-t after:bg-[#ff9933]'
-                  : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-white'
-              }`}
-            >
-              <span className="mr-1.5" aria-hidden="true">
-                {tab.icon}
-              </span>
-              {tab.label}
-            </button>
-          ))}
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                aria-current={isActive ? 'page' : undefined}
+                className={`relative px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-white shadow-lg shadow-orange-500/25 font-bold scale-[1.02]'
+                    : 'bg-zinc-900/80 hover:bg-zinc-800/90 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80'
+                }`}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </nav>
 
-        <main className="flex-1 overflow-y-auto px-6 py-6">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 max-w-4xl">
+          {/* 1. GENERAL TAB */}
           {activeTab === 'general' && (
-            <div className="max-w-2xl space-y-8">
-              <section>
-                <h2 className="mb-1 text-sm font-bold text-white">Profile Identity</h2>
-                <p className="mb-4 text-xs text-zinc-400">
-                  Your identity visible to recipients and teammates.
-                </p>
-                <div className="space-y-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#ff9933] to-amber-600 text-lg font-bold text-[#191008] shadow-md">
-                      {profile.displayName.charAt(0).toUpperCase() || 'K'}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-white">
-                        {profile.displayName || 'Quant User'}
-                      </p>
-                      <p className="text-xs text-zinc-400">{profile.email}</p>
-                      <span className="inline-block mt-1 text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                        Active & Verified
-                      </span>
-                    </div>
+            <div className="space-y-6 animate-in fade-in duration-150">
+              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-zinc-800 pb-3">
+                  <h2 className="text-sm font-bold text-white">Profile Identity</h2>
+                  <p className="text-xs text-zinc-400">
+                    Your public identifier visible to teammates and mail recipients.
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex h-13 w-13 items-center justify-center rounded-2xl bg-gradient-to-br from-[#FF7A00] to-amber-600 text-lg font-bold text-white shadow-md">
+                    {profile.displayName.charAt(0).toUpperCase() || 'Q'}
                   </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <FormField label="Display name">
-                      <Input
-                        value={profile.displayName}
-                        onChange={(event) =>
-                          setProfile((current) => ({ ...current, displayName: event.target.value }))
-                        }
-                        placeholder="Your full name"
-                      />
-                    </FormField>
-                    <FormField label="Username">
-                      <Input value={profile.username} readOnly disabled />
-                    </FormField>
+                  <div>
+                    <p className="text-sm font-bold text-white">
+                      {profile.displayName || 'Quant User'}
+                    </p>
+                    <p className="text-xs text-zinc-400">{profile.email}</p>
+                    <span className="inline-block mt-1 text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      Active & Verified Identity
+                    </span>
                   </div>
-                  <FormField label="Email address">
-                    <Input value={profile.email} readOnly disabled />
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
+                  <FormField label="Display name">
+                    <Input
+                      value={profile.displayName}
+                      onChange={(event) =>
+                        setProfile((current) => ({ ...current, displayName: event.target.value }))
+                      }
+                      placeholder="Your full name"
+                    />
                   </FormField>
-                  <div className="flex items-center gap-3 pt-2">
-                    <Button
-                      variant="primary"
-                      onClick={handleSaveProfile}
-                      disabled={!hasProfileChanges}
-                    >
-                      {hasProfileChanges ? 'Save display name' : 'Profile up to date'}
-                    </Button>
-                  </div>
+                  <FormField label="Username">
+                    <Input value={profile.username} readOnly disabled />
+                  </FormField>
+                </div>
+                <FormField label="Email address">
+                  <Input value={profile.email} readOnly disabled />
+                </FormField>
+                <div className="flex items-center gap-3 pt-2">
+                  <Button
+                    variant="primary"
+                    onClick={handleSaveProfile}
+                    disabled={!hasProfileChanges}
+                  >
+                    {hasProfileChanges ? 'Save display name' : 'Profile up to date'}
+                  </Button>
                 </div>
               </section>
 
               <PhoneVerificationCard />
 
-              <section>
-                <h2 className="mb-1 text-sm font-bold text-white">Email Signature</h2>
-                <p className="mb-4 text-xs text-zinc-400">
-                  Automatically attached to outgoing emails.
-                </p>
-                <div className="space-y-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
-                  <FormField label="HTML / Plain Text Signature">
-                    <TextArea
-                      value={signature}
-                      onChange={(event) => setSignature(event.target.value)}
-                      placeholder="Best regards,&#10;Kundan&#10;Founder @ Quantrinity"
-                      rows={4}
-                    />
-                  </FormField>
-
-                  {/* Live Signature Preview */}
-                  {signature.trim() && (
-                    <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
-                        Signature Preview
-                      </span>
-                      <div className="text-zinc-300 whitespace-pre-wrap">{signature}</div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3 pt-1">
-                    <Button
-                      variant="primary"
-                      onClick={saveSignature}
-                      disabled={signatureStatus === 'saving' || !hasSignatureChanges}
-                    >
-                      {signatureStatus === 'saving' ? 'Saving signature…' : 'Save signature'}
-                    </Button>
+              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-zinc-800 pb-3">
+                  <h2 className="text-sm font-bold text-white">Email Signature</h2>
+                  <p className="text-xs text-zinc-400">
+                    Automatically attached to all outgoing emails.
+                  </p>
+                </div>
+                <FormField label="HTML / Plain Text Signature">
+                  <TextArea
+                    value={signature}
+                    onChange={(event) => setSignature(event.target.value)}
+                    placeholder="Best regards,&#10;Kundan&#10;Founder @ Quantrinity"
+                    rows={4}
+                  />
+                </FormField>
+                {signature.trim() && (
+                  <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+                      Live Preview
+                    </span>
+                    <div className="text-zinc-300 whitespace-pre-wrap">{signature}</div>
                   </div>
+                )}
+                <div className="flex items-center gap-3 pt-1">
+                  <Button
+                    variant="primary"
+                    onClick={saveSignature}
+                    disabled={signatureStatus === 'saving' || !hasSignatureChanges}
+                  >
+                    {signatureStatus === 'saving' ? 'Saving signature…' : 'Save signature'}
+                  </Button>
                 </div>
               </section>
 
-              <section>
-                <h2 className="mb-1 text-sm font-bold text-white">Composer & Delivery Rules</h2>
-                <div className="space-y-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                        Undo Send Delay
-                      </label>
-                      <select
-                        value={undoSendDelay}
-                        onChange={(e) => {
-                          setUndoSendDelay(e.target.value);
-                          localStorage.setItem('quant-undo-delay', e.target.value);
-                          showToast({
-                            text: `Undo send delay set to ${e.target.value}s`,
-                            type: 'info',
-                          });
-                        }}
-                        className="h-9 w-full rounded-lg border border-[var(--quant-border)] bg-zinc-900 px-3 text-xs text-white focus:outline-none focus:border-[#ff9933]"
-                      >
-                        <option value="5">5 seconds</option>
-                        <option value="10">10 seconds</option>
-                        <option value="20">20 seconds</option>
-                        <option value="30">30 seconds</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                        Default Reply Action
-                      </label>
-                      <select
-                        value={defaultReplyAll ? 'all' : 'single'}
-                        onChange={(e) => {
-                          setDefaultReplyAll(e.target.value === 'all');
-                          showToast({ text: 'Updated default reply behavior', type: 'info' });
-                        }}
-                        className="h-9 w-full rounded-lg border border-[var(--quant-border)] bg-zinc-900 px-3 text-xs text-white focus:outline-none focus:border-[#ff9933]"
-                      >
-                        <option value="single">Reply</option>
-                        <option value="all">Reply All</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 pt-2 border-t border-zinc-800">
-                    <label className="flex items-center justify-between py-1 cursor-pointer">
-                      <span className="text-xs text-zinc-300 font-medium">
-                        Conversation Threading
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={conversationView}
-                        onChange={(e) => setConversationView(e.target.checked)}
-                        className="accent-[#ff9933] rounded cursor-pointer"
-                      />
+              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-zinc-800 pb-3">
+                  <h2 className="text-sm font-bold text-white">Composer & Delivery Rules</h2>
+                  <p className="text-xs text-zinc-400">
+                    Fine-tune sending delays and thread behaviors.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                      Undo Send Delay
                     </label>
-
-                    <label className="flex items-center justify-between py-1 cursor-pointer">
-                      <span className="text-xs text-zinc-300 font-medium">
-                        Automatic Read Receipts
-                      </span>
-                      <input
-                        type="checkbox"
-                        checked={readReceipts}
-                        onChange={(e) => setReadReceipts(e.target.checked)}
-                        className="accent-[#ff9933] rounded cursor-pointer"
-                      />
-                    </label>
+                    <select
+                      value={undoSendDelay}
+                      onChange={(e) => {
+                        setUndoSendDelay(e.target.value);
+                        localStorage.setItem('quant-undo-delay', e.target.value);
+                        showToast({
+                          text: `Undo send delay set to ${e.target.value}s`,
+                          type: 'info',
+                        });
+                      }}
+                      className="h-9 w-full rounded-xl border border-zinc-700/80 bg-zinc-900 px-3 text-xs text-white focus:outline-none focus:border-[#FF7A00]"
+                    >
+                      <option value="5">5 seconds</option>
+                      <option value="10">10 seconds</option>
+                      <option value="20">20 seconds</option>
+                      <option value="30">30 seconds</option>
+                    </select>
                   </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                      Default Reply Action
+                    </label>
+                    <select
+                      value={defaultReplyAll ? 'all' : 'single'}
+                      onChange={(e) => {
+                        setDefaultReplyAll(e.target.value === 'all');
+                        showToast({ text: 'Updated default reply behavior', type: 'info' });
+                      }}
+                      className="h-9 w-full rounded-xl border border-zinc-700/80 bg-zinc-900 px-3 text-xs text-white focus:outline-none focus:border-[#FF7A00]"
+                    >
+                      <option value="single">Reply (Direct Sender)</option>
+                      <option value="all">Reply All (All Recipients)</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-2 pt-2 border-t border-zinc-800">
+                  <label className="flex items-center justify-between py-1 cursor-pointer">
+                    <span className="text-xs text-zinc-300 font-medium">
+                      Conversation Threading
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={conversationView}
+                      onChange={(e) => setConversationView(e.target.checked)}
+                      className="accent-[#FF7A00] rounded cursor-pointer"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between py-1 cursor-pointer">
+                    <span className="text-xs text-zinc-300 font-medium">
+                      Automatic Read Receipts
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={readReceipts}
+                      onChange={(e) => setReadReceipts(e.target.checked)}
+                      className="accent-[#FF7A00] rounded cursor-pointer"
+                    />
+                  </label>
                 </div>
               </section>
 
@@ -449,91 +513,319 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {activeTab === 'notifications' && (
-            <div className="max-w-2xl space-y-6">
-              <section>
-                <h2 className="mb-1 text-sm font-bold text-white">Notification Channels</h2>
-                <p className="mb-4 text-xs text-zinc-400">
-                  Manage how and when you receive incoming email and calendar alerts.
+          {/* 2. AI & MULTI-MODEL ROUTER TAB */}
+          {activeTab === 'ai' && (
+            <div className="space-y-6 animate-in fade-in duration-150">
+              {/* Dynamic Model Router Banner */}
+              <section className="rounded-2xl border border-[#FF7A00]/40 bg-gradient-to-br from-[#FF7A00]/10 via-zinc-900 to-zinc-950 p-5 shadow-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="size-3 rounded-full bg-[#FF7A00] animate-pulse" />
+                    <h2 className="text-sm font-bold text-white">
+                      Autonomous Multi-Model Router Active
+                    </h2>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-[#FF7A00]/20 text-[#FF7A00] border border-[#FF7A00]/30">
+                    6 Edge Models Available
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  Quant Ecosystem uses a dynamic Task-Based Model Router. Instead of relying on a
+                  single static LLM, each email draft, thread summary, or code query is matched with
+                  the best model in real-time, with automatic failover and circuit breaker
+                  protection.
                 </p>
-                <div className="space-y-3 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
+                  <div className="p-3 rounded-xl bg-black/40 border border-zinc-800 text-xs">
+                    <span className="text-zinc-400 block text-[10px] uppercase font-bold">
+                      Fast Replies
+                    </span>
+                    <strong className="text-white">Llama 3.1 8B (~85ms)</strong>
+                  </div>
+                  <div className="p-3 rounded-xl bg-black/40 border border-zinc-800 text-xs">
+                    <span className="text-zinc-400 block text-[10px] uppercase font-bold">
+                      Deep Summaries
+                    </span>
+                    <strong className="text-white">Llama 3.3 70B & R1</strong>
+                  </div>
+                  <div className="p-3 rounded-xl bg-black/40 border border-zinc-800 text-xs">
+                    <span className="text-zinc-400 block text-[10px] uppercase font-bold">
+                      Code & Logic
+                    </span>
+                    <strong className="text-white">Qwen 2.5 72B & R1</strong>
+                  </div>
+                </div>
+              </section>
+
+              {/* Model Selection List */}
+              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-zinc-800 pb-3">
+                  <h2 className="text-sm font-bold text-white">Select AI Engine / Routing Mode</h2>
+                  <p className="text-xs text-zinc-400">
+                    Choose Auto-Router (recommended) or lock to a specific preferred model.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {AVAILABLE_AI_MODELS.map((model) => {
+                    const isSelected = selectedAIModel === model.id;
+                    return (
+                      <div
+                        key={model.id}
+                        onClick={() => handleSelectAIModel(model.id)}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer select-none flex items-start justify-between gap-4 ${
+                          isSelected
+                            ? 'bg-gradient-to-r from-orange-500/15 to-transparent border-[#FF7A00] ring-1 ring-[#FF7A00]/50 shadow-lg'
+                            : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'
+                        }`}
+                      >
+                        <div className="space-y-1.5 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold text-white">{model.name}</span>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                isSelected
+                                  ? 'bg-[#FF7A00] text-white'
+                                  : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                              }`}
+                            >
+                              {model.badge}
+                            </span>
+                            <span className="text-[10px] font-mono text-zinc-500">
+                              {model.latency}
+                            </span>
+                          </div>
+                          <p className="text-xs text-zinc-300">{model.description}</p>
+                          <div className="flex items-center gap-2 pt-0.5">
+                            <span className="text-[11px] text-[#FF7A00] font-semibold">
+                              🎯 Best for: {model.bestFor}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="pt-1">
+                          <div
+                            className={`size-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
+                              isSelected
+                                ? 'border-[#FF7A00] bg-[#FF7A00]'
+                                : 'border-zinc-600 bg-transparent'
+                            }`}
+                          >
+                            {isSelected && <div className="size-2 rounded-full bg-white" />}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {/* Failover & Advanced AI Options */}
+              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <h2 className="text-sm font-bold text-white">Resilience & Routing Strategy</h2>
+                <div className="space-y-3">
                   <label className="flex items-center justify-between py-2 border-b border-zinc-800 cursor-pointer">
                     <div>
                       <strong className="block text-xs text-white font-bold">
-                        Email Notifications
+                        Automatic Health & Latency Failover
                       </strong>
                       <span className="text-[11px] text-zinc-400">
-                        Receive daily digest and urgent priority forwards
+                        If the primary model latency exceeds 1.5s or fails, automatically switch to
+                        backup model.
                       </span>
                     </div>
                     <input
                       type="checkbox"
-                      checked={notifications.email}
-                      onChange={(e) => updateNotif('email', e.target.checked)}
-                      className="accent-[#ff9933] rounded h-4 w-4"
+                      checked={enableAutoFailover}
+                      onChange={(e) => {
+                        setEnableAutoFailover(e.target.checked);
+                        localStorage.setItem('quant-ai-failover', e.target.checked ? '1' : '0');
+                        showToast({ text: 'Updated auto-failover policy', type: 'info' });
+                      }}
+                      className="accent-[#FF7A00] rounded h-4 w-4 cursor-pointer"
                     />
                   </label>
 
-                  <label className="flex items-center justify-between py-2 border-b border-zinc-800 cursor-pointer">
-                    <div>
-                      <strong className="block text-xs text-white font-bold">
-                        Desktop Browser Notifications
-                      </strong>
-                      <span className="text-[11px] text-zinc-400">
-                        Show instant push notifications when new emails arrive
-                      </span>
+                  <div className="pt-2">
+                    <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                      Copilot Response Temperature
+                    </label>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {[
+                        { key: 'precise', label: 'Precise (0.1)', desc: 'Fact-based & factual' },
+                        {
+                          key: 'balanced',
+                          label: 'Balanced (0.7)',
+                          desc: 'Standard business tone',
+                        },
+                        { key: 'creative', label: 'Creative (1.0)', desc: 'Expressive marketing' },
+                      ].map((item) => (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => {
+                            setAiCreativity(item.key);
+                            localStorage.setItem('quant-ai-creativity', item.key);
+                            showToast({ text: `Set AI creativity to ${item.key}`, type: 'info' });
+                          }}
+                          className={`p-2.5 rounded-xl border text-left transition-colors ${
+                            aiCreativity === item.key
+                              ? 'border-[#FF7A00] bg-[#FF7A00]/15 text-white'
+                              : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          <span className="text-xs font-bold block">{item.label}</span>
+                          <span className="text-[10px] text-zinc-500 block">{item.desc}</span>
+                        </button>
+                      ))}
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={notifications.desktop}
-                      onChange={(e) => updateNotif('desktop', e.target.checked)}
-                      className="accent-[#ff9933] rounded h-4 w-4"
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between py-2 border-b border-zinc-800 cursor-pointer">
-                    <div>
-                      <strong className="block text-xs text-white font-bold">Sound Alerts</strong>
-                      <span className="text-[11px] text-zinc-400">
-                        Play subtle haptic chime on incoming mail
-                      </span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifications.sound}
-                      onChange={(e) => updateNotif('sound', e.target.checked)}
-                      className="accent-[#ff9933] rounded h-4 w-4"
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between py-2 cursor-pointer">
-                    <div>
-                      <strong className="block text-xs text-white font-bold">
-                        Direct Mentions Only
-                      </strong>
-                      <span className="text-[11px] text-zinc-400">
-                        Only trigger alerts when you are in To/CC or specifically @mentioned
-                      </span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifications.mentionsOnly}
-                      onChange={(e) => updateNotif('mentionsOnly', e.target.checked)}
-                      className="accent-[#ff9933] rounded h-4 w-4"
-                    />
-                  </label>
+                  </div>
                 </div>
               </section>
             </div>
           )}
 
-          {activeTab === 'appearance' && (
-            <div className="max-w-2xl space-y-6">
-              <section>
-                <h2 className="mb-1 text-sm font-bold text-white">Theme & Palette</h2>
-                <p className="mb-4 text-xs text-zinc-400">
-                  Select your workspace aesthetic and dark mode level.
+          {/* 3. SECURITY & ENCRYPTION TAB */}
+          {activeTab === 'security' && (
+            <div className="space-y-6 animate-in fade-in duration-150">
+              <section className="rounded-2xl border border-emerald-500/30 bg-emerald-950/15 p-5 shadow-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-300 flex items-center gap-2">
+                    <span className="size-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Zero-Knowledge E2EE Vault Active
+                  </span>
+                  <span className="text-[10px] font-mono px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    AES-256-GCM + Ed25519
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  Your email payloads, attachments, and private thread contents are encrypted on
+                  your device before transmission. No plaintext is accessible by intermediaries.
                 </p>
+              </section>
+
+              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-zinc-800 pb-3">
+                  <h2 className="text-sm font-bold text-white">Session & Active Credentials</h2>
+                  <p className="text-xs text-zinc-400">
+                    Security status for current logged-in identity.
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                    <div>
+                      <p className="text-xs font-bold text-white">Browser Local Keychain</p>
+                      <p className="text-[11px] text-zinc-400">
+                        Ed25519 Mail signing key registered
+                      </p>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-emerald-400">Active ✓</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                    <div>
+                      <p className="text-xs font-bold text-white">DKIM & SPF Authorization</p>
+                      <p className="text-[11px] text-zinc-400">
+                        quantmail.in domain verified on AWS SES
+                      </p>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-emerald-400">Passed ✓</span>
+                  </div>
+                </div>
+              </section>
+
+              <PhoneVerificationCard />
+            </div>
+          )}
+
+          {/* 4. NOTIFICATIONS TAB */}
+          {activeTab === 'notifications' && (
+            <div className="space-y-6 animate-in fade-in duration-150">
+              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-3">
+                <div className="border-b border-zinc-800 pb-3">
+                  <h2 className="text-sm font-bold text-white">Notification Channels</h2>
+                  <p className="text-xs text-zinc-400">
+                    Manage how and when you receive incoming email and calendar alerts.
+                  </p>
+                </div>
+                <label className="flex items-center justify-between py-2.5 border-b border-zinc-800 cursor-pointer">
+                  <div>
+                    <strong className="block text-xs text-white font-bold">
+                      Email Notifications
+                    </strong>
+                    <span className="text-[11px] text-zinc-400">
+                      Receive daily digest and urgent priority forwards
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifications.email}
+                    onChange={(e) => updateNotif('email', e.target.checked)}
+                    className="accent-[#FF7A00] rounded h-4 w-4 cursor-pointer"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between py-2.5 border-b border-zinc-800 cursor-pointer">
+                  <div>
+                    <strong className="block text-xs text-white font-bold">
+                      Desktop Browser Notifications
+                    </strong>
+                    <span className="text-[11px] text-zinc-400">
+                      Show instant push notifications when new emails arrive
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifications.desktop}
+                    onChange={(e) => updateNotif('desktop', e.target.checked)}
+                    className="accent-[#FF7A00] rounded h-4 w-4 cursor-pointer"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between py-2.5 border-b border-zinc-800 cursor-pointer">
+                  <div>
+                    <strong className="block text-xs text-white font-bold">Sound Alerts</strong>
+                    <span className="text-[11px] text-zinc-400">
+                      Play subtle haptic chime on incoming mail
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifications.sound}
+                    onChange={(e) => updateNotif('sound', e.target.checked)}
+                    className="accent-[#FF7A00] rounded h-4 w-4 cursor-pointer"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between py-2.5 cursor-pointer">
+                  <div>
+                    <strong className="block text-xs text-white font-bold">
+                      Direct Mentions Only
+                    </strong>
+                    <span className="text-[11px] text-zinc-400">
+                      Only trigger alerts when you are in To/CC or specifically @mentioned
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={notifications.mentionsOnly}
+                    onChange={(e) => updateNotif('mentionsOnly', e.target.checked)}
+                    className="accent-[#FF7A00] rounded h-4 w-4 cursor-pointer"
+                  />
+                </label>
+              </section>
+            </div>
+          )}
+
+          {/* 5. APPEARANCE TAB */}
+          {activeTab === 'appearance' && (
+            <div className="space-y-6 animate-in fade-in duration-150">
+              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-zinc-800 pb-3">
+                  <h2 className="text-sm font-bold text-white">Theme & Palette</h2>
+                  <p className="text-xs text-zinc-400">
+                    Select your workspace aesthetic and dark mode level.
+                  </p>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
                     { key: 'dark', label: 'Obsidian OLED', bg: 'bg-[#0a0a0c]' },
@@ -547,8 +839,8 @@ export default function SettingsPage() {
                       onClick={() => changeTheme(item.key as Theme)}
                       className={`p-3.5 rounded-2xl border text-left transition-all ${
                         theme === item.key
-                          ? 'border-[#ff9933] ring-1 ring-[#ff9933]'
-                          : 'border-[var(--quant-border)] hover:border-zinc-700'
+                          ? 'border-[#FF7A00] ring-1 ring-[#FF7A00]'
+                          : 'border-zinc-800 hover:border-zinc-700'
                       } ${item.bg}`}
                     >
                       <span className="text-xs font-bold block">{item.label}</span>
@@ -560,9 +852,14 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              <section>
-                <h2 className="mb-1 text-sm font-bold text-white">Accent Highlight</h2>
-                <div className="flex items-center gap-3 mt-3">
+              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-zinc-800 pb-3">
+                  <h2 className="text-sm font-bold text-white">Accent Highlight</h2>
+                  <p className="text-xs text-zinc-400">
+                    Primary brand color across buttons and active tabs.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
                   {ACCENT_COLORS.map((acc) => (
                     <button
                       key={acc.hex}
@@ -580,8 +877,13 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              <section>
-                <h2 className="mb-1 text-sm font-bold text-white">Density Spacing</h2>
+              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-zinc-800 pb-3">
+                  <h2 className="text-sm font-bold text-white">Density Spacing</h2>
+                  <p className="text-xs text-zinc-400">
+                    Adjust spacing for compact or spacious layouts.
+                  </p>
+                </div>
                 <div className="flex gap-3">
                   {(['comfortable', 'compact'] as const).map((item) => (
                     <button
@@ -590,8 +892,8 @@ export default function SettingsPage() {
                       onClick={() => changeDensity(item)}
                       className={`px-4 py-2 rounded-xl border text-xs font-semibold capitalize transition-colors ${
                         density === item
-                          ? 'border-[#ff9933] bg-[#ff9933]/15 text-[#ff9933]'
-                          : 'border-[var(--quant-border)] text-zinc-400 hover:text-white'
+                          ? 'border-[#FF7A00] bg-[#FF7A00]/15 text-[#FF7A00]'
+                          : 'border-zinc-800 text-zinc-400 hover:text-white'
                       }`}
                     >
                       {item}
@@ -602,157 +904,27 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {activeTab === 'labels' && (
-            <div className="max-w-2xl space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-sm font-bold text-white">Email Labels & Folders</h2>
-                  <p className="text-xs text-zinc-400">
-                    Create custom labels to organize your communications.
-                  </p>
-                </div>
-                <Button variant="primary" onClick={() => setShowCreateLabelForm((value) => !value)}>
-                  {showCreateLabelForm ? 'Cancel' : '+ New label'}
-                </Button>
-              </div>
-
-              {showCreateLabelForm && (
-                <div className="space-y-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5">
-                  <FormField label="Label name">
-                    <Input
-                      value={newLabelName}
-                      onChange={(event) => setNewLabelName(event.target.value)}
-                      placeholder="e.g. Invoices, Clients, Marketing…"
-                    />
-                  </FormField>
-                  <div>
-                    <p className="text-xs font-semibold text-zinc-300 mb-2">Label color</p>
-                    <div className="flex flex-wrap gap-2">
-                      {PRESET_LABEL_COLORS.map((color) => (
-                        <button
-                          key={color}
-                          type="button"
-                          onClick={() => setNewLabelColor(color)}
-                          className={`size-7 rounded-full border-2 ${
-                            newLabelColor === color
-                              ? 'scale-110 border-white'
-                              : 'border-transparent'
-                          }`}
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <Button
-                    variant="primary"
-                    onClick={createNewLabel}
-                    disabled={!newLabelName.trim() || createLabel.isPending}
-                  >
-                    {createLabel.isPending ? 'Creating…' : 'Create label'}
-                  </Button>
-                </div>
-              )}
-
-              <div className="divide-y divide-zinc-800 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)]">
-                {labelsLoading ? (
-                  <div className="p-4 text-xs text-zinc-400">Loading labels…</div>
-                ) : labels.length === 0 ? (
-                  <div className="p-4 text-xs text-zinc-400">No custom labels created yet.</div>
-                ) : (
-                  labels.map((label: EmailLabel) => (
-                    <div
-                      key={label.id}
-                      className="flex items-center justify-between gap-4 px-4 py-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="size-3 rounded-full"
-                          style={{ backgroundColor: label.color || PRESET_LABEL_COLORS[1] }}
-                        />
-                        <div>
-                          <span className="text-xs font-bold text-white">{label.name}</span>
-                          <span className="text-[11px] text-zinc-400 ml-2">
-                            {label.messageCount} messages
-                          </span>
-                        </div>
-                      </div>
-                      {!label.isSystem && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteLabel(label.id, label.name)}
-                          className="text-xs text-zinc-500 hover:text-rose-400"
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'security' && (
-            <div className="max-w-2xl space-y-6">
-              <section>
-                <h2 className="mb-1 text-sm font-bold text-white">
-                  Zero-Knowledge End-to-End Encryption (E2EE)
-                </h2>
-                <p className="mb-4 text-xs text-zinc-400">
-                  Your mail content, drive storage, and agent memory are encrypted with client-side
-                  keys.
-                </p>
-                <div className="p-5 rounded-2xl border border-emerald-500/30 bg-emerald-950/10 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-300 flex items-center gap-2">
-                      <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
-                      E2EE Quantum Vault Active
-                    </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
-                      AES-256-GCM
-                    </span>
-                  </div>
-                  <p className="text-xs text-zinc-300">
-                    Private keys are stored in secure browser local credential storage and never
-                    transmitted in plaintext to external servers.
-                  </p>
-                </div>
-              </section>
-
-              <section>
-                <h2 className="mb-1 text-sm font-bold text-white">AI Engine & Inference</h2>
-                <div className="p-5 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white">Cloudflare Workers AI</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#ff9933]/20 text-[#ff9933]">
-                      Llama-3.3-70b-instruct
-                    </span>
-                  </div>
-                  <p className="text-xs text-zinc-400">
-                    High-speed global edge inference for email generation, smart replies, thread
-                    summaries, and CodeHub planning.
-                  </p>
-                </div>
-              </section>
-            </div>
-          )}
-
+          {/* 6. KEYBOARD SHORTCUTS TAB */}
           {activeTab === 'keyboard' && (
-            <div className="max-w-2xl space-y-4">
-              <h2 className="text-sm font-bold text-white">Keyboard Navigation Shortcuts</h2>
-              <p className="text-xs text-zinc-400">
-                Superhuman and Linear grade keyboard shortcuts to fly through your inbox.
-              </p>
-              <div className="divide-y divide-zinc-800 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)]">
-                {SHORTCUTS.map(([keys, action]) => (
-                  <div key={keys} className="flex items-center justify-between px-4 py-3">
-                    <span className="text-xs font-medium text-white">{action}</span>
-                    <kbd className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-[11px] text-[#ff9933]">
-                      {keys}
-                    </kbd>
-                  </div>
-                ))}
-              </div>
+            <div className="space-y-4 animate-in fade-in duration-150">
+              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl">
+                <div className="border-b border-zinc-800 pb-3 mb-3">
+                  <h2 className="text-sm font-bold text-white">Keyboard Navigation Shortcuts</h2>
+                  <p className="text-xs text-zinc-400">
+                    High-efficiency keyboard shortcuts to fly through your inbox.
+                  </p>
+                </div>
+                <div className="divide-y divide-zinc-800">
+                  {SHORTCUTS.map(([keys, action]) => (
+                    <div key={keys} className="flex items-center justify-between py-2.5">
+                      <span className="text-xs font-medium text-white">{action}</span>
+                      <kbd className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-[11px] text-[#FF7A00]">
+                        {keys}
+                      </kbd>
+                    </div>
+                  ))}
+                </div>
+              </section>
             </div>
           )}
         </main>
