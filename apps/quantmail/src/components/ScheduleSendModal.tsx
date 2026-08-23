@@ -1,0 +1,458 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface ScheduleSendModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSchedule: (scheduledAt: string) => void;
+}
+
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendModalProps) {
+  const today = useMemo(() => new Date(), []);
+
+  // Date State
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d;
+  });
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth());
+
+  // Time State (12h format)
+  const [hour, setHour] = useState<number>(8);
+  const [minute, setMinute] = useState<number>(0);
+  const [period, setPeriod] = useState<'AM' | 'PM'>('AM');
+  const [clockMode, setClockMode] = useState<'hours' | 'minutes'>('hours');
+
+  // Days in selected view month
+  const calendarDays = useMemo(() => {
+    const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+    const days: Array<{ day: number; currentMonth: boolean; date: Date; isPast: boolean }> = [];
+
+    // Prev month padding
+    for (let i = firstDay - 1; i >= 0; i--) {
+      const d = new Date(viewYear, viewMonth - 1, daysInPrevMonth - i);
+      days.push({ day: daysInPrevMonth - i, currentMonth: false, date: d, isPast: true });
+    }
+
+    // Current month days
+    for (let d = 1; d <= daysInMonth; d++) {
+      const curDate = new Date(viewYear, viewMonth, d);
+      const isPast =
+        curDate.getFullYear() < today.getFullYear() ||
+        (curDate.getFullYear() === today.getFullYear() && curDate.getMonth() < today.getMonth()) ||
+        (curDate.getFullYear() === today.getFullYear() &&
+          curDate.getMonth() === today.getMonth() &&
+          curDate.getDate() < today.getDate());
+      days.push({ day: d, currentMonth: true, date: curDate, isPast });
+    }
+
+    // Next month padding to reach full grid of 35 or 42
+    const total = days.length;
+    const remaining = total <= 35 ? 35 - total : 42 - total;
+    for (let d = 1; d <= remaining; d++) {
+      const curDate = new Date(viewYear, viewMonth + 1, d);
+      days.push({ day: d, currentMonth: false, date: curDate, isPast: false });
+    }
+
+    return days;
+  }, [viewYear, viewMonth, today]);
+
+  const handlePrevMonth = () => {
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear((y) => y - 1);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear((y) => y + 1);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+  };
+
+  const handleSelectDay = (date: Date, isPast: boolean) => {
+    if (isPast) return;
+    setSelectedDate(date);
+  };
+
+  // Quick Preset Handlers
+  const handleQuickPreset = (
+    type: 'tomorrow_morning' | 'tomorrow_afternoon' | 'monday_morning',
+  ) => {
+    const d = new Date();
+    if (type === 'tomorrow_morning') {
+      d.setDate(d.getDate() + 1);
+      setSelectedDate(d);
+      setHour(8);
+      setMinute(0);
+      setPeriod('AM');
+    } else if (type === 'tomorrow_afternoon') {
+      d.setDate(d.getDate() + 1);
+      setSelectedDate(d);
+      setHour(1);
+      setMinute(0);
+      setPeriod('PM');
+    } else if (type === 'monday_morning') {
+      const day = d.getDay();
+      const diff = (8 - day) % 7 || 7;
+      d.setDate(d.getDate() + diff);
+      setSelectedDate(d);
+      setHour(8);
+      setMinute(0);
+      setPeriod('AM');
+    }
+  };
+
+  const handleConfirm = () => {
+    const finalDate = new Date(selectedDate);
+    let finalHour = hour % 12;
+    if (period === 'PM') finalHour += 12;
+    finalDate.setHours(finalHour, minute, 0, 0);
+
+    onSchedule(finalDate.toISOString());
+    onClose();
+  };
+
+  // Clock Dial Angles
+  const hoursList = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  const minutesList = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+        />
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 15 }}
+          className="relative z-10 w-full max-w-lg rounded-2xl border border-zinc-800 bg-[#121622] p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                <svg
+                  className="size-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Schedule Send</h3>
+                <p className="text-[11px] text-zinc-400">
+                  Choose when you want this email to be sent
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 text-xs"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Quick Presets */}
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => handleQuickPreset('tomorrow_morning')}
+              className="px-2.5 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all"
+            >
+              <span className="block font-medium text-zinc-200 text-[11px]">Tomorrow</span>
+              <span className="text-[10px] text-amber-400">8:00 AM</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickPreset('tomorrow_afternoon')}
+              className="px-2.5 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all"
+            >
+              <span className="block font-medium text-zinc-200 text-[11px]">Tomorrow</span>
+              <span className="text-[10px] text-amber-400">1:00 PM</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickPreset('monday_morning')}
+              className="px-2.5 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-left transition-all"
+            >
+              <span className="block font-medium text-zinc-200 text-[11px]">Monday</span>
+              <span className="text-[10px] text-amber-400">8:00 AM</span>
+            </button>
+          </div>
+
+          {/* Calendar & Clock Body */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+            {/* Left Column: Calendar Date Picker */}
+            <div className="space-y-2.5 bg-zinc-950/40 p-3 rounded-2xl border border-zinc-800/80">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white">
+                  {MONTH_NAMES[viewMonth]} {viewYear}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handlePrevMonth}
+                    className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 text-xs"
+                  >
+                    ◀
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNextMonth}
+                    className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 text-xs"
+                  >
+                    ▶
+                  </button>
+                </div>
+              </div>
+
+              {/* Weekday headers */}
+              <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-zinc-500">
+                {WEEKDAYS.map((w, idx) => (
+                  <span key={idx}>{w}</span>
+                ))}
+              </div>
+
+              {/* Days Grid */}
+              <div className="grid grid-cols-7 gap-1 text-center text-xs">
+                {calendarDays.map((item, idx) => {
+                  const isSelected =
+                    item.date.getFullYear() === selectedDate.getFullYear() &&
+                    item.date.getMonth() === selectedDate.getMonth() &&
+                    item.date.getDate() === selectedDate.getDate();
+
+                  const isToday =
+                    item.date.getFullYear() === today.getFullYear() &&
+                    item.date.getMonth() === today.getMonth() &&
+                    item.date.getDate() === today.getDate();
+
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      disabled={item.isPast}
+                      onClick={() => handleSelectDay(item.date, item.isPast)}
+                      className={`size-7 mx-auto rounded-lg flex items-center justify-center text-[11px] font-medium transition-all ${
+                        isSelected
+                          ? 'bg-amber-500 text-black font-bold shadow-md scale-105'
+                          : isToday
+                            ? 'border border-amber-500/50 text-amber-400'
+                            : item.isPast
+                              ? 'text-zinc-700 cursor-not-allowed'
+                              : item.currentMonth
+                                ? 'text-zinc-200 hover:bg-zinc-800'
+                                : 'text-zinc-600'
+                      }`}
+                    >
+                      {item.day}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Right Column: Google Clock Material Style Picker */}
+            <div className="flex flex-col items-center justify-between bg-zinc-950/40 p-3 rounded-2xl border border-zinc-800/80 space-y-3">
+              {/* Digital Time Header */}
+              <div className="flex items-center justify-center gap-2">
+                <div className="flex items-center rounded-xl bg-zinc-900 border border-zinc-800 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setClockMode('hours')}
+                    className={`px-2.5 py-1 rounded-lg text-sm font-bold transition-all ${
+                      clockMode === 'hours'
+                        ? 'bg-amber-500 text-black shadow'
+                        : 'text-zinc-300 hover:text-white'
+                    }`}
+                  >
+                    {hour.toString().padStart(2, '0')}
+                  </button>
+                  <span className="px-1 text-zinc-500 font-bold">:</span>
+                  <button
+                    type="button"
+                    onClick={() => setClockMode('minutes')}
+                    className={`px-2.5 py-1 rounded-lg text-sm font-bold transition-all ${
+                      clockMode === 'minutes'
+                        ? 'bg-amber-500 text-black shadow'
+                        : 'text-zinc-300 hover:text-white'
+                    }`}
+                  >
+                    {minute.toString().padStart(2, '0')}
+                  </button>
+                </div>
+
+                {/* AM/PM Toggle */}
+                <div className="flex rounded-xl bg-zinc-900 border border-zinc-800 p-0.5 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setPeriod('AM')}
+                    className={`px-2 py-1 rounded-lg transition-all ${
+                      period === 'AM' ? 'bg-amber-500 text-black' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    AM
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPeriod('PM')}
+                    className={`px-2 py-1 rounded-lg transition-all ${
+                      period === 'PM' ? 'bg-amber-500 text-black' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    PM
+                  </button>
+                </div>
+              </div>
+
+              {/* Radial Clock Face */}
+              <div className="relative size-40 rounded-full bg-zinc-900/90 border border-zinc-800 flex items-center justify-center shadow-inner">
+                {/* Center Pin */}
+                <div className="size-2 rounded-full bg-amber-500 z-10" />
+
+                {/* Clock Hand / Pointer */}
+                <div
+                  className="absolute bottom-1/2 left-1/2 w-0.5 origin-bottom bg-amber-500 transition-transform duration-200 z-0 pointer-events-none"
+                  style={{
+                    height: '52px',
+                    transform: `translateX(-50%) rotate(${
+                      clockMode === 'hours' ? (hour % 12) * 30 : minute * 6
+                    }deg)`,
+                  }}
+                >
+                  <div className="size-6 -top-3 -left-[11px] absolute rounded-full bg-amber-500/30 border border-amber-500" />
+                </div>
+
+                {/* Numbers */}
+                {(clockMode === 'hours' ? hoursList : minutesList).map((val, idx) => {
+                  const angle = (idx * 30 - 60) * (Math.PI / 180);
+                  const radius = 62;
+                  const x = Math.cos(angle) * radius;
+                  const y = Math.sin(angle) * radius;
+                  const isCur =
+                    clockMode === 'hours'
+                      ? hour === val || (val === 12 && hour === 0)
+                      : minute === val;
+
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        if (clockMode === 'hours') {
+                          setHour(val === 0 ? 12 : val);
+                          setClockMode('minutes'); // auto-advance to minute picking
+                        } else {
+                          setMinute(val);
+                        }
+                      }}
+                      style={{
+                        transform: `translate(${x}px, ${y}px)`,
+                      }}
+                      className={`absolute size-6 rounded-full flex items-center justify-center text-[11px] font-semibold transition-all ${
+                        isCur
+                          ? 'bg-amber-500 text-black font-bold shadow'
+                          : 'text-zinc-300 hover:text-amber-400'
+                      }`}
+                    >
+                      {clockMode === 'hours' ? val : val.toString().padStart(2, '0')}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+                <span>
+                  Selecting: <strong className="text-amber-400 capitalize">{clockMode}</strong>
+                </span>
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={() => setClockMode(clockMode === 'hours' ? 'minutes' : 'hours')}
+                  className="text-amber-400 hover:underline"
+                >
+                  Switch to {clockMode === 'hours' ? 'minutes' : 'hours'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Preview & Actions */}
+          <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
+            <div className="text-xs text-zinc-300 truncate pr-2">
+              <span>Send on: </span>
+              <strong className="text-amber-400 font-semibold">
+                {selectedDate.toLocaleDateString([], {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}{' '}
+                at {hour.toString().padStart(2, '0')}:{minute.toString().padStart(2, '0')} {period}
+              </strong>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirm}
+                className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-white text-xs font-bold shadow-md hover:from-[#e06c00] hover:to-[#d04e06] transition-all"
+              >
+                Schedule
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}

@@ -7,6 +7,7 @@ import { Quanty } from './Quanty';
 import { QuantyCopilotDrawer, type QuantyEmailAction } from './QuantyCopilotDrawer';
 import { QuantDrivePickerModal } from './QuantDrivePickerModal';
 import { InsertLinkModal } from './InsertLinkModal';
+import { ScheduleSendModal } from './ScheduleSendModal';
 import { showToast } from './InboxToast';
 
 export interface Attachment {
@@ -92,8 +93,6 @@ export function EmailComposer({
   onSend,
   onSaveDraft,
   onDiscard,
-  onAIAssist,
-  fullScreen = true,
 }: EmailComposerProps) {
   const router = useRouter();
 
@@ -144,8 +143,8 @@ export function EmailComposer({
   const [isDrivePickerOpen, setIsDrivePickerOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [showThreeDotsMenu, setShowThreeDotsMenu] = useState(false);
-  const [showScheduleMenu, setShowScheduleMenu] = useState(false);
-  const [isFullScreenMode, setIsFullScreenMode] = useState(fullScreen);
+  const [showSendOptionsDropdown, setShowSendOptionsDropdown] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   // Loading & Execution
   const [isSending, setIsSending] = useState(false);
@@ -296,7 +295,7 @@ export function EmailComposer({
       showToast({ text: err.message || 'Failed to send message', type: 'error' });
     } finally {
       setIsSending(false);
-      setShowScheduleMenu(false);
+      setShowSendOptionsDropdown(false);
     }
   };
 
@@ -353,6 +352,7 @@ export function EmailComposer({
       showToast({ text: 'Failed to save draft', type: 'error' });
     } finally {
       setIsSaving(false);
+      setShowSendOptionsDropdown(false);
     }
   };
 
@@ -385,16 +385,10 @@ export function EmailComposer({
   const busy = isSending || isSaving;
 
   return (
-    <div
-      className={`flex flex-col h-full w-full bg-[#0d1017] text-white transition-all select-text ${
-        isFullScreenMode
-          ? 'min-h-screen'
-          : 'max-w-4xl mx-auto rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden'
-      }`}
-    >
+    <div className="flex flex-col h-full w-full min-h-screen max-w-full bg-[#0d1017] text-white select-text overflow-x-hidden box-border">
       {/* Top Header Bar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/80 bg-[#121622] shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-3 sm:px-5 py-3 border-b border-zinc-800/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={onDiscard || (() => router.back())}
@@ -415,7 +409,7 @@ export function EmailComposer({
         </div>
 
         {/* Header Right Group: Clean Quanty Robot, Three-Dots Menu, Close */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Clean Quanty Robot (Larger, No Yellow Badge) */}
           <button
             type="button"
@@ -454,26 +448,6 @@ export function EmailComposer({
                   <button
                     type="button"
                     onClick={() => {
-                      setIsFullScreenMode((prev) => !prev);
-                      setShowThreeDotsMenu(false);
-                    }}
-                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800"
-                  >
-                    <svg
-                      className="size-3.5 text-zinc-400"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-                    </svg>
-                    <span>{isFullScreenMode ? 'Exit full screen' : 'Default to full screen'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
                       setShowFormattingBar((prev) => !prev);
                       setShowThreeDotsMenu(false);
                     }}
@@ -481,14 +455,14 @@ export function EmailComposer({
                   >
                     <span className="font-bold font-serif text-amber-400">Aa</span>
                     <span>
-                      {showFormattingBar ? 'Hide formatting bar' : 'Plain / Rich text formatting'}
+                      {showFormattingBar ? 'Hide formatting bar' : 'Plain / Rich formatting'}
                     </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => {
-                      setShowScheduleMenu(true);
+                      setShowScheduleModal(true);
                       setShowThreeDotsMenu(false);
                     }}
                     className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800"
@@ -503,7 +477,7 @@ export function EmailComposer({
                       <circle cx="12" cy="12" r="10" />
                       <polyline points="12 6 12 12 16 14" />
                     </svg>
-                    <span>Help me schedule</span>
+                    <span>Schedule send</span>
                   </button>
 
                   <button
@@ -566,20 +540,22 @@ export function EmailComposer({
       </div>
 
       {/* Main Composer Scrollable Body */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3 space-y-3">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border">
         {/* Recipient Rows (To, Cc, Bcc) */}
-        <div className="border-b border-zinc-800/80 pb-2 space-y-2">
+        <div className="border-b border-zinc-800/80 pb-2 space-y-2 w-full max-w-full">
           {/* To: Row */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-zinc-400 w-16 shrink-0">To:</span>
+          <div className="flex items-center gap-2 sm:gap-3 w-full max-w-full">
+            <span className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0">
+              To <span className="text-rose-500">*</span>:
+            </span>
             <input
               type="text"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              placeholder="name@example.com (or enter multiple separated by commas)"
-              className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none"
+              placeholder="name@example.com"
+              className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none"
             />
-            <div className="flex items-center gap-1.5 shrink-0 text-xs">
+            <div className="flex items-center gap-1 shrink-0 text-xs">
               {!showCc && (
                 <button
                   type="button"
@@ -603,14 +579,14 @@ export function EmailComposer({
 
           {/* Cc: Row */}
           {showCc && (
-            <div className="flex items-center gap-3 pt-1 border-t border-zinc-900">
-              <span className="text-xs font-semibold text-zinc-400 w-16 shrink-0">Cc:</span>
+            <div className="flex items-center gap-2 sm:gap-3 pt-1 border-t border-zinc-900 w-full max-w-full">
+              <span className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0">Cc:</span>
               <input
                 type="text"
                 value={cc}
                 onChange={(e) => setCc(e.target.value)}
                 placeholder="cc@example.com"
-                className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none"
               />
               <button
                 type="button"
@@ -618,7 +594,7 @@ export function EmailComposer({
                   setShowCc(false);
                   setCc('');
                 }}
-                className="text-zinc-500 hover:text-rose-400 text-xs px-1"
+                className="text-zinc-500 hover:text-rose-400 text-xs px-1 shrink-0"
               >
                 ✕
               </button>
@@ -627,14 +603,16 @@ export function EmailComposer({
 
           {/* Bcc: Row */}
           {showBcc && (
-            <div className="flex items-center gap-3 pt-1 border-t border-zinc-900">
-              <span className="text-xs font-semibold text-zinc-400 w-16 shrink-0">Bcc:</span>
+            <div className="flex items-center gap-2 sm:gap-3 pt-1 border-t border-zinc-900 w-full max-w-full">
+              <span className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0">
+                Bcc:
+              </span>
               <input
                 type="text"
                 value={bcc}
                 onChange={(e) => setBcc(e.target.value)}
                 placeholder="bcc@example.com"
-                className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none"
               />
               <button
                 type="button"
@@ -642,7 +620,7 @@ export function EmailComposer({
                   setShowBcc(false);
                   setBcc('');
                 }}
-                className="text-zinc-500 hover:text-rose-400 text-xs px-1"
+                className="text-zinc-500 hover:text-rose-400 text-xs px-1 shrink-0"
               >
                 ✕
               </button>
@@ -651,50 +629,54 @@ export function EmailComposer({
         </div>
 
         {/* Subject Row */}
-        <div className="flex items-center gap-3 border-b border-zinc-800/80 pb-2">
-          <span className="text-xs font-semibold text-zinc-400 w-16 shrink-0">
-            Subject <span className="text-rose-500">*</span>
+        <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-800/80 pb-2 w-full max-w-full">
+          <span className="text-xs font-semibold text-zinc-400 w-16 sm:w-16 shrink-0">
+            Subject <span className="text-rose-500">*</span>:
           </span>
           <input
             type="text"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Subject of the email"
-            className="flex-1 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-zinc-500 focus:outline-none"
+            className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-zinc-500 focus:outline-none"
           />
         </div>
 
         {/* Guided Structured Corporate Email Canvas */}
-        <div className="space-y-3 pt-1">
+        <div className="space-y-3 pt-1 w-full max-w-full box-border">
           {/* Greeting Row */}
-          <div className="flex items-center gap-3 border-b border-zinc-900 pb-2">
-            <span className="text-xs font-medium text-zinc-500 w-16 shrink-0">Greeting:</span>
+          <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-900 pb-2 w-full max-w-full">
+            <span className="text-xs font-medium text-zinc-500 w-14 sm:w-16 shrink-0">
+              Greeting:
+            </span>
             <input
               type="text"
               value={greeting}
               onChange={(e) => setGreeting(e.target.value)}
-              placeholder="Dear Sir/Madam, / Hi Alex,"
-              className="flex-1 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
+              placeholder="Dear Sir/Madam,"
+              className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
             />
           </div>
 
           {/* Opening / Purpose Row */}
-          <div className="flex items-center gap-3 border-b border-zinc-900 pb-2">
-            <span className="text-xs font-medium text-zinc-500 w-16 shrink-0">Opening:</span>
+          <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-900 pb-2 w-full max-w-full">
+            <span className="text-xs font-medium text-zinc-500 w-14 sm:w-16 shrink-0">
+              Opening:
+            </span>
             <input
               type="text"
               value={opening}
               onChange={(e) => setOpening(e.target.value)}
               placeholder="Reason for writing / brief opening statement..."
-              className="flex-1 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
+              className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
             />
           </div>
 
           {/* Main Body Canvas */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 w-full max-w-full box-border">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-zinc-400">
-                Body <span className="text-rose-500">*</span>
+                Body <span className="text-rose-500">*</span>:
               </span>
               <span className="text-[10px] text-zinc-500">
                 {selectedFont.name} · {selectedSize.name}
@@ -715,63 +697,69 @@ export function EmailComposer({
                   `${isUnderline ? 'underline ' : ''}${isStrikethrough ? 'line-through' : ''}`.trim() ||
                   'none',
               }}
-              className={`w-full bg-zinc-950/40 border border-zinc-800/80 rounded-2xl p-3.5 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 resize-y leading-relaxed shadow-inner`}
+              className={`w-full max-w-full box-border bg-zinc-950/40 border border-zinc-800/80 rounded-2xl p-3.5 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 resize-y leading-relaxed shadow-inner`}
             />
           </div>
 
           {/* Closing Row */}
-          <div className="flex items-center gap-3 border-b border-zinc-900 pb-2">
-            <span className="text-xs font-medium text-zinc-500 w-16 shrink-0">Closing:</span>
+          <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-900 pb-2 w-full max-w-full">
+            <span className="text-xs font-medium text-zinc-500 w-14 sm:w-16 shrink-0">
+              Closing:
+            </span>
             <input
               type="text"
               value={closing}
               onChange={(e) => setClosing(e.target.value)}
-              placeholder="Thank you for your time. / Looking forward to hearing from you."
-              className="flex-1 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
+              placeholder="Thank you for your time."
+              className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
             />
           </div>
 
-          {/* Sign-off & Sender Details */}
-          <div className="space-y-2 pt-1 border-t border-zinc-900">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-medium text-zinc-500 w-16 shrink-0">Sign-off:</span>
-              <input
-                type="text"
-                value={signoff}
-                onChange={(e) => setSignoff(e.target.value)}
-                placeholder="Best regards,"
-                className="w-36 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none border-b border-zinc-800 pb-0.5"
-              />
-              <input
-                type="text"
-                value={senderName}
-                onChange={(e) => setSenderName(e.target.value)}
-                placeholder="Your Name"
-                className="flex-1 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none border-b border-zinc-800 pb-0.5"
-              />
+          {/* Sign-off & Sender Details (Responsive & Static - No Horizontal Overflow) */}
+          <div className="space-y-2 pt-1 border-t border-zinc-900 w-full max-w-full box-border">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 w-full max-w-full">
+              <span className="text-xs font-medium text-zinc-500 w-14 sm:w-16 shrink-0">
+                Sign-off:
+              </span>
+              <div className="flex items-center gap-2 flex-1 min-w-0 w-full">
+                <input
+                  type="text"
+                  value={signoff}
+                  onChange={(e) => setSignoff(e.target.value)}
+                  placeholder="Best regards,"
+                  className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none border-b border-zinc-800 pb-0.5"
+                />
+                <input
+                  type="text"
+                  value={senderName}
+                  onChange={(e) => setSenderName(e.target.value)}
+                  placeholder="Your Name"
+                  className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none border-b border-zinc-800 pb-0.5"
+                />
+              </div>
             </div>
 
-            {/* Custom Detail Lines (Empty by default) */}
+            {/* Custom Detail Lines */}
             {customDetails.map((detail, idx) => (
-              <div key={idx} className="flex items-center gap-3 pl-16">
+              <div key={idx} className="flex items-center gap-2 pl-0 sm:pl-16 min-w-0 w-full">
                 <input
                   type="text"
                   value={detail}
                   onChange={(e) => handleUpdateDetail(idx, e.target.value)}
                   placeholder="Designation / Company / Contact..."
-                  className="flex-1 bg-transparent text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none border-b border-zinc-800/80 pb-0.5"
+                  className="flex-1 min-w-0 bg-transparent text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none border-b border-zinc-800/80 pb-0.5"
                 />
                 <button
                   type="button"
                   onClick={() => handleRemoveDetail(idx)}
-                  className="text-zinc-500 hover:text-rose-400 text-xs px-1"
+                  className="text-zinc-500 hover:text-rose-400 text-xs px-1 shrink-0"
                 >
                   ✕
                 </button>
               </div>
             ))}
 
-            <div className="pl-16 pt-0.5">
+            <div className="pl-0 sm:pl-16 pt-0.5">
               <button
                 type="button"
                 onClick={handleAddDetail}
@@ -818,7 +806,7 @@ export function EmailComposer({
 
         {/* Attached Files List */}
         {attachments.length > 0 && (
-          <div className="p-3 rounded-2xl border border-zinc-800/80 bg-[#121622] space-y-2">
+          <div className="p-3 rounded-2xl border border-zinc-800/80 bg-[#121622] space-y-2 w-full max-w-full box-border">
             <span className="text-xs font-semibold text-zinc-400">
               Attached files ({attachments.length}):
             </span>
@@ -851,7 +839,7 @@ export function EmailComposer({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="border-t border-zinc-800/80 bg-[#141824] px-4 py-2 flex flex-wrap items-center gap-1.5 text-xs select-none"
+            className="border-t border-zinc-800/80 bg-[#141824] px-3 sm:px-5 py-2 flex flex-wrap items-center gap-1.5 text-xs select-none w-full max-w-full box-border shrink-0"
           >
             {/* Font Family Dropdown */}
             <div className="relative">
@@ -932,7 +920,7 @@ export function EmailComposer({
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
               }`}
-              title="Bold (Ctrl+B)"
+              title="Bold"
             >
               B
             </button>
@@ -946,7 +934,7 @@ export function EmailComposer({
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
               }`}
-              title="Italic (Ctrl+I)"
+              title="Italic"
             >
               I
             </button>
@@ -960,7 +948,7 @@ export function EmailComposer({
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
               }`}
-              title="Underline (Ctrl+U)"
+              title="Underline"
             >
               U
             </button>
@@ -1080,7 +1068,6 @@ export function EmailComposer({
                 strokeWidth="2"
               >
                 <line x1="21" x2="3" y1="6" y2="6" />
-                <line x1="21" x2="9" y1="12" y2="12" />
                 <line x1="21" x2="7" y1="18" y2="18" />
               </svg>
             </button>
@@ -1108,16 +1095,16 @@ export function EmailComposer({
       </AnimatePresence>
 
       {/* Bottom Unified Action Toolbar (Gmail / Superhuman Style) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3 border-t border-zinc-800/80 bg-[#121622] shrink-0">
+      <div className="flex items-center justify-between px-3 sm:px-5 py-3 border-t border-zinc-800/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
         {/* Left Toolbar Group */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Primary Send Button with Dropdown for Schedule Send */}
-          <div className="flex items-center rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] shadow-lg overflow-hidden">
+        <div className="flex items-center gap-1 sm:gap-2">
+          {/* Primary Send Button with Dropup Menu for Save draft & Schedule send */}
+          <div className="relative flex items-center rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] shadow-lg">
             <button
               type="button"
               onClick={() => handleSend()}
               disabled={busy || !to.trim()}
-              className="flex items-center gap-2 px-4 py-2 text-white text-xs sm:text-sm font-bold hover:brightness-110 active:scale-95 disabled:opacity-40 transition-all"
+              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 text-white text-xs sm:text-sm font-bold hover:brightness-110 active:scale-95 disabled:opacity-40 transition-all"
             >
               {isSending ? (
                 <span>Sending…</span>
@@ -1125,7 +1112,7 @@ export function EmailComposer({
                 <>
                   <span>Send</span>
                   <svg
-                    className="size-4"
+                    className="size-3.5 sm:size-4"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -1139,13 +1126,66 @@ export function EmailComposer({
 
             <button
               type="button"
-              onClick={() => setShowScheduleMenu((prev) => !prev)}
+              onClick={() => setShowSendOptionsDropdown((prev) => !prev)}
               disabled={busy}
               className="px-2 py-2 border-l border-white/20 text-white hover:bg-black/20 text-xs"
-              title="Schedule send"
+              title="Send options (Save draft / Schedule send)"
             >
               ▲
             </button>
+
+            {/* Dropup Menu for Send Options */}
+            {showSendOptionsDropdown && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowSendOptionsDropdown(false)}
+                />
+                <div className="absolute left-0 bottom-full mb-2 w-48 rounded-2xl border border-zinc-800 bg-[#121622] py-2 shadow-2xl z-50 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowScheduleModal(true);
+                      setShowSendOptionsDropdown(false);
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800 transition-all"
+                  >
+                    <svg
+                      className="size-3.5 text-amber-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span>Schedule send</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleSaveDraft();
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800 transition-all"
+                  >
+                    <svg
+                      className="size-3.5 text-zinc-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                      <polyline points="17 21 17 13 7 13 7 21" />
+                      <polyline points="7 3 7 8 15 8" />
+                    </svg>
+                    <span>{isSaving ? 'Saving draft…' : 'Save draft'}</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Aa Formatting Options Toggle */}
@@ -1216,38 +1256,10 @@ export function EmailComposer({
               <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
             </svg>
           </button>
-
-          {/* Quanty AI Assistant Trigger (✨) */}
-          <button
-            type="button"
-            onClick={() => setIsQuantyDrawerOpen(true)}
-            className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all flex items-center gap-1"
-            title="Quanty Copilot Assistant"
-          >
-            <svg
-              className="size-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" />
-            </svg>
-          </button>
         </div>
 
-        {/* Right Toolbar Group */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleSaveDraft}
-            disabled={busy}
-            className="px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-medium transition-all"
-          >
-            {isSaving ? 'Saving…' : 'Save draft'}
-          </button>
-
-          {/* Discard Draft Trash Button */}
+        {/* Right Toolbar Group: Discard Draft Trash Button */}
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={onDiscard || (() => router.back())}
@@ -1267,95 +1279,14 @@ export function EmailComposer({
         </div>
       </div>
 
-      {/* Schedule Send Modal Popup */}
-      <AnimatePresence>
-        {showScheduleMenu && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowScheduleMenu(false)}
-              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="fixed inset-x-4 top-[25%] sm:max-w-md sm:mx-auto z-50 rounded-2xl border border-zinc-800 bg-[#121622] p-5 shadow-2xl space-y-3"
-            >
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <svg
-                    className="size-4 text-amber-400"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
-                  Schedule send
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setShowScheduleMenu(false)}
-                  className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 text-xs"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="space-y-1.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date();
-                    d.setDate(d.getDate() + 1);
-                    d.setHours(8, 0, 0, 0);
-                    void handleSend(d.toISOString());
-                  }}
-                  className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-left text-zinc-200"
-                >
-                  <span>Tomorrow morning</span>
-                  <span className="text-zinc-500">8:00 AM</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date();
-                    d.setDate(d.getDate() + 1);
-                    d.setHours(13, 0, 0, 0);
-                    void handleSend(d.toISOString());
-                  }}
-                  className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-left text-zinc-200"
-                >
-                  <span>Tomorrow afternoon</span>
-                  <span className="text-zinc-500">1:00 PM</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const d = new Date();
-                    const day = d.getDay();
-                    const diff = (8 - day) % 7 || 7;
-                    d.setDate(d.getDate() + diff);
-                    d.setHours(8, 0, 0, 0);
-                    void handleSend(d.toISOString());
-                  }}
-                  className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-left text-zinc-200"
-                >
-                  <span>Monday morning</span>
-                  <span className="text-zinc-500">8:00 AM</span>
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {/* Schedule Send Modal (Interactive Calendar & Google-Style Clock) */}
+      <ScheduleSendModal
+        isOpen={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
+        onSchedule={(scheduledAt) => {
+          void handleSend(scheduledAt);
+        }}
+      />
 
       {/* QuantDrive File Picker Modal */}
       <QuantDrivePickerModal

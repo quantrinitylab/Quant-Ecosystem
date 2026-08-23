@@ -35,6 +35,29 @@ interface ChatHistoryItem {
   messages: Array<{ role: 'user' | 'assistant'; text: string }>;
 }
 
+export function parseEmailActionFromText(text: string): QuantyEmailAction {
+  const emailMatch = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+  const subjectMatch = text.match(/Subject:\s*([^\n]+)/i);
+  const greetingMatch = text.match(/^(Dear\s+[^,\n]+,|Hi\s+[^,\n]+,|Hello\s+[^,\n]+,)/im);
+  const closingMatch = text.match(
+    /(Thank you for your time\.|Looking forward to hearing from you\.|Thanks\.|Best regards|Sincerely)[^\n]*/i,
+  );
+
+  const cleanBody = text
+    .replace(/^Subject:.*$/im, '')
+    .replace(/^(Dear|Hi|Hello)[^\n]+,\s*/im, '')
+    .replace(/(Best regards|Sincerely|Thanks|Warm regards)[,\s\S]*$/im, '')
+    .trim();
+
+  return {
+    to: emailMatch ? emailMatch[1] : undefined,
+    subject: subjectMatch ? subjectMatch[1].trim() : undefined,
+    greeting: greetingMatch ? greetingMatch[1].trim() : undefined,
+    body: cleanBody || text,
+    closing: closingMatch ? closingMatch[0].trim() : undefined,
+  };
+}
+
 const STORAGE_KEY = 'quantmail_quanty_chats_v1';
 
 export function QuantyCopilotDrawer({
@@ -156,6 +179,12 @@ export function QuantyCopilotDrawer({
           setMessages(finalMsgs);
           setQuantyExpression('happy');
           saveCurrentConversation(finalMsgs);
+
+          if (isComposeContext && onApplyAction) {
+            const action = parseEmailActionFromText(responseText);
+            onApplyAction(action);
+            showToast({ text: 'Quanty updated your email draft ✨', type: 'success' });
+          }
           return;
         }
       }
@@ -173,6 +202,12 @@ export function QuantyCopilotDrawer({
         setMessages(finalMsgs);
         setQuantyExpression('happy');
         saveCurrentConversation(finalMsgs);
+
+        if (isComposeContext && onApplyAction) {
+          const action = parseEmailActionFromText(simulated);
+          onApplyAction(action);
+          showToast({ text: 'Quanty updated your email draft ✨', type: 'success' });
+        }
       }, 500);
     } catch {
       setMessages([
