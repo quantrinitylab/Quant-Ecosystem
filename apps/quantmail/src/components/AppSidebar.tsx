@@ -1,29 +1,11 @@
 'use client';
 
-import { useCallback, useState, type ReactNode } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import type { ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCreateLabel, useLabels } from '../hooks/useLabels';
 import { useInbox } from '../hooks/useInbox';
-import { NotificationBell } from './NotificationBell';
 import { QuantMailLogo } from './QuantMailLogo';
 import { BrandWordmark } from './BrandWordmark';
-import { Interactive3DLogo } from './Interactive3DLogo';
-import type { EmailLabel } from '../types';
 import { AccountBadge } from './AccountBadge';
-
-const PRESET_COLORS = [
-  '#ef4444',
-  '#ff9933',
-  '#eab308',
-  '#138808',
-  '#06b6d4',
-  '#3b82f6',
-  '#6366f1',
-  '#ec4899',
-  '#6b7280',
-  '#14b8a6',
-];
 
 type IconName =
   | 'archive'
@@ -195,7 +177,6 @@ const NAV_GROUPS: Array<{
     items: [
       { id: 'inbox', label: 'Mail', icon: 'inbox', path: '/' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
-      { id: 'archive', label: 'Archive', icon: 'archive', path: '/archive' },
       { id: 'spam', label: 'Spam', icon: 'spam', path: '/spam' },
       { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
     ],
@@ -215,142 +196,6 @@ const NAV_GROUPS: Array<{
     items: [{ id: 'settings', label: 'Settings', icon: 'settings', path: '/settings' }],
   },
 ];
-
-function LabelSection() {
-  const router = useRouter();
-  const { data: labels, isLoading } = useLabels();
-  const createLabel = useCreateLabel();
-  const prefersReducedMotion = useReducedMotion();
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newLabelName, setNewLabelName] = useState('');
-  const [newLabelColor, setNewLabelColor] = useState(PRESET_COLORS[1]);
-  const [labelsExpanded, setLabelsExpanded] = useState(true);
-
-  const handleCreateLabel = useCallback(async () => {
-    const name = newLabelName.trim();
-    if (!name) return;
-    try {
-      await createLabel.mutateAsync({ name, color: newLabelColor });
-      setNewLabelName('');
-      setNewLabelColor(PRESET_COLORS[1]);
-      setShowCreateForm(false);
-    } catch {
-      // The mutation hook exposes the failure state next to this form.
-    }
-  }, [createLabel, newLabelColor, newLabelName]);
-
-  return (
-    <section className="sidebar-labels" aria-labelledby="sidebar-labels-heading">
-      <button
-        type="button"
-        className="sidebar-section-trigger"
-        onClick={() => setLabelsExpanded((value) => !value)}
-        aria-expanded={labelsExpanded}
-        aria-controls="sidebar-labels-list"
-      >
-        <span id="sidebar-labels-heading">Labels</span>
-        <Icon
-          name="chevron"
-          className={`h-3.5 w-3.5 transition-transform motion-reduce:transition-none ${labelsExpanded ? 'rotate-90' : ''}`}
-        />
-      </button>
-      <AnimatePresence initial={false}>
-        {labelsExpanded && (
-          <motion.div
-            id="sidebar-labels-list"
-            initial={prefersReducedMotion ? false : { height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={prefersReducedMotion ? undefined : { height: 0, opacity: 0 }}
-            className="overflow-hidden"
-          >
-            {isLoading && <div className="sidebar-label-skeleton" />}
-            {labels?.map((label: EmailLabel) => (
-              <button
-                type="button"
-                key={label.id}
-                className="sidebar-label-item"
-                onClick={() => router.push('/labels')}
-                title="Open labels manager"
-              >
-                <span
-                  className="h-2 w-2 flex-none rounded-full shadow-[0_0_6px]"
-                  style={{ backgroundColor: label.color, boxShadow: `0 0 6px ${label.color}80` }}
-                  aria-hidden="true"
-                />
-                <span className="min-w-0 flex-1 truncate">{label.name}</span>
-                {label.unreadCount > 0 && (
-                  <span className="sidebar-count">{label.unreadCount}</span>
-                )}
-              </button>
-            ))}
-            {!showCreateForm ? (
-              <button
-                type="button"
-                className="sidebar-create-label"
-                onClick={() => setShowCreateForm(true)}
-              >
-                <span aria-hidden="true">＋</span> New label
-              </button>
-            ) : (
-              <div className="sidebar-label-form">
-                <label className="sr-only" htmlFor="new-label-name">
-                  Label name
-                </label>
-                <input
-                  id="new-label-name"
-                  type="text"
-                  placeholder="Label name"
-                  value={newLabelName}
-                  onChange={(event) => setNewLabelName(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') void handleCreateLabel();
-                  }}
-                  autoFocus
-                />
-                <div className="sidebar-color-grid" aria-label="Label color">
-                  {PRESET_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      style={{ backgroundColor: color }}
-                      onClick={() => setNewLabelColor(color)}
-                      aria-label={`Use color ${color}`}
-                      aria-pressed={newLabelColor === color}
-                      className={newLabelColor === color ? 'is-selected' : ''}
-                    />
-                  ))}
-                </div>
-                {createLabel.isError && (
-                  <p className="sidebar-label-error" role="alert">
-                    Label could not be created.
-                  </p>
-                )}
-                <div className="sidebar-label-actions">
-                  <button
-                    type="button"
-                    onClick={() => void handleCreateLabel()}
-                    disabled={!newLabelName.trim() || createLabel.isPending}
-                  >
-                    {createLabel.isPending ? 'Creating…' : 'Create'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreateForm(false);
-                      setNewLabelName('');
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </section>
-  );
-}
 
 export function AppSidebar() {
   const router = useRouter();
@@ -373,14 +218,35 @@ export function AppSidebar() {
           <BrandWordmark app="mail" size="text-lg" />
         </div>
         <div className="flex items-center gap-2">
-          <NotificationBell />
+          <button
+            type="button"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('quant:sidebar:close'));
+            }}
+            className="size-8 inline-flex items-center justify-center rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition-colors"
+            title="Close navigation"
+            aria-label="Close navigation menu"
+          >
+            <svg
+              className="size-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
       </header>
 
       <div className="sidebar-compose-wrap">
         <button type="button" onClick={() => router.push('/compose')} className="sidebar-compose">
           <Icon name="compose" className="h-[18px] w-[18px]" />
-          <span>New message</span>
+          <span>Compose</span>
           <kbd className="hidden md:inline-flex">C</kbd>
         </button>
       </div>
@@ -427,7 +293,6 @@ export function AppSidebar() {
             </ul>
           </section>
         ))}
-        <LabelSection />
 
         {/* QuantMail Storage Indicator */}
         <section

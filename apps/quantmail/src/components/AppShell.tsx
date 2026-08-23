@@ -257,6 +257,12 @@ export function AppShell({
     }
   }, []);
 
+  useEffect(() => {
+    const handleClose = () => setIsSidebarOpen(false);
+    window.addEventListener('quant:sidebar:close', handleClose);
+    return () => window.removeEventListener('quant:sidebar:close', handleClose);
+  }, []);
+
   const closeSidebar = useCallback((restoreFocus = true) => {
     setIsSidebarOpen(false);
     if (restoreFocus) menuTriggerRef.current?.focus();
