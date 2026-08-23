@@ -1,229 +1,170 @@
 'use client';
 
-import React, { useCallback, useRef, useState } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ContactAutocomplete, type ContactSuggestion } from './ContactAutocomplete';
-import { EmailTemplates, type EmailTemplate } from './EmailTemplates';
-import { showToast } from './InboxToast';
+import { useRouter } from 'next/navigation';
 import { Quanty } from './Quanty';
-import type { EmailAddress, EmailPriority } from '../types';
+import { QuantyCopilotDrawer, type QuantyEmailAction } from './QuantyCopilotDrawer';
+import { QuantDrivePickerModal } from './QuantDrivePickerModal';
+import { InsertLinkModal } from './InsertLinkModal';
+import { showToast } from './InboxToast';
+
+export interface Attachment {
+  id: string;
+  name: string;
+  filename: string;
+  size: number;
+  type: string;
+  mimeType: string;
+  url: string;
+}
 
 export interface ComposerMessageData {
-  to: EmailAddress[];
-  cc: EmailAddress[];
-  bcc: EmailAddress[];
+  to: string | Array<{ email: string }>;
+  cc?: string;
+  bcc?: string;
   subject: string;
-  bodyText: string;
-  bodyHtml: string;
-  priority: EmailPriority;
+  bodyText?: string;
+  bodyHtml?: string;
+  body?: string;
+  priority?: 'low' | 'normal' | 'high';
   scheduledAt?: string;
-  attachments?: LocalAttachment[];
+  attachments?: Attachment[];
 }
 
 export interface EmailComposerProps {
-  initialTo?: EmailAddress[];
+  initialTo?: string | Array<{ email: string }>;
   initialSubject?: string;
   initialBody?: string;
+  initialReplyToId?: string;
   inReplyTo?: string;
-  onSend: (data: ComposerMessageData) => Promise<void>;
-  onSaveDraft: (data: ComposerMessageData) => Promise<void>;
-  onDiscard: () => void;
-  onAIAssist: (
+  onSend?: (data: any) => Promise<void>;
+  onSaveDraft?: (data: any) => Promise<void>;
+  onDiscard?: () => void;
+  onAIAssist?: (
     action: 'compose' | 'improve' | 'shorten' | 'formalize',
     text: string,
   ) => Promise<string>;
-  isMinimized?: boolean;
-  onToggleMinimize?: () => void;
+  fullScreen?: boolean;
 }
 
-export type LocalAttachment = {
-  id: string;
-  name: string;
-  filename?: string;
-  size: number;
-  type: string;
-  mimeType?: string;
-  url?: string;
-};
+const FONT_FAMILIES = [
+  { id: 'sans', name: 'Sans Serif', css: 'font-sans' },
+  { id: 'serif', name: 'Serif', css: 'font-serif' },
+  { id: 'mono', name: 'Monospace / Fixed Width', css: 'font-mono' },
+  { id: 'garamond', name: 'Garamond', css: 'font-[Garamond,serif]' },
+  { id: 'georgia', name: 'Georgia', css: 'font-[Georgia,serif]' },
+  { id: 'verdana', name: 'Verdana', css: 'font-[Verdana,sans-serif]' },
+  { id: 'comic', name: 'Comic Sans MS', css: 'font-["Comic_Sans_MS",cursive]' },
+];
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+const FONT_SIZES = [
+  { id: 'sm', name: 'Small', css: 'text-xs' },
+  { id: 'base', name: 'Normal', css: 'text-sm' },
+  { id: 'lg', name: 'Large', css: 'text-base' },
+  { id: 'xl', name: 'Huge', css: 'text-lg' },
+];
 
-function parseEmails(value: string): EmailAddress[] {
-  return value
-    .split(',')
-    .map((email) => email.trim())
-    .filter(Boolean)
-    .map((email) => ({ email }));
-}
+const TEXT_COLORS = [
+  { id: 'default', color: '#f4f4f5', label: 'Default' },
+  { id: 'amber', color: '#f59e0b', label: 'Amber' },
+  { id: 'orange', color: '#f97316', label: 'Orange' },
+  { id: 'emerald', color: '#10b981', label: 'Emerald' },
+  { id: 'sky', color: '#0ea5e9', label: 'Sky' },
+  { id: 'rose', color: '#f43f5e', label: 'Rose' },
+  { id: 'zinc', color: '#a1a1aa', label: 'Muted' },
+];
 
 function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
 export function EmailComposer({
-  initialTo,
-  initialSubject,
-  initialBody,
+  initialTo = '',
+  initialSubject = '',
+  initialBody = '',
+  initialReplyToId,
+  inReplyTo,
   onSend,
   onSaveDraft,
   onDiscard,
   onAIAssist,
-}: EmailComposerProps): React.ReactElement {
-  const [to, setTo] = useState(initialTo?.map((address) => address.email).join(', ') ?? '');
+  fullScreen = true,
+}: EmailComposerProps) {
+  const router = useRouter();
+
+  // Core Fields
+  const formattedInitialTo = useMemo(() => {
+    if (Array.isArray(initialTo)) {
+      return initialTo.map((t) => t.email).join(', ');
+    }
+    return initialTo || '';
+  }, [initialTo]);
+
+  const [to, setTo] = useState(formattedInitialTo);
+  const [showCc, setShowCc] = useState(false);
+  const [showBcc, setShowBcc] = useState(false);
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
-  const [subject, setSubject] = useState(initialSubject?.replace(/^(Re:\s*)+/i, '').trim() ?? '');
+  const [subject, setSubject] = useState(initialSubject);
 
-  // Structured Corporate Email Sections
+  // Structured Corporate Sections
   const [greeting, setGreeting] = useState('Dear Sir/Madam,');
   const [opening, setOpening] = useState('');
-  const [mainBody, setMainBody] = useState(initialBody ?? '');
+  const [body, setBody] = useState(initialBody);
   const [closing, setClosing] = useState('Thank you for your time.');
   const [signoff, setSignoff] = useState('Best regards,');
   const [senderName, setSenderName] = useState('Kundan Kumar');
-  const [customDetails, setCustomDetails] = useState<string[]>(['Quantrinity Lab']);
+  const [customDetails, setCustomDetails] = useState<string[]>([]);
 
-  const [priority, setPriority] = useState<EmailPriority>('normal');
-  const [showCcBcc, setShowCcBcc] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
-  const [showTemplates, setShowTemplates] = useState(false);
-
-  // Quanty AI assistant modal state
-  const [isQuantyModalOpen, setIsQuantyModalOpen] = useState(false);
-  const [quantyPrompt, setQuantyPrompt] = useState('');
-
+  // Attachments
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [contacts] = useState<ContactSuggestion[]>([
-    { email: 'team@quantrinity.in', name: 'Quantrinity Team', frequency: 10 },
-    { email: 'kundan@quantmail.in', name: 'Kundan', frequency: 8 },
-    { email: 'support@quantrinity.in', name: 'Support', frequency: 5 },
-  ]);
+  // Formatting state
+  const [showFormattingBar, setShowFormattingBar] = useState(false);
+  const [selectedFont, setSelectedFont] = useState(FONT_FAMILIES[0]);
+  const [selectedSize, setSelectedSize] = useState(FONT_SIZES[1]);
+  const [isBold, setIsBold] = useState(false);
+  const [isItalic, setIsItalic] = useState(false);
+  const [isUnderline, setIsUnderline] = useState(false);
+  const [isStrikethrough, setIsStrikethrough] = useState(false);
+  const [textColor, setTextColor] = useState(TEXT_COLORS[0]);
+  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('left');
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showFontPicker, setShowFontPicker] = useState(false);
+  const [showSizePicker, setShowSizePicker] = useState(false);
 
-  const busy = isSending || isSaving || aiLoading;
+  // Modals & Drawers
+  const [isQuantyDrawerOpen, setIsQuantyDrawerOpen] = useState(false);
+  const [isDrivePickerOpen, setIsDrivePickerOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [showThreeDotsMenu, setShowThreeDotsMenu] = useState(false);
+  const [showScheduleMenu, setShowScheduleMenu] = useState(false);
+  const [isFullScreenMode, setIsFullScreenMode] = useState(fullScreen);
 
-  const buildMessage = useCallback(
-    (scheduledAt?: string): ComposerMessageData => {
-      // Assemble structured corporate email parts
-      const parts: string[] = [];
+  // Loading & Execution
+  const [isSending, setIsSending] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-      if (greeting.trim()) {
-        parts.push(greeting.trim());
-      }
-
-      if (opening.trim()) {
-        parts.push(opening.trim());
-      }
-
-      if (mainBody.trim()) {
-        parts.push(mainBody.trim());
-      }
-
-      if (closing.trim()) {
-        parts.push(closing.trim());
-      }
-
-      const signoffLines: string[] = [];
-      if (signoff.trim()) signoffLines.push(signoff.trim());
-      if (senderName.trim()) signoffLines.push(senderName.trim());
-      customDetails.forEach((line) => {
-        if (line.trim()) signoffLines.push(line.trim());
-      });
-
-      if (signoffLines.length > 0) {
-        parts.push(signoffLines.join('\n'));
-      }
-
-      const finalBodyText = parts.join('\n\n');
-      const finalBodyHtml = parts
-        .map(
-          (p) =>
-            `<p style="margin: 0 0 16px 0; line-height: 1.6;">${escapeHtml(p).replace(/\r?\n/g, '<br />')}</p>`,
-        )
-        .join('');
-
-      return {
-        to: parseEmails(to),
-        cc: parseEmails(cc),
-        bcc: parseEmails(bcc),
-        subject: subject.trim() || '(No Subject)',
-        bodyText: finalBodyText,
-        bodyHtml: finalBodyHtml,
-        priority,
-        scheduledAt,
-        attachments: attachments.length > 0 ? attachments : undefined,
-      };
-    },
-    [
-      to,
-      cc,
-      bcc,
-      subject,
-      greeting,
-      opening,
-      mainBody,
-      closing,
-      signoff,
-      senderName,
-      customDetails,
-      priority,
-      attachments,
-    ],
-  );
-
-  const handleSend = async () => {
-    if (!to.trim()) {
-      showToast({ text: 'Please enter at least one recipient', type: 'error' });
-      return;
+  // Focus body if initialTo or subject already provided
+  useEffect(() => {
+    if (initialTo && initialSubject) {
+      setTimeout(() => bodyTextareaRef.current?.focus(), 150);
     }
-    if (!subject.trim()) {
-      showToast({ text: 'Please enter an email subject', type: 'error' });
-      return;
-    }
-    if (!mainBody.trim() && !opening.trim()) {
-      showToast({ text: 'Please enter the message details in the main body', type: 'error' });
-      return;
-    }
-    setIsSending(true);
-    try {
-      await onSend(buildMessage());
-      showToast({ text: 'Message sent successfully', type: 'success' });
-    } catch {
-      showToast({ text: 'Failed to send message', type: 'error' });
-    } finally {
-      setIsSending(false);
-    }
-  };
+  }, [initialTo, initialSubject]);
 
-  const handleSaveDraft = async () => {
-    setIsSaving(true);
-    try {
-      await onSaveDraft(buildMessage());
-      showToast({ text: 'Draft saved', type: 'info' });
-    } catch {
-      showToast({ text: 'Failed to save draft', type: 'error' });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleAddDetailLine = () => {
+  // Dynamic Add Signature detail
+  const handleAddDetail = () => {
     setCustomDetails((prev) => [...prev, '']);
   };
 
-  const handleUpdateDetailLine = (index: number, val: string) => {
+  const handleUpdateDetail = (index: number, val: string) => {
     setCustomDetails((prev) => {
       const next = [...prev];
       next[index] = val;
@@ -231,51 +172,237 @@ export function EmailComposer({
     });
   };
 
-  const handleRemoveDetailLine = (index: number) => {
+  const handleRemoveDetail = (index: number) => {
     setCustomDetails((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSelectTemplate = (template: EmailTemplate) => {
-    setSubject(template.subject);
-    setMainBody(template.body);
-    setShowTemplates(false);
-    showToast({ text: `Template "${template.name}" applied`, type: 'info' });
+  // Compile Final Structured Email Message
+  const buildFinalMessage = (): string => {
+    const parts: string[] = [];
+
+    if (greeting.trim()) {
+      parts.push(greeting.trim());
+    }
+
+    if (opening.trim()) {
+      parts.push(opening.trim());
+    }
+
+    if (body.trim()) {
+      parts.push(body.trim());
+    }
+
+    if (closing.trim()) {
+      parts.push(closing.trim());
+    }
+
+    // Signature Block
+    const sigParts: string[] = [];
+    if (signoff.trim()) sigParts.push(signoff.trim());
+    if (senderName.trim()) sigParts.push(senderName.trim());
+    customDetails.forEach((line) => {
+      if (line.trim()) sigParts.push(line.trim());
+    });
+
+    if (sigParts.length > 0) {
+      parts.push(sigParts.join('\n'));
+    }
+
+    return parts.join('\n\n');
   };
 
-  const handleQuantyGenerate = async () => {
-    if (!quantyPrompt.trim() || aiLoading) return;
-    setAiLoading(true);
+  // Send Handler
+  const handleSend = async (scheduledAt?: string) => {
+    if (!to.trim()) {
+      showToast({ text: 'Please specify at least one recipient (To:)', type: 'error' });
+      return;
+    }
+    if (!subject.trim()) {
+      showToast({ text: 'Please enter an email subject', type: 'error' });
+      return;
+    }
+    if (!body.trim()) {
+      showToast({ text: 'Please enter your message body', type: 'error' });
+      return;
+    }
+
+    const compiledBody = buildFinalMessage();
+    setIsSending(true);
+
+    const toList = to
+      .split(/[,;\s]+/)
+      .filter(Boolean)
+      .map((email) => ({ email }));
+    const ccList = cc
+      ? cc
+          .split(/[,;\s]+/)
+          .filter(Boolean)
+          .map((email) => ({ email }))
+      : undefined;
+    const bccList = bcc
+      ? bcc
+          .split(/[,;\s]+/)
+          .filter(Boolean)
+          .map((email) => ({ email }))
+      : undefined;
+
     try {
-      const generated = await onAIAssist('compose', quantyPrompt);
-      if (generated) {
-        setMainBody(generated);
-        if (!subject.trim()) {
-          setSubject(quantyPrompt.slice(0, 50));
+      if (onSend) {
+        await onSend({
+          to: toList,
+          cc: ccList,
+          bcc: bccList,
+          subject: subject.trim(),
+          body: compiledBody,
+          bodyText: compiledBody,
+          bodyHtml: compiledBody,
+          attachments,
+          scheduledAt,
+          inReplyTo: inReplyTo || initialReplyToId,
+        });
+      } else {
+        const res = await fetch('/api/emails/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: to.trim(),
+            cc: cc.trim() || undefined,
+            bcc: bcc.trim() || undefined,
+            subject: subject.trim(),
+            body: compiledBody,
+            replyToId: inReplyTo || initialReplyToId,
+            attachments,
+            scheduledAt,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error || 'Failed to send email');
         }
-        setIsQuantyModalOpen(false);
-        setQuantyPrompt('');
-        showToast({ text: 'Quanty crafted your email body', type: 'success' });
       }
-    } catch {
-      showToast({ text: 'Quanty could not generate the draft', type: 'error' });
+
+      showToast({
+        text: scheduledAt ? 'Email scheduled successfully 🕒' : 'Email sent successfully 🚀',
+        type: 'success',
+      });
+
+      if (onDiscard) {
+        onDiscard();
+      } else {
+        router.push('/');
+      }
+    } catch (err: any) {
+      showToast({ text: err.message || 'Failed to send message', type: 'error' });
     } finally {
-      setAiLoading(false);
+      setIsSending(false);
+      setShowScheduleMenu(false);
     }
   };
 
+  // Save Draft Handler
+  const handleSaveDraft = async () => {
+    const compiledBody = buildFinalMessage();
+    const toList = to
+      .split(/[,;\s]+/)
+      .filter(Boolean)
+      .map((email) => ({ email }));
+    const ccList = cc
+      ? cc
+          .split(/[,;\s]+/)
+          .filter(Boolean)
+          .map((email) => ({ email }))
+      : undefined;
+    const bccList = bcc
+      ? bcc
+          .split(/[,;\s]+/)
+          .filter(Boolean)
+          .map((email) => ({ email }))
+      : undefined;
+
+    setIsSaving(true);
+    try {
+      if (onSaveDraft) {
+        await onSaveDraft({
+          to: toList,
+          cc: ccList,
+          bcc: bccList,
+          subject: subject.trim(),
+          body: compiledBody,
+          bodyText: compiledBody,
+          bodyHtml: compiledBody,
+          attachments,
+          inReplyTo: inReplyTo || initialReplyToId,
+        });
+      } else {
+        await fetch('/api/emails/drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: to.trim(),
+            cc: cc.trim() || undefined,
+            bcc: bcc.trim() || undefined,
+            subject: subject.trim(),
+            body: compiledBody,
+            attachments,
+          }),
+        });
+      }
+      showToast({ text: 'Draft saved', type: 'success' });
+    } catch {
+      showToast({ text: 'Failed to save draft', type: 'error' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Autonomous Quanty Action Applier
+  const handleApplyQuantyAction = (action: QuantyEmailAction) => {
+    if (action.to) setTo(action.to);
+    if (action.subject) setSubject(action.subject);
+    if (action.greeting) setGreeting(action.greeting);
+    if (action.opening) setOpening(action.opening);
+    if (action.body) setBody(action.body);
+    if (action.closing) setClosing(action.closing);
+    if (action.signoff) setSignoff(action.signoff);
+    if (action.senderName) setSenderName(action.senderName);
+  };
+
+  // Insert Link to Body
+  const handleInsertLink = (displayText: string, url: string) => {
+    setBody((prev) => `${prev} [${displayText}](${url}) `);
+  };
+
+  // Attach from QuantDrive
+  const handleAttachFromDrive = (driveAttachments: Attachment[]) => {
+    setAttachments((prev) => [...prev, ...driveAttachments]);
+    showToast({
+      text: `Attached ${driveAttachments.length} file(s) from QuantDrive`,
+      type: 'success',
+    });
+  };
+
+  const busy = isSending || isSaving;
+
   return (
-    <div className="w-full min-h-[calc(100vh-3.5rem)] md:min-h-full flex flex-col bg-[#090A0C] text-zinc-100 p-2 sm:p-5">
-      {/* Header Bar */}
-      <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800/80">
-        <div className="flex items-center gap-2">
+    <div
+      className={`flex flex-col h-full w-full bg-[#0d1017] text-white transition-all select-text ${
+        isFullScreenMode
+          ? 'min-h-screen'
+          : 'max-w-4xl mx-auto rounded-2xl border border-zinc-800 shadow-2xl overflow-hidden'
+      }`}
+    >
+      {/* Top Header Bar */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/80 bg-[#121622] shrink-0">
+        <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={onDiscard}
-            className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
-            title="Discard & Go Back"
+            onClick={onDiscard || (() => router.back())}
+            className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+            title="Back / Discard"
           >
             <svg
-              className="size-5"
+              className="size-4"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -284,303 +411,392 @@ export function EmailComposer({
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">New Message</h1>
+          <span className="text-sm font-semibold text-white tracking-wide">New message</span>
         </div>
 
+        {/* Header Right Group: Clean Quanty Robot, Three-Dots Menu, Close */}
         <div className="flex items-center gap-2">
+          {/* Clean Quanty Robot (Larger, No Yellow Badge) */}
           <button
             type="button"
-            onClick={() => setShowTemplates(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-300 hover:text-amber-300 bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 transition-all"
+            onClick={() => setIsQuantyDrawerOpen(true)}
+            className="p-1.5 rounded-xl hover:bg-zinc-800 text-amber-400 hover:text-amber-300 transition-all flex items-center gap-1.5"
+            title="Open Quanty AI Copilot"
           >
-            <span>📑</span>
-            <span className="hidden sm:inline">Templates</span>
+            <Quanty size={26} expression="happy" bob={false} />
           </button>
+
+          {/* Three-Dots Menu Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowThreeDotsMenu((prev) => !prev)}
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+              title="More options"
+            >
+              <svg
+                className="size-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="12" cy="5" r="1" />
+                <circle cx="12" cy="19" r="1" />
+              </svg>
+            </button>
+
+            {showThreeDotsMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowThreeDotsMenu(false)} />
+                <div className="absolute right-0 top-full mt-1.5 w-52 rounded-2xl border border-zinc-800 bg-[#121622] py-2 shadow-2xl z-50 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsFullScreenMode((prev) => !prev);
+                      setShowThreeDotsMenu(false);
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800"
+                  >
+                    <svg
+                      className="size-3.5 text-zinc-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                    </svg>
+                    <span>{isFullScreenMode ? 'Exit full screen' : 'Default to full screen'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFormattingBar((prev) => !prev);
+                      setShowThreeDotsMenu(false);
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800"
+                  >
+                    <span className="font-bold font-serif text-amber-400">Aa</span>
+                    <span>
+                      {showFormattingBar ? 'Hide formatting bar' : 'Plain / Rich text formatting'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowScheduleMenu(true);
+                      setShowThreeDotsMenu(false);
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800"
+                  >
+                    <svg
+                      className="size-3.5 text-amber-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span>Help me schedule</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      window.print();
+                      setShowThreeDotsMenu(false);
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800"
+                  >
+                    <svg
+                      className="size-3.5 text-zinc-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <polyline points="6 9 6 2 18 2 18 9" />
+                      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                      <rect width="12" height="8" x="6" y="14" />
+                    </svg>
+                    <span>Print draft</span>
+                  </button>
+
+                  <div className="my-1 border-t border-zinc-800" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDiscard?.();
+                      setShowThreeDotsMenu(false);
+                    }}
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-rose-400 hover:bg-rose-500/10"
+                  >
+                    <svg
+                      className="size-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>
+                    <span>Discard message</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
           <button
             type="button"
-            onClick={() => setIsQuantyModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all"
+            onClick={onDiscard || (() => router.back())}
+            className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+            title="Close"
           >
-            <Quanty size={16} expression="happy" bob={false} />
-            <span className="hidden sm:inline">Quanty AI</span>
+            ✕
           </button>
         </div>
       </div>
 
-      {/* Main Composer Card Container */}
-      <div className="flex-1 w-full max-w-4xl mx-auto rounded-2xl border border-zinc-800 bg-[#0e1017] p-4 sm:p-6 space-y-4 shadow-2xl">
-        {/* 1. Recipient (To) and Cc/Bcc Toggle */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-3 pb-2 border-b border-zinc-800/80">
-            <span className="w-16 sm:w-20 text-xs font-mono font-bold text-amber-400">To:</span>
-            <div className="flex-1 min-w-0">
-              <ContactAutocomplete
-                value={to}
-                onChange={setTo}
-                contacts={contacts}
-                placeholder="name@example.com (or enter recipient email)"
-                aria-label="To"
-              />
+      {/* Main Composer Scrollable Body */}
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-3 space-y-3">
+        {/* Recipient Rows (To, Cc, Bcc) */}
+        <div className="border-b border-zinc-800/80 pb-2 space-y-2">
+          {/* To: Row */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold text-zinc-400 w-16 shrink-0">To:</span>
+            <input
+              type="text"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              placeholder="name@example.com (or enter multiple separated by commas)"
+              className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none"
+            />
+            <div className="flex items-center gap-1.5 shrink-0 text-xs">
+              {!showCc && (
+                <button
+                  type="button"
+                  onClick={() => setShowCc(true)}
+                  className="text-zinc-500 hover:text-amber-400 font-medium px-1"
+                >
+                  Cc
+                </button>
+              )}
+              {!showBcc && (
+                <button
+                  type="button"
+                  onClick={() => setShowBcc(true)}
+                  className="text-zinc-500 hover:text-amber-400 font-medium px-1"
+                >
+                  Bcc
+                </button>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => setShowCcBcc(!showCcBcc)}
-              className="text-xs text-zinc-400 hover:text-amber-300 font-mono shrink-0 px-2 py-1 rounded-lg hover:bg-zinc-800 transition-colors"
-            >
-              {showCcBcc ? 'Hide Cc' : 'Cc / Bcc'}
-            </button>
           </div>
 
-          {/* Expandable Cc and Bcc */}
-          {showCcBcc && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="space-y-2 pt-1"
-            >
-              <div className="flex items-center gap-3 pb-2 border-b border-zinc-800/80">
-                <span className="w-16 sm:w-20 text-xs font-mono font-bold text-amber-400">Cc:</span>
-                <div className="flex-1 min-w-0">
-                  <ContactAutocomplete
-                    value={cc}
-                    onChange={setCc}
-                    contacts={contacts}
-                    placeholder="Cc recipients"
-                    aria-label="Cc"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-3 pb-2 border-b border-zinc-800/80">
-                <span className="w-16 sm:w-20 text-xs font-mono font-bold text-amber-400">
-                  Bcc:
-                </span>
-                <div className="flex-1 min-w-0">
-                  <ContactAutocomplete
-                    value={bcc}
-                    onChange={setBcc}
-                    contacts={contacts}
-                    placeholder="Bcc recipients"
-                    aria-label="Bcc"
-                  />
-                </div>
-              </div>
-            </motion.div>
+          {/* Cc: Row */}
+          {showCc && (
+            <div className="flex items-center gap-3 pt-1 border-t border-zinc-900">
+              <span className="text-xs font-semibold text-zinc-400 w-16 shrink-0">Cc:</span>
+              <input
+                type="text"
+                value={cc}
+                onChange={(e) => setCc(e.target.value)}
+                placeholder="cc@example.com"
+                className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCc(false);
+                  setCc('');
+                }}
+                className="text-zinc-500 hover:text-rose-400 text-xs px-1"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Bcc: Row */}
+          {showBcc && (
+            <div className="flex items-center gap-3 pt-1 border-t border-zinc-900">
+              <span className="text-xs font-semibold text-zinc-400 w-16 shrink-0">Bcc:</span>
+              <input
+                type="text"
+                value={bcc}
+                onChange={(e) => setBcc(e.target.value)}
+                placeholder="bcc@example.com"
+                className="flex-1 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBcc(false);
+                  setBcc('');
+                }}
+                className="text-zinc-500 hover:text-rose-400 text-xs px-1"
+              >
+                ✕
+              </button>
+            </div>
           )}
         </div>
 
-        {/* 2. Subject Field (Clean, no Re:) */}
-        <div className="flex items-center gap-3 pb-2.5 border-b border-zinc-800/80">
-          <span className="w-16 sm:w-20 text-xs font-mono font-bold text-amber-400">Subject:</span>
+        {/* Subject Row */}
+        <div className="flex items-center gap-3 border-b border-zinc-800/80 pb-2">
+          <span className="text-xs font-semibold text-zinc-400 w-16 shrink-0">
+            Subject <span className="text-rose-500">*</span>
+          </span>
           <input
             type="text"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            placeholder="Enter email subject (e.g. Project Update / Meeting Request)"
-            className="flex-1 bg-transparent text-sm sm:text-base text-white placeholder-zinc-500 focus:outline-none font-medium"
+            placeholder="Subject of the email"
+            className="flex-1 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-zinc-500 focus:outline-none"
           />
         </div>
 
-        {/* 3. Guided Corporate Email Sections */}
-        <div className="space-y-4 pt-2">
-          {/* Section: Greeting */}
-          <div className="space-y-1.5 p-3 rounded-xl bg-[#121520] border border-zinc-800/80">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono font-semibold uppercase text-zinc-400 flex items-center gap-1.5">
-                <span>🤝</span> Greeting (Optional)
-              </span>
-              <div className="flex items-center gap-1 overflow-x-auto">
-                {['Dear Sir/Madam,', 'Hi [Name],', 'Hello Team,'].map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => setGreeting(chip)}
-                    className="text-[10px] px-2 py-0.5 rounded-md bg-zinc-800 hover:bg-amber-500/20 text-zinc-300 hover:text-amber-300 transition-colors shrink-0"
-                  >
-                    {chip}
-                  </button>
-                ))}
-                {greeting && (
-                  <button
-                    type="button"
-                    onClick={() => setGreeting('')}
-                    className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-800/60 hover:bg-zinc-700 text-zinc-400 hover:text-rose-400 transition-colors shrink-0"
-                    title="Clear Greeting"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </div>
+        {/* Guided Structured Corporate Email Canvas */}
+        <div className="space-y-3 pt-1">
+          {/* Greeting Row */}
+          <div className="flex items-center gap-3 border-b border-zinc-900 pb-2">
+            <span className="text-xs font-medium text-zinc-500 w-16 shrink-0">Greeting:</span>
             <input
               type="text"
               value={greeting}
               onChange={(e) => setGreeting(e.target.value)}
-              placeholder="e.g. Dear Sir/Madam, or Hi Team,"
-              className="w-full bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none font-sans"
+              placeholder="Dear Sir/Madam, / Hi Alex,"
+              className="flex-1 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
             />
           </div>
 
-          {/* Section: Opening Statement */}
-          <div className="space-y-1.5 p-3 rounded-xl bg-[#121520] border border-zinc-800/80">
-            <span className="text-[11px] font-mono font-semibold uppercase text-zinc-400 flex items-center gap-1.5">
-              <span>🎯</span> Opening / Purpose (Optional)
-            </span>
+          {/* Opening / Purpose Row */}
+          <div className="flex items-center gap-3 border-b border-zinc-900 pb-2">
+            <span className="text-xs font-medium text-zinc-500 w-16 shrink-0">Opening:</span>
             <input
               type="text"
               value={opening}
               onChange={(e) => setOpening(e.target.value)}
-              placeholder="e.g. I am writing to share a brief update regarding our upcoming milestone..."
-              className="w-full bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none font-sans"
+              placeholder="Reason for writing / brief opening statement..."
+              className="flex-1 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
             />
           </div>
 
-          {/* Section: Main Body Canvas */}
-          <div className="space-y-1.5 p-3 rounded-xl bg-[#121520] border border-zinc-800/80">
-            <span className="text-[11px] font-mono font-semibold uppercase text-amber-400/90 flex items-center gap-1.5">
-              <span>📝</span> Main Body - Details & Request (Required)
-            </span>
-            <textarea
-              value={mainBody}
-              onChange={(e) => setMainBody(e.target.value)}
-              placeholder="Write the core message details, action items, requests, or bullet points here..."
-              rows={8}
-              className="w-full bg-transparent text-xs sm:text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none leading-relaxed resize-none font-sans min-h-[160px]"
-            />
-          </div>
-
-          {/* Section: Closing */}
-          <div className="space-y-1.5 p-3 rounded-xl bg-[#121520] border border-zinc-800/80">
+          {/* Main Body Canvas */}
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-mono font-semibold uppercase text-zinc-400 flex items-center gap-1.5">
-                <span>🙏</span> Closing (Optional)
+              <span className="text-xs font-semibold text-zinc-400">
+                Body <span className="text-rose-500">*</span>
               </span>
-              <div className="flex items-center gap-1 overflow-x-auto">
-                {[
-                  'Thank you for your time.',
-                  'Looking forward to your response.',
-                  'Please let me know if you have questions.',
-                ].map((chip) => (
-                  <button
-                    key={chip}
-                    type="button"
-                    onClick={() => setClosing(chip)}
-                    className="text-[10px] px-2 py-0.5 rounded-md bg-zinc-800 hover:bg-amber-500/20 text-zinc-300 hover:text-amber-300 transition-colors shrink-0"
-                  >
-                    {chip}
-                  </button>
-                ))}
-                {closing && (
-                  <button
-                    type="button"
-                    onClick={() => setClosing('')}
-                    className="text-[10px] px-1.5 py-0.5 rounded-md bg-zinc-800/60 hover:bg-zinc-700 text-zinc-400 hover:text-rose-400 transition-colors shrink-0"
-                    title="Clear Closing"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
+              <span className="text-[10px] text-zinc-500">
+                {selectedFont.name} · {selectedSize.name}
+              </span>
             </div>
+            <textarea
+              ref={bodyTextareaRef}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Write your core message, details, deliverables, action items, or bullet points here..."
+              rows={8}
+              style={{
+                color: textColor.color,
+                textAlign: textAlign,
+                fontWeight: isBold ? 'bold' : 'normal',
+                fontStyle: isItalic ? 'italic' : 'normal',
+                textDecoration:
+                  `${isUnderline ? 'underline ' : ''}${isStrikethrough ? 'line-through' : ''}`.trim() ||
+                  'none',
+              }}
+              className={`w-full bg-zinc-950/40 border border-zinc-800/80 rounded-2xl p-3.5 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 resize-y leading-relaxed shadow-inner`}
+            />
+          </div>
+
+          {/* Closing Row */}
+          <div className="flex items-center gap-3 border-b border-zinc-900 pb-2">
+            <span className="text-xs font-medium text-zinc-500 w-16 shrink-0">Closing:</span>
             <input
               type="text"
               value={closing}
               onChange={(e) => setClosing(e.target.value)}
-              placeholder="e.g. Thank you for your time and consideration."
-              className="w-full bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none font-sans"
+              placeholder="Thank you for your time. / Looking forward to hearing from you."
+              className="flex-1 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
             />
           </div>
 
-          {/* Section: Sign-off & Dynamic Details (+ Add detail button) */}
-          <div className="space-y-2.5 p-3.5 rounded-xl bg-[#121520] border border-zinc-800/80">
-            <span className="text-[11px] font-mono font-semibold uppercase text-zinc-400 flex items-center gap-1.5">
-              <span>✍️</span> Sign-off & Sender Signature
-            </span>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-mono text-zinc-500">Sign-off:</label>
-                <input
-                  type="text"
-                  value={signoff}
-                  onChange={(e) => setSignoff(e.target.value)}
-                  placeholder="e.g. Best regards,"
-                  className="w-full bg-[#0e1017] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500/50"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-mono text-zinc-500">Sender Name:</label>
-                <input
-                  type="text"
-                  value={senderName}
-                  onChange={(e) => setSenderName(e.target.value)}
-                  placeholder="Your Name"
-                  className="w-full bg-[#0e1017] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500/50 font-semibold"
-                />
-              </div>
+          {/* Sign-off & Sender Details */}
+          <div className="space-y-2 pt-1 border-t border-zinc-900">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium text-zinc-500 w-16 shrink-0">Sign-off:</span>
+              <input
+                type="text"
+                value={signoff}
+                onChange={(e) => setSignoff(e.target.value)}
+                placeholder="Best regards,"
+                className="w-36 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none border-b border-zinc-800 pb-0.5"
+              />
+              <input
+                type="text"
+                value={senderName}
+                onChange={(e) => setSenderName(e.target.value)}
+                placeholder="Your Name"
+                className="flex-1 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none border-b border-zinc-800 pb-0.5"
+              />
             </div>
 
-            {/* Dynamic Custom Lines (Job Title, Company, Phone, etc.) */}
-            {customDetails.length > 0 && (
-              <div className="space-y-1.5 pt-1">
-                <label className="text-[10px] font-mono text-zinc-500">
-                  Additional Details / Title / Company:
-                </label>
-                {customDetails.map((line, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={line}
-                      onChange={(e) => handleUpdateDetailLine(idx, e.target.value)}
-                      placeholder="e.g. Founder & CEO / Quantrinity Lab / +91 ..."
-                      className="flex-1 bg-[#0e1017] border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-amber-500/50"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveDetailLine(idx)}
-                      className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-rose-400 transition-colors"
-                      title="Remove line"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+            {/* Custom Detail Lines (Empty by default) */}
+            {customDetails.map((detail, idx) => (
+              <div key={idx} className="flex items-center gap-3 pl-16">
+                <input
+                  type="text"
+                  value={detail}
+                  onChange={(e) => handleUpdateDetail(idx, e.target.value)}
+                  placeholder="Designation / Company / Contact..."
+                  className="flex-1 bg-transparent text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none border-b border-zinc-800/80 pb-0.5"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleRemoveDetail(idx)}
+                  className="text-zinc-500 hover:text-rose-400 text-xs px-1"
+                >
+                  ✕
+                </button>
               </div>
-            )}
+            ))}
 
-            {/* Plus Button to Add More Detail Lines */}
-            <button
-              type="button"
-              onClick={handleAddDetailLine}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all"
-            >
-              <svg
-                className="size-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
+            <div className="pl-16 pt-0.5">
+              <button
+                type="button"
+                onClick={handleAddDetail}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 transition-all"
               >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              <span>Add detail / line</span>
-            </button>
+                <span>+ Add detail / line</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Hidden File Input */}
+        {/* Hidden File Input for Device Attachments */}
         <input
           ref={fileInputRef}
           type="file"
           multiple
           className="hidden"
           onChange={(event) => {
-            const selected = Array.from(event.target.files ?? []);
-            if (selected.length === 0) return;
-            for (const file of selected) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            for (let i = 0; i < files.length; i++) {
+              const file = files[i];
               const reader = new FileReader();
               reader.onload = () => {
-                const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+                const dataUrl = reader.result as string;
                 setAttachments((prev) => [
                   ...prev,
                   {
@@ -602,13 +818,15 @@ export function EmailComposer({
 
         {/* Attached Files List */}
         {attachments.length > 0 && (
-          <div className="p-3 rounded-xl border border-zinc-800 bg-[#121622] space-y-2">
-            <span className="text-xs font-semibold text-zinc-400">Attached files:</span>
+          <div className="p-3 rounded-2xl border border-zinc-800/80 bg-[#121622] space-y-2">
+            <span className="text-xs font-semibold text-zinc-400">
+              Attached files ({attachments.length}):
+            </span>
             <div className="flex flex-wrap gap-2">
               {attachments.map((file) => (
                 <div
                   key={file.id}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white shadow-sm"
                 >
                   <span className="truncate max-w-[140px]">{file.name}</span>
                   <span className="text-[10px] text-zinc-500">({formatFileSize(file.size)})</span>
@@ -624,22 +842,288 @@ export function EmailComposer({
             </div>
           </div>
         )}
+      </div>
 
-        {/* Bottom Unified Action Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-zinc-800/80">
-          <div className="flex items-center gap-2">
-            {/* Primary Send Button */}
+      {/* Formatting Bar (When `Aa` is toggled active) */}
+      <AnimatePresence>
+        {showFormattingBar && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="border-t border-zinc-800/80 bg-[#141824] px-4 py-2 flex flex-wrap items-center gap-1.5 text-xs select-none"
+          >
+            {/* Font Family Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowFontPicker((prev) => !prev)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-200 hover:text-white"
+              >
+                <span>{selectedFont.name}</span>
+                <span className="text-[9px]">▼</span>
+              </button>
+              {showFontPicker && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowFontPicker(false)} />
+                  <div className="absolute left-0 bottom-full mb-1.5 w-44 rounded-xl border border-zinc-800 bg-[#121622] py-1 shadow-2xl z-40">
+                    {FONT_FAMILIES.map((font) => (
+                      <button
+                        key={font.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedFont(font);
+                          setShowFontPicker(false);
+                        }}
+                        className={`w-full px-3 py-1.5 text-left text-xs ${font.css} hover:bg-zinc-800 ${
+                          selectedFont.id === font.id ? 'text-amber-400 font-bold' : 'text-zinc-300'
+                        }`}
+                      >
+                        {font.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Font Size Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowSizePicker((prev) => !prev)}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-200 hover:text-white"
+              >
+                <span>{selectedSize.name}</span>
+                <span className="text-[9px]">▼</span>
+              </button>
+              {showSizePicker && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowSizePicker(false)} />
+                  <div className="absolute left-0 bottom-full mb-1.5 w-28 rounded-xl border border-zinc-800 bg-[#121622] py-1 shadow-2xl z-40">
+                    {FONT_SIZES.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedSize(s);
+                          setShowSizePicker(false);
+                        }}
+                        className={`w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 ${
+                          selectedSize.id === s.id ? 'text-amber-400 font-bold' : 'text-zinc-300'
+                        }`}
+                      >
+                        {s.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="h-4 w-px bg-zinc-800 mx-1" />
+
+            {/* Bold */}
             <button
               type="button"
-              onClick={handleSend}
+              onClick={() => setIsBold((prev) => !prev)}
+              className={`p-1.5 rounded-lg font-bold text-xs ${
+                isBold
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+              }`}
+              title="Bold (Ctrl+B)"
+            >
+              B
+            </button>
+
+            {/* Italic */}
+            <button
+              type="button"
+              onClick={() => setIsItalic((prev) => !prev)}
+              className={`p-1.5 rounded-lg italic text-xs font-serif ${
+                isItalic
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+              }`}
+              title="Italic (Ctrl+I)"
+            >
+              I
+            </button>
+
+            {/* Underline */}
+            <button
+              type="button"
+              onClick={() => setIsUnderline((prev) => !prev)}
+              className={`p-1.5 rounded-lg underline text-xs ${
+                isUnderline
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+              }`}
+              title="Underline (Ctrl+U)"
+            >
+              U
+            </button>
+
+            {/* Strikethrough */}
+            <button
+              type="button"
+              onClick={() => setIsStrikethrough((prev) => !prev)}
+              className={`p-1.5 rounded-lg line-through text-xs ${
+                isStrikethrough
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+              }`}
+              title="Strikethrough"
+            >
+              S
+            </button>
+
+            {/* Color Picker Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowColorPicker((prev) => !prev)}
+                className="flex items-center gap-1 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900"
+                title="Text Color"
+              >
+                <span className="font-bold underline" style={{ color: textColor.color }}>
+                  A
+                </span>
+              </button>
+              {showColorPicker && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowColorPicker(false)} />
+                  <div className="absolute left-0 bottom-full mb-1.5 p-2 rounded-xl border border-zinc-800 bg-[#121622] shadow-2xl z-40 flex gap-1.5">
+                    {TEXT_COLORS.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setTextColor(c);
+                          setShowColorPicker(false);
+                        }}
+                        style={{ backgroundColor: c.color }}
+                        className="size-5 rounded-full ring-1 ring-zinc-700 hover:scale-110 transition-all"
+                        title={c.label}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="h-4 w-px bg-zinc-800 mx-1" />
+
+            {/* Alignments */}
+            <button
+              type="button"
+              onClick={() => setTextAlign('left')}
+              className={`p-1.5 rounded-lg ${
+                textAlign === 'left'
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Align Left"
+            >
+              <svg
+                className="size-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <line x1="21" x2="3" y1="6" y2="6" />
+                <line x1="15" x2="3" y1="12" y2="12" />
+                <line x1="17" x2="3" y1="18" y2="18" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTextAlign('center')}
+              className={`p-1.5 rounded-lg ${
+                textAlign === 'center'
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Align Center"
+            >
+              <svg
+                className="size-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <line x1="21" x2="3" y1="6" y2="6" />
+                <line x1="19" x2="5" y1="12" y2="12" />
+                <line x1="21" x2="3" y1="18" y2="18" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTextAlign('right')}
+              className={`p-1.5 rounded-lg ${
+                textAlign === 'right'
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Align Right"
+            >
+              <svg
+                className="size-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <line x1="21" x2="3" y1="6" y2="6" />
+                <line x1="21" x2="9" y1="12" y2="12" />
+                <line x1="21" x2="7" y1="18" y2="18" />
+              </svg>
+            </button>
+
+            {/* Reset / Clear Formatting */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedFont(FONT_FAMILIES[0]);
+                setSelectedSize(FONT_SIZES[1]);
+                setIsBold(false);
+                setIsItalic(false);
+                setIsUnderline(false);
+                setIsStrikethrough(false);
+                setTextColor(TEXT_COLORS[0]);
+                setTextAlign('left');
+              }}
+              className="ml-auto p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 text-xs"
+              title="Clear formatting"
+            >
+              T<span className="text-[10px]">x</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bottom Unified Action Toolbar (Gmail / Superhuman Style) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3 border-t border-zinc-800/80 bg-[#121622] shrink-0">
+        {/* Left Toolbar Group */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Primary Send Button with Dropdown for Schedule Send */}
+          <div className="flex items-center rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] shadow-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => handleSend()}
               disabled={busy || !to.trim()}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] hover:from-[#e06c00] hover:to-[#d04e06] text-white text-xs sm:text-sm font-bold transition-all shadow-lg active:scale-95 disabled:opacity-40"
+              className="flex items-center gap-2 px-4 py-2 text-white text-xs sm:text-sm font-bold hover:brightness-110 active:scale-95 disabled:opacity-40 transition-all"
             >
               {isSending ? (
                 <span>Sending…</span>
               ) : (
                 <>
-                  <span>Send message</span>
+                  <span>Send</span>
                   <svg
                     className="size-4"
                     viewBox="0 0 24 24"
@@ -653,99 +1137,219 @@ export function EmailComposer({
               )}
             </button>
 
-            {/* Attach File Button */}
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white transition-all text-xs font-semibold"
-              title="Attach Files"
+              onClick={() => setShowScheduleMenu((prev) => !prev)}
+              disabled={busy}
+              className="px-2 py-2 border-l border-white/20 text-white hover:bg-black/20 text-xs"
+              title="Schedule send"
             >
-              <svg
-                className="size-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-              </svg>
+              ▲
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleSaveDraft}
-              disabled={busy}
-              className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-medium transition-all"
+          {/* Aa Formatting Options Toggle */}
+          <button
+            type="button"
+            onClick={() => setShowFormattingBar((prev) => !prev)}
+            className={`p-2 rounded-xl text-xs font-serif font-bold transition-all ${
+              showFormattingBar
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+            }`}
+            title="Formatting options (Aa)"
+          >
+            Aa
+          </button>
+
+          {/* Attach Local Device File (📎) */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+            title="Attach files from device"
+          >
+            <svg
+              className="size-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
             >
-              {isSaving ? 'Saving…' : 'Save draft'}
-            </button>
-            <button
-              type="button"
-              onClick={onDiscard}
-              className="px-3 py-2 rounded-xl text-zinc-400 hover:text-rose-400 text-xs font-medium transition-all hover:bg-zinc-900"
+              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+            </svg>
+          </button>
+
+          {/* Insert Link (🔗) */}
+          <button
+            type="button"
+            onClick={() => setIsLinkModalOpen(true)}
+            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+            title="Insert Link"
+          >
+            <svg
+              className="size-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
             >
-              Discard
-            </button>
-          </div>
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+          </button>
+
+          {/* Insert from QuantDrive (📁) */}
+          <button
+            type="button"
+            onClick={() => setIsDrivePickerOpen(true)}
+            className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all"
+            title="Insert files using QuantDrive"
+          >
+            <svg
+              className="size-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+            </svg>
+          </button>
+
+          {/* Quanty AI Assistant Trigger (✨) */}
+          <button
+            type="button"
+            onClick={() => setIsQuantyDrawerOpen(true)}
+            className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all flex items-center gap-1"
+            title="Quanty Copilot Assistant"
+          >
+            <svg
+              className="size-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Right Toolbar Group */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            disabled={busy}
+            className="px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-medium transition-all"
+          >
+            {isSaving ? 'Saving…' : 'Save draft'}
+          </button>
+
+          {/* Discard Draft Trash Button */}
+          <button
+            type="button"
+            onClick={onDiscard || (() => router.back())}
+            className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-zinc-900 transition-all"
+            title="Discard draft"
+          >
+            <svg
+              className="size-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      {/* Quanty AI Assistant Modal */}
+      {/* Schedule Send Modal Popup */}
       <AnimatePresence>
-        {isQuantyModalOpen && (
+        {showScheduleMenu && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsQuantyModalOpen(false)}
-              className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+              onClick={() => setShowScheduleMenu(false)}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="fixed inset-x-4 top-[20%] sm:max-w-lg sm:mx-auto z-50 rounded-2xl border border-amber-500/30 bg-[#121622] p-5 shadow-2xl space-y-4"
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="fixed inset-x-4 top-[25%] sm:max-w-md sm:mx-auto z-50 rounded-2xl border border-zinc-800 bg-[#121622] p-5 shadow-2xl space-y-3"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <Quanty size={28} expression={aiLoading ? 'thinking' : 'happy'} bob={false} />
-                  <h3 className="text-sm font-bold text-amber-300">Quanty Email Copilot</h3>
-                </div>
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <svg
+                    className="size-4 text-amber-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  Schedule send
+                </h3>
                 <button
                   type="button"
-                  onClick={() => setIsQuantyModalOpen(false)}
-                  className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800"
+                  onClick={() => setShowScheduleMenu(false)}
+                  className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 text-xs"
                 >
                   ✕
                 </button>
               </div>
 
-              <textarea
-                value={quantyPrompt}
-                onChange={(e) => setQuantyPrompt(e.target.value)}
-                placeholder="What would you like Quanty to write? (e.g. Write an update on Q3 project deliverables...)"
-                rows={3}
-                className="w-full rounded-xl bg-zinc-900 border border-zinc-800 p-3 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/50 resize-none"
-              />
-
-              <div className="flex items-center justify-end gap-2">
+              <div className="space-y-1.5 text-xs">
                 <button
                   type="button"
-                  onClick={() => setIsQuantyModalOpen(false)}
-                  className="px-3 py-1.5 rounded-xl text-xs text-zinc-400 hover:text-white"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + 1);
+                    d.setHours(8, 0, 0, 0);
+                    void handleSend(d.toISOString());
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-left text-zinc-200"
                 >
-                  Cancel
+                  <span>Tomorrow morning</span>
+                  <span className="text-zinc-500">8:00 AM</span>
                 </button>
+
                 <button
                   type="button"
-                  onClick={handleQuantyGenerate}
-                  disabled={aiLoading || !quantyPrompt.trim()}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-white text-xs font-bold shadow-md disabled:opacity-40"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + 1);
+                    d.setHours(13, 0, 0, 0);
+                    void handleSend(d.toISOString());
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-left text-zinc-200"
                 >
-                  {aiLoading ? 'Generating…' : 'Generate Draft'}
+                  <span>Tomorrow afternoon</span>
+                  <span className="text-zinc-500">1:00 PM</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    const day = d.getDay();
+                    const diff = (8 - day) % 7 || 7;
+                    d.setDate(d.getDate() + diff);
+                    d.setHours(8, 0, 0, 0);
+                    void handleSend(d.toISOString());
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-zinc-900/80 hover:bg-zinc-800 text-left text-zinc-200"
+                >
+                  <span>Monday morning</span>
+                  <span className="text-zinc-500">8:00 AM</span>
                 </button>
               </div>
             </motion.div>
@@ -753,11 +1357,26 @@ export function EmailComposer({
         )}
       </AnimatePresence>
 
-      {/* Template Modal */}
-      <EmailTemplates
-        isOpen={showTemplates}
-        onClose={() => setShowTemplates(false)}
-        onSelectTemplate={handleSelectTemplate}
+      {/* QuantDrive File Picker Modal */}
+      <QuantDrivePickerModal
+        isOpen={isDrivePickerOpen}
+        onClose={() => setIsDrivePickerOpen(false)}
+        onSelectFiles={handleAttachFromDrive}
+      />
+
+      {/* Insert Link Modal */}
+      <InsertLinkModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        onInsert={handleInsertLink}
+      />
+
+      {/* Quanty Copilot Drawer (Bottom Sheet) */}
+      <QuantyCopilotDrawer
+        isOpen={isQuantyDrawerOpen}
+        onClose={() => setIsQuantyDrawerOpen(false)}
+        isComposeContext={true}
+        onApplyAction={handleApplyQuantyAction}
       />
     </div>
   );

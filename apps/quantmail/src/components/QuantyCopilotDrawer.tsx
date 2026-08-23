@@ -6,13 +6,26 @@ import { Quanty } from './Quanty';
 import { showToast } from './InboxToast';
 import type { Email } from '../types';
 
+export interface QuantyEmailAction {
+  to?: string;
+  subject?: string;
+  greeting?: string;
+  opening?: string;
+  body?: string;
+  closing?: string;
+  signoff?: string;
+  senderName?: string;
+}
+
 export interface QuantyAssistantDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   contextEmail?: Email | null;
   contextThreadSubject?: string;
   isInboxContext?: boolean;
+  isComposeContext?: boolean;
   onInsertReply?: (text: string) => void;
+  onApplyAction?: (action: QuantyEmailAction) => void;
 }
 
 interface ChatHistoryItem {
@@ -30,7 +43,9 @@ export function QuantyCopilotDrawer({
   contextEmail,
   contextThreadSubject,
   isInboxContext = false,
+  isComposeContext = false,
   onInsertReply,
+  onApplyAction,
 }: QuantyAssistantDrawerProps) {
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
   const [inputValue, setInputValue] = useState('');
@@ -109,6 +124,8 @@ export function QuantyCopilotDrawer({
       let systemContext = '';
       if (contextEmail) {
         systemContext = `Context Email Subject: "${contextEmail.subject || contextThreadSubject || ''}"\nFrom: "${contextEmail.from?.name || contextEmail.from?.email}"\nBody: "${contextEmail.bodyText || contextEmail.snippet || ''}"`;
+      } else if (isComposeContext) {
+        systemContext = `Context: User is composing an email in QuantMail. If requested to draft an email, output a crisp, corporate message with Subject, Greeting, Body, and Closing clearly outlined.`;
       } else if (isInboxContext) {
         systemContext = `Context: User is browsing their primary QuantMail inbox.`;
       }
@@ -428,8 +445,44 @@ export function QuantyCopilotDrawer({
                     >
                       <p className="whitespace-pre-wrap">{m.text}</p>
 
+                      {m.role === 'assistant' && onApplyAction && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const text = m.text;
+                            const emailMatch = text.match(
+                              /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/,
+                            );
+                            const subjectMatch = text.match(/Subject:\s*([^\n]+)/i);
+                            const greetingMatch = text.match(
+                              /^(Dear\s+[^,\n]+,|Hi\s+[^,\n]+,|Hello\s+[^,\n]+,)/im,
+                            );
+
+                            onApplyAction({
+                              to: emailMatch ? emailMatch[1] : undefined,
+                              subject: subjectMatch ? subjectMatch[1].trim() : undefined,
+                              greeting: greetingMatch ? greetingMatch[1].trim() : undefined,
+                              body: text
+                                .replace(/^Subject:.*$/im, '')
+                                .replace(/^(Dear|Hi|Hello)[^\n]+,\s*/im, '')
+                                .replace(
+                                  /(Best regards|Sincerely|Thanks|Warm regards)[,\s\S]*$/im,
+                                  '',
+                                )
+                                .trim(),
+                            });
+                            onClose();
+                            showToast({ text: 'Applied draft into composer ✨', type: 'success' });
+                          }}
+                          className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-all shadow-sm"
+                        >
+                          <span>⚡ Apply to Composer</span>
+                        </button>
+                      )}
+
                       {m.role === 'assistant' &&
                         onInsertReply &&
+                        !onApplyAction &&
                         i > 0 &&
                         messages[i - 1]?.role === 'user' &&
                         (messages[i - 1].text.toLowerCase().includes('draft') ||
