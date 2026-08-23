@@ -479,6 +479,7 @@ export default function InboxPage() {
   const [activeCategoryTab, setActiveCategoryTab] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [selectedThread, setSelectedThread] = useState<ConversationThread | null>(null);
@@ -786,13 +787,106 @@ export default function InboxPage() {
     onMarkUnread: (id) => void markUnread(id),
   });
 
+  const selectionHeader = (
+    <header className="flex min-h-14 flex-none items-center justify-between gap-3 border-b border-zinc-800 bg-[#121622] px-3 sm:px-5 shadow-xl select-none sticky top-0 z-50">
+      {/* Left: Close/Deselect button & Count */}
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setSelectedIds(new Set())}
+          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all active:scale-95"
+          title="Deselect all"
+          aria-label="Deselect all"
+        >
+          <svg
+            className="size-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+        <span className="text-lg font-bold text-white tracking-wide">{selectedIds.size}</span>
+      </div>
+
+      {/* Right Quick Action Icons (Clean, WhatsApp-Style) */}
+      <div className="flex items-center gap-1 sm:gap-2">
+        {/* Pin / Unpin */}
+        <button
+          type="button"
+          onClick={async () => {
+            await Promise.all(Array.from(selectedIds, (id) => apiClient.toggleStar(id)));
+            setSelectedIds(new Set());
+            showToast({ text: 'Updated pin status for selected messages 📌', type: 'success' });
+            await refetch();
+          }}
+          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-amber-400 hover:bg-zinc-800 transition-all active:scale-95"
+          title="Pin / Unpin to top"
+        >
+          <MailIcon name="pin" className="size-5" />
+        </button>
+
+        {/* Delete */}
+        <button
+          type="button"
+          onClick={() => void batchAction('delete')}
+          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-rose-400 hover:bg-zinc-800 transition-all active:scale-95"
+          title="Delete"
+        >
+          <MailIcon name="trash" className="size-5" />
+        </button>
+
+        {/* Mark Read */}
+        <button
+          type="button"
+          onClick={async () => {
+            await Promise.all(Array.from(selectedIds, (id) => apiClient.markAsRead(id)));
+            setSelectedIds(new Set());
+            showToast({ text: `${selectedIds.size} marked as read`, type: 'info' });
+            await refetch();
+          }}
+          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-sky-400 hover:bg-zinc-800 transition-all active:scale-95"
+          title="Mark as read"
+        >
+          <MailIcon name="mail" className="size-5" />
+        </button>
+
+        {/* Archive */}
+        <button
+          type="button"
+          onClick={() => void batchAction('archive')}
+          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-emerald-400 hover:bg-zinc-800 transition-all active:scale-95"
+          title="Archive"
+        >
+          <MailIcon name="archive" className="size-5" />
+        </button>
+      </div>
+    </header>
+  );
+
   return (
     <AppShell
       sidebar={<AppSidebar />}
       theme="dark"
       className="quantmail-shell"
+      customHeader={selectedIds.size > 0 ? selectionHeader : undefined}
       mobileActions={
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            className={`inline-flex size-9 items-center justify-center rounded-lg transition-colors ${
+              isSearchOpen
+                ? 'bg-zinc-800 text-[#FF7A00]'
+                : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
+            }`}
+            onClick={() => setIsSearchOpen((prev) => !prev)}
+            aria-label="Search messages"
+          >
+            <MailIcon name="search" className="size-5" />
+          </button>
           <button
             type="button"
             onClick={() => setIsGlobalQuantyOpen(true)}
@@ -800,14 +894,6 @@ export default function InboxPage() {
             aria-label="Ask Quanty AI"
           >
             <Quanty size={24} expression="happy" bob={false} />
-          </button>
-          <button
-            type="button"
-            className="inline-flex size-9 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-            onClick={() => router.push('/search')}
-            aria-label="Search messages"
-          >
-            <MailIcon name="search" className="size-5" />
           </button>
         </div>
       }
@@ -832,27 +918,50 @@ export default function InboxPage() {
             </button>
           </header>
 
-          <div className="inbox-search-wrap md:hidden flex items-center gap-2">
-            <label htmlFor="inbox-search" className="inbox-search flex-1">
-              <MailIcon name="search" />
-              <input
-                id="inbox-search"
-                type="search"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search messages, contacts, keywords…"
-              />
-              <kbd>/</kbd>
-            </label>
-            <button
-              type="button"
-              onClick={() => setIsGlobalQuantyOpen(true)}
-              className="p-1 rounded-xl text-amber-400 hover:bg-zinc-800 shrink-0"
-              title="Ask Quanty AI"
-            >
-              <Quanty size={24} expression="happy" bob={false} />
-            </button>
-          </div>
+          {/* Unified Expandable Search Dropdown Tab */}
+          <AnimatePresence>
+            {isSearchOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="overflow-hidden border-b border-zinc-800/80 bg-zinc-950 px-3 sm:px-4 py-2.5 flex items-center gap-2"
+              >
+                <div className="flex-1 flex items-center gap-2 bg-zinc-900/90 border border-zinc-700/80 rounded-xl px-3 py-1.5 shadow-inner">
+                  <MailIcon name="search" className="size-4 text-zinc-400 shrink-0" />
+                  <input
+                    type="search"
+                    placeholder="Search messages, contacts, keywords…"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    className="w-full bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                    autoFocus
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="text-zinc-400 hover:text-white"
+                      title="Clear search"
+                    >
+                      <MailIcon name="close" className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSearchOpen(false);
+                    setSearchQuery('');
+                  }}
+                  className="text-xs text-zinc-400 hover:text-white font-medium px-2 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Telegram-Style Sleek Horizontal Category Pill Tabs */}
           <div className="flex items-center gap-1.5 overflow-x-auto py-2.5 px-3 sm:px-4 no-scrollbar select-none border-b border-zinc-800/80 bg-[#0d1017]/80 backdrop-blur-md">
@@ -886,88 +995,6 @@ export default function InboxPage() {
               );
             })}
           </div>
-
-          {/* WhatsApp-Style Multi-Select Floating Top Action Bar */}
-          <AnimatePresence initial={false}>
-            {selectedIds.size > 0 && (
-              <motion.div
-                initial={{ height: 0, opacity: 0, y: -10 }}
-                animate={{ height: 'auto', opacity: 1, y: 0 }}
-                exit={{ height: 0, opacity: 0, y: -10 }}
-                transition={{ duration: 0.18 }}
-                className="sticky top-0 z-30 flex items-center justify-between px-3 sm:px-4 py-2 bg-[#121622] border-b border-zinc-800 shadow-xl"
-              >
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedIds(new Set())}
-                    className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
-                    title="Clear selection"
-                  >
-                    <MailIcon name="close" className="size-4" />
-                  </button>
-                  <strong className="text-sm font-bold text-white tracking-wide">
-                    {selectedIds.size}
-                  </strong>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  {/* Pin / Unpin */}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await Promise.all(Array.from(selectedIds, (id) => apiClient.toggleStar(id)));
-                      setSelectedIds(new Set());
-                      showToast({
-                        text: 'Updated pin status for selected messages 📌',
-                        type: 'success',
-                      });
-                      await refetch();
-                    }}
-                    className="p-2 rounded-xl text-zinc-300 hover:text-amber-400 hover:bg-zinc-800 transition-all"
-                    title="Pin / Unpin to top"
-                  >
-                    <MailIcon name="pin" className="size-4" />
-                  </button>
-
-                  {/* Delete */}
-                  <button
-                    type="button"
-                    onClick={() => void batchAction('delete')}
-                    className="p-2 rounded-xl text-zinc-300 hover:text-rose-400 hover:bg-zinc-800 transition-all"
-                    title="Delete"
-                  >
-                    <MailIcon name="trash" className="size-4" />
-                  </button>
-
-                  {/* Mark Read */}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await Promise.all(Array.from(selectedIds, (id) => apiClient.markAsRead(id)));
-                      setSelectedIds(new Set());
-                      showToast({ text: `${selectedIds.size} marked as read`, type: 'info' });
-                      await refetch();
-                    }}
-                    className="p-2 rounded-xl text-zinc-300 hover:text-sky-400 hover:bg-zinc-800 transition-all"
-                    title="Mark as read"
-                  >
-                    <MailIcon name="mail" className="size-4" />
-                  </button>
-
-                  {/* Archive */}
-                  <button
-                    type="button"
-                    onClick={() => void batchAction('archive')}
-                    className="p-2 rounded-xl text-zinc-300 hover:text-emerald-400 hover:bg-zinc-800 transition-all"
-                    title="Archive"
-                  >
-                    <MailIcon name="archive" className="size-4" />
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* Pull to Refresh Indicator Bar */}
           <AnimatePresence>

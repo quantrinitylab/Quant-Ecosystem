@@ -20,6 +20,7 @@ export interface AppShellProps {
   children: ReactNode;
   sidebar?: ReactNode;
   topBar?: ReactNode;
+  customHeader?: ReactNode;
   theme?: 'light' | 'dark' | 'neon';
   className?: string;
   animated?: boolean;
@@ -192,6 +193,7 @@ export function AppShell({
   children,
   sidebar,
   topBar,
+  customHeader,
   theme = 'dark',
   className = '',
   animated = true,
@@ -418,87 +420,90 @@ export function AppShell({
       <div
         className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-14 md:pb-0'}`}
       >
-        {/* Top Header bar with Logo + Search in QuantMail */}
-        {sidebar && (
-          <header
-            className={`flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--border)] bg-zinc-950/90 backdrop-blur px-3 md:px-5 ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'hidden md:flex' : ''}`}
-          >
-            {/* Left: Menu trigger + Brand Logo & Title */}
-            <div className="flex items-center gap-3">
-              <button
-                ref={menuTriggerRef}
-                type="button"
-                className="inline-flex size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors"
-                aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
-                onClick={() => setIsSidebarOpen((open) => !open)}
-              >
-                <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
-                  <path
-                    d="M4 6h16M4 12h16M4 18h16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeWidth="2"
-                  />
-                </svg>
-              </button>
-
-              <div
-                className="flex items-center gap-3 cursor-pointer select-none group"
-                onClick={handleLogoClick}
-                title={`Quant${currentApp.charAt(0).toUpperCase() + currentApp.slice(1)} — Click to refresh`}
-              >
-                {currentApp === 'calendar' ? (
-                  <QuantCalendarLogo size={36} />
-                ) : currentApp === 'drive' ? (
-                  <QuantDriveLogo size={36} />
-                ) : currentApp === 'contacts' ? (
-                  <QuantContactsLogo size={36} />
-                ) : currentApp === 'code' ? (
-                  <QuantCodeLogo size={36} />
-                ) : (
-                  <QuantMailLogo size={38} unreadCount={unreadCount} onClick={handleLogoClick} />
-                )}
-
-                <BrandWordmark app={currentApp} size="text-xl" />
-              </div>
-            </div>
-
-            {/* Center: Search in QuantMail bar (Desktop) */}
-            <div className="hidden md:flex flex-1 max-w-xl mx-4">
-              <button
-                type="button"
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('quant:command-palette:open'));
-                }}
-                className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-400 hover:border-[#FF7A00]/50 hover:text-zinc-200 transition-all shadow-inner"
-              >
-                <div className="flex items-center gap-2.5">
-                  <svg
-                    className="size-4 text-zinc-400"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <circle cx="11" cy="11" r="7" />
-                    <path d="m20 20-4-4" />
+        {/* Top Header bar with Logo + Search in QuantMail or Custom Header */}
+        {sidebar &&
+          (customHeader ? (
+            customHeader
+          ) : (
+            <header
+              className={`flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--border)] bg-zinc-950/90 backdrop-blur px-3 md:px-5 ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'hidden md:flex' : ''}`}
+            >
+              {/* Left: Menu trigger + Brand Logo & Title */}
+              <div className="flex items-center gap-3">
+                <button
+                  ref={menuTriggerRef}
+                  type="button"
+                  className="inline-flex size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors"
+                  aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                  onClick={() => setIsSidebarOpen((open) => !open)}
+                >
+                  <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
+                    <path
+                      d="M4 6h16M4 12h16M4 18h16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeWidth="2"
+                    />
                   </svg>
-                  <span>Search in QuantMail…</span>
-                </div>
-                <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-mono text-zinc-400 border border-zinc-700">
-                  ⌘K
-                </kbd>
-              </button>
-            </div>
+                </button>
 
-            {/* Right: Mobile Title / Actions */}
-            <div className="flex items-center gap-2">
-              {mobileTitle && <div className="md:hidden">{mobileTitle}</div>}
-              {mobileActions}
-            </div>
-          </header>
-        )}
+                <div
+                  className="flex items-center gap-3 cursor-pointer select-none group"
+                  onClick={handleLogoClick}
+                  title={`Quant${currentApp.charAt(0).toUpperCase() + currentApp.slice(1)} — Click to refresh`}
+                >
+                  {currentApp === 'calendar' ? (
+                    <QuantCalendarLogo size={36} />
+                  ) : currentApp === 'drive' ? (
+                    <QuantDriveLogo size={36} />
+                  ) : currentApp === 'contacts' ? (
+                    <QuantContactsLogo size={36} />
+                  ) : currentApp === 'code' ? (
+                    <QuantCodeLogo size={36} />
+                  ) : (
+                    <QuantMailLogo size={38} unreadCount={unreadCount} onClick={handleLogoClick} />
+                  )}
+
+                  <BrandWordmark app={currentApp} size="text-xl" />
+                </div>
+              </div>
+
+              {/* Center: Search in QuantMail bar (Desktop) */}
+              <div className="hidden md:flex flex-1 max-w-xl mx-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('quant:command-palette:open'));
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-400 hover:border-[#FF7A00]/50 hover:text-zinc-200 transition-all shadow-inner"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <svg
+                      className="size-4 text-zinc-400"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <circle cx="11" cy="11" r="7" />
+                      <path d="m20 20-4-4" />
+                    </svg>
+                    <span>Search in QuantMail…</span>
+                  </div>
+                  <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-mono text-zinc-400 border border-zinc-700">
+                    ⌘K
+                  </kbd>
+                </button>
+              </div>
+
+              {/* Right: Mobile Title / Actions */}
+              <div className="flex items-center gap-2">
+                {mobileTitle && <div className="md:hidden">{mobileTitle}</div>}
+                {mobileActions}
+              </div>
+            </header>
+          ))}
 
         {topBar}
 
