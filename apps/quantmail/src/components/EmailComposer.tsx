@@ -9,6 +9,7 @@ import { QuantDrivePickerModal } from './QuantDrivePickerModal';
 import { InsertLinkModal } from './InsertLinkModal';
 import { ScheduleSendModal } from './ScheduleSendModal';
 import { showToast } from './InboxToast';
+import { useAuth } from '../providers/auth-provider';
 
 export interface Attachment {
   id: string;
@@ -96,6 +97,15 @@ export function EmailComposer({
 }: EmailComposerProps) {
   const router = useRouter();
 
+  // Auth User context for sender signature / print
+  let authUser: any = null;
+  try {
+    const auth = useAuth();
+    authUser = auth?.user || null;
+  } catch {
+    authUser = null;
+  }
+
   // Back Navigation Helper (Back exactly 1 page in history)
   const handleBack = () => {
     if (onDiscard) {
@@ -128,7 +138,7 @@ export function EmailComposer({
   const [body, setBody] = useState(initialBody);
   const [closing, setClosing] = useState('Thank you for your time.');
   const [signoff, setSignoff] = useState('Best regards,');
-  const [senderName, setSenderName] = useState('Kundan Kumar');
+  const [senderName, setSenderName] = useState(authUser?.displayName || 'Kundan Kumar');
   const [customDetails, setCustomDetails] = useState<string[]>([]);
 
   // Attachments
@@ -392,9 +402,9 @@ export function EmailComposer({
   const busy = isSending || isSaving;
 
   return (
-    <div className="flex flex-col h-[100dvh] max-h-[100dvh] w-full max-w-full bg-[#0d1017] text-white select-text overflow-hidden box-border">
-      {/* Top Header Bar */}
-      <div className="flex items-center justify-between px-3 sm:px-5 py-3 border-b border-zinc-800/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
+    <div className="flex flex-col h-[100dvh] max-h-[100dvh] w-full max-w-full bg-[#0d1017] text-white select-text overflow-hidden box-border print:h-auto print:max-h-none print:bg-white print:text-black print:overflow-visible">
+      {/* Top Header Bar (Hidden during Print) */}
+      <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-3 border-b border-zinc-800/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
@@ -490,8 +500,10 @@ export function EmailComposer({
                   <button
                     type="button"
                     onClick={() => {
-                      window.print();
                       setShowThreeDotsMenu(false);
+                      setTimeout(() => {
+                        window.print();
+                      }, 50);
                     }}
                     className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800"
                   >
@@ -546,8 +558,8 @@ export function EmailComposer({
         </div>
       </div>
 
-      {/* Main Composer Scrollable Body (Only body scrolls if content is large) */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border">
+      {/* Main Composer Scrollable Body (Hidden during Print) */}
+      <div className="print:hidden flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border">
         {/* Recipient Rows (To, Cc, Bcc) */}
         <div className="border-b border-zinc-800/80 pb-2 space-y-2 w-full max-w-full">
           {/* To: Row */}
@@ -839,14 +851,14 @@ export function EmailComposer({
         )}
       </div>
 
-      {/* Formatting Bar (When `Aa` is toggled active) */}
+      {/* Formatting Bar (Hidden during Print) */}
       <AnimatePresence>
         {showFormattingBar && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="border-t border-zinc-800/80 bg-[#141824] px-3 sm:px-5 py-2 flex flex-wrap items-center gap-1.5 text-xs select-none w-full max-w-full box-border shrink-0"
+            className="print:hidden border-t border-zinc-800/80 bg-[#141824] px-3 sm:px-5 py-2 flex flex-wrap items-center gap-1.5 text-xs select-none w-full max-w-full box-border shrink-0"
           >
             {/* Font Family Dropdown */}
             <div className="relative">
@@ -1101,8 +1113,8 @@ export function EmailComposer({
         )}
       </AnimatePresence>
 
-      {/* Bottom Unified Action Toolbar (Pinned at bottom, never pushed down) */}
-      <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 border-t border-zinc-800/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
+      {/* Bottom Unified Action Toolbar (Hidden during Print) */}
+      <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-2.5 border-t border-zinc-800/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
         {/* Left Toolbar Group: Send + Dropup, Formatting, Attach, Link, Drive, Discard, Desktop Quanty */}
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Primary Send Button with Dropup Menu for Save draft & Schedule send */}
@@ -1295,7 +1307,95 @@ export function EmailComposer({
         </div>
       </div>
 
-      {/* Schedule Send Modal (Interactive Calendar with Swipe & Google-Style Clock Dial) */}
+      {/* Clean Gmail-Grade Print Document (Visible ONLY during print) */}
+      <div className="hidden print:block bg-white text-black p-4 sm:p-8 font-sans w-full min-h-screen">
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              @media print {
+                @page {
+                  margin: 12mm 15mm 12mm 15mm;
+                  size: auto;
+                }
+                body, html {
+                  background-color: #ffffff !important;
+                  color: #000000 !important;
+                  height: auto !important;
+                  overflow: visible !important;
+                }
+              }
+            `,
+          }}
+        />
+
+        {/* Top Header: QuantMail Logo & Brand */}
+        <div className="flex items-center justify-between border-b-2 border-gray-900 pb-3 mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="size-8 rounded-lg bg-gradient-to-br from-[#FF7A00] to-[#ea580c] flex items-center justify-center text-white font-bold text-base shadow-sm">
+              M
+            </div>
+            <span className="text-xl font-bold tracking-tight text-black">QuantMail</span>
+          </div>
+          <div className="text-xs text-gray-600 font-medium">
+            {senderName || authUser?.displayName || 'Kundan Kumar'} &lt;
+            {authUser?.email || 'kundan@quantmail.in'}&gt;
+          </div>
+        </div>
+
+        {/* Subject */}
+        <div className="text-xl font-bold text-gray-900 mb-3">{subject || '(no subject)'}</div>
+
+        {/* Meta Info Bar: Sender, Draft To, Date */}
+        <div className="flex items-start justify-between text-xs text-gray-700 border-b border-gray-300 pb-3 mb-6">
+          <div className="space-y-1">
+            <div>
+              <strong className="text-black">
+                {senderName || authUser?.displayName || 'Kundan Kumar'}
+              </strong>{' '}
+              &lt;{authUser?.email || 'kundan@quantmail.in'}&gt;
+            </div>
+            <div>
+              <span className="text-gray-500">Draft To: </span>
+              <span className="font-medium text-black">{to || '(no recipients)'}</span>
+            </div>
+            {cc && (
+              <div>
+                <span className="text-gray-500">Cc: </span>
+                <span className="text-black">{cc}</span>
+              </div>
+            )}
+            {bcc && (
+              <div>
+                <span className="text-gray-500">Bcc: </span>
+                <span className="text-black">{bcc}</span>
+              </div>
+            )}
+          </div>
+          <div className="text-right text-gray-500 text-xs shrink-0">
+            {new Date().toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })}{' '}
+            at {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </div>
+        </div>
+
+        {/* Clean Message Content Body */}
+        <div className="text-sm text-black whitespace-pre-wrap leading-relaxed space-y-4 font-normal">
+          {buildFinalMessage() || '(empty message)'}
+        </div>
+
+        {/* Attachments Footer if any */}
+        {attachments.length > 0 && (
+          <div className="mt-8 pt-4 border-t border-gray-200 text-xs text-gray-600">
+            <strong className="text-black">Attachments ({attachments.length}): </strong>
+            <span>{attachments.map((a) => a.name).join(', ')}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Schedule Send Modal (Hidden during Print) */}
       <ScheduleSendModal
         isOpen={showScheduleModal}
         onClose={() => setShowScheduleModal(false)}
@@ -1304,21 +1404,21 @@ export function EmailComposer({
         }}
       />
 
-      {/* QuantDrive File Picker Modal */}
+      {/* QuantDrive File Picker Modal (Hidden during Print) */}
       <QuantDrivePickerModal
         isOpen={isDrivePickerOpen}
         onClose={() => setIsDrivePickerOpen(false)}
         onSelectFiles={handleAttachFromDrive}
       />
 
-      {/* Insert Link Modal */}
+      {/* Insert Link Modal (Hidden during Print) */}
       <InsertLinkModal
         isOpen={isLinkModalOpen}
         onClose={() => setIsLinkModalOpen(false)}
         onInsert={handleInsertLink}
       />
 
-      {/* Quanty Copilot Drawer (Bottom Sheet) */}
+      {/* Quanty Copilot Drawer (Hidden during Print) */}
       <QuantyCopilotDrawer
         isOpen={isQuantyDrawerOpen}
         onClose={() => setIsQuantyDrawerOpen(false)}
