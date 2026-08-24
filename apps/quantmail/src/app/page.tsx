@@ -157,8 +157,33 @@ export interface ConversationThread {
   labels: string[];
 }
 
+function sanitizeSnippetText(text?: string): string {
+  if (!text) return '';
+  let clean = text;
+  try {
+    clean = decodeURIComponent(escape(text));
+  } catch {
+    clean = text
+      .replace(/ðŸŽ‰/g, '🎉')
+      .replace(/ðŸ‘\s*[\x80-\xBF]?/g, '👍')
+      .replace(/ðŸ”¥/g, '🔥')
+      .replace(/ðŸš€/g, '🚀')
+      .replace(/âœ…/g, '✅')
+      .replace(/â¤ï¸?/g, '❤️')
+      .replace(/ðŸ˜Š/g, '😊')
+      .replace(/ðŸ’¡/g, '💡')
+      .replace(/ðŸ’¬/g, '💬')
+      .replace(/âš\xa0ï¸?/g, '⚠️')
+      .replace(/â€[™']/g, "'")
+      .replace(/â€œ|â€/g, '"')
+      .replace(/â€“|â€”/g, '—')
+      .replace(/â€¦/g, '…');
+  }
+  return clean.replace(/\s+/g, ' ').trim();
+}
+
 function normalizeSubject(subject: string = ''): string {
-  return subject
+  return sanitizeSnippetText(subject)
     .replace(/^(re|fwd|fw):\s*/i, '')
     .replace(/^(re|fwd|fw)\[\d+\]:\s*/i, '')
     .trim()
@@ -352,8 +377,8 @@ function EmailRow({
             )}
             <time>{formatReceivedAt(thread.receivedAt)}</time>
           </div>
-          <h3>{thread.subject || '(no subject)'}</h3>
-          <p>{email.snippet}</p>
+          <h3>{sanitizeSnippetText(thread.subject) || '(no subject)'}</h3>
+          <p>{sanitizeSnippetText(email.snippet)}</p>
         </div>
         {/* Hover actions bar — quick actions on hover (Desktop) */}
         <AnimatePresence>

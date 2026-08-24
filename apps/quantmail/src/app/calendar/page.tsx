@@ -1435,7 +1435,7 @@ export default function CalendarPage() {
       onSearchChange={setSearchFilter}
       searchPlaceholder="Search events, meetings, tasks, birthdays…"
       mobileActions={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Search Button (Mobile ONLY — on desktop, search is in top header) */}
           <button
             type="button"
@@ -1463,15 +1463,6 @@ export default function CalendarPage() {
             title="Open Quanty AI Copilot"
           >
             <Quanty size={22} expression="happy" bob={false} />
-          </button>
-
-          {/* Today Button */}
-          <button
-            type="button"
-            onClick={goToday}
-            className="px-3 py-1 text-xs font-bold rounded-xl border border-[#ff9933]/40 bg-gradient-to-r from-[#ff9933]/20 to-[#fbbf24]/10 text-[#ff9933] hover:from-[#ff9933]/30 hover:to-[#fbbf24]/20 shadow-[0_0_15px_rgba(255,153,51,0.25)] transition-all active:scale-95"
-          >
-            Today
           </button>
         </div>
       }

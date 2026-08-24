@@ -1260,3 +1260,19 @@
   border-color: rgba(63, 217, 198, 0.5);
   color: #3fd9c6;
 }
+
+@media (max-width: 640px) {
+  .ch-quanty-composer {
+    flex-direction: column !important;
+  }
+  .ch-quanty-composer input {
+    width: 100% !important;
+  }
+  .ch-quanty-composer button {
+    width: 100% !important;
+  }
+  .ch-agents-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+

@@ -212,6 +212,9 @@ export function EmailComposer({
   const [showSendOptionsDropdown, setShowSendOptionsDropdown] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
+  // Template / Structured Mode Toggle (default: false for fluid modern email composer)
+  const [isTemplateMode, setIsTemplateMode] = useState(false);
+
   // Loading & Execution
   const [isSending, setIsSending] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -241,8 +244,11 @@ export function EmailComposer({
     setCustomDetails((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Compile Final Structured Email Message
+  // Compile Final Email Message
   const buildFinalMessage = (): string => {
+    if (!isTemplateMode) {
+      return body.trim();
+    }
     const parts: string[] = [];
 
     if (greeting.trim()) {
@@ -467,7 +473,12 @@ export function EmailComposer({
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </button>
-          <span className="text-sm font-semibold text-white tracking-wide">New message</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-white tracking-wide">Compose</span>
+            <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-[10px] text-zinc-400 font-mono">
+              C
+            </kbd>
+          </div>
         </div>
 
         {/* Header Right Group: Mobile Quanty Robot, Three-Dots Menu, Close */}
@@ -706,154 +717,177 @@ export function EmailComposer({
           />
         </div>
 
-        {/* Guided Structured Corporate Email Canvas */}
-        <div className="space-y-3 pt-1 w-full max-w-full box-border">
-          {/* Greeting Row */}
-          <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-900 pb-2 w-full max-w-full">
-            <span className="text-xs font-medium text-zinc-500 w-14 sm:w-16 shrink-0">
-              Greeting:
+        {/* Mode Bar: Fluid Composer / Corporate Template Toggle */}
+        <div className="flex items-center justify-between pt-1 pb-1">
+          <button
+            type="button"
+            onClick={() => setIsTemplateMode((prev) => !prev)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+              isTemplateMode
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
+            }`}
+          >
+            <span>
+              {isTemplateMode ? '📋 Guided Corporate Mode: ON' : '✨ Structured Template Mode'}
             </span>
-            <input
-              type="text"
-              value={greeting}
-              onChange={(e) => setGreeting(e.target.value)}
-              placeholder="Dear Sir/Madam,"
-              className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
-            />
-          </div>
+          </button>
+          <span className="text-[10px] text-zinc-500 font-mono">
+            {selectedFont.name} · {selectedSize.name}
+          </span>
+        </div>
 
-          {/* Opening / Purpose Row */}
-          <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-900 pb-2 w-full max-w-full">
-            <span className="text-xs font-medium text-zinc-500 w-14 sm:w-16 shrink-0">
-              Opening:
-            </span>
-            <input
-              type="text"
-              value={opening}
-              onChange={(e) => setOpening(e.target.value)}
-              placeholder="Reason for writing / brief opening statement..."
-              className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
-            />
-          </div>
-
-          {/* Main Body Canvas */}
-          <div className="space-y-1.5 w-full max-w-full box-border">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-zinc-400">
-                Body <span className="text-rose-500">*</span>:
+        {/* Guided Structured Corporate Email Fields (When Template Mode is ON) */}
+        {isTemplateMode && (
+          <div className="space-y-3 p-3.5 rounded-2xl bg-zinc-900/40 border border-zinc-800/80">
+            {/* Greeting Row */}
+            <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-800 pb-2 w-full max-w-full">
+              <span className="text-xs font-medium text-zinc-400 w-14 sm:w-16 shrink-0">
+                Greeting:
               </span>
-              <span className="text-[10px] text-zinc-500">
-                {selectedFont.name} · {selectedSize.name}
-              </span>
-            </div>
-            <textarea
-              ref={bodyTextareaRef}
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              onKeyDown={handleBodyKeyDown}
-              placeholder="Write your core message, details, deliverables, action items, or bullet points here..."
-              rows={8}
-              style={{
-                color: textColor.color,
-                textAlign: textAlign,
-                fontWeight: isBold ? 'bold' : 'normal',
-                fontStyle: isItalic ? 'italic' : 'normal',
-                textDecoration:
-                  `${isUnderline ? 'underline ' : ''}${isStrikethrough ? 'line-through' : ''}`.trim() ||
-                  'none',
-              }}
-              className={`w-full max-w-full box-border bg-zinc-950/40 border border-zinc-800/80 rounded-2xl p-3.5 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 resize-y leading-relaxed shadow-inner`}
-            />
-
-            {/* Smart Compose Predictive Autocomplete Chip */}
-            {activePrediction && (
-              <div
-                onClick={acceptPrediction}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs shadow-md cursor-pointer hover:bg-amber-500/20 transition-all select-none"
-              >
-                <span className="text-[10px] font-black uppercase text-amber-400 bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 rounded-md">
-                  Tab ⇥
-                </span>
-                <span className="text-zinc-300 text-xs">
-                  Next word suggestion:{' '}
-                  <strong className="text-amber-300 font-semibold">{activePrediction}</strong>
-                </span>
-                <span className="ml-auto text-[10px] text-amber-400 font-medium underline">
-                  Tap to apply
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Closing Row */}
-          <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-900 pb-2 w-full max-w-full">
-            <span className="text-xs font-medium text-zinc-500 w-14 sm:w-16 shrink-0">
-              Closing:
-            </span>
-            <input
-              type="text"
-              value={closing}
-              onChange={(e) => setClosing(e.target.value)}
-              placeholder="Thank you for your time."
-              className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
-            />
-          </div>
-
-          {/* Sign-off & Sender Details (Responsive & Static - No Horizontal Overflow) */}
-          <div className="space-y-2 pt-1 border-t border-zinc-900 w-full max-w-full box-border">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 w-full max-w-full">
-              <span className="text-xs font-medium text-zinc-500 w-14 sm:w-16 shrink-0">
-                Sign-off:
-              </span>
-              <div className="flex items-center gap-2 flex-1 min-w-0 w-full">
-                <input
-                  type="text"
-                  value={signoff}
-                  onChange={(e) => setSignoff(e.target.value)}
-                  placeholder="Best regards,"
-                  className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none border-b border-zinc-800 pb-0.5"
-                />
-                <input
-                  type="text"
-                  value={senderName}
-                  onChange={(e) => setSenderName(e.target.value)}
-                  placeholder="Your Name"
-                  className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none border-b border-zinc-800 pb-0.5"
-                />
-              </div>
+              <input
+                type="text"
+                value={greeting}
+                onChange={(e) => setGreeting(e.target.value)}
+                placeholder="Dear Sir/Madam,"
+                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
+              />
             </div>
 
-            {/* Custom Detail Lines */}
-            {customDetails.map((detail, idx) => (
-              <div key={idx} className="flex items-center gap-2 pl-0 sm:pl-16 min-w-0 w-full">
-                <input
-                  type="text"
-                  value={detail}
-                  onChange={(e) => handleUpdateDetail(idx, e.target.value)}
-                  placeholder="Designation / Company / Contact..."
-                  className="flex-1 min-w-0 bg-transparent text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none border-b border-zinc-800/80 pb-0.5"
-                />
+            {/* Opening / Purpose Row */}
+            <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-800 pb-2 w-full max-w-full">
+              <span className="text-xs font-medium text-zinc-400 w-14 sm:w-16 shrink-0">
+                Opening:
+              </span>
+              <input
+                type="text"
+                value={opening}
+                onChange={(e) => setOpening(e.target.value)}
+                placeholder="Reason for writing / brief opening statement..."
+                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Main Fluid Body Canvas */}
+        <div className="space-y-1.5 w-full max-w-full box-border flex-1 min-h-[220px]">
+          <textarea
+            ref={bodyTextareaRef}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            onKeyDown={handleBodyKeyDown}
+            placeholder={
+              isTemplateMode
+                ? 'Write your core message, details, deliverables, action items, or bullet points here...'
+                : 'Write your message here... Type freely, use Markdown, drag and drop files, or ask Quanty AI Copilot.'
+            }
+            rows={isTemplateMode ? 8 : 12}
+            style={{
+              color: textColor.color,
+              textAlign: textAlign,
+              fontWeight: isBold ? 'bold' : 'normal',
+              fontStyle: isItalic ? 'italic' : 'normal',
+              textDecoration:
+                `${isUnderline ? 'underline ' : ''}${isStrikethrough ? 'line-through' : ''}`.trim() ||
+                'none',
+            }}
+            className={`w-full max-w-full box-border bg-zinc-950/40 border border-zinc-800/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 resize-y leading-relaxed shadow-inner min-h-[200px]`}
+          />
+
+          {/* Smart Compose Predictive Autocomplete Chip */}
+          {activePrediction && (
+            <div
+              onClick={acceptPrediction}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs shadow-md cursor-pointer hover:bg-amber-500/20 transition-all select-none"
+            >
+              <span className="text-[10px] font-black uppercase text-amber-400 bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 rounded-md">
+                Tab ⇥
+              </span>
+              <span className="text-zinc-300 text-xs">
+                Next word suggestion:{' '}
+                <strong className="text-amber-300 font-semibold">{activePrediction}</strong>
+              </span>
+              <span className="ml-auto text-[10px] text-amber-400 font-medium underline">
+                Tap to apply
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Guided Structured Corporate Closing & Sign-off (When Template Mode is ON) */}
+        {isTemplateMode && (
+          <div className="space-y-3 p-3.5 rounded-2xl bg-zinc-900/40 border border-zinc-800/80">
+            {/* Closing Row */}
+            <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-800 pb-2 w-full max-w-full">
+              <span className="text-xs font-medium text-zinc-400 w-14 sm:w-16 shrink-0">
+                Closing:
+              </span>
+              <input
+                type="text"
+                value={closing}
+                onChange={(e) => setClosing(e.target.value)}
+                placeholder="Thank you for your time."
+                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
+              />
+            </div>
+
+            {/* Sign-off & Sender Details */}
+            <div className="space-y-2 pt-1 w-full max-w-full box-border">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 w-full max-w-full">
+                <span className="text-xs font-medium text-zinc-400 w-14 sm:w-16 shrink-0">
+                  Sign-off:
+                </span>
+                <div className="flex items-center gap-2 flex-1 min-w-0 w-full">
+                  <input
+                    type="text"
+                    value={signoff}
+                    onChange={(e) => setSignoff(e.target.value)}
+                    placeholder="Best regards,"
+                    className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none border-b border-zinc-800 pb-0.5"
+                  />
+                  <input
+                    type="text"
+                    value={senderName}
+                    onChange={(e) => setSenderName(e.target.value)}
+                    placeholder="Your Name"
+                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none border-b border-zinc-800 pb-0.5"
+                  />
+                </div>
+              </div>
+
+              {/* Custom Detail Lines */}
+              {customDetails.map((detail, idx) => (
+                <div key={idx} className="flex items-center gap-2 pl-0 sm:pl-16 min-w-0 w-full">
+                  <input
+                    type="text"
+                    value={detail}
+                    onChange={(e) => handleUpdateDetail(idx, e.target.value)}
+                    placeholder="Designation / Company / Contact..."
+                    className="flex-1 min-w-0 bg-transparent text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none border-b border-zinc-800/80 pb-0.5"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveDetail(idx)}
+                    className="text-zinc-500 hover:text-rose-400 text-xs px-1 shrink-0"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+
+              <div className="pl-0 sm:pl-16 pt-0.5">
                 <button
                   type="button"
-                  onClick={() => handleRemoveDetail(idx)}
-                  className="text-zinc-500 hover:text-rose-400 text-xs px-1 shrink-0"
+                  onClick={handleAddDetail}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 transition-all"
                 >
-                  ✕
+                  <span>+ Add detail / line</span>
                 </button>
               </div>
-            ))}
-
-            <div className="pl-0 sm:pl-16 pt-0.5">
-              <button
-                type="button"
-                onClick={handleAddDetail}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 transition-all"
-              >
-                <span>+ Add detail / line</span>
-              </button>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Hidden File Input for Device Attachments */}
         <input

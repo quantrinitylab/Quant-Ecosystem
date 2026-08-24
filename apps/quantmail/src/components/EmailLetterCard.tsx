@@ -5,6 +5,31 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { showToast } from './InboxToast';
 import type { Email, EmailAttachment } from '../types';
 
+export function sanitizeEmailText(text?: string): string {
+  if (!text) return '';
+  let clean = text;
+  try {
+    clean = decodeURIComponent(escape(text));
+  } catch {
+    clean = text
+      .replace(/ðŸŽ‰/g, '🎉')
+      .replace(/ðŸ‘\s*[\x80-\xBF]?/g, '👍')
+      .replace(/ðŸ”¥/g, '🔥')
+      .replace(/ðŸš€/g, '🚀')
+      .replace(/âœ…/g, '✅')
+      .replace(/â ¤ï¸ ?/g, '❤️')
+      .replace(/ðŸ˜Š/g, '😊')
+      .replace(/ðŸ’¡/g, '💡')
+      .replace(/ðŸ’¬/g, '💬')
+      .replace(/âš\xa0ï¸ ?/g, '⚠️')
+      .replace(/â€™|â€˜/g, "'")
+      .replace(/â€œ|â€ /g, '"')
+      .replace(/â€“|â€”/g, '—')
+      .replace(/â€¦/g, '…');
+  }
+  return clean;
+}
+
 export interface EmailLetterCardProps {
   email: Email;
   className?: string;
@@ -13,9 +38,7 @@ export interface EmailLetterCardProps {
 export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps) {
   const [showQuoted, setShowQuoted] = useState(false);
 
-  const senderName = email.from?.name || email.from?.email || 'Sender';
-  const senderEmail = email.from?.email || '';
-  const rawBody = email.bodyText || email.snippet || '';
+  const rawBody = sanitizeEmailText(email.bodyText || email.snippet || '');
 
   // Parse quoted lines starting with '>'
   const lines = rawBody.split('\n');
@@ -38,52 +61,34 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
   const mainText = mainLines.join('\n').trim();
   const quotedText = quotedLines.join('\n').trim();
 
-  // Try to detect salutation and signoff
-  const bodyParagraphs = mainText.split('\n\n').filter(Boolean);
-  const firstParagraph = bodyParagraphs[0] || '';
-  const isSalutation = /^(dear|hello|hi|hey|greetings|to whom|good morning|good afternoon)/i.test(
-    firstParagraph.trim(),
-  );
-
   const attachments: EmailAttachment[] = email.attachments || [];
 
   return (
     <div
-      className={`relative rounded-2xl sm:rounded-3xl border border-zinc-800/80 bg-[#0c0e14] shadow-xl p-5 sm:p-7 overflow-hidden ${className}`}
+      className={`relative rounded-2xl sm:rounded-3xl border border-zinc-800/80 bg-[#0c0e14] shadow-xl p-4 sm:p-6 overflow-hidden ${className}`}
     >
-      {/* Top Header: Clean Subject & From Email */}
-      <div className="pb-4 border-b border-zinc-800/70 space-y-1">
-        <h3 className="text-base sm:text-lg font-bold text-white tracking-tight">
-          {email.subject || '(No Subject)'}
-        </h3>
-        {senderEmail && (
-          <div className="text-xs text-zinc-400 font-mono">
-            From: <span className="text-amber-400/90">{senderEmail}</span>
+      {/* Email Body */}
+      <div className="text-zinc-200 text-sm sm:text-[15px] leading-relaxed">
+        {email.bodyHtml ? (
+          <div
+            className="email-html-content prose prose-invert max-w-none text-zinc-200 font-sans leading-relaxed break-words"
+            dangerouslySetInnerHTML={{ __html: email.bodyHtml }}
+          />
+        ) : (
+          <div className="whitespace-pre-wrap font-sans text-zinc-200 leading-relaxed space-y-3">
+            {mainText || 'No message content.'}
           </div>
         )}
-      </div>
-
-      {/* Structured Message Body */}
-      <div className="py-4 space-y-4 text-zinc-200 text-sm sm:text-[15px] leading-relaxed">
-        {/* Salutation Greeting */}
-        {isSalutation && (
-          <p className="font-semibold text-amber-200/90 text-base">{firstParagraph}</p>
-        )}
-
-        {/* Main Body Paragraphs */}
-        <div className="whitespace-pre-wrap font-sans text-zinc-200 leading-relaxed space-y-3">
-          {isSalutation ? bodyParagraphs.slice(1).join('\n\n') : mainText || 'No message content.'}
-        </div>
 
         {/* Quoted Text Accordion */}
         {quotedText && (
-          <div className="pt-2">
+          <div className="pt-3 mt-3 border-t border-zinc-800/60">
             <button
               type="button"
               onClick={() => setShowQuoted(!showQuoted)}
-              className="text-xs text-amber-400/90 hover:underline flex items-center gap-1.5 font-mono"
+              className="text-xs text-amber-400/90 hover:underline flex items-center gap-1.5 font-medium"
             >
-              <span>{showQuoted ? '▲ Hide' : '▼ Show'} quoted conversation</span>
+              <span>{showQuoted ? '▲ Hide' : '▼ Show'} quoted message</span>
             </button>
 
             <AnimatePresence>
@@ -92,7 +97,7 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="mt-2 pl-3 border-l-2 border-zinc-700 text-xs text-zinc-400 whitespace-pre-wrap font-mono"
+                  className="mt-2 pl-3 border-l-2 border-zinc-700 text-xs text-zinc-400 whitespace-pre-wrap font-sans"
                 >
                   {quotedText}
                 </motion.div>
@@ -100,12 +105,6 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
             </AnimatePresence>
           </div>
         )}
-
-        {/* Closing Line & Clean Signature Block */}
-        <div className="pt-4 mt-4 border-t border-zinc-800/60 space-y-0.5">
-          <p className="text-xs text-zinc-400 italic">Yours faithfully,</p>
-          <p className="text-xs text-amber-400/90 font-mono">{senderEmail || senderName}</p>
-        </div>
       </div>
 
       {/* Attachments Section */}

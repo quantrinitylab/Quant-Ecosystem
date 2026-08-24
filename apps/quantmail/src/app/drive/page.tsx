@@ -271,7 +271,18 @@ export default function DrivePage() {
   const usedPct = Math.min(100, Math.round((usedBytes / totalBytes) * 100));
 
   return (
-    <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
+    <AppShell
+      sidebar={<AppSidebar />}
+      theme="dark"
+      className="quantmail-shell"
+      searchValue={searchQuery}
+      onSearchChange={(val) => {
+        setSearchQuery(val);
+        if (val) searchFiles(val);
+        else fetchFiles(currentFolderId);
+      }}
+      searchPlaceholder="Search files, folders, documents…"
+    >
       <PageTransition className="workspace-page drive-workspace flex flex-col h-full bg-[#0a0a0c]">
         <input
           ref={fileInputRef}
@@ -282,32 +293,15 @@ export default function DrivePage() {
         />
 
         {/* Top Drive Control Bar */}
-        <div className="border-b border-[var(--quant-border)] px-4 py-3.5 sm:px-8 bg-[var(--quant-surface)] flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3 flex-1 min-w-[240px] max-w-md">
-            <div className="relative w-full">
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  if (e.target.value) searchFiles(e.target.value);
-                  else fetchFiles(currentFolderId);
-                }}
-                placeholder="Search files, folders, documents…"
-                className="w-full bg-[var(--quant-surface-subtle)] border border-[var(--quant-border)] rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
-              />
-              <span className="absolute left-3 top-2.5 text-zinc-500 text-xs">🔍</span>
-            </div>
-          </div>
-
+        <div className="border-b border-[var(--quant-border)] px-4 py-3 sm:px-8 bg-[var(--quant-surface)] flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] p-0.5">
+            <div className="flex items-center rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] p-0.5">
               <button
                 type="button"
                 onClick={() => setViewMode('grid')}
-                className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
                   viewMode === 'grid'
-                    ? 'bg-[#ff9933] text-[#191008] font-bold'
+                    ? 'bg-[#ff9933] text-[#191008] font-bold shadow-sm'
                     : 'text-zinc-400 hover:text-white'
                 }`}
               >
@@ -316,20 +310,22 @@ export default function DrivePage() {
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
-                className={`px-2.5 py-1 text-xs rounded-md font-medium transition-colors ${
+                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
                   viewMode === 'list'
-                    ? 'bg-[#ff9933] text-[#191008] font-bold'
+                    ? 'bg-[#ff9933] text-[#191008] font-bold shadow-sm'
                     : 'text-zinc-400 hover:text-white'
                 }`}
               >
                 List
               </button>
             </div>
+          </div>
 
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setShowNewFolderModal(true)}
-              className="px-3 py-2 text-xs font-semibold rounded-xl border border-[var(--quant-border)] text-zinc-300 hover:text-white hover:border-[#ff9933]/60 transition-colors"
+              className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-[var(--quant-border)] text-zinc-300 hover:text-white hover:border-[#ff9933]/60 transition-colors"
             >
               + New Folder
             </button>
@@ -341,7 +337,7 @@ export default function DrivePage() {
         </div>
 
         {/* Filter Chips Bar & Breadcrumb Path */}
-        <div className="flex items-center justify-between gap-3 px-4 py-2.5 sm:px-8 border-b border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] overflow-x-auto">
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 sm:px-8 border-b border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-2">
             {(
               [
@@ -536,7 +532,7 @@ export default function DrivePage() {
                       Folders ({folders.length})
                     </h3>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
                     {folders.map((folder) => {
                       const isSelected = selectedIds.has(folder.id);
                       return (

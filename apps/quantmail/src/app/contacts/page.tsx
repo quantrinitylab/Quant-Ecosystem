@@ -197,7 +197,14 @@ export default function ContactsPage() {
   };
 
   return (
-    <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
+    <AppShell
+      sidebar={<AppSidebar />}
+      theme="dark"
+      className="quantmail-shell"
+      searchValue={searchQuery}
+      onSearchChange={setSearchQuery}
+      searchPlaceholder="Search contacts by name, email, company…"
+    >
       <PageTransition className="workspace-page contacts-workspace flex flex-col h-full bg-[#0a0a0c]">
         <input
           ref={vcardInputRef}
@@ -208,28 +215,15 @@ export default function ContactsPage() {
         />
 
         {/* Top Control Bar */}
-        <div className="border-b border-[var(--quant-border)] px-4 py-3.5 sm:px-8 bg-[var(--quant-surface)] flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3 flex-1 min-w-[240px] max-w-md">
-            <div className="relative w-full">
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search contacts by name, email, company…"
-                className="w-full bg-[var(--quant-surface-subtle)] border border-[var(--quant-border)] rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
-              />
-              <span className="absolute left-3 top-2.5 text-zinc-500 text-xs">🔍</span>
-            </div>
-          </div>
-
+        <div className="border-b border-[var(--quant-border)] px-4 py-3 sm:px-8 bg-[var(--quant-surface)] flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] p-0.5">
+            <div className="flex items-center rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] p-0.5">
               <button
                 type="button"
                 onClick={() => setActiveTab('all')}
-                className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${
+                className={`px-3.5 py-1.5 text-xs rounded-lg font-medium transition-colors ${
                   activeTab === 'all'
-                    ? 'bg-[#ff9933] text-[#191008] font-bold'
+                    ? 'bg-[#ff9933] text-[#191008] font-bold shadow-sm'
                     : 'text-zinc-400 hover:text-white'
                 }`}
               >
@@ -238,20 +232,22 @@ export default function ContactsPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab('favorites')}
-                className={`px-3 py-1 text-xs rounded-md font-medium transition-colors ${
+                className={`px-3.5 py-1.5 text-xs rounded-lg font-medium transition-colors ${
                   activeTab === 'favorites'
-                    ? 'bg-[#ff9933] text-[#191008] font-bold'
+                    ? 'bg-[#ff9933] text-[#191008] font-bold shadow-sm'
                     : 'text-zinc-400 hover:text-white'
                 }`}
               >
                 Favorites ★
               </button>
             </div>
+          </div>
 
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => vcardInputRef.current?.click()}
-              className="px-2.5 py-1.5 text-xs rounded-xl border border-[var(--quant-border)] text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
+              className="px-3 py-1.5 text-xs rounded-xl border border-[var(--quant-border)] text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
               title="Import vCard .vcf"
             >
               📥 Import
@@ -259,7 +255,7 @@ export default function ContactsPage() {
             <button
               type="button"
               onClick={handleExportVCard}
-              className="px-2.5 py-1.5 text-xs rounded-xl border border-[var(--quant-border)] text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
+              className="px-3 py-1.5 text-xs rounded-xl border border-[var(--quant-border)] text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
               title="Export to vCard .vcf"
             >
               📤 Export
@@ -272,7 +268,7 @@ export default function ContactsPage() {
         </div>
 
         {/* Alphabet Quick Jump Bar */}
-        <div className="flex items-center justify-center gap-1 py-1.5 px-4 bg-zinc-950 border-b border-zinc-900 overflow-x-auto text-[10px] font-bold text-zinc-500">
+        <div className="flex items-center justify-center gap-1 py-1.5 px-4 bg-zinc-950 border-b border-zinc-900 overflow-x-auto no-scrollbar text-[10px] font-bold text-zinc-500">
           {ALPHABET.map((l) => (
             <button
               key={l}
@@ -325,7 +321,7 @@ export default function ContactsPage() {
                     {group.letter} ({group.contacts.length})
                   </h3>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
                     {group.contacts.map((contact) => (
                       <div
                         key={contact.id}

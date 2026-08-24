@@ -108,6 +108,40 @@ html {
   }
 }
 
+/* Scrollbar hiding utilities across all browsers (Chrome, Safari, Firefox, Edge, Windows) */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Custom sleek dark scrollbar for vertical views */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 153, 51, 0.4);
+}
+
+
 /* Responsive breakpoints */
 @media (max-width: 360px) {
   :root {
