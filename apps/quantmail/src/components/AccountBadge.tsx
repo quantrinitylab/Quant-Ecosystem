@@ -201,6 +201,19 @@ export function AccountBadge() {
             <button
               type="button"
               role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                router.push('/security');
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-zinc-200 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors"
+            >
+              <span>🔐</span>
+              <span>Security & 2FA</span>
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
               onClick={async () => {
                 setOpen(false);
                 await logout();

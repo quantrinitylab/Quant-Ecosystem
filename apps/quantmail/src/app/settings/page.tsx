@@ -347,7 +347,7 @@ export default function SettingsPage() {
           })}
         </nav>
 
-        <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 max-w-4xl">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 w-full max-w-4xl mx-auto space-y-6">
           {/* 1. GENERAL TAB */}
           {activeTab === 'general' && (
             <div className="space-y-6 animate-in fade-in duration-150">

@@ -1354,7 +1354,7 @@ export default function InboxPage() {
             {!isLoading &&
               !isSearching &&
               !error &&
-              (!emails || emails.length === 0) &&
+              (!displayThreads || displayThreads.length === 0) &&
               (debouncedQuery ? (
                 <div className="mail-empty">
                   <span className="mail-empty-icon">
@@ -1380,6 +1380,35 @@ export default function InboxPage() {
                       Advanced search
                     </Button>
                   </div>
+                </div>
+              ) : activeCategoryTab === 'groups' ? (
+                <div className="mail-empty py-12 px-4 text-center space-y-3">
+                  <span className="text-4xl block mb-1">👥</span>
+                  <h3 className="text-base font-bold text-white">No group conversations yet</h3>
+                  <p className="text-xs text-zinc-400 max-w-xs mx-auto">
+                    Create a group to start a shared multi-recipient thread or mailing list.
+                  </p>
+                  <div className="pt-2 flex justify-center">
+                    <Button variant="primary" onClick={() => setIsCreateGroupModalOpen(true)}>
+                      + Create New Group
+                    </Button>
+                  </div>
+                </div>
+              ) : activeCategoryTab === 'unread' ? (
+                <div className="mail-empty py-12 px-4 text-center space-y-2">
+                  <span className="text-4xl block mb-1">✨</span>
+                  <h3 className="text-base font-bold text-white">All caught up!</h3>
+                  <p className="text-xs text-zinc-400">Zero unread messages in your inbox.</p>
+                </div>
+              ) : activeCategoryTab !== 'all' ? (
+                <div className="mail-empty py-12 px-4 text-center space-y-2">
+                  <span className="text-4xl block mb-1">📬</span>
+                  <h3 className="text-base font-bold text-white">
+                    No {activeCategoryTab} messages
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    Emails categorized as {activeCategoryTab} will appear here.
+                  </p>
                 </div>
               ) : (
                 <InboxZeroState />

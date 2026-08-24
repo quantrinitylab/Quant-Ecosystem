@@ -5,7 +5,8 @@
 // responsive: centered dialog on desktop, bottom sheet on small screens.
 // ============================================================================
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -41,6 +42,12 @@ export const Modal: React.FC<ModalProps> = ({
   footer,
   className = '',
 }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (event.key === 'Escape' && closeOnEscape) {
@@ -71,7 +78,7 @@ export const Modal: React.FC<ModalProps> = ({
     full: 'max-w-5xl',
   };
 
-  return (
+  const modalContent = (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
       role="dialog"
@@ -154,4 +161,10 @@ export const Modal: React.FC<ModalProps> = ({
       </div>
     </div>
   );
+
+  if (!mounted || typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(modalContent, document.body);
 };

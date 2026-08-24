@@ -125,9 +125,9 @@ export default function SecurityPage() {
         </nav>
 
         {/* Tab content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 w-full max-w-4xl mx-auto">
           {activeTab === 'password-auth' && (
-            <div className="max-w-2xl space-y-8">
+            <div className="w-full space-y-8">
               <section>
                 <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-1">
                   Two-Factor Authentication
@@ -313,7 +313,7 @@ export default function SecurityPage() {
           )}
 
           {activeTab === 'sessions' && (
-            <div className="max-w-2xl space-y-8">
+            <div className="w-full space-y-8">
               <section>
                 <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-1">
                   Active Sessions
@@ -347,8 +347,8 @@ export default function SecurityPage() {
                       Only this device is active
                     </p>
                     <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto">
-                      When QuantMail detects other sessions, you&apos;ll review the device, location,
-                      and last active time here before revoking access.
+                      When QuantMail detects other sessions, you&apos;ll review the device,
+                      location, and last active time here before revoking access.
                     </p>
                   </div>
                 </div>
@@ -386,7 +386,7 @@ export default function SecurityPage() {
           )}
 
           {activeTab === 'connected-apps' && (
-            <div className="max-w-2xl space-y-8">
+            <div className="w-full space-y-8">
               <section>
                 <h2 className="text-base font-semibold text-[var(--quant-foreground)] mb-1">
                   Connected Applications

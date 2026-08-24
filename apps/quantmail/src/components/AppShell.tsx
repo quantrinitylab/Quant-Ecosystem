@@ -412,24 +412,6 @@ export function AppShell({
               }
             }}
           >
-            <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
-              <button
-                type="button"
-                className="inline-flex size-9 items-center justify-center rounded-md text-[var(--foreground)] outline-none hover:bg-[var(--muted)]"
-                aria-label="Close navigation menu"
-                onClick={() => closeSidebar()}
-              >
-                <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
-                  <path
-                    d="M6 6l12 12M18 6 6 18"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeWidth="2"
-                  />
-                </svg>
-              </button>
-            </div>
             {sidebar}
           </aside>
         </>
