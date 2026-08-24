@@ -72,7 +72,7 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
         {email.bodyHtml ? (
           <div
             className="email-html-content prose prose-invert max-w-none text-zinc-200 font-sans leading-relaxed break-words"
-            dangerouslySetInnerHTML={{ __html: email.bodyHtml }}
+            dangerouslySetInnerHTML={{ __html: sanitizeEmailText(email.bodyHtml) }}
           />
         ) : (
           <div className="whitespace-pre-wrap font-sans text-zinc-200 leading-relaxed space-y-3">
