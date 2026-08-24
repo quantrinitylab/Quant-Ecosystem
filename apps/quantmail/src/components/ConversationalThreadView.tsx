@@ -464,13 +464,33 @@ export function ConversationalThreadView({
             </button>
           )}
 
+          {/* Print Thread */}
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+            title="Print entire conversation (Ctrl+P / Cmd+P)"
+          >
+            <svg
+              className="size-4.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect width="12" height="8" x="6" y="14" />
+            </svg>
+          </button>
+
           {/* Archive */}
           {onArchive && (
             <button
               type="button"
               onClick={onArchive}
               className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
-              title="Archive conversation"
+              title="Archive conversation (E)"
             >
               <svg
                 className="size-4.5"
@@ -492,7 +512,7 @@ export function ConversationalThreadView({
               type="button"
               onClick={onDelete}
               className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
-              title="Move to Trash"
+              title="Move to Trash (#)"
             >
               <svg
                 className="size-4.5"
@@ -752,8 +772,90 @@ export function ConversationalThreadView({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Action Chips & Smart Reply Suggestions Bar */}
+      <div className="px-3 sm:px-4 pt-2.5 pb-1 bg-[#08090d]/95 border-t border-zinc-800/80 flex items-center justify-between gap-2 flex-wrap">
+        {/* Left: Action Chips (Reply / Reply All / Forward) */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              const recipient = primaryMessage?.from?.email || '';
+              const subj = threadSubject.startsWith('Re:') ? threadSubject : `Re: ${threadSubject}`;
+              router.push(
+                `/compose?to=${encodeURIComponent(recipient)}&subject=${encodeURIComponent(subj)}&replyTo=${primaryMessage?.id || threadId}`,
+              );
+            }}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/70 text-[11px] font-medium text-zinc-300 hover:text-white transition-all shadow-sm active:scale-95"
+            title="Reply to sender (R)"
+          >
+            <span>↩</span>
+            <span>Reply</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const allRecipients = messages
+                .flatMap((m) => [m.from?.email, ...(m.to?.map((t) => t.email) || [])])
+                .filter(Boolean)
+                .filter((v, i, a) => a.indexOf(v) === i)
+                .join(', ');
+              const subj = threadSubject.startsWith('Re:') ? threadSubject : `Re: ${threadSubject}`;
+              router.push(
+                `/compose?to=${encodeURIComponent(allRecipients)}&subject=${encodeURIComponent(subj)}&replyTo=${primaryMessage?.id || threadId}`,
+              );
+            }}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/70 text-[11px] font-medium text-zinc-300 hover:text-white transition-all shadow-sm active:scale-95"
+            title="Reply to all recipients (A)"
+          >
+            <span>⇇</span>
+            <span>Reply All</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const subj = threadSubject.startsWith('Fwd:')
+                ? threadSubject
+                : `Fwd: ${threadSubject}`;
+              const forwardBody = `\n\n---------- Forwarded message ---------\nFrom: ${primaryMessage?.from?.name || ''} <${primaryMessage?.from?.email || ''}>\nSubject: ${threadSubject}\n\n${primaryMessage?.bodyText || primaryMessage?.snippet || ''}`;
+              router.push(
+                `/compose?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(forwardBody)}`,
+              );
+            }}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/70 text-[11px] font-medium text-zinc-300 hover:text-white transition-all shadow-sm active:scale-95"
+            title="Forward this conversation (F)"
+          >
+            <span>↪</span>
+            <span>Forward</span>
+          </button>
+        </div>
+
+        {/* Right: Smart Reply Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          {[
+            '✨ Sounds good, thanks!',
+            "✨ Let's do that.",
+            "✨ I'll review and get back shortly.",
+          ].map((suggestion, sIdx) => (
+            <button
+              key={sIdx}
+              type="button"
+              onClick={() => {
+                const text = suggestion.replace(/^✨\s*/, '');
+                setQuickReplyText(text);
+                setTimeout(() => document.getElementById('chatbot-reply-input')?.focus(), 50);
+              }}
+              className="whitespace-nowrap px-2.5 py-1 rounded-full bg-[#FF7A00]/10 hover:bg-[#FF7A00]/20 border border-[#FF7A00]/30 text-[11px] font-medium text-amber-300 hover:text-white transition-all active:scale-95"
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Chatbot-Style Bottom Floating Quick Reply Bar */}
-      <div className="p-3 sm:p-4 bg-[#08090d]/95 border-t border-zinc-800/90 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
+      <div className="p-3 sm:p-4 bg-[#08090d]/95 border-t border-zinc-800/60 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
         {/* Pending Attachment Previews */}
         {pendingAttachments.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap px-2 py-1">

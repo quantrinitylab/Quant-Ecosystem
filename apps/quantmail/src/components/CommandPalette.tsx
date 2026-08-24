@@ -28,9 +28,10 @@ export function CommandPalette() {
       // Navigation
       {
         id: 'inbox',
-        label: 'Go to Inbox',
-        description: 'View all email threads and messages',
+        label: 'Go to Priority Inbox',
+        description: 'View all active email threads and messages',
         icon: '📥',
+        shortcut: 'G I',
         category: 'navigation',
         action: () => router.push('/'),
       },
@@ -44,10 +45,74 @@ export function CommandPalette() {
         action: () => router.push('/compose'),
       },
       {
+        id: 'sent',
+        label: 'Open Sent Mail',
+        description: 'Outbound dispatched emails and delivery receipts',
+        icon: '📤',
+        shortcut: 'G S',
+        category: 'navigation',
+        action: () => router.push('/sent'),
+      },
+      {
+        id: 'drafts',
+        label: 'Open Drafts',
+        description: 'Unsent drafts and saved messages',
+        icon: '📝',
+        shortcut: 'G D',
+        category: 'navigation',
+        action: () => router.push('/drafts'),
+      },
+      {
+        id: 'starred',
+        label: 'Open Starred / Pinned',
+        description: 'Important flagged conversations',
+        icon: '⭐',
+        shortcut: 'G *',
+        category: 'navigation',
+        action: () => router.push('/starred'),
+      },
+      {
+        id: 'snoozed',
+        label: 'Open Snoozed',
+        description: 'Temporarily hidden messages returning later',
+        icon: '⏰',
+        shortcut: 'G B',
+        category: 'navigation',
+        action: () => router.push('/snoozed'),
+      },
+      {
+        id: 'archive',
+        label: 'Open Archive',
+        description: 'All archived historical messages',
+        icon: '📦',
+        shortcut: 'G E',
+        category: 'navigation',
+        action: () => router.push('/archive'),
+      },
+      {
+        id: 'trash',
+        label: 'Open Trash',
+        description: 'Deleted conversations',
+        icon: '🗑️',
+        shortcut: 'G T',
+        category: 'navigation',
+        action: () => router.push('/trash'),
+      },
+      {
+        id: 'search',
+        label: 'Search mail & contacts',
+        description: 'Full-text query across subjects and bodies',
+        icon: '🔍',
+        shortcut: '/',
+        category: 'navigation',
+        action: () => router.push('/search'),
+      },
+      {
         id: 'calendar',
-        label: 'Open Calendar',
+        label: 'Open QuantCalendar',
         description: 'Schedule meetings and view agenda',
         icon: '📅',
+        shortcut: 'G C',
         category: 'navigation',
         action: () => router.push('/calendar'),
       },
@@ -56,30 +121,43 @@ export function CommandPalette() {
         label: 'Open QuantDrive',
         description: 'Zero-knowledge encrypted cloud files',
         icon: '📁',
+        shortcut: 'G V',
         category: 'navigation',
         action: () => router.push('/drive'),
       },
       {
         id: 'contacts',
-        label: 'Open Contacts & Directory',
+        label: 'Open QuantContacts & Directory',
         description: 'Address book and vCard manager',
         icon: '👥',
+        shortcut: 'G A',
         category: 'navigation',
         action: () => router.push('/contacts'),
       },
       {
         id: 'codehub',
-        label: 'Open CodeHub',
+        label: 'Open QuantCode (CodeHub)',
         description: 'Repositories, agent fleets, and CI pipelines',
         icon: '💻',
+        shortcut: 'G K',
         category: 'navigation',
         action: () => router.push('/codehub'),
+      },
+      {
+        id: 'security',
+        label: 'Review Account Security & 2FA',
+        description: 'Manage two-factor auth, sessions, and recovery',
+        icon: '🔐',
+        shortcut: 'G 2',
+        category: 'navigation',
+        action: () => router.push('/security'),
       },
       {
         id: 'settings',
         label: 'Open Settings & Preferences',
         description: 'Themes, E2EE vault, and signatures',
         icon: '⚙️',
+        shortcut: 'G ,',
         category: 'navigation',
         action: () => router.push('/settings'),
       },
@@ -168,15 +246,15 @@ export function CommandPalette() {
         },
       },
       {
-        id: 'accent-saffron',
-        label: 'Accent: Bharat Saffron',
-        description: 'Warm energetic saffron tone',
+        id: 'accent-orange',
+        label: 'Accent: Quant Orange',
+        description: 'Signature vibrant amber orange tone',
         icon: '🟠',
         category: 'settings',
         action: () => {
-          localStorage.setItem('quant-accent', '#ff9933');
-          document.documentElement.style.setProperty('--brand-primary', '#ff9933');
-          showToast({ text: 'Set accent to Bharat Saffron', type: 'info' });
+          localStorage.setItem('quant-accent', '#FF7A00');
+          document.documentElement.style.setProperty('--brand-primary', '#FF7A00');
+          showToast({ text: 'Set accent to Quant Orange', type: 'info' });
         },
       },
       {
@@ -306,7 +384,7 @@ export function CommandPalette() {
           >
             <div className="flex items-center px-4 py-3.5 border-b border-zinc-800 bg-zinc-900/60">
               <svg
-                className="size-4 text-[#ff9933] mr-3 shrink-0"
+                className="size-4 text-[#FF7A00] mr-3 shrink-0"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -358,7 +436,7 @@ export function CommandPalette() {
                         data-active={isActive}
                         className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors ${
                           isActive
-                            ? 'bg-[#ff9933]/15 text-white border border-[#ff9933]/30'
+                            ? 'bg-[#FF7A00]/15 text-white border border-[#FF7A00]/30'
                             : 'text-zinc-300 hover:bg-zinc-900 border border-transparent'
                         }`}
                         onClick={() => executeCommand(item)}
@@ -380,7 +458,7 @@ export function CommandPalette() {
                           </div>
                         </div>
                         {item.shortcut && (
-                          <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-[10px] font-mono text-[#ff9933] shrink-0 ml-2">
+                          <kbd className="px-1.5 py-0.5 rounded border border-zinc-700 bg-zinc-900 text-[10px] font-mono text-[#FF7A00] shrink-0 ml-2">
                             {item.shortcut}
                           </kbd>
                         )}
@@ -403,7 +481,7 @@ export function CommandPalette() {
                   <kbd className="font-mono text-zinc-400">esc</kbd> close
                 </span>
               </div>
-              <span className="text-[10px] text-[#ff9933] font-medium">Quant Omnibar</span>
+              <span className="text-[10px] text-[#FF7A00] font-medium">Quant Omnibar</span>
             </footer>
           </motion.div>
         </>

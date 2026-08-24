@@ -53,60 +53,124 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     {
       id: 'compose',
       label: 'Compose a new message',
+      shortcut: 'C',
       group: 'Create',
       action: () => navigate('/compose'),
     },
     // Find
     {
       id: 'search',
-      label: 'Search mail and people',
+      label: 'Search mail, contacts, and keywords',
+      shortcut: '/',
       group: 'Find',
       action: () => navigate('/search'),
     },
     // Mail
-    { id: 'inbox', label: 'Open priority inbox', group: 'Mail', action: () => navigate('/') },
-    { id: 'sent', label: 'Open sent mail', group: 'Mail', action: () => navigate('/sent') },
-    { id: 'drafts', label: 'Open drafts', group: 'Mail', action: () => navigate('/drafts') },
-    { id: 'trash', label: 'Open trash', group: 'Mail', action: () => navigate('/trash') },
-    // Context
+    {
+      id: 'inbox',
+      label: 'Open priority inbox',
+      shortcut: 'G I',
+      group: 'Mail',
+      action: () => navigate('/'),
+    },
+    {
+      id: 'sent',
+      label: 'Open sent mail',
+      shortcut: 'G S',
+      group: 'Mail',
+      action: () => navigate('/sent'),
+    },
+    {
+      id: 'drafts',
+      label: 'Open drafts',
+      shortcut: 'G D',
+      group: 'Mail',
+      action: () => navigate('/drafts'),
+    },
+    {
+      id: 'starred',
+      label: 'Open starred messages',
+      shortcut: 'G *',
+      group: 'Mail',
+      action: () => navigate('/starred'),
+    },
+    {
+      id: 'snoozed',
+      label: 'Open snoozed messages',
+      shortcut: 'G B',
+      group: 'Mail',
+      action: () => navigate('/snoozed'),
+    },
+    {
+      id: 'archive',
+      label: 'Open archive',
+      shortcut: 'G E',
+      group: 'Mail',
+      action: () => navigate('/archive'),
+    },
+    {
+      id: 'trash',
+      label: 'Open trash',
+      shortcut: 'G T',
+      group: 'Mail',
+      action: () => navigate('/trash'),
+    },
+    {
+      id: 'spam',
+      label: 'Open spam folder',
+      shortcut: 'G !',
+      group: 'Mail',
+      action: () => navigate('/spam'),
+    },
+    // Workspace
     {
       id: 'calendar',
-      label: 'Open calendar',
-      group: 'Context',
+      label: 'Open QuantCalendar',
+      shortcut: 'G C',
+      group: 'Workspace',
       action: () => navigate('/calendar'),
     },
     {
       id: 'contacts',
-      label: 'Open contacts',
-      group: 'Context',
+      label: 'Open QuantContacts (Directory)',
+      shortcut: 'G A',
+      group: 'Workspace',
       action: () => navigate('/contacts'),
     },
-    { id: 'drive', label: 'Open drive', group: 'Context', action: () => navigate('/drive') },
-    // Code
-    { id: 'repos', label: 'Open repositories', group: 'Code', action: () => navigate('/repos') },
     {
-      id: 'pipelines',
-      label: 'Open pipelines',
-      group: 'Code',
-      action: () => navigate('/pipelines'),
+      id: 'drive',
+      label: 'Open QuantDrive (Encrypted Files)',
+      shortcut: 'G V',
+      group: 'Workspace',
+      action: () => navigate('/drive'),
+    },
+    {
+      id: 'codehub',
+      label: 'Open QuantCode (CodeHub)',
+      shortcut: 'G K',
+      group: 'Workspace',
+      action: () => navigate('/codehub'),
     },
     // Control
     {
       id: 'security',
-      label: 'Review account security',
+      label: 'Review account security & 2FA',
+      shortcut: 'G 2',
       group: 'Control',
       action: () => navigate('/security'),
     },
     {
       id: 'settings',
-      label: 'Open settings',
+      label: 'Open Settings & Preferences',
+      shortcut: 'G ,',
       group: 'Control',
       action: () => navigate('/settings'),
     },
-    // Actions (Gmail doesn't have these in command palette)
+    // Actions
     {
       id: 'theme-dark',
       label: 'Switch to dark theme',
+      shortcut: 'T',
       group: 'Actions',
       action: () => {
         document.documentElement.setAttribute('data-theme', 'dark');
@@ -132,7 +196,8 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     },
     {
       id: 'shortcuts',
-      label: 'Show keyboard shortcuts',
+      label: 'Show keyboard shortcuts cheat sheet',
+      shortcut: '?',
       group: 'Actions',
       action: () => {
         setCommandPaletteOpen(false);
@@ -163,12 +228,6 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
         {children}
         {showTools ? (
           <>
-            <CommandPaletteUI
-              isOpen={commandPaletteOpen}
-              onClose={() => setCommandPaletteOpen(false)}
-              commands={commands}
-              placeholder="Search commands, views, and workflows…"
-            />
             <MailCopilot />
             <ContextFab />
           </>
