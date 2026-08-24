@@ -27,7 +27,7 @@ export function sanitizeEmailText(text?: string): string {
       .replace(/â€“|â€”/g, '—')
       .replace(/â€¦/g, '…');
   }
-  return clean;
+  return clean.replace(/Â[\u00A0\s]?/g, ' ').replace(/\u00A0/g, ' ');
 }
 
 export interface EmailLetterCardProps {

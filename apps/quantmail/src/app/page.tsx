@@ -169,17 +169,21 @@ function sanitizeSnippetText(text?: string): string {
       .replace(/ðŸ”¥/g, '🔥')
       .replace(/ðŸš€/g, '🚀')
       .replace(/âœ…/g, '✅')
-      .replace(/â¤ï¸?/g, '❤️')
+      .replace(/â ¤ï¸ ?/g, '❤️')
       .replace(/ðŸ˜Š/g, '😊')
       .replace(/ðŸ’¡/g, '💡')
       .replace(/ðŸ’¬/g, '💬')
-      .replace(/âš\xa0ï¸?/g, '⚠️')
+      .replace(/âš\xa0ï¸ ?/g, '⚠️')
       .replace(/â€[™']/g, "'")
-      .replace(/â€œ|â€/g, '"')
+      .replace(/â€œ|â€ /g, '"')
       .replace(/â€“|â€”/g, '—')
       .replace(/â€¦/g, '…');
   }
-  return clean.replace(/\s+/g, ' ').trim();
+  return clean
+    .replace(/Â[\u00A0\s]?/g, ' ')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function normalizeSubject(subject: string = ''): string {
