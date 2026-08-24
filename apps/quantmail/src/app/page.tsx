@@ -290,6 +290,7 @@ function EmailRow({
   const prefersReducedMotion = useReducedMotion();
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef(false);
 
@@ -333,7 +334,7 @@ function EmailRow({
       : 'bg-amber-500/15 text-amber-300 border-amber-500/30';
 
   return (
-    <div className="mail-row-shell">
+    <div className="mail-row-shell relative">
       <motion.div
         className="mail-archive-reveal"
         style={{ opacity: archiveOpacity }}
@@ -386,7 +387,7 @@ function EmailRow({
         </div>
         {/* Hover actions bar — quick actions on hover (Desktop) */}
         <AnimatePresence>
-          {isHovered && !isDragging && (
+          {(isHovered || showSnoozeMenu) && !isDragging && (
             <HoverActions
               emailId={thread.id}
               isRead={thread.isRead}
@@ -394,12 +395,20 @@ function EmailRow({
               onDelete={onDelete}
               onMarkRead={onMarkRead}
               onMarkUnread={onMarkUnread}
-              onSnooze={() => onSnooze(email.id, new Date(Date.now() + 3 * 3600 * 1000))}
+              onSnooze={() => setShowSnoozeMenu((prev) => !prev)}
             />
           )}
         </AnimatePresence>
+        {/* Snooze popup anchor */}
+        <EmailSnooze
+          emailId={email.id}
+          onSnooze={onSnooze}
+          open={showSnoozeMenu}
+          onOpenChange={setShowSnoozeMenu}
+          triggerHidden={true}
+        />
         {/* Pin button */}
-        {!isHovered && (
+        {!isHovered && !showSnoozeMenu && (
           <button
             type="button"
             className={`p-1.5 rounded-xl transition-all ${
@@ -1050,12 +1059,12 @@ export default function InboxPage() {
   const selectionHeader = (
     <header className="flex min-h-14 flex-none items-center justify-between gap-3 border-b border-zinc-800 bg-[#121622] px-3 sm:px-5 shadow-xl select-none sticky top-0 z-50">
       {/* Left: Close/Deselect button & Count */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={() => setSelectedIds(new Set())}
           className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all active:scale-95"
-          title="Deselect all"
+          title="Deselect all (Esc)"
           aria-label="Deselect all"
         >
           <svg
@@ -1069,10 +1078,26 @@ export default function InboxPage() {
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
-        <span className="text-lg font-bold text-white tracking-wide">{selectedIds.size}</span>
+        <span className="text-sm sm:text-base font-bold text-white tracking-wide">
+          {selectedIds.size} selected
+        </span>
+
+        {/* Select All Visible toggle */}
+        {selectedIds.size < (displayThreads?.length ?? 0) && (
+          <button
+            type="button"
+            onClick={() => {
+              const allVisibleIds = new Set(displayThreads.map((t) => t.id));
+              setSelectedIds(allVisibleIds);
+            }}
+            className="ml-2 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-[#FF7A00] transition-colors"
+          >
+            Select all {displayThreads.length}
+          </button>
+        )}
       </div>
 
-      {/* Right Quick Action Icons (Clean, WhatsApp-Style) */}
+      {/* Right Quick Action Icons (Clean, WhatsApp / Superhuman Style) */}
       <div className="flex items-center gap-1 sm:gap-2">
         {/* Pin / Unpin */}
         <button
@@ -1084,19 +1109,34 @@ export default function InboxPage() {
             await refetch();
           }}
           className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-amber-400 hover:bg-zinc-800 transition-all active:scale-95"
-          title="Pin / Unpin to top"
+          title="Pin / Unpin (S)"
         >
           <MailIcon name="pin" className="size-5" />
         </button>
 
-        {/* Delete */}
+        {/* Mark Unread */}
         <button
           type="button"
-          onClick={() => void batchAction('delete')}
-          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-rose-400 hover:bg-zinc-800 transition-all active:scale-95"
-          title="Delete"
+          onClick={async () => {
+            await Promise.all(Array.from(selectedIds, (id) => apiClient.markAsUnread?.(id)));
+            setSelectedIds(new Set());
+            showToast({ text: `${selectedIds.size} marked as unread`, type: 'info' });
+            await refetch();
+          }}
+          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-amber-300 hover:bg-zinc-800 transition-all active:scale-95"
+          title="Mark as unread (U)"
         >
-          <MailIcon name="trash" className="size-5" />
+          <svg
+            className="size-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <path d="m3 7 9 6 9-6" />
+            <circle cx="18" cy="6" r="2.5" fill="#FF7A00" stroke="none" />
+          </svg>
         </button>
 
         {/* Mark Read */}
@@ -1114,12 +1154,22 @@ export default function InboxPage() {
           <MailIcon name="mail" className="size-5" />
         </button>
 
+        {/* Delete */}
+        <button
+          type="button"
+          onClick={() => void batchAction('delete')}
+          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-rose-400 hover:bg-zinc-800 transition-all active:scale-95"
+          title="Move to Trash (#)"
+        >
+          <MailIcon name="trash" className="size-5" />
+        </button>
+
         {/* Archive */}
         <button
           type="button"
           onClick={() => void batchAction('archive')}
           className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-emerald-400 hover:bg-zinc-800 transition-all active:scale-95"
-          title="Archive"
+          title="Archive (E)"
         >
           <MailIcon name="archive" className="size-5" />
         </button>

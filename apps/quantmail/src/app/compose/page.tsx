@@ -7,6 +7,7 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { EmailComposer } from '../../components/EmailComposer';
 import type { ComposerMessageData } from '../../components/EmailComposer';
+import { showToast } from '../../components/InboxToast';
 import { apiClient } from '../../services/api-client';
 
 export default function ComposePage() {
@@ -138,6 +139,7 @@ export default function ComposePage() {
         throw new Error(response.error?.message || 'Message could not be sent.');
       }
 
+      showToast({ text: 'Message sent 🚀', type: 'success' });
       router.push('/');
     },
     [composeDraft, router],
