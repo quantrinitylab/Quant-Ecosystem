@@ -1189,7 +1189,7 @@ export default function InboxPage() {
               }
             >
               <MailIcon name="compose" />{' '}
-              {activeCategoryTab === 'groups' ? 'Create Group' : 'New Message'}
+              {activeCategoryTab === 'groups' ? 'Create Group' : 'Compose'}
             </button>
           </header>
 
