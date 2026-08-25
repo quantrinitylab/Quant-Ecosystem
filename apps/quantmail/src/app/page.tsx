@@ -1416,19 +1416,19 @@ export default function InboxPage() {
                     setActiveCategoryTab(cat.key);
                     setShowArchivedView(false);
                   }}
-                  className={`relative px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 ${
+                  className={`relative px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 ${
                     isActive
-                      ? 'bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-white shadow-lg shadow-orange-500/25 font-bold scale-[1.02]'
-                      : 'bg-zinc-900/80 hover:bg-zinc-800/90 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80'
+                      ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] font-semibold'
+                      : 'bg-[#16181D] hover:bg-[#1C1F26] text-[#A1A4AC] hover:text-[#F5F5F5] border border-[#282C35]'
                   }`}
                 >
                   <span>{cat.label}</span>
                   {count > 0 && (
                     <span
-                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold leading-tight ${
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold leading-tight ${
                         isActive
-                          ? 'bg-white/30 text-white'
-                          : 'bg-zinc-800 text-zinc-400 border border-zinc-700/50'
+                          ? 'bg-[#FF8C42]/20 text-[#FF9B5A]'
+                          : 'bg-[#111318] text-[#6B6E76] border border-[#282C35]'
                       }`}
                     >
                       {count}

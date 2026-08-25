@@ -410,24 +410,38 @@ function ConnectorsRow() {
   };
 
   return (
-    <section className="ch-connectors" aria-label="MCP connectors">
-      <h2>MCP connectors</h2>
-      <p className="ch-connectors-sub">
+    <section className="mb-6" aria-label="MCP connectors">
+      <h2 className="text-sm font-semibold text-[#F5F5F5] mb-1">MCP connectors</h2>
+      <p className="text-xs text-[#A1A4AC] mb-3">
         Connect tools once — Quanty and your agents use them to clone, build and deploy directly.
       </p>
-      <div className="ch-connectors-row">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {CONNECTORS.map((connector) => (
-          <article key={connector.id} className="ch-connector-card">
-            <strong>{connector.name}</strong>
-            <p>{connector.detail}</p>
+          <div
+            key={connector.id}
+            className="flex flex-col justify-between p-3.5 rounded-xl border border-[#282C35] bg-[#111318] hover:border-[#3A404D] transition-colors"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <strong className="text-sm font-semibold text-[#F5F5F5]">{connector.name}</strong>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#16181D] text-[#A1A4AC] border border-[#282C35]">
+                  MCP
+                </span>
+              </div>
+              <p className="text-xs text-[#A1A4AC] leading-relaxed mb-3">{connector.detail}</p>
+            </div>
             <button
               type="button"
-              className={enabled[connector.id] ? 'is-on' : ''}
+              className={`w-full py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
+                enabled[connector.id]
+                  ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/60'
+                  : 'bg-[#16181D] hover:bg-[#1C1F26] text-[#F5F5F5] border border-[#282C35]'
+              }`}
               onClick={() => toggle(connector.id)}
             >
               {enabled[connector.id] ? 'Requested ✓' : 'Connect'}
             </button>
-          </article>
+          </div>
         ))}
       </div>
     </section>

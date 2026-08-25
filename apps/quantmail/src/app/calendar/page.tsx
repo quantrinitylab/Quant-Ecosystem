@@ -1609,95 +1609,33 @@ export default function CalendarPage() {
               {!isMonthExpanded ? (
                 <div className="grid grid-cols-7 text-center h-[46px] items-center">
                   {currentWeekDays.map((d) => {
-                    // Determine 3D Glass Sphere styling based on type & urgency
-                    let sphereClass = 'text-zinc-300 hover:bg-zinc-800/60';
-                    let sphereStyle: React.CSSProperties = {};
+                    let sphereClass = 'text-[#F5F5F5] hover:bg-[#16181D]';
 
                     if (d.isSelected) {
-                      if (d.hasPeriod) {
-                        sphereClass =
-                          'text-white font-black scale-110 shadow-[0_0_20px_rgba(244,63,94,0.7)] ring-2 ring-rose-400';
-                        sphereStyle = {
-                          background:
-                            'linear-gradient(135deg, #e11d48 0%, #f43f5e 50%, #fda4af 100%)',
-                        };
-                      } else if (d.hasUrgentTask) {
-                        sphereClass =
-                          'text-white font-black scale-110 shadow-[0_0_20px_rgba(239,68,68,0.7)] ring-2 ring-red-400';
-                        sphereStyle = {
-                          background:
-                            'linear-gradient(135deg, #dc2626 0%, #ef4444 50%, #fbbf24 100%)',
-                        };
-                      } else if (d.hasBirthday) {
-                        sphereClass =
-                          'text-black font-black scale-110 shadow-[0_0_20px_rgba(16,185,129,0.7)] ring-2 ring-emerald-400';
-                        sphereStyle = {
-                          background:
-                            'linear-gradient(135deg, #059669 0%, #10b981 50%, #86efac 100%)',
-                        };
-                      } else {
-                        sphereClass =
-                          'text-black font-black scale-110 shadow-[0_0_18px_rgba(255,153,51,0.65),inset_0_2px_4px_rgba(255,255,255,0.4)] ring-2 ring-[#ff9933]/70';
-                        sphereStyle = {
-                          background:
-                            'linear-gradient(135deg, #f97316 0%, #ff9933 50%, #fde047 100%)',
-                        };
-                      }
+                      sphereClass = 'bg-[#FF8C42] text-[#111111] font-bold shadow-sm';
                     } else if (d.hasPeriod) {
-                      // 3D Pink Glass Sphere for Period dates
                       sphereClass =
-                        'text-rose-200 font-bold border border-rose-400/60 shadow-[0_0_14px_rgba(244,63,94,0.45),inset_0_1px_2px_rgba(255,255,255,0.3)]';
-                      sphereStyle = {
-                        background:
-                          'radial-gradient(circle at 30% 30%, rgba(251,113,133,0.5) 0%, rgba(225,29,72,0.35) 100%)',
-                      };
+                        'text-rose-300 bg-rose-950/40 border border-rose-800/60 font-semibold';
                     } else if (d.hasUrgentTask) {
-                      // 3D Fire Red-Amber Glass Sphere
                       sphereClass =
-                        'text-amber-200 font-bold border border-red-500/60 shadow-[0_0_14px_rgba(239,68,68,0.45),inset_0_1px_2px_rgba(255,255,255,0.3)]';
-                      sphereStyle = {
-                        background:
-                          'radial-gradient(circle at 30% 30%, rgba(239,68,68,0.5) 0%, rgba(249,115,22,0.35) 100%)',
-                      };
+                        'text-amber-300 bg-amber-950/40 border border-amber-800/60 font-semibold';
                     } else if (d.hasBirthday) {
-                      // 3D Emerald Glass Sphere
                       sphereClass =
-                        'text-emerald-200 font-bold border border-emerald-400/60 shadow-[0_0_14px_rgba(16,185,129,0.45),inset_0_1px_2px_rgba(255,255,255,0.3)]';
-                      sphereStyle = {
-                        background:
-                          'radial-gradient(circle at 30% 30%, rgba(52,211,153,0.45) 0%, rgba(5,150,105,0.35) 100%)',
-                      };
+                        'text-emerald-300 bg-emerald-950/40 border border-emerald-800/60 font-semibold';
                     } else if (d.isToday) {
-                      sphereClass =
-                        'border-2 border-[#ff9933] text-[#ff9933] font-bold shadow-[0_0_12px_rgba(255,153,51,0.3)]';
+                      sphereClass = 'border-2 border-[#FF8C42] text-[#FF8C42] font-semibold';
                     }
 
                     return (
-                      <button
-                        key={d.key}
-                        type="button"
-                        onClick={() => selectDate(d.date)}
-                        className="flex flex-col items-center justify-center py-0.5 focus:outline-none relative group"
-                      >
-                        <span
-                          style={sphereStyle}
-                          className={`w-9 h-9 rounded-full flex flex-col items-center justify-center text-xs transition-all relative ${sphereClass}`}
+                      <div key={d.key} className="flex justify-center">
+                        <button
+                          type="button"
+                          onClick={() => selectDate(d.date)}
+                          className={`relative size-9 rounded-full flex flex-col items-center justify-center text-xs transition-all ${sphereClass}`}
                         >
-                          <span className="relative z-10">{d.dayNum}</span>
-
-                          {/* Holiday Indicator Jewel — ALWAYS VISIBLE, even when selected */}
-                          {d.hasHoliday && (
-                            <span
-                              title={d.holidayName || 'Holiday'}
-                              className={`absolute -top-1 -right-1 size-3 rounded-full bg-emerald-400 ring-2 ${
-                                d.isSelected ? 'ring-amber-500 scale-110' : 'ring-[#101014]'
-                              } animate-pulse shadow-[0_0_10px_#34d399] z-20 flex items-center justify-center`}
-                            >
-                              <span className="size-1 rounded-full bg-white" />
-                            </span>
-                          )}
-                        </span>
-                      </button>
+                          <span>{d.dayNum}</span>
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -1710,87 +1648,34 @@ export default function CalendarPage() {
                     >
                       {week.map((d) => {
                         let sphereClass = d.isCurrentMonth
-                          ? 'text-zinc-300 hover:bg-zinc-800/60'
-                          : 'text-zinc-600';
-                        let sphereStyle: React.CSSProperties = {};
+                          ? 'text-[#A1A4AC] hover:bg-[#16181D]'
+                          : 'text-[#6B6E76]/50';
 
                         if (d.isSelected) {
-                          if (d.hasPeriod) {
-                            sphereClass =
-                              'text-white font-black scale-105 shadow-[0_0_18px_rgba(244,63,94,0.7)]';
-                            sphereStyle = {
-                              background:
-                                'linear-gradient(135deg, #e11d48 0%, #f43f5e 50%, #fda4af 100%)',
-                            };
-                          } else if (d.hasUrgentTask) {
-                            sphereClass =
-                              'text-white font-black scale-105 shadow-[0_0_18px_rgba(239,68,68,0.7)]';
-                            sphereStyle = {
-                              background:
-                                'linear-gradient(135deg, #dc2626 0%, #ef4444 50%, #fbbf24 100%)',
-                            };
-                          } else if (d.hasBirthday) {
-                            sphereClass =
-                              'text-black font-black scale-105 shadow-[0_0_18px_rgba(16,185,129,0.7)]';
-                            sphereStyle = {
-                              background:
-                                'linear-gradient(135deg, #059669 0%, #10b981 50%, #86efac 100%)',
-                            };
-                          } else {
-                            sphereClass =
-                              'text-black font-black scale-105 shadow-[0_0_16px_rgba(255,153,51,0.6)]';
-                            sphereStyle = {
-                              background:
-                                'linear-gradient(135deg, #f97316 0%, #ff9933 50%, #fde047 100%)',
-                            };
-                          }
+                          sphereClass = 'bg-[#FF8C42] text-[#111111] font-bold shadow-sm';
                         } else if (d.hasPeriod) {
                           sphereClass =
-                            'text-rose-200 font-bold border border-rose-400/50 shadow-[0_0_10px_rgba(244,63,94,0.4)]';
-                          sphereStyle = {
-                            background:
-                              'radial-gradient(circle at 30% 30%, rgba(251,113,133,0.45) 0%, rgba(225,29,72,0.3) 100%)',
-                          };
+                            'text-rose-300 bg-rose-950/40 border border-rose-800/60 font-semibold';
                         } else if (d.hasUrgentTask) {
                           sphereClass =
-                            'text-amber-200 font-bold border border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.4)]';
-                          sphereStyle = {
-                            background:
-                              'radial-gradient(circle at 30% 30%, rgba(239,68,68,0.45) 0%, rgba(249,115,22,0.3) 100%)',
-                          };
+                            'text-amber-300 bg-amber-950/40 border border-amber-800/60 font-semibold';
                         } else if (d.hasBirthday) {
                           sphereClass =
-                            'text-emerald-200 font-bold border border-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.4)]';
-                          sphereStyle = {
-                            background:
-                              'radial-gradient(circle at 30% 30%, rgba(52,211,153,0.4) 0%, rgba(5,150,105,0.3) 100%)',
-                          };
+                            'text-emerald-300 bg-emerald-950/40 border border-emerald-800/60 font-semibold';
                         } else if (d.isToday) {
-                          sphereClass = 'border border-[#ff9933] text-[#ff9933] font-bold';
+                          sphereClass = 'border border-[#FF8C42] text-[#FF8C42] font-semibold';
                         }
 
                         return (
-                          <button
-                            key={d.key}
-                            type="button"
-                            onClick={() => selectDate(d.date)}
-                            className="flex flex-col items-center justify-center py-0.5 focus:outline-none relative"
-                          >
-                            <span
-                              style={sphereStyle}
-                              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all relative ${sphereClass}`}
+                          <div key={d.key} className="flex justify-center">
+                            <button
+                              type="button"
+                              onClick={() => selectDate(d.date)}
+                              className={`relative size-8 rounded-full flex flex-col items-center justify-center text-xs transition-all ${sphereClass}`}
                             >
                               <span>{d.dayNum}</span>
-                              {d.hasHolidays && (
-                                <span
-                                  title={d.holidayName || 'Holiday'}
-                                  className={`absolute -top-1 -right-1 size-2.5 rounded-full bg-emerald-400 ring-1 ${
-                                    d.isSelected ? 'ring-amber-500 scale-110' : 'ring-[#101014]'
-                                  } animate-pulse shadow-[0_0_8px_#34d399] z-20`}
-                                />
-                              )}
-                            </span>
-                          </button>
+                            </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -2129,18 +2014,43 @@ export default function CalendarPage() {
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
-                                  className="px-3 py-1.5 rounded-xl bg-purple-500/25 text-purple-200 border border-purple-400/40 text-[11px] font-black shadow-[0_0_12px_rgba(168,85,247,0.3)] hover:brightness-110 transition-all"
+                                  className="px-2.5 py-1 rounded-lg bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] text-[11px] font-semibold flex items-center gap-1.5 hover:brightness-110 transition-all"
                                 >
-                                  🎥 Join Video
+                                  <svg
+                                    className="w-3 h-3"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                    />
+                                  </svg>
+                                  <span>Join Video</span>
                                 </a>
                               )}
                               <button
                                 type="button"
                                 onClick={(e) => handleDeleteEvent(ev.id, e)}
-                                className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-950/30 text-xs transition-colors"
+                                className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F87171] hover:bg-[#2A1215] text-xs transition-colors"
                                 title="Delete"
                               >
-                                🗑
+                                <svg
+                                  className="w-3.5 h-3.5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={1.8}
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                  />
+                                </svg>
                               </button>
                             </div>
                           </div>
@@ -2151,12 +2061,12 @@ export default function CalendarPage() {
                       {!hasEvents && !hasHolidays && (
                         <div
                           onClick={() => openDedicatedSheet('event', item.date)}
-                          className="flex items-center justify-between p-3.5 rounded-2xl border border-white/5 bg-zinc-900/40 hover:bg-zinc-900/70 backdrop-blur-xl text-zinc-400 text-xs cursor-pointer transition-all group"
+                          className="flex items-center justify-between py-2 px-3 rounded-lg border border-dashed border-[#282C35] hover:border-[#3A404D] bg-[#111318]/50 hover:bg-[#16181D] text-[#6B6E76] hover:text-[#A1A4AC] text-xs cursor-pointer transition-colors group"
                         >
-                          <span className="font-medium text-zinc-500 group-hover:text-zinc-300">
-                            ✨ No events scheduled for this day
+                          <span className="font-normal text-xs text-[#6B6E76] group-hover:text-[#A1A4AC]">
+                            No events scheduled
                           </span>
-                          <span className="text-xs font-black text-[#ff9933] group-hover:underline">
+                          <span className="text-xs font-medium text-[#FF8C42] group-hover:underline">
                             + Add plan
                           </span>
                         </div>
@@ -2345,28 +2255,7 @@ export default function CalendarPage() {
                       type="button"
                       disabled={isSaving}
                       onClick={() => void handleSaveEntry()}
-                      style={
-                        activeSheetType === 'period'
-                          ? {
-                              background: 'linear-gradient(135deg, #e11d48, #f43f5e)',
-                              boxShadow: '0 0 20px rgba(244,63,94,0.45)',
-                            }
-                          : activeSheetType === 'task'
-                            ? {
-                                background: 'linear-gradient(135deg, #d97706, #f59e0b)',
-                                boxShadow: '0 0 20px rgba(245,158,11,0.45)',
-                              }
-                            : activeSheetType === 'birthday'
-                              ? {
-                                  background: 'linear-gradient(135deg, #059669, #10b981)',
-                                  boxShadow: '0 0 20px rgba(16,185,129,0.45)',
-                                }
-                              : {
-                                  background: 'linear-gradient(135deg, #ea580c, #ff9933, #fbbf24)',
-                                  boxShadow: '0 0 20px rgba(255,153,51,0.5)',
-                                }
-                      }
-                      className="px-5 py-1.5 rounded-full text-black font-black text-xs shadow-lg transition-all active:scale-95 flex items-center gap-1.5"
+                      className="px-5 py-1.5 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] font-semibold text-xs shadow-sm transition-all active:scale-95 flex items-center gap-1.5"
                     >
                       {isSaving ? (
                         <>
@@ -2398,22 +2287,21 @@ export default function CalendarPage() {
                     <div className="flex items-center justify-around pt-1 pb-1 text-xs">
                       {(
                         [
-                          { key: 'track', label: 'Track', icon: '📝' },
-                          { key: 'cycle', label: 'Cycle Dial', icon: '⭕' },
-                          { key: 'insights', label: 'Insights', icon: '📊' },
+                          { key: 'track', label: 'Track' },
+                          { key: 'cycle', label: 'Cycle Dial' },
+                          { key: 'insights', label: 'Insights' },
                         ] as const
                       ).map((tab) => (
                         <button
                           key={tab.key}
                           type="button"
                           onClick={() => setPeriodSubTab(tab.key)}
-                          className={`pb-1 px-3 font-bold transition-colors border-b-2 flex items-center gap-1.5 ${
+                          className={`pb-1 px-3 font-semibold transition-colors border-b-2 flex items-center gap-1.5 ${
                             periodSubTab === tab.key
-                              ? 'border-rose-400 text-rose-300 font-black'
-                              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+                              ? 'border-rose-400 text-rose-300 font-bold'
+                              : 'border-transparent text-[#6B6E76] hover:text-[#F5F5F5]'
                           }`}
                         >
-                          <span>{tab.icon}</span>
                           <span>{tab.label}</span>
                         </button>
                       ))}
@@ -2424,10 +2312,23 @@ export default function CalendarPage() {
                 {/* Form Content Body */}
                 <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4 text-xs text-white pb-24">
                   {/* Account Row */}
-                  <div className="flex items-center justify-between py-1 border-b border-zinc-800/60 text-zinc-300">
-                    <span className="text-xs text-zinc-400">Account</span>
-                    <span className="text-[11px] font-bold text-[#ff9933] bg-[#ff9933]/10 px-2.5 py-0.5 rounded-full border border-[#ff9933]/30">
-                      👤 {formState.accountEmail || currentUserEmail}
+                  <div className="flex items-center justify-between py-1 border-b border-[#282C35] text-zinc-300">
+                    <span className="text-xs text-[#6B6E76]">Account</span>
+                    <span className="text-[11px] font-semibold text-[#FF8C42] bg-[#2B1A11] px-2.5 py-0.5 rounded-full border border-[#5C3016] flex items-center gap-1.5">
+                      <svg
+                        className="w-3 h-3 text-[#FF8C42]"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                        />
+                      </svg>
+                      <span>{formState.accountEmail || currentUserEmail}</span>
                     </span>
                   </div>
 

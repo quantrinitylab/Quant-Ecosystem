@@ -569,21 +569,37 @@ export default function DrivePage() {
                   }
                   showToast({ text: `Downloading selected files…`, type: 'info' });
                 }}
-                className="px-2.5 py-1 rounded-md bg-zinc-800 text-zinc-200 hover:text-white font-medium"
+                className="px-2.5 py-1 rounded-md bg-[#16181D] border border-[#282C35] text-[#F5F5F5] hover:bg-[#1C1F26] font-medium flex items-center gap-1.5"
               >
-                ⬇ Download All
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+                <span>Download All</span>
               </button>
               <button
                 type="button"
                 onClick={handleBatchDelete}
-                className="px-2.5 py-1 rounded-md bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 font-medium"
+                className="px-2.5 py-1 rounded-md bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 font-medium flex items-center gap-1.5"
               >
-                🗑 Delete Selected
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+                <span>Delete Selected</span>
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedIds(new Set())}
-                className="px-2.5 py-1 rounded-md text-zinc-400 hover:text-white"
+                className="px-2.5 py-1 rounded-md text-[#6B6E76] hover:text-[#F5F5F5]"
               >
                 ✕ Deselect
               </button>
@@ -599,35 +615,56 @@ export default function DrivePage() {
           }}
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
-          className={`flex-1 overflow-y-auto px-4 py-6 sm:px-8 space-y-8 relative ${
-            isDragOver ? 'bg-[#ff9933]/5' : ''
+          className={`flex-1 overflow-y-auto px-4 py-6 sm:px-8 space-y-6 relative ${
+            isDragOver ? 'bg-[#FF8C42]/5' : ''
           }`}
         >
           {/* Drag Overlay Hint */}
           {isDragOver && (
-            <div className="absolute inset-4 z-30 border-2 border-dashed border-[#ff9933] rounded-3xl bg-[#0a0a0c]/90 flex flex-col items-center justify-center pointer-events-none backdrop-blur-sm">
-              <span className="text-5xl animate-bounce">📤</span>
-              <p className="text-base font-bold text-white mt-3">Drop files here to upload</p>
-              <p className="text-xs text-zinc-400 mt-1">
+            <div className="absolute inset-4 z-30 border-2 border-dashed border-[#FF8C42] rounded-2xl bg-[#090A0C]/90 flex flex-col items-center justify-center pointer-events-none backdrop-blur-sm">
+              <svg
+                className="w-12 h-12 text-[#FF8C42] mb-3 animate-bounce"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.8}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
+              </svg>
+              <p className="text-base font-semibold text-white">Drop files here to upload</p>
+              <p className="text-xs text-[#A1A4AC] mt-1">
                 Encrypted and synced directly to QuantDrive
               </p>
             </div>
           )}
 
           {/* Storage Meter & Security Banner */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-2xl border border-[var(--quant-border)] bg-gradient-to-r from-zinc-900 via-zinc-900/90 to-amber-950/20 shadow-md gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border border-[#282C35] bg-[#111318] shadow-sm gap-4">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">🔐</span>
+              <div className="size-9 rounded-lg bg-[#2B1A11] border border-[#5C3016] flex items-center justify-center text-[#FF8C42] shrink-0">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                  />
+                </svg>
+              </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <strong className="text-sm font-bold text-white">
+                  <strong className="text-sm font-semibold text-[#F5F5F5]">
                     Quant Memory & Cloud Vault
                   </strong>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     E2EE Encrypted
                   </span>
                 </div>
-                <p className="text-xs text-zinc-400 mt-0.5">
+                <p className="text-xs text-[#A1A4AC] mt-0.5">
                   High-speed cloud drive integrated with Mail attachments and AI workspace context.
                 </p>
               </div>
@@ -635,14 +672,14 @@ export default function DrivePage() {
 
             <div className="w-full sm:w-64 flex flex-col gap-1.5 shrink-0">
               <div className="flex items-center justify-between text-[11px] font-mono">
-                <span className="text-zinc-400">Storage Used</span>
-                <span className="text-white font-semibold">
+                <span className="text-[#6B6E76]">Storage Used</span>
+                <span className="text-[#F5F5F5] font-medium">
                   {formatFileSize(usedBytes)} / {formatFileSize(totalBytes)} ({usedPct}%)
                 </span>
               </div>
-              <div className="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
+              <div className="w-full h-1.5 rounded-full bg-[#16181D] overflow-hidden border border-[#282C35]">
                 <div
-                  className="h-full bg-gradient-to-r from-[#ff9933] to-amber-400 rounded-full transition-all duration-500"
+                  className="h-full bg-[#FF8C42] rounded-full transition-all duration-500"
                   style={{ width: `${Math.max(4, usedPct)}%` }}
                 />
               </div>

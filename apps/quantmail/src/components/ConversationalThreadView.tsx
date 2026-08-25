@@ -576,9 +576,21 @@ export function ConversationalThreadView({
         )}
 
         {!isLoading && messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center p-12 text-center text-zinc-400">
-            <span className="text-4xl mb-2">💬</span>
-            <p className="text-sm font-semibold">No messages in this conversation</p>
+          <div className="flex flex-col items-center justify-center p-12 text-center text-[#6B6E76]">
+            <svg
+              className="w-10 h-10 mb-3 text-[#6B6E76]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+              />
+            </svg>
+            <p className="text-sm font-medium text-[#A1A4AC]">No messages in this conversation</p>
           </div>
         )}
 
@@ -637,17 +649,17 @@ export function ConversationalThreadView({
                   /* Collapsed 1-Line Strip */
                   <div
                     onClick={() => toggleMessageExpand(index)}
-                    className={`group w-full max-w-[95%] sm:max-w-[88%] flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-2xl border transition-all cursor-pointer shadow-sm select-none hover:shadow-md ${
+                    className={`group w-full max-w-[95%] sm:max-w-[88%] flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl border transition-all cursor-pointer shadow-sm select-none hover:shadow-md ${
                       isOutbound
-                        ? 'border-amber-500/30 bg-[#121016] hover:border-amber-500/50'
-                        : 'border-zinc-800/90 bg-[#0d0e14] hover:bg-[#12141c] hover:border-zinc-700'
+                        ? 'border-[#3A2416] bg-[#161210] hover:border-[#5C3016]'
+                        : 'border-[#282C35] bg-[#111318] hover:bg-[#16181D] hover:border-[#3A404D]'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <IdentityAvatar name={msgFromName} size="sm" />
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <span
-                          className={`text-xs font-bold truncate ${isOutbound ? 'text-amber-400' : 'text-white'}`}
+                          className={`text-xs font-semibold truncate ${isOutbound ? 'text-[#FF9B5A]' : 'text-[#F5F5F5]'}`}
                         >
                           {msgFromName}
                         </span>
@@ -655,23 +667,35 @@ export function ConversationalThreadView({
                         {/* Badges: Mail or Thread */}
                         <div className="flex items-center gap-1.5 shrink-0">
                           <span
-                            className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${
                               messageTypeBadge === 'Mail'
-                                ? 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
-                                : 'bg-zinc-800/80 border border-zinc-700/70 text-zinc-300'
+                                ? 'bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42]'
+                                : 'bg-[#16181D] border border-[#282C35] text-[#A1A4AC]'
                             }`}
                           >
                             {messageTypeBadge}
                           </span>
                           {hasAtt && (
-                            <span className="px-1.5 py-0.2 rounded bg-amber-500/15 border border-amber-500/30 text-[9px] font-bold text-amber-400 flex items-center gap-0.5">
-                              <span>📎</span>
+                            <span className="px-1.5 py-0.5 rounded bg-[#2B1A11] border border-[#5C3016] text-[9px] font-semibold text-[#FF8C42] flex items-center gap-1">
+                              <svg
+                                className="w-2.5 h-2.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"
+                                />
+                              </svg>
                               <span>{msgAttachments.length}</span>
                             </span>
                           )}
                         </div>
 
-                        <span className="text-xs text-zinc-400 truncate max-w-xs sm:max-w-md">
+                        <span className="text-xs text-[#6B6E76] truncate max-w-xs sm:max-w-md">
                           — {message.snippet || message.bodyText?.slice(0, 80) || '(No preview)'}
                         </span>
                       </div>
@@ -695,10 +719,8 @@ export function ConversationalThreadView({
                 ) : (
                   /* Expanded Rich Card */
                   <div
-                    className={`w-full max-w-[96%] sm:max-w-[90%] rounded-2xl sm:rounded-3xl border shadow-xl overflow-hidden transition-all ${
-                      isOutbound
-                        ? 'border-amber-500/30 bg-[#0f0e14]'
-                        : 'border-zinc-800/90 bg-[#0a0c10]'
+                    className={`w-full max-w-[96%] sm:max-w-[92%] rounded-xl sm:rounded-2xl border shadow-md overflow-hidden transition-all ${
+                      isOutbound ? 'border-[#3A2416] bg-[#14100E]' : 'border-[#282C35] bg-[#111318]'
                     }`}
                   >
                     {/* Header Bar */}
@@ -709,20 +731,20 @@ export function ConversationalThreadView({
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span
-                              className={`text-sm font-bold ${isOutbound ? 'text-amber-400' : 'text-white'}`}
+                              className={`text-sm font-semibold ${isOutbound ? 'text-[#FF9B5A]' : 'text-[#F5F5F5]'}`}
                             >
                               {msgFromName}
                             </span>
                             <span
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold font-mono ${
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-semibold font-mono ${
                                 messageTypeBadge === 'Mail'
-                                  ? 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
-                                  : 'bg-zinc-800/80 border border-zinc-700/80 text-zinc-300'
+                                  ? 'bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42]'
+                                  : 'bg-[#16181D] border border-[#282C35] text-[#A1A4AC]'
                               }`}
                             >
                               {messageTypeBadge}
                             </span>
-                            <span className="text-xs text-zinc-400 font-mono">
+                            <span className="text-xs text-[#6B6E76] font-mono">
                               {formatMessageDate(message.receivedAt)}
                             </span>
                           </div>

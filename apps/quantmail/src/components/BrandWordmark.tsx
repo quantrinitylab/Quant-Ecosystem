@@ -27,31 +27,22 @@ export function BrandWordmark({
   const item = APP_TITLES[app] || APP_TITLES.mail;
 
   const fontSizes = {
-    'text-sm': 'text-[15px]',
-    'text-base': 'text-[18px]',
-    'text-lg': 'text-[22px]',
-    'text-xl': 'text-[26px]',
-    'text-2xl': 'text-[32px]',
-    'text-4xl': 'text-[44px]',
+    'text-sm': 'text-[14px]',
+    'text-base': 'text-[16px]',
+    'text-lg': 'text-[18px]',
+    'text-xl': 'text-[20px]',
+    'text-2xl': 'text-[24px]',
+    'text-4xl': 'text-[36px]',
   };
 
-  const chosenSize = fontSizes[size] || 'text-[24px]';
+  const chosenSize = fontSizes[size] || 'text-[20px]';
 
   return (
     <span
-      className={`inline-flex items-baseline flex-nowrap whitespace-nowrap select-none tracking-normal pr-1 ${chosenSize} ${className}`}
-      style={{
-        fontFamily: '"Billabong", "Grand Hotel", "Brush Script MT", cursive, sans-serif',
-        fontStyle: 'italic',
-        lineHeight: 1.1,
-      }}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap select-none font-semibold tracking-tight ${chosenSize} ${className}`}
     >
-      <span className="text-[#F8FAFC] drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] font-medium">
-        {item.brand}
-      </span>
-      <span className="bg-gradient-to-r from-[#FF7A00] via-[#FFA726] to-[#FFD54F] bg-clip-text text-transparent ml-1 pr-2.5 font-semibold drop-shadow-[0_2px_8px_rgba(255,122,0,0.4)]">
-        {item.name}
-      </span>
+      <span className="text-[#F5F5F5] font-bold tracking-tight">{item.brand}</span>
+      <span className="text-[#FF8C42] font-semibold tracking-tight">{item.name}</span>
     </span>
   );
 }

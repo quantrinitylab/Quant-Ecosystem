@@ -230,6 +230,18 @@ export function QuantyCopilotDrawer({
     showToast({ text: 'Recent chat history cleared', type: 'info' });
   };
 
+  const loadChat = (item: ChatHistoryItem) => {
+    setMessages(item.messages);
+    setShowHistoryMenu(false);
+  };
+
+  const deleteChat = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = historyList.filter((x) => x.id !== id);
+    setHistoryList(next);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  };
+
   const hasConversation = messages.length > 0;
 
   return (
@@ -254,44 +266,35 @@ export function QuantyCopilotDrawer({
             drag="y"
             dragConstraints={{ top: 0 }}
             dragElastic={{ top: 0, bottom: 0.6 }}
-            onDragEnd={(_, info) => {
-              if (info.offset.y > 100 || info.velocity.y > 400) {
-                onClose();
-              }
-            }}
-            className={`fixed bottom-0 left-0 right-0 z-50 w-full sm:max-w-xl sm:mx-auto rounded-t-[28px] border-t border-x border-amber-500/20 bg-[#121620] shadow-[0_-12px_45px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden transition-all duration-300 ${
-              hasConversation ? 'h-[520px] max-h-[85vh]' : 'h-auto max-h-[75vh]'
+            className={`fixed bottom-0 left-0 right-0 z-50 w-full sm:max-w-xl sm:mx-auto rounded-t-2xl border-t border-x border-[#282C35] bg-[#111318] shadow-[0_-12px_45px_rgba(0,0,0,0.8)] flex flex-col overflow-hidden transition-all duration-300 ${
+              hasConversation ? 'h-[580px] max-h-[82vh]' : 'h-auto max-h-[75vh]'
             }`}
           >
-            {/* Top Drag Handle */}
             <div className="flex justify-center pt-2.5 pb-1 cursor-grab active:cursor-grabbing">
-              <div className="w-12 h-1 rounded-full bg-zinc-600/80" />
+              <div className="w-10 h-1 rounded-full bg-[#282C35]" />
             </div>
 
-            {/* Header: Quanty Mascot Robot Icon + "How can I help you today?" + 3-Dots + Close */}
-            <div className="flex items-center justify-between px-4 sm:px-5 pt-1 pb-3 relative">
-              <div className="flex items-center gap-3">
-                {/* Standalone Living Mascot Robot Icon with zero background layer */}
-                <Quanty size={32} expression={quantyExpression} bob={false} />
-                <h3 className="text-base sm:text-[17px] font-bold text-amber-300 tracking-tight">
-                  How can I help you today?
+            <div className="flex items-center justify-between px-4 sm:px-5 pt-1 pb-3 relative border-b border-[#282C35]">
+              <div className="flex items-center gap-2.5">
+                <Quanty size={28} expression={quantyExpression} bob={false} />
+                <h3 className="text-sm font-semibold text-[#F5F5F5] tracking-tight">
+                  Quanty AI Copilot
                 </h3>
               </div>
 
               <div className="flex items-center gap-1">
-                {/* 3-Dots Recent History Menu */}
                 <button
                   type="button"
                   onClick={() => setShowHistoryMenu(!showHistoryMenu)}
                   className={`p-1.5 rounded-full transition-colors ${
                     showHistoryMenu
-                      ? 'text-amber-300 bg-amber-500/20'
-                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                      ? 'text-[#FF8C42] bg-[#2B1A11]'
+                      : 'text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#16181D]'
                   }`}
                   title="Chat History"
                 >
                   <svg
-                    className="size-5"
+                    className="size-4.5"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -303,15 +306,14 @@ export function QuantyCopilotDrawer({
                   </svg>
                 </button>
 
-                {/* Close Button */}
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                  className="p-1.5 rounded-full text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#16181D] transition-colors"
                   aria-label="Close"
                 >
                   <svg
-                    className="size-5"
+                    className="size-4.5"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -322,17 +324,16 @@ export function QuantyCopilotDrawer({
                 </button>
               </div>
 
-              {/* History Dropdown Panel */}
               <AnimatePresence>
                 {showHistoryMenu && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95, y: -5 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                    className="absolute right-4 top-12 z-50 w-64 rounded-2xl border border-amber-500/30 bg-[#161a26] p-3 shadow-2xl space-y-2 text-xs"
+                    className="absolute right-4 top-12 z-50 w-64 rounded-xl border border-[#282C35] bg-[#16181D] p-3 shadow-2xl space-y-2 text-xs"
                   >
-                    <div className="flex items-center justify-between pb-1.5 border-b border-zinc-800">
-                      <span className="font-bold text-amber-300">Recent Chats</span>
+                    <div className="flex items-center justify-between pb-1.5 border-b border-[#282C35]">
+                      <span className="font-semibold text-[#F5F5F5]">Recent Chats</span>
                       {historyList.length > 0 && (
                         <button
                           type="button"
@@ -345,28 +346,30 @@ export function QuantyCopilotDrawer({
                     </div>
 
                     {historyList.length === 0 ? (
-                      <p className="text-[11px] text-zinc-500 py-2 text-center">
+                      <p className="text-[11px] text-[#6B6E76] py-2 text-center">
                         No previous chats recorded
                       </p>
                     ) : (
                       <div className="max-h-48 overflow-y-auto space-y-1">
                         {historyList.map((item) => (
-                          <button
+                          <div
                             key={item.id}
-                            type="button"
-                            onClick={() => {
-                              setMessages(item.messages);
-                              setShowHistoryMenu(false);
-                            }}
-                            className="w-full text-left p-2 rounded-xl hover:bg-zinc-800/80 transition-colors text-zinc-300 flex items-center justify-between"
+                            className="group flex items-center justify-between p-2 rounded-lg hover:bg-[#111318] cursor-pointer"
+                            onClick={() => loadChat(item)}
                           >
-                            <span className="truncate flex-1 min-w-0 mr-2 text-[11px]">
-                              {item.preview}
-                            </span>
-                            <span className="text-[9px] text-zinc-500 font-mono shrink-0">
-                              {item.date}
-                            </span>
-                          </button>
+                            <div className="min-w-0 flex-1 pr-2">
+                              <p className="text-xs text-[#F5F5F5] truncate">{item.preview}</p>
+                              <p className="text-[10px] text-[#6B6E76]">{item.date}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => deleteChat(item.id, e)}
+                              className="opacity-0 group-hover:opacity-100 p-1 text-[#6B6E76] hover:text-rose-400"
+                              title="Delete chat"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -375,9 +378,8 @@ export function QuantyCopilotDrawer({
               </AnimatePresence>
             </div>
 
-            {/* Quick Action Suggestion Cards (QuantMail Gold / Amber Theme) */}
-            {!hasConversation && (
-              <div className="px-4 pb-2 space-y-2">
+            {!hasConversation ? (
+              <div className="px-4 pb-3 pt-3 space-y-2">
                 {contextEmail || contextThreadSubject ? (
                   <>
                     <button
@@ -385,11 +387,11 @@ export function QuantyCopilotDrawer({
                       onClick={() =>
                         void handleSend('Please summarize this email in 3 crisp bullet points.')
                       }
-                      className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-[#1a1f2c] hover:bg-[#222838] border border-amber-500/20 text-left transition-all active:scale-[0.99] group shadow-md"
+                      className="w-full flex items-center gap-3 p-3 rounded-xl bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] text-left transition-all active:scale-[0.99] group shadow-sm"
                     >
-                      <div className="size-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-300 text-sm shrink-0 group-hover:scale-105 transition-transform">
+                      <div className="size-8 rounded-lg bg-[#2B1A11] border border-[#5C3016] flex items-center justify-center text-[#FF8C42] text-sm shrink-0">
                         <svg
-                          className="size-4 text-amber-400"
+                          className="size-4 text-[#FF8C42]"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -400,9 +402,7 @@ export function QuantyCopilotDrawer({
                         </svg>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-semibold text-zinc-100">
-                          Summarize this email
-                        </p>
+                        <p className="text-xs font-semibold text-[#F5F5F5]">Summarize this email</p>
                       </div>
                     </button>
 
@@ -414,9 +414,21 @@ export function QuantyCopilotDrawer({
                             'Draft a polite, professional, and concise smart reply to this email.',
                           )
                         }
-                        className="flex-1 flex items-center gap-2 p-2.5 rounded-xl bg-[#161a26] hover:bg-[#1d2232] border border-zinc-800 text-left transition-all text-xs text-zinc-300 font-medium"
+                        className="flex-1 flex items-center gap-2 p-2.5 rounded-lg bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] text-left transition-all text-xs text-[#A1A4AC] font-medium"
                       >
-                        <span>✍️</span>
+                        <svg
+                          className="w-3.5 h-3.5 text-[#FF8C42]"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                          />
+                        </svg>
                         <span className="truncate">Draft a reply</span>
                       </button>
 
@@ -427,9 +439,21 @@ export function QuantyCopilotDrawer({
                             'कृपया इस ईमेल का हिंदी में मुख्य सारांश (Summary) बताएं।',
                           )
                         }
-                        className="flex-1 flex items-center gap-2 p-2.5 rounded-xl bg-[#161a26] hover:bg-[#1d2232] border border-zinc-800 text-left transition-all text-xs text-zinc-300 font-medium"
+                        className="flex-1 flex items-center gap-2 p-2.5 rounded-lg bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] text-left transition-all text-xs text-[#A1A4AC] font-medium"
                       >
-                        <span>🇮🇳</span>
+                        <svg
+                          className="w-3.5 h-3.5 text-[#FF8C42]"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"
+                          />
+                        </svg>
                         <span className="truncate">Hindi Summary</span>
                       </button>
                     </div>
@@ -440,22 +464,22 @@ export function QuantyCopilotDrawer({
                     onClick={() =>
                       void handleSend('What can Quanty do to manage my emails and daily tasks?')
                     }
-                    className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-[#1a1f2c] hover:bg-[#222838] border border-amber-500/20 text-left transition-all active:scale-[0.99] group shadow-md"
+                    className="w-full flex items-center gap-3 p-3 rounded-xl bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] text-left transition-all active:scale-[0.99] group shadow-sm"
                   >
-                    <Quanty size={26} expression="happy" bob={false} />
+                    <Quanty size={24} expression="happy" bob={false} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold text-zinc-100">
+                      <p className="text-xs font-semibold text-[#F5F5F5]">
                         What can Quanty do in QuantMail?
                       </p>
                     </div>
                   </button>
                 )}
               </div>
-            )}
-
-            {/* Conversation Active: Messages Stack */}
-            {hasConversation && (
-              <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-2 space-y-3">
+            ) : (
+              <div
+                ref={scrollRef}
+                className="flex-1 overflow-y-auto px-4 py-3 space-y-3.5 text-xs text-white"
+              >
                 {messages.map((m, i) => (
                   <motion.div
                     key={i}
@@ -472,10 +496,10 @@ export function QuantyCopilotDrawer({
                     )}
 
                     <div
-                      className={`max-w-[86%] rounded-2xl px-4 py-3 text-xs sm:text-[13px] leading-relaxed ${
+                      className={`max-w-[86%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed ${
                         m.role === 'user'
-                          ? 'bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-white rounded-br-none shadow-md font-medium'
-                          : 'bg-[#181c26] border border-amber-500/20 text-zinc-100 rounded-bl-none shadow-lg'
+                          ? 'bg-[#2B1A11] border border-[#5C3016] text-[#F5F5F5] rounded-br-none shadow-sm font-medium'
+                          : 'bg-[#16181D] border border-[#282C35] text-[#F5F5F5] rounded-bl-none shadow-sm'
                       }`}
                     >
                       <p className="whitespace-pre-wrap">{m.text}</p>
@@ -507,11 +531,24 @@ export function QuantyCopilotDrawer({
                                 .trim(),
                             });
                             onClose();
-                            showToast({ text: 'Applied draft into composer ✨', type: 'success' });
+                            showToast({ text: 'Applied draft into composer', type: 'success' });
                           }}
-                          className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-all shadow-sm"
+                          className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-[#FF8C42] bg-[#2B1A11] hover:bg-[#3A2416] border border-[#5C3016] transition-all shadow-sm"
                         >
-                          <span>⚡ Apply to Composer</span>
+                          <svg
+                            className="w-3 h-3 text-[#FF8C42]"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M13 10V3L4 14h7v7l9-11h-7z"
+                            />
+                          </svg>
+                          <span>Apply to Composer</span>
                         </button>
                       )}
 
@@ -533,9 +570,22 @@ export function QuantyCopilotDrawer({
                               onClose();
                               showToast({ text: 'Inserted draft into reply', type: 'success' });
                             }}
-                            className="mt-2.5 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-all"
+                            className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[#FF8C42] bg-[#2B1A11] hover:bg-[#3A2416] border border-[#5C3016] transition-all"
                           >
-                            <span>↩ Insert into reply</span>
+                            <svg
+                              className="w-3 h-3 text-[#FF8C42]"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+                              />
+                            </svg>
+                            <span>Insert into reply</span>
                           </button>
                         )}
                     </div>

@@ -87,13 +87,13 @@ const AVAILABLE_AI_MODELS: AIModelOption[] = [
   },
 ];
 
-const TABS: Array<{ key: SettingsTab; label: string; icon: string }> = [
-  { key: 'general', label: 'General', icon: '⚙' },
-  { key: 'ai', label: 'AI & Multi-Model Router', icon: '🧠' },
-  { key: 'security', label: 'Security & Encryption', icon: '🔐' },
-  { key: 'notifications', label: 'Notifications', icon: '🔔' },
-  { key: 'appearance', label: 'Appearance', icon: '🎨' },
-  { key: 'keyboard', label: 'Keyboard Shortcuts', icon: '⌨' },
+const TABS: Array<{ key: SettingsTab; label: string }> = [
+  { key: 'general', label: 'General' },
+  { key: 'ai', label: 'AI & Models' },
+  { key: 'security', label: 'Security & Encryption' },
+  { key: 'notifications', label: 'Notifications' },
+  { key: 'appearance', label: 'Appearance' },
+  { key: 'keyboard', label: 'Keyboard Shortcuts' },
 ];
 
 const ACCENT_COLORS = [
@@ -321,9 +321,9 @@ export default function SettingsPage() {
           </div>
         </header>
 
-        {/* Telegram-Style Smooth Horizontal Pill Tabs */}
+        {/* Smooth Horizontal Pill Tabs */}
         <nav
-          className="flex items-center gap-2 overflow-x-auto py-3 px-4 sm:px-6 no-scrollbar select-none border-b border-zinc-800/80 bg-[#0d1017]/80 backdrop-blur-md shrink-0"
+          className="flex items-center gap-2 overflow-x-auto py-3 px-4 sm:px-6 no-scrollbar select-none border-b border-[#282C35] bg-[#090A0C]/90 backdrop-blur-md shrink-0"
           aria-label="Settings sections"
         >
           {TABS.map((tab) => {
@@ -334,13 +334,12 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
                 aria-current={isActive ? 'page' : undefined}
-                className={`relative px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 ${
+                className={`relative px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 ${
                   isActive
-                    ? 'bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-white shadow-lg shadow-orange-500/25 font-bold scale-[1.02]'
-                    : 'bg-zinc-900/80 hover:bg-zinc-800/90 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80'
+                    ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] font-semibold'
+                    : 'bg-[#16181D] hover:bg-[#1C1F26] text-[#A1A4AC] hover:text-[#F5F5F5] border border-[#282C35]'
                 }`}
               >
-                <span>{tab.icon}</span>
                 <span>{tab.label}</span>
               </button>
             );
@@ -351,22 +350,22 @@ export default function SettingsPage() {
           {/* 1. GENERAL TAB */}
           {activeTab === 'general' && (
             <div className="space-y-6 animate-in fade-in duration-150">
-              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-zinc-800 pb-3">
-                  <h2 className="text-sm font-bold text-white">Profile Identity</h2>
-                  <p className="text-xs text-zinc-400">
+              <section className="rounded-xl border border-[#282C35] bg-[#111318] p-5 shadow-sm space-y-4">
+                <div className="border-b border-[#282C35] pb-3">
+                  <h2 className="text-sm font-semibold text-[#F5F5F5]">Profile Identity</h2>
+                  <p className="text-xs text-[#A1A4AC]">
                     Your public identifier visible to teammates and mail recipients.
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="flex h-13 w-13 items-center justify-center rounded-2xl bg-gradient-to-br from-[#FF7A00] to-amber-600 text-lg font-bold text-white shadow-md">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#2B1A11] border border-[#5C3016] text-base font-bold text-[#FF8C42]">
                     {profile.displayName.charAt(0).toUpperCase() || 'Q'}
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white">
+                    <p className="text-sm font-semibold text-[#F5F5F5]">
                       {profile.displayName || 'Quant User'}
                     </p>
-                    <p className="text-xs text-zinc-400">{profile.email}</p>
+                    <p className="text-xs text-[#A1A4AC]">{profile.email}</p>
                     <span className="inline-block mt-1 text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                       Active & Verified Identity
                     </span>

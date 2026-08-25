@@ -167,7 +167,7 @@ function MobileBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-30 flex h-14 items-center justify-around border-t border-zinc-800 bg-zinc-950/95 backdrop-blur-md px-2 shadow-lg md:hidden"
+      className="fixed bottom-0 inset-x-0 z-30 flex h-14 items-center justify-around border-t border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md px-2 shadow-lg md:hidden"
       aria-label="Mobile primary navigation"
     >
       {BOTTOM_NAV.map((item) => {
@@ -178,11 +178,11 @@ function MobileBottomNav() {
             type="button"
             onClick={() => router.push(item.path)}
             className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 text-[10px] font-medium transition-colors ${
-              active ? 'text-[#ff9933] font-semibold' : 'text-zinc-400 hover:text-white'
+              active ? 'text-[#FF8C42] font-semibold' : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
             }`}
             aria-current={active ? 'page' : undefined}
           >
-            <span className={`transition-transform duration-200 ${active ? 'scale-110' : ''}`}>
+            <span className={`transition-transform duration-200 ${active ? 'scale-105' : ''}`}>
               {item.icon}
             </span>
             <span>{item.label}</span>
@@ -558,28 +558,100 @@ export function AppShell({
         </main>
       </div>
 
-      {/* Floating Action Button (FAB) — Intelligent visibility (hidden on compose, reading view, settings, and drawer open) */}
+      {/* Floating Action Button (FAB) — Contextual & Clean */}
       {!isSidebarOpen &&
         !pathname.startsWith('/compose') &&
-        !pathname.startsWith('/calendar') &&
         !pathname.startsWith('/thread') &&
         !pathname.includes('/settings') && (
           <button
             type="button"
             onClick={handleFabClick}
-            className="fixed bottom-20 right-4 md:hidden z-40 size-14 rounded-full bg-[#FF7A00] text-[#090A0C] font-bold shadow-[0_4px_16px_rgba(255,122,0,0.35)] flex items-center justify-center hover:bg-[#FFA800] active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-[#FF7A00]/40"
-            aria-label="Create new item"
+            className="fixed bottom-20 right-4 md:hidden z-40 size-12 rounded-full bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.6)] border border-[#FF9B5A]/30 flex items-center justify-center active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#FF8C42]/50"
+            aria-label={
+              pathname.startsWith('/calendar')
+                ? 'Create event'
+                : pathname.startsWith('/drive')
+                  ? 'Upload files'
+                  : pathname.startsWith('/contacts')
+                    ? 'New contact'
+                    : pathname.startsWith('/codehub')
+                      ? 'New repository'
+                      : 'Compose email'
+            }
           >
-            <svg
-              className="size-6"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
+            {pathname.startsWith('/calendar') ? (
+              <svg
+                className="size-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+                <line x1="12" y1="14" x2="12" y2="18" />
+                <line x1="10" y1="16" x2="14" y2="16" />
+              </svg>
+            ) : pathname.startsWith('/drive') ? (
+              <svg
+                className="size-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+            ) : pathname.startsWith('/contacts') ? (
+              <svg
+                className="size-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <line x1="19" y1="8" x2="19" y2="14" />
+                <line x1="22" y1="11" x2="16" y2="11" />
+              </svg>
+            ) : pathname.startsWith('/codehub') ? (
+              <svg
+                className="size-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            ) : (
+              <svg
+                className="size-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            )}
           </button>
         )}
 
