@@ -1404,7 +1404,7 @@ export default function InboxPage() {
           </AnimatePresence>
 
           {/* Telegram-Style Sleek Horizontal Category Pill Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto py-3 px-3 sm:px-4 no-scrollbar select-none border-b border-zinc-800/80 bg-[#0d1017]/95 backdrop-blur-md">
+          <div className="flex items-center gap-2 overflow-x-auto py-3 px-3 sm:px-4 no-scrollbar select-none border-b border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md">
             {TELEGRAM_CATEGORIES.map((cat) => {
               const isActive = activeCategoryTab === cat.key;
               const count = tabCounts[cat.key] || 0;
