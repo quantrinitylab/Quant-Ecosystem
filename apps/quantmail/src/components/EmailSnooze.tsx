@@ -87,6 +87,8 @@ export function EmailSnooze({
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
+
   const setOpen = useCallback(
     (value: boolean) => {
       if (onOpenChange) onOpenChange(value);
@@ -94,6 +96,16 @@ export function EmailSnooze({
     },
     [onOpenChange, open],
   );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const right = Math.max(16, window.innerWidth - rect.right);
+      const top = Math.min(window.innerHeight - 300, rect.bottom + 6);
+      setCoords({ top, right });
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -171,6 +183,16 @@ export function EmailSnooze({
             ref={menuRef}
             className="snooze-menu"
             role="menu"
+            style={
+              coords
+                ? {
+                    position: 'fixed',
+                    top: `${coords.top}px`,
+                    right: `${coords.right}px`,
+                    zIndex: 99999,
+                  }
+                : { zIndex: 99999 }
+            }
             aria-label="Snooze options"
             initial={{ opacity: 0, scale: 0.95, y: -4 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -188,13 +210,11 @@ export function EmailSnooze({
               >
                 <span>{option.label}</span>
                 <span className="snooze-option-date">
-                  {option
-                    .getDate()
-                    .toLocaleDateString(undefined, {
-                      weekday: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                    })}
+                  {option.getDate().toLocaleDateString(undefined, {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
                 </span>
               </button>
             ))}
