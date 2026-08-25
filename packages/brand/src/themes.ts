@@ -20,20 +20,20 @@ export interface Theme {
 
 export const dark: Theme = {
   name: 'dark',
-  background: '#0F0F14',
-  foreground: '#F8FAFC',
-  surface: '#16161D',
-  surfaceElevated: '#1C1C26',
-  primary: '#818CF8',
-  primaryForeground: '#0F0F14',
-  accent: '#FBBF24',
-  accentForeground: '#0F0F14',
-  border: '#334155',
-  muted: '#1E293B',
-  mutedForeground: '#94A3B8',
+  background: '#090A0C',
+  foreground: '#F5F5F5',
+  surface: '#111318',
+  surfaceElevated: '#16181D',
+  primary: '#FF8C42',
+  primaryForeground: '#111111',
+  accent: '#FFB875',
+  accentForeground: '#111111',
+  border: '#282C35',
+  muted: '#16181D',
+  mutedForeground: '#A1A4AC',
   destructive: '#EF4444',
-  destructiveForeground: '#000000',
-  ring: '#6366F1',
+  destructiveForeground: '#FFFFFF',
+  ring: '#FF8C42',
 };
 
 export const light: Theme = {

@@ -41,7 +41,7 @@ const TELEGRAM_CATEGORIES: Array<{ key: string; label: string }> = [
   { key: 'groups', label: 'Groups' },
   { key: 'updates', label: 'Updates' },
   { key: 'promotions', label: 'Offers' },
-  { key: 'pinned', label: 'Pinned 📌' },
+  { key: 'pinned', label: 'Pinned' },
 ];
 
 type MailIconName =

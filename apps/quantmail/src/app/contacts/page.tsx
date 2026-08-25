@@ -232,13 +232,26 @@ export default function ContactsPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab('favorites')}
-                className={`px-3.5 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
                   activeTab === 'favorites'
-                    ? 'bg-[#ff9933] text-[#191008] font-bold shadow-sm'
-                    : 'text-zinc-400 hover:text-white'
+                    ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
+                    : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
                 }`}
               >
-                Favorites ★
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill={activeTab === 'favorites' ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <polygon
+                    points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                    strokeWidth={1.8}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span>Favorites</span>
               </button>
             </div>
           </div>
@@ -247,18 +260,34 @@ export default function ContactsPage() {
             <button
               type="button"
               onClick={() => vcardInputRef.current?.click()}
-              className="px-3 py-1.5 text-xs rounded-xl border border-[var(--quant-border)] text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
+              className="px-3 py-1.5 text-xs rounded-xl border border-[#282C35] bg-[#16181D] text-[#A1A4AC] hover:text-[#F5F5F5] hover:border-[#3A404D] transition-colors flex items-center gap-1.5"
               title="Import vCard .vcf"
             >
-              📥 Import
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.8}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                />
+              </svg>
+              <span>Import</span>
             </button>
             <button
               type="button"
               onClick={handleExportVCard}
-              className="px-3 py-1.5 text-xs rounded-xl border border-[var(--quant-border)] text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
+              className="px-3 py-1.5 text-xs rounded-xl border border-[#282C35] bg-[#16181D] text-[#A1A4AC] hover:text-[#F5F5F5] hover:border-[#3A404D] transition-colors flex items-center gap-1.5"
               title="Export to vCard .vcf"
             >
-              📤 Export
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.8}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
+              </svg>
+              <span>Export</span>
             </button>
 
             <Button variant="primary" onClick={handleOpenCreate}>
@@ -268,13 +297,13 @@ export default function ContactsPage() {
         </div>
 
         {/* Alphabet Quick Jump Bar */}
-        <div className="flex items-center justify-center gap-1 py-1.5 px-4 bg-zinc-950 border-b border-zinc-900 overflow-x-auto no-scrollbar text-[10px] font-bold text-zinc-500">
+        <div className="flex items-center justify-center gap-1 py-1.5 px-4 bg-[#090A0C] border-b border-[#282C35] overflow-x-auto no-scrollbar text-[10px] font-bold text-[#6B6E76]">
           {ALPHABET.map((l) => (
             <button
               key={l}
               type="button"
               onClick={() => scrollToLetter(l)}
-              className="px-1.5 py-0.5 rounded hover:text-[#ff9933] hover:bg-zinc-800 transition-colors"
+              className="px-1.5 py-0.5 rounded hover:text-[#FF8C42] hover:bg-white/5 transition-colors"
             >
               {l}
             </button>
@@ -295,11 +324,27 @@ export default function ContactsPage() {
 
           {!isLoading && !error && (!contacts || contacts.length === 0) && (
             <div className="text-center py-16 space-y-3">
-              <span className="text-5xl block">👥</span>
-              <h3 className="text-lg font-bold text-white">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-[#16181D] border border-[#282C35] mx-auto text-[#6B6E76]">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"
+                  />
+                  <circle cx="9" cy="7" r="4" strokeWidth={1.8} />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-[#F5F5F5]">
                 {searchQuery ? 'No contacts matched your search' : 'Your address book is empty'}
               </h3>
-              <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+              <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
                 Add contacts or import a .vcf file to start emailing and scheduling meetings.
               </p>
               <div className="pt-2 flex items-center justify-center gap-2">
@@ -317,7 +362,7 @@ export default function ContactsPage() {
             <div className="space-y-6">
               {groupedContacts.map((group) => (
                 <section key={group.letter} id={`letter-${group.letter}`} className="space-y-2">
-                  <h3 className="sticky top-0 z-10 text-xs font-extrabold uppercase tracking-widest text-[#ff9933] bg-[#0a0a0c]/90 backdrop-blur-sm py-1">
+                  <h3 className="sticky top-0 z-10 text-xs font-extrabold uppercase tracking-widest text-[#FF8C42] bg-[#090A0C]/90 backdrop-blur-sm py-1">
                     {group.letter} ({group.contacts.length})
                   </h3>
 
@@ -326,7 +371,7 @@ export default function ContactsPage() {
                       <div
                         key={contact.id}
                         onClick={() => setInspectContact(contact)}
-                        className="group flex flex-col justify-between p-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#ff9933]/60 transition-all shadow-sm cursor-pointer"
+                        className="group flex flex-col justify-between p-4 rounded-2xl border border-[#282C35] bg-[#16181D] hover:border-[#FF8C42]/50 hover:bg-[#1C1F26] transition-all shadow-sm cursor-pointer"
                       >
                         <div className="flex items-start gap-3">
                           <Avatar
@@ -335,25 +380,51 @@ export default function ContactsPage() {
                             size="md"
                           />
                           <div className="min-w-0 flex-1">
-                            <h4 className="text-sm font-bold text-white truncate group-hover:text-[#ff9933] transition-colors">
+                            <h4 className="text-sm font-semibold text-[#F5F5F5] truncate group-hover:text-[#FF9B5A] transition-colors">
                               {contact.name || contact.email}
                             </h4>
-                            <p className="text-xs text-zinc-400 truncate">{contact.email}</p>
+                            <p className="text-xs text-[#A1A4AC] truncate">{contact.email}</p>
                             {contact.company && (
-                              <p className="text-[11px] text-zinc-500 mt-0.5 truncate">
-                                🏢 {contact.company}
+                              <p className="text-[11px] text-[#6B6E76] mt-0.5 truncate flex items-center gap-1">
+                                <svg
+                                  className="w-3 h-3 text-[#6B6E76]"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={1.8}
+                                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                                  />
+                                </svg>
+                                <span>{contact.company}</span>
                               </p>
                             )}
                             {contact.phone && (
-                              <p className="text-[11px] text-zinc-500 truncate">
-                                📞 {contact.phone}
+                              <p className="text-[11px] text-[#6B6E76] truncate flex items-center gap-1">
+                                <svg
+                                  className="w-3 h-3 text-[#6B6E76]"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={1.8}
+                                    d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
+                                  />
+                                </svg>
+                                <span>{contact.phone}</span>
                               </p>
                             )}
                           </div>
                         </div>
 
                         {/* Quick Actions Bar */}
-                        <div className="flex items-center justify-between border-t border-zinc-800/80 mt-3 pt-3">
+                        <div className="flex items-center justify-between border-t border-[#282C35] mt-3 pt-3">
                           <div className="flex items-center gap-1.5">
                             <button
                               type="button"
@@ -361,9 +432,22 @@ export default function ContactsPage() {
                                 e.stopPropagation();
                                 router.push(`/compose?to=${encodeURIComponent(contact.email)}`);
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-[#ff9933]/15 text-[#ff9933] text-xs font-semibold hover:bg-[#ff9933]/25 transition-colors"
+                              className="px-2.5 py-1 rounded-lg bg-[#2B1A11] border border-[#5C3016] text-[#FF9B5A] text-xs font-semibold hover:bg-[#3D2315] transition-colors flex items-center gap-1"
                             >
-                              ✉ Email
+                              <svg
+                                className="w-3 h-3"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={1.8}
+                                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                />
+                              </svg>
+                              <span>Email</span>
                             </button>
                             <button
                               type="button"
@@ -371,9 +455,34 @@ export default function ContactsPage() {
                                 e.stopPropagation();
                                 router.push(`/calendar`);
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-300 text-xs font-medium hover:text-white transition-colors"
+                              className="px-2.5 py-1 rounded-lg bg-[#111318] border border-[#282C35] text-[#A1A4AC] text-xs font-medium hover:text-[#F5F5F5] hover:border-[#3A404D] transition-colors flex items-center gap-1"
                             >
-                              📅 Meet
+                              <svg
+                                className="w-3 h-3"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth={1.8} />
+                                <line
+                                  x1="16"
+                                  y1="2"
+                                  x2="16"
+                                  y2="6"
+                                  strokeWidth={1.8}
+                                  strokeLinecap="round"
+                                />
+                                <line
+                                  x1="8"
+                                  y1="2"
+                                  x2="8"
+                                  y2="6"
+                                  strokeWidth={1.8}
+                                  strokeLinecap="round"
+                                />
+                                <line x1="3" y1="10" x2="21" y2="10" strokeWidth={1.8} />
+                              </svg>
+                              <span>Meet</span>
                             </button>
                           </div>
 
@@ -381,18 +490,53 @@ export default function ContactsPage() {
                             <button
                               type="button"
                               onClick={(e) => handleOpenEdit(contact, e)}
-                              className="p-1 text-zinc-400 hover:text-white text-xs"
+                              className="p-1.5 text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5 rounded-lg transition-colors"
                               title="Edit contact"
                             >
-                              ✎
+                              <svg
+                                className="w-3.5 h-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={1.8}
+                                  d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                                />
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={1.8}
+                                  d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                                />
+                              </svg>
                             </button>
                             <button
                               type="button"
                               onClick={(e) => handleDelete(contact.id, contact.name, e)}
-                              className="p-1 text-rose-400 hover:text-rose-300 text-xs"
+                              className="p-1.5 text-[#6B6E76] hover:text-[#F87171] hover:bg-[#2A1215] rounded-lg transition-colors"
                               title="Delete contact"
                             >
-                              🗑
+                              <svg
+                                className="w-3.5 h-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <polyline
+                                  points="3 6 5 6 21 6"
+                                  strokeWidth={1.8}
+                                  strokeLinecap="round"
+                                />
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={1.8}
+                                  d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                                />
+                              </svg>
                             </button>
                           </div>
                         </div>

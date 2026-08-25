@@ -91,7 +91,7 @@ export const Dialog: React.FC<DialogProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
       <div
-        className="fixed inset-0 bg-black/50 transition-opacity"
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -101,19 +101,26 @@ export const Dialog: React.FC<DialogProps> = ({
         aria-modal="true"
         aria-label={ariaLabel || title || 'Dialog'}
         aria-labelledby={title ? titleId : undefined}
-        className={`relative z-10 w-full ${sizeStyles[size]} bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6 mx-4 ${className}`}
+        className={`relative z-10 w-full ${sizeStyles[size]} bg-[#16181D] border border-[#282C35] text-[#F5F5F5] rounded-xl shadow-2xl p-6 mx-4 ${className}`}
       >
         {title && (
-          <div className="flex items-center justify-between mb-4">
-            <h2 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-[#282C35]">
+            <h2 id={titleId} className="text-base font-semibold text-[#F5F5F5]">
               {title}
             </h2>
             <button
               onClick={onClose}
-              className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5 transition-colors focus:outline-none focus:ring-1 focus:ring-[#FF8C42]"
               aria-label="Close dialog"
             >
-              &#10005;
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
             </button>
           </div>
         )}

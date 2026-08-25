@@ -22,12 +22,12 @@ export interface ModalProps {
   className?: string;
 }
 
-const SURFACE = 'var(--quant-popover, var(--quant-surface-elevated, #17171d))';
-const FOREGROUND = 'var(--quant-popover-foreground, var(--quant-foreground, #f5f3f7))';
-const BORDER = 'var(--quant-border, rgba(255,255,255,.12))';
-const MUTED = 'var(--quant-muted-foreground, #9b99a6)';
-const RADIUS = 'calc(var(--quant-radius, 0.625rem) * 1.6)';
-const SHADOW = 'var(--quant-shadow-xl, 0 32px 90px rgba(0,0,0,.52))';
+const SURFACE = 'var(--quant-popover, #16181D)';
+const FOREGROUND = 'var(--quant-popover-foreground, #F5F5F5)';
+const BORDER = 'var(--quant-border, #282C35)';
+const MUTED = 'var(--quant-muted-foreground, #A1A4AC)';
+const RADIUS = '0.75rem';
+const SHADOW = 'var(--quant-shadow-xl, 0 24px 64px rgba(0,0,0,.6))';
 
 export const Modal: React.FC<ModalProps> = ({
   isOpen,
@@ -85,12 +85,11 @@ export const Modal: React.FC<ModalProps> = ({
       aria-modal="true"
       aria-labelledby={title ? 'modal-title' : undefined}
     >
-      <style>{`@keyframes quantModalIn{from{opacity:0;transform:translateY(8px) scale(.97)}to{opacity:1;transform:none}}
-.quant-modal-panel{animation:quantModalIn .18s cubic-bezier(.2,.8,.2,1) both}
+      <style>{`@keyframes quantModalIn{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:none}}
+.quant-modal-panel{animation:quantModalIn .16s cubic-bezier(.16,1,.3,1) both}
 @media (prefers-reduced-motion:reduce){.quant-modal-panel{animation:none}}`}</style>
       <div
-        className="absolute inset-0"
-        style={{ background: 'rgba(4,4,6,.66)', backdropFilter: 'blur(6px)' }}
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
         onClick={closeOnOverlayClick ? onClose : undefined}
         aria-hidden="true"
       />
@@ -102,17 +101,8 @@ export const Modal: React.FC<ModalProps> = ({
           border: `1px solid ${BORDER}`,
           borderRadius: RADIUS,
           boxShadow: SHADOW,
-          backgroundImage:
-            'radial-gradient(120% 80% at 50% -20%, rgba(255,255,255,.07), transparent 60%)',
         }}
       >
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-0 h-px"
-          style={{
-            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent)',
-          }}
-        />
         {(title || showCloseButton) && (
           <div
             className="flex items-start justify-between gap-4 px-5 py-4 sm:px-6"

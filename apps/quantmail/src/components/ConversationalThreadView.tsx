@@ -364,7 +364,7 @@ export function ConversationalThreadView({
 
       setQuickReplyText('');
       setPendingAttachments([]);
-      showToast({ text: 'Reply sent successfully 🚀', type: 'success' });
+      showToast({ text: 'Reply sent successfully', type: 'success' });
 
       // Scroll to bottom
       setTimeout(() => {
@@ -827,10 +827,17 @@ export function ConversationalThreadView({
                 `/compose?to=${encodeURIComponent(recipient)}&subject=${encodeURIComponent(subj)}&replyTo=${primaryMessage?.id || threadId}`,
               );
             }}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/70 text-[11px] font-medium text-zinc-300 hover:text-white transition-all shadow-sm active:scale-95"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] hover:border-[#3A404D] text-[11px] font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-all shadow-sm active:scale-95"
             title="Reply to sender (R)"
           >
-            <span>↩</span>
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+              />
+            </svg>
             <span>Reply</span>
           </button>
 
@@ -847,10 +854,17 @@ export function ConversationalThreadView({
                 `/compose?to=${encodeURIComponent(allRecipients)}&subject=${encodeURIComponent(subj)}&replyTo=${primaryMessage?.id || threadId}`,
               );
             }}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/70 text-[11px] font-medium text-zinc-300 hover:text-white transition-all shadow-sm active:scale-95"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] hover:border-[#3A404D] text-[11px] font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-all shadow-sm active:scale-95"
             title="Reply to all recipients (A)"
           >
-            <span>⇇</span>
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 16l-4-4m0 0l4-4m-4 4h18"
+              />
+            </svg>
             <span>Reply All</span>
           </button>
 
@@ -865,34 +879,51 @@ export function ConversationalThreadView({
                 `/compose?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(forwardBody)}`,
               );
             }}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/70 text-[11px] font-medium text-zinc-300 hover:text-white transition-all shadow-sm active:scale-95"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] hover:border-[#3A404D] text-[11px] font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-all shadow-sm active:scale-95"
             title="Forward this conversation (F)"
           >
-            <span>↪</span>
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17 8l4 4m0 0l-4 4m4-4H3"
+              />
+            </svg>
             <span>Forward</span>
           </button>
         </div>
 
         {/* Right: Smart Reply Chips */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-          {[
-            '✨ Sounds good, thanks!',
-            "✨ Let's do that.",
-            "✨ I'll review and get back shortly.",
-          ].map((suggestion, sIdx) => (
-            <button
-              key={sIdx}
-              type="button"
-              onClick={() => {
-                const text = suggestion.replace(/^✨\s*/, '');
-                setQuickReplyText(text);
-                setTimeout(() => document.getElementById('chatbot-reply-input')?.focus(), 50);
-              }}
-              className="whitespace-nowrap px-2.5 py-1 rounded-full bg-[#FF7A00]/10 hover:bg-[#FF7A00]/20 border border-[#FF7A00]/30 text-[11px] font-medium text-amber-300 hover:text-white transition-all active:scale-95"
-            >
-              {suggestion}
-            </button>
-          ))}
+          {['Sounds good, thanks!', "Let's do that.", "I'll review and get back shortly."].map(
+            (suggestion, sIdx) => (
+              <button
+                key={sIdx}
+                type="button"
+                onClick={() => {
+                  setQuickReplyText(suggestion);
+                  setTimeout(() => document.getElementById('chatbot-reply-input')?.focus(), 50);
+                }}
+                className="whitespace-nowrap px-2.5 py-1 rounded-full bg-[#2B1A11] hover:bg-[#3D2315] border border-[#5C3016] text-[11px] font-medium text-[#FF9B5A] hover:text-[#F5F5F5] transition-all active:scale-95 flex items-center gap-1"
+              >
+                <svg
+                  className="w-2.5 h-2.5 text-[#FF8C42]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
+                </svg>
+                <span>{suggestion}</span>
+              </button>
+            ),
+          )}
         </div>
       </div>
 
@@ -904,15 +935,36 @@ export function ConversationalThreadView({
             {pendingAttachments.map((att, index) => (
               <span
                 key={index}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-zinc-900 border border-zinc-700 text-xs text-zinc-200"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#16181D] border border-[#282C35] text-xs text-[#F5F5F5]"
               >
-                <span>📎 {att.name}</span>
+                <svg
+                  className="w-3.5 h-3.5 text-[#FF8C42]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"
+                  />
+                </svg>
+                <span className="truncate max-w-[150px]">{att.name}</span>
                 <button
                   type="button"
                   onClick={() => removePendingAttachment(index)}
-                  className="text-zinc-400 hover:text-rose-400 font-bold"
+                  className="text-[#6B6E76] hover:text-[#F87171] p-0.5 rounded transition-colors"
+                  aria-label="Remove attachment"
                 >
-                  ✕
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
                 </button>
               </span>
             ))}
@@ -920,7 +972,7 @@ export function ConversationalThreadView({
         )}
 
         {/* Main Floating Input Bar */}
-        <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl border border-zinc-700/80 bg-[#0e1017] shadow-2xl">
+        <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl border border-[#282C35] bg-[#111318] shadow-2xl">
           {/* File Attachment Hidden Input */}
           <input
             type="file"
@@ -1024,7 +1076,7 @@ export function ConversationalThreadView({
             disabled={
               (!quickReplyText.trim() && pendingAttachments.length === 0) || isSendingQuickReply
             }
-            className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] hover:from-[#e06c00] hover:to-[#d04e06] text-white text-xs font-bold transition-all shadow-md active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1"
+            className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1.5"
           >
             <span>{isSendingQuickReply ? '…' : 'Send'}</span>
             <svg
@@ -1032,7 +1084,7 @@ export function ConversationalThreadView({
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2.5"
+              strokeWidth="2.2"
             >
               <path d="m22 2-7 20-4-9-9-4Z" />
               <path d="M22 2 11 13" />

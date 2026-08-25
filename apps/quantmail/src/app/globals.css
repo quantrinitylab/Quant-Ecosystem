@@ -3,71 +3,86 @@
 @tailwind utilities;
 
 :root {
-  /* Quantrinity brand system — dark-first saffron and emerald */
-  --brand-primary: #ff9933;
-  --brand-primary-hover: #ffad5c;
-  --brand-accent: #ffbf7a;
-  --brand-accent-hover: #ffd1a3;
-  --brand-app-color: #ff9933;
-  --app-color: #ff9933;
+  /* Quant Brand System — Official Quant Brand Orange & Dark Foundation */
+  --brand-primary: #FF8C42;
+  --brand-primary-hover: #FF9B5A;
+  --brand-primary-pressed: #E8752F;
+  --brand-accent: #FFB875;
+  --brand-accent-hover: #FFD1A3;
+  --brand-soft: #2B1A11;
+  --brand-subtle: #1D1410;
+  --brand-app-color: #FF8C42;
+  --app-color: #FF8C42;
 
-  /* Existing semantic tokens */
+  /* Official Dark Foundation Tokens */
   --quant-primary: var(--brand-primary);
-  --quant-secondary: #138808;
-  --quant-background: #08080a;
-  --quant-foreground: #f5f3f7;
-  --quant-surface: #101014;
-  --quant-surface-elevated: #17171d;
-  --quant-muted: #202027;
-  --quant-muted-foreground: #9b99a6;
-  --quant-border: #2a2931;
-  --quant-ring: #ff9933;
-  --quant-radius: 0.625rem;
-  --quant-card: #111115;
-  --quant-card-foreground: #f5f3f7;
-  --quant-popover: #17171d;
-  --quant-popover-foreground: #f5f3f7;
-  --quant-destructive: #f87171;
-  --quant-destructive-foreground: #fff7f7;
-  --quant-success: #4ade80;
-  --quant-warning: #fbbf24;
+  --quant-primary-hover: var(--brand-primary-hover);
+  --quant-secondary: #22C55E;
+  --quant-background: #090A0C;
+  --quant-foreground: #F5F5F5;
+  --quant-surface: #111318;
+  --quant-surface-elevated: #16181D;
+  --quant-surface-subtle: #0D0F12;
+  --quant-surface-hover: #1C1F26;
+  --quant-muted: #16181D;
+  --quant-muted-foreground: #A1A4AC;
+  --quant-text-muted: #6B6E76;
+  --quant-border: #282C35;
+  --quant-border-subtle: #1C1F26;
+  --quant-border-strong: #3A404D;
+  --quant-ring: #FF8C42;
+  --quant-radius: 0.5rem;
+  --quant-card: #111318;
+  --quant-card-foreground: #F5F5F5;
+  --quant-popover: #16181D;
+  --quant-popover-foreground: #F5F5F5;
+  --quant-destructive: #EF4444;
+  --quant-destructive-foreground: #FFFFFF;
+  --quant-success: #22C55E;
+  --quant-warning: #F59E0B;
+  --quant-info: #3B82F6;
 
   /* Additive depth and compose tokens */
-  --quant-surface-subtle: #0d0d10;
-  --quant-surface-hover: #1d1c23;
-  --quant-border-subtle: rgba(255, 255, 255, 0.075);
-  --quant-border-strong: rgba(255, 255, 255, 0.14);
-  --quant-shadow-xl: 0 32px 90px rgba(0, 0, 0, 0.52);
-  --quant-accent-soft: rgba(255, 153, 51, 0.12);
-  --quant-accent-border: rgba(255, 173, 92, 0.28);
+  --quant-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --quant-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --quant-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --quant-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.6);
+  --quant-accent-soft: rgba(255, 140, 66, 0.12);
+  --quant-accent-border: rgba(255, 140, 66, 0.28);
 
   /* Motion tokens */
   --brand-transition-fast: 100ms;
-  --brand-transition-normal: 180ms;
-  --brand-transition-moderate: 260ms;
-  --brand-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --brand-transition-normal: 160ms;
+  --brand-transition-moderate: 240ms;
+  --brand-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --brand-ease-in: cubic-bezier(0.4, 0, 1, 1);
   --brand-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dark,
 :root[data-theme='dark'] {
-  --quant-background: #08080a;
-  --quant-foreground: #f5f3f7;
-  --quant-surface: #101014;
-  --quant-surface-elevated: #17171d;
-  --quant-muted: #202027;
-  --quant-muted-foreground: #9b99a6;
-  --quant-border: #2a2931;
-  --quant-card: #111115;
-  --quant-card-foreground: #f5f3f7;
-  --quant-popover: #17171d;
-  --quant-popover-foreground: #f5f3f7;
-  --quant-ring: #ff9933;
-  --quant-destructive: #f87171;
-  --quant-destructive-foreground: #fff7f7;
-  --quant-success: #4ade80;
-  --quant-warning: #fbbf24;
+  --quant-background: #090A0C;
+  --quant-foreground: #F5F5F5;
+  --quant-surface: #111318;
+  --quant-surface-elevated: #16181D;
+  --quant-surface-subtle: #0D0F12;
+  --quant-surface-hover: #1C1F26;
+  --quant-muted: #16181D;
+  --quant-muted-foreground: #A1A4AC;
+  --quant-text-muted: #6B6E76;
+  --quant-border: #282C35;
+  --quant-border-subtle: #1C1F26;
+  --quant-border-strong: #3A404D;
+  --quant-card: #111318;
+  --quant-card-foreground: #F5F5F5;
+  --quant-popover: #16181D;
+  --quant-popover-foreground: #F5F5F5;
+  --quant-ring: #FF8C42;
+  --quant-destructive: #EF4444;
+  --quant-destructive-foreground: #FFFFFF;
+  --quant-success: #22C55E;
+  --quant-warning: #F59E0B;
+  --quant-info: #3B82F6;
 }
 
 :root[data-theme='light'] {

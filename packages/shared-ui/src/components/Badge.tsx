@@ -26,39 +26,53 @@ export const Badge: React.FC<BadgeProps> = ({
   className = '',
 }) => {
   const variantStyles: Record<string, string> = {
-    default: 'bg-gray-100 text-gray-800',
-    primary: 'bg-blue-100 text-blue-800',
-    success: 'bg-green-100 text-green-800',
-    warning: 'bg-yellow-100 text-yellow-800',
-    danger: 'bg-red-100 text-red-800',
-    info: 'bg-indigo-100 text-indigo-800',
+    default: 'bg-[#16181D] text-[#A1A4AC] border border-[#282C35]',
+    primary: 'bg-[#2B1A11] text-[#FF9B5A] border border-[#5C3016]',
+    success: 'bg-[#0E2A1A] text-[#4ADE80] border border-[#1B4D2E]',
+    warning: 'bg-[#2C200C] text-[#FCD34D] border border-[#543D15]',
+    danger: 'bg-[#2A1215] text-[#F87171] border border-[#4E1F24]',
+    info: 'bg-[#0F1D33] text-[#60A5FA] border border-[#1E3A66]',
   };
 
   const sizeStyles: Record<string, string> = {
-    sm: 'px-2 py-0.5 text-xs',
-    md: 'px-2.5 py-1 text-sm',
-    lg: 'px-3 py-1.5 text-base',
+    sm: 'px-2 py-0.5 text-xs gap-1',
+    md: 'px-2.5 py-0.5 text-xs font-medium gap-1.5',
+    lg: 'px-3 py-1 text-sm font-medium gap-1.5',
   };
 
   const dotColors: Record<string, string> = {
-    default: 'bg-gray-500',
-    primary: 'bg-blue-500',
-    success: 'bg-green-500',
-    warning: 'bg-yellow-500',
-    danger: 'bg-red-500',
-    info: 'bg-indigo-500',
+    default: 'bg-[#6B6E76]',
+    primary: 'bg-[#FF8C42]',
+    success: 'bg-[#22C55E]',
+    warning: 'bg-[#F59E0B]',
+    danger: 'bg-[#EF4444]',
+    info: 'bg-[#3B82F6]',
   };
 
   const roundedStyles = rounded ? 'rounded-full' : 'rounded-md';
 
   return (
-    <span className={`inline-flex items-center gap-1.5 font-medium ${variantStyles[variant]} ${sizeStyles[size]} ${roundedStyles} ${className}`}>
-      {dot && <span className={`w-1.5 h-1.5 rounded-full ${dotColors[variant]}`} />}
-      {children}
+    <span
+      className={`inline-flex items-center font-medium transition-colors ${variantStyles[variant]} ${sizeStyles[size]} ${roundedStyles} ${className}`}
+    >
+      {dot && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColors[variant]}`} />}
+      <span>{children}</span>
       {removable && (
-        <button onClick={onRemove} className="ml-1 hover:opacity-70 transition-opacity" aria-label="Remove">
-          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove?.();
+          }}
+          className="ml-0.5 -mr-1 p-0.5 rounded-full opacity-60 hover:opacity-100 hover:bg-white/10 transition-opacity focus:outline-none"
+          aria-label="Remove"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       )}

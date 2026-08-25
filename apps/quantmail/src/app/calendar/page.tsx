@@ -585,7 +585,7 @@ export default function CalendarPage() {
     location: '',
     description: '',
     recurrence: 'Does not repeat',
-    color: '#ff9933',
+    color: '#FF8C42',
     accountEmail: currentUserEmail,
     notifications: ['30 minutes before'],
     attendeeInput: '',
