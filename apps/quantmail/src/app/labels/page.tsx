@@ -9,7 +9,7 @@ import { useCreateLabel, useDeleteLabel, useLabels, useUpdateLabel } from '../..
 import type { EmailLabel } from '../../types';
 
 const PRESET_COLORS = [
-  '#ff9933',
+  '#FF8C42',
   '#ff5e62',
   '#e64980',
   '#8b5cf6',

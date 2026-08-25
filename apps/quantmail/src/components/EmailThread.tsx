@@ -157,9 +157,9 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
 
       {/* AI Summary Banner */}
       {summary && activeEmailId && (
-        <div className="mb-6 p-4 rounded-xl border border-[#ff9933]/30 bg-gradient-to-r from-[#ff9933]/10 to-transparent text-sm">
+        <div className="mb-6 p-4 rounded-xl border border-[#5C3016] bg-[#2B1A11] text-sm">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-[#ffad5c] flex items-center gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#FF8C42] flex items-center gap-1.5">
               ✦ QuantAI Summary
             </span>
             <button
@@ -313,7 +313,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                     <button
                       type="button"
                       disabled={isLoadingAI}
-                      className="px-3 py-1.5 rounded-lg border border-[#ff9933]/30 text-[#ffad5c] hover:bg-[#ff9933]/10 text-xs font-medium transition-colors"
+                      className="px-3 py-1.5 rounded-lg border border-[#5C3016] bg-[#2B1A11] text-[#FF8C42] hover:bg-[#3D2214] text-xs font-medium transition-colors"
                       onClick={() => handleSuggestReplies(email.id)}
                     >
                       ✦ Smart Replies
@@ -322,8 +322,8 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
 
                   {/* AI Reply Suggestions */}
                   {replySuggestions.length > 0 && activeEmailId === email.id && (
-                    <div className="mt-3 p-3 rounded-lg bg-[var(--quant-surface-subtle)] border border-[#ff9933]/20">
-                      <h5 className="text-xs font-semibold text-[#ffad5c] mb-2">
+                    <div className="mt-3 p-3 rounded-lg bg-[var(--quant-surface-subtle)] border border-[#5C3016]">
+                      <h5 className="text-xs font-semibold text-[#FF8C42] mb-2">
                         Smart Suggestions:
                       </h5>
                       <div className="flex flex-wrap gap-2">
@@ -349,7 +349,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                         onChange={(e) => setReplyBody(e.target.value)}
                         placeholder={`Reply to ${email.from.name || email.from.email}…`}
                         rows={4}
-                        className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg p-3 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[#ff9933]/60"
+                        className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg p-3 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[#FF8C42]"
                         autoFocus
                       />
                       <div className="flex items-center justify-between">
@@ -358,7 +358,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                             type="checkbox"
                             checked={replyAll}
                             onChange={(e) => setReplyAll(e.target.checked)}
-                            className="accent-[#ff9933]"
+                            className="accent-[#FF8C42]"
                           />
                           Reply to all
                         </label>
@@ -375,7 +375,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                           </button>
                           <button
                             type="button"
-                            className="px-4 py-1.5 rounded-lg bg-[#ff9933] text-[#191008] font-semibold text-xs shadow-md hover:bg-[#ffad5c] transition-colors"
+                            className="px-4 py-1.5 rounded-lg bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] font-semibold text-xs transition-colors"
                             onClick={handleReply}
                             disabled={!replyBody.trim()}
                           >
@@ -426,7 +426,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                         </button>
                         <button
                           type="button"
-                          className="px-4 py-1.5 rounded-lg bg-[#ff9933] text-[#191008] font-semibold text-xs shadow-md hover:bg-[#ffad5c] transition-colors"
+                          className="px-4 py-1.5 rounded-lg bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] font-semibold text-xs transition-colors"
                           onClick={handleForward}
                           disabled={!forwardTo.trim()}
                         >
