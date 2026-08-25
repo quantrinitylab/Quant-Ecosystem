@@ -334,7 +334,7 @@ function EmailRow({
       : 'bg-amber-500/15 text-amber-300 border-amber-500/30';
 
   return (
-    <div className="mail-row-shell relative">
+    <div className={`mail-row-shell relative ${showSnoozeMenu ? 'z-50' : ''}`}>
       <motion.div
         className="mail-archive-reveal"
         style={{ opacity: archiveOpacity }}

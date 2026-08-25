@@ -225,3 +225,145 @@
   animation: ptr-spin 0.7s linear infinite;
 }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Superhuman-style Snooze Popover (Floating, Glassmorphic, High Z-Index)
+   ────────────────────────────────────────────────────────────────────────── */
+
+.snooze-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.snooze-trigger {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: none;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  transition: background 100ms ease, color 100ms ease;
+}
+.snooze-trigger:hover {
+  background: rgba(255, 153, 51, 0.12);
+  color: #ff9933;
+}
+.snooze-trigger.is-hidden {
+  display: none !important;
+}
+
+.snooze-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  width: 240px;
+  max-width: 90vw;
+  background: #141417;
+  border: 1px solid rgba(255, 153, 51, 0.25);
+  border-radius: 0.85rem;
+  padding: 0.5rem;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.snooze-menu-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #a1a1aa;
+  padding: 0.35rem 0.6rem 0.2rem;
+  margin: 0;
+}
+
+.snooze-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: #f4f4f5;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 100ms ease;
+}
+
+.snooze-option:hover {
+  background: rgba(255, 153, 51, 0.12);
+  border-color: rgba(255, 153, 51, 0.3);
+  color: #ff9933;
+}
+
+.snooze-option-date {
+  font-size: 0.7rem;
+  color: #71717a;
+  font-variant-numeric: tabular-nums;
+}
+
+.snooze-option:hover .snooze-option-date {
+  color: #fed7aa;
+}
+
+.snooze-custom {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 0.25rem;
+  padding-top: 0.35rem;
+}
+
+.snooze-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.4rem 0.25rem;
+}
+
+.snooze-custom-row input[type='datetime-local'] {
+  flex: 1;
+  min-width: 0;
+  background: #09090b;
+  border: 1px solid #27272a;
+  border-radius: 0.45rem;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.7rem;
+  color: #e4e4e7;
+  outline: none;
+}
+
+.snooze-custom-row input[type='datetime-local']:focus {
+  border-color: #ff9933;
+}
+
+.snooze-custom-row button {
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(255, 153, 51, 0.35);
+  background: rgba(255, 153, 51, 0.15);
+  color: #ff9933;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 100ms ease;
+}
+
+.snooze-custom-row button:hover:not(:disabled) {
+  background: #ff9933;
+  color: #09090b;
+}
+
+.snooze-custom-row button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
