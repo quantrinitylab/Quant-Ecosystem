@@ -486,8 +486,15 @@ export default function ContactsPage() {
         >
           <div className="p-4 space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1">Full Name *</label>
+              <label
+                htmlFor="contact-name"
+                className="block text-xs font-semibold text-zinc-300 mb-1"
+              >
+                Full Name *
+              </label>
               <input
+                id="contact-name"
+                name="name"
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -498,10 +505,15 @@ export default function ContactsPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1">
+              <label
+                htmlFor="contact-email"
+                className="block text-xs font-semibold text-zinc-300 mb-1"
+              >
                 Email Address *
               </label>
               <input
+                id="contact-email"
+                name="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -512,8 +524,15 @@ export default function ContactsPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">Phone</label>
+                <label
+                  htmlFor="contact-phone"
+                  className="block text-xs font-semibold text-zinc-300 mb-1"
+                >
+                  Phone
+                </label>
                 <input
+                  id="contact-phone"
+                  name="phone"
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -522,8 +541,15 @@ export default function ContactsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-zinc-300 mb-1">Company</label>
+                <label
+                  htmlFor="contact-company"
+                  className="block text-xs font-semibold text-zinc-300 mb-1"
+                >
+                  Company
+                </label>
                 <input
+                  id="contact-company"
+                  name="company"
                   type="text"
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
@@ -534,10 +560,15 @@ export default function ContactsPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1">
+              <label
+                htmlFor="contact-tags"
+                className="block text-xs font-semibold text-zinc-300 mb-1"
+              >
                 Tags (comma-separated)
               </label>
               <input
+                id="contact-tags"
+                name="tags"
                 type="text"
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}

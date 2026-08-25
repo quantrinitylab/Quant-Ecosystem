@@ -484,6 +484,8 @@ export function AppShell({
                       <path d="m20 20-4-4" />
                     </svg>
                     <input
+                      id="app-shell-search-input"
+                      name="searchQuery"
                       type="search"
                       value={searchValue ?? ''}
                       onChange={(e) => onSearchChange(e.target.value)}

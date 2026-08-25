@@ -202,7 +202,8 @@ export default function SearchPage() {
 
   const handleEmailClick = useCallback(
     (email: Email) => {
-      router.push(`/thread/${email.threadId}`);
+      const targetId = email.threadId || email.id;
+      if (targetId) router.push(`/thread/${targetId}`);
     },
     [router],
   );

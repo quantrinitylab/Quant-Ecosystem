@@ -285,6 +285,8 @@ export default function DrivePage() {
     >
       <PageTransition className="workspace-page drive-workspace flex flex-col h-full bg-[#0a0a0c]">
         <input
+          id="drive-file-input"
+          name="driveFiles"
           ref={fileInputRef}
           type="file"
           multiple
@@ -843,8 +845,15 @@ export default function DrivePage() {
         >
           <div className="p-4 space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1">Folder Name</label>
+              <label
+                htmlFor="drive-new-folder-name"
+                className="block text-xs font-semibold text-zinc-300 mb-1"
+              >
+                Folder Name
+              </label>
               <input
+                id="drive-new-folder-name"
+                name="newFolderName"
                 type="text"
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
@@ -875,8 +884,15 @@ export default function DrivePage() {
         >
           <div className="p-4 space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1">New Name</label>
+              <label
+                htmlFor="drive-rename-value"
+                className="block text-xs font-semibold text-zinc-300 mb-1"
+              >
+                New Name
+              </label>
               <input
+                id="drive-rename-value"
+                name="renameValue"
                 type="text"
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}

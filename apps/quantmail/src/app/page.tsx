@@ -1279,6 +1279,8 @@ export default function InboxPage() {
                 <div className="flex-1 flex items-center gap-2 bg-zinc-900/90 border border-zinc-700/80 rounded-xl px-3 py-1.5 shadow-inner">
                   <MailIcon name="search" className="size-4 text-zinc-400 shrink-0" />
                   <input
+                    id="mobile-search-input"
+                    name="search"
                     type="search"
                     placeholder="Search messages, contacts, keywords…"
                     value={searchQuery}

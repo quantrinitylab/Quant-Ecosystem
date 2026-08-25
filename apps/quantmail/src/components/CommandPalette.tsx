@@ -397,6 +397,8 @@ export function CommandPalette() {
                 <path d="m20 20-4-4" />
               </svg>
               <input
+                id="command-palette-input"
+                name="commandQuery"
                 ref={inputRef}
                 className="flex-1 bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none"
                 type="text"

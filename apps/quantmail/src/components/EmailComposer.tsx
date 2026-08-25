@@ -620,10 +620,15 @@ export function EmailComposer({
         <div className="border-b border-zinc-800/80 pb-2 space-y-2 w-full max-w-full">
           {/* To: Row */}
           <div className="flex items-center gap-2 sm:gap-3 w-full max-w-full">
-            <span className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0">
+            <label
+              htmlFor="composer-to"
+              className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0"
+            >
               To <span className="text-rose-500">*</span>:
-            </span>
+            </label>
             <input
+              id="composer-to"
+              name="to"
               type="text"
               value={to}
               onChange={(e) => setTo(e.target.value)}
@@ -655,8 +660,15 @@ export function EmailComposer({
           {/* Cc: Row */}
           {showCc && (
             <div className="flex items-center gap-2 sm:gap-3 pt-1 border-t border-zinc-900 w-full max-w-full">
-              <span className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0">Cc:</span>
+              <label
+                htmlFor="composer-cc"
+                className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0"
+              >
+                Cc:
+              </label>
               <input
+                id="composer-cc"
+                name="cc"
                 type="text"
                 value={cc}
                 onChange={(e) => setCc(e.target.value)}
@@ -679,10 +691,15 @@ export function EmailComposer({
           {/* Bcc: Row */}
           {showBcc && (
             <div className="flex items-center gap-2 sm:gap-3 pt-1 border-t border-zinc-900 w-full max-w-full">
-              <span className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0">
+              <label
+                htmlFor="composer-bcc"
+                className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0"
+              >
                 Bcc:
-              </span>
+              </label>
               <input
+                id="composer-bcc"
+                name="bcc"
                 type="text"
                 value={bcc}
                 onChange={(e) => setBcc(e.target.value)}
@@ -705,10 +722,15 @@ export function EmailComposer({
 
         {/* Subject Row */}
         <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-800/80 pb-2 w-full max-w-full">
-          <span className="text-xs font-semibold text-zinc-400 w-16 sm:w-16 shrink-0">
+          <label
+            htmlFor="composer-subject"
+            className="text-xs font-semibold text-zinc-400 w-16 sm:w-16 shrink-0"
+          >
             Subject <span className="text-rose-500">*</span>:
-          </span>
+          </label>
           <input
+            id="composer-subject"
+            name="subject"
             type="text"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
@@ -773,6 +795,8 @@ export function EmailComposer({
         {/* Main Fluid Body Canvas */}
         <div className="space-y-1.5 w-full max-w-full box-border flex-1 min-h-[220px]">
           <textarea
+            id="composer-body"
+            name="body"
             ref={bodyTextareaRef}
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -891,6 +915,8 @@ export function EmailComposer({
 
         {/* Hidden File Input for Device Attachments */}
         <input
+          id="composer-file-input"
+          name="attachments"
           ref={fileInputRef}
           type="file"
           multiple
