@@ -362,15 +362,18 @@ export function ConversationalThreadView({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 -ml-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all active:scale-95"
-              title="Close pane"
+              className="p-2 -ml-1.5 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-800/80 active:bg-zinc-700/60 transition-all active:scale-95 flex items-center justify-center min-w-[40px] min-h-[40px]"
+              title="Back to inbox"
+              aria-label="Back to inbox"
             >
               <svg
                 className="size-5"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
                 <path d="m15 18-6-6 6-6" />
               </svg>

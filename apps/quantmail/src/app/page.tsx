@@ -287,6 +287,7 @@ function EmailRow({
 }: EmailRowProps) {
   const x = useMotionValue(0);
   const archiveOpacity = useTransform(x, [-108, -44], [1, 0]);
+  const pinOpacity = useTransform(x, [44, 108], [0, 1]);
   const prefersReducedMotion = useReducedMotion();
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -321,7 +322,11 @@ function EmailRow({
 
   const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     setIsDragging(false);
-    if (info.offset.x < -96) void onArchive();
+    if (info.offset.x < -96) {
+      void onArchive();
+    } else if (info.offset.x > 96) {
+      void onToggleStar(null as any);
+    }
   };
 
   const email = thread.latestEmail;
@@ -342,10 +347,17 @@ function EmailRow({
       >
         <MailIcon name="archive" /> <span>Archive</span>
       </motion.div>
+      <motion.div
+        className="mail-pin-reveal absolute inset-y-0 left-0 flex items-center gap-2 pl-4 text-amber-400 bg-amber-500/20 border-r border-amber-500/30 font-semibold text-xs"
+        style={{ opacity: pinOpacity }}
+        aria-hidden="true"
+      >
+        <MailIcon name="pin" className="size-4 text-amber-400" /> <span>Pin</span>
+      </motion.div>
       <motion.article
         style={{ x }}
         drag={prefersReducedMotion ? false : 'x'}
-        dragConstraints={{ left: -128, right: 0 }}
+        dragConstraints={{ left: -128, right: 128 }}
         dragElastic={0.08}
         onDragStart={() => setIsDragging(true)}
         onDragEnd={handleDragEnd}
@@ -366,7 +378,18 @@ function EmailRow({
           onClick={(event) => event.stopPropagation()}
           aria-label={`Select conversation with ${thread.sendersSummary}`}
         />
-        <IdentityAvatar name={thread.sendersSummary || '?'} size="sm" />
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect();
+          }}
+          className="focus:outline-none rounded-full"
+          title="Select conversation"
+          aria-label={`Select ${thread.sendersSummary}`}
+        >
+          <IdentityAvatar name={thread.sendersSummary || '?'} size="sm" />
+        </button>
         <div className="mail-row-copy">
           <div className="mail-row-meta">
             <div className="flex items-center gap-1.5 min-w-0">
