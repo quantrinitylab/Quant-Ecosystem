@@ -299,16 +299,16 @@ export function AppSidebar() {
           className="mt-4 px-2.5 py-3 border-t border-[var(--quant-border-subtle)]"
           aria-label="Storage status"
         >
-          <div className="flex items-center justify-between text-[11px] text-[var(--quant-muted-foreground)]">
+          <div className="flex items-center justify-between text-[11px] text-[#A1A4AC]">
             <span className="font-medium flex items-center gap-1.5">
-              <span className="inline-block size-1.5 rounded-full bg-[#ff9933]" />
+              <span className="inline-block size-1.5 rounded-full bg-[#FF8C42]" />
               Cloud Storage
             </span>
-            <span className="font-mono text-[10px] text-[#f5f3f7]">1.2 / 15 GB</span>
+            <span className="font-mono text-[10px] text-[#F5F5F5]">1.2 / 15 GB</span>
           </div>
-          <div className="mt-2 h-1.5 w-full rounded-full bg-[var(--quant-muted)] overflow-hidden">
+          <div className="mt-2 h-1.5 w-full rounded-full bg-[#16181D] border border-[#282C35] overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-[#ff9933] to-[#ffb870] transition-all duration-300"
+              className="h-full rounded-full bg-[#FF8C42] transition-all duration-300"
               style={{ width: '8%' }}
             />
           </div>

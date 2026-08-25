@@ -532,9 +532,9 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                 <button
                   type="button"
                   onClick={handleConfirm}
-                  className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-white text-xs font-bold shadow-md hover:from-[#e06c00] hover:to-[#d04e06] transition-all"
+                  className="px-4 py-1.5 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#111111] text-xs font-semibold shadow-sm transition-all"
                 >
-                  Schedule
+                  Schedule Send
                 </button>
               </div>
             </div>

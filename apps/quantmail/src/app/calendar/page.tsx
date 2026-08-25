@@ -1512,24 +1512,22 @@ export default function CalendarPage() {
               </button>
             </div>
 
-            <h2 className="text-xl font-extrabold tracking-tight text-white flex items-center gap-2">
-              <span className="bg-gradient-to-r from-white via-orange-100 to-[#ff9933] bg-clip-text text-transparent">
-                {activeMonthName}
-              </span>
-              <span className="text-zinc-500 font-normal">{activeYear}</span>
+            <h2 className="text-xl font-bold tracking-tight text-[#F5F5F5] flex items-center gap-2">
+              <span>{activeMonthName}</span>
+              <span className="text-[#6B6E76] font-normal">{activeYear}</span>
             </h2>
 
             <button
               type="button"
               onClick={goToday}
-              className="px-3 py-1 text-xs font-black rounded-xl border border-[#ff9933]/40 bg-gradient-to-r from-[#ff9933]/20 to-[#fbbf24]/10 text-[#ff9933] hover:from-[#ff9933]/30 hover:to-[#fbbf24]/20 shadow-[0_0_15px_rgba(255,153,51,0.25)] transition-all"
+              className="px-2.5 py-1 text-xs font-medium rounded-lg border border-[#282C35] bg-[#16181D] hover:bg-[#1C1F26] text-[#F5F5F5] transition-colors"
             >
               Today
             </button>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-xl border border-zinc-800 bg-zinc-900/80 p-0.5 backdrop-blur-md">
+            <div className="flex items-center rounded-lg border border-[#282C35] bg-[#111318] p-0.5">
               {(
                 [
                   { key: 'agenda', label: 'Agenda' },
@@ -1542,10 +1540,10 @@ export default function CalendarPage() {
                   key={v.key}
                   type="button"
                   onClick={() => setActiveView(v.key)}
-                  className={`px-3.5 py-1 text-xs rounded-lg font-bold transition-all ${
+                  className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
                     activeView === v.key
-                      ? 'bg-gradient-to-r from-[#ff9933] to-[#fbbf24] text-[#0a0a0c] font-black shadow-md'
-                      : 'text-zinc-400 hover:text-white'
+                      ? 'bg-[#FF8C42] text-[#111111] font-semibold shadow-sm'
+                      : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
                   }`}
                 >
                   {v.label}
@@ -1556,7 +1554,7 @@ export default function CalendarPage() {
             <button
               type="button"
               onClick={() => openDedicatedSheet('event')}
-              className="px-4 py-1.5 rounded-xl font-black text-xs text-black bg-gradient-to-r from-[#ff9933] via-[#f97316] to-[#fbbf24] shadow-[0_0_20px_rgba(255,153,51,0.4)] hover:brightness-110 active:scale-95 transition-all"
+              className="px-3.5 py-1.5 rounded-lg font-semibold text-xs text-[#111111] bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] shadow-sm transition-all"
             >
               + New Entry
             </button>

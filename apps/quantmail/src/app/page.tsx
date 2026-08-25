@@ -740,13 +740,13 @@ function CreateGroupModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-zinc-900 text-xs font-semibold text-zinc-300 hover:bg-zinc-800 transition-colors"
+              className="px-4 py-2 rounded-xl bg-[#16181D] border border-[#282C35] text-xs font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-xs font-bold text-white shadow-lg shadow-orange-500/25 hover:opacity-95 transition-all"
+              className="px-5 py-2 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-xs font-semibold text-[#111111] shadow-sm transition-all"
             >
               Create Group & Compose
             </button>

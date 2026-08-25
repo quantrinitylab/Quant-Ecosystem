@@ -408,7 +408,7 @@ export function QuantMailLogo({
       {/* ------------------------------------------------------------- */}
       {showBadge && unreadCount > 0 && (
         <div className="absolute -top-1 -right-1.5 z-20 pointer-events-none transition-transform duration-200 group-hover:scale-110">
-          <span className="relative inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[9.5px] font-black text-[#0B0C10] bg-gradient-to-r from-[#FFB700] via-[#FF8A00] to-[#FF5500] rounded-full shadow-[0_0_10px_rgba(255,138,0,0.9)] border border-white/70 animate-pulse">
+          <span className="relative inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[9.5px] font-bold text-[#111111] bg-[#FF8C42] rounded-full border border-[#090A0C] shadow-sm">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         </div>

@@ -429,8 +429,8 @@ export function Interactive3DLogo({
               {/* Outer Energy Pulse Ring */}
               <span className="absolute size-4.5 rounded-full bg-[#FF7A00] opacity-40 animate-ping" />
 
-              {/* Holographic Pill Badge */}
-              <span className="relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[9.5px] font-black text-[#0B0C10] bg-gradient-to-r from-[#FF7A00] via-[#FFAA33] to-[#FFC837] rounded-full shadow-[0_0_12px_rgba(255,122,0,0.8)] border border-[#FFE4A0]/60">
+              {/* Clean Badge */}
+              <span className="relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[9.5px] font-bold text-[#111111] bg-[#FF8C42] rounded-full border border-[#090A0C] shadow-sm">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             </motion.div>

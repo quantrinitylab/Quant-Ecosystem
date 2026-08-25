@@ -516,51 +516,53 @@ export default function SettingsPage() {
           {activeTab === 'ai' && (
             <div className="space-y-6 animate-in fade-in duration-150">
               {/* Dynamic Model Router Banner */}
-              <section className="rounded-2xl border border-[#FF7A00]/40 bg-gradient-to-br from-[#FF7A00]/10 via-zinc-900 to-zinc-950 p-5 shadow-2xl space-y-3">
+              <section className="rounded-xl border border-[#282C35] bg-[#111318] p-5 shadow-sm space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <span className="size-3 rounded-full bg-[#FF7A00] animate-pulse" />
-                    <h2 className="text-sm font-bold text-white">
+                    <span className="size-2.5 rounded-full bg-[#FF8C42] animate-pulse" />
+                    <h2 className="text-sm font-semibold text-[#F5F5F5]">
                       Autonomous Multi-Model Router Active
                     </h2>
                   </div>
-                  <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-full bg-[#FF7A00]/20 text-[#FF7A00] border border-[#FF7A00]/30">
+                  <span className="text-[10px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]">
                     6 Edge Models Available
                   </span>
                 </div>
-                <p className="text-xs text-zinc-300 leading-relaxed">
+                <p className="text-xs text-[#A1A4AC] leading-relaxed">
                   Quant Ecosystem uses a dynamic Task-Based Model Router. Instead of relying on a
                   single static LLM, each email draft, thread summary, or code query is matched with
                   the best model in real-time, with automatic failover and circuit breaker
                   protection.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
-                  <div className="p-3 rounded-xl bg-black/40 border border-zinc-800 text-xs">
-                    <span className="text-zinc-400 block text-[10px] uppercase font-bold">
+                  <div className="p-3 rounded-lg bg-[#16181D] border border-[#282C35] text-xs">
+                    <span className="text-[#6B6E76] block text-[10px] uppercase font-semibold">
                       Fast Replies
                     </span>
-                    <strong className="text-white">Llama 3.1 8B (~85ms)</strong>
+                    <strong className="text-[#F5F5F5] font-medium">Llama 3.1 8B (~85ms)</strong>
                   </div>
-                  <div className="p-3 rounded-xl bg-black/40 border border-zinc-800 text-xs">
-                    <span className="text-zinc-400 block text-[10px] uppercase font-bold">
+                  <div className="p-3 rounded-lg bg-[#16181D] border border-[#282C35] text-xs">
+                    <span className="text-[#6B6E76] block text-[10px] uppercase font-semibold">
                       Deep Summaries
                     </span>
-                    <strong className="text-white">Llama 3.3 70B & R1</strong>
+                    <strong className="text-[#F5F5F5] font-medium">Llama 3.3 70B & R1</strong>
                   </div>
-                  <div className="p-3 rounded-xl bg-black/40 border border-zinc-800 text-xs">
-                    <span className="text-zinc-400 block text-[10px] uppercase font-bold">
+                  <div className="p-3 rounded-lg bg-[#16181D] border border-[#282C35] text-xs">
+                    <span className="text-[#6B6E76] block text-[10px] uppercase font-semibold">
                       Code & Logic
                     </span>
-                    <strong className="text-white">Qwen 2.5 72B & R1</strong>
+                    <strong className="text-[#F5F5F5] font-medium">Qwen 2.5 72B & R1</strong>
                   </div>
                 </div>
               </section>
 
               {/* Model Selection List */}
-              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-zinc-800 pb-3">
-                  <h2 className="text-sm font-bold text-white">Select AI Engine / Routing Mode</h2>
-                  <p className="text-xs text-zinc-400">
+              <section className="rounded-xl border border-[#282C35] bg-[#111318] p-5 shadow-sm space-y-4">
+                <div className="border-b border-[#282C35] pb-3">
+                  <h2 className="text-sm font-semibold text-[#F5F5F5]">
+                    Select AI Engine / Routing Mode
+                  </h2>
+                  <p className="text-xs text-[#A1A4AC]">
                     Choose Auto-Router (recommended) or lock to a specific preferred model.
                   </p>
                 </div>
@@ -572,15 +574,17 @@ export default function SettingsPage() {
                       <div
                         key={model.id}
                         onClick={() => handleSelectAIModel(model.id)}
-                        className={`p-4 rounded-2xl border transition-all cursor-pointer select-none flex items-start justify-between gap-4 ${
+                        className={`p-4 rounded-xl border transition-all cursor-pointer select-none flex items-start justify-between gap-4 ${
                           isSelected
-                            ? 'bg-gradient-to-r from-orange-500/15 to-transparent border-[#FF7A00] ring-1 ring-[#FF7A00]/50 shadow-lg'
-                            : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'
+                            ? 'bg-[#2B1A11] border-[#5C3016] shadow-sm'
+                            : 'bg-[#16181D] border-[#282C35] hover:border-[#3A404D] hover:bg-[#1C1F26]'
                         }`}
                       >
                         <div className="space-y-1.5 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-bold text-white">{model.name}</span>
+                            <span className="text-sm font-semibold text-[#F5F5F5]">
+                              {model.name}
+                            </span>
                             <span
                               className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                 isSelected

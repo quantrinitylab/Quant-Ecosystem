@@ -1251,12 +1251,12 @@ export function EmailComposer({
         {/* Left Toolbar Group: Send + Dropup, Formatting, Attach, Link, Drive, Discard, Desktop Quanty */}
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Primary Send Button with Dropup Menu for Save draft & Schedule send */}
-          <div className="relative flex items-center rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] shadow-lg">
+          <div className="relative flex items-center rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#111111] font-semibold shadow-sm transition-colors">
             <button
               type="button"
               onClick={() => handleSend()}
               disabled={busy || !to.trim()}
-              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 text-white text-xs sm:text-sm font-bold hover:brightness-110 active:scale-95 disabled:opacity-40 transition-all"
+              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 text-[#111111] text-xs sm:text-sm font-semibold hover:brightness-105 active:scale-95 disabled:opacity-40 transition-all"
             >
               {isSending ? (
                 <span>Sending…</span>
@@ -1264,7 +1264,7 @@ export function EmailComposer({
                 <>
                   <span>Send</span>
                   <svg
-                    className="size-3.5 sm:size-4"
+                    className="size-3.5 sm:size-4 text-[#111111]"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -1280,7 +1280,7 @@ export function EmailComposer({
               type="button"
               onClick={() => setShowSendOptionsDropdown((prev) => !prev)}
               disabled={busy}
-              className="px-2 py-2 border-l border-white/20 text-white hover:bg-black/20 text-xs"
+              className="px-2 py-2 border-l border-[#111111]/20 text-[#111111] hover:bg-black/10 text-xs"
               title="Send options (Save draft / Schedule send)"
             >
               ▲

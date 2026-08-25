@@ -114,9 +114,9 @@ export function InsertLinkModal({
               <button
                 type="submit"
                 disabled={!url.trim()}
-                className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-[#FF7A00] to-[#ea580c] text-white text-xs font-bold shadow-md hover:from-[#e06c00] hover:to-[#d04e06] transition-all disabled:opacity-40"
+                className="px-4 py-1.5 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#111111] text-xs font-semibold shadow-sm transition-all disabled:opacity-40"
               >
-                OK
+                Insert Link
               </button>
             </div>
           </form>
