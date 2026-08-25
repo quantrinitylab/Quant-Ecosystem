@@ -266,11 +266,56 @@ export default function CodeHubRepoPage() {
             )}
             <div className="ml-auto flex flex-wrap items-center gap-2 text-xs">
               <Button variant="secondary" onClick={() => setTab('settings')}>
-                ⚙ Settings
+                <svg
+                  className="size-3.5 mr-1"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+                Settings
               </Button>
-              <Button variant="secondary">👁 Watch {repoInfo?.watchers ?? 0}</Button>
-              <Button variant="secondary">⑂ Fork {repoInfo?.forks ?? 0}</Button>
-              <Button variant="secondary">★ Star {repoInfo?.stars ?? 0}</Button>
+              <Button variant="secondary">
+                <svg
+                  className="size-3.5 mr-1"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                Watch {repoInfo?.watchers ?? 0}
+              </Button>
+              <Button variant="secondary">
+                <svg
+                  className="size-3.5 mr-1"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <line x1="6" y1="3" x2="6" y2="15" />
+                  <circle cx="18" cy="6" r="3" />
+                  <circle cx="6" cy="18" r="3" />
+                  <path d="M18 9a9 9 0 0 1-9 9" />
+                </svg>
+                Fork {repoInfo?.forks ?? 0}
+              </Button>
+              <Button variant="secondary">
+                <svg
+                  className="size-3.5 mr-1 text-amber-400"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                Star {repoInfo?.stars ?? 0}
+              </Button>
               <Button variant="secondary" onClick={() => router.push(`/repos/${repoId}/editor`)}>
                 Open editor
               </Button>
@@ -404,7 +449,30 @@ export default function CodeHubRepoPage() {
                             openFile === node.path ? 'text-[var(--quant-primary)]' : ''
                           }`}
                         >
-                          <span>{node.type === 'dir' ? '📁' : '📄'}</span>
+                          <span className="text-[#FF8C42]">
+                            {node.type === 'dir' ? (
+                              <svg
+                                className="size-4 inline"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                              >
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                              </svg>
+                            ) : (
+                              <svg
+                                className="size-4 inline text-[#A1A4AC]"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                              >
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
+                              </svg>
+                            )}
+                          </span>
                           <span className="truncate">{node.name ?? node.path}</span>
                           <span className="ml-auto truncate text-[var(--quant-muted-foreground)] hidden sm:inline">
                             {latestCommit?.message ?? ''}
@@ -458,14 +526,93 @@ export default function CodeHubRepoPage() {
                     <p className="text-[var(--quant-muted-foreground)]">
                       {repoInfo?.description || 'No description provided.'}
                     </p>
-                    <ul className="space-y-1.5 text-[var(--quant-muted-foreground)]">
-                      {readmeNode && <li>📖 Readme</li>}
-                      {repoInfo?.license && <li>⚖ {repoInfo.license}</li>}
-                      {repoInfo?.language && <li>● {repoInfo.language}</li>}
-                      <li>★ {repoInfo?.stars ?? 0} stars</li>
-                      <li>👁 {repoInfo?.watchers ?? 0} watching</li>
-                      <li>⑂ {repoInfo?.forks ?? 0} forks</li>
-                      <li>⏱ {commits.length} commits</li>
+                    <ul className="space-y-2 text-[var(--quant-muted-foreground)]">
+                      {readmeNode && (
+                        <li className="flex items-center gap-2">
+                          <svg
+                            className="size-3.5"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                          </svg>
+                          <span>Readme</span>
+                        </li>
+                      )}
+                      {repoInfo?.license && (
+                        <li className="flex items-center gap-2">
+                          <svg
+                            className="size-3.5"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                          </svg>
+                          <span>{repoInfo.license}</span>
+                        </li>
+                      )}
+                      {repoInfo?.language && (
+                        <li className="flex items-center gap-2">
+                          <span className="size-2 rounded-full bg-[#FF8C42]" />
+                          <span>{repoInfo.language}</span>
+                        </li>
+                      )}
+                      <li className="flex items-center gap-2">
+                        <svg
+                          className="size-3.5 text-amber-400"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                        >
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        </svg>
+                        <span>{repoInfo?.stars ?? 0} stars</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <svg
+                          className="size-3.5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        <span>{repoInfo?.watchers ?? 0} watching</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <svg
+                          className="size-3.5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <line x1="6" y1="3" x2="6" y2="15" />
+                          <circle cx="18" cy="6" r="3" />
+                          <circle cx="6" cy="18" r="3" />
+                          <path d="M18 9a9 9 0 0 1-9 9" />
+                        </svg>
+                        <span>{repoInfo?.forks ?? 0} forks</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <svg
+                          className="size-3.5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                        <span>{commits.length} commits</span>
+                      </li>
                     </ul>
                     <div className="pt-1">
                       <p className="text-[11px] uppercase tracking-wide">Clone</p>

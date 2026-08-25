@@ -566,7 +566,28 @@ export default function ContactsPage() {
                 <h3 className="text-base font-bold text-white">{inspectContact?.name}</h3>
                 <p className="text-xs text-zinc-400">{inspectContact?.email}</p>
                 {inspectContact?.company && (
-                  <p className="text-xs text-[#ff9933] mt-0.5">🏢 {inspectContact?.company}</p>
+                  <p className="text-xs text-[#FF8C42] mt-0.5 flex items-center gap-1.5">
+                    <svg
+                      className="size-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+                      <line x1="9" y1="22" x2="9" y2="22.01" />
+                      <line x1="15" y1="22" x2="15" y2="22.01" />
+                      <line x1="9" y1="18" x2="9" y2="18.01" />
+                      <line x1="15" y1="18" x2="15" y2="18.01" />
+                      <line x1="9" y1="14" x2="9" y2="14.01" />
+                      <line x1="15" y1="14" x2="15" y2="14.01" />
+                      <line x1="9" y1="10" x2="9" y2="10.01" />
+                      <line x1="15" y1="10" x2="15" y2="10.01" />
+                      <line x1="9" y1="6" x2="9" y2="6.01" />
+                      <line x1="15" y1="6" x2="15" y2="6.01" />
+                    </svg>
+                    <span>{inspectContact.company}</span>
+                  </p>
                 )}
               </div>
             </div>

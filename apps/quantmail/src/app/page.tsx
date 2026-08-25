@@ -1548,7 +1548,20 @@ export default function InboxPage() {
                 </div>
               ) : activeCategoryTab === 'groups' ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-3">
-                  <span className="text-4xl block mb-1">👥</span>
+                  <div className="size-12 rounded-full bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto mb-1">
+                    <svg
+                      className="size-6"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                  </div>
                   <h3 className="text-base font-bold text-white">No group conversations yet</h3>
                   <p className="text-xs text-zinc-400 max-w-xs mx-auto">
                     Create a group to start a shared multi-recipient thread or mailing list.
@@ -1561,13 +1574,34 @@ export default function InboxPage() {
                 </div>
               ) : activeCategoryTab === 'unread' ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-2">
-                  <span className="text-4xl block mb-1">✨</span>
+                  <div className="size-12 rounded-full bg-emerald-950/40 border border-emerald-800/60 text-emerald-400 flex items-center justify-center mx-auto mb-1">
+                    <svg
+                      className="size-6"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
                   <h3 className="text-base font-bold text-white">All caught up!</h3>
                   <p className="text-xs text-zinc-400">Zero unread messages in your inbox.</p>
                 </div>
               ) : activeCategoryTab !== 'all' ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-2">
-                  <span className="text-4xl block mb-1">📬</span>
+                  <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
+                    <svg
+                      className="size-6"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <rect x="2" y="4" width="20" height="16" rx="2" />
+                      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                    </svg>
+                  </div>
                   <h3 className="text-base font-bold text-white">
                     No {activeCategoryTab} messages
                   </h3>

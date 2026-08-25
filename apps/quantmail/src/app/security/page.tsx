@@ -12,10 +12,10 @@ import { apiClient } from '../../services/api-client';
 // ---------------------------------------------------------------------------
 type SecurityTab = 'password-auth' | 'sessions' | 'connected-apps';
 
-const TABS: { key: SecurityTab; label: string; icon: string }[] = [
-  { key: 'password-auth', label: 'Password & Auth', icon: '🔐' },
-  { key: 'sessions', label: 'Sessions', icon: '🖥' },
-  { key: 'connected-apps', label: 'Connected Apps', icon: '🔗' },
+const TABS: { key: SecurityTab; label: string }[] = [
+  { key: 'password-auth', label: 'Password & Authentication' },
+  { key: 'sessions', label: 'Active Sessions' },
+  { key: 'connected-apps', label: 'Connected Apps & Integrations' },
 ];
 
 export default function SecurityPage() {
@@ -118,7 +118,6 @@ export default function SecurityPage() {
                 }
               `}
             >
-              <span className="mr-1.5">{tab.icon}</span>
               {tab.label}
             </button>
           ))}
@@ -139,8 +138,16 @@ export default function SecurityPage() {
                   {twoFactorStep === 'idle' && (
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[var(--quant-muted)] flex items-center justify-center text-lg">
-                          🛡
+                        <div className="w-10 h-10 rounded-full bg-[var(--quant-muted)] flex items-center justify-center text-[#FF8C42]">
+                          <svg
+                            className="size-5"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                          </svg>
                         </div>
                         <div>
                           <p className="text-sm font-medium text-[var(--quant-foreground)]">
@@ -340,8 +347,18 @@ export default function SecurityPage() {
                   </div>
 
                   <div className="pt-5 text-center py-8">
-                    <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4">
-                      <span className="text-2xl opacity-50">🖥</span>
+                    <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4 text-[#A1A4AC]">
+                      <svg
+                        className="size-6"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.75"
+                      >
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                        <line x1="8" y1="21" x2="16" y2="21" />
+                        <line x1="12" y1="17" x2="12" y2="21" />
+                      </svg>
                     </div>
                     <p className="text-sm font-medium text-[var(--quant-foreground)] mb-1">
                       Only this device is active
@@ -396,8 +413,17 @@ export default function SecurityPage() {
                 </p>
                 <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-6">
                   <div className="text-center py-8">
-                    <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4">
-                      <span className="text-2xl opacity-50">🔗</span>
+                    <div className="w-14 h-14 rounded-full bg-[var(--quant-muted)] flex items-center justify-center mx-auto mb-4 text-[#A1A4AC]">
+                      <svg
+                        className="size-6"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.75"
+                      >
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                      </svg>
                     </div>
                     <p className="text-sm font-medium text-[var(--quant-foreground)] mb-1">
                       No third-party apps connected
@@ -419,8 +445,17 @@ export default function SecurityPage() {
                 </p>
                 <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5 space-y-4">
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="text-sm">📧</span>
+                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[#FF8C42]">
+                      <svg
+                        className="size-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <rect x="2" y="4" width="20" height="16" rx="2" />
+                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                      </svg>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-[var(--quant-foreground)]">
@@ -433,8 +468,19 @@ export default function SecurityPage() {
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="text-sm">✏️</span>
+                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[#FF8C42]">
+                      <svg
+                        className="size-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M12 19l7-7 3 3-7 7-3-3z" />
+                        <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+                        <path d="M2 2l7.586 7.586" />
+                        <circle cx="11" cy="11" r="2" />
+                      </svg>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-[var(--quant-foreground)]">
@@ -447,8 +493,17 @@ export default function SecurityPage() {
                   </div>
 
                   <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="text-sm">👤</span>
+                    <div className="w-8 h-8 rounded-md bg-[var(--quant-muted)] flex items-center justify-center shrink-0 mt-0.5 text-[#FF8C42]">
+                      <svg
+                        className="size-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-[var(--quant-foreground)]">
