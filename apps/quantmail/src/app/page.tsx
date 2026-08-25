@@ -31,6 +31,7 @@ import { QuantyCopilotDrawer } from '../components/QuantyCopilotDrawer';
 import { ConversationalThreadView } from '../components/ConversationalThreadView';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { apiClient } from '../services/api-client';
+import { useAuth } from '../providers/auth-provider';
 import type { Email, EmailCategory } from '../types';
 
 const TELEGRAM_CATEGORIES: Array<{ key: string; label: string }> = [
@@ -194,8 +195,11 @@ function normalizeSubject(subject: string = ''): string {
     .toLowerCase();
 }
 
-function groupEmailsIntoThreads(emails: Email[] = []): ConversationThread[] {
+function groupEmailsIntoThreads(emails: Email[] = [], currentEmail?: string): ConversationThread[] {
   if (!emails || emails.length === 0) return [];
+
+  const normMyEmail = (currentEmail || '').trim().toLowerCase();
+  const myHandle = normMyEmail.split('@')[0];
 
   const threadMap = new Map<string, Email[]>();
 
@@ -222,16 +226,32 @@ function groupEmailsIntoThreads(emails: Email[] = []): ConversationThread[] {
     const isStarred = msgList.some((m) => m.isStarred);
 
     const senderNames: string[] = [];
+    let hasOther = false;
     for (const m of msgList) {
-      const name =
-        m.from?.name ||
-        m.from?.email?.split('@')[0] ||
-        (m as any).fromName ||
-        (m as any).fromAddress?.split('@')[0] ||
-        'Unknown';
-      if (!senderNames.includes(name)) senderNames.push(name);
+      const fromAddr = (m.from?.email || (m as any).fromAddress || '').toLowerCase();
+      const isMe = Boolean(
+        (normMyEmail &&
+          (fromAddr === normMyEmail || (myHandle && fromAddr.startsWith(`${myHandle}@`)))) ||
+        (m as any).isSent ||
+        m.status === 'sent',
+      );
+      if (isMe) {
+        if (!senderNames.includes('You')) senderNames.push('You');
+      } else {
+        hasOther = true;
+        const name =
+          m.from?.name ||
+          (m as any).fromName ||
+          m.from?.email?.split('@')[0] ||
+          (m as any).fromAddress?.split('@')[0] ||
+          'Sender';
+        if (!senderNames.includes(name)) senderNames.push(name);
+      }
     }
-    const sendersSummary = senderNames.join(', ');
+    let sendersSummary = senderNames.join(', ');
+    if (senderNames.length === 0) sendersSummary = 'Conversation';
+    else if (senderNames.length === 1 && senderNames[0] === 'You' && !hasOther)
+      sendersSummary = 'You';
 
     threads.push({
       id: latest.id,
@@ -393,7 +413,14 @@ function EmailRow({
         <div className="mail-row-copy">
           <div className="mail-row-meta">
             <div className="flex items-center gap-1.5 min-w-0">
-              <strong className="truncate text-zinc-100">{thread.sendersSummary}</strong>
+              <strong className="truncate text-zinc-100 font-semibold">
+                {thread.sendersSummary}
+              </strong>
+              {thread.count > 1 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-zinc-800 text-[10px] font-mono text-zinc-400 shrink-0">
+                  {thread.count}
+                </span>
+              )}
             </div>
             {!thread.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
             {isHighPriority && (
@@ -405,8 +432,12 @@ function EmailRow({
             )}
             <time>{formatReceivedAt(thread.receivedAt)}</time>
           </div>
-          <h3>{sanitizeSnippetText(thread.subject) || '(no subject)'}</h3>
-          <p>{sanitizeSnippetText(email.snippet)}</p>
+          <h3 className="text-xs sm:text-sm font-medium text-zinc-300 truncate">
+            {sanitizeSnippetText(thread.subject) || '(no subject)'}
+          </h3>
+          <p className="text-xs text-zinc-400 truncate">
+            {sanitizeSnippetText(email.snippet || email.bodyText)}
+          </p>
         </div>
         {/* Hover actions bar — quick actions on hover (Desktop) */}
         <AnimatePresence>
@@ -749,12 +780,21 @@ export default function InboxPage() {
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
 
+  const { user: currentUser } = useAuth();
+  const currentEmail = currentUser?.email || '';
+
   const emails = debouncedQuery ? searchResults : allEmails;
-  const allThreads = useMemo(() => groupEmailsIntoThreads(allEmails ?? []), [allEmails]);
-  const threads = useMemo(() => groupEmailsIntoThreads(emails ?? []), [emails]);
+  const allThreads = useMemo(
+    () => groupEmailsIntoThreads(allEmails ?? [], currentEmail),
+    [allEmails, currentEmail],
+  );
+  const threads = useMemo(
+    () => groupEmailsIntoThreads(emails ?? [], currentEmail),
+    [emails, currentEmail],
+  );
   const allArchivedThreads = useMemo(
-    () => groupEmailsIntoThreads(archivedEmails ?? []),
-    [archivedEmails],
+    () => groupEmailsIntoThreads(archivedEmails ?? [], currentEmail),
+    [archivedEmails, currentEmail],
   );
 
   const isContactThread = useCallback((t: ConversationThread) => {
@@ -824,8 +864,10 @@ export default function InboxPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isGlobalQuantyOpen, setIsGlobalQuantyOpen] = useState(false);
+  const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isPulling = useRef(false);
+  const isHorizontalSwipe = useRef(false);
 
   useEffect(() => {
     const handleGlobalRefresh = async () => {
@@ -848,8 +890,11 @@ export default function InboxPage() {
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const listEl = listRef.current;
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    isHorizontalSwipe.current = false;
+
     if (listEl && listEl.scrollTop <= 5) {
-      touchStartY.current = e.touches[0].clientY;
       isPulling.current = true;
     } else {
       isPulling.current = false;
@@ -857,11 +902,22 @@ export default function InboxPage() {
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isPulling.current || isRefreshing) return;
+    if (!isPulling.current || isRefreshing || isHorizontalSwipe.current) return;
+    const currentX = e.touches[0].clientX;
     const currentY = e.touches[0].clientY;
-    const diff = currentY - touchStartY.current;
-    if (diff > 0) {
-      const distance = Math.min(diff * 0.42, 60);
+    const diffX = Math.abs(currentX - touchStartX.current);
+    const diffY = currentY - touchStartY.current;
+
+    // If user is swiping horizontally, cancel pull-to-refresh completely
+    if (diffX > 8 && diffX > Math.abs(diffY)) {
+      isHorizontalSwipe.current = true;
+      isPulling.current = false;
+      setPullDistance(0);
+      return;
+    }
+
+    if (diffY > 15 && diffY > diffX * 1.5) {
+      const distance = Math.min(diffY * 0.35, 50);
       setPullDistance(distance);
     } else {
       setPullDistance(0);
@@ -869,7 +925,11 @@ export default function InboxPage() {
   };
 
   const handleTouchEnd = async () => {
-    if (!isPulling.current) return;
+    isHorizontalSwipe.current = false;
+    if (!isPulling.current) {
+      setPullDistance(0);
+      return;
+    }
     isPulling.current = false;
     if (pullDistance >= 36 && !isRefreshing) {
       setIsRefreshing(true);
@@ -1122,20 +1182,50 @@ export default function InboxPage() {
 
       {/* Right Quick Action Icons (Clean, WhatsApp / Superhuman Style) */}
       <div className="flex items-center gap-1 sm:gap-2">
-        {/* Pin / Unpin */}
-        <button
-          type="button"
-          onClick={async () => {
-            await Promise.all(Array.from(selectedIds, (id) => apiClient.toggleStar(id)));
-            setSelectedIds(new Set());
-            showToast({ text: 'Updated pin status for selected messages 📌', type: 'success' });
-            await refetch();
-          }}
-          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-amber-400 hover:bg-zinc-800 transition-all active:scale-95"
-          title="Pin / Unpin (S)"
-        >
-          <MailIcon name="pin" className="size-5" />
-        </button>
+        {/* Dynamic Pin / Unpin Toggle */}
+        {(() => {
+          const allPinned = Array.from(selectedIds).every((id) => {
+            const thread = displayThreads.find(
+              (t) => t.id === id || t.threadId === id || t.messages.some((m) => m.id === id),
+            );
+            return thread?.isStarred;
+          });
+
+          return (
+            <button
+              type="button"
+              onClick={async () => {
+                await Promise.all(Array.from(selectedIds, (id) => apiClient.toggleStar(id)));
+                setSelectedIds(new Set());
+                showToast({
+                  text: allPinned
+                    ? 'Unpinned selected messages'
+                    : 'Pinned selected messages to top 📌',
+                  type: 'success',
+                });
+                await refetch();
+              }}
+              className={`size-9 inline-flex items-center justify-center rounded-xl transition-all active:scale-95 ${
+                allPinned
+                  ? 'text-amber-400 bg-amber-500/20 hover:bg-amber-500/30'
+                  : 'text-zinc-300 hover:text-amber-400 hover:bg-zinc-800'
+              }`}
+              title={allPinned ? 'Unpin selected (S)' : 'Pin selected (S)'}
+              aria-label={allPinned ? 'Unpin selected' : 'Pin selected'}
+            >
+              <svg
+                className="size-5"
+                viewBox="0 0 24 24"
+                fill={allPinned ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <line x1="12" y1="17" x2="12" y2="22" />
+                <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
+              </svg>
+            </button>
+          );
+        })()}
 
         {/* Mark Unread */}
         <button

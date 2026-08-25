@@ -196,6 +196,21 @@ export class EmailService {
         })
         .catch(() => null);
 
+      let recipientThreadId: string | null = null;
+      try {
+        const { ThreadService } = await import('./thread.service');
+        const threadService = new ThreadService(this.prisma);
+        recipientThreadId = await threadService.stitchInbound({
+          userId: recipient.id,
+          subject: input.subject,
+          inReplyTo: input.inReplyTo,
+          participants: [senderEmail, ...input.toAddresses],
+          at: new Date(),
+        });
+      } catch {
+        recipientThreadId = null;
+      }
+
       await this.prisma.email.create({
         data: {
           userId: recipient.id,
@@ -209,7 +224,7 @@ export class EmailService {
           bodyHtml: input.bodyHtml ?? '',
           bodyPlain: input.bodyPlain ?? '',
           snippet,
-          threadId: input.threadId ?? null,
+          threadId: recipientThreadId ?? input.threadId ?? null,
           inReplyTo: input.inReplyTo ?? null,
           hasAttachments,
           attachments: input.attachments ?? [],

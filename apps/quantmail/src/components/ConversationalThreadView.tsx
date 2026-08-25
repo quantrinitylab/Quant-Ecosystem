@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient } from '../services/api-client';
@@ -10,6 +10,7 @@ import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
 import { QuantyCopilotDrawer } from './QuantyCopilotDrawer';
 import { Quanty } from './Quanty';
+import { useAuth } from '../providers/auth-provider';
 
 function formatMessageDate(value?: string | Date): string {
   if (!value) return '';
@@ -88,6 +89,41 @@ export function ConversationalThreadView({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const loadedThreadIdRef = useRef<string | null>(null);
+
+  const { user: currentUser } = useAuth();
+  const currentEmail = (currentUser?.email || '').toLowerCase();
+  const currentHandle = currentEmail.split('@')[0];
+
+  // Derive participant summary for header
+  const participantSummary = useMemo(() => {
+    const names: string[] = [];
+    let hasOther = false;
+    for (const m of messages) {
+      const fromAddr = (m.from?.email || (m as any).fromAddress || '').toLowerCase();
+      const isMe = Boolean(
+        (currentEmail &&
+          (fromAddr === currentEmail ||
+            (currentHandle && fromAddr.startsWith(`${currentHandle}@`)))) ||
+        (m as any).isSent ||
+        m.status === 'sent',
+      );
+      if (isMe) {
+        if (!names.includes('You')) names.push('You');
+      } else {
+        hasOther = true;
+        const name =
+          m.from?.name ||
+          (m as any).fromName ||
+          m.from?.email?.split('@')[0] ||
+          (m as any).fromAddress?.split('@')[0] ||
+          'Sender';
+        if (!names.includes(name)) names.push(name);
+      }
+    }
+    if (names.length === 0) return 'Conversation';
+    if (names.length === 1 && names[0] === 'You' && !hasOther) return 'You';
+    return names.join(', ');
+  }, [messages, currentEmail, currentHandle]);
 
   // Fetch thread messages if not pre-populated or update when threadId changes
   useEffect(() => {
@@ -383,17 +419,14 @@ export function ConversationalThreadView({
           <div className="flex flex-col min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h2 className="text-sm sm:text-base font-bold text-white truncate">
-                {threadSubject}
+                {participantSummary}
               </h2>
               <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-[10px] font-bold text-amber-400 shrink-0">
                 {messages.length} {messages.length === 1 ? 'Message' : 'Messages'}
               </span>
             </div>
             <span className="text-[11px] text-zinc-400 truncate">
-              {messages
-                .map((m) => m.from?.name || (m as any).fromName || 'Sender')
-                .filter((v, i, a) => a.indexOf(v) === i)
-                .join(', ')}
+              {threadSubject || '(No Subject)'}
             </span>
           </div>
         </div>
@@ -554,19 +587,25 @@ export function ConversationalThreadView({
             const isExpanded = expandedIndices.has(index);
             const isDetailsExpanded = expandedDetailsIndices.has(index);
 
+            const msgFromAddr = (
+              message.from?.email ||
+              (message as any).fromAddress ||
+              ''
+            ).toLowerCase();
             const isOutbound = Boolean(
               message.status === 'sent' ||
               (message as any).isSent ||
-              message.from?.email?.toLowerCase().includes('@quantmail.in') ||
-              (message as any).fromAddress?.toLowerCase().includes('@quantmail.in'),
+              (currentEmail &&
+                (msgFromAddr === currentEmail ||
+                  (currentHandle && msgFromAddr.startsWith(`${currentHandle}@`)))),
             );
 
             const msgFromName = isOutbound
               ? 'You'
               : message.from?.name ||
-                message.from?.email ||
                 (message as any).fromName ||
-                (message as any).fromAddress ||
+                message.from?.email?.split('@')[0] ||
+                (message as any).fromAddress?.split('@')[0] ||
                 'Sender';
 
             const msgFromEmail = message.from?.email || (message as any).fromAddress || '';

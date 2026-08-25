@@ -10,6 +10,8 @@ import { InsertLinkModal } from './InsertLinkModal';
 import { ScheduleSendModal } from './ScheduleSendModal';
 import { showToast } from './InboxToast';
 import { useAuth } from '../providers/auth-provider';
+import { RecipientChipInput, type RecipientOption } from './RecipientChipInput';
+import { useContacts } from '../hooks/useContacts';
 
 export interface Attachment {
   id: string;
@@ -138,20 +140,31 @@ export function EmailComposer({
     }
   };
 
-  // Core Fields
-  const formattedInitialTo = useMemo(() => {
-    if (Array.isArray(initialTo)) {
-      return initialTo.map((t) => t.email).join(', ');
-    }
-    return initialTo || '';
-  }, [initialTo]);
+  const { data: contacts } = useContacts();
 
-  const [to, setTo] = useState(formattedInitialTo);
+  // Core Fields
+  const [toRecipients, setToRecipients] = useState<RecipientOption[]>(() => {
+    if (Array.isArray(initialTo)) {
+      return initialTo.map((t) => ({ email: t.email, name: (t as any).name }));
+    }
+    if (typeof initialTo === 'string' && initialTo.trim()) {
+      return initialTo
+        .split(/[,;\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((email) => ({ email }));
+    }
+    return [];
+  });
   const [showCc, setShowCc] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
-  const [cc, setCc] = useState('');
-  const [bcc, setBcc] = useState('');
+  const [ccRecipients, setCcRecipients] = useState<RecipientOption[]>([]);
+  const [bccRecipients, setBccRecipients] = useState<RecipientOption[]>([]);
   const [subject, setSubject] = useState(initialSubject);
+
+  const to = toRecipients.map((r) => r.email).join(', ');
+  const cc = ccRecipients.map((r) => r.email).join(', ');
+  const bcc = bccRecipients.map((r) => r.email).join(', ');
 
   // Structured Corporate Sections
   const [greeting, setGreeting] = useState('Dear Sir/Madam,');
@@ -426,7 +439,13 @@ export function EmailComposer({
 
   // Autonomous Quanty Action Applier
   const handleApplyQuantyAction = (action: QuantyEmailAction) => {
-    if (action.to) setTo(action.to);
+    if (action.to) {
+      const parts = action.to
+        .split(/[,;\n]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      setToRecipients(parts.map((email) => ({ email })));
+    }
     if (action.subject) setSubject(action.subject);
     if (action.greeting) setGreeting(action.greeting);
     if (action.opening) setOpening(action.opening);
@@ -619,103 +638,92 @@ export function EmailComposer({
         {/* Recipient Rows (To, Cc, Bcc) */}
         <div className="border-b border-zinc-800/80 pb-2 space-y-2 w-full max-w-full">
           {/* To: Row */}
-          <div className="flex items-center gap-2 sm:gap-3 w-full max-w-full">
-            <label
-              htmlFor="composer-to"
-              className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0"
-            >
-              To <span className="text-rose-500">*</span>:
-            </label>
-            <input
-              id="composer-to"
-              name="to"
-              type="text"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              placeholder="name@example.com"
-              className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none"
-            />
-            <div className="flex items-center gap-1 shrink-0 text-xs">
-              {!showCc && (
-                <button
-                  type="button"
-                  onClick={() => setShowCc(true)}
-                  className="text-zinc-500 hover:text-amber-400 font-medium px-1"
-                >
-                  Cc
-                </button>
-              )}
-              {!showBcc && (
-                <button
-                  type="button"
-                  onClick={() => setShowBcc(true)}
-                  className="text-zinc-500 hover:text-amber-400 font-medium px-1"
-                >
-                  Bcc
-                </button>
-              )}
-            </div>
-          </div>
+          <RecipientChipInput
+            id="composer-to"
+            name="to"
+            label="To"
+            required
+            recipients={toRecipients}
+            onChange={setToRecipients}
+            contacts={contacts}
+            placeholder="Add recipients (name or email)…"
+            rightAction={
+              <div className="flex items-center gap-1 shrink-0 text-xs">
+                {!showCc && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCc(true)}
+                    className="text-zinc-500 hover:text-amber-400 font-medium px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors"
+                  >
+                    Cc
+                  </button>
+                )}
+                {!showBcc && (
+                  <button
+                    type="button"
+                    onClick={() => setShowBcc(true)}
+                    className="text-zinc-500 hover:text-amber-400 font-medium px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors"
+                  >
+                    Bcc
+                  </button>
+                )}
+              </div>
+            }
+          />
 
           {/* Cc: Row */}
           {showCc && (
-            <div className="flex items-center gap-2 sm:gap-3 pt-1 border-t border-zinc-900 w-full max-w-full">
-              <label
-                htmlFor="composer-cc"
-                className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0"
-              >
-                Cc:
-              </label>
-              <input
+            <div className="pt-1 border-t border-zinc-900 w-full max-w-full">
+              <RecipientChipInput
                 id="composer-cc"
                 name="cc"
-                type="text"
-                value={cc}
-                onChange={(e) => setCc(e.target.value)}
-                placeholder="cc@example.com"
-                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none"
+                label="Cc"
+                recipients={ccRecipients}
+                onChange={setCcRecipients}
+                contacts={contacts}
+                placeholder="Add Cc recipients…"
+                rightAction={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCc(false);
+                      setCcRecipients([]);
+                    }}
+                    className="text-zinc-500 hover:text-rose-400 text-xs px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors"
+                    title="Remove Cc"
+                  >
+                    ✕
+                  </button>
+                }
               />
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCc(false);
-                  setCc('');
-                }}
-                className="text-zinc-500 hover:text-rose-400 text-xs px-1 shrink-0"
-              >
-                ✕
-              </button>
             </div>
           )}
 
           {/* Bcc: Row */}
           {showBcc && (
-            <div className="flex items-center gap-2 sm:gap-3 pt-1 border-t border-zinc-900 w-full max-w-full">
-              <label
-                htmlFor="composer-bcc"
-                className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0"
-              >
-                Bcc:
-              </label>
-              <input
+            <div className="pt-1 border-t border-zinc-900 w-full max-w-full">
+              <RecipientChipInput
                 id="composer-bcc"
                 name="bcc"
-                type="text"
-                value={bcc}
-                onChange={(e) => setBcc(e.target.value)}
-                placeholder="bcc@example.com"
-                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none"
+                label="Bcc"
+                recipients={bccRecipients}
+                onChange={setBccRecipients}
+                contacts={contacts}
+                placeholder="Add Bcc recipients…"
+                rightAction={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowBcc(false);
+                      setBccRecipients([]);
+                    }}
+                    className="text-zinc-500 hover:text-rose-400 text-xs px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors"
+                    title="Remove Bcc"
+                  >
+                    ✕
+                  </button>
+                }
               />
-              <button
-                type="button"
-                onClick={() => {
-                  setShowBcc(false);
-                  setBcc('');
-                }}
-                className="text-zinc-500 hover:text-rose-400 text-xs px-1 shrink-0"
-              >
-                ✕
-              </button>
             </div>
           )}
         </div>

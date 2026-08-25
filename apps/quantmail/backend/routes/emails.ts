@@ -313,6 +313,32 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
 
     const asArray = (value: unknown): string[] =>
       Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+
+    let targetThreadId = email.threadId;
+    try {
+      const threadService = new ThreadService(prisma);
+      if (!targetThreadId) {
+        targetThreadId = await threadService.stitchInbound({
+          userId,
+          subject: email.subject || 'Conversation',
+          inReplyTo: email.inReplyTo,
+          participants: [email.fromAddress, ...asArray(email.toAddresses)],
+          at: new Date(),
+        });
+        await prisma.email.update({
+          where: { id: email.id },
+          data: { threadId: targetThreadId },
+        });
+      } else {
+        await prisma.emailThread.update({
+          where: { id: targetThreadId },
+          data: { lastEmailAt: new Date(), messageCount: { increment: 1 } },
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+
     try {
       await sendService.deliverInternally({
         fromUserId: userId,
@@ -322,7 +348,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         toAddresses: asArray(email.toAddresses),
         ccAddresses: asArray(email.ccAddresses),
         bccAddresses: asArray(email.bccAddresses),
-        threadId: email.threadId ?? undefined,
+        threadId: targetThreadId ?? undefined,
         inReplyTo: email.inReplyTo ?? undefined,
         attachments: (email.attachments as any[]) ?? [],
       });
@@ -736,13 +762,15 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       where.isSpam = false;
       where.thread = { is: { snoozedUntil: { gt: new Date() } } };
     } else {
-      // Default inbox: received, recoverable, non-archived mail whose snooze has elapsed.
+      // Default inbox: active conversation messages (both received and sent in active threads)
+      // that are not in Trash, Archive, Spam, or Drafts, and whose snooze has elapsed.
       where.isDraft = false;
-      where.isSent = false;
       where.isSpam = false;
       where.isTrash = false;
       where.AND = [
-        { OR: [{ folderId: null }, { folder: { is: { type: 'INBOX' } } }] },
+        {
+          OR: [{ folderId: null }, { folder: { is: { type: 'INBOX' } } }, { isSent: true }],
+        },
         {
           OR: [
             { threadId: null },
