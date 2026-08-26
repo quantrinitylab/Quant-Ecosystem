@@ -1,0 +1,14 @@
+=== fix-oidc-trust-v5 2026-08-26T08:05:51Z ===
+staging vars: account=[121701583740] role=[arn:aws:iam::121701583740:role/quant-gha-deploy] region=[us-east-1] cluster=[quant-staging-eks] ns=[quant-staging]
+vars_role_outcome=success
+--- identity after vars role ---
+{
+    "UserId": "AROARYVP2ZN6NXFJZBSZJ:probe-vars-role",
+    "Account": "121701583740",
+    "Arn": "arn:aws:sts::121701583740:assumed-role/quant-gha-deploy/probe-vars-role"
+}
+fixed_role_outcome=failure
+--- identity after fixed role ---
+
+aws: [ERROR]: An error occurred (NoCredentials): Unable to locate credentials. You can configure credentials by running "aws login".
+=== done ===
