@@ -21,3 +21,87 @@ quant-quantmail-backend-69bdb8c86b-5b9lb   1/1     Running   0          3d19h
 quant-quantmail-backend-69bdb8c86b-tvmmc   1/1     Running   0          3d19h
 redis-f7d7c4d4c-z2nkw                      1/1     Running   0          9d
 === BEFORE_PUBLISHED 08:15:18Z ===
+--- ecr login ---
+
+WARNING! Your credentials are stored unencrypted in '/home/runner/.docker/config.json'.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/go/credential-store/
+
+Login Succeeded
+--- build ---
+build_rc=0
+ 257 B         102 kB
+#19 35.00 ├ ○ /snoozed                                                  527 B         179 kB
+#19 35.00 ├ ○ /spam                                                     523 B         179 kB
+#19 35.00 ├ ○ /starred                                                  505 B         179 kB
+#19 35.00 ├ ƒ /thread/[id]                                              749 B         191 kB
+#19 35.00 ├ ○ /trash                                                   2.6 kB         179 kB
+#19 35.00 ├ ○ /workspaces                                              6.6 kB         184 kB
+#19 35.00 └ ƒ /workspaces/[id]                                        11.7 kB         185 kB
+#19 35.00 + First Load JS shared by all                                102 kB
+#19 35.00   ├ chunks/659d87a1-0becdcabd6587b1a.js                     54.2 kB
+#19 35.00   ├ chunks/8107-014e6540b7c8db68.js                         45.7 kB
+#19 35.00   └ other shared chunks (total)                             1.95 kB
+#19 35.00 
+#19 35.00 
+#19 35.00 ○  (Static)   prerendered as static content
+#19 35.00 ƒ  (Dynamic)  server-rendered on demand
+#19 35.00 
+#19 DONE 35.7s
+
+#20 [builder 5/7] RUN rm -rf apps/quantmail/.next/cache /root/.cache /root/.pnpm-store /root/.local
+#20 DONE 1.9s
+
+#21 [builder 6/7] RUN find /app/node_modules -type d ( -name "win32" -o -name "darwin" -o -name "win32-x64" -o -name "darwin-x64" -o -name "darwin-arm64" ) -prune -exec rm -rf {} + 2>/dev/null || true
+#21 DONE 0.4s
+
+#22 [builder 7/7] RUN find /app/node_modules -type f ( -name "*.dll" -o -name "*.dylib" -o -name "*.exe" ) -delete 2>/dev/null || true
+#22 DONE 0.4s
+
+#23 [runner 5/9] COPY --from=builder --chown=quantapp:nodejs /app/node_modules ./node_modules
+#23 DONE 13.8s
+
+#24 [runner 6/9] COPY --from=builder --chown=quantapp:nodejs /app/packages/ ./packages/
+#24 DONE 0.4s
+
+#25 [runner 7/9] COPY --from=builder --chown=quantapp:nodejs /app/apps/quantmail/ ./apps/quantmail/
+#25 DONE 0.2s
+
+#26 [runner 8/9] COPY --from=builder --chown=quantapp:nodejs /app/package.json ./package.json
+#26 DONE 0.0s
+
+#27 [runner 9/9] COPY --from=builder --chown=quantapp:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+#27 DONE 0.0s
+
+#28 exporting to image
+#28 exporting layers
+#28 exporting layers 11.7s done
+#28 writing image sha256:b46058b2b110ed8410901a7f8f04adff4a5a95c9d0965188bc8ad277c9c4d13d done
+#28 naming to 121701583740.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail:39354cdf-1787732107 done
+#28 DONE 11.8s
+--- push ---
+34a6e01aec8a: Layer already exists
+1d69a5fd3193: Layer already exists
+83414dfb168f: Pushed
+f1bbce16841c: Pushed
+39354cdf-1787732107: digest: sha256:39266584584ab79d35d5a44cf74e57d5999bbf6925aaa995886fbf96c6e79126 size: 3043
+--- set image ---
+deployment.apps/quant-quantmail image updated
+--- rollout ---
+Waiting for deployment "quant-quantmail" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "quant-quantmail" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "quant-quantmail" rollout to finish: 1 out of 2 new replicas have been updated...
+Waiting for deployment "quant-quantmail" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "quant-quantmail" rollout to finish: 1 old replicas are pending termination...
+deployment "quant-quantmail" successfully rolled out
+rollout_rc=0
+--- AFTER state ---
+NAME                                       READY   STATUS        RESTARTS   AGE
+quant-quantmail-5b4bb5d445-bsw4c           1/1     Terminating   0          157m
+quant-quantmail-75fb98f9f6-kdjkk           1/1     Running       0          35s
+quant-quantmail-75fb98f9f6-r9fz2           1/1     Running       0          66s
+quant-quantmail-backend-69bdb8c86b-5b9lb   1/1     Running       0          3d19h
+quant-quantmail-backend-69bdb8c86b-tvmmc   1/1     Running       0          3d19h
+redis-f7d7c4d4c-z2nkw                      1/1     Running       0          9d
+final image: 121701583740.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail:39354cdf-1787732107
+=== DONE 2026-08-26T08:19:52Z ===
