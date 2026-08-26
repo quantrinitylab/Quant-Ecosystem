@@ -20,6 +20,7 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
 export default function ContactsPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
@@ -34,13 +35,19 @@ export default function ContactsPage() {
     tags: '',
   });
 
+  // Debounce search so we don't hit the API on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
   const {
     data: contacts,
     isLoading,
     error,
     refetch,
   } = useContacts({
-    q: searchQuery || undefined,
+    q: debouncedQuery || undefined,
     favorites: activeTab === 'favorites' || undefined,
   });
   const createContact = useCreateContact();
@@ -116,6 +123,26 @@ export default function ContactsPage() {
       }
     },
     [deleteContact],
+  );
+
+  const handleToggleFavorite = useCallback(
+    async (contact: Contact, e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      const next = !contact.isFavorite;
+      try {
+        await updateContact.mutateAsync({ id: contact.id, data: { isFavorite: next } });
+        setInspectContact((prev) =>
+          prev && prev.id === contact.id ? { ...prev, isFavorite: next } : prev,
+        );
+        showToast({
+          text: next ? 'Added to favorites' : 'Removed from favorites',
+          type: 'success',
+        });
+      } catch {
+        showToast({ text: 'Failed to update favorite', type: 'error' });
+      }
+    },
+    [updateContact],
   );
 
   // Group contacts alphabetically by first letter
@@ -227,7 +254,7 @@ export default function ContactsPage() {
                     : 'text-zinc-400 hover:text-white'
                 }`}
               >
-                All ({contacts?.length ?? 0})
+                All{activeTab === 'all' && contacts ? ` (${contacts.length})` : ''}
               </button>
               <button
                 type="button"
@@ -251,7 +278,9 @@ export default function ContactsPage() {
                     strokeLinejoin="round"
                   />
                 </svg>
-                <span>Favorites</span>
+                <span>
+                  Favorites{activeTab === 'favorites' && contacts ? ` (${contacts.length})` : ''}
+                </span>
               </button>
             </div>
           </div>
@@ -342,18 +371,32 @@ export default function ContactsPage() {
                 </svg>
               </div>
               <h3 className="text-lg font-bold text-[#F5F5F5]">
-                {searchQuery ? 'No contacts matched your search' : 'Your address book is empty'}
+                {searchQuery
+                  ? 'No contacts matched your search'
+                  : activeTab === 'favorites'
+                    ? 'No favorites yet'
+                    : 'Your address book is empty'}
               </h3>
               <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
-                Add contacts or import a .vcf file to start emailing and scheduling meetings.
+                {activeTab === 'favorites' && !searchQuery
+                  ? 'Tap the star on any contact to pin it here for quick access.'
+                  : 'Add contacts or import a .vcf file to start emailing and scheduling meetings.'}
               </p>
               <div className="pt-2 flex items-center justify-center gap-2">
-                <Button variant="primary" onClick={handleOpenCreate}>
-                  + Add first contact
-                </Button>
-                <Button variant="secondary" onClick={() => vcardInputRef.current?.click()}>
-                  Import vCard
-                </Button>
+                {activeTab === 'favorites' && !searchQuery ? (
+                  <Button variant="secondary" onClick={() => setActiveTab('all')}>
+                    Browse all contacts
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="primary" onClick={handleOpenCreate}>
+                      + Add first contact
+                    </Button>
+                    <Button variant="secondary" onClick={() => vcardInputRef.current?.click()}>
+                      Import vCard
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -380,8 +423,17 @@ export default function ContactsPage() {
                             size="md"
                           />
                           <div className="min-w-0 flex-1">
-                            <h4 className="text-sm font-semibold text-[#F5F5F5] truncate group-hover:text-[#FF9B5A] transition-colors">
-                              {contact.name || contact.email}
+                            <h4 className="text-sm font-semibold text-[#F5F5F5] truncate group-hover:text-[#FF9B5A] transition-colors flex items-center gap-1.5">
+                              <span className="truncate">{contact.name || contact.email}</span>
+                              {contact.isFavorite && (
+                                <svg
+                                  className="w-3 h-3 shrink-0 text-[#FFB020]"
+                                  fill="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                </svg>
+                              )}
                             </h4>
                             <p className="text-xs text-[#A1A4AC] truncate">{contact.email}</p>
                             {contact.company && (
@@ -420,6 +472,23 @@ export default function ContactsPage() {
                                 <span>{contact.phone}</span>
                               </p>
                             )}
+                            {contact.tags && contact.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {contact.tags.slice(0, 3).map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="px-1.5 py-0.5 rounded-md bg-[#2B1A11] border border-[#5C3016]/60 text-[10px] font-semibold text-[#FF9B5A]"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                                {contact.tags.length > 3 && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-[#111318] border border-[#282C35] text-[10px] text-[#6B6E76]">
+                                    +{contact.tags.length - 3}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -453,7 +522,9 @@ export default function ContactsPage() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                router.push(`/calendar`);
+                                router.push(
+                                  `/calendar?attendee=${encodeURIComponent(contact.email)}`,
+                                );
                               }}
                               className="px-2.5 py-1 rounded-lg bg-[#111318] border border-[#282C35] text-[#A1A4AC] text-xs font-medium hover:text-[#F5F5F5] hover:border-[#3A404D] transition-colors flex items-center gap-1"
                             >
@@ -487,6 +558,35 @@ export default function ContactsPage() {
                           </div>
 
                           <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => handleToggleFavorite(contact, e)}
+                              className={`p-1.5 rounded-lg transition-colors hover:bg-white/5 ${
+                                contact.isFavorite
+                                  ? 'text-[#FFB020]'
+                                  : 'text-[#6B6E76] hover:text-[#FFB020]'
+                              }`}
+                              title={
+                                contact.isFavorite ? 'Remove from favorites' : 'Add to favorites'
+                              }
+                              aria-label={
+                                contact.isFavorite ? 'Remove from favorites' : 'Add to favorites'
+                              }
+                            >
+                              <svg
+                                className="w-3.5 h-3.5"
+                                fill={contact.isFavorite ? 'currentColor' : 'none'}
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <polygon
+                                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                                  strokeWidth={1.8}
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
                             <button
                               type="button"
                               onClick={(e) => handleOpenEdit(contact, e)}
@@ -563,7 +663,14 @@ export default function ContactsPage() {
                 size="lg"
               />
               <div>
-                <h3 className="text-base font-bold text-white">{inspectContact?.name}</h3>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <span>{inspectContact?.name}</span>
+                  {inspectContact?.isFavorite && (
+                    <svg className="w-4 h-4 text-[#FFB020]" fill="currentColor" viewBox="0 0 24 24">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                  )}
+                </h3>
                 <p className="text-xs text-zinc-400">{inspectContact?.email}</p>
                 {inspectContact?.company && (
                   <p className="text-xs text-[#FF8C42] mt-0.5 flex items-center gap-1.5">
@@ -592,6 +699,19 @@ export default function ContactsPage() {
               </div>
             </div>
 
+            {inspectContact?.tags && inspectContact.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {inspectContact.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="px-2 py-0.5 rounded-md bg-[#2B1A11] border border-[#5C3016]/60 text-[10px] font-semibold text-[#FF9B5A]"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div className="space-y-2 text-xs">
               {inspectContact?.phone && (
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800">
@@ -616,29 +736,36 @@ export default function ContactsPage() {
             </div>
 
             <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
-              <Button
-                variant="primary"
-                onClick={() => {
-                  if (inspectContact?.email) {
-                    router.push(`/compose?to=${encodeURIComponent(inspectContact.email)}`);
-                  }
-                }}
-                className="flex items-center gap-1.5"
-              >
-                <svg
-                  className="size-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    if (inspectContact?.email) {
+                      router.push(`/compose?to=${encodeURIComponent(inspectContact.email)}`);
+                    }
+                  }}
+                  className="flex items-center gap-1.5"
                 >
-                  <rect width="20" height="16" x="2" y="4" rx="2" />
-                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                </svg>
-                Compose Email
-              </Button>
+                  <svg
+                    className="size-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect width="20" height="16" x="2" y="4" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                  Compose Email
+                </Button>
+                {inspectContact && (
+                  <Button variant="secondary" onClick={() => handleToggleFavorite(inspectContact)}>
+                    {inspectContact.isFavorite ? '★ Favorited' : '☆ Favorite'}
+                  </Button>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 {inspectContact && (
                   <Button variant="secondary" onClick={(e) => handleOpenEdit(inspectContact, e)}>
