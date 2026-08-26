@@ -29,26 +29,27 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
+  width: 52px;
+  height: 52px;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 153, 51, 0.4);
-  background: linear-gradient(135deg, #ffb15e 0%, #ff9933 45%, #ff7a00 100%);
-  color: #221233;
-  box-shadow: 0 14px 34px -12px rgba(255, 153, 51, 0.65);
+  border: none;
+  background: #FF8C42;
+  color: #111111;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.15s ease, background-color 0.15s ease;
 }
 .quant-compose-fab:hover {
-  transform: translateY(-2px) scale(1.04);
-  box-shadow: 0 18px 40px -12px rgba(255, 153, 51, 0.75);
+  transform: translateY(-2px);
+  background: #FF9B5A;
 }
 .quant-compose-fab:active {
   transform: scale(0.96);
+  background: #E8752F;
 }
 .quant-compose-fab svg {
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
 }
 
 @media (max-width: 899px) {
@@ -160,23 +161,15 @@
   outline-offset: 2px;
 }
 .qm-wordmark-text {
-  font-family: var(--font-brand), 'Segoe Script', 'Comic Sans MS', cursive;
-  font-size: 21px;
-  font-weight: 400;
-  letter-spacing: 0.005em;
-  line-height: 1.5; /* room for script descenders */
-  padding-bottom: 2px;
-  padding-right: 10px; /* the trailing ‘l’ never clips (msg#30 P16) */
-  overflow: visible;
-  background: linear-gradient(95deg, #ffc21a 0%, #ff9933 32%, #ff6a00 64%, #e01313 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #F5F5F5;
   white-space: nowrap;
-  filter: drop-shadow(0 1px 8px rgba(255, 122, 26, 0.3));
 }
 .qm-beta-pill {
-  display: none !important; /* Beta label retired (msg#30 P16) */
+  display: none !important;
 }
 .mobile-brand .qm-wordmark {
   padding: 1px 6px 3px 4px;
@@ -252,8 +245,8 @@
   width: 8px;
   height: 8px;
   border-radius: 9999px;
-  background: #ff9933;
-  box-shadow: 0 0 0 3px rgba(255, 153, 51, 0.14);
+  background: #FF8C42;
+  box-shadow: 0 0 0 2px rgba(255, 140, 66, 0.2);
   flex: 0 0 auto;
 }
 .mail-row:not(.is-unread) {
@@ -296,9 +289,9 @@
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 .mark-all-read-btn:hover {
-  color: var(--quant-foreground, #e8edf4);
-  border-color: rgba(255, 153, 51, 0.45);
-  background: rgba(255, 153, 51, 0.08);
+  color: #FF8C42;
+  border-color: #5C3016;
+  background: #2B1A11;
 }
 
 /* Snooze: hidden trigger keeps the menu anchored while the hover bar covers it */
@@ -331,9 +324,9 @@
   flex: 0 0 auto;
   padding: 6px 12px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 153, 51, 0.4);
-  background: rgba(255, 153, 51, 0.12);
-  color: #ff9933;
+  border: 1px solid #5C3016;
+  background: #2B1A11;
+  color: #FF8C42;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -570,19 +563,15 @@
 
 /* (b) Quanty robot replaces the QuantAI pill next to search */
 .inbox-ai-trigger.has-quanty {
-  padding: 3px 10px 0;
-  background: rgba(18, 22, 36, 0.72);
-  border: 1px solid rgba(49, 207, 232, 0.4);
-  box-shadow: 0 6px 20px -8px rgba(49, 207, 232, 0.45);
+  padding: 4px 8px;
+  background: #111318;
+  border: 1px solid #282C35;
   border-radius: 9999px;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease,
-    background 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 .inbox-ai-trigger.has-quanty:hover {
-  transform: translateY(-1px);
-  border-color: rgba(49, 207, 232, 0.7);
-  background: rgba(18, 22, 36, 0.85);
-  box-shadow: 0 10px 26px -8px rgba(49, 207, 232, 0.6);
+  border-color: #5C3016;
+  background: #2B1A11;
 }
 .inbox-ai-trigger.has-quanty svg {
   width: auto;
@@ -596,15 +585,15 @@
   align-items: flex-end;
 }
 
-/* (d) Calendar FAB: teal identity (add event) vs orange mail compose */
+/* (d) Calendar FAB */
 .quant-fab-calendar {
-  border-color: rgba(63, 217, 198, 0.45);
-  background: linear-gradient(135deg, #6ff0df 0%, #3fd9c6 45%, #17a596 100%);
-  color: #06251f;
-  box-shadow: 0 14px 34px -12px rgba(63, 217, 198, 0.6);
+  border: none;
+  background: #FF8C42;
+  color: #111111;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
 }
 .quant-fab-calendar:hover {
-  box-shadow: 0 18px 40px -12px rgba(63, 217, 198, 0.75);
+  background: #FF9B5A;
 }
 
 /* ============================================================================
@@ -806,8 +795,8 @@
   height: 21px;
 }
 .qbn-item.is-active {
-  color: #ff9933;
-  background: rgba(255, 153, 51, 0.1);
+  color: #FF8C42;
+  background: #2B1A11;
 }
 @media (min-width: 1024px) {
   .quant-bottom-nav {
@@ -849,9 +838,9 @@
 .composer-quanty-chat {
   width: 100%;
   max-width: 560px;
-  border: 1px solid rgba(255, 153, 51, 0.22);
+  border: 1px solid #5C3016;
   border-radius: 16px;
-  background: rgba(255, 153, 51, 0.04);
+  background: #16181D;
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -882,7 +871,9 @@
 }
 .composer-quanty-msg.is-user {
   align-self: flex-end;
-  background: rgba(255, 153, 51, 0.14);
+  background: #2B1A11;
+  border: 1px solid #5C3016;
+  color: #F5F5F5;
   max-width: 85%;
 }
 .composer-quanty-msg.is-assistant {
@@ -906,22 +897,22 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #ff9933;
+  color: #FF8C42;
   margin-bottom: 3px;
 }
 .composer-quanty-apply {
   margin-top: 8px;
   padding: 5px 12px;
   border-radius: 9999px;
-  border: 1px solid rgba(255, 153, 51, 0.45);
-  background: rgba(255, 153, 51, 0.14);
-  color: #ff9933;
+  border: 1px solid #5C3016;
+  background: #2B1A11;
+  color: #FF8C42;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
 .composer-quanty-apply:hover {
-  background: rgba(255, 153, 51, 0.24);
+  background: #3D2214;
 }
 .composer-quanty-tones {
   display: flex;
@@ -939,8 +930,8 @@
   cursor: pointer;
 }
 .composer-quanty-tones button:hover {
-  color: #ff9933;
-  border-color: rgba(255, 153, 51, 0.4);
+  color: #FF8C42;
+  border-color: #5C3016;
 }
 .composer-quanty-input {
   display: flex;
@@ -958,14 +949,14 @@
   outline: none;
 }
 .composer-quanty-input input:focus {
-  border-color: rgba(255, 153, 51, 0.5);
+  border-color: #FF8C42;
 }
 .composer-quanty-input button {
   padding: 9px 16px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 153, 51, 0.4);
-  background: rgba(255, 153, 51, 0.14);
-  color: #ff9933;
+  border: none;
+  background: #FF8C42;
+  color: #111111;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -1029,9 +1020,9 @@
 
 /* P13/P14: CodeHub — Quanty build chat, agents strip, connectors */
 .ch-quanty-hero {
-  border: 1px solid rgba(255, 153, 51, 0.24);
+  border: 1px solid #282C35;
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 153, 51, 0.07), rgba(255, 153, 51, 0.02));
+  background: #111318;
   padding: 18px;
   margin-bottom: 16px;
 }
@@ -1070,8 +1061,8 @@
   cursor: pointer;
 }
 .ch-mode-toggle button.is-active {
-  background: linear-gradient(135deg, #ffb15e, #ff7a00);
-  color: #221233;
+  background: #FF8C42;
+  color: #111111;
 }
 .ch-quanty-thread {
   display: flex;
@@ -1094,7 +1085,9 @@
 }
 .ch-msg.is-user {
   align-self: flex-end;
-  background: rgba(255, 153, 51, 0.14);
+  background: #2B1A11;
+  border: 1px solid #5C3016;
+  color: #F5F5F5;
 }
 .ch-msg.is-assistant {
   align-self: flex-start;
@@ -1117,7 +1110,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #ff9933;
+  color: #FF8C42;
   margin-bottom: 3px;
 }
 .ch-quanty-composer {
@@ -1136,14 +1129,14 @@
   outline: none;
 }
 .ch-quanty-composer input:focus {
-  border-color: rgba(255, 153, 51, 0.5);
+  border-color: #FF8C42;
 }
 .ch-quanty-composer button {
   padding: 10px 18px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 153, 51, 0.4);
-  background: linear-gradient(135deg, #ffb15e, #ff7a00);
-  color: #221233;
+  border: none;
+  background: #FF8C42;
+  color: #111111;
   font-size: 13px;
   font-weight: 800;
   cursor: pointer;
@@ -1169,8 +1162,9 @@
   cursor: pointer;
 }
 .ch-quanty-quick button:hover {
-  color: #ff9933;
-  border-color: rgba(255, 153, 51, 0.4);
+  color: #FF8C42;
+  border-color: #5C3016;
+  background: #2B1A11;
 }
 .ch-agents {
   margin: 0 0 16px;

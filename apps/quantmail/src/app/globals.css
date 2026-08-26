@@ -1643,8 +1643,9 @@ body {
   transition: background 120ms ease, border-color 120ms ease, transform 100ms ease;
 }
 .smart-reply-chip:hover {
-  background: rgba(255, 153, 51, 0.1);
-  border-color: rgba(255, 153, 51, 0.3);
+  background: #2B1A11;
+  border-color: #5C3016;
+  color: #FF8C42;
   transform: translateY(-1px);
 }
 .smart-reply-chip:active {
