@@ -136,11 +136,71 @@ export function NotificationBell() {
     [deleteNotification],
   );
 
-  const iconByType: Record<Notification['type'], string> = {
-    email: '✉️',
-    calendar: '📅',
-    security: '🔒',
-    system: '🔔',
+  const renderNotificationIcon = (type: Notification['type']) => {
+    switch (type) {
+      case 'email':
+        return (
+          <svg
+            className="size-4 text-[#FF8C42]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect width="20" height="16" x="2" y="4" rx="2" />
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+          </svg>
+        );
+      case 'calendar':
+        return (
+          <svg
+            className="size-4 text-blue-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect width="18" height="18" x="3" y="4" rx="2" />
+            <line x1="16" x2="16" y1="2" y2="6" />
+            <line x1="8" x2="8" y1="2" y2="6" />
+            <line x1="3" x2="21" y1="10" y2="10" />
+          </svg>
+        );
+      case 'security':
+        return (
+          <svg
+            className="size-4 text-emerald-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
+          </svg>
+        );
+      case 'system':
+      default:
+        return (
+          <svg
+            className="size-4 text-amber-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+          </svg>
+        );
+    }
   };
 
   return (
@@ -168,101 +228,111 @@ export function NotificationBell() {
         </svg>
         {unreadCount > 0 && (
           <span className="notification-badge" aria-hidden="true">
-            {unreadCount}
+            {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
+
       {typeof document !== 'undefined' &&
         createPortal(
           <AnimatePresence>
             {isOpen && (
-              <motion.div
-                ref={menuRef}
-                className="notification-panel"
-                initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                transition={{ duration: 0.18 }}
-                style={{ left: panelPosition.left, top: panelPosition.top }}
-              >
-                <header className="notification-panel-header">
-                  <div className="notification-panel-heading">
-                    <h2>Notifications</h2>
-                    <p className="notification-panel-sub">
-                      Quant-only — mail, calendar, security. Sign-in across Quant apps runs through
-                      QuantMail.
-                    </p>
-                  </div>
-                  <div className="notification-panel-actions">
-                    {unreadCount > 0 && (
-                      <button
-                        type="button"
-                        className="notification-mark-read"
-                        onClick={markAllRead}
-                      >
-                        Mark all read
-                      </button>
-                    )}
-                    {notifications.length > 0 && (
-                      <button type="button" className="notification-mark-read" onClick={clearAll}>
-                        Clear all
-                      </button>
-                    )}
-                  </div>
-                </header>
-                <div className="notification-panel-list">
-                  {notifications.length === 0 ? (
-                    <p className="notification-empty">No notifications — all clear</p>
-                  ) : (
-                    notifications.map((n) => (
-                      <motion.div
-                        key={n.id}
-                        className={`notification-item ${n.read ? '' : 'is-unread'}`}
-                        drag="x"
-                        dragConstraints={{ left: 0, right: 0 }}
-                        dragElastic={0.7}
-                        onDragEnd={handleDragEnd(n.id)}
-                        exit={{ opacity: 0, x: 120, height: 0, marginTop: 0, marginBottom: 0 }}
-                        layout
-                      >
-                        <span className="notification-item-icon">{iconByType[n.type]}</span>
-                        <div className="notification-item-content">
-                          <p className="notification-item-title">{n.title}</p>
-                          <p className="notification-item-body">{n.body}</p>
-                          <time className="notification-item-time">
-                            {n.timestamp.toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </time>
-                        </div>
+              <>
+                <div
+                  className="notification-backdrop"
+                  onClick={() => setIsOpen(false)}
+                  aria-hidden="true"
+                />
+                <motion.div
+                  ref={menuRef}
+                  className="notification-panel"
+                  initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                  transition={{ duration: 0.18 }}
+                  style={{ left: panelPosition.left, top: panelPosition.top }}
+                >
+                  <header className="notification-panel-header">
+                    <div className="notification-panel-heading">
+                      <h2>Notifications</h2>
+                      <p className="notification-panel-sub">
+                        Quant-only — mail, calendar, security. Sign-in across Quant apps runs
+                        through QuantMail.
+                      </p>
+                    </div>
+                    <div className="notification-panel-actions">
+                      {unreadCount > 0 && (
                         <button
                           type="button"
-                          className="notification-item-delete"
-                          aria-label={`Delete notification: ${n.title}`}
-                          onClick={() => deleteNotification(n.id)}
+                          className="notification-mark-read"
+                          onClick={markAllRead}
                         >
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            aria-hidden="true"
-                          >
-                            <path d="m6 6 12 12M18 6 6 18" />
-                          </svg>
+                          Mark all read
                         </button>
-                      </motion.div>
-                    ))
+                      )}
+                      {notifications.length > 0 && (
+                        <button type="button" className="notification-mark-read" onClick={clearAll}>
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+                  </header>
+                  <div className="notification-panel-list">
+                    {notifications.length === 0 ? (
+                      <p className="notification-empty">No notifications — all clear</p>
+                    ) : (
+                      notifications.map((n) => (
+                        <motion.div
+                          key={n.id}
+                          className={`notification-item ${n.read ? '' : 'is-unread'}`}
+                          drag="x"
+                          dragConstraints={{ left: 0, right: 0 }}
+                          dragElastic={0.7}
+                          onDragEnd={handleDragEnd(n.id)}
+                          exit={{ opacity: 0, x: 120, height: 0, marginTop: 0, marginBottom: 0 }}
+                          layout
+                        >
+                          <span className="notification-item-icon">
+                            {renderNotificationIcon(n.type)}
+                          </span>
+                          <div className="notification-item-content">
+                            <p className="notification-item-title">{n.title}</p>
+                            <p className="notification-item-body">{n.body}</p>
+                            <time className="notification-item-time">
+                              {n.timestamp.toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </time>
+                          </div>
+                          <button
+                            type="button"
+                            className="notification-item-delete"
+                            aria-label={`Delete notification: ${n.title}`}
+                            onClick={() => deleteNotification(n.id)}
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              aria-hidden="true"
+                            >
+                              <path d="m6 6 12 12M18 6 6 18" />
+                            </svg>
+                          </button>
+                        </motion.div>
+                      ))
+                    )}
+                  </div>
+                  {notifications.length > 0 && (
+                    <p className="notification-panel-hint">
+                      Swipe a notification sideways — or tap × — to delete it.
+                    </p>
                   )}
-                </div>
-                {notifications.length > 0 && (
-                  <p className="notification-panel-hint">
-                    Swipe a notification sideways — or tap × — to delete it.
-                  </p>
-                )}
-              </motion.div>
+                </motion.div>
+              </>
             )}
           </AnimatePresence>,
           document.body,
