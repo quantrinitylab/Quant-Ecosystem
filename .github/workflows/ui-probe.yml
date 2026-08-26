@@ -1,0 +1,76 @@
+name: ui-probe
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/ui-probe.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Probe routes (always publishes)
+        run: |
+          set +e
+          {
+            echo "=== ui-probe $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+            for u in \
+              https://quantmail.quantrinity.in/ \
+              https://quantmail.quantrinity.in/login \
+              https://quantmail.quantrinity.in/register \
+              https://quantmail.quantrinity.in/forgot-password \
+              https://quantmail.quantrinity.in/compose \
+              https://quantmail.quantrinity.in/contacts \
+              https://quantmail.quantrinity.in/calendar \
+              https://quantmail.quantrinity.in/drive \
+              https://quantmail.quantrinity.in/repos \
+              https://quantmail.quantrinity.in/codehub \
+              https://quantmail.quantrinity.in/settings \
+              https://quantmail.quantrinity.in/search \
+              https://quantmail.quantrinity.in/drafts \
+              https://quantmail.quantrinity.in/sent \
+              https://quantmail.quantrinity.in/spam \
+              https://quantmail.quantrinity.in/trash \
+              https://quantmail.quantrinity.in/starred \
+              https://quantmail.quantrinity.in/snoozed \
+              https://quantmail.quantrinity.in/labels \
+              https://quantmail.quantrinity.in/archive \
+              https://quantmail.quantrinity.in/workspaces \
+              https://quantmail.quantrinity.in/security \
+              https://quantmail.quantrinity.in/pipelines \
+              https://quantmail.quantrinity.in/settings/mail \
+              https://quantmail.quantrinity.in/api/healthz \
+              https://staging.quantrinity.in/ ; do
+            code=$(curl -sSL -o /tmp/p.html -w '%{http_code}' --max-time 20 "$u" 2>/tmp/cerr)
+            size=$(wc -c < /tmp/p.html 2>/dev/null)
+            marker=$(grep -o -m1 -E 'Application error|Internal Server Error|ECONNREFUSED|API_ROUTE_NOT_FOUND|UNAUTHORIZED' /tmp/p.html 2>/dev/null | head -1)
+            cerr=$(head -c 120 /tmp/cerr)
+            echo "$code | $size | ${marker:-ok} | ${cerr:--} | $u"
+            done
+            echo "--- quantmail.in domain ---"
+            for u in https://quantmail.in/ http://quantmail.in/ https://www.quantmail.in/ ; do
+            code=$(curl -sSL -o /tmp/q.html -w '%{http_code}' --max-time 20 "$u" 2>/tmp/qerr)
+            qerr=$(head -c 150 /tmp/qerr)
+            echo "$code | ${qerr:--} | $u"
+            done
+            echo "--- dns ---"
+            for h in quantmail.in www.quantmail.in quantmail.quantrinity.in staging.quantrinity.in ; do
+            echo "$h => $(getent hosts $h | head -2 | tr '\n' ' ')"
+            done
+            echo "=== done ==="
+          } > /tmp/out.txt 2>&1
+          cat /tmp/out.txt
+          mkdir -p infra/status
+          cp /tmp/out.txt infra/status/ui-probe-result.txt
+          git config user.name "gha-bot"
+          git config user.email "gha-bot@users.noreply.github.com"
+          git add -f infra/status/ui-probe-result.txt
+          git commit -m "ui probe result"
+          git push -f origin HEAD:status-report
