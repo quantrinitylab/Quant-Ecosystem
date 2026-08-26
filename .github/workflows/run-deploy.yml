@@ -1,7 +1,7 @@
 name: Run Deploy
 
-# Bump this file to dispatch a staging deploy of quantmail from main.
-# GITHUB_TOKEN workflow_dispatch is exempt from the no-recursion rule.
+# v2: status reporter. Bump to publish recent workflow run statuses.
+# (Does NOT re-dispatch; re-dispatch would cancel an in-progress deploy.)
 on:
   push:
     branches: [main]
@@ -10,19 +10,33 @@ on:
 
 permissions:
   actions: write
-  contents: read
+  contents: write
 
 concurrency:
   group: run-deploy
   cancel-in-progress: false
 
 jobs:
-  dispatch:
+  status:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch staging deploy (quantmail, main)
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Report recent workflow runs
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh workflow run deploy-feature-staging.yml --ref main -f target=quantmail -f branch=main -R "$GITHUB_REPOSITORY"
-          echo "dispatched deploy-feature-staging for quantmail@main"
+          set +e
+          {
+            echo "=== runs-status $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+            gh run list -R "$GITHUB_REPOSITORY" --limit 16 --json workflowName,status,conclusion,createdAt,displayTitle | jq -r '.[] | "\(.createdAt) | \(.workflowName) | \(.status) | \(.conclusion) | \(.displayTitle)"'
+          } > /tmp/runs.txt 2>&1
+          cat /tmp/runs.txt
+          mkdir -p infra/status
+          cp /tmp/runs.txt infra/status/runs-status.txt
+          git config user.name "gha-bot"
+          git config user.email "gha-bot@users.noreply.github.com"
+          git add -f infra/status/runs-status.txt
+          git commit -m "runs status"
+          git push -f origin HEAD:runs-status
