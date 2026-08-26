@@ -264,6 +264,17 @@ export default function DrivePage() {
     fetchFiles(currentFolderId);
   }, [fetchFiles, currentFolderId]);
 
+  // Debounced search: avoid firing an API request on every keystroke
+  useEffect(() => {
+    const q = searchQuery.trim();
+    const t = setTimeout(() => {
+      if (q) searchFiles(q);
+      else fetchFiles(currentFolderId);
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
   const items = (files ?? []) as unknown as DriveItem[];
 
   const filteredItems = useMemo(() => {
@@ -309,12 +320,23 @@ export default function DrivePage() {
         text: `Uploading ${arr.length} file${arr.length > 1 ? 's' : ''}…`,
         type: 'info',
       });
-      await uploadFiles(arr);
-      showToast({
-        text: `Uploaded ${arr.length} file${arr.length > 1 ? 's' : ''} successfully`,
-        type: 'success',
-      });
-      e.target.value = '';
+      try {
+        await uploadFiles(arr);
+        showToast({
+          text: `Uploaded ${arr.length} file${arr.length > 1 ? 's' : ''} successfully`,
+          type: 'success',
+        });
+      } catch (err) {
+        showToast({
+          text:
+            err instanceof Error && err.message
+              ? `Upload failed: ${err.message}`
+              : 'Upload failed — please try again (max 50 MB per file)',
+          type: 'error',
+        });
+      } finally {
+        e.target.value = '';
+      }
     }
   };
 
@@ -333,11 +355,21 @@ export default function DrivePage() {
         text: `Uploading ${arr.length} dropped file${arr.length > 1 ? 's' : ''}…`,
         type: 'info',
       });
-      await uploadFiles(arr);
-      showToast({
-        text: `Uploaded ${arr.length} file${arr.length > 1 ? 's' : ''} successfully`,
-        type: 'success',
-      });
+      try {
+        await uploadFiles(arr);
+        showToast({
+          text: `Uploaded ${arr.length} file${arr.length > 1 ? 's' : ''} successfully`,
+          type: 'success',
+        });
+      } catch (err) {
+        showToast({
+          text:
+            err instanceof Error && err.message
+              ? `Upload failed: ${err.message}`
+              : 'Upload failed — please try again (max 50 MB per file)',
+          type: 'error',
+        });
+      }
     }
   };
 
@@ -371,7 +403,7 @@ export default function DrivePage() {
 
   const handleDeleteItem = async (id: string, name: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (confirm(`Are you sure you want to delete "${name}"?`)) {
+    if (confirm(`Permanently delete "${name}"? This cannot be undone.`)) {
       try {
         await deleteFiles([id]);
         showToast({ text: `Deleted "${name}"`, type: 'info' });
@@ -389,7 +421,7 @@ export default function DrivePage() {
   const handleBatchDelete = async () => {
     const count = selectedIds.size;
     if (count === 0) return;
-    if (confirm(`Delete ${count} selected item${count > 1 ? 's' : ''}?`)) {
+    if (confirm(`Permanently delete ${count} selected item${count > 1 ? 's' : ''}? This cannot be undone.`)) {
       try {
         await deleteFiles(Array.from(selectedIds));
         showToast({ text: `Deleted ${count} items`, type: 'info' });
@@ -427,9 +459,11 @@ export default function DrivePage() {
     });
   };
 
-  const usedBytes = quota?.used ?? 124000000;
-  const totalBytes = quota?.total ?? 15 * 1024 * 1024 * 1024;
-  const usedPct = Math.min(100, Math.round((usedBytes / totalBytes) * 100));
+  // Only show storage numbers we actually know — never fabricate them
+  const quotaKnown = Boolean(quota && typeof quota.total === 'number' && quota.total > 0);
+  const usedBytes = quota?.used ?? 0;
+  const totalBytes = quota?.total ?? 0;
+  const usedPct = quotaKnown ? Math.min(100, Math.round((usedBytes / totalBytes) * 100)) : 0;
 
   return (
     <AppShell
@@ -437,11 +471,7 @@ export default function DrivePage() {
       theme="dark"
       className="quantmail-shell"
       searchValue={searchQuery}
-      onSearchChange={(val) => {
-        setSearchQuery(val);
-        if (val) searchFiles(val);
-        else fetchFiles(currentFolderId);
-      }}
+      onSearchChange={setSearchQuery}
       searchPlaceholder="Search files, folders, documents…"
     >
       <PageTransition className="workspace-page drive-workspace flex flex-col h-full bg-[#0a0a0c]">
@@ -648,9 +678,7 @@ export default function DrivePage() {
                 />
               </svg>
               <p className="text-base font-semibold text-white">Drop files here to upload</p>
-              <p className="text-xs text-[#A1A4AC] mt-1">
-                Encrypted and synced directly to QuantDrive
-              </p>
+              <p className="text-xs text-[#A1A4AC] mt-1">Stored securely in QuantDrive</p>
             </div>
           )}
 
@@ -673,7 +701,7 @@ export default function DrivePage() {
                     Quant Memory & Cloud Vault
                   </strong>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    E2EE Encrypted
+                    Encrypted at rest
                   </span>
                 </div>
                 <p className="text-xs text-[#A1A4AC] mt-0.5">
@@ -686,13 +714,15 @@ export default function DrivePage() {
               <div className="flex items-center justify-between text-[11px] font-mono">
                 <span className="text-[#6B6E76]">Storage Used</span>
                 <span className="text-[#F5F5F5] font-medium">
-                  {formatFileSize(usedBytes)} / {formatFileSize(totalBytes)} ({usedPct}%)
+                  {quotaKnown
+                    ? `${formatFileSize(usedBytes)} / ${formatFileSize(totalBytes)} (${usedPct}%)`
+                    : 'Calculating…'}
                 </span>
               </div>
               <div className="w-full h-1.5 rounded-full bg-[#16181D] overflow-hidden border border-[#282C35]">
                 <div
                   className="h-full bg-[#FF8C42] rounded-full transition-all duration-500"
-                  style={{ width: `${Math.max(4, usedPct)}%` }}
+                  style={{ width: `${usedPct}%` }}
                 />
               </div>
             </div>
@@ -764,6 +794,7 @@ export default function DrivePage() {
                               onChange={(e) => handleToggleSelect(folder.id, e as never)}
                               onClick={(e) => e.stopPropagation()}
                               className="accent-[#FF8C42] rounded cursor-pointer"
+                              aria-label={`Select folder ${folder.name}`}
                             />
                             <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#2B1A11] border border-[#5C3016] shrink-0 group-hover:scale-105 transition-transform">
                               <svg
@@ -779,7 +810,7 @@ export default function DrivePage() {
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
                             <button
                               type="button"
                               onClick={(e) => handleToggleStar(folder, e)}
@@ -890,6 +921,7 @@ export default function DrivePage() {
                                 checked={isSelected}
                                 onChange={(e) => handleToggleSelect(file.id, e as never)}
                                 className="accent-[#ff9933] rounded cursor-pointer"
+                                aria-label={`Select file ${file.name}`}
                               />
                               <div className="flex items-center gap-1">
                                 <button
@@ -1026,6 +1058,7 @@ export default function DrivePage() {
                                   }
                                 }}
                                 className="accent-[#ff9933] rounded"
+                                aria-label="Select all files"
                               />
                             </th>
                             <th className="py-3 px-4">Name</th>
@@ -1050,6 +1083,7 @@ export default function DrivePage() {
                                     checked={isSelected}
                                     onChange={(e) => handleToggleSelect(file.id, e as never)}
                                     className="accent-[#ff9933] rounded cursor-pointer"
+                                    aria-label={`Select file ${file.name}`}
                                   />
                                 </td>
                                 <td className="py-3 px-4 font-semibold text-white flex items-center gap-2">
