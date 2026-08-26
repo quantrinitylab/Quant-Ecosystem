@@ -31,8 +31,8 @@
 }
 .quant-shell-trigger:hover {
   transform: none;
-  border-color: rgba(255, 153, 51, 0.45);
-  background: rgba(255, 153, 51, 0.1);
+  border-color: #5C3016;
+  background: #2B1A11;
 }
 .quant-shell-trigger:focus-visible {
   outline: none;
@@ -57,7 +57,7 @@
 }
 .quant-shell-close:hover {
   color: var(--quant-foreground);
-  border-color: rgba(255, 153, 51, 0.5);
+  border-color: #FF8C42;
 }
 .quant-shell-panel .quant-shell-pin { top: 3.3rem; }
 
@@ -107,7 +107,7 @@
   gap: 0.5rem;
   background: rgba(16, 16, 20, 0.94) !important;
   color: #f6f6f7 !important;
-  border: 1px solid rgba(255, 153, 51, 0.4) !important;
+  border: 1px solid #5C3016 !important;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(14px) saturate(140%);
 }
@@ -118,7 +118,7 @@
   opacity: 1;
   visibility: visible;
 }
-.mail-copilot-trigger svg { color: #ff9933; }
+.mail-copilot-trigger svg { color: #FF8C42; }
 
 /* 3) Auth pages: the access form stays vertically centered, and desktop is a
       real two-column layout instead of a short form lost in empty space.
@@ -167,7 +167,9 @@
 }
 .folder-row-action:hover {
   opacity: 1;
-  border-color: rgba(255, 153, 51, 0.55);
+  border-color: #5C3016;
+  background: #2B1A11;
+  color: #FF8C42;
 }
 .folder-row-action:disabled {
   opacity: 0.5;
@@ -219,8 +221,8 @@
 .ptr-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 153, 51, 0.25);
-  border-top-color: #ff9933;
+  border: 2px solid #5C3016;
+  border-top-color: #FF8C42;
   border-radius: 50%;
   animation: ptr-spin 0.7s linear infinite;
 }
@@ -236,9 +238,9 @@
   padding-left: 1.25rem;
   padding-right: 1.5rem;
   border-radius: 0.75rem 0 0 0.75rem;
-  background: rgba(245, 158, 11, 0.15);
-  border-right: 1px solid rgba(245, 158, 11, 0.3);
-  color: #fbbf24;
+  background: #2B1A11;
+  border-right: 1px solid #5C3016;
+  color: #FF8C42;
   font-size: 0.8rem;
   font-weight: 600;
   pointer-events: none;
@@ -267,8 +269,8 @@
   transition: background 100ms ease, color 100ms ease;
 }
 .snooze-trigger:hover {
-  background: rgba(255, 153, 51, 0.12);
-  color: #ff9933;
+  background: #2B1A11;
+  color: #FF8C42;
 }
 .snooze-trigger.is-hidden {
   display: none !important;
@@ -281,11 +283,11 @@
   margin-top: 0.5rem;
   width: 240px;
   max-width: 90vw;
-  background: #141417;
-  border: 1px solid rgba(255, 153, 51, 0.25);
+  background: #16181D;
+  border: 1px solid #282C35;
   border-radius: 0.85rem;
   padding: 0.5rem;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(16px);
   z-index: 1000;
   display: flex;
@@ -320,9 +322,9 @@
 }
 
 .snooze-option:hover {
-  background: rgba(255, 153, 51, 0.12);
-  border-color: rgba(255, 153, 51, 0.3);
-  color: #ff9933;
+  background: #2B1A11;
+  border-color: #5C3016;
+  color: #FF8C42;
 }
 
 .snooze-option-date {
@@ -332,7 +334,7 @@
 }
 
 .snooze-option:hover .snooze-option-date {
-  color: #fed7aa;
+  color: #FF9B5A;
 }
 
 .snooze-custom {
@@ -361,15 +363,15 @@
 }
 
 .snooze-custom-row input[type='datetime-local']:focus {
-  border-color: #ff9933;
+  border-color: #FF8C42;
 }
 
 .snooze-custom-row button {
   padding: 0.3rem 0.65rem;
   border-radius: 0.45rem;
-  border: 1px solid rgba(255, 153, 51, 0.35);
-  background: rgba(255, 153, 51, 0.15);
-  color: #ff9933;
+  border: 1px solid #5C3016;
+  background: #2B1A11;
+  color: #FF8C42;
   font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
@@ -377,8 +379,8 @@
 }
 
 .snooze-custom-row button:hover:not(:disabled) {
-  background: #ff9933;
-  color: #09090b;
+  background: #FF8C42;
+  color: #111111;
 }
 
 .snooze-custom-row button:disabled {
