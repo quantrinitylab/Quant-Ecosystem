@@ -1031,7 +1031,7 @@ export default function InboxPage() {
       }
       if (selectedEmail?.id === id) setSelectedEmail(null);
       showToast({
-        text: 'Conversation archived 📥',
+        text: 'Conversation archived',
         type: 'success',
         undoAction: async () => {
           const undoResponse = await apiClient.unarchiveEmail(id);
@@ -1200,7 +1200,7 @@ export default function InboxPage() {
                 showToast({
                   text: allPinned
                     ? 'Unpinned selected messages'
-                    : 'Pinned selected messages to top 📌',
+                    : 'Pinned selected messages to top',
                   type: 'success',
                 });
                 await refetch();
@@ -1683,7 +1683,7 @@ export default function InboxPage() {
         onCreated={(groupName, members) => {
           setIsCreateGroupModalOpen(false);
           showToast({
-            text: `Group "${groupName}" created with ${members.length} members! 👥`,
+            text: `Group "${groupName}" created with ${members.length} members!`,
             type: 'success',
           });
           router.push(

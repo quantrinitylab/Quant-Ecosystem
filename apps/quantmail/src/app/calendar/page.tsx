@@ -1942,16 +1942,26 @@ export default function CalendarPage() {
                                         type: 'success',
                                       });
                                     }}
-                                    className="text-xs font-black text-amber-300 hover:text-white"
+                                    className="text-xs font-black text-amber-300 hover:text-white flex items-center justify-center"
                                   >
-                                    ✓
+                                    <svg
+                                      className="size-3.5"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="3"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <polyline points="20 6 9 17 4 12" />
+                                    </svg>
                                   </button>
                                 ) : isBirthday ? (
                                   <IconCake className="size-4 text-emerald-300" />
                                 ) : isPeriod ? (
                                   <IconFlower className="size-4 text-rose-300" />
                                 ) : (
-                                  <IconCalendar className="size-4 text-[#ff9933]" />
+                                  <IconCalendar className="size-4 text-[#FF8C42]" />
                                 )}
                               </div>
 
@@ -1996,7 +2006,10 @@ export default function CalendarPage() {
                                       : `${hhmm(startOf(ev))} – ${hhmm(endOf(ev))}`}
                                   </span>
                                   {ev.location && (
-                                    <span className="text-zinc-400">· 📍 {ev.location}</span>
+                                    <span className="text-zinc-400 flex items-center gap-1">
+                                      · <IconMapPin className="size-3 text-[#A1A4AC] inline" />{' '}
+                                      {ev.location}
+                                    </span>
                                   )}
                                   {ev.description && (
                                     <span className="text-zinc-400">· {ev.description}</span>
@@ -2215,14 +2228,26 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => !isSaving && setActiveSheetType(null)}
-                        className="size-9 rounded-full hover:bg-zinc-800 text-zinc-300 hover:text-white flex items-center justify-center text-lg transition-colors"
+                        className="size-9 rounded-full hover:bg-zinc-800 text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
+                        aria-label="Close"
                       >
-                        ✕
+                        <svg
+                          className="size-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
                       </button>
                       <span className="text-sm font-black text-white flex items-center gap-1.5">
                         {activeSheetType === 'event' && (
-                          <span className="flex items-center gap-1.5 text-[#ff9933]">
-                            <IconCalendar className="size-4 text-[#ff9933]" /> New Event
+                          <span className="flex items-center gap-1.5 text-[#FF8C42]">
+                            <IconCalendar className="size-4 text-[#FF8C42]" /> New Event
                           </span>
                         )}
                         {activeSheetType === 'task' && (
@@ -2497,18 +2522,16 @@ export default function CalendarPage() {
                           />
                         </div>
                         <div className="flex items-center gap-1.5 pl-7">
-                          {['🏢 QuantHQ Main', '💬 QuantChat Room', '🏠 Remote / WFH'].map(
-                            (loc) => (
-                              <button
-                                key={loc}
-                                type="button"
-                                onClick={() => setFormState({ ...formState, location: loc })}
-                                className="px-2 py-0.5 rounded-md bg-zinc-800 text-[10px] text-zinc-400 hover:text-white"
-                              >
-                                {loc}
-                              </button>
-                            ),
-                          )}
+                          {['QuantHQ Main', 'QuantChat Room', 'Remote / WFH'].map((loc) => (
+                            <button
+                              key={loc}
+                              type="button"
+                              onClick={() => setFormState({ ...formState, location: loc })}
+                              className="px-2 py-0.5 rounded-md bg-zinc-800 text-[10px] text-zinc-400 hover:text-white"
+                            >
+                              {loc}
+                            </button>
+                          ))}
                         </div>
                       </div>
 
@@ -2661,10 +2684,22 @@ export default function CalendarPage() {
                             onClick={() => toggleSubtask(idx)}
                             className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-zinc-950 text-xs cursor-pointer hover:bg-zinc-800"
                           >
-                            <span
-                              className={st.done ? 'text-emerald-400 font-bold' : 'text-zinc-500'}
-                            >
-                              {st.done ? '☑' : '☐'}
+                            <span className="flex items-center justify-center shrink-0">
+                              {st.done ? (
+                                <svg
+                                  className="size-3.5 text-emerald-400"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="3"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              ) : (
+                                <span className="size-3 rounded border border-zinc-600 inline-block" />
+                              )}
                             </span>
                             <span
                               className={st.done ? 'line-through text-zinc-500' : 'text-zinc-200'}
@@ -2736,7 +2771,21 @@ export default function CalendarPage() {
                       </div>
 
                       <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
-                        <span className="text-base mt-1">🎁</span>
+                        <svg
+                          className="size-4 text-emerald-400 mt-1 shrink-0"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="20 12 20 22 4 22 4 12" />
+                          <rect width="20" height="5" x="2" y="7" />
+                          <line x1="12" y1="22" x2="12" y2="7" />
+                          <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+                          <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+                        </svg>
                         <textarea
                           rows={2}
                           placeholder="Gift ideas, party venue, wishlist notes…"
