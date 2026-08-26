@@ -1,4 +1,4 @@
-# bump 2026-08-26: post-fix liveness probe
+# bump 2026-08-26: post-deploy verify probe 2
 name: ui-probe
 
 on:
