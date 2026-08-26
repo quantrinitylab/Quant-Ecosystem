@@ -22,30 +22,34 @@ jobs:
         with:
           ref: main
 
-      - name: Apply calendar patch
+      - name: Apply patch, push, and publish log
         run: |
-          set -e
-          python3 infra/patches/calendar-edit.py apps/quantmail/src/app/calendar/page.tsx
-
-      - name: Commit and push
-        run: |
-          set -e
-          if git diff --quiet -- apps/quantmail/src/app/calendar/page.tsx; then
-            echo "No changes to commit"
-            exit 0
-          fi
+          set +e
+          log=/tmp/patchlog.txt
+          echo "=== calendar-patch run $(date -u +%Y-%m-%dT%H:%M:%SZ) trigger_sha=$GITHUB_SHA ===" > "$log"
+          python3 infra/patches/calendar-edit.py apps/quantmail/src/app/calendar/page.tsx >> "$log" 2>&1
+          echo "patch_rc=$?" >> "$log"
+          wc -c apps/quantmail/src/app/calendar/page.tsx >> "$log"
           git config user.name "quant-bot"
           git config user.email "bot@quantrinity.in"
-          git add apps/quantmail/src/app/calendar/page.tsx
-          git commit -m "fix(calendar): edit events via useUpdateEvent, remove fake meet-link generator, prefill ?attendee= from contacts"
-          ok=0
-          for i in 1 2 3; do
-            if git push origin HEAD:main; then
-              ok=1
-              break
-            fi
-            git pull --rebase origin main
-          done
-          if [ "$ok" != "1" ]; then
-            git push origin HEAD:main
+          if git diff --quiet -- apps/quantmail/src/app/calendar/page.tsx; then
+            echo "result=NO_CHANGES" >> "$log"
+          else
+            git add apps/quantmail/src/app/calendar/page.tsx
+            git commit -m "fix(calendar): edit events via useUpdateEvent, remove fake meet-link generator, prefill ?attendee= from contacts" >> "$log" 2>&1
+            git push -f origin HEAD:calendar-patched >> "$log" 2>&1
+            echo "branch_push_rc=$?" >> "$log"
+            ok=0
+            for i in 1 2 3; do
+              git push origin HEAD:main >> "$log" 2>&1 && { ok=1; break; }
+              echo "main push attempt $i failed" >> "$log"
+              git pull --rebase origin main >> "$log" 2>&1
+            done
+            echo "main_push_ok=$ok" >> "$log"
           fi
+          cat "$log"
+          mkdir -p infra/status
+          cp "$log" infra/status/calendar-patch-log.txt
+          git add -f infra/status/calendar-patch-log.txt
+          git commit -m "calendar patch log" > /dev/null 2>&1
+          git push -f origin HEAD:patch-log
