@@ -1,0 +1,28 @@
+name: Run Deploy
+
+# Bump this file to dispatch a staging deploy of quantmail from main.
+# GITHUB_TOKEN workflow_dispatch is exempt from the no-recursion rule.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/run-deploy.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: run-deploy
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch staging deploy (quantmail, main)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run deploy-feature-staging.yml --ref main -f target=quantmail -f branch=main -R "$GITHUB_REPOSITORY"
+          echo "dispatched deploy-feature-staging for quantmail@main"
