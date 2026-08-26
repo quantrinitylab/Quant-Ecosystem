@@ -1,0 +1,23 @@
+=== deploy-vars 2026-08-26T08:15:07Z ===
+account=121701583740 region=us-east-1 cluster=quant-staging-eks ns=quant-staging tag=39354cdf-1787732107
+--- caller identity ---
+{
+    "UserId": "AROARYVP2ZN6NXFJZBSZJ:deploy-vars",
+    "Account": "121701583740",
+    "Arn": "arn:aws:sts::121701583740:assumed-role/quant-gha-deploy/deploy-vars"
+}
+--- kubeconfig ---
+Added new context arn:aws:eks:us-east-1:121701583740:cluster/quant-staging-eks to /home/runner/.kube/config
+--- BEFORE state ---
+NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+quant-quantmail           2/2     2            2           9d
+quant-quantmail-backend   2/2     2            2           9d
+redis                     1/1     1            1           9d
+current image: 121701583740.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail:f088a803
+NAME                                       READY   STATUS    RESTARTS   AGE
+quant-quantmail-5b4bb5d445-bsw4c           1/1     Running   0          153m
+quant-quantmail-5b4bb5d445-jswfx           1/1     Running   0          153m
+quant-quantmail-backend-69bdb8c86b-5b9lb   1/1     Running   0          3d19h
+quant-quantmail-backend-69bdb8c86b-tvmmc   1/1     Running   0          3d19h
+redis-f7d7c4d4c-z2nkw                      1/1     Running   0          9d
+=== BEFORE_PUBLISHED 08:15:18Z ===
