@@ -54,6 +54,43 @@ export function useCreateEvent() {
   });
 }
 
+export function useUpdateEvent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: {
+        title?: string;
+        startTime?: string;
+        endTime?: string;
+        description?: string;
+        calendarId?: string;
+      };
+    }) => {
+      // Mirror createEvent: some calendar routes validate start/end instead of
+      // startTime/endTime, so send both to stay compatible with either service.
+      const payload = {
+        ...data,
+        ...(data.startTime ? { start: data.startTime } : {}),
+        ...(data.endTime ? { end: data.endTime } : {}),
+      };
+      const response = await apiClient.updateEvent(
+        id,
+        payload as Parameters<typeof apiClient.updateEvent>[1],
+      );
+      if (!response.success) throw new Error(response.error?.message || 'Failed to update event');
+      return response.data!;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      queryClient.invalidateQueries({ queryKey: ['today-events'] });
+    },
+  });
+}
+
 export function useDeleteEvent() {
   const queryClient = useQueryClient();
   return useMutation({
