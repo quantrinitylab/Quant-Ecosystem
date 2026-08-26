@@ -1,8 +1,8 @@
 name: Fix OIDC trust
 
-# v2: env-based static creds so the report ALWAYS publishes, even if secrets
-# are missing. Fixes quant-gha-deploy trust policy org typo
-# (quantrinitylabsgo -> quantrinitylab).
+# v3: heredoc terminator indented for YAML block scalar (v1/v2 YAML was
+# invalid so GitHub never ran them). Fixes quant-gha-deploy trust policy
+# org typo (quantrinitylabsgo -> quantrinitylab).
 on:
   push:
     branches: [main]
@@ -54,9 +54,9 @@ jobs:
               }
             }]
           }
-JSONEOF
+          JSONEOF
           {
-            echo "=== fix-oidc-trust-v2 $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+            echo "=== fix-oidc-trust-v3 $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
             echo "key_id_len=${#AWS_ACCESS_KEY_ID} secret_len=${#AWS_SECRET_ACCESS_KEY}"
             echo "--- caller identity ---"
             aws sts get-caller-identity 2>&1
@@ -74,5 +74,5 @@ JSONEOF
           git config user.name "gha-bot"
           git config user.email "gha-bot@users.noreply.github.com"
           git add -f infra/status/oidc-fix-log.txt
-          git commit -m "oidc fix log v2"
+          git commit -m "oidc fix log v3"
           git push -f origin HEAD:oidc-fix-log
