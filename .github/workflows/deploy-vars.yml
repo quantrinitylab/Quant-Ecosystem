@@ -1,0 +1,92 @@
+name: Deploy via vars account
+
+# Deploys quantmail frontend using staging environment vars (the account/cluster
+# that served deploys 3-7 and is serving live traffic). Publishes before/after
+# state to deploy-vars-log branch (early publish after BEFORE state).
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-vars.yml'
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: deploy-vars
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: deploy-vars
+
+      - name: Deploy
+        env:
+          V_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          V_REGION: ${{ vars.AWS_REGION }}
+          V_CLUSTER: ${{ vars.EKS_CLUSTER }}
+          V_NS: ${{ vars.K8S_NAMESPACE }}
+        run: |
+          set +e
+          REG="$V_ACCOUNT.dkr.ecr.$V_REGION.amazonaws.com"
+          TAG="${GITHUB_SHA::8}-$(date +%s)"
+          publish() {
+            mkdir -p infra/status
+            cp "$1" infra/status/deploy-vars-log.txt
+            git config user.name "gha-bot"
+            git config user.email "gha-bot@users.noreply.github.com"
+            git add -f infra/status/deploy-vars-log.txt
+            git commit -m "deploy-vars log" >/dev/null 2>&1
+            git push -f origin HEAD:deploy-vars-log >/dev/null 2>&1
+          }
+          {
+            echo "=== deploy-vars $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+            echo "account=$V_ACCOUNT region=$V_REGION cluster=$V_CLUSTER ns=$V_NS tag=$TAG"
+            echo "--- caller identity ---"
+            aws sts get-caller-identity 2>&1
+            echo "--- kubeconfig ---"
+            aws eks update-kubeconfig --name "$V_CLUSTER" --region "$V_REGION" 2>&1
+            echo "--- BEFORE state ---"
+            kubectl -n "$V_NS" get deploy 2>&1
+            echo "current image: $(kubectl -n "$V_NS" get deploy quant-quantmail -o jsonpath='{.spec.template.spec.containers[0].image}' 2>&1)"
+            kubectl -n "$V_NS" get pods 2>&1 | head -20
+            echo "=== BEFORE_PUBLISHED $(date -u +%H:%M:%SZ) ==="
+          } > /tmp/d1.log 2>&1
+          publish /tmp/d1.log
+          {
+            echo "--- ecr login ---"
+            aws ecr get-login-password --region "$V_REGION" 2>/tmp/ecrerr | docker login --username AWS --password-stdin "$REG" 2>&1 || cat /tmp/ecrerr
+            echo "--- build ---"
+            docker build -t "$REG/quant-quantmail:$TAG" -f apps/quantmail/Dockerfile . > /tmp/build.log 2>&1
+            BUILD_RC=$?
+            echo "build_rc=$BUILD_RC"
+            tail -c 2500 /tmp/build.log
+            if [ "$BUILD_RC" = "0" ]; then
+              echo "--- push ---"
+              docker push "$REG/quant-quantmail:$TAG" 2>&1 | tail -5
+              echo "--- set image ---"
+              kubectl -n "$V_NS" set image deploy/quant-quantmail quant-quantmail="$REG/quant-quantmail:$TAG" 2>&1
+              echo "--- rollout ---"
+              kubectl -n "$V_NS" rollout status deploy/quant-quantmail --timeout=300s 2>&1
+              echo "rollout_rc=$?"
+              echo "--- AFTER state ---"
+              kubectl -n "$V_NS" get pods 2>&1 | head -20
+              echo "final image: $(kubectl -n "$V_NS" get deploy quant-quantmail -o jsonpath='{.spec.template.spec.containers[0].image}' 2>&1)"
+            fi
+            echo "=== DONE $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+          } > /tmp/d2.log 2>&1
+          cat /tmp/d1.log /tmp/d2.log > /tmp/all.log
+          publish /tmp/all.log
