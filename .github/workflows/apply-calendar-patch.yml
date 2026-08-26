@@ -1,0 +1,51 @@
+name: Apply Calendar Patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/patches/calendar-edit.py'
+      - '.github/workflows/apply-calendar-patch.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-calendar-patch
+  cancel-in-progress: false
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Apply calendar patch
+        run: |
+          set -e
+          python3 infra/patches/calendar-edit.py apps/quantmail/src/app/calendar/page.tsx
+
+      - name: Commit and push
+        run: |
+          set -e
+          if git diff --quiet -- apps/quantmail/src/app/calendar/page.tsx; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "quant-bot"
+          git config user.email "bot@quantrinity.in"
+          git add apps/quantmail/src/app/calendar/page.tsx
+          git commit -m "fix(calendar): edit events via useUpdateEvent, remove fake meet-link generator, prefill ?attendee= from contacts"
+          ok=0
+          for i in 1 2 3; do
+            if git push origin HEAD:main; then
+              ok=1
+              break
+            fi
+            git pull --rebase origin main
+          done
+          if [ "$ok" != "1" ]; then
+            git push origin HEAD:main
+          fi
