@@ -1,3 +1,4 @@
+# bump 2026-08-26: post-fix liveness probe
 name: ui-probe
 
 on:
