@@ -121,8 +121,21 @@ export function AccountBadge() {
             {address}
           </span>
         </span>
-        <span className="text-xs text-[var(--quant-muted-foreground)]" aria-hidden="true">
-          {open ? '▾' : '▸'}
+        <span
+          className="text-xs text-[var(--quant-muted-foreground)] flex items-center justify-center"
+          aria-hidden="true"
+        >
+          <svg
+            className={`size-3.5 transition-transform ${open ? 'rotate-180' : ''}`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
         </span>
       </button>
 
@@ -130,11 +143,11 @@ export function AccountBadge() {
         <div
           id="account-badge-menu"
           role="menu"
-          className="absolute bottom-[calc(100%-0.25rem)] left-3 right-3 z-30 mb-1 overflow-hidden rounded-2xl border border-zinc-700/80 bg-[#121622] shadow-2xl animate-scale-in"
+          className="absolute bottom-[calc(100%-0.25rem)] left-3 right-3 z-30 mb-1 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-2xl animate-scale-in"
         >
           {/* Multi-Account Switcher Section */}
-          <div className="p-2 border-b border-zinc-800 space-y-1">
-            <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+          <div className="p-2 border-b border-[#282C35] space-y-1">
+            <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]">
               Accounts ({accounts.length})
             </p>
             {accounts.map((acc) => {
@@ -144,19 +157,21 @@ export function AccountBadge() {
                   key={acc.email}
                   type="button"
                   onClick={() => handleSwitchAccount(acc)}
-                  className={`w-full flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-xl text-left transition-colors ${
-                    isCurrent ? 'bg-zinc-800/80 text-white' : 'hover:bg-zinc-800/50 text-zinc-300'
+                  className={`w-full flex items-center justify-between gap-2.5 p-2 rounded-xl text-left transition-colors ${
+                    isCurrent
+                      ? 'bg-[#2B1A11] border border-[#5C3016]'
+                      : 'hover:bg-[#1C1F26] border border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span
-                      className="size-7 rounded-full flex-none flex items-center justify-center text-[11px] font-bold text-white shadow-sm"
+                      className="size-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
                       style={{ background: gradientFor(acc.email) }}
                     >
                       {initials(acc.displayName || acc.email)}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold truncate leading-tight">
+                      <p className="text-xs font-semibold text-white truncate leading-tight">
                         {acc.displayName}
                       </p>
                       <p className="text-[10px] text-zinc-400 truncate leading-tight">
@@ -165,7 +180,17 @@ export function AccountBadge() {
                     </div>
                   </div>
                   {isCurrent && (
-                    <span className="text-[#FF7A00] font-bold text-xs shrink-0">✓</span>
+                    <svg
+                      className="size-3.5 text-[#FF8C42] shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
                   )}
                 </button>
               );
@@ -174,9 +199,9 @@ export function AccountBadge() {
             <button
               type="button"
               onClick={handleAddAccount}
-              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-[#FF7A00] hover:bg-[#FF7A00]/10 transition-colors"
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-[#FF8C42] hover:bg-[#2B1A11] transition-colors"
             >
-              <span className="size-5 rounded-lg bg-[#FF7A00]/20 flex items-center justify-center font-bold">
+              <span className="size-5 rounded-lg bg-[#2B1A11] border border-[#5C3016] flex items-center justify-center font-bold">
                 +
               </span>
               <span>Add another account</span>
@@ -192,9 +217,20 @@ export function AccountBadge() {
                 setOpen(false);
                 router.push('/settings');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-zinc-200 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-zinc-200 hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors"
             >
-              <span>⚙</span>
+              <svg
+                className="size-3.5 text-[#A1A4AC]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
               <span>Settings & Preferences</span>
             </button>
 
@@ -205,9 +241,19 @@ export function AccountBadge() {
                 setOpen(false);
                 router.push('/security');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-zinc-200 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-zinc-200 hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors"
             >
-              <span>🔐</span>
+              <svg
+                className="size-3.5 text-[#A1A4AC]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
               <span>Security & 2FA</span>
             </button>
 
@@ -221,7 +267,19 @@ export function AccountBadge() {
               }}
               className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-colors"
             >
-              <span>🚪</span>
+              <svg
+                className="size-3.5 text-rose-400"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
               <span>Sign out</span>
             </button>
           </div>
