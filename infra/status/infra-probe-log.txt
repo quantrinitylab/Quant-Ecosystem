@@ -1,0 +1,37 @@
+=== infra-probe-v2 2026-08-26T07:59:39Z ===
+repo-scope vars: account=[] role=[] region=[] cluster=[] ns=[]
+--- staging environment config ---
+{
+  "protection_rules": [
+    {
+      "id": 61522345,
+      "node_id": "GA_kwDOTSv5ls4DqsGp",
+      "type": "branch_policy"
+    }
+  ],
+  "deployment_branch_policy": {
+    "protected_branches": false,
+    "custom_branch_policies": true
+  }
+}
+--- staging deployment branch policies ---
+{"total_count":2,"branch_policies":[{"id":56888967,"node_id":"MDE2OkdhdGVCcmFuY2hQb2xpY3k1Njg4ODk2Nw==","name":"deploy-feature-staging.yml","type":"branch"},{"id":56232427,"node_id":"MDE2OkdhdGVCcmFuY2hQb2xpY3k1NjIzMjQyNw==","name":"main","type":"branch"}]}--- staging environment variables ---
+{"message":"Resource not accessible by integration","documentation_url":"https://docs.github.com/rest/actions/variables#list-environment-variables","status":"403"}gh: Resource not accessible by integration (HTTP 403)
+--- repo variables ---
+{"message":"Resource not accessible by integration","documentation_url":"https://docs.github.com/rest/actions/variables#list-repository-variables","status":"403"}gh: Resource not accessible by integration (HTTP 403)
+--- recent runs ---
+2026-08-26T07:59:30Z Infra probe [push/infra-probe] in_progress|
+2026-08-26T07:53:30Z Infra probe [push/infra-probe] completed|failure
+2026-08-26T07:48:55Z CI [push/main] in_progress|
+2026-08-26T07:48:55Z Action pin policy [push/main] completed|failure
+2026-08-26T07:48:55Z Fix OIDC trust [push/main] completed|success
+2026-08-26T07:48:55Z CodeQL Advanced [push/main] completed|success
+2026-08-26T07:45:05Z CodeQL Advanced [push/main] completed|success
+2026-08-26T07:45:05Z Fix OIDC trust [push/main] completed|success
+2026-08-26T07:45:05Z Action pin policy [push/main] completed|failure
+2026-08-26T07:45:04Z CI [push/main] completed|cancelled
+2026-08-26T07:39:50Z Action pin policy [push/main] completed|failure
+2026-08-26T07:39:50Z CI [push/main] completed|cancelled
+2026-08-26T07:39:50Z CodeQL Advanced [push/main] completed|success
+2026-08-26T07:39:50Z .github/workflows/fix-oidc-trust.yml [push/main] completed|failure
+=== done ===
