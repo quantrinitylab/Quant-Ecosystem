@@ -21,14 +21,14 @@ interface AICodingChatProps {
 }
 
 const QUICK_ACTIONS = [
-  { id: 'explain', label: 'Explain this code', icon: '💡' },
-  { id: 'refactor', label: 'Refactor', icon: '♻️' },
-  { id: 'test', label: 'Write tests', icon: '🧪' },
-  { id: 'fix', label: 'Fix bugs', icon: '🐛' },
-  { id: 'optimize', label: 'Optimize', icon: '⚡' },
-  { id: 'document', label: 'Add docs', icon: '📝' },
-  { id: 'types', label: 'Add types', icon: '🔷' },
-  { id: 'convert', label: 'Convert to...', icon: '🔄' },
+  { id: 'explain', label: 'Explain this code' },
+  { id: 'refactor', label: 'Refactor' },
+  { id: 'test', label: 'Write tests' },
+  { id: 'fix', label: 'Fix bugs' },
+  { id: 'optimize', label: 'Optimize' },
+  { id: 'document', label: 'Add docs' },
+  { id: 'types', label: 'Add types' },
+  { id: 'convert', label: 'Convert to...' },
 ];
 
 /**
@@ -179,8 +179,23 @@ export function AICodingChat({
             <span className="ai-chat-no-file">No file open</span>
           )}
         </div>
-        <button type="button" className="ai-chat-close" onClick={onClose}>
-          ×
+        <button
+          type="button"
+          className="ai-chat-close flex items-center justify-center"
+          onClick={onClose}
+        >
+          <svg
+            className="size-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </header>
 
@@ -194,7 +209,6 @@ export function AICodingChat({
             onClick={() => handleQuickAction(action.id)}
             disabled={isLoading || !currentFile}
           >
-            <span>{action.icon}</span>
             <span>{action.label}</span>
           </button>
         ))}
@@ -209,7 +223,22 @@ export function AICodingChat({
                 <Quanty size={22} />
               </span>
             )}
-            {msg.role === 'user' && <span className="ai-msg-avatar">👤</span>}
+            {msg.role === 'user' && (
+              <span className="ai-msg-avatar flex items-center justify-center">
+                <svg
+                  className="size-4 text-[#A1A4AC]"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </span>
+            )}
             <div className="ai-msg-content">
               <p>{msg.content}</p>
               {msg.codeBlock && (

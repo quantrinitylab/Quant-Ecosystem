@@ -25,10 +25,10 @@ interface ReviewSummary {
 }
 
 const SEVERITY_CONFIG = {
-  critical: { icon: '🔴', label: 'Critical', color: '#f87171' },
-  warning: { icon: '🟡', label: 'Warning', color: '#fbbf24' },
-  suggestion: { icon: '💡', label: 'Suggestion', color: '#60a5fa' },
-  praise: { icon: '✨', label: 'Nice', color: '#4ade80' },
+  critical: { label: 'Critical', color: '#f87171' },
+  warning: { label: 'Warning', color: '#fbbf24' },
+  suggestion: { label: 'Suggestion', color: '#60a5fa' },
+  praise: { label: 'Nice', color: '#4ade80' },
 };
 
 /**
@@ -60,14 +60,15 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
         file: 'src/utils.ts',
         line: 15,
         severity: 'warning',
-        comment: 'This async function doesn\'t await. Add `await` or remove `async` keyword.',
+        comment: "This async function doesn't await. Add `await` or remove `async` keyword.",
       },
       {
         id: 'rc-3',
         file: 'src/api/handler.ts',
         line: 8,
         severity: 'critical',
-        comment: 'User input is used directly in the query without sanitization. Use parameterized queries.',
+        comment:
+          'User input is used directly in the query without sanitization. Use parameterized queries.',
       },
       {
         id: 'rc-4',
@@ -89,17 +90,43 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
   return (
     <div className="ai-code-review">
       {!review && (
-        <button
-          type="button"
-          className="ai-review-trigger"
-          onClick={requestReview}
-        >
-          <span className="ai-review-icon">🤖</span>
+        <button type="button" className="ai-review-trigger" onClick={requestReview}>
+          <span className="ai-review-icon flex items-center justify-center">
+            <svg
+              className="size-5 text-[#FF8C42]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 8V4H8" />
+              <rect width="16" height="12" x="4" y="8" rx="2" />
+              <path d="M2 14h2" />
+              <path d="M20 14h2" />
+              <path d="M15 13v2" />
+              <path d="M9 13v2" />
+            </svg>
+          </span>
           <div className="ai-review-trigger-text">
             <strong>AI Code Review</strong>
             <span>Analyze this PR for bugs, security issues, and best practices</span>
           </div>
-          <span className="ai-review-arrow">→</span>
+          <span className="ai-review-arrow flex items-center justify-center">
+            <svg
+              className="size-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </span>
         </button>
       )}
 
@@ -110,12 +137,11 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.25 }}
           >
             {review.isLoading ? (
               <div className="ai-review-loading">
-                <div className="ai-review-spinner" />
-                <span>Analyzing code changes…</span>
+                <span className="ai-spinner" />
+                <span>Analyzing diff and generating review...</span>
               </div>
             ) : (
               <>
@@ -125,7 +151,11 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
                       className="score-ring"
                       style={{
                         background: `conic-gradient(${
-                          review.score >= 80 ? '#4ade80' : review.score >= 60 ? '#fbbf24' : '#f87171'
+                          review.score >= 80
+                            ? '#4ade80'
+                            : review.score >= 60
+                              ? '#fbbf24'
+                              : '#f87171'
                         } ${review.score * 3.6}deg, #2a2a2e 0deg)`,
                       }}
                     >
@@ -136,8 +166,21 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
                       <span>{review.comments.length} review comments</span>
                     </div>
                   </div>
-                  <button type="button" className="ai-review-toggle">
-                    {isExpanded ? '▲' : '▼'}
+                  <button
+                    type="button"
+                    className="ai-review-toggle flex items-center justify-center"
+                  >
+                    <svg
+                      className={`size-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
                   </button>
                 </header>
 
@@ -150,8 +193,11 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
                         const config = SEVERITY_CONFIG[comment.severity];
                         return (
                           <div key={comment.id} className="ai-review-comment">
-                            <div className="ai-comment-header">
-                              <span>{config.icon}</span>
+                            <div className="ai-comment-header flex items-center gap-1.5">
+                              <span
+                                className="size-2 rounded-full shrink-0"
+                                style={{ backgroundColor: config.color }}
+                              />
                               <span className="ai-comment-severity" style={{ color: config.color }}>
                                 {config.label}
                               </span>

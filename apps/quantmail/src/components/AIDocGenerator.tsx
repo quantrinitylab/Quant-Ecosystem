@@ -28,21 +28,31 @@ export function AIDocGenerator({ code, language, onApplyDocs }: AIDocGeneratorPr
 
     const lines = code.split('\n');
     const documented: string[] = [];
-    
+
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const trimmed = line.trim();
 
       // Add docs before function declarations
-      if (trimmed.match(/^(export\s+)?(async\s+)?function\s+\w+/) ||
-          trimmed.match(/^(export\s+)?const\s+\w+\s*=\s*(async\s+)?\(/)) {
+      if (
+        trimmed.match(/^(export\s+)?(async\s+)?function\s+\w+/) ||
+        trimmed.match(/^(export\s+)?const\s+\w+\s*=\s*(async\s+)?\(/)
+      ) {
         const funcName = trimmed.match(/(?:function|const)\s+(\w+)/)?.[1] || 'unknown';
         const params = trimmed.match(/\(([^)]*)\)/)?.[1] || '';
-        const paramList = params.split(',').map((p) => p.trim()).filter(Boolean);
-        
+        const paramList = params
+          .split(',')
+          .map((p) => p.trim())
+          .filter(Boolean);
+
         if (style === 'tsdoc' || style === 'jsdoc') {
           documented.push('/**');
-          documented.push(` * ${funcName} — handles ${funcName.replace(/([A-Z])/g, ' $1').toLowerCase().trim()}.`);
+          documented.push(
+            ` * ${funcName} — handles ${funcName
+              .replace(/([A-Z])/g, ' $1')
+              .toLowerCase()
+              .trim()}.`,
+          );
           for (const param of paramList) {
             const pName = param.split(/[:\s=]/)[0].trim();
             documented.push(` * @param ${pName} - The ${pName} parameter`);
@@ -64,10 +74,18 @@ export function AIDocGenerator({ code, language, onApplyDocs }: AIDocGeneratorPr
       }
 
       // Add docs before interface/type declarations
-      if (trimmed.match(/^(export\s+)?interface\s+\w+/) || trimmed.match(/^(export\s+)?type\s+\w+\s*=/)) {
+      if (
+        trimmed.match(/^(export\s+)?interface\s+\w+/) ||
+        trimmed.match(/^(export\s+)?type\s+\w+\s*=/)
+      ) {
         const typeName = trimmed.match(/(?:interface|type)\s+(\w+)/)?.[1] || 'unknown';
         documented.push('/**');
-        documented.push(` * ${typeName} — type definition for ${typeName.replace(/([A-Z])/g, ' $1').toLowerCase().trim()}.`);
+        documented.push(
+          ` * ${typeName} — type definition for ${typeName
+            .replace(/([A-Z])/g, ' $1')
+            .toLowerCase()
+            .trim()}.`,
+        );
         documented.push(' */');
       }
 
@@ -80,8 +98,27 @@ export function AIDocGenerator({ code, language, onApplyDocs }: AIDocGeneratorPr
 
   return (
     <div className="ai-doc-gen">
-      <button type="button" className="ai-doc-trigger" onClick={() => setIsOpen((v) => !v)}>
-        📝 Auto-Document
+      <button
+        type="button"
+        className="ai-doc-trigger flex items-center gap-1.5"
+        onClick={() => setIsOpen((v) => !v)}
+      >
+        <svg
+          className="size-4 text-[#FF8C42]"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+          <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+          <path d="M10 9H8" />
+          <path d="M16 13H8" />
+          <path d="M16 17H8" />
+        </svg>
+        Auto-Document
       </button>
       <AnimatePresence>
         {isOpen && (
@@ -93,21 +130,38 @@ export function AIDocGenerator({ code, language, onApplyDocs }: AIDocGeneratorPr
           >
             <div className="ai-doc-styles">
               {(['tsdoc', 'jsdoc', 'docstring', 'readme'] as DocStyle[]).map((s) => (
-                <button key={s} type="button" className={style === s ? 'is-active' : ''} onClick={() => setStyle(s)}>
+                <button
+                  key={s}
+                  type="button"
+                  className={style === s ? 'is-active' : ''}
+                  onClick={() => setStyle(s)}
+                >
                   {s.toUpperCase()}
                 </button>
               ))}
             </div>
-            <button type="button" className="ai-doc-generate" onClick={generate} disabled={isGenerating}>
-              {isGenerating ? 'Generating...' : '✦ Generate Documentation'}
+            <button
+              type="button"
+              className="ai-doc-generate"
+              onClick={generate}
+              disabled={isGenerating}
+            >
+              {isGenerating ? 'Generating...' : 'Generate Documentation'}
             </button>
             {result && (
               <div className="ai-doc-result">
                 <header>
                   <span>Documented code preview</span>
-                  <button type="button" onClick={() => onApplyDocs(result)}>Apply</button>
+                  <button type="button" onClick={() => onApplyDocs(result)}>
+                    Apply
+                  </button>
                 </header>
-                <pre><code>{result.slice(0, 500)}{result.length > 500 ? '\n...' : ''}</code></pre>
+                <pre>
+                  <code>
+                    {result.slice(0, 500)}
+                    {result.length > 500 ? '\n...' : ''}
+                  </code>
+                </pre>
               </div>
             )}
           </motion.div>
