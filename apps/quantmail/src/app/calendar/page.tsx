@@ -8,7 +8,12 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { Quanty } from '../../components/Quanty';
 import { QuantyCopilotDrawer } from '../../components/QuantyCopilotDrawer';
-import { useCalendarEvents, useCreateEvent, useDeleteEvent } from '../../hooks/useCalendar';
+import {
+  useCalendarEvents,
+  useCreateEvent,
+  useUpdateEvent,
+  useDeleteEvent,
+} from '../../hooks/useCalendar';
 import { useAuth } from '../../providers/auth-provider';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
@@ -167,6 +172,9 @@ const hhmm = (date: Date) =>
 
 const toDateInput = (date: Date) =>
   `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
+
+const toTimeInput = (date: Date) =>
+  `${`${date.getHours()}`.padStart(2, '0')}:${`${date.getMinutes()}`.padStart(2, '0')}`;
 
 type CalendarView = 'agenda' | 'week' | 'day' | 'month';
 
@@ -513,6 +521,7 @@ export default function CalendarPage() {
 
   // Active Creation Sheet Type (Dedicated sheet per mode)
   const [activeSheetType, setActiveSheetType] = useState<EntryType | null>(null);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [periodSubTab, setPeriodSubTab] = useState<'track' | 'cycle' | 'insights'>('track');
   const [isPeriodCustomizeOpen, setIsPeriodCustomizeOpen] = useState(false);
@@ -657,6 +666,7 @@ export default function CalendarPage() {
   const isInitialLoading = isLoading && !rawEvents;
 
   const createEvent = useCreateEvent();
+  const updateEvent = useUpdateEvent();
   const deleteEvent = useDeleteEvent();
 
   const dayKey = (date: Date) =>
@@ -1009,6 +1019,7 @@ export default function CalendarPage() {
 
     if (deltaY > 120 || velocityY > 0.4) {
       setActiveSheetType(null);
+      setEditingEventId(null);
       return;
     }
   }, []);
@@ -1136,6 +1147,7 @@ export default function CalendarPage() {
       setIsFabOpen(false);
       setSheetDragY(0);
       setPeriodSubTab('track');
+      setEditingEventId(null);
       setActiveSheetType(type);
     },
     [selectedDate, currentUserEmail],
@@ -1146,6 +1158,73 @@ export default function CalendarPage() {
     window.addEventListener('quant:calendar:create', handler);
     return () => window.removeEventListener('quant:calendar:create', handler);
   }, [openDedicatedSheet]);
+
+  const openEditSheet = useCallback((ev: CalendarEventLike) => {
+    const type: EntryType =
+      ev.type === 'task' || ev.type === 'birthday' || ev.type === 'period'
+        ? (ev.type as EntryType)
+        : 'event';
+    const startD = startOf(ev);
+    const endD = endOf(ev);
+    const hasStart = !Number.isNaN(startD.getTime());
+    const hasEnd = !Number.isNaN(endD.getTime());
+    const attendeeList = Array.isArray(ev.attendees)
+      ? (ev.attendees as unknown[])
+          .map((a) => (typeof a === 'string' ? a : ((a as { email?: string })?.email ?? '')))
+          .filter(Boolean)
+      : [];
+
+    setFormState((prev) => ({
+      ...prev,
+      title: ev.title || '',
+      startDate: hasStart ? toDateInput(startD) : prev.startDate,
+      endDate: hasEnd ? toDateInput(endD) : hasStart ? toDateInput(startD) : prev.endDate,
+      startTime: hasStart && !ev.allDay ? toTimeInput(startD) : prev.startTime,
+      endTime: hasEnd && !ev.allDay ? toTimeInput(endD) : prev.endTime,
+      allDay: Boolean(ev.allDay),
+      location: ev.location || '',
+      description: ev.description || '',
+      recurrence: ev.recurrence || 'Does not repeat',
+      color: ev.color || prev.color,
+      attendeeInput: '',
+      attendees: attendeeList,
+      priority: ev.priority || 'medium',
+      subtaskInput: '',
+      subtasks: ev.subtasks || [],
+      flowIntensity: ev.flowIntensity || 'medium',
+      spottingColor: ev.spottingColor || 'red',
+      currentCycleDay: ev.cycleDay || prev.currentCycleDay,
+    }));
+
+    setSelectedEvent(null);
+    setIsFabOpen(false);
+    setSheetDragY(0);
+    setPeriodSubTab('track');
+    setEditingEventId(ev.id);
+    setActiveSheetType(type);
+  }, []);
+
+  const closeSheet = useCallback(() => {
+    if (isSaving) return;
+    setActiveSheetType(null);
+    setEditingEventId(null);
+  }, [isSaving]);
+
+  // Prefill a new event when arriving from Contacts via /calendar?attendee=<email>
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const attendee = params.get('attendee');
+    if (!attendee) return;
+    openDedicatedSheet('event');
+    setFormState((prev) => ({
+      ...prev,
+      title: prev.title || `Meeting with ${attendee}`,
+      attendees: prev.attendees.includes(attendee) ? prev.attendees : [...prev.attendees, attendee],
+    }));
+    window.history.replaceState(null, '', window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSaveEntry = useCallback(async () => {
     if (!activeSheetType) return;
@@ -1229,21 +1308,29 @@ export default function CalendarPage() {
 
     setIsSaving(true);
     try {
-      await createEvent.mutateAsync(payload as never);
+      if (editingEventId) {
+        await updateEvent.mutateAsync({ id: editingEventId, data: payload as never });
+      } else {
+        await createEvent.mutateAsync(payload as never);
+      }
       setTimeout(() => {
         setIsSaving(false);
         setActiveSheetType(null);
+        setEditingEventId(null);
         showToast({
-          text: `${activeSheetType === 'task' ? 'Task' : activeSheetType === 'birthday' ? 'Birthday' : activeSheetType === 'period' ? 'Cycle entry' : 'Event'} "${finalTitle}" saved`,
+          text: `${activeSheetType === 'task' ? 'Task' : activeSheetType === 'birthday' ? 'Birthday' : activeSheetType === 'period' ? 'Cycle entry' : 'Event'} "${finalTitle}" ${editingEventId ? 'updated' : 'saved'}`,
           type: 'success',
         });
         void refetch();
       }, 350);
     } catch {
       setIsSaving(false);
-      showToast({ text: 'Failed to save entry', type: 'error' });
+      showToast({
+        text: editingEventId ? 'Failed to update entry' : 'Failed to save entry',
+        type: 'error',
+      });
     }
-  }, [activeSheetType, formState, createEvent, refetch]);
+  }, [activeSheetType, formState, createEvent, updateEvent, editingEventId, refetch]);
 
   const handleDeleteEvent = useCallback(
     async (id: string, e?: React.MouseEvent) => {
@@ -1261,15 +1348,6 @@ export default function CalendarPage() {
     },
     [deleteEvent, refetch],
   );
-
-  const handleAddMeetLink = () => {
-    const roomId = `meet-${Math.random().toString(36).substring(2, 8)}`;
-    setFormState((prev) => ({
-      ...prev,
-      location: `https://meet.quantrinity.in/${roomId}`,
-    }));
-    showToast({ text: 'Generated QuantMeet / QuantChat Meeting Link', type: 'info' });
-  };
 
   const handleAddAttendee = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
@@ -2190,7 +2268,7 @@ export default function CalendarPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                onClick={() => !isSaving && setActiveSheetType(null)}
+                onClick={closeSheet}
                 className="absolute inset-0 bg-black/75 backdrop-blur-md"
               />
 
@@ -2227,7 +2305,7 @@ export default function CalendarPage() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => !isSaving && setActiveSheetType(null)}
+                        onClick={closeSheet}
                         className="size-9 rounded-full hover:bg-zinc-800 text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
                         aria-label="Close"
                       >
@@ -2247,17 +2325,20 @@ export default function CalendarPage() {
                       <span className="text-sm font-black text-white flex items-center gap-1.5">
                         {activeSheetType === 'event' && (
                           <span className="flex items-center gap-1.5 text-[#FF8C42]">
-                            <IconCalendar className="size-4 text-[#FF8C42]" /> New Event
+                            <IconCalendar className="size-4 text-[#FF8C42]" />{' '}
+                            {editingEventId ? 'Edit Event' : 'New Event'}
                           </span>
                         )}
                         {activeSheetType === 'task' && (
                           <span className="flex items-center gap-1.5 text-amber-400">
-                            <IconTarget className="size-4 text-amber-400" /> New Task
+                            <IconTarget className="size-4 text-amber-400" />{' '}
+                            {editingEventId ? 'Edit Task' : 'New Task'}
                           </span>
                         )}
                         {activeSheetType === 'birthday' && (
                           <span className="flex items-center gap-1.5 text-emerald-400">
-                            <IconCake className="size-4 text-emerald-400" /> New Birthday
+                            <IconCake className="size-4 text-emerald-400" />{' '}
+                            {editingEventId ? 'Edit Birthday' : 'New Birthday'}
                           </span>
                         )}
                         {activeSheetType === 'period' && (
@@ -2297,10 +2378,10 @@ export default function CalendarPage() {
                               d="M4 12a8 8 0 018-8v8H4z"
                             />
                           </svg>
-                          <span>Saving…</span>
+                          <span>{editingEventId ? 'Updating…' : 'Saving…'}</span>
                         </>
                       ) : (
-                        <span>Save</span>
+                        <span>{editingEventId ? 'Update' : 'Save'}</span>
                       )}
                     </button>
                   </div>
@@ -2493,19 +2574,6 @@ export default function CalendarPage() {
                             ))}
                           </div>
                         )}
-                      </div>
-
-                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
-                        <div className="flex items-center gap-2.5 text-zinc-300">
-                          <IconVideo className="size-4 text-[#ff9933]" />
-                          <button
-                            type="button"
-                            onClick={handleAddMeetLink}
-                            className="text-xs text-[#ff9933] hover:underline font-bold"
-                          >
-                            + Add QuantMeet / QuantChat video conferencing
-                          </button>
-                        </div>
                       </div>
 
                       <div className="py-2 border-b border-zinc-800/60 space-y-1.5">
@@ -3630,13 +3698,22 @@ export default function CalendarPage() {
               )}
 
               <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => handleDeleteEvent(selectedEvent.id)}
-                  className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 text-xs font-bold"
-                >
-                  Delete Entry
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openEditSheet(selectedEvent)}
+                    className="px-3 py-1.5 rounded-xl bg-[#ff9933]/20 text-[#ff9933] hover:bg-[#ff9933]/30 text-xs font-bold"
+                  >
+                    Edit Entry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteEvent(selectedEvent.id)}
+                    className="px-3 py-1.5 rounded-xl bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 text-xs font-bold"
+                  >
+                    Delete Entry
+                  </button>
+                </div>
                 <Button variant="ghost" onClick={() => setSelectedEvent(null)}>
                   Close
                 </Button>
