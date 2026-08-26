@@ -2213,9 +2213,9 @@ body {
   gap: 0.55rem;
   padding: 0.65rem 1rem;
   border-radius: 0.65rem;
-  background: #1c1c1f;
-  border: 1px solid #2d2d32;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  background: #16181D;
+  border: 1px solid #282C35;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   font-size: 0.76rem;
   color: #e5e5e7;
   pointer-events: auto;
@@ -2223,7 +2223,7 @@ body {
   max-width: 420px;
 }
 .inbox-toast--success .inbox-toast-icon { color: #4ade80; }
-.inbox-toast--info .inbox-toast-icon { color: #60a5fa; }
+.inbox-toast--info .inbox-toast-icon { color: #FF8C42; }
 .inbox-toast--warning .inbox-toast-icon { color: #fbbf24; }
 .inbox-toast--error .inbox-toast-icon { color: #f87171; }
 .inbox-toast-icon {
@@ -2236,9 +2236,9 @@ body {
   line-height: 1.4;
 }
 .inbox-toast-undo {
-  border: none;
-  background: transparent;
-  color: #ff9933;
+  border: 1px solid #5C3016;
+  background: #2B1A11;
+  color: #FF8C42;
   font-size: 0.72rem;
   font-weight: 650;
   cursor: pointer;
@@ -2247,19 +2247,19 @@ body {
   transition: background 100ms;
 }
 .inbox-toast-undo:hover {
-  background: rgba(255, 153, 51, 0.12);
+  background: #3D2214;
 }
 .inbox-toast-dismiss {
   border: none;
   background: transparent;
-  color: #666;
+  color: #6B6E76;
   font-size: 1rem;
   cursor: pointer;
   padding: 0 0.3rem;
   line-height: 1;
   transition: color 100ms;
 }
-.inbox-toast-dismiss:hover { color: #ccc; }
+.inbox-toast-dismiss:hover { color: #F5F5F5; }
 
 /* ========================================================================== */
 /* Gmail-killer: Keyboard Shortcuts Help Panel                                */
