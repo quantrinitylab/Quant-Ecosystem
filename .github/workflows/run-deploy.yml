@@ -1,7 +1,6 @@
 name: Run Deploy
 
-# v2: status reporter. Bump to publish recent workflow run statuses.
-# (Does NOT re-dispatch; re-dispatch would cancel an in-progress deploy.)
+# v3: fetch failed deploy logs.
 on:
   push:
     branches: [main]
@@ -23,14 +22,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Report recent workflow runs
+      - name: Report deploy failure log
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
           {
-            echo "=== runs-status $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
-            gh run list -R "$GITHUB_REPOSITORY" --limit 16 --json workflowName,status,conclusion,createdAt,displayTitle | jq -r '.[] | "\(.createdAt) | \(.workflowName) | \(.status) | \(.conclusion) | \(.displayTitle)"'
+            echo "=== deploy-log $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+            id=$(gh run list -R "$GITHUB_REPOSITORY" --workflow=deploy-feature-staging.yml --limit 1 --json databaseId | jq -r '.[0].databaseId')
+            echo "run_id=$id"
+            gh run view "$id" -R "$GITHUB_REPOSITORY" --json status,conclusion,createdAt,updatedAt | jq -r '.'
+            echo "--- failed step logs (tail) ---"
+            gh run view "$id" -R "$GITHUB_REPOSITORY" --log-failed 2>&1 | tail -c 6000
+            echo ""
+            echo "--- recent runs ---"
+            gh run list -R "$GITHUB_REPOSITORY" --limit 6 --json workflowName,status,conclusion,createdAt | jq -r '.[] | "\(.createdAt) | \(.workflowName) | \(.status) | \(.conclusion)"'
+            echo "=== done ==="
           } > /tmp/runs.txt 2>&1
           cat /tmp/runs.txt
           mkdir -p infra/status
