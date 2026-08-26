@@ -399,7 +399,38 @@ export default function CodeHubRepoPage() {
                     Add file
                   </Button>
                   <Button variant="primary" onClick={copyClone}>
-                    {cloneCopied ? 'Copied ✓' : '<> Code'}
+                    {cloneCopied ? (
+                      <span className="flex items-center gap-1">
+                        <svg
+                          className="size-3.5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        Copied
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <svg
+                          className="size-3.5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="16 18 22 12 16 6" />
+                          <polyline points="8 6 2 12 8 18" />
+                        </svg>
+                        Code
+                      </span>
+                    )}
                   </Button>
                 </div>
 

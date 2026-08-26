@@ -241,7 +241,7 @@ export default function SettingsPage() {
     }
     const found = AVAILABLE_AI_MODELS.find((m) => m.id === modelId);
     showToast({
-      text: `AI Model set to ${found?.name || modelId} 🧠`,
+      text: `AI Model set to ${found?.name || modelId}`,
       type: 'success',
     });
   };
@@ -600,8 +600,8 @@ export default function SettingsPage() {
                           </div>
                           <p className="text-xs text-zinc-300">{model.description}</p>
                           <div className="flex items-center gap-2 pt-0.5">
-                            <span className="text-[11px] text-[#FF7A00] font-semibold">
-                              🎯 Best for: {model.bestFor}
+                            <span className="text-[11px] text-[#FF8C42] font-semibold">
+                              Best for: {model.bestFor}
                             </span>
                           </div>
                         </div>
@@ -722,7 +722,20 @@ export default function SettingsPage() {
                         Ed25519 Mail signing key registered
                       </p>
                     </div>
-                    <span className="text-xs font-mono font-bold text-emerald-400">Active ✓</span>
+                    <span className="inline-flex items-center gap-1 text-xs font-mono font-bold text-emerald-400">
+                      <svg
+                        className="size-3.5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Active
+                    </span>
                   </div>
                   <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800">
                     <div>
@@ -731,7 +744,20 @@ export default function SettingsPage() {
                         quantmail.in domain verified on AWS SES
                       </p>
                     </div>
-                    <span className="text-xs font-mono font-bold text-emerald-400">Passed ✓</span>
+                    <span className="inline-flex items-center gap-1 text-xs font-mono font-bold text-emerald-400">
+                      <svg
+                        className="size-3.5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Passed
+                    </span>
                   </div>
                 </div>
               </section>
@@ -848,7 +874,7 @@ export default function SettingsPage() {
                     >
                       <span className="text-xs font-bold block">{item.label}</span>
                       <span className="text-[10px] opacity-70">
-                        {theme === item.key ? 'Active ✓' : 'Select'}
+                        {theme === item.key ? 'Active' : 'Select'}
                       </span>
                     </button>
                   ))}

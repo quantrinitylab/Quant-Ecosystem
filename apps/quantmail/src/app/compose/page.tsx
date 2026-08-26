@@ -139,7 +139,7 @@ export default function ComposePage() {
         throw new Error(response.error?.message || 'Message could not be sent.');
       }
 
-      showToast({ text: 'Message sent 🚀', type: 'success' });
+      showToast({ text: 'Message sent', type: 'success' });
       router.push('/');
     },
     [composeDraft, router],

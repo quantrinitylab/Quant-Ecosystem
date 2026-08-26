@@ -439,7 +439,24 @@ function ConnectorsRow() {
               }`}
               onClick={() => toggle(connector.id)}
             >
-              {enabled[connector.id] ? 'Requested ✓' : 'Connect'}
+              {enabled[connector.id] ? (
+                <span className="flex items-center justify-center gap-1">
+                  <svg
+                    className="size-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Requested
+                </span>
+              ) : (
+                'Connect'
+              )}
             </button>
           </div>
         ))}
@@ -678,11 +695,40 @@ export default function CodeHubPage() {
                                   className="h-2.5 w-2.5 rounded-full"
                                   style={{ background: languageDot(repo.language) }}
                                 />
-                                {repo.language}
+                                <span>{repo.language}</span>
                               </span>
                             )}
-                            <span>★ {repo.stars ?? 0}</span>
-                            <span>⑂ {repo.forks ?? 0}</span>
+                            <span className="flex items-center gap-1">
+                              <svg
+                                className="size-3.5 text-[#FF8C42]"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                              </svg>
+                              {repo.stars ?? 0}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <svg
+                                className="size-3.5 text-[#A1A4AC]"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <line x1="6" y1="3" x2="6" y2="15" />
+                                <circle cx="18" cy="6" r="3" />
+                                <circle cx="6" cy="18" r="3" />
+                                <path d="M18 9a9 9 0 0 1-9 9" />
+                              </svg>
+                              {repo.forks ?? 0}
+                            </span>
                             {repo.defaultBranch && <span>default: {repo.defaultBranch}</span>}
                             {repo.updatedAt && <span>updated {relativeTime(repo.updatedAt)}</span>}
                             {/* Clone URL — one-click copy; stops propagation so row click still navigates */}

@@ -508,7 +508,7 @@ export default function DrivePage() {
                 { key: 'folders', label: 'Folders' },
                 { key: 'documents', label: 'Documents' },
                 { key: 'images', label: 'Images' },
-                { key: 'starred', label: 'Starred ★' },
+                { key: 'starred', label: 'Starred' },
               ] as const
             ).map((filter) => (
               <button
@@ -517,8 +517,8 @@ export default function DrivePage() {
                 onClick={() => setActiveFilter(filter.key)}
                 className={`px-3 py-1 text-xs rounded-full font-medium transition-colors whitespace-nowrap ${
                   activeFilter === filter.key
-                    ? 'bg-[#ff9933]/15 text-[#ff9933] border border-[#ff9933]/40'
-                    : 'bg-zinc-800/60 text-zinc-400 border border-zinc-700/40 hover:text-white'
+                    ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
+                    : 'bg-[#16181D] text-[#A1A4AC] border border-[#282C35] hover:text-[#F5F5F5]'
                 }`}
               >
                 {filter.label}
@@ -599,9 +599,21 @@ export default function DrivePage() {
               <button
                 type="button"
                 onClick={() => setSelectedIds(new Set())}
-                className="px-2.5 py-1 rounded-md text-[#6B6E76] hover:text-[#F5F5F5]"
+                className="px-2.5 py-1 rounded-md text-[#6B6E76] hover:text-[#F5F5F5] flex items-center gap-1.5"
               >
-                ✕ Deselect
+                <svg
+                  className="size-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+                Deselect
               </button>
             </div>
           </div>
