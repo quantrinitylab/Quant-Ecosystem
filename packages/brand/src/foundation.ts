@@ -126,7 +126,12 @@ export const foundationThemes: Record<FoundationMode, FoundationTheme> = {
     borderStrong: '#ADB5BD',
     actionPrimary: '#E8752F',
     actionPrimaryHover: '#D96520',
-    actionPrimaryForeground: '#FFFFFF',
+    // Dark label, not white: white on #E8752F is 2.99:1, which fails AA and in
+    // fact misses even the 3:1 large-text floor. The accent itself is fixed by
+    // the brand palette, so the label is what moves — `textStrong` gives 6.21:1
+    // here and 5.16:1 against the hover shade, the same dark-on-saffron
+    // treatment the dark and high-contrast modes already use.
+    actionPrimaryForeground: '#111318',
     focusRing: '#E8752F',
     success: '#16A34A',
     warning: '#D97706',

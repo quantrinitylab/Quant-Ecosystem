@@ -19,9 +19,20 @@ describe('Button', () => {
   });
 
   it('applies variant styles', () => {
-    render(<Button variant="danger">Delete</Button>);
-    const button = screen.getByRole('button');
-    expect(button.className).toContain('bg-red-600');
+    // `danger` is a brand-soft destructive surface (`#2A1215` with a `#F87171`
+    // label), not Tailwind's generic `bg-red-600` — the palette classes were
+    // retokenised onto the brand hexes. Asserted against `primary` as well so
+    // this proves the variant actually switches rather than just that some
+    // class is present.
+    const { container: danger } = render(<Button variant="danger">Delete</Button>);
+    const dangerClass = danger.querySelector('button')!.className;
+    expect(dangerClass).toContain('bg-[#2A1215]');
+    expect(dangerClass).toContain('text-[#F87171]');
+
+    const { container: primary } = render(<Button variant="primary">Save</Button>);
+    const primaryClass = primary.querySelector('button')!.className;
+    expect(primaryClass).toContain('bg-[#FF8C42]');
+    expect(primaryClass).not.toContain('bg-[#2A1215]');
   });
 
   it('handles click events', () => {

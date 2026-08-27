@@ -31,7 +31,10 @@ export const dark: Theme = {
   border: '#282C35',
   muted: '#16181D',
   mutedForeground: '#A1A4AC',
-  destructive: '#EF4444',
+  // red-600, not red-500: white on #EF4444 is 3.76:1, which clears AA only for
+  // large text. Every other theme here already pairs a white label with a
+  // red-600-or-darker surface; this brings dark in line at 4.83:1.
+  destructive: '#DC2626',
   destructiveForeground: '#FFFFFF',
   ring: '#FF8C42',
 };
