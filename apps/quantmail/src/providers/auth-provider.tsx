@@ -1,6 +1,9 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { clearMailCache } from '../lib/offline/mail-cache';
+import { clearOutbox } from '../lib/offline/outbox';
 import { apiClient } from '../services/api-client';
 import { browserAuthSession, cleanupLegacyBrowserTokens } from '../services/browser-auth-session';
 
@@ -24,6 +27,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -119,8 +123,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cleanupLegacyBrowserTokens();
       clearMemorySession();
       setError(null);
+      // Offline-first means the previous account's mail is sitting in IndexedDB,
+      // and its unsent archives are sitting in the outbox. Neither is scoped to a
+      // session, so without this the next person to sign in on this browser opens
+      // to someone else's inbox until the first fetch lands, and their queued
+      // mutations replay against the new token.
+      //
+      // The outbox goes first: it is the half that can still make network calls.
+      // A flush already in flight will fail against the revoked token, and its
+      // entries are gone, so nothing is retried.
+      //
+      // Deliberately not awaited and never allowed to throw — a wedged IndexedDB
+      // must not be able to strand someone in a signed-in shell.
+      void clearOutbox()
+        .then(() => clearMailCache())
+        .catch(() => {
+          /* best effort: the session is already gone either way */
+        });
+      queryClient.clear();
     }
-  }, [clearMemorySession]);
+  }, [clearMemorySession, queryClient]);
 
   const value: AuthContextValue = {
     user,

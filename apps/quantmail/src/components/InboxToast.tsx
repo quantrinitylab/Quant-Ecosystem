@@ -12,6 +12,37 @@ export interface ToastMessage {
 }
 
 let toastSubscribers: Array<(msg: ToastMessage) => void> = [];
+let dismissSubscribers: Array<(id: string) => void> = [];
+
+/**
+ * The most recent reversible action, and the toast whose lifetime it shares.
+ *
+ * Superhuman's `z` undoes the last action, and the toast is already the thing
+ * that tells the user an action *was* reversible. Tying the two together means
+ * the undo window is exactly the window the user was shown — an undo that still
+ * fires ten minutes later would reverse something they have stopped thinking
+ * about, and there is no second confirmation to warn them.
+ */
+let pendingUndo: { toastId: string; run: () => void } | null = null;
+
+/** Whether `z` currently has anything to reverse. Read live by the command's `enabled`. */
+export function hasPendingUndo(): boolean {
+  return pendingUndo !== null;
+}
+
+/** Reverse the last action. Returns `false` when the undo window has passed. */
+export function runPendingUndo(): boolean {
+  const entry = pendingUndo;
+  if (!entry) return false;
+  pendingUndo = null;
+  dismissSubscribers.forEach((fn) => fn(entry.toastId));
+  entry.run();
+  return true;
+}
+
+function forgetUndo(toastId: string): void {
+  if (pendingUndo?.toastId === toastId) pendingUndo = null;
+}
 
 /** Fire a toast from anywhere (no provider needed). */
 export function showToast(msg: Omit<ToastMessage, 'id'>) {
@@ -19,6 +50,7 @@ export function showToast(msg: Omit<ToastMessage, 'id'>) {
     ...msg,
     id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   };
+  if (msg.undoAction) pendingUndo = { toastId: toast.id, run: msg.undoAction };
   toastSubscribers.forEach((fn) => fn(toast));
 }
 
@@ -93,25 +125,29 @@ function ToastIcon({ type }: { type: ToastMessage['type'] }) {
 export function InboxToastContainer() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
+  const dismiss = useCallback((id: string) => {
+    forgetUndo(id);
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
   useEffect(() => {
     const handler = (msg: ToastMessage) => {
-      // Remove any existing toast with the same text so it doesn't pile up
+      // Replace any toast with the same text rather than stacking duplicates —
+      // holding `e` down the list should read as one message, not forty.
       setToasts((prev) => [...prev.filter((t) => t.text !== msg.text), msg]);
 
-      // Auto-dismiss this specific toast
       setTimeout(() => {
+        forgetUndo(msg.id);
         setToasts((prev) => prev.filter((t) => t.id !== msg.id));
       }, msg.duration ?? 3200);
     };
     toastSubscribers.push(handler);
+    dismissSubscribers.push(dismiss);
     return () => {
       toastSubscribers = toastSubscribers.filter((fn) => fn !== handler);
+      dismissSubscribers = dismissSubscribers.filter((fn) => fn !== dismiss);
     };
-  }, []);
-
-  const dismiss = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  }, [dismiss]);
 
   return (
     <div className="inbox-toast-container" aria-live="polite" aria-atomic="false">
@@ -135,8 +171,10 @@ export function InboxToastContainer() {
                 type="button"
                 className="inbox-toast-undo text-[#FF8C42] hover:bg-[#2B1A11]"
                 onClick={() => {
-                  toast.undoAction?.();
+                  // Dismiss first: that clears the pending undo, so the same
+                  // action cannot then be reversed a second time with `z`.
                   dismiss(toast.id);
+                  toast.undoAction?.();
                 }}
               >
                 Undo

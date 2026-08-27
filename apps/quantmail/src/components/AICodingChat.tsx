@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useRegisterCommands } from '../lib/keyboard/hooks';
 import { Quanty } from './Quanty';
 
 interface ChatMessage {
@@ -69,17 +70,28 @@ export function AICodingChat({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Ctrl+L to focus chat input
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, []);
+  /**
+   * `⌘L` focuses the chat input.
+   *
+   * Registered as a command rather than a raw listener so it shows up in the
+   * palette and the shortcuts sheet alongside everything else, and so the engine
+   * — not this component — decides precedence when another surface wants the
+   * same chord. `allowInInput` is on because the natural use is jumping here from
+   * the code editor, which is itself a text surface.
+   */
+  useRegisterCommands([
+    {
+      id: 'ai.focusChat',
+      label: 'Focus Quanty chat',
+      group: 'AI',
+      keys: 'mod+l',
+      icon: 'sparkle',
+      description: 'Jump to the coding assistant prompt without leaving the editor',
+      keywords: ['assistant', 'ask', 'prompt', 'copilot'],
+      allowInInput: true,
+      run: () => inputRef.current?.focus(),
+    },
+  ]);
 
   const sendMessage = useCallback(
     async (content: string) => {

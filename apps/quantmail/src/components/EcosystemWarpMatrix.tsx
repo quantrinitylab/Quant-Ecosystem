@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
 import { Interactive3DLogo } from './Interactive3DLogo';
 import { BrandWordmark } from './BrandWordmark';
 
@@ -23,16 +24,15 @@ export function EcosystemWarpMatrix({
 }: EcosystemWarpMatrixProps) {
   const router = useRouter();
 
-  // Close on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  /**
+   * The switcher is a full-screen overlay, so while it is up it owns the keyboard.
+   * Escape used to be a raw `window` listener, which closed the overlay but left
+   * every other binding live underneath it — `e` archived the conversation behind
+   * the overlay, and `g i` navigated out from under it.
+   */
+  useKeyboardScope('warp-matrix', { active: isOpen, exclusive: true });
+
+  useShortcut('escape', onClose, { scope: 'warp-matrix', label: 'Close app switcher' });
 
   const apps = [
     {
@@ -45,10 +45,10 @@ export function EcosystemWarpMatrix({
         unreadCount > 0
           ? `${unreadCount} unread message${unreadCount === 1 ? '' : 's'}`
           : 'All caught up · Zero noise',
-      badge: unreadCount > 0 ? `${unreadCount} Unread` : '✓ Zen',
+      badge: unreadCount > 0 ? `${unreadCount} Unread` : 'Zen',
       badgeColor:
         unreadCount > 0
-          ? 'bg-[#FF7A00]/20 text-[#FF9933] border-[#FF7A00]/40'
+          ? 'bg-[#2B1A11] text-[#FF8C42] border-[#5C3016]'
           : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
     },
     {
@@ -112,13 +112,20 @@ export function EcosystemWarpMatrix({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 15 }}
             transition={{ type: 'spring', stiffness: 450, damping: 30 }}
-            className="relative w-full max-w-xl bg-gradient-to-b from-[#14161F] via-[#0E0F14] to-[#0A0B0E] border border-zinc-700/60 rounded-3xl shadow-[0_16px_60px_rgba(0,0,0,0.8),0_0_40px_rgba(255,122,0,0.15)] overflow-hidden"
+            // A dismissing backdrop and an exclusive keyboard scope already make
+            // this a modal dialog; saying so lets a screen reader announce the
+            // boundary instead of reading it as more page content.
+            role="dialog"
+            aria-modal="true"
+            aria-label="Switch app"
+            className="relative w-full max-w-xl bg-[#111318] border border-[#282C35] rounded-3xl shadow-[0_4px_16px_rgba(0,0,0,0.6)] overflow-hidden"
           >
-            {/* Ambient Top Glow Line */}
-            <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[#FF7A00] to-transparent opacity-80" />
+            {/* Brand hairline. A flat 1px rule rather than the previous gradient
+                bloom — the design system rules out radial glow entirely. */}
+            <div className="absolute top-0 inset-x-0 h-px bg-[#FF8C42]" />
 
             {/* Header Lockup */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-800/80 bg-zinc-950/40">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-[#282C35] bg-[#16181D]">
               <div className="flex items-center gap-3">
                 <Interactive3DLogo
                   app="mail"
@@ -129,12 +136,12 @@ export function EcosystemWarpMatrix({
                 <div>
                   <div className="flex items-center gap-2">
                     <BrandWordmark app="mail" size="text-xl" />
-                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#FF7A00]/15 text-[#FF9933] border border-[#FF7A00]/30">
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]">
                       Intelligence Matrix
                     </span>
                   </div>
-                  <p className="text-xs text-zinc-400 mt-0.5">
-                    Unified Neural Ecosystem Status & One-Tap Gateway
+                  <p className="text-xs text-[#A1A4AC] mt-0.5">
+                    Unified Neural Ecosystem Status &amp; One-Tap Gateway
                   </p>
                 </div>
               </div>
@@ -142,23 +149,38 @@ export function EcosystemWarpMatrix({
               <button
                 type="button"
                 onClick={onClose}
-                className="size-8 inline-flex items-center justify-center rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition-colors"
+                className="inline-flex min-h-touch min-w-touch flex-none items-center justify-center rounded-xl text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#1E2128] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 aria-label="Close matrix"
               >
-                ✕
+                <svg
+                  className="size-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                >
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
             {/* Apps Grid */}
-            <div className="p-5 space-y-2.5 max-h-[60vh] overflow-y-auto">
+            <div className="p-5 space-y-1.5 max-h-[60vh] overflow-y-auto">
               {apps.map((app) => (
-                <div
+                /* A real `button`, not a clickable `div`: this overlay exists to move
+                   between apps quickly, and until now none of its rows were reachable
+                   by keyboard at all. The row also drops its own border — the modal
+                   already draws one, and stacking a second is the nested-card look the
+                   design system rules out. */
+                <button
                   key={app.id}
+                  type="button"
                   onClick={() => {
                     onClose();
                     router.push(app.path);
                   }}
-                  className="flex items-center justify-between p-3.5 rounded-2xl border border-zinc-800/80 bg-zinc-900/50 hover:bg-zinc-800/60 hover:border-[#FF7A00]/40 transition-all cursor-pointer group"
+                  className="flex w-full min-h-touch items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#16181D] hover:bg-[#1E2128] text-left transition-colors cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <Interactive3DLogo app={app.id as any} size={34} showBadge={false} />
@@ -171,20 +193,30 @@ export function EcosystemWarpMatrix({
                           {app.badge}
                         </span>
                       </div>
-                      <p className="text-xs text-zinc-400 truncate mt-0.5">{app.stat}</p>
+                      <p className="text-xs text-[#A1A4AC] truncate mt-0.5">{app.stat}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-zinc-500 group-hover:text-[#FF7A00] transition-colors text-xs font-bold pl-2">
+                  <div className="flex items-center gap-1.5 text-[#6B6E76] group-hover:text-[#FF8C42] transition-colors text-xs font-bold pl-2">
                     <span>Open</span>
-                    <span>→</span>
+                    <svg
+                      className="size-3.5 flex-none"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
 
             {/* Bottom Quick Controls */}
-            <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-zinc-800/80 bg-zinc-950/60">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-t border-[#282C35] bg-[#16181D]">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -192,9 +224,21 @@ export function EcosystemWarpMatrix({
                     if (onRefresh) onRefresh();
                     onClose();
                   }}
-                  className="px-3.5 py-1.5 text-xs font-bold rounded-xl border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 transition-all active:scale-95 flex items-center gap-1.5"
+                  className="inline-flex min-h-touch items-center gap-1.5 px-3.5 text-xs font-bold rounded-xl border border-[#282C35] bg-[#1E2128] hover:bg-[#282C35] text-[#F5F5F5] transition-colors active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
-                  <span>⚡</span> Refresh Signal
+                  <svg
+                    className="size-3.5 flex-none"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M21 12a9 9 0 11-3.2-6.9" />
+                    <path d="M21 3v5h-5" />
+                  </svg>
+                  Refresh Signal
                 </button>
 
                 {onMarkAllRead && unreadCount > 0 && (
@@ -204,14 +248,25 @@ export function EcosystemWarpMatrix({
                       onMarkAllRead();
                       onClose();
                     }}
-                    className="px-3.5 py-1.5 text-xs font-bold rounded-xl border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 transition-all active:scale-95 flex items-center gap-1.5"
+                    className="inline-flex min-h-touch items-center gap-1.5 px-3.5 text-xs font-bold rounded-xl border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 transition-colors active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   >
-                    <span>✓</span> Mark All Read
+                    <svg
+                      className="size-3.5 flex-none"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M4 12.5l5 5L20 6.5" />
+                    </svg>
+                    Mark All Read
                   </button>
                 )}
               </div>
 
-              <span className="text-[11px] text-zinc-500 font-mono">Press Esc to close</span>
+              <span className="text-[11px] text-[#6B6E76] font-mono">Press Esc to close</span>
             </div>
           </motion.div>
         </div>

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
 import { useAuth } from '../providers/auth-provider';
 
 interface StoredAccount {
@@ -38,6 +39,7 @@ export function AccountBadge() {
   const [open, setOpen] = useState(false);
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Sync current user into accounts list
   useEffect(() => {
@@ -65,19 +67,32 @@ export function AccountBadge() {
   }, [user]);
 
   useEffect(() => {
+    if (!open) return;
     function onDoc(event: MouseEvent) {
       if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
     }
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false);
-    }
     document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKeyDown);
-    };
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus();
   }, []);
+
+  /**
+   * The menu owns the keyboard while it is out.
+   *
+   * Both listeners here used to be attached with an empty dependency array, so
+   * they ran for the whole session: every Escape anywhere in the app — closing a
+   * compose window, clearing a search — also called `setOpen(false)` on a menu
+   * that was already shut, and the outside-click handler ran on every click in
+   * the product. Scoping it means the binding exists only while it can do
+   * something, and masking stops `j`/`k` from walking the list underneath.
+   */
+  useKeyboardScope('account-menu', { active: open, exclusive: true });
+
+  useShortcut('escape', close, { scope: 'account-menu', label: 'Close account menu' });
 
   if (!user) return null;
 
@@ -100,6 +115,7 @@ export function AccountBadge() {
     <div ref={ref} className="relative px-3 pb-3 pt-1">
       <button
         type="button"
+        ref={triggerRef}
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-haspopup="menu"

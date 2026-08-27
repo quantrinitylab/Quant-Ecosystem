@@ -1,594 +1,174 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { useRouter } from 'next/navigation';
-import { showToast } from './InboxToast';
+/**
+ * The command palette.
+ *
+ * Previously this file carried its own 450-line array of commands with inline
+ * SVGs and hand-written `shortcut: 'G I'` strings — a third copy of information
+ * that also lived in `useGlobalShortcuts` and `KeyboardShortcutsHelp`, and drifted
+ * from both. It now renders the command registry, so anything bound to a key is
+ * listed here automatically with the *actual* binding, formatted for the user's
+ * platform.
+ *
+ * The palette pushes an exclusive keyboard scope while open, which is what stops
+ * the global single-key shortcuts from firing behind it.
+ */
 
-interface CommandItem {
-  id: string;
-  label: string;
-  description?: string;
-  icon: React.ReactNode;
-  shortcut?: string;
-  action: () => void;
-  category: 'navigation' | 'actions' | 'ai' | 'settings';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { formatBinding } from '../lib/keyboard/chords';
+import { COMMAND_GROUPS, type Command } from '../lib/keyboard/command-registry';
+import { CommandIcon } from '../lib/keyboard/command-icons';
+import { useKeyboardScope, useShortcut, useVisibleCommands } from '../lib/keyboard/hooks';
+import { useKeyboardSurfaces } from './KeyboardProvider';
+
+const SCOPE = 'command-palette';
+
+/** Ranked search over label, keywords and description. */
+function scoreCommand(command: Command, query: string): number {
+  const label = command.label.toLowerCase();
+  if (label.startsWith(query)) return 100;
+
+  const wordStart = label.split(/\s+/).some((word) => word.startsWith(query));
+  if (wordStart) return 80;
+  if (label.includes(query)) return 60;
+
+  if ((command.keywords ?? []).some((keyword) => keyword.toLowerCase().includes(query))) return 40;
+  if (command.description?.toLowerCase().includes(query)) return 20;
+  if (command.group.toLowerCase().includes(query)) return 10;
+
+  return 0;
 }
 
 export function CommandPalette() {
-  const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
+  const { isPaletteOpen, closePalette } = useKeyboardSurfaces();
+  const commands = useVisibleCommands();
+
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const commands: CommandItem[] = useMemo(
-    () => [
-      // Navigation
-      {
-        id: 'inbox',
-        label: 'Go to Priority Inbox',
-        description: 'View all active email threads and conversations',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"
-            />
-          </svg>
-        ),
-        shortcut: 'G I',
-        category: 'navigation',
-        action: () => router.push('/'),
-      },
-      {
-        id: 'compose',
-        label: 'Compose new message',
-        description: 'Write an email with Quanty assistant',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
-            />
-          </svg>
-        ),
-        shortcut: 'C',
-        category: 'navigation',
-        action: () => router.push('/compose'),
-      },
-      {
-        id: 'sent',
-        label: 'Open Sent Mail',
-        description: 'Outbound dispatched emails and delivery status',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <line
-              x1="22"
-              y1="2"
-              x2="11"
-              y2="13"
-              strokeWidth={1.8}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <polygon
-              points="22 2 15 22 11 13 2 9 22 2"
-              strokeWidth={1.8}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        ),
-        shortcut: 'G S',
-        category: 'navigation',
-        action: () => router.push('/sent'),
-      },
-      {
-        id: 'drafts',
-        label: 'Open Drafts',
-        description: 'Unsent drafts and saved messages',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-            />
-            <polyline points="14 2 14 8 20 8" strokeWidth={1.8} />
-            <line x1="16" y1="13" x2="8" y2="13" strokeWidth={1.8} strokeLinecap="round" />
-            <line x1="16" y1="17" x2="8" y2="17" strokeWidth={1.8} strokeLinecap="round" />
-          </svg>
-        ),
-        shortcut: 'G D',
-        category: 'navigation',
-        action: () => router.push('/drafts'),
-      },
-      {
-        id: 'starred',
-        label: 'Open Starred / Pinned',
-        description: 'Important flagged conversations',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <polygon
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-            />
-          </svg>
-        ),
-        shortcut: 'G *',
-        category: 'navigation',
-        action: () => router.push('/starred'),
-      },
-      {
-        id: 'snoozed',
-        label: 'Open Snoozed',
-        description: 'Temporarily hidden messages returning later',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10" strokeWidth={1.8} />
-            <polyline points="12 6 12 12 16 14" strokeWidth={1.8} strokeLinecap="round" />
-          </svg>
-        ),
-        shortcut: 'G B',
-        category: 'navigation',
-        action: () => router.push('/snoozed'),
-      },
-      {
-        id: 'archive',
-        label: 'Open Archive',
-        description: 'All archived historical messages',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <polyline
-              points="21 8 21 21 3 21 3 8"
-              strokeWidth={1.8}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <rect x="1" y="3" width="22" height="5" rx="1" strokeWidth={1.8} />
-            <line x1="10" y1="12" x2="14" y2="12" strokeWidth={1.8} strokeLinecap="round" />
-          </svg>
-        ),
-        shortcut: 'G E',
-        category: 'navigation',
-        action: () => router.push('/archive'),
-      },
-      {
-        id: 'trash',
-        label: 'Open Trash',
-        description: 'Deleted conversations and drafts',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <polyline points="3 6 5 6 21 6" strokeWidth={1.8} strokeLinecap="round" />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-            />
-          </svg>
-        ),
-        shortcut: 'G T',
-        category: 'navigation',
-        action: () => router.push('/trash'),
-      },
-      {
-        id: 'search',
-        label: 'Search mail & contacts',
-        description: 'Full-text query across subjects, bodies, and people',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="8" strokeWidth={1.8} />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" strokeWidth={1.8} strokeLinecap="round" />
-          </svg>
-        ),
-        shortcut: '/',
-        category: 'navigation',
-        action: () => router.push('/search'),
-      },
-      {
-        id: 'calendar',
-        label: 'Open QuantCalendar',
-        description: 'Schedule meetings and view agenda timeline',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth={1.8} />
-            <line x1="16" y1="2" x2="16" y2="6" strokeWidth={1.8} strokeLinecap="round" />
-            <line x1="8" y1="2" x2="8" y2="6" strokeWidth={1.8} strokeLinecap="round" />
-            <line x1="3" y1="10" x2="21" y2="10" strokeWidth={1.8} />
-          </svg>
-        ),
-        shortcut: 'G C',
-        category: 'navigation',
-        action: () => router.push('/calendar'),
-      },
-      {
-        id: 'drive',
-        label: 'Open QuantDrive',
-        description: 'Zero-knowledge encrypted cloud storage',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"
-            />
-          </svg>
-        ),
-        shortcut: 'G V',
-        category: 'navigation',
-        action: () => router.push('/drive'),
-      },
-      {
-        id: 'contacts',
-        label: 'Open QuantContacts & Directory',
-        description: 'Address book, organization records, and vCards',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"
-            />
-            <circle cx="9" cy="7" r="4" strokeWidth={1.8} />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
-            />
-          </svg>
-        ),
-        shortcut: 'G A',
-        category: 'navigation',
-        action: () => router.push('/contacts'),
-      },
-      {
-        id: 'codehub',
-        label: 'Open QuantCode (QuantGit)',
-        description: 'Developer repositories, branches, and commits',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <polyline
-              points="16 18 22 12 16 6"
-              strokeWidth={1.8}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <polyline
-              points="8 6 2 12 8 18"
-              strokeWidth={1.8}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        ),
-        shortcut: 'G K',
-        category: 'navigation',
-        action: () => router.push('/codehub'),
-      },
-      {
-        id: 'security',
-        label: 'Account Security & Vault',
-        description: 'Two-factor auth, active sessions, and keys',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <rect x="3" y="11" width="18" height="11" rx="2" strokeWidth={1.8} />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M7 11V7a5 5 0 0 1 10 0v4"
-            />
-          </svg>
-        ),
-        shortcut: 'G 2',
-        category: 'navigation',
-        action: () => router.push('/security'),
-      },
-      {
-        id: 'settings',
-        label: 'Settings & Preferences',
-        description: 'Themes, typography, signatures, and sync',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="3" strokeWidth={1.8} />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
-            />
-          </svg>
-        ),
-        shortcut: 'G ,',
-        category: 'navigation',
-        action: () => router.push('/settings'),
-      },
+  // Exclusive: while the palette is open nothing shallower may claim a key, so
+  // `Escape` reaches only this dialog and `e`/`s`/`j` cannot archive mail behind it.
+  useKeyboardScope(SCOPE, { active: isPaletteOpen, exclusive: true });
 
-      // Actions
-      {
-        id: 'action-meet',
-        label: 'Schedule Video Conference',
-        description: 'Generate 1-click video meeting room',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <polygon
-              points="23 7 16 12 23 17 23 7"
-              strokeWidth={1.8}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <rect x="1" y="5" width="15" height="14" rx="2" strokeWidth={1.8} />
-          </svg>
-        ),
-        category: 'actions',
-        action: () => {
-          router.push('/calendar');
-          showToast({ text: 'Opening calendar scheduler…', type: 'info' });
-        },
-      },
-      {
-        id: 'action-new-folder',
-        label: 'Create folder in Drive',
-        description: 'Organize cloud files and shared assets',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-            />
-            <line x1="12" y1="11" x2="12" y2="17" strokeWidth={1.8} strokeLinecap="round" />
-            <line x1="9" y1="14" x2="15" y2="14" strokeWidth={1.8} strokeLinecap="round" />
-          </svg>
-        ),
-        category: 'actions',
-        action: () => router.push('/drive'),
-      },
-      {
-        id: 'action-new-repo',
-        label: 'Create repository in QuantGit',
-        description: 'Initialize git repo with workspace settings',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <circle cx="12" cy="18" r="3" strokeWidth={1.8} />
-            <circle cx="6" cy="6" r="3" strokeWidth={1.8} />
-            <circle cx="18" cy="6" r="3" strokeWidth={1.8} />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9m6 3v3"
-            />
-          </svg>
-        ),
-        category: 'actions',
-        action: () => router.push('/codehub'),
-      },
-      {
-        id: 'action-new-contact',
-        label: 'Add contact',
-        description: 'Save email, phone, and organization details',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"
-            />
-            <circle cx="9" cy="7" r="4" strokeWidth={1.8} />
-            <line x1="19" y1="8" x2="19" y2="14" strokeWidth={1.8} strokeLinecap="round" />
-            <line x1="22" y1="11" x2="16" y2="11" strokeWidth={1.8} strokeLinecap="round" />
-          </svg>
-        ),
-        category: 'actions',
-        action: () => router.push('/contacts'),
-      },
+  useShortcut('escape', closePalette, {
+    scope: SCOPE,
+    allowInInput: true,
+    disabled: !isPaletteOpen,
+  });
 
-      // AI Commands
-      {
-        id: 'ai-compose',
-        label: 'Quanty AI: Draft with Assistant',
-        description: 'Autonomous context-aware email drafting',
-        icon: (
-          <svg
-            className="w-4 h-4 text-[#FF8C42]"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
-            />
-          </svg>
-        ),
-        category: 'ai',
-        action: () => router.push('/compose'),
-      },
-      {
-        id: 'ai-summarize',
-        label: 'Quanty AI: Summarize priority threads',
-        description: 'Extract action items and key discussion points',
-        icon: (
-          <svg
-            className="w-4 h-4 text-[#FF8C42]"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <line x1="21" y1="10" x2="3" y2="10" strokeWidth={1.8} strokeLinecap="round" />
-            <line x1="21" y1="6" x2="3" y2="6" strokeWidth={1.8} strokeLinecap="round" />
-            <line x1="21" y1="14" x2="3" y2="14" strokeWidth={1.8} strokeLinecap="round" />
-            <line x1="21" y1="18" x2="7" y2="18" strokeWidth={1.8} strokeLinecap="round" />
-          </svg>
-        ),
-        category: 'ai',
-        action: () => {
-          showToast({ text: 'Analyzing priority threads with Quanty…', type: 'info' });
-          router.push('/');
-        },
-      },
+  const results = useMemo(() => {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) return commands;
 
-      // Settings & Appearance
-      {
-        id: 'theme-dark',
-        label: 'Appearance: Dark Foundation (Default)',
-        description: 'Signature charcoal canvas (#090A0C) with orange accents',
-        icon: (
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
-            />
-          </svg>
-        ),
-        category: 'settings',
-        action: () => {
-          document.documentElement.classList.add('dark');
-          localStorage.setItem('quant-theme', 'dark');
-          showToast({ text: 'Applied Quant Dark Foundation', type: 'info' });
-        },
-      },
-    ],
-    [router],
-  );
-
-  const filtered = useMemo(() => {
-    if (!query.trim()) return commands;
-    const q = query.toLowerCase();
-    return commands.filter(
-      (cmd) =>
-        cmd.label.toLowerCase().includes(q) ||
-        cmd.category.includes(q) ||
-        (cmd.description?.toLowerCase().includes(q) ?? false),
-    );
+    return commands
+      .map((command) => ({ command, score: scoreCommand(command, trimmed) }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((entry) => entry.command);
   }, [commands, query]);
+
+  // Grouped for display, but `results` stays the flat keyboard-navigation order.
+  const groups = useMemo(() => {
+    const byGroup = new Map<string, Command[]>();
+    for (const command of results) {
+      const existing = byGroup.get(command.group);
+      if (existing) existing.push(command);
+      else byGroup.set(command.group, [command]);
+    }
+    // Follow the declared group order, skipping groups with no matches.
+    return COMMAND_GROUPS.filter((group) => byGroup.has(group)).map((group) => ({
+      group,
+      items: byGroup.get(group)!,
+    }));
+  }, [results]);
+
+  /** Flat index of each command, so arrow keys walk the rendered order. */
+  const flatOrder = useMemo(() => {
+    const order: Command[] = [];
+    for (const { items } of groups) order.push(...items);
+    return order;
+  }, [groups]);
 
   useEffect(() => {
     setActiveIndex(0);
   }, [query]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setIsOpen((v) => !v);
-      }
-      if (e.key === 'Escape' && isOpen) {
-        e.preventDefault();
-        setIsOpen(false);
-      }
-    };
-    const handleOpenEvent = () => setIsOpen(true);
-    document.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('quant:command-palette:open', handleOpenEvent);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('quant:command-palette:open', handleOpenEvent);
-    };
-  }, [isOpen]);
+    if (!isPaletteOpen) return;
+    setQuery('');
+    setActiveIndex(0);
+    // The dialog animates in; focus once it is actually on screen.
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [isPaletteOpen]);
 
   useEffect(() => {
-    if (isOpen) {
-      setQuery('');
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [isOpen]);
-
-  const executeCommand = useCallback((cmd: CommandItem) => {
-    setIsOpen(false);
-    cmd.action();
-  }, []);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setActiveIndex((i) => Math.max(i - 1, 0));
-      } else if (e.key === 'Enter' && filtered[activeIndex]) {
-        e.preventDefault();
-        executeCommand(filtered[activeIndex]);
-      }
-    },
-    [activeIndex, executeCommand, filtered],
-  );
-
-  useEffect(() => {
-    if (!listRef.current) return;
-    const activeEl = listRef.current.querySelector('[data-active="true"]');
-    activeEl?.scrollIntoView({ block: 'nearest' });
+    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex]);
 
-  const grouped = useMemo(() => {
-    const groups: Record<string, CommandItem[]> = {};
-    for (const item of filtered) {
-      if (!groups[item.category]) groups[item.category] = [];
-      groups[item.category].push(item);
-    }
-    return groups;
-  }, [filtered]);
+  const execute = useCallback(
+    (command: Command) => {
+      closePalette();
+      void command.run();
+    },
+    [closePalette],
+  );
 
-  const categoryLabels: Record<string, string> = {
-    navigation: 'Workspaces & Views',
-    actions: 'Quick Actions',
-    ai: 'Quanty Intelligence',
-    settings: 'Appearance & System',
-  };
+  const handleInputKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setActiveIndex((index) => (flatOrder.length === 0 ? 0 : (index + 1) % flatOrder.length));
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setActiveIndex((index) =>
+          flatOrder.length === 0 ? 0 : (index - 1 + flatOrder.length) % flatOrder.length,
+        );
+      } else if (event.key === 'Enter') {
+        const command = flatOrder[activeIndex];
+        if (!command) return;
+        event.preventDefault();
+        execute(command);
+      }
+    },
+    [activeIndex, execute, flatOrder],
+  );
 
-  let flatIndex = 0;
+  let cursor = 0;
 
   return (
     <AnimatePresence>
-      {isOpen && (
+      {isPaletteOpen && (
         <>
           <motion.div
-            className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[110]"
+            className="fixed inset-0 z-[110] bg-black/75 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            onClick={() => setIsOpen(false)}
+            onClick={closePalette}
             aria-hidden="true"
           />
           <motion.div
-            className="fixed top-[15%] left-1/2 -translate-x-1/2 w-full max-w-xl bg-[#16181D] border border-[#282C35] shadow-2xl rounded-2xl overflow-hidden z-[120] flex flex-col max-h-[70vh]"
+            className="command-palette fixed left-1/2 top-[12%] z-[120] flex max-h-[72vh] w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-[0_20px_60px_rgba(0,0,0,0.7)]"
             role="dialog"
-            aria-label="Quant Command Omnibar"
+            aria-modal="true"
+            aria-label="Command palette"
             initial={{ opacity: 0, scale: 0.98, y: -6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: -6 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
           >
-            <div className="flex items-center px-4 py-3.5 border-b border-[#282C35] bg-[#111318]">
+            <div className="flex items-center gap-3 border-b border-[#282C35] bg-[#111318] px-4 py-3.5">
               <svg
-                className="w-4 h-4 text-[#FF8C42] mr-3 shrink-0"
+                className="h-4 w-4 shrink-0 text-[#FF8C42]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
+                strokeWidth="1.8"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 aria-hidden="true"
@@ -600,77 +180,105 @@ export function CommandPalette() {
                 id="command-palette-input"
                 name="commandQuery"
                 ref={inputRef}
-                className="flex-1 bg-transparent text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none"
+                className="min-w-0 flex-1 bg-transparent text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none"
                 type="text"
-                placeholder="Type a command, jump to a workspace, or search…"
+                placeholder="Type a command, or jump to a workspace…"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={handleKeyDown}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={handleInputKeyDown}
+                role="combobox"
+                aria-expanded="true"
+                aria-controls="command-palette-list"
+                aria-activedescendant={flatOrder[activeIndex]?.id}
                 aria-label="Search commands"
                 autoComplete="off"
                 spellCheck={false}
               />
-              <kbd className="px-1.5 py-0.5 rounded border border-[#282C35] bg-[#16181D] text-[10px] font-mono text-[#A1A4AC]">
+              <kbd className="shrink-0 rounded border border-[#282C35] bg-[#16181D] px-1.5 py-0.5 font-mono text-[10px] text-[#A1A4AC]">
                 Esc
               </kbd>
             </div>
 
-            <div className="overflow-y-auto p-2 space-y-3" ref={listRef} role="listbox">
-              {filtered.length === 0 && (
-                <div className="py-8 text-center text-xs text-[#6B6E76]">
+            <div
+              id="command-palette-list"
+              ref={listRef}
+              className="space-y-3 overflow-y-auto p-2"
+              role="listbox"
+              aria-label="Commands"
+            >
+              {flatOrder.length === 0 && (
+                <p className="py-10 text-center text-xs text-[#6B6E76]">
                   No commands match &ldquo;{query}&rdquo;
-                </div>
+                </p>
               )}
-              {Object.entries(grouped).map(([category, items]) => (
-                <div key={category} className="space-y-1">
+
+              {groups.map(({ group, items }) => (
+                <div key={group} className="space-y-1">
                   <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#6B6E76]">
-                    {categoryLabels[category] || category}
+                    {group}
                   </div>
-                  {items.map((item) => {
-                    const idx = flatIndex++;
-                    const isActive = idx === activeIndex;
+                  {items.map((command) => {
+                    const index = cursor++;
+                    const isActive = index === activeIndex;
+                    const binding = command.keys
+                      ? formatBinding(
+                          Array.isArray(command.keys) ? command.keys[0] : command.keys,
+                        )
+                      : null;
+
                     return (
                       <button
-                        key={item.id}
+                        key={command.id}
+                        id={command.id}
                         type="button"
                         role="option"
                         aria-selected={isActive}
                         data-active={isActive}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-colors ${
+                        className={`flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                           isActive
-                            ? 'bg-[#2B1A11] text-[#F5F5F5] border border-[#5C3016]'
-                            : 'text-[#A1A4AC] hover:bg-[#111318] hover:text-[#F5F5F5] border border-transparent'
+                            ? 'border border-[#5C3016] bg-[#2B1A11]'
+                            : 'border border-transparent hover:bg-[#111318]'
                         }`}
-                        onClick={() => executeCommand(item)}
-                        onMouseEnter={() => setActiveIndex(idx)}
+                        onClick={() => execute(command)}
+                        onMouseMove={() => setActiveIndex(index)}
                       >
-                        <div className="flex items-center gap-3 min-w-0">
+                        <span className="flex min-w-0 items-center gap-3">
                           <span
-                            className={`shrink-0 ${isActive ? 'text-[#FF8C42]' : 'text-[#6B6E76]'}`}
-                            aria-hidden="true"
+                            className={`shrink-0 ${
+                              command.destructive
+                                ? 'text-[#E5484D]'
+                                : isActive
+                                  ? 'text-[#FF8C42]'
+                                  : 'text-[#6B6E76]'
+                            }`}
                           >
-                            {item.icon}
+                            <CommandIcon name={command.icon} />
                           </span>
-                          <div className="min-w-0">
-                            <span className="block text-xs font-semibold truncate text-[#F5F5F5]">
-                              {item.label}
+                          <span className="min-w-0">
+                            <span
+                              className={`block truncate text-xs font-semibold ${
+                                command.destructive ? 'text-[#E5484D]' : 'text-[#F5F5F5]'
+                              }`}
+                            >
+                              {command.label}
                             </span>
-                            {item.description && (
-                              <span className="block text-[11px] text-[#A1A4AC] truncate">
-                                {item.description}
+                            {command.description && (
+                              <span className="block truncate text-[11px] text-[#A1A4AC]">
+                                {command.description}
                               </span>
                             )}
-                          </div>
-                        </div>
-                        {item.shortcut && (
+                          </span>
+                        </span>
+
+                        {binding && (
                           <kbd
-                            className={`px-1.5 py-0.5 rounded border text-[10px] font-mono shrink-0 ml-2 ${
+                            className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] ${
                               isActive
                                 ? 'border-[#5C3016] bg-[#1D1410] text-[#FF8C42]'
                                 : 'border-[#282C35] bg-[#111318] text-[#6B6E76]'
                             }`}
                           >
-                            {item.shortcut}
+                            {binding}
                           </kbd>
                         )}
                       </button>
@@ -680,19 +288,21 @@ export function CommandPalette() {
               ))}
             </div>
 
-            <footer className="px-4 py-2 border-t border-[#282C35] bg-[#111318] flex items-center justify-between text-[11px] text-[#6B6E76]">
-              <div className="flex items-center gap-3">
+            <footer className="flex items-center justify-between border-t border-[#282C35] bg-[#111318] px-4 py-2 text-[11px] text-[#6B6E76]">
+              <span className="flex items-center gap-3">
                 <span>
                   <kbd className="font-mono text-[#A1A4AC]">↑↓</kbd> navigate
                 </span>
                 <span>
-                  <kbd className="font-mono text-[#A1A4AC]">↵</kbd> select
+                  <kbd className="font-mono text-[#A1A4AC]">↵</kbd> run
                 </span>
-                <span>
+                <span className="hidden sm:inline">
                   <kbd className="font-mono text-[#A1A4AC]">esc</kbd> close
                 </span>
-              </div>
-              <span className="text-[10px] text-[#FF8C42] font-medium">Quant Omnibar</span>
+              </span>
+              <span className="text-[10px] font-medium text-[#FF8C42]">
+                {flatOrder.length} command{flatOrder.length === 1 ? '' : 's'}
+              </span>
             </footer>
           </motion.div>
         </>

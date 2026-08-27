@@ -5,8 +5,9 @@ import './shell.css';
 import './overrides.css';
 import { quantMailBrandMetadata } from '../brand/identity';
 import { AuthGuard } from '../components/AuthGuard';
-import { GlobalShortcutsProvider } from '../components/GlobalShortcutsProvider';
+import { CommandPalette } from '../components/CommandPalette';
 import { InboxToastContainer } from '../components/InboxToast';
+import { KeyboardProvider } from '../components/KeyboardProvider';
 import { KeyboardShortcutsHelp } from '../components/KeyboardShortcutsHelp';
 import { OfflineBar } from '../components/OfflineBar';
 import { AppProviders } from '../providers/app-providers';
@@ -77,10 +78,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AuthProvider>
               <AppProviders>
                 <AuthGuard>
-                  <GlobalShortcutsProvider>
+                  {/* The palette and the shortcuts sheet read their open state
+                      from this provider, so both must live inside it. Both sit at
+                      the layout root rather than inside `AppShell`: `mod+k` is
+                      registered globally, and the palette used to render only on
+                      routes that happened to mount a shell — so on the others the
+                      shortcut set state nothing was listening to. */}
+                  <KeyboardProvider>
                     <main id="main-content">{children}</main>
-                  </GlobalShortcutsProvider>
-                  <KeyboardShortcutsHelp />
+                    <CommandPalette />
+                    <KeyboardShortcutsHelp />
+                  </KeyboardProvider>
                   <InboxToastContainer />
                 </AuthGuard>
               </AppProviders>
