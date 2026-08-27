@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { IconDot } from './icons';
 
 interface PriorityIndicatorProps {
   email: {
@@ -27,12 +28,19 @@ export function PriorityIndicator({ email }: PriorityIndicatorProps) {
 
   return (
     <span
-      className={`priority-indicator priority-${priority}`}
+      className={`priority-indicator priority-${priority} inline-flex`}
+      role="img"
       aria-label={`${priority} priority`}
       title={`${priority} priority`}
     >
-      {priority === 'critical' && '🔴'}
-      {priority === 'high' && '🟠'}
+      {/*
+       * The colour is the whole signal here, so the dot carries an explicit
+       * tone rather than inheriting one: `.priority-critical` and
+       * `.priority-high` never existed as CSS rules — the old 🔴/🟠 emoji were
+       * supplying their own hue, which is exactly why they differed per
+       * platform.
+       */}
+      <IconDot size={8} tone={priority === 'critical' ? '#F87171' : '#FF8C42'} />
     </span>
   );
 }

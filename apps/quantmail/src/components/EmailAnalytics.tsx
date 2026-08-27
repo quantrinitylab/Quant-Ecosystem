@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { IconChart } from './icons';
 
 interface EmailAnalyticsProps {
   emails: Array<{
@@ -91,7 +92,9 @@ export function EmailAnalytics({ emails }: EmailAnalyticsProps) {
       transition={{ duration: 0.3 }}
     >
       <header className="analytics-header">
-        <span className="analytics-icon" aria-hidden="true">📊</span>
+        <span className="analytics-icon inline-flex" aria-hidden="true">
+          <IconChart size={13} />
+        </span>
         <strong>Your Email Pulse</strong>
         <span className="analytics-period">Last 7 days</span>
       </header>

@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
+import { IconSparkle } from './icons';
 
 interface AICommitMessageProps {
   diff: string;
@@ -40,8 +41,15 @@ export function AICommitMessage({ diff, onUseMessage }: AICommitMessageProps) {
 
   return (
     <div className="ai-commit-msg">
-      <button type="button" className="ai-commit-trigger" onClick={generateMessages} disabled={isGenerating}>
-        <span className="ai-commit-icon">✦</span>
+      <button
+        type="button"
+        className="ai-commit-trigger inline-flex items-center gap-1.5"
+        onClick={generateMessages}
+        disabled={isGenerating}
+      >
+        <span className="ai-commit-icon inline-flex">
+          <IconSparkle size={12} />
+        </span>
         {isGenerating ? 'Generating...' : 'Generate commit message'}
       </button>
       {suggestions.length > 0 && (
@@ -55,7 +63,10 @@ export function AICommitMessage({ diff, onUseMessage }: AICommitMessageProps) {
               key={idx}
               type="button"
               className={`ai-commit-option ${selectedIdx === idx ? 'is-selected' : ''}`}
-              onClick={() => { setSelectedIdx(idx); onUseMessage(msg); }}
+              onClick={() => {
+                setSelectedIdx(idx);
+                onUseMessage(msg);
+              }}
             >
               <code>{msg}</code>
             </button>

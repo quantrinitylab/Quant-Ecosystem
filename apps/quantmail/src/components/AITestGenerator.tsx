@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { IconFlask, IconSparkle } from './icons';
 
 interface AITestGeneratorProps {
   code: string;
@@ -24,7 +25,11 @@ export function AITestGenerator({ code, language, filename, onInsertTests }: AIT
   const [testType, setTestType] = useState<TestType>('unit');
   const [generatedTests, setGeneratedTests] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [coverage, setCoverage] = useState<{ functions: number; branches: number; lines: number } | null>(null);
+  const [coverage, setCoverage] = useState<{
+    functions: number;
+    branches: number;
+    lines: number;
+  } | null>(null);
 
   const frameworks: { id: TestFramework; label: string; langs: string[] }[] = [
     { id: 'vitest', label: 'Vitest', langs: ['typescript', 'javascript'] },
@@ -116,8 +121,13 @@ export function AITestGenerator({ code, language, filename, onInsertTests }: AIT
 
   return (
     <div className="ai-test-gen">
-      <button type="button" className="ai-test-trigger" onClick={() => setIsOpen((v) => !v)}>
-        🧪 Generate Tests
+      <button
+        type="button"
+        className="ai-test-trigger inline-flex items-center gap-1.5"
+        onClick={() => setIsOpen((v) => !v)}
+      >
+        <IconFlask size={12} />
+        Generate Tests
       </button>
       <AnimatePresence>
         {isOpen && (
@@ -159,8 +169,20 @@ export function AITestGenerator({ code, language, filename, onInsertTests }: AIT
                 </div>
               </div>
             </div>
-            <button type="button" className="ai-test-generate" onClick={generate} disabled={isGenerating}>
-              {isGenerating ? 'Generating...' : '✦ Generate Test Suite'}
+            <button
+              type="button"
+              className="ai-test-generate inline-flex items-center justify-center gap-1.5"
+              onClick={generate}
+              disabled={isGenerating}
+            >
+              {isGenerating ? (
+                'Generating...'
+              ) : (
+                <>
+                  <IconSparkle size={13} />
+                  Generate Test Suite
+                </>
+              )}
             </button>
             {coverage && (
               <div className="ai-test-coverage">
@@ -174,9 +196,13 @@ export function AITestGenerator({ code, language, filename, onInsertTests }: AIT
               <div className="ai-test-result">
                 <header>
                   <span>Generated tests</span>
-                  <button type="button" onClick={() => onInsertTests(generatedTests)}>Insert into editor</button>
+                  <button type="button" onClick={() => onInsertTests(generatedTests)}>
+                    Insert into editor
+                  </button>
                 </header>
-                <pre><code>{generatedTests}</code></pre>
+                <pre>
+                  <code>{generatedTests}</code>
+                </pre>
               </div>
             )}
           </motion.div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { IconSparkle, IconWarning, IconX } from './icons';
 
 interface AISummaryCardProps {
   emailId: string;
@@ -33,8 +34,14 @@ export function AISummaryCard({ emailId, onSummarize }: AISummaryCardProps) {
 
   if (!summary && !loading && !error) {
     return (
-      <button type="button" className="ai-summary-trigger" onClick={handleSummarize}>
-        <span className="ai-spark">✦</span>
+      <button
+        type="button"
+        className="ai-summary-trigger inline-flex items-center gap-1.5"
+        onClick={handleSummarize}
+      >
+        <span className="ai-spark inline-flex">
+          <IconSparkle size={12} />
+        </span>
         Summarize with AI
       </button>
     );
@@ -52,23 +59,39 @@ export function AISummaryCard({ emailId, onSummarize }: AISummaryCardProps) {
         {loading && (
           <div className="ai-summary-loading">
             <div className="ai-loading-dots">
-              <span /><span /><span />
+              <span />
+              <span />
+              <span />
             </div>
             <span>Generating summary…</span>
           </div>
         )}
         {error && (
           <div className="ai-summary-error">
-            <span>⚠️ {error}</span>
-            <button type="button" onClick={handleSummarize}>Retry</button>
+            <span className="inline-flex items-center gap-1.5">
+              <IconWarning size={12} />
+              {error}
+            </span>
+            <button type="button" onClick={handleSummarize}>
+              Retry
+            </button>
           </div>
         )}
         {summary && (
           <div className="ai-summary-result">
             <header className="ai-summary-result-header">
-              <span className="ai-spark">✦</span>
+              <span className="ai-spark inline-flex">
+                <IconSparkle size={12} />
+              </span>
               <strong>AI Summary</strong>
-              <button type="button" onClick={() => setSummary(null)}>×</button>
+              <button
+                type="button"
+                onClick={() => setSummary(null)}
+                aria-label="Dismiss summary"
+                className="inline-flex items-center justify-center"
+              >
+                <IconX size={13} />
+              </button>
             </header>
             <p className="ai-summary-text">{summary}</p>
           </div>

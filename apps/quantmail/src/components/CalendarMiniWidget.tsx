@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { IconCalendar } from './icons';
 
 interface CalendarEvent {
   id: string;
@@ -22,7 +23,11 @@ interface CalendarMiniWidgetProps {
  * Google Calendar requires switching apps. We surface today's schedule
  * directly in the mail workspace so you never miss a meeting.
  */
-export function CalendarMiniWidget({ events, onOpenCalendar, onJoinMeeting }: CalendarMiniWidgetProps) {
+export function CalendarMiniWidget({
+  events,
+  onOpenCalendar,
+  onJoinMeeting,
+}: CalendarMiniWidgetProps) {
   const todayEvents = useMemo(() => {
     const now = new Date();
     const endOfDay = new Date(now);
@@ -51,15 +56,17 @@ export function CalendarMiniWidget({ events, onOpenCalendar, onJoinMeeting }: Ca
       transition={{ delay: 0.2 }}
     >
       <header className="cal-mini-header" onClick={onOpenCalendar}>
-        <span className="cal-mini-icon">📅</span>
+        <span className="cal-mini-icon inline-flex">
+          <IconCalendar size={13} />
+        </span>
         <strong>Today</strong>
-        <span className="cal-mini-count">{todayEvents.length} event{todayEvents.length > 1 ? 's' : ''}</span>
+        <span className="cal-mini-count">
+          {todayEvents.length} event{todayEvents.length > 1 ? 's' : ''}
+        </span>
       </header>
 
       {timeUntilNext !== null && timeUntilNext <= 30 && timeUntilNext > 0 && (
-        <div className="cal-mini-alert">
-          ⏰ Next meeting in {timeUntilNext} min
-        </div>
+        <div className="cal-mini-alert">⏰ Next meeting in {timeUntilNext} min</div>
       )}
 
       <div className="cal-mini-events">
@@ -68,7 +75,10 @@ export function CalendarMiniWidget({ events, onOpenCalendar, onJoinMeeting }: Ca
             <div className="cal-mini-time-bar" />
             <div className="cal-mini-event-info">
               <span className="cal-mini-event-time">
-                {new Date(event.startTime).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                {new Date(event.startTime).toLocaleTimeString(undefined, {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </span>
               <span className="cal-mini-event-title">{event.title}</span>
             </div>

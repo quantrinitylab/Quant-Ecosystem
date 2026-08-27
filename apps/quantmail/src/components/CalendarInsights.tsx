@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { IconCalendar, IconChart, IconClock, IconHeart, IconSparkle } from './icons';
 
 interface CalendarEvent {
   id: string;
@@ -28,7 +29,13 @@ export function CalendarInsights({ events, selectedDay, month, year }: CalendarI
 
     // Count events per day of week
     const dayOfWeekCounts: Record<string, number> = {
-      Sun: 0, Mon: 0, Tue: 0, Wed: 0, Thu: 0, Fri: 0, Sat: 0,
+      Sun: 0,
+      Mon: 0,
+      Tue: 0,
+      Wed: 0,
+      Thu: 0,
+      Fri: 0,
+      Sat: 0,
     };
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -41,9 +48,7 @@ export function CalendarInsights({ events, selectedDay, month, year }: CalendarI
     const freestDay = Object.entries(dayOfWeekCounts).sort((a, b) => a[1] - b[1])[0];
 
     // Check selected day events
-    const selectedDayEvents = events.filter(
-      (e) => new Date(e.startTime).getDate() === selectedDay,
-    );
+    const selectedDayEvents = events.filter((e) => new Date(e.startTime).getDate() === selectedDay);
 
     // Hours occupied on selected day
     let hoursOccupied = 0;
@@ -73,23 +78,29 @@ export function CalendarInsights({ events, selectedDay, month, year }: CalendarI
       transition={{ delay: 0.2, duration: 0.3 }}
     >
       <div className="calendar-insights-header">
-        <span className="calendar-insights-icon" aria-hidden="true">✦</span>
+        <span className="calendar-insights-icon inline-flex" aria-hidden="true">
+          <IconSparkle size={12} />
+        </span>
         <strong>Calendar Intelligence</strong>
       </div>
       <div className="calendar-insights-chips">
         {insights.busiestDay && (
-          <span className="cal-chip cal-chip--busy">
-            📊 Busiest: {insights.busiestDay}
+          <span className="cal-chip cal-chip--busy inline-flex items-center gap-1">
+            <IconChart size={11} />
+            Busiest: {insights.busiestDay}
           </span>
         )}
-        <span className="cal-chip cal-chip--free">
-          💚 Freest: {insights.freestDay}
+        <span className="cal-chip cal-chip--free inline-flex items-center gap-1">
+          <IconHeart size={11} />
+          Freest: {insights.freestDay}
         </span>
-        <span className="cal-chip cal-chip--hours">
-          ⏱ {insights.hoursAvailable}h free today
+        <span className="cal-chip cal-chip--hours inline-flex items-center gap-1">
+          <IconClock size={11} />
+          {insights.hoursAvailable}h free today
         </span>
-        <span className="cal-chip cal-chip--count">
-          📅 {insights.totalEvents} events this month
+        <span className="cal-chip cal-chip--count inline-flex items-center gap-1">
+          <IconCalendar size={11} />
+          {insights.totalEvents} events this month
         </span>
       </div>
     </motion.div>

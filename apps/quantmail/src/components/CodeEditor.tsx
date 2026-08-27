@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { SyntaxHighlighter } from './SyntaxHighlighter';
+import { IconFile } from './icons';
 
 export interface CodeEditorProps {
   filename: string;
@@ -19,14 +20,38 @@ export interface CodeEditorProps {
 }
 
 const languageMap: Record<string, string> = {
-  ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
-  py: 'python', rb: 'ruby', go: 'go', rs: 'rust', java: 'java',
-  css: 'css', html: 'html', json: 'json', md: 'markdown', yaml: 'yaml',
-  yml: 'yaml', sh: 'bash', sql: 'sql', dockerfile: 'dockerfile',
+  ts: 'typescript',
+  tsx: 'typescript',
+  js: 'javascript',
+  jsx: 'javascript',
+  py: 'python',
+  rb: 'ruby',
+  go: 'go',
+  rs: 'rust',
+  java: 'java',
+  css: 'css',
+  html: 'html',
+  json: 'json',
+  md: 'markdown',
+  yaml: 'yaml',
+  yml: 'yaml',
+  sh: 'bash',
+  sql: 'sql',
+  dockerfile: 'dockerfile',
 };
 
 export function CodeEditor(props: CodeEditorProps): React.ReactElement {
-  const { filename, content, language, readOnly = true, lineNumbers = true, onSave, onChange, highlightedLines = [], diff } = props;
+  const {
+    filename,
+    content,
+    language,
+    readOnly = true,
+    lineNumbers = true,
+    onSave,
+    onChange,
+    highlightedLines = [],
+    diff,
+  } = props;
 
   const [editedContent, setEditedContent] = useState(content);
   const [isEditing, setIsEditing] = useState(false);
@@ -40,7 +65,10 @@ export function CodeEditor(props: CodeEditorProps): React.ReactElement {
     return languageMap[ext] || 'plaintext';
   }, [filename, language]);
 
-  const lines = useMemo(() => (isEditing ? editedContent : content).split('\n'), [content, editedContent, isEditing]);
+  const lines = useMemo(
+    () => (isEditing ? editedContent : content).split('\n'),
+    [content, editedContent, isEditing],
+  );
   const lineCount = lines.length;
 
   const handleChange = (newContent: string) => {
@@ -92,7 +120,9 @@ export function CodeEditor(props: CodeEditorProps): React.ReactElement {
       {/* File header */}
       <div className="editor-header">
         <div className="file-info">
-          <span className="file-icon">📄</span>
+          <span className="file-icon inline-flex">
+            <IconFile size={13} />
+          </span>
           <span className="file-name">{filename}</span>
           <span className="file-language">{detectedLanguage}</span>
           <span className="file-lines">{lineCount} lines</span>
@@ -101,18 +131,34 @@ export function CodeEditor(props: CodeEditorProps): React.ReactElement {
           <button className="btn btn-sm btn-icon" onClick={handleCopy} title="Copy content">
             {copied ? 'Copied!' : 'Copy'}
           </button>
-          <button className={`btn btn-sm btn-icon ${wrapLines ? 'active' : ''}`} onClick={() => setWrapLines(!wrapLines)} title="Toggle word wrap">
+          <button
+            className={`btn btn-sm btn-icon ${wrapLines ? 'active' : ''}`}
+            onClick={() => setWrapLines(!wrapLines)}
+            title="Toggle word wrap"
+          >
             Wrap
           </button>
           {!readOnly && (
             <>
               {isEditing ? (
                 <>
-                  <button className="btn btn-sm btn-primary" onClick={handleSave}>Save</button>
-                  <button className="btn btn-sm btn-outline" onClick={() => { setIsEditing(false); setEditedContent(content); }}>Cancel</button>
+                  <button className="btn btn-sm btn-primary" onClick={handleSave}>
+                    Save
+                  </button>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={() => {
+                      setIsEditing(false);
+                      setEditedContent(content);
+                    }}
+                  >
+                    Cancel
+                  </button>
                 </>
               ) : (
-                <button className="btn btn-sm btn-outline" onClick={() => setIsEditing(true)}>Edit</button>
+                <button className="btn btn-sm btn-outline" onClick={() => setIsEditing(true)}>
+                  Edit
+                </button>
               )}
             </>
           )}
@@ -126,7 +172,9 @@ export function CodeEditor(props: CodeEditorProps): React.ReactElement {
             {lineNumbers && (
               <div className="line-numbers">
                 {lines.map((_, i) => (
-                  <span key={i + 1} className="line-number">{i + 1}</span>
+                  <span key={i + 1} className="line-number">
+                    {i + 1}
+                  </span>
                 ))}
               </div>
             )}
