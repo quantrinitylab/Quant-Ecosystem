@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
 
 interface EmailSnoozeProps {
   emailId: string;
@@ -117,19 +118,63 @@ export function EmailSnooze({
         setOpen(false);
       }
     };
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setOpen(false);
-        buttonRef.current?.focus();
-      }
-    };
     document.addEventListener('pointerdown', handleClickOutside);
-    document.addEventListener('keydown', handleEsc);
-    return () => {
-      document.removeEventListener('pointerdown', handleClickOutside);
-      document.removeEventListener('keydown', handleEsc);
-    };
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, [isOpen, setOpen]);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    buttonRef.current?.focus();
+  }, [setOpen]);
+
+  /**
+   * The menu owns the keyboard while it is out, so `e`, `j` and `#` cannot act on
+   * the conversation behind it — this menu is rendered per row, and archiving the
+   * row you were mid-way through snoozing is not recoverable from the UI.
+   */
+  useKeyboardScope('snooze-menu', { active: isOpen, exclusive: true });
+
+  useShortcut('escape', close, {
+    scope: 'snooze-menu',
+    label: 'Close snooze menu',
+    // Escape from the date field should dismiss the menu, not just blur.
+    allowInInput: true,
+  });
+
+  /**
+   * Roving focus over the presets.
+   *
+   * The options are real buttons, so Enter and Space already activate them; only
+   * the arrows were missing, which is what makes a `role="menu"` navigable. Focus
+   * is read off the live DOM rather than mirrored into state — the list is short
+   * and querying it cannot drift out of sync with what is rendered.
+   *
+   * `allowInInput` stays off: inside the datetime field the arrows belong to the
+   * browser's own date stepper.
+   */
+  const moveFocus = useCallback((delta: number) => {
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [],
+    );
+    if (items.length === 0) return;
+    const current = items.findIndex((item) => item === document.activeElement);
+    // From outside the list, ArrowDown enters at the top and ArrowUp at the bottom.
+    const next = current === -1 ? (delta > 0 ? 0 : items.length - 1) : current + delta;
+    items[(next + items.length) % items.length]?.focus();
+  }, []);
+
+  useShortcut('arrowdown', () => moveFocus(1), { scope: 'snooze-menu', label: 'Next option' });
+  useShortcut('arrowup', () => moveFocus(-1), { scope: 'snooze-menu', label: 'Previous option' });
+
+  // Opening with the keyboard has to land somewhere, and the first preset is the
+  // one a user reaching for `Later today` wants.
+  useEffect(() => {
+    if (!isOpen) return;
+    const frame = window.requestAnimationFrame(() => {
+      menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isOpen]);
 
   const handleSnooze = useCallback(
     (option: (typeof SNOOZE_OPTIONS)[number]) => {

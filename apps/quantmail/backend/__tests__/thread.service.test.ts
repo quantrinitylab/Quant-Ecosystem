@@ -48,8 +48,19 @@ describe('ThreadService', () => {
       expect(result.emails).toHaveLength(3);
       expect(result.unreadCount).toBe(2);
       expect(prisma.email.findMany).toHaveBeenCalledWith({
-        where: { threadId: 'thread-1', userId: 'user-1', deletedAt: null },
-        orderBy: { receivedAt: 'asc' },
+        // Matched on `threadId` OR the email's own `id`, so a message that was
+        // never threaded still resolves when opened by id. No `userId` filter is
+        // needed here: `getThread` has already loaded the thread and thrown 403
+        // unless `thread.userId === userId`, so ownership is settled upstream.
+        where: {
+          OR: [
+            { threadId: 'thread-1', deletedAt: null },
+            { id: 'thread-1', deletedAt: null },
+          ],
+        },
+        // `createdAt` breaks ties: messages that arrive in the same second would
+        // otherwise come back in an order the database was free to choose.
+        orderBy: [{ receivedAt: 'asc' }, { createdAt: 'asc' }],
       });
     });
 

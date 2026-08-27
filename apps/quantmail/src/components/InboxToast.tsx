@@ -2,25 +2,24 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import {
+  forgetUndo,
+  subscribeToDismissals,
+  subscribeToToasts,
+  type ToastMessage,
+} from '../lib/toast-bus';
 
-export interface ToastMessage {
-  id: string;
-  text: string;
-  type: 'success' | 'info' | 'warning' | 'error';
-  undoAction?: () => void;
-  duration?: number;
-}
-
-let toastSubscribers: Array<(msg: ToastMessage) => void> = [];
-
-/** Fire a toast from anywhere (no provider needed). */
-export function showToast(msg: Omit<ToastMessage, 'id'>) {
-  const toast: ToastMessage = {
-    ...msg,
-    id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-  };
-  toastSubscribers.forEach((fn) => fn(toast));
-}
+/**
+ * The bus itself lives in `../lib/toast-bus` — a plain `.ts` module, so that
+ * non-component code can fire a toast without importing a `.tsx` file (see the
+ * note in that file for why the distinction matters to `pnpm typecheck`).
+ *
+ * Re-exported here because twenty-five components already import `showToast`
+ * from `./InboxToast`, and the toast API is genuinely part of what this module
+ * offers. Callers should not need to know where the plumbing sits.
+ */
+export { hasPendingUndo, runPendingUndo, showToast } from '../lib/toast-bus';
+export type { ToastMessage } from '../lib/toast-bus';
 
 function ToastIcon({ type }: { type: ToastMessage['type'] }) {
   switch (type) {
@@ -93,25 +92,29 @@ function ToastIcon({ type }: { type: ToastMessage['type'] }) {
 export function InboxToastContainer() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
+  const dismiss = useCallback((id: string) => {
+    forgetUndo(id);
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
   useEffect(() => {
     const handler = (msg: ToastMessage) => {
-      // Remove any existing toast with the same text so it doesn't pile up
+      // Replace any toast with the same text rather than stacking duplicates —
+      // holding `e` down the list should read as one message, not forty.
       setToasts((prev) => [...prev.filter((t) => t.text !== msg.text), msg]);
 
-      // Auto-dismiss this specific toast
       setTimeout(() => {
+        forgetUndo(msg.id);
         setToasts((prev) => prev.filter((t) => t.id !== msg.id));
       }, msg.duration ?? 3200);
     };
-    toastSubscribers.push(handler);
+    const unsubscribeToasts = subscribeToToasts(handler);
+    const unsubscribeDismissals = subscribeToDismissals(dismiss);
     return () => {
-      toastSubscribers = toastSubscribers.filter((fn) => fn !== handler);
+      unsubscribeToasts();
+      unsubscribeDismissals();
     };
-  }, []);
-
-  const dismiss = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  }, [dismiss]);
 
   return (
     <div className="inbox-toast-container" aria-live="polite" aria-atomic="false">
@@ -135,8 +138,10 @@ export function InboxToastContainer() {
                 type="button"
                 className="inbox-toast-undo text-[#FF8C42] hover:bg-[#2B1A11]"
                 onClick={() => {
-                  toast.undoAction?.();
+                  // Dismiss first: that clears the pending undo, so the same
+                  // action cannot then be reversed a second time with `z`.
                   dismiss(toast.id);
+                  toast.undoAction?.();
                 }}
               >
                 Undo

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { usePathname, useRouter } from 'next/navigation';
 import { PageTransition } from '@quant/shared-ui';
 import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
-import { CommandPalette } from './CommandPalette';
+import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
 import { QuantMailLogo } from './QuantMailLogo';
 import { QuantCalendarLogo } from './QuantCalendarLogo';
 import { QuantDriveLogo } from './QuantDriveLogo';
@@ -281,9 +281,86 @@ export function AppShell({
     });
   }, []);
 
-  // Keyboard navigation & accessibility for mobile drawer
+  /**
+   * Tracks Tailwind's `md` breakpoint, because whether the drawer is the primary
+   * navigation or a redundant copy of a pinned rail is a purely visual fact that
+   * the keyboard and focus code still has to know about.
+   *
+   * Starts `false` so the server render and the first client render agree; the
+   * subscription corrects it before paint.
+   */
+  const [isWide, setIsWide] = useState(false);
   useEffect(() => {
-    if (!isSidebarOpen) return;
+    const query = window.matchMedia('(min-width: 768px)');
+    const sync = () => setIsWide(query.matches);
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, []);
+
+  /**
+   * The `[` command's other half.
+   *
+   * `KeyboardProvider` dispatches `quant:sidebar:toggle`, but until now only
+   * `quant:sidebar:close` was ever listened for — so the shortcut was advertised
+   * in the palette and the help sheet while doing nothing at all.
+   */
+  useEffect(() => {
+    const handleToggle = () => {
+      // On a wide screen the pinned rail *is* the sidebar, so "hide it" means
+      // unpin. Toggling the drawer there would be worse than a no-op: the drawer
+      // is `md:hidden` while pinned, so it would lock the page and capture the
+      // keyboard behind something the user cannot see.
+      if (isPinned && isWide) {
+        togglePinned();
+        return;
+      }
+      setIsSidebarOpen((open) => {
+        // Leaving focus on a node inside a drawer that is about to go
+        // `aria-hidden` strands the screen reader, so hand it back to the trigger.
+        if (open) menuTriggerRef.current?.focus();
+        return !open;
+      });
+    };
+    window.addEventListener('quant:sidebar:toggle', handleToggle);
+    return () => window.removeEventListener('quant:sidebar:toggle', handleToggle);
+  }, [isPinned, isWide, togglePinned]);
+
+  /**
+   * Whether the drawer is actually on screen.
+   *
+   * `isSidebarOpen` alone is not enough: the drawer is `md:hidden` while the rail
+   * is pinned, yet the hamburger stays clickable there, so the open state can be
+   * true for a drawer nobody can see. Everything modal about the drawer — the
+   * scroll lock, the focus trap, the keyboard mask — has to hang off this instead,
+   * or a stray click locks the page with no visible cause.
+   */
+  const isDrawerPresented = isSidebarOpen && !(isPinned && isWide);
+
+  /**
+   * The drawer is modal — backdrop, locked body scroll, focus trap — so while it
+   * is open it masks every shallower binding. That is what stops `j`/`k`/`e` from
+   * walking the conversation list the user cannot see behind it.
+   */
+  useKeyboardScope('sidebar-drawer', { active: isDrawerPresented, exclusive: true });
+
+  useShortcut('escape', () => closeSidebar(), {
+    scope: 'sidebar-drawer',
+    label: 'Close navigation',
+    // Escape has to work from the search field inside the drawer too, which is
+    // exactly where a user who opened the wrong panel is likely to be.
+    allowInInput: true,
+  });
+
+  /**
+   * Focus containment for the drawer.
+   *
+   * Tab stays a raw listener: the engine resolves *commands*, and a focus trap is
+   * not a command — it has no label, belongs in no palette, and needs to inspect
+   * `document.activeElement` against a live DOM query on every press.
+   */
+  useEffect(() => {
+    if (!isDrawerPresented) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -292,11 +369,6 @@ export function AppShell({
     });
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        closeSidebar();
-        return;
-      }
       if (event.key !== 'Tab' || !drawerRef.current) return;
 
       const focusableElements = Array.from(
@@ -321,7 +393,7 @@ export function AppShell({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [closeSidebar, isSidebarOpen]);
+  }, [isDrawerPresented]);
 
   // Contextual FAB Action Handler
   const handleFabClick = () => {
@@ -353,16 +425,13 @@ export function AppShell({
       style={semanticTheme}
       role="application"
     >
-      {/* Global Command Palette (Ctrl+K / Cmd+K) */}
-      <CommandPalette />
-
       {sidebar && (
         <>
           {/* Backdrop for overlay drawer */}
           <button
             type="button"
             className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
-              isSidebarOpen ? 'visible opacity-100' : 'invisible opacity-0 pointer-events-none'
+              isDrawerPresented ? 'visible opacity-100' : 'invisible opacity-0 pointer-events-none'
             }`}
             aria-label="Close navigation menu"
             onClick={() => closeSidebar()}
@@ -404,8 +473,13 @@ export function AppShell({
             className={`fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-3rem)] flex-none bg-[var(--surface)] shadow-2xl transition-transform duration-200 ease-out motion-reduce:transition-none ${
               isSidebarOpen ? 'visible translate-x-0' : 'invisible -translate-x-full'
             } ${isPinned ? 'md:hidden' : ''}`}
-            aria-label="Sidebar Drawer"
-            aria-hidden={!isSidebarOpen}
+            // A backdrop, a locked page and a focus trap already make this a modal
+            // dialog; saying so lets a screen reader announce the boundary instead
+            // of presenting it as one more complementary region on the page.
+            role="dialog"
+            aria-modal={isDrawerPresented || undefined}
+            aria-label="Navigation"
+            aria-hidden={!isDrawerPresented}
             onClickCapture={(event) => {
               if ((event.target as HTMLElement).closest('.sidebar-nav-item, .sidebar-compose')) {
                 closeSidebar(false);
@@ -433,8 +507,12 @@ export function AppShell({
                 <button
                   ref={menuTriggerRef}
                   type="button"
-                  className="inline-flex size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors"
+                  // Hidden once the rail is pinned on a wide screen: the drawer it
+                  // opens is `md:hidden` there, so the control had nothing to show.
+                  className={`inline-flex size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors ${isPinned ? 'md:hidden' : ''}`}
                   aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                  aria-expanded={isDrawerPresented}
+                  aria-controls={drawerId}
                   onClick={() => setIsSidebarOpen((open) => !open)}
                 >
                   <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">

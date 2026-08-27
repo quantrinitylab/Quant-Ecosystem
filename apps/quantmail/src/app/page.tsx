@@ -30,9 +30,17 @@ import { EmailLetterCard } from '../components/EmailLetterCard';
 import { QuantyCopilotDrawer } from '../components/QuantyCopilotDrawer';
 import { ConversationalThreadView } from '../components/ConversationalThreadView';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
-import { apiClient } from '../services/api-client';
+import { useMailMutations } from '../hooks/useMailMutations';
+import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
 import { useAuth } from '../providers/auth-provider';
 import type { Email, EmailCategory } from '../types';
+
+/**
+ * Starting height guess for a conversation row: `.mail-row`'s `min-height` of
+ * 4.85rem plus its 1px border. Rows are measured for real once mounted, so this
+ * only decides the scrollbar length before the first measurement pass.
+ */
+const ESTIMATED_ROW_HEIGHT = 80;
 
 const TELEGRAM_CATEGORIES: Array<{ key: string; label: string }> = [
   { key: 'all', label: 'All' },
@@ -281,8 +289,17 @@ type EmailRowProps = {
   isChecked: boolean;
   isActive: boolean;
   isFocused: boolean;
-  onToggleSelect: () => void;
-  onToggleStar: (event: React.MouseEvent) => void;
+  /**
+   * The event is forwarded so the page can read `shiftKey` and extend the
+   * selection from the last click. Omitted when the toggle comes from a long-press
+   * or a keyboard command.
+   */
+  onToggleSelect: (event?: React.MouseEvent) => void;
+  /**
+   * `null` when the toggle came from a swipe rather than a click — there is no
+   * mouse event to stop propagating on.
+   */
+  onToggleStar: (event: React.MouseEvent | null) => void;
   onOpen: () => void;
   onArchive: () => void;
   onDelete: () => void;
@@ -345,7 +362,7 @@ function EmailRow({
     if (info.offset.x < -96) {
       void onArchive();
     } else if (info.offset.x > 96) {
-      void onToggleStar(null as any);
+      onToggleStar(null);
     }
   };
 
@@ -394,17 +411,24 @@ function EmailRow({
         <input
           type="checkbox"
           checked={isChecked}
-          onChange={onToggleSelect}
-          onClick={(event) => event.stopPropagation()}
+          // Handled on click rather than change so the modifier keys are readable:
+          // a `change` event carries no `shiftKey`. `readOnly` keeps React from
+          // warning about a controlled field with no `onChange`; the box still
+          // tracks `isChecked`, which the click updates.
+          readOnly
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleSelect(event);
+          }}
           aria-label={`Select conversation with ${thread.sendersSummary}`}
         />
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSelect();
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleSelect(event);
           }}
-          className="focus:outline-none rounded-full"
+          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
           title="Select conversation"
           aria-label={`Select ${thread.sendersSummary}`}
         >
@@ -757,6 +781,54 @@ function CreateGroupModal({
   );
 }
 
+/**
+ * WhatsApp-style archived shelf that sits above the first conversation.
+ *
+ * Extracted from the page body because it now has two call sites: it scrolls
+ * with the virtualized list (rendered inside the sized container and measured
+ * into the virtualizer's `paddingStart`), and it still has to appear on its own
+ * above the loading, error and empty states, where there is no sized container.
+ */
+function ArchivedFolderRow({
+  count,
+  isViewing,
+  categoryLabel,
+  onToggle,
+}: {
+  count: number;
+  isViewing: boolean;
+  categoryLabel: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={isViewing}
+      className="w-full min-h-[44px] flex items-center justify-between gap-3 px-4 py-3 bg-[#111318] hover:bg-[#16181D] border-b border-[#282C35] transition-colors select-none group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-inset"
+    >
+      <span className="flex items-center gap-3 min-w-0">
+        <span className="size-8 shrink-0 rounded-full bg-[#16181D] border border-[#282C35] flex items-center justify-center text-[#A1A4AC] group-hover:text-[#FF8C42] transition-colors">
+          <MailIcon name={isViewing ? 'mail' : 'archive'} className="size-4" />
+        </span>
+        <span className="flex flex-col min-w-0">
+          <span className="text-sm font-semibold text-[#F5F5F5] truncate">
+            {isViewing ? 'Back to inbox' : 'Archived'}
+          </span>
+          <span className="text-[11px] text-[#6B6E76] truncate">
+            {isViewing
+              ? `Viewing archived ${categoryLabel}`
+              : `${count} archived conversation${count === 1 ? '' : 's'}`}
+          </span>
+        </span>
+      </span>
+      <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]">
+        {count}
+      </span>
+    </button>
+  );
+}
+
 export default function InboxPage() {
   const router = useRouter();
   const [activeCategoryTab, setActiveCategoryTab] = useState<string>('all');
@@ -768,9 +840,15 @@ export default function InboxPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [selectedThread, setSelectedThread] = useState<ConversationThread | null>(null);
-  const lastSelectedIndex = useRef<number>(-1);
+  /** Conversation the next shift-click extends from. See `toggleSelect`. */
+  const selectionAnchorId = useRef<string | null>(null);
+  // The scroll container is needed as state by the virtualizer (so it re-measures
+  // the moment the list mounts behind the loading state) and as a ref by the
+  // pull-to-refresh touch handler, which reads `scrollTop` synchronously.
+  const { element: listElement, ref: listRef, elementRef: listElementRef } =
+    useScrollElement<HTMLDivElement>();
   const { data: allEmails, isLoading, error, refetch } = useInbox({ folderType: 'INBOX' });
-  const { data: archivedEmails, refetch: refetchArchived } = useInbox({ folderType: 'ARCHIVE' });
+  const { data: archivedEmails } = useInbox({ folderType: 'ARCHIVE' });
   const { data: searchResults, isLoading: isSearching } = useSearchEmails(
     debouncedQuery ? { query: debouncedQuery } : null,
   );
@@ -861,6 +939,59 @@ export default function InboxPage() {
     });
   }, [showArchivedView, currentArchivedThreads, threads, activeCategoryTab, filterThreads]);
 
+  /**
+   * The archived toggle scrolls with the list, so the virtualizer has to know how
+   * much room it takes before the first row. It is rendered out of flow inside the
+   * sized container and accounted for as `paddingStart`, which keeps the rows'
+   * offsets exact instead of relying on overscan to hide a constant shift.
+   */
+  const [listHeaderHeight, setListHeaderHeight] = useState(0);
+  const measureListHeader = useCallback((node: HTMLDivElement | null) => {
+    if (!node) {
+      setListHeaderHeight(0);
+      return;
+    }
+    setListHeaderHeight(node.offsetHeight);
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => setListHeaderHeight(node.offsetHeight));
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const threadKey = useCallback((index: number) => displayThreads[index]?.id ?? index, [
+    displayThreads,
+  ]);
+
+  /**
+   * True when the windowed list owns the scroll area. The loading, error and empty
+   * states each replace it entirely, and the archived shelf has to move with it,
+   * so the condition is named once rather than repeated at every branch.
+   */
+  const showThreadList = !isLoading && !isSearching && !error && displayThreads.length > 0;
+
+  const virtualizer = useVirtualizer({
+    count: displayThreads.length,
+    scrollElement: listElement,
+    // `.mail-row` is `min-height: 4.85rem` plus a 1px border; every row is then
+    // measured for real, so this only sets the initial scrollbar length.
+    estimateSize: ESTIMATED_ROW_HEIGHT,
+    getItemKey: threadKey,
+    paddingStart: listHeaderHeight,
+    overscan: 8,
+  });
+
+  /**
+   * Return to the top when the view changes. Without this the scroll offset
+   * carries over between tabs, and because the list is windowed that means
+   * switching from a long tab to a short one lands the user in the middle of it
+   * rather than at the newest message.
+   */
+  useEffect(() => {
+    virtualizer.scrollToTop();
+    // `scrollToTop` is stable for a given scroll container; re-running on every
+    // virtualizer commit would fight the user's own scrolling.
+  }, [activeCategoryTab, showArchivedView, debouncedQuery]);
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isGlobalQuantyOpen, setIsGlobalQuantyOpen] = useState(false);
@@ -889,7 +1020,7 @@ export default function InboxPage() {
   }, [refetch]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    const listEl = listRef.current;
+    const listEl = listElementRef.current;
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     isHorizontalSwipe.current = false;
@@ -958,144 +1089,111 @@ export default function InboxPage() {
   }, [allThreads]);
 
   const toggleSelect = useCallback(
-    (id: string, event?: React.MouseEvent) => {
+    (id: string, event?: React.MouseEvent | null) => {
       setSelectedIds((current) => {
         const next = new Set(current);
-        if (event?.shiftKey && threads && lastSelectedIndex.current >= 0) {
-          const currentIndex = threads.findIndex((t) => t.id === id);
-          if (currentIndex >= 0) {
-            const start = Math.min(lastSelectedIndex.current, currentIndex);
-            const end = Math.max(lastSelectedIndex.current, currentIndex);
-            for (let i = start; i <= end; i++) {
-              next.add(threads[i].id);
+
+        // Shift-click extends from the last plain click to here, over the rows as
+        // *rendered*. Anchoring on an id rather than an index matters because
+        // `displayThreads` re-sorts when a message is starred or a tab changes, so
+        // a stored index can point at a different conversation by the time the
+        // second click arrives.
+        if (event?.shiftKey && selectionAnchorId.current !== null) {
+          const from = displayThreads.findIndex((t) => t.id === selectionAnchorId.current);
+          const to = displayThreads.findIndex((t) => t.id === id);
+          if (from >= 0 && to >= 0) {
+            for (let i = Math.min(from, to); i <= Math.max(from, to); i += 1) {
+              next.add(displayThreads[i].id);
             }
             return next;
           }
         }
+
         if (next.has(id)) next.delete(id);
         else next.add(id);
-        if (threads) {
-          const idx = threads.findIndex((t) => t.id === id);
-          if (idx >= 0) lastSelectedIndex.current = idx;
-        }
+        selectionAnchorId.current = id;
         return next;
       });
     },
-    [threads],
+    [displayThreads],
   );
+
+  /**
+   * Optimistic mailbox mutations.
+   *
+   * Every handler below used to `await apiClient.x(id)` and then `await refetch()`:
+   * two sequential round trips before the row moved, and one full inbox refetch
+   * per keystroke while holding `e` down the list. Now the cache moves in the same
+   * frame and the request goes out behind the user through the offline outbox, so
+   * archiving works with no connection at all and replays on reconnect.
+   */
+  const mutations = useMailMutations({
+    onRemoved: (ids) => {
+      if (selectedEmail && ids.includes(selectedEmail.id)) {
+        setSelectedEmail(null);
+        setSelectedThread(null);
+      }
+      setSelectedIds((current) => {
+        if (!ids.some((id) => current.has(id))) return current;
+        const next = new Set(current);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+    },
+  });
 
   const batchAction = useCallback(
     async (action: 'archive' | 'delete') => {
-      const count = selectedIds.size;
-      const responses = await Promise.all(
-        Array.from(selectedIds, (id) =>
-          action === 'archive' ? apiClient.archiveEmail(id) : apiClient.deleteEmail(id),
-        ),
-      );
-      const failed = responses.find((response) => !response.success);
-      if (failed) {
-        showToast({
-          text: failed.error?.message || `Selected conversations could not be ${action}d`,
-          type: 'error',
-        });
-        return;
-      }
+      const ids = Array.from(selectedIds);
       setSelectedIds(new Set());
+      await mutations.batch(action === 'archive' ? 'archive' : 'trash', ids);
+    },
+    [mutations, selectedIds],
+  );
+
+  const batchToggleStar = useCallback(
+    async (ids: string[], allPinned: boolean) => {
+      setSelectedIds(new Set());
+      await Promise.all(ids.map((id) => mutations.toggleStar(id)));
       showToast({
-        text: `${count} conversation${count === 1 ? '' : 's'} ${action === 'archive' ? 'archived' : 'deleted'}`,
+        text: allPinned ? 'Unpinned selected messages' : 'Pinned selected messages to top',
         type: 'success',
       });
-      await refetch();
     },
-    [refetch, selectedIds],
+    [mutations],
+  );
+
+  const batchMarkRead = useCallback(
+    async (ids: string[], read: boolean) => {
+      setSelectedIds(new Set());
+      await Promise.all(ids.map((id) => (read ? mutations.markRead(id) : mutations.markUnread(id))));
+      showToast({
+        text: `${ids.length} marked as ${read ? 'read' : 'unread'}`,
+        type: 'info',
+      });
+    },
+    [mutations],
   );
 
   const toggleStar = useCallback(
     async (event: React.MouseEvent | null, id: string) => {
       event?.stopPropagation();
-      await apiClient.toggleStar(id);
-      await refetch();
+      await mutations.toggleStar(id);
     },
-    [refetch],
+    [mutations],
   );
 
-  const archiveEmail = useCallback(
-    async (id: string) => {
-      const response = await apiClient.archiveEmail(id);
-      if (!response.success) {
-        showToast({
-          text: response.error?.message || 'Conversation could not be archived',
-          type: 'error',
-        });
-        return;
-      }
-      if (selectedEmail?.id === id) setSelectedEmail(null);
-      showToast({
-        text: 'Conversation archived',
-        type: 'success',
-        undoAction: async () => {
-          const undoResponse = await apiClient.unarchiveEmail(id);
-          if (!undoResponse.success) {
-            showToast({
-              text: undoResponse.error?.message || 'Archive could not be undone',
-              type: 'error',
-            });
-            return;
-          }
-          await Promise.all([refetch(), refetchArchived()]);
-        },
-      });
-      await Promise.all([refetch(), refetchArchived()]);
-    },
-    [refetch, refetchArchived, selectedEmail],
-  );
+  const archiveEmail = useCallback((id: string) => mutations.archive(id), [mutations]);
 
-  const deleteEmail = useCallback(
-    async (id: string) => {
-      const response = await apiClient.deleteEmail(id);
-      if (!response.success) {
-        showToast({
-          text: response.error?.message || 'Conversation could not be moved to trash',
-          type: 'error',
-        });
-        return;
-      }
-      if (selectedEmail?.id === id) setSelectedEmail(null);
-      showToast({ text: 'Conversation moved to trash', type: 'success' });
-      await refetch();
-    },
-    [refetch, selectedEmail],
-  );
+  const deleteEmail = useCallback((id: string) => mutations.trash(id), [mutations]);
 
-  const markRead = useCallback(
-    async (id: string) => {
-      await apiClient.markAsRead?.(id).catch(() => {});
-      await refetch();
-    },
-    [refetch],
-  );
+  const markRead = useCallback((id: string) => mutations.markRead(id), [mutations]);
 
-  const markUnread = useCallback(
-    async (id: string) => {
-      await apiClient.markAsUnread?.(id).catch(() => {});
-      showToast({ text: 'Marked as unread', type: 'info' });
-      await refetch();
-    },
-    [refetch],
-  );
+  const markUnread = useCallback((id: string) => mutations.markUnread(id), [mutations]);
 
   const snoozeEmail = useCallback(
-    async (emailId: string, snoozeUntil: Date) => {
-      const response = await apiClient.snoozeEmail(emailId, snoozeUntil);
-      if (!response.success) {
-        showToast({ text: response.error?.message || 'Email could not be snoozed', type: 'error' });
-        return;
-      }
-      if (selectedEmail?.id === emailId) setSelectedEmail(null);
-      showToast({ text: `Email snoozed until ${snoozeUntil.toLocaleString()}`, type: 'info' });
-      await refetch();
-    },
-    [refetch, selectedEmail],
+    (emailId: string, snoozeUntil: Date) => mutations.snooze(emailId, snoozeUntil),
+    [mutations],
   );
 
   const openEmail = useCallback(
@@ -1117,26 +1215,33 @@ export default function InboxPage() {
         );
         setSelectedThread(matching || null);
       }
-      void apiClient.markAsRead?.(email.id).catch(() => {});
+      void mutations.markRead(email.id);
       const targetId = email.threadId || email.id;
       if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 900px)').matches) {
         router.push(`/thread/${targetId}`);
       }
     },
-    [router, threads],
+    [mutations, router, threads],
   );
 
-  // Superhuman-style keyboard navigation
-  const { focusedIndex, listRef } = useInboxKeyboard({
-    emails,
-    selectedEmail,
-    onSelectEmail: openEmail,
-    onArchive: (id) => void archiveEmail(id),
-    onDelete: (id) => void deleteEmail(id),
-    onToggleStar: (id) => void toggleStar(null, id),
+  /**
+   * Superhuman-style cursor and mail actions.
+   *
+   * This is handed `displayThreads` — the rows actually rendered — where it used to
+   * be handed the flat, differently-ordered `emails` array. That mismatch is why
+   * `j`/`k` highlighted one conversation while `e` archived another.
+   */
+  const { focusedIndex, focusRow } = useInboxKeyboard({
+    rows: displayThreads,
+    selectedId: selectedEmail?.id ?? null,
+    onOpen: (thread) => openEmail(thread.latestEmail, thread),
+    onClose: () => {
+      setSelectedEmail(null);
+      setSelectedThread(null);
+    },
     onToggleSelect: (id) => toggleSelect(id),
-    onMarkRead: (id) => void markRead(id),
-    onMarkUnread: (id) => void markUnread(id),
+    mutations,
+    scrollToIndex: virtualizer.scrollToIndex,
   });
 
   const selectionHeader = (
@@ -1194,17 +1299,7 @@ export default function InboxPage() {
           return (
             <button
               type="button"
-              onClick={async () => {
-                await Promise.all(Array.from(selectedIds, (id) => apiClient.toggleStar(id)));
-                setSelectedIds(new Set());
-                showToast({
-                  text: allPinned
-                    ? 'Unpinned selected messages'
-                    : 'Pinned selected messages to top',
-                  type: 'success',
-                });
-                await refetch();
-              }}
+              onClick={() => void batchToggleStar(Array.from(selectedIds), Boolean(allPinned))}
               className={`size-9 inline-flex items-center justify-center rounded-xl transition-all active:scale-95 ${
                 allPinned
                   ? 'text-amber-400 bg-amber-500/20 hover:bg-amber-500/30'
@@ -1230,12 +1325,7 @@ export default function InboxPage() {
         {/* Mark Unread */}
         <button
           type="button"
-          onClick={async () => {
-            await Promise.all(Array.from(selectedIds, (id) => apiClient.markAsUnread?.(id)));
-            setSelectedIds(new Set());
-            showToast({ text: `${selectedIds.size} marked as unread`, type: 'info' });
-            await refetch();
-          }}
+          onClick={() => void batchMarkRead(Array.from(selectedIds), false)}
           className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-amber-300 hover:bg-zinc-800 transition-all active:scale-95"
           title="Mark as unread (U)"
         >
@@ -1255,12 +1345,7 @@ export default function InboxPage() {
         {/* Mark Read */}
         <button
           type="button"
-          onClick={async () => {
-            await Promise.all(Array.from(selectedIds, (id) => apiClient.markAsRead(id)));
-            setSelectedIds(new Set());
-            showToast({ text: `${selectedIds.size} marked as read`, type: 'info' });
-            await refetch();
-          }}
+          onClick={() => void batchMarkRead(Array.from(selectedIds), true)}
           className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-sky-400 hover:bg-zinc-800 transition-all active:scale-95"
           title="Mark as read"
         >
@@ -1476,32 +1561,18 @@ export default function InboxPage() {
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
-            {/* WhatsApp-Style Archived Row at Top of List */}
-            {currentArchivedThreads.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowArchivedView((prev) => !prev)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-zinc-900/40 hover:bg-zinc-800/70 border-b border-zinc-800/80 transition-all select-none group text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="size-8 rounded-full bg-zinc-800/90 flex items-center justify-center text-zinc-400 group-hover:text-[#FF7A00] transition-colors">
-                    <MailIcon name="archive" className="size-4" />
-                  </div>
-                  <div className="flex flex-col text-left">
-                    <span className="text-sm font-semibold text-zinc-100 group-hover:text-white">
-                      {showArchivedView ? '‹ Back to Inbox' : 'Archived'}
-                    </span>
-                    <span className="text-[11px] text-zinc-400">
-                      {showArchivedView
-                        ? `Viewing archived ${activeCategoryTab === 'all' ? 'conversations' : activeCategoryTab}`
-                        : `${currentArchivedThreads.length} archived ${currentArchivedThreads.length === 1 ? 'conversation' : 'conversations'}`}
-                    </span>
-                  </div>
-                </div>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#FF7A00]/20 text-[#FF7A00] border border-[#FF7A00]/30">
-                  {currentArchivedThreads.length}
-                </span>
-              </button>
+            {/*
+              The archived shelf scrolls with the conversations, so when the list
+              is windowed it belongs inside the sized container (below). Here it
+              only covers the states that replace the list entirely.
+            */}
+            {!showThreadList && currentArchivedThreads.length > 0 && (
+              <ArchivedFolderRow
+                count={currentArchivedThreads.length}
+                isViewing={showArchivedView}
+                categoryLabel={activeCategoryTab === 'all' ? 'conversations' : activeCategoryTab}
+                onToggle={() => setShowArchivedView((prev) => !prev)}
+              />
             )}
 
             {(isLoading || isSearching) && (
@@ -1519,7 +1590,7 @@ export default function InboxPage() {
             {!isLoading &&
               !isSearching &&
               !error &&
-              (!displayThreads || displayThreads.length === 0) &&
+              displayThreads.length === 0 &&
               (debouncedQuery ? (
                 <div className="mail-empty">
                   <span className="mail-empty-icon">
@@ -1612,41 +1683,88 @@ export default function InboxPage() {
               ) : (
                 <InboxZeroState />
               ))}
-            {!isLoading &&
-              !isSearching &&
-              !error &&
-              displayThreads &&
-              displayThreads.length > 0 && (
-                <motion.div
-                  initial="hidden"
-                  animate="visible"
-                  variants={{ visible: { transition: { staggerChildren: 0.025 } } }}
+            {showThreadList && (
+              /**
+               * Windowed list. Only the visible rows plus an overscan margin are
+               * mounted, so ten thousand conversations cost the same as thirty.
+               *
+               * The entry animation this replaces used `staggerChildren: 0.025`,
+               * which delayed the Nth row by N×25ms — row 400 appeared ten seconds
+               * in. Rows now mount and unmount as the window moves, so an entry
+               * animation would re-fire on every scroll; the list is deliberately
+               * static and the motion lives in the swipe gesture instead.
+               *
+               * Offsets are measured from the top of this container, which sits
+               * `.mail-list`'s 0.45rem of padding below the scroll origin. That
+               * constant bias affects only which rows are picked for the window
+               * (absorbed by the overscan) and never where a row is painted, since
+               * the height and the translate share one coordinate space.
+               */
+              <div className="relative w-full" style={{ height: `${virtualizer.totalSize}px` }}>
+                {/* Out of flow so the rows' offsets stay exact; its height is fed
+                    back to the virtualizer as `paddingStart`. */}
+                <div ref={measureListHeader} className="absolute inset-x-0 top-0">
+                  {currentArchivedThreads.length > 0 && (
+                    <ArchivedFolderRow
+                      count={currentArchivedThreads.length}
+                      isViewing={showArchivedView}
+                      categoryLabel={
+                        activeCategoryTab === 'all' ? 'conversations' : activeCategoryTab
+                      }
+                      onToggle={() => setShowArchivedView((prev) => !prev)}
+                    />
+                  )}
+                </div>
+
+                <div
+                  role="list"
+                  aria-label={showArchivedView ? 'Archived conversations' : 'Conversations'}
+                  style={{
+                    transform: `translateY(${virtualizer.offsetTop}px)`,
+                    willChange: 'transform',
+                  }}
                 >
-                  {displayThreads.map((thread, index) => (
-                    <motion.div
-                      key={thread.id}
-                      variants={{ hidden: { opacity: 0, y: 5 }, visible: { opacity: 1, y: 0 } }}
-                    >
-                      <EmailRow
-                        thread={thread}
-                        isChecked={selectedIds.has(thread.id)}
-                        isActive={
-                          selectedEmail?.id === thread.id || selectedThread?.id === thread.id
-                        }
-                        isFocused={focusedIndex === index}
-                        onToggleSelect={() => toggleSelect(thread.id)}
-                        onToggleStar={(event) => void toggleStar(event, thread.id)}
-                        onOpen={() => openEmail(thread.latestEmail, thread)}
-                        onArchive={() => void archiveEmail(thread.id)}
-                        onDelete={() => void deleteEmail(thread.id)}
-                        onMarkRead={() => void markRead(thread.id)}
-                        onMarkUnread={() => void markUnread(thread.id)}
-                        onSnooze={snoozeEmail}
-                      />
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
+                  {virtualizer.items.map((item) => {
+                    const thread = displayThreads[item.index];
+                    if (!thread) return null;
+
+                    return (
+                      <div
+                        key={item.key}
+                        ref={virtualizer.measureRow(item.index)}
+                        data-index={item.index}
+                        role="listitem"
+                        // Only the visible window is in the DOM, so the list's own
+                        // length would understate the mailbox. These tell a screen
+                        // reader "12 of 9,431" instead of "12 of 30".
+                        aria-setsize={displayThreads.length}
+                        aria-posinset={item.index + 1}
+                      >
+                        <EmailRow
+                          thread={thread}
+                          isChecked={selectedIds.has(thread.id)}
+                          isActive={
+                            selectedEmail?.id === thread.id || selectedThread?.id === thread.id
+                          }
+                          isFocused={focusedIndex === item.index}
+                          onToggleSelect={(event) => toggleSelect(thread.id, event)}
+                          onToggleStar={(event) => void toggleStar(event, thread.id)}
+                          onOpen={() => {
+                            focusRow(thread.id);
+                            openEmail(thread.latestEmail, thread);
+                          }}
+                          onArchive={() => void archiveEmail(thread.id)}
+                          onDelete={() => void deleteEmail(thread.id)}
+                          onMarkRead={() => void markRead(thread.id)}
+                          onMarkUnread={() => void markUnread(thread.id)}
+                          onSnooze={snoozeEmail}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
           <footer className="inbox-list-footer">
             <span>

@@ -272,7 +272,8 @@ export default function DrivePage() {
       else fetchFiles(currentFolderId);
     }, 300);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally keyed on searchQuery alone: re-running on folder id or on the
+    // fetcher identities would restart the debounce mid-keystroke.
   }, [searchQuery]);
 
   const items = (files ?? []) as unknown as DriveItem[];
@@ -421,7 +422,11 @@ export default function DrivePage() {
   const handleBatchDelete = async () => {
     const count = selectedIds.size;
     if (count === 0) return;
-    if (confirm(`Permanently delete ${count} selected item${count > 1 ? 's' : ''}? This cannot be undone.`)) {
+    if (
+      confirm(
+        `Permanently delete ${count} selected item${count > 1 ? 's' : ''}? This cannot be undone.`,
+      )
+    ) {
       try {
         await deleteFiles(Array.from(selectedIds));
         showToast({ text: `Deleted ${count} items`, type: 'info' });

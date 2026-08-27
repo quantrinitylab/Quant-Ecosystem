@@ -80,6 +80,9 @@ describe('EmailService', () => {
           isDraft: true,
           threadId: null,
           inReplyTo: null,
+          // Derived by `compose` from the attachment list, so composing with none
+          // must persist `false` rather than leaving the column unset.
+          hasAttachments: false,
           attachments: [],
         },
       });

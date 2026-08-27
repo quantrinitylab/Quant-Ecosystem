@@ -1223,7 +1223,8 @@ export default function CalendarPage() {
       attendees: prev.attendees.includes(attendee) ? prev.attendees : [...prev.attendees, attendee],
     }));
     window.history.replaceState(null, '', window.location.pathname);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally dependency-free: every value this reads comes in through a
+    // setState updater or off `window`, so there is nothing to track.
   }, []);
 
   const handleSaveEntry = useCallback(async () => {
