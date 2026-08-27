@@ -97,7 +97,7 @@ export function GitBranchSelector({
                   {branch.isProtected && (
                     <span className="branch-badge branch-badge--protected" title="Protected branch">
                       <svg
-                        className="size-3 text-amber-400"
+                        className="size-3 text-[#FF8C42]"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"

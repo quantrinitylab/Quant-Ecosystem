@@ -9,6 +9,7 @@ import {
   type PostcardPayload,
 } from '../../types/postcard';
 import type { Email } from '../../types';
+import { IconMailHeart } from '../icons';
 
 interface PostcardReaderProps {
   email: Email;
@@ -65,26 +66,28 @@ export function PostcardReader({ email, className = '' }: PostcardReaderProps) {
   return (
     <div className={`relative flex flex-col items-center w-full ${className}`}>
       {/* Top Toggle Toolbar */}
-      <div className="w-full flex items-center justify-between pb-4 border-b border-zinc-800 mb-6">
+      <div className="w-full flex items-center justify-between pb-4 border-b border-[#282C35] mb-6">
         <div className="flex items-center gap-2">
-          <span className="text-lg">💌</span>
-          <span className="text-xs font-serif font-bold text-amber-400 uppercase tracking-widest">
+          <span className="text-[#FF8C42]">
+            <IconMailHeart size={17} />
+          </span>
+          <span className="text-xs font-serif font-bold text-[#FF8C42] uppercase tracking-widest">
             {payload.template.name}
           </span>
-          <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+          <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-[#FF8C42]/15 text-[#FFB875] border border-[#FF8C42]/30">
             AUTHENTIC POSTCARD
           </span>
         </div>
 
         {/* View Mode Switch */}
-        <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 p-0.5 rounded-lg text-xs">
+        <div className="flex items-center gap-1 bg-[#111318] border border-[#282C35] p-0.5 rounded-lg text-xs">
           <button
             type="button"
             onClick={() => setViewMode('postcard')}
             className={`px-3 py-1 rounded-md font-semibold transition-all ${
               viewMode === 'postcard'
-                ? 'bg-amber-500 text-black shadow-sm'
-                : 'text-zinc-400 hover:text-white'
+                ? 'bg-[#FF8C42] text-black shadow-sm'
+                : 'text-[#A1A4AC] hover:text-white'
             }`}
           >
             Postcard View
@@ -94,8 +97,8 @@ export function PostcardReader({ email, className = '' }: PostcardReaderProps) {
             onClick={() => setViewMode('standard')}
             className={`px-3 py-1 rounded-md font-semibold transition-all ${
               viewMode === 'standard'
-                ? 'bg-amber-500 text-black shadow-sm'
-                : 'text-zinc-400 hover:text-white'
+                ? 'bg-[#FF8C42] text-black shadow-sm'
+                : 'text-[#A1A4AC] hover:text-white'
             }`}
           >
             Standard View
@@ -121,7 +124,7 @@ export function PostcardReader({ email, className = '' }: PostcardReaderProps) {
           />
         </div>
       ) : (
-        <div className="w-full text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap font-sans">
+        <div className="w-full text-sm text-[#A1A4AC] leading-relaxed whitespace-pre-wrap font-sans">
           {email.bodyHtml ? (
             <div dangerouslySetInnerHTML={{ __html: email.bodyHtml }} />
           ) : (

@@ -152,6 +152,18 @@ export default function SearchPage() {
     runSearchString(query);
   }, [query, runSearchString]);
 
+  /**
+   * Seed from `?q=` so other screens can deep-link a search.
+   *
+   * Read off `window.location.search` rather than `useSearchParams()` on purpose:
+   * the hook forces this route into a Suspense boundary at build time, and all
+   * this needs is the value present on first paint.
+   */
+  useEffect(() => {
+    const seed = new URLSearchParams(window.location.search).get('q');
+    if (seed) runSearchString(seed);
+  }, [runSearchString]);
+
   const handleAddFilter = useCallback((type: SearchFilter['type']) => {
     if (type === 'has') {
       setActiveFilters((prev) => {

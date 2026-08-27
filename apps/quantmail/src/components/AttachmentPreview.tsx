@@ -70,7 +70,7 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
     if (mimeType.includes('zip') || mimeType.includes('archive')) {
       return (
         <svg
-          className="size-5 text-amber-400"
+          className="size-5 text-[#FF8C42]"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

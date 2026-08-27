@@ -308,7 +308,7 @@ export default function CodeHubRepoPage() {
               </Button>
               <Button variant="secondary">
                 <svg
-                  className="size-3.5 mr-1 text-amber-400"
+                  className="size-3.5 mr-1 text-[#FF8C42]"
                   viewBox="0 0 24 24"
                   fill="currentColor"
                 >
@@ -595,7 +595,7 @@ export default function CodeHubRepoPage() {
                       )}
                       <li className="flex items-center gap-2">
                         <svg
-                          className="size-3.5 text-amber-400"
+                          className="size-3.5 text-[#FF8C42]"
                           viewBox="0 0 24 24"
                           fill="currentColor"
                         >

@@ -59,7 +59,7 @@ export function EcosystemWarpMatrix({
       description: 'Quantum timeline & scheduled meetings',
       stat: 'Synced with Google & CalDAV',
       badge: 'Active',
-      badgeColor: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+      badgeColor: 'bg-[#FF8C42]/15 text-[#FFB875] border-[#FF8C42]/30',
     },
     {
       id: 'drive',

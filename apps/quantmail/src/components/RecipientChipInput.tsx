@@ -196,21 +196,21 @@ export function RecipientChipInput({
     >
       <label
         htmlFor={id}
-        className="text-xs font-semibold text-zinc-400 w-12 sm:w-16 shrink-0 select-none flex items-center gap-0.5"
+        className="text-xs font-semibold text-[#A1A4AC] w-12 sm:w-16 shrink-0 select-none flex items-center gap-0.5"
       >
         <span>{label}</span>
         {required && <span className="text-rose-500">*</span>}:
       </label>
 
       <div
-        className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 py-1 px-1.5 rounded-xl border border-transparent focus-within:border-zinc-700/80 focus-within:bg-zinc-900/40 transition-colors"
+        className="flex-1 min-w-0 flex flex-wrap items-center gap-1.5 py-1 px-1.5 rounded-xl border border-transparent focus-within:border-[#3A404D]/80 focus-within:bg-[#111318]/40 transition-colors"
         onClick={() => inputRef.current?.focus()}
       >
         {/* Recipient Chips */}
         {recipients.map((recipient, idx) => (
           <span
             key={`${recipient.email}-${idx}`}
-            className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-0.5 rounded-full bg-zinc-800/90 border border-zinc-700/80 text-xs text-zinc-200 hover:border-amber-500/50 hover:bg-zinc-800 transition-all select-none shadow-sm group"
+            className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-0.5 rounded-full bg-[#282C35]/90 border border-[#3A404D]/80 text-xs text-[#F5F5F5] hover:border-[#FF8C42]/50 hover:bg-[#282C35] transition-all select-none shadow-sm group"
           >
             <IdentityAvatar
               name={recipient.name || recipient.email}
@@ -226,7 +226,7 @@ export function RecipientChipInput({
                 e.stopPropagation();
                 removeRecipient(idx);
               }}
-              className="text-zinc-400 group-hover:text-rose-400 p-0.5 hover:bg-zinc-700/60 rounded-full transition-colors"
+              className="text-[#A1A4AC] group-hover:text-rose-400 p-0.5 hover:bg-[#3A404D]/60 rounded-full transition-colors"
               title={`Remove ${recipient.name || recipient.email}`}
               aria-label={`Remove ${recipient.name || recipient.email}`}
             >
@@ -263,7 +263,7 @@ export function RecipientChipInput({
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={recipients.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[120px] bg-transparent text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none py-1"
+          className="flex-1 min-w-[120px] bg-transparent text-xs sm:text-sm text-white placeholder-[#6B6E76] focus:outline-none py-1"
           autoComplete="off"
           spellCheck={false}
         />
@@ -275,9 +275,9 @@ export function RecipientChipInput({
       {isOpen && suggestions.length > 0 && (
         <div
           ref={dropdownRef}
-          className="absolute left-14 sm:left-20 top-full mt-1 z-50 w-72 sm:w-80 bg-zinc-950/95 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md max-h-56 overflow-y-auto"
+          className="absolute left-14 sm:left-20 top-full mt-1 z-50 w-72 sm:w-80 bg-[#090A0C]/95 border border-[#282C35] rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md max-h-56 overflow-y-auto"
         >
-          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 border-b border-zinc-800/80 bg-zinc-900/60">
+          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#6B6E76] border-b border-[#282C35]/80 bg-[#111318]/60">
             Contacts & Suggestions
           </div>
           {suggestions.map((contact, idx) => (
@@ -295,8 +295,8 @@ export function RecipientChipInput({
               onMouseEnter={() => setHighlightedIndex(idx)}
               className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
                 highlightedIndex === idx
-                  ? 'bg-amber-500/15 text-amber-300'
-                  : 'hover:bg-zinc-900 text-zinc-200'
+                  ? 'bg-[#FF8C42]/15 text-[#FFB875]'
+                  : 'hover:bg-[#111318] text-[#F5F5F5]'
               }`}
             >
               <IdentityAvatar name={contact.name || contact.email} size="sm" />
@@ -304,10 +304,10 @@ export function RecipientChipInput({
                 <span className="text-xs font-bold text-white truncate">
                   {contact.name || contact.email.split('@')[0]}
                 </span>
-                <span className="text-[11px] text-zinc-400 truncate">{contact.email}</span>
+                <span className="text-[11px] text-[#A1A4AC] truncate">{contact.email}</span>
               </div>
               {contact.company && (
-                <span className="text-[10px] text-zinc-500 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 shrink-0">
+                <span className="text-[10px] text-[#6B6E76] px-1.5 py-0.5 rounded bg-[#111318] border border-[#282C35] shrink-0">
                   {contact.company}
                 </span>
               )}

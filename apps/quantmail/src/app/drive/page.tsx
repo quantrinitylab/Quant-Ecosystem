@@ -1,21 +1,22 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import {
-  Card,
-  Button,
-  SearchInput,
-  Skeleton,
-  EmptyState,
-  Badge,
-  Modal,
-  ErrorState,
-} from '@quant/shared-ui';
+import { Button, Skeleton, Modal, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { useDrive } from '../../hooks/useDrive';
 import { showToast } from '../../components/InboxToast';
+import {
+  IconDownload,
+  IconFile,
+  IconFolderPlus,
+  IconGrid,
+  IconList,
+  IconStar,
+  IconStarFilled,
+  IconUpload,
+} from '../../components/icons';
 
 type DriveItem = {
   id: string;
@@ -479,7 +480,7 @@ export default function DrivePage() {
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search files, folders, documents…"
     >
-      <PageTransition className="workspace-page drive-workspace flex flex-col h-full bg-[#0a0a0c]">
+      <PageTransition className="workspace-page drive-workspace flex flex-col h-full bg-[#090A0C]">
         <input
           id="drive-file-input"
           name="driveFiles"
@@ -490,53 +491,52 @@ export default function DrivePage() {
           onChange={handleFileInputChange}
         />
 
-        {/* Top Drive Control Bar */}
-        <div className="border-b border-[var(--quant-border)] px-4 py-3 sm:px-8 bg-[var(--quant-surface)] flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] p-0.5">
-              <button
-                type="button"
-                onClick={() => setViewMode('grid')}
-                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
-                  viewMode === 'grid'
-                    ? 'bg-[#ff9933] text-[#191008] font-bold shadow-sm'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-              >
-                Grid
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
-                  viewMode === 'list'
-                    ? 'bg-[#ff9933] text-[#191008] font-bold shadow-sm'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-              >
-                List
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
+        {/*
+         * One toolbar, not two.
+         *
+         * This screen used to stack a control bar (view switcher + New Folder +
+         * Upload Files) on top of a second bar (filter pills + breadcrumb). At
+         * 393px that pushed the actual file listing below the fold, and the
+         * ungated "Upload Files" button sat directly above the mobile upload FAB
+         * — two controls, same action, both on screen. Everything now shares one
+         * row: breadcrumb, a scrolling pill strip, and a right cluster whose
+         * duplicate Upload is desktop-only.
+         */}
+        <div className="flex items-center gap-2 border-b border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-2 sm:px-8">
+          {/* Breadcrumbs — hidden at root on mobile, where "My Drive" is redundant */}
+          <nav
+            className={`min-w-0 shrink items-center gap-1.5 text-xs text-[#A1A4AC] ${
+              currentFolderId ? 'flex' : 'hidden md:flex'
+            }`}
+            aria-label="Breadcrumb"
+          >
             <button
               type="button"
-              onClick={() => setShowNewFolderModal(true)}
-              className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-[var(--quant-border)] text-zinc-300 hover:text-white hover:border-[#ff9933]/60 transition-colors"
+              onClick={() => navigateToFolder(null, 'Home')}
+              className={`shrink-0 rounded transition-colors hover:text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                !currentFolderId ? 'font-semibold text-[#F5F5F5]' : ''
+              }`}
             >
-              + New Folder
+              My Drive
             </button>
+            {breadcrumbs &&
+              breadcrumbs.slice(1).map((b, i) => (
+                <span key={b.id || i} className="flex min-w-0 items-center gap-1.5">
+                  <span className="shrink-0 text-[#6B6E76]">/</span>
+                  <button
+                    type="button"
+                    onClick={() => navigateToBreadcrumb(i + 1)}
+                    className="max-w-[120px] truncate rounded font-medium text-[#F5F5F5] transition-colors hover:text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  >
+                    {b.name}
+                  </button>
+                </span>
+              ))}
+            <span className="mx-1 hidden h-4 w-px shrink-0 bg-[#282C35] md:block" />
+          </nav>
 
-            <Button variant="primary" onClick={handleUploadTrigger}>
-              ⬆ Upload Files
-            </Button>
-          </div>
-        </div>
-
-        {/* Filter Chips Bar & Breadcrumb Path */}
-        <div className="flex items-center justify-between gap-3 px-4 py-2.5 sm:px-8 border-b border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-2">
+          {/* Filter pills — the only element allowed to overflow */}
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto no-scrollbar">
             {(
               [
                 { key: 'all', label: 'All Items' },
@@ -550,10 +550,11 @@ export default function DrivePage() {
                 key={filter.key}
                 type="button"
                 onClick={() => setActiveFilter(filter.key)}
-                className={`px-3 py-1 text-xs rounded-full font-medium transition-colors whitespace-nowrap ${
+                aria-pressed={activeFilter === filter.key}
+                className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                   activeFilter === filter.key
-                    ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
-                    : 'bg-[#16181D] text-[#A1A4AC] border border-[#282C35] hover:text-[#F5F5F5]'
+                    ? 'bg-[#2B1A11] text-[#FF8C42] shadow-[inset_0_0_0_1px_#5C3016]'
+                    : 'bg-[#16181D] text-[#A1A4AC] shadow-[inset_0_0_0_1px_#282C35] hover:text-[#F5F5F5]'
                 }`}
               >
                 {filter.label}
@@ -561,36 +562,57 @@ export default function DrivePage() {
             ))}
           </div>
 
-          {/* Breadcrumbs */}
-          <nav className="flex items-center gap-1.5 text-xs text-zinc-400 shrink-0">
+          {/* Right cluster */}
+          <div className="flex shrink-0 items-center gap-1.5">
+            <div className="flex items-center rounded-lg bg-[var(--quant-surface-subtle)] p-0.5 shadow-[inset_0_0_0_1px_var(--quant-border)]">
+              {(
+                [
+                  { key: 'grid', label: 'Grid view', Icon: IconGrid },
+                  { key: 'list', label: 'List view', Icon: IconList },
+                ] as const
+              ).map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setViewMode(key)}
+                  aria-label={label}
+                  aria-pressed={viewMode === key}
+                  className={`grid size-8 place-items-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                    viewMode === key
+                      ? 'bg-[#FF8C42] text-[#111111]'
+                      : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
+                  }`}
+                >
+                  <Icon size={14} />
+                </button>
+              ))}
+            </div>
+
             <button
               type="button"
-              onClick={() => navigateToFolder(null, 'Home')}
-              className={`hover:text-[#ff9933] transition-colors ${
-                !currentFolderId ? 'text-white font-bold' : ''
-              }`}
+              onClick={() => setShowNewFolderModal(true)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] shadow-[inset_0_0_0_1px_var(--quant-border)] transition-colors hover:text-[#F5F5F5] hover:shadow-[inset_0_0_0_1px_#5C3016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3"
+              aria-label="New folder"
             >
-              My Drive
+              <IconFolderPlus size={14} />
+              <span className="hidden md:inline">New Folder</span>
             </button>
-            {breadcrumbs &&
-              breadcrumbs.slice(1).map((b, i) => (
-                <span key={b.id || i} className="flex items-center gap-1.5">
-                  <span className="text-zinc-600">/</span>
-                  <button
-                    type="button"
-                    onClick={() => navigateToBreadcrumb(i + 1)}
-                    className="hover:text-[#ff9933] hover:underline text-white font-medium truncate max-w-[120px]"
-                  >
-                    {b.name}
-                  </button>
-                </span>
-              ))}
-          </nav>
+
+            {/* Desktop only: on mobile this action belongs to the FAB alone. */}
+            <button
+              type="button"
+              onClick={handleUploadTrigger}
+              className="hidden h-8 items-center gap-1.5 rounded-lg bg-[#FF8C42] px-3 text-xs font-semibold text-[#111111] transition-colors hover:bg-[#FF9B5A] active:bg-[#E8752F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] md:inline-flex"
+            >
+              <IconUpload size={14} />
+              <span>Upload</span>
+            </button>
+          </div>
         </div>
 
         {/* Batch Selection Action Bar */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center justify-between px-4 py-2 sm:px-8 bg-[#ff9933]/15 border-b border-[#ff9933]/30 text-xs">
+          <div className="flex items-center justify-between px-4 py-2 sm:px-8 bg-[#FF8C42]/15 border-b border-[#FF8C42]/30 text-xs">
             <span className="font-semibold text-white">
               {selectedIds.size} item{selectedIds.size > 1 ? 's' : ''} selected
             </span>
@@ -749,13 +771,13 @@ export default function DrivePage() {
                 <img
                   src="/quant-drive-logo.png"
                   alt="Drive"
-                  className="size-28 object-contain drop-shadow-[0_12px_32px_rgba(255,153,51,0.45)] hover:scale-105 transition-transform"
+                  className="size-28 object-contain transition-transform hover:scale-105"
                 />
               </div>
-              <h3 className="text-xl font-extrabold text-white">
+              <h3 className="text-xl font-extrabold text-[#F5F5F5]">
                 {searchQuery ? 'No matching files found' : 'This folder is empty'}
               </h3>
-              <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+              <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
                 Drag and drop files anywhere on the screen, or click Upload to store files securely.
               </p>
               <div className="pt-2 flex items-center justify-center gap-2">
@@ -775,7 +797,7 @@ export default function DrivePage() {
               {folders.length > 0 && (
                 <section>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC]">
                       Folders ({folders.length})
                     </h3>
                   </div>
@@ -788,8 +810,8 @@ export default function DrivePage() {
                           onClick={() => navigateToFolder(folder.id, folder.name)}
                           className={`group relative flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer select-none ${
                             isSelected
-                              ? 'border-[#ff9933] bg-[#ff9933]/10'
-                              : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#ff9933]/60 hover:bg-[var(--quant-surface-hover)]'
+                              ? 'border-[#FF8C42] bg-[#FF8C42]/10'
+                              : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#FF8C42]/60 hover:bg-[var(--quant-surface-hover)]'
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -902,7 +924,7 @@ export default function DrivePage() {
               {/* Files Group */}
               {regularFiles.length > 0 && (
                 <section>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC] mb-3">
                     Files ({regularFiles.length})
                   </h3>
 
@@ -915,8 +937,8 @@ export default function DrivePage() {
                             key={file.id}
                             className={`group relative flex flex-col justify-between p-3.5 rounded-2xl border transition-all shadow-sm ${
                               isSelected
-                                ? 'border-[#ff9933] bg-[#ff9933]/10 ring-1 ring-[#ff9933]'
-                                : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#ff9933]/60'
+                                ? 'border-[#FF8C42] bg-[#FF8C42]/10 ring-1 ring-[#FF8C42]'
+                                : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#FF8C42]/60'
                             }`}
                           >
                             {/* Card Selection and Actions Header */}
@@ -925,7 +947,7 @@ export default function DrivePage() {
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={(e) => handleToggleSelect(file.id, e as never)}
-                                className="accent-[#ff9933] rounded cursor-pointer"
+                                className="accent-[#FF8C42] rounded cursor-pointer"
                                 aria-label={`Select file ${file.name}`}
                               />
                               <div className="flex items-center gap-1">
@@ -1007,15 +1029,23 @@ export default function DrivePage() {
                               </div>
                             </div>
 
-                            {/* Card Body Preview Click */}
+                            {/*
+                             * Card body — the thumbnail well.
+                             *
+                             * This used to be a bordered box holding a *second*
+                             * bordered box for the icon, inside the already-bordered
+                             * file card: three frames stacked around one 24px glyph.
+                             * The well is now a plain darker surface and the icon
+                             * sits on it unframed.
+                             */}
                             <div
                               onClick={() => setPreviewItem(file)}
-                              className="cursor-pointer flex flex-col items-center justify-center py-6 rounded-xl bg-[#111318] border border-[#282C35] group-hover:border-[#3A404D] group-hover:bg-[#16181D] transition-colors"
+                              className="flex cursor-pointer flex-col items-center justify-center rounded-xl bg-[#090A0C] py-6 transition-colors group-hover:bg-[#16181D]"
                             >
-                              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#16181D] border border-[#282C35] mb-2 group-hover:scale-105 transition-transform">
+                              <div className="mb-2 grid size-12 place-items-center text-[#A1A4AC] transition-transform group-hover:scale-105">
                                 {getFileIcon(file.mimeType, file.type, 'w-6 h-6')}
                               </div>
-                              <span className="text-[10px] text-[#6B6E76] font-mono uppercase tracking-wider">
+                              <span className="font-mono text-[10px] uppercase tracking-wider text-[#6B6E76]">
                                 {file.mimeType.split('/')[1] || 'FILE'}
                               </span>
                             </div>
@@ -1023,19 +1053,20 @@ export default function DrivePage() {
                             <div className="mt-3">
                               <h4
                                 onClick={() => setPreviewItem(file)}
-                                className="text-xs font-bold text-white truncate cursor-pointer hover:text-[#ff9933]"
+                                className="cursor-pointer truncate text-xs font-bold text-[#F5F5F5] hover:text-[#FF8C42]"
                                 title={file.name}
                               >
                                 {file.name}
                               </h4>
-                              <div className="flex items-center justify-between text-[11px] text-zinc-400 mt-1">
+                              <div className="flex items-center justify-between text-[11px] text-[#A1A4AC] mt-1">
                                 <span>{formatFileSize(file.size)}</span>
                                 <button
                                   type="button"
                                   onClick={() => downloadFile(file.id, file.name)}
-                                  className="text-[#ff9933] hover:underline font-semibold"
+                                  className="inline-flex items-center gap-1 rounded font-semibold text-[#FF8C42] hover:text-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                                 >
-                                  ⬇ Download
+                                  <IconDownload size={12} />
+                                  <span>Download</span>
                                 </button>
                               </div>
                             </div>
@@ -1046,7 +1077,7 @@ export default function DrivePage() {
                   ) : (
                     <div className="rounded-2xl border border-[var(--quant-border)] overflow-hidden bg-[var(--quant-surface)]">
                       <table className="w-full text-left text-xs">
-                        <thead className="border-b border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] text-[11px] font-bold text-zinc-400 uppercase">
+                        <thead className="border-b border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] text-[11px] font-bold text-[#A1A4AC] uppercase">
                           <tr>
                             <th className="py-3 px-4 w-8">
                               <input
@@ -1062,7 +1093,7 @@ export default function DrivePage() {
                                     setSelectedIds(new Set());
                                   }
                                 }}
-                                className="accent-[#ff9933] rounded"
+                                className="accent-[#FF8C42] rounded"
                                 aria-label="Select all files"
                               />
                             </th>
@@ -1072,14 +1103,14 @@ export default function DrivePage() {
                             <th className="py-3 px-4 text-right">Actions</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-800">
+                        <tbody className="divide-y divide-[#282C35]">
                           {regularFiles.map((file) => {
                             const isSelected = selectedIds.has(file.id);
                             return (
                               <tr
                                 key={file.id}
                                 className={`transition-colors ${
-                                  isSelected ? 'bg-[#ff9933]/10' : 'hover:bg-zinc-800/50'
+                                  isSelected ? 'bg-[#FF8C42]/10' : 'hover:bg-[#282C35]/50'
                                 }`}
                               >
                                 <td className="py-3 px-4">
@@ -1087,7 +1118,7 @@ export default function DrivePage() {
                                     type="checkbox"
                                     checked={isSelected}
                                     onChange={(e) => handleToggleSelect(file.id, e as never)}
-                                    className="accent-[#ff9933] rounded cursor-pointer"
+                                    className="accent-[#FF8C42] rounded cursor-pointer"
                                     aria-label={`Select file ${file.name}`}
                                   />
                                 </td>
@@ -1095,18 +1126,20 @@ export default function DrivePage() {
                                   <span>{getFileIcon(file.mimeType, file.type)}</span>
                                   <span
                                     onClick={() => setPreviewItem(file)}
-                                    className="cursor-pointer hover:text-[#ff9933] truncate max-w-xs"
+                                    className="cursor-pointer hover:text-[#FF8C42] truncate max-w-xs"
                                   >
                                     {file.name}
                                   </span>
                                   {file.isStarred && (
-                                    <span className="text-amber-400 text-xs">★</span>
+                                    <span className="text-[#FF8C42]" title="Starred">
+                                      <IconStarFilled size={12} />
+                                    </span>
                                   )}
                                 </td>
-                                <td className="py-3 px-4 text-zinc-400 hidden sm:table-cell">
+                                <td className="py-3 px-4 text-[#A1A4AC] hidden sm:table-cell">
                                   {file.mimeType}
                                 </td>
-                                <td className="py-3 px-4 text-zinc-400">
+                                <td className="py-3 px-4 text-[#A1A4AC]">
                                   {formatFileSize(file.size)}
                                 </td>
                                 <td className="py-3 px-4 text-right">
@@ -1114,25 +1147,31 @@ export default function DrivePage() {
                                     <button
                                       type="button"
                                       onClick={() => handleToggleStar(file)}
-                                      className={`text-xs ${
+                                      aria-pressed={Boolean(file.isStarred)}
+                                      aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
+                                      className={`grid size-8 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                         file.isStarred
-                                          ? 'text-amber-400'
-                                          : 'text-zinc-500 hover:text-white'
+                                          ? 'text-[#FF8C42]'
+                                          : 'text-[#6B6E76] hover:text-[#F5F5F5]'
                                       }`}
                                     >
-                                      ★
+                                      {file.isStarred ? (
+                                        <IconStarFilled size={14} />
+                                      ) : (
+                                        <IconStar size={14} />
+                                      )}
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => downloadFile(file.id, file.name)}
-                                      className="text-xs text-[#ff9933] hover:underline font-semibold"
+                                      className="text-xs text-[#FF8C42] hover:underline font-semibold"
                                     >
                                       Download
                                     </button>
                                     <button
                                       type="button"
                                       onClick={(e) => handleDeleteItem(file.id, file.name, e)}
-                                      className="text-xs text-zinc-500 hover:text-rose-400 font-semibold"
+                                      className="text-xs text-[#6B6E76] hover:text-rose-400 font-semibold"
                                     >
                                       Delete
                                     </button>
@@ -1158,12 +1197,16 @@ export default function DrivePage() {
           title={previewItem?.name || 'File Preview'}
         >
           <div className="p-4 space-y-4 text-center">
-            <div className="flex flex-col items-center justify-center p-8 rounded-xl bg-zinc-900 border border-zinc-800">
-              <span className="text-6xl mb-3">
-                {previewItem ? getFileIcon(previewItem.mimeType, previewItem.type) : '📄'}
+            <div className="flex flex-col items-center justify-center rounded-xl bg-[#111318] p-8 shadow-[inset_0_0_0_1px_#282C35]">
+              <span className="mb-3 text-[#A1A4AC]">
+                {previewItem ? (
+                  getFileIcon(previewItem.mimeType, previewItem.type, 'w-14 h-14')
+                ) : (
+                  <IconFile size={56} />
+                )}
               </span>
-              <h4 className="text-sm font-bold text-white">{previewItem?.name}</h4>
-              <p className="text-xs text-zinc-400 mt-1">
+              <h4 className="text-sm font-bold text-[#F5F5F5]">{previewItem?.name}</h4>
+              <p className="text-xs text-[#A1A4AC] mt-1">
                 {previewItem?.mimeType} · {formatFileSize(previewItem?.size ?? 0)}
               </p>
             </div>
@@ -1196,7 +1239,7 @@ export default function DrivePage() {
             <div>
               <label
                 htmlFor="drive-new-folder-name"
-                className="block text-xs font-semibold text-zinc-300 mb-1"
+                className="block text-xs font-semibold text-[#A1A4AC] mb-1"
               >
                 Folder Name
               </label>
@@ -1210,7 +1253,7 @@ export default function DrivePage() {
                   if (e.key === 'Enter') handleCreateFolder();
                 }}
                 placeholder="e.g. Invoices, Project Assets, Designs…"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
                 autoFocus
               />
             </div>
@@ -1235,7 +1278,7 @@ export default function DrivePage() {
             <div>
               <label
                 htmlFor="drive-rename-value"
-                className="block text-xs font-semibold text-zinc-300 mb-1"
+                className="block text-xs font-semibold text-[#A1A4AC] mb-1"
               >
                 New Name
               </label>
@@ -1248,7 +1291,7 @@ export default function DrivePage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveRename();
                 }}
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
                 autoFocus
               />
             </div>

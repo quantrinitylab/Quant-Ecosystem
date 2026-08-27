@@ -286,7 +286,7 @@ export function QuantMailLogo({
         ctx.beginPath();
         ctx.arc(leftEyeX - 7.5, eyeY + 5.5, 2.6, 0, Math.PI * 2);
         ctx.arc(rightEyeX + 7.5, eyeY + 5.5, 2.6, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 122, 0, 0.35)';
+        ctx.fillStyle = 'rgba(255, 140, 66, 0.35)';
         ctx.fill();
       }
 
@@ -315,7 +315,7 @@ export function QuantMailLogo({
         cy + squircleRadius,
       );
       rimGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)'); // Top-left light catch
-      rimGrad.addColorStop(0.4, 'rgba(255, 122, 0, 0.3)');
+      rimGrad.addColorStop(0.4, 'rgba(255, 140, 66, 0.3)');
       rimGrad.addColorStop(1, 'rgba(255, 255, 255, 0.08)');
       ctx.strokeStyle = rimGrad;
       ctx.stroke();

@@ -99,7 +99,7 @@ export const HoverActions = memo(function HoverActions({
           >
             <rect x="3" y="5" width="18" height="14" rx="2" />
             <path d="m3 7 9 6 9-6" />
-            <circle cx="18" cy="6" r="3" fill="#FF7A00" stroke="none" />
+            <circle cx="18" cy="6" r="3" fill="#FF8C42" stroke="none" />
           </svg>
         ) : (
           <svg

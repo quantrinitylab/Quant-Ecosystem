@@ -156,7 +156,7 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
                             : review.score >= 60
                               ? '#fbbf24'
                               : '#f87171'
-                        } ${review.score * 3.6}deg, #2a2a2e 0deg)`,
+                        } ${review.score * 3.6}deg, #282C35 0deg)`,
                       }}
                     >
                       <span>{review.score}</span>

@@ -5,6 +5,11 @@ export default tseslint.config(
     ignores: [
       'node_modules/**',
       '.next/**',
+      // Build output. `backend/dist/server.mjs` is a bundle, and ESLint's default
+      // config picks up loose `.mjs` files even though this config never asks for
+      // them — so anyone who had built the backend locally hit a parse error in
+      // generated code that CI (where `dist/` does not exist) never sees.
+      '**/dist/**',
       'coverage/**',
       '**/*.d.ts',
       '**/*.test.{ts,tsx}',

@@ -179,7 +179,7 @@ export default function ComposePage() {
 
   if (draftLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#0d1017] text-zinc-400 text-sm">
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0d1017] text-[#A1A4AC] text-sm">
         <p>Loading draft…</p>
       </div>
     );

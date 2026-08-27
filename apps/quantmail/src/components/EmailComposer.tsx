@@ -474,12 +474,12 @@ export function EmailComposer({
   return (
     <div className="flex flex-col h-[100dvh] max-h-[100dvh] w-full max-w-full bg-[#0d1017] text-white select-text overflow-hidden box-border print:h-auto print:max-h-none print:bg-white print:text-black print:overflow-visible">
       {/* Top Header Bar (Hidden during Print) */}
-      <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-3 border-b border-zinc-800/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
+      <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-3 border-b border-[#282C35]/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={handleBack}
-            className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+            className="p-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
             title="Back (1 page)"
           >
             <svg
@@ -494,7 +494,7 @@ export function EmailComposer({
           </button>
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-white tracking-wide">Compose</span>
-            <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-[10px] text-zinc-400 font-mono">
+            <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-[#282C35] border border-[#3A404D] text-[10px] text-[#A1A4AC] font-mono">
               C
             </kbd>
           </div>
@@ -506,7 +506,7 @@ export function EmailComposer({
           <button
             type="button"
             onClick={() => setIsQuantyDrawerOpen(true)}
-            className="flex sm:hidden p-1.5 rounded-xl hover:bg-zinc-800 text-amber-400 hover:text-amber-300 transition-all items-center gap-1.5"
+            className="flex sm:hidden p-1.5 rounded-xl hover:bg-[#282C35] text-[#FF8C42] hover:text-[#FFB875] transition-all items-center gap-1.5"
             title="Open Quanty AI Copilot"
           >
             <Quanty size={24} expression="happy" bob={false} />
@@ -517,7 +517,7 @@ export function EmailComposer({
             <button
               type="button"
               onClick={() => setShowThreeDotsMenu((prev) => !prev)}
-              className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+              className="p-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
               title="More options"
             >
               <svg
@@ -536,16 +536,16 @@ export function EmailComposer({
             {showThreeDotsMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowThreeDotsMenu(false)} />
-                <div className="absolute right-0 top-full mt-1.5 w-52 rounded-2xl border border-zinc-800 bg-[#121622] py-2 shadow-2xl z-50 text-xs">
+                <div className="absolute right-0 top-full mt-1.5 w-52 rounded-2xl border border-[#282C35] bg-[#121622] py-2 shadow-2xl z-50 text-xs">
                   <button
                     type="button"
                     onClick={() => {
                       setShowFormattingBar((prev) => !prev);
                       setShowThreeDotsMenu(false);
                     }}
-                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800"
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[#F5F5F5] hover:bg-[#282C35]"
                   >
-                    <span className="font-bold font-serif text-amber-400">Aa</span>
+                    <span className="font-bold font-serif text-[#FF8C42]">Aa</span>
                     <span>
                       {showFormattingBar ? 'Hide formatting bar' : 'Plain / Rich formatting'}
                     </span>
@@ -557,10 +557,10 @@ export function EmailComposer({
                       setShowScheduleModal(true);
                       setShowThreeDotsMenu(false);
                     }}
-                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800"
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[#F5F5F5] hover:bg-[#282C35]"
                   >
                     <svg
-                      className="size-3.5 text-amber-400"
+                      className="size-3.5 text-[#FF8C42]"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -580,10 +580,10 @@ export function EmailComposer({
                         window.print();
                       }, 50);
                     }}
-                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800"
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[#F5F5F5] hover:bg-[#282C35]"
                   >
                     <svg
-                      className="size-3.5 text-zinc-400"
+                      className="size-3.5 text-[#A1A4AC]"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -596,7 +596,7 @@ export function EmailComposer({
                     <span>Print draft</span>
                   </button>
 
-                  <div className="my-1 border-t border-zinc-800" />
+                  <div className="my-1 border-t border-[#282C35]" />
 
                   <button
                     type="button"
@@ -625,7 +625,7 @@ export function EmailComposer({
           <button
             type="button"
             onClick={handleBack}
-            className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+            className="p-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
             title="Close"
           >
             ✕
@@ -636,7 +636,7 @@ export function EmailComposer({
       {/* Main Composer Scrollable Body (Hidden during Print) */}
       <div className="print:hidden flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border">
         {/* Recipient Rows (To, Cc, Bcc) */}
-        <div className="border-b border-zinc-800/80 pb-2 space-y-2 w-full max-w-full">
+        <div className="border-b border-[#282C35]/80 pb-2 space-y-2 w-full max-w-full">
           {/* To: Row */}
           <RecipientChipInput
             id="composer-to"
@@ -653,7 +653,7 @@ export function EmailComposer({
                   <button
                     type="button"
                     onClick={() => setShowCc(true)}
-                    className="text-zinc-500 hover:text-amber-400 font-medium px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors"
+                    className="text-[#6B6E76] hover:text-[#FF8C42] font-medium px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors"
                   >
                     Cc
                   </button>
@@ -662,7 +662,7 @@ export function EmailComposer({
                   <button
                     type="button"
                     onClick={() => setShowBcc(true)}
-                    className="text-zinc-500 hover:text-amber-400 font-medium px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors"
+                    className="text-[#6B6E76] hover:text-[#FF8C42] font-medium px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors"
                   >
                     Bcc
                   </button>
@@ -673,7 +673,7 @@ export function EmailComposer({
 
           {/* Cc: Row */}
           {showCc && (
-            <div className="pt-1 border-t border-zinc-900 w-full max-w-full">
+            <div className="pt-1 border-t border-[#111318] w-full max-w-full">
               <RecipientChipInput
                 id="composer-cc"
                 name="cc"
@@ -689,7 +689,7 @@ export function EmailComposer({
                       setShowCc(false);
                       setCcRecipients([]);
                     }}
-                    className="text-zinc-500 hover:text-rose-400 text-xs px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors"
+                    className="text-[#6B6E76] hover:text-rose-400 text-xs px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors"
                     title="Remove Cc"
                   >
                     ✕
@@ -701,7 +701,7 @@ export function EmailComposer({
 
           {/* Bcc: Row */}
           {showBcc && (
-            <div className="pt-1 border-t border-zinc-900 w-full max-w-full">
+            <div className="pt-1 border-t border-[#111318] w-full max-w-full">
               <RecipientChipInput
                 id="composer-bcc"
                 name="bcc"
@@ -717,7 +717,7 @@ export function EmailComposer({
                       setShowBcc(false);
                       setBccRecipients([]);
                     }}
-                    className="text-zinc-500 hover:text-rose-400 text-xs px-1.5 py-0.5 rounded hover:bg-zinc-800 transition-colors"
+                    className="text-[#6B6E76] hover:text-rose-400 text-xs px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors"
                     title="Remove Bcc"
                   >
                     ✕
@@ -729,10 +729,10 @@ export function EmailComposer({
         </div>
 
         {/* Subject Row */}
-        <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-800/80 pb-2 w-full max-w-full">
+        <div className="flex items-center gap-2 sm:gap-3 border-b border-[#282C35]/80 pb-2 w-full max-w-full">
           <label
             htmlFor="composer-subject"
-            className="text-xs font-semibold text-zinc-400 w-16 sm:w-16 shrink-0"
+            className="text-xs font-semibold text-[#A1A4AC] w-16 sm:w-16 shrink-0"
           >
             Subject <span className="text-rose-500">*</span>:
           </label>
@@ -743,7 +743,7 @@ export function EmailComposer({
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Subject of the email"
-            className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-zinc-500 focus:outline-none"
+            className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-[#6B6E76] focus:outline-none"
           />
         </div>
 
@@ -754,25 +754,25 @@ export function EmailComposer({
             onClick={() => setIsTemplateMode((prev) => !prev)}
             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
               isTemplateMode
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
+                ? 'bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40'
+                : 'bg-[#111318] text-[#A1A4AC] hover:text-[#F5F5F5] border border-[#282C35]'
             }`}
           >
             <span>
               {isTemplateMode ? '📋 Guided Corporate Mode: ON' : '✨ Structured Template Mode'}
             </span>
           </button>
-          <span className="text-[10px] text-zinc-500 font-mono">
+          <span className="text-[10px] text-[#6B6E76] font-mono">
             {selectedFont.name} · {selectedSize.name}
           </span>
         </div>
 
         {/* Guided Structured Corporate Email Fields (When Template Mode is ON) */}
         {isTemplateMode && (
-          <div className="space-y-3 p-3.5 rounded-2xl bg-zinc-900/40 border border-zinc-800/80">
+          <div className="space-y-3 p-3.5 rounded-2xl bg-[#111318]/40 border border-[#282C35]/80">
             {/* Greeting Row */}
-            <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-800 pb-2 w-full max-w-full">
-              <span className="text-xs font-medium text-zinc-400 w-14 sm:w-16 shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 border-b border-[#282C35] pb-2 w-full max-w-full">
+              <span className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0">
                 Greeting:
               </span>
               <input
@@ -780,13 +780,13 @@ export function EmailComposer({
                 value={greeting}
                 onChange={(e) => setGreeting(e.target.value)}
                 placeholder="Dear Sir/Madam,"
-                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none"
               />
             </div>
 
             {/* Opening / Purpose Row */}
-            <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-800 pb-2 w-full max-w-full">
-              <span className="text-xs font-medium text-zinc-400 w-14 sm:w-16 shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 border-b border-[#282C35] pb-2 w-full max-w-full">
+              <span className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0">
                 Opening:
               </span>
               <input
@@ -794,7 +794,7 @@ export function EmailComposer({
                 value={opening}
                 onChange={(e) => setOpening(e.target.value)}
                 placeholder="Reason for writing / brief opening statement..."
-                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none"
               />
             </div>
           </div>
@@ -824,23 +824,23 @@ export function EmailComposer({
                 `${isUnderline ? 'underline ' : ''}${isStrikethrough ? 'line-through' : ''}`.trim() ||
                 'none',
             }}
-            className={`w-full max-w-full box-border bg-zinc-950/40 border border-zinc-800/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 resize-y leading-relaxed shadow-inner min-h-[200px]`}
+            className={`w-full max-w-full box-border bg-[#090A0C]/40 border border-[#282C35]/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]/50 resize-y leading-relaxed shadow-inner min-h-[200px]`}
           />
 
           {/* Smart Compose Predictive Autocomplete Chip */}
           {activePrediction && (
             <div
               onClick={acceptPrediction}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs shadow-md cursor-pointer hover:bg-amber-500/20 transition-all select-none"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FF8C42]/10 border border-[#FF8C42]/30 text-[#FFB875] text-xs shadow-md cursor-pointer hover:bg-[#FF8C42]/20 transition-all select-none"
             >
-              <span className="text-[10px] font-black uppercase text-amber-400 bg-amber-500/20 border border-amber-500/40 px-1.5 py-0.5 rounded-md">
+              <span className="text-[10px] font-black uppercase text-[#FF8C42] bg-[#FF8C42]/20 border border-[#FF8C42]/40 px-1.5 py-0.5 rounded-md">
                 Tab ⇥
               </span>
-              <span className="text-zinc-300 text-xs">
+              <span className="text-[#A1A4AC] text-xs">
                 Next word suggestion:{' '}
-                <strong className="text-amber-300 font-semibold">{activePrediction}</strong>
+                <strong className="text-[#FFB875] font-semibold">{activePrediction}</strong>
               </span>
-              <span className="ml-auto text-[10px] text-amber-400 font-medium underline">
+              <span className="ml-auto text-[10px] text-[#FF8C42] font-medium underline">
                 Tap to apply
               </span>
             </div>
@@ -849,10 +849,10 @@ export function EmailComposer({
 
         {/* Guided Structured Corporate Closing & Sign-off (When Template Mode is ON) */}
         {isTemplateMode && (
-          <div className="space-y-3 p-3.5 rounded-2xl bg-zinc-900/40 border border-zinc-800/80">
+          <div className="space-y-3 p-3.5 rounded-2xl bg-[#111318]/40 border border-[#282C35]/80">
             {/* Closing Row */}
-            <div className="flex items-center gap-2 sm:gap-3 border-b border-zinc-800 pb-2 w-full max-w-full">
-              <span className="text-xs font-medium text-zinc-400 w-14 sm:w-16 shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 border-b border-[#282C35] pb-2 w-full max-w-full">
+              <span className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0">
                 Closing:
               </span>
               <input
@@ -860,14 +860,14 @@ export function EmailComposer({
                 value={closing}
                 onChange={(e) => setClosing(e.target.value)}
                 placeholder="Thank you for your time."
-                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none"
               />
             </div>
 
             {/* Sign-off & Sender Details */}
             <div className="space-y-2 pt-1 w-full max-w-full box-border">
               <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 w-full max-w-full">
-                <span className="text-xs font-medium text-zinc-400 w-14 sm:w-16 shrink-0">
+                <span className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0">
                   Sign-off:
                 </span>
                 <div className="flex items-center gap-2 flex-1 min-w-0 w-full">
@@ -876,14 +876,14 @@ export function EmailComposer({
                     value={signoff}
                     onChange={(e) => setSignoff(e.target.value)}
                     placeholder="Best regards,"
-                    className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none border-b border-zinc-800 pb-0.5"
+                    className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none border-b border-[#282C35] pb-0.5"
                   />
                   <input
                     type="text"
                     value={senderName}
                     onChange={(e) => setSenderName(e.target.value)}
                     placeholder="Your Name"
-                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none border-b border-zinc-800 pb-0.5"
+                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none border-b border-[#282C35] pb-0.5"
                   />
                 </div>
               </div>
@@ -896,12 +896,12 @@ export function EmailComposer({
                     value={detail}
                     onChange={(e) => handleUpdateDetail(idx, e.target.value)}
                     placeholder="Designation / Company / Contact..."
-                    className="flex-1 min-w-0 bg-transparent text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none border-b border-zinc-800/80 pb-0.5"
+                    className="flex-1 min-w-0 bg-transparent text-xs text-[#A1A4AC] placeholder-[#6B6E76] focus:outline-none border-b border-[#282C35]/80 pb-0.5"
                   />
                   <button
                     type="button"
                     onClick={() => handleRemoveDetail(idx)}
-                    className="text-zinc-500 hover:text-rose-400 text-xs px-1 shrink-0"
+                    className="text-[#6B6E76] hover:text-rose-400 text-xs px-1 shrink-0"
                   >
                     ✕
                   </button>
@@ -912,7 +912,7 @@ export function EmailComposer({
                 <button
                   type="button"
                   onClick={handleAddDetail}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 transition-all"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#FF8C42] hover:text-[#FFB875] transition-all"
                 >
                   <span>+ Add detail / line</span>
                 </button>
@@ -958,22 +958,22 @@ export function EmailComposer({
 
         {/* Attached Files List */}
         {attachments.length > 0 && (
-          <div className="p-3 rounded-2xl border border-zinc-800/80 bg-[#121622] space-y-2 w-full max-w-full box-border">
-            <span className="text-xs font-semibold text-zinc-400">
+          <div className="p-3 rounded-2xl border border-[#282C35]/80 bg-[#121622] space-y-2 w-full max-w-full box-border">
+            <span className="text-xs font-semibold text-[#A1A4AC]">
               Attached files ({attachments.length}):
             </span>
             <div className="flex flex-wrap gap-2">
               {attachments.map((file) => (
                 <div
                   key={file.id}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white shadow-sm"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#111318] border border-[#282C35] text-xs text-white shadow-sm"
                 >
                   <span className="truncate max-w-[140px]">{file.name}</span>
-                  <span className="text-[10px] text-zinc-500">({formatFileSize(file.size)})</span>
+                  <span className="text-[10px] text-[#6B6E76]">({formatFileSize(file.size)})</span>
                   <button
                     type="button"
                     onClick={() => setAttachments((prev) => prev.filter((a) => a.id !== file.id))}
-                    className="text-zinc-500 hover:text-rose-400 font-bold"
+                    className="text-[#6B6E76] hover:text-rose-400 font-bold"
                   >
                     ✕
                   </button>
@@ -991,14 +991,14 @@ export function EmailComposer({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="print:hidden border-t border-zinc-800/80 bg-[#141824] px-3 sm:px-5 py-2 flex flex-wrap items-center gap-1.5 text-xs select-none w-full max-w-full box-border shrink-0"
+            className="print:hidden border-t border-[#282C35]/80 bg-[#141824] px-3 sm:px-5 py-2 flex flex-wrap items-center gap-1.5 text-xs select-none w-full max-w-full box-border shrink-0"
           >
             {/* Font Family Dropdown */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setShowFontPicker((prev) => !prev)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-200 hover:text-white"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#111318] border border-[#282C35] text-[#F5F5F5] hover:text-white"
               >
                 <span>{selectedFont.name}</span>
                 <span className="text-[9px]">▼</span>
@@ -1006,7 +1006,7 @@ export function EmailComposer({
               {showFontPicker && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setShowFontPicker(false)} />
-                  <div className="absolute left-0 bottom-full mb-1.5 w-44 rounded-xl border border-zinc-800 bg-[#121622] py-1 shadow-2xl z-40">
+                  <div className="absolute left-0 bottom-full mb-1.5 w-44 rounded-xl border border-[#282C35] bg-[#121622] py-1 shadow-2xl z-40">
                     {FONT_FAMILIES.map((font) => (
                       <button
                         key={font.id}
@@ -1015,8 +1015,10 @@ export function EmailComposer({
                           setSelectedFont(font);
                           setShowFontPicker(false);
                         }}
-                        className={`w-full px-3 py-1.5 text-left text-xs ${font.css} hover:bg-zinc-800 ${
-                          selectedFont.id === font.id ? 'text-amber-400 font-bold' : 'text-zinc-300'
+                        className={`w-full px-3 py-1.5 text-left text-xs ${font.css} hover:bg-[#282C35] ${
+                          selectedFont.id === font.id
+                            ? 'text-[#FF8C42] font-bold'
+                            : 'text-[#A1A4AC]'
                         }`}
                       >
                         {font.name}
@@ -1032,7 +1034,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={() => setShowSizePicker((prev) => !prev)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-200 hover:text-white"
+                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#111318] border border-[#282C35] text-[#F5F5F5] hover:text-white"
               >
                 <span>{selectedSize.name}</span>
                 <span className="text-[9px]">▼</span>
@@ -1040,7 +1042,7 @@ export function EmailComposer({
               {showSizePicker && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setShowSizePicker(false)} />
-                  <div className="absolute left-0 bottom-full mb-1.5 w-28 rounded-xl border border-zinc-800 bg-[#121622] py-1 shadow-2xl z-40">
+                  <div className="absolute left-0 bottom-full mb-1.5 w-28 rounded-xl border border-[#282C35] bg-[#121622] py-1 shadow-2xl z-40">
                     {FONT_SIZES.map((s) => (
                       <button
                         key={s.id}
@@ -1049,8 +1051,8 @@ export function EmailComposer({
                           setSelectedSize(s);
                           setShowSizePicker(false);
                         }}
-                        className={`w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 ${
-                          selectedSize.id === s.id ? 'text-amber-400 font-bold' : 'text-zinc-300'
+                        className={`w-full px-3 py-1.5 text-left text-xs hover:bg-[#282C35] ${
+                          selectedSize.id === s.id ? 'text-[#FF8C42] font-bold' : 'text-[#A1A4AC]'
                         }`}
                       >
                         {s.name}
@@ -1061,7 +1063,7 @@ export function EmailComposer({
               )}
             </div>
 
-            <div className="h-4 w-px bg-zinc-800 mx-1" />
+            <div className="h-4 w-px bg-[#282C35] mx-1" />
 
             {/* Bold */}
             <button
@@ -1069,8 +1071,8 @@ export function EmailComposer({
               onClick={() => setIsBold((prev) => !prev)}
               className={`p-1.5 rounded-lg font-bold text-xs ${
                 isBold
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  ? 'bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40'
+                  : 'text-[#A1A4AC] hover:text-white hover:bg-[#111318]'
               }`}
               title="Bold"
             >
@@ -1083,8 +1085,8 @@ export function EmailComposer({
               onClick={() => setIsItalic((prev) => !prev)}
               className={`p-1.5 rounded-lg italic text-xs font-serif ${
                 isItalic
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  ? 'bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40'
+                  : 'text-[#A1A4AC] hover:text-white hover:bg-[#111318]'
               }`}
               title="Italic"
             >
@@ -1097,8 +1099,8 @@ export function EmailComposer({
               onClick={() => setIsUnderline((prev) => !prev)}
               className={`p-1.5 rounded-lg underline text-xs ${
                 isUnderline
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  ? 'bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40'
+                  : 'text-[#A1A4AC] hover:text-white hover:bg-[#111318]'
               }`}
               title="Underline"
             >
@@ -1111,8 +1113,8 @@ export function EmailComposer({
               onClick={() => setIsStrikethrough((prev) => !prev)}
               className={`p-1.5 rounded-lg line-through text-xs ${
                 isStrikethrough
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                  ? 'bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40'
+                  : 'text-[#A1A4AC] hover:text-white hover:bg-[#111318]'
               }`}
               title="Strikethrough"
             >
@@ -1124,7 +1126,7 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={() => setShowColorPicker((prev) => !prev)}
-                className="flex items-center gap-1 p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900"
+                className="flex items-center gap-1 p-1.5 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#111318]"
                 title="Text Color"
               >
                 <span className="font-bold underline" style={{ color: textColor.color }}>
@@ -1134,7 +1136,7 @@ export function EmailComposer({
               {showColorPicker && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setShowColorPicker(false)} />
-                  <div className="absolute left-0 bottom-full mb-1.5 p-2 rounded-xl border border-zinc-800 bg-[#121622] shadow-2xl z-40 flex gap-1.5">
+                  <div className="absolute left-0 bottom-full mb-1.5 p-2 rounded-xl border border-[#282C35] bg-[#121622] shadow-2xl z-40 flex gap-1.5">
                     {TEXT_COLORS.map((c) => (
                       <button
                         key={c.id}
@@ -1144,7 +1146,7 @@ export function EmailComposer({
                           setShowColorPicker(false);
                         }}
                         style={{ backgroundColor: c.color }}
-                        className="size-5 rounded-full ring-1 ring-zinc-700 hover:scale-110 transition-all"
+                        className="size-5 rounded-full ring-1 ring-[#3A404D] hover:scale-110 transition-all"
                         title={c.label}
                       />
                     ))}
@@ -1153,7 +1155,7 @@ export function EmailComposer({
               )}
             </div>
 
-            <div className="h-4 w-px bg-zinc-800 mx-1" />
+            <div className="h-4 w-px bg-[#282C35] mx-1" />
 
             {/* Alignments */}
             <button
@@ -1161,8 +1163,8 @@ export function EmailComposer({
               onClick={() => setTextAlign('left')}
               className={`p-1.5 rounded-lg ${
                 textAlign === 'left'
-                  ? 'bg-amber-500/20 text-amber-300'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-[#FF8C42]/20 text-[#FFB875]'
+                  : 'text-[#A1A4AC] hover:text-white'
               }`}
               title="Align Left"
             >
@@ -1184,8 +1186,8 @@ export function EmailComposer({
               onClick={() => setTextAlign('center')}
               className={`p-1.5 rounded-lg ${
                 textAlign === 'center'
-                  ? 'bg-amber-500/20 text-amber-300'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-[#FF8C42]/20 text-[#FFB875]'
+                  : 'text-[#A1A4AC] hover:text-white'
               }`}
               title="Align Center"
             >
@@ -1207,8 +1209,8 @@ export function EmailComposer({
               onClick={() => setTextAlign('right')}
               className={`p-1.5 rounded-lg ${
                 textAlign === 'right'
-                  ? 'bg-amber-500/20 text-amber-300'
-                  : 'text-zinc-400 hover:text-white'
+                  ? 'bg-[#FF8C42]/20 text-[#FFB875]'
+                  : 'text-[#A1A4AC] hover:text-white'
               }`}
               title="Align Right"
             >
@@ -1237,7 +1239,7 @@ export function EmailComposer({
                 setTextColor(TEXT_COLORS[0]);
                 setTextAlign('left');
               }}
-              className="ml-auto p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 text-xs"
+              className="ml-auto p-1.5 rounded-lg text-[#6B6E76] hover:text-[#A1A4AC] text-xs"
               title="Clear formatting"
             >
               T<span className="text-[10px]">x</span>
@@ -1247,7 +1249,7 @@ export function EmailComposer({
       </AnimatePresence>
 
       {/* Bottom Unified Action Toolbar (Hidden during Print) */}
-      <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-2.5 border-t border-zinc-800/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
+      <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-2.5 border-t border-[#282C35]/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
         {/* Left Toolbar Group: Send + Dropup, Formatting, Attach, Link, Drive, Discard, Desktop Quanty */}
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Primary Send Button with Dropup Menu for Save draft & Schedule send */}
@@ -1293,17 +1295,17 @@ export function EmailComposer({
                   className="fixed inset-0 z-40"
                   onClick={() => setShowSendOptionsDropdown(false)}
                 />
-                <div className="absolute left-0 bottom-full mb-2 w-48 rounded-2xl border border-zinc-800 bg-[#121622] py-2 shadow-2xl z-50 text-xs">
+                <div className="absolute left-0 bottom-full mb-2 w-48 rounded-2xl border border-[#282C35] bg-[#121622] py-2 shadow-2xl z-50 text-xs">
                   <button
                     type="button"
                     onClick={() => {
                       setShowScheduleModal(true);
                       setShowSendOptionsDropdown(false);
                     }}
-                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800 transition-all"
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[#F5F5F5] hover:bg-[#282C35] transition-all"
                   >
                     <svg
-                      className="size-3.5 text-amber-400"
+                      className="size-3.5 text-[#FF8C42]"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -1320,10 +1322,10 @@ export function EmailComposer({
                     onClick={() => {
                       void handleSaveDraft();
                     }}
-                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-zinc-200 hover:bg-zinc-800 transition-all"
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[#F5F5F5] hover:bg-[#282C35] transition-all"
                   >
                     <svg
-                      className="size-3.5 text-zinc-400"
+                      className="size-3.5 text-[#A1A4AC]"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -1346,8 +1348,8 @@ export function EmailComposer({
             onClick={() => setShowFormattingBar((prev) => !prev)}
             className={`p-2 rounded-xl text-xs font-serif font-bold transition-all ${
               showFormattingBar
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                ? 'bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40'
+                : 'text-[#A1A4AC] hover:text-white hover:bg-[#282C35]'
             }`}
             title="Formatting options (Aa)"
           >
@@ -1358,7 +1360,7 @@ export function EmailComposer({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+            className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
             title="Attach files from device"
           >
             <svg
@@ -1376,7 +1378,7 @@ export function EmailComposer({
           <button
             type="button"
             onClick={() => setIsLinkModalOpen(true)}
-            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+            className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
             title="Insert Link"
           >
             <svg
@@ -1395,7 +1397,7 @@ export function EmailComposer({
           <button
             type="button"
             onClick={() => setIsDrivePickerOpen(true)}
-            className="p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all"
+            className="p-2 rounded-xl text-[#FF8C42] hover:text-[#FFB875] hover:bg-[#FF8C42]/10 transition-all"
             title="Insert files using QuantDrive"
           >
             <svg
@@ -1413,7 +1415,7 @@ export function EmailComposer({
           <button
             type="button"
             onClick={handleBack}
-            className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-zinc-900 transition-all"
+            className="p-2 rounded-xl text-[#A1A4AC] hover:text-rose-400 hover:bg-[#111318] transition-all"
             title="Discard draft"
           >
             <svg
@@ -1431,7 +1433,7 @@ export function EmailComposer({
           <button
             type="button"
             onClick={() => setIsQuantyDrawerOpen(true)}
-            className="hidden sm:flex p-2 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition-all ml-0.5 items-center justify-center"
+            className="hidden sm:flex p-2 rounded-xl text-[#FF8C42] hover:text-[#FFB875] hover:bg-[#FF8C42]/10 transition-all ml-0.5 items-center justify-center"
             title="Open Quanty AI Copilot"
           >
             <Quanty size={20} expression="happy" bob={false} />
@@ -1461,24 +1463,24 @@ export function EmailComposer({
         />
 
         {/* Top Header: QuantMail Logo & Brand */}
-        <div className="flex items-center justify-between border-b-2 border-gray-900 pb-3 mb-4">
+        <div className="flex items-center justify-between border-b-2 border-[#111318] pb-3 mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="size-8 rounded-lg bg-gradient-to-br from-[#FF7A00] to-[#ea580c] flex items-center justify-center text-white font-bold text-base shadow-sm">
+            <div className="size-8 rounded-lg bg-gradient-to-br from-[#FF8C42] to-[#ea580c] flex items-center justify-center text-white font-bold text-base shadow-sm">
               M
             </div>
             <span className="text-xl font-bold tracking-tight text-black">QuantMail</span>
           </div>
-          <div className="text-xs text-gray-600 font-medium">
+          <div className="text-xs text-[#6B6E76] font-medium">
             {senderName || authUser?.displayName || 'Kundan Kumar'} &lt;
             {authUser?.email || 'kundan@quantmail.in'}&gt;
           </div>
         </div>
 
         {/* Subject */}
-        <div className="text-xl font-bold text-gray-900 mb-3">{subject || '(no subject)'}</div>
+        <div className="text-xl font-bold text-[#111318] mb-3">{subject || '(no subject)'}</div>
 
         {/* Meta Info Bar: Sender, Draft To, Date */}
-        <div className="flex items-start justify-between text-xs text-gray-700 border-b border-gray-300 pb-3 mb-6">
+        <div className="flex items-start justify-between text-xs text-[#3A404D] border-b border-[#A1A4AC] pb-3 mb-6">
           <div className="space-y-1">
             <div>
               <strong className="text-black">
@@ -1487,23 +1489,23 @@ export function EmailComposer({
               &lt;{authUser?.email || 'kundan@quantmail.in'}&gt;
             </div>
             <div>
-              <span className="text-gray-500">Draft To: </span>
+              <span className="text-[#6B6E76]">Draft To: </span>
               <span className="font-medium text-black">{to || '(no recipients)'}</span>
             </div>
             {cc && (
               <div>
-                <span className="text-gray-500">Cc: </span>
+                <span className="text-[#6B6E76]">Cc: </span>
                 <span className="text-black">{cc}</span>
               </div>
             )}
             {bcc && (
               <div>
-                <span className="text-gray-500">Bcc: </span>
+                <span className="text-[#6B6E76]">Bcc: </span>
                 <span className="text-black">{bcc}</span>
               </div>
             )}
           </div>
-          <div className="text-right text-gray-500 text-xs shrink-0">
+          <div className="text-right text-[#6B6E76] text-xs shrink-0">
             {new Date().toLocaleDateString('en-GB', {
               day: 'numeric',
               month: 'long',
@@ -1520,7 +1522,7 @@ export function EmailComposer({
 
         {/* Attachments Footer if any */}
         {attachments.length > 0 && (
-          <div className="mt-8 pt-4 border-t border-gray-200 text-xs text-gray-600">
+          <div className="mt-8 pt-4 border-t border-[#F5F5F5] text-xs text-[#6B6E76]">
             <strong className="text-black">Attachments ({attachments.length}): </strong>
             <span>{attachments.map((a) => a.name).join(', ')}</span>
           </div>

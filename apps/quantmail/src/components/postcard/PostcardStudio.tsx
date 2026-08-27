@@ -7,6 +7,7 @@ import { AppShell } from '../AppShell';
 import { AppSidebar } from '../AppSidebar';
 import { PostcardCanvas } from './PostcardCanvas';
 import { showToast } from '../InboxToast';
+import { IconMailHeart } from '../icons';
 import {
   DEFAULT_VINTAGE_PRESETS,
   type PostcardTemplate,
@@ -125,18 +126,18 @@ export function PostcardStudio() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <div className="flex-1 flex flex-col h-full overflow-y-auto bg-[#0A0B0E] text-zinc-100 p-4 sm:p-8">
+      <div className="flex-1 flex flex-col h-full overflow-y-auto bg-[#0A0B0E] text-[#F5F5F5] p-4 sm:p-8">
         {/* Header */}
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800/80 pb-6 mb-8">
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#282C35]/80 pb-6 mb-8">
           <div>
-            <div className="flex items-center gap-2.5 text-xs font-mono font-bold tracking-widest text-amber-500 uppercase">
-              <span>💌</span>
+            <div className="flex items-center gap-2.5 text-xs font-mono font-bold tracking-widest text-[#FF8C42] uppercase">
+              <IconMailHeart size={14} />
               <span>QuantMail Creative Suite</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-serif font-black text-white mt-1">
               Vintage Postcard Studio
             </h1>
-            <p className="text-xs sm:text-sm text-zinc-400 mt-1 max-w-xl">
+            <p className="text-xs sm:text-sm text-[#A1A4AC] mt-1 max-w-xl">
               Design handcrafted, authentic vintage postcards with custom stamps, PNG stickers, and
               paper textures. Send timeless letters to anyone.
             </p>

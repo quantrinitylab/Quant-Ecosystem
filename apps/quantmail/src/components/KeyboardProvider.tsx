@@ -268,16 +268,15 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       // Only claims `r` when an inline reply box is actually on screen; the inbox
       // binds its own `r` in a deeper scope, which takes precedence there.
       enabled: () =>
-        typeof document !== 'undefined' &&
-        document.getElementById('chatbot-reply-input') !== null,
+        typeof document !== 'undefined' && document.getElementById('chatbot-reply-input') !== null,
       run: () => document.getElementById('chatbot-reply-input')?.focus(),
     },
 
-    // ── Mail actions ──────────────────────────────────────────────────────────
+    // ── Conversation ──────────────────────────────────────────────────────────
     {
       id: 'mail.undo',
       label: 'Undo last action',
-      group: 'Mail actions',
+      group: 'Conversation',
       keys: 'z',
       icon: 'undo',
       description: 'Reverses the last archive, trash or snooze while its confirmation is on screen',

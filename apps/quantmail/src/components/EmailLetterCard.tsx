@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { showToast } from './InboxToast';
+import { IconChevronDown, IconDownload, IconPaperclip, MimeTypeIcon } from './icons';
 import type { Email, EmailAttachment } from '../types';
 
 export function sanitizeEmailText(text?: string): string {
@@ -64,31 +65,34 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
   const attachments: EmailAttachment[] = email.attachments || [];
 
   return (
-    <div
-      className={`relative rounded-2xl sm:rounded-3xl border border-zinc-800/80 bg-[#0c0e14] shadow-xl p-4 sm:p-6 overflow-hidden ${className}`}
-    >
+    <div className={`relative ${className}`}>
       {/* Email Body */}
-      <div className="text-zinc-200 text-sm sm:text-[15px] leading-relaxed">
+      <div className="text-sm leading-7 text-[#F5F5F5] sm:text-[15px]">
         {email.bodyHtml ? (
           <div
-            className="email-html-content prose prose-invert max-w-none text-zinc-200 font-sans leading-relaxed break-words"
+            className="email-html-content prose prose-invert max-w-none break-words font-sans font-normal leading-7 text-[#F5F5F5]"
             dangerouslySetInnerHTML={{ __html: sanitizeEmailText(email.bodyHtml) }}
           />
         ) : (
-          <div className="whitespace-pre-wrap font-sans text-zinc-200 leading-relaxed space-y-3">
+          <div className="space-y-3 whitespace-pre-wrap font-sans font-normal leading-7 text-[#F5F5F5]">
             {mainText || 'No message content.'}
           </div>
         )}
 
         {/* Quoted Text Accordion */}
         {quotedText && (
-          <div className="pt-3 mt-3 border-t border-zinc-800/60">
+          <div className="mt-3 border-t border-[#282C35]/60 pt-3">
             <button
               type="button"
               onClick={() => setShowQuoted(!showQuoted)}
-              className="text-xs text-amber-400/90 hover:underline flex items-center gap-1.5 font-medium"
+              className="inline-flex items-center gap-1.5 rounded-md text-xs font-medium text-[#FF8C42] transition-colors hover:text-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              aria-expanded={showQuoted}
             >
-              <span>{showQuoted ? '▲ Hide' : '▼ Show'} quoted message</span>
+              <IconChevronDown
+                size={12}
+                className={`transition-transform ${showQuoted ? 'rotate-180' : ''}`}
+              />
+              <span>{showQuoted ? 'Hide quoted message' : 'Show quoted message'}</span>
             </button>
 
             <AnimatePresence>
@@ -97,7 +101,7 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="mt-2 pl-3 border-l-2 border-zinc-700 text-xs text-zinc-400 whitespace-pre-wrap font-sans"
+                  className="mt-2 pl-3 border-l-2 border-[#3A404D] text-xs text-[#A1A4AC] whitespace-pre-wrap font-sans"
                 >
                   {quotedText}
                 </motion.div>
@@ -109,10 +113,11 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
 
       {/* Attachments Section */}
       {attachments.length > 0 && (
-        <div className="mt-5 pt-4 border-t border-zinc-800/80">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3 flex items-center gap-2">
-            <span>📎 Attachments</span>
-            <span className="px-2 py-0.2 rounded-full bg-zinc-800 text-[10px] text-zinc-300">
+        <div className="mt-5 border-t border-[#282C35]/80 pt-4">
+          <h4 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#A1A4AC]">
+            <IconPaperclip size={13} />
+            <span>Attachments</span>
+            <span className="rounded-full bg-[#282C35] px-2 text-[10px] text-[#A1A4AC]">
               {attachments.length}
             </span>
           </h4>
@@ -139,27 +144,28 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
                 <div
                   key={att.id}
                   onClick={handleDownload}
-                  className="flex items-center gap-3 p-3 rounded-2xl border border-zinc-800 bg-zinc-900/90 hover:border-amber-500/50 hover:bg-zinc-800/90 transition-all cursor-pointer group shadow-md"
+                  className="group flex cursor-pointer items-center gap-3 rounded-xl bg-[#111318] p-3 shadow-[inset_0_0_0_1px_#282C35] transition-colors hover:bg-[#16181D] hover:shadow-[inset_0_0_0_1px_#5C3016]"
                 >
-                  <div className="size-10 rounded-xl bg-zinc-950 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition-transform overflow-hidden">
+                  <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#090A0C] text-[#A1A4AC]">
                     {isImg && att.url ? (
                       <img
                         src={att.url}
                         alt={att.filename}
-                        className="w-full h-full object-cover rounded-lg"
+                        className="h-full w-full rounded-lg object-cover"
                       />
-                    ) : isImg ? (
-                      '🖼️'
                     ) : (
-                      '📄'
+                      <MimeTypeIcon mimeType={att.mimeType} size={20} />
                     )}
                   </div>
 
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-white truncate" title={att.filename}>
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="truncate text-xs font-semibold text-[#F5F5F5]"
+                      title={att.filename}
+                    >
                       {att.filename}
                     </p>
-                    <p className="text-[10px] text-zinc-400">
+                    <p className="text-[10px] text-[#A1A4AC]">
                       {att.size > 0 ? `${(att.size / 1024).toFixed(1)} KB` : 'Attachment'}
                     </p>
                   </div>
@@ -167,18 +173,10 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
                   <button
                     type="button"
                     onClick={handleDownload}
-                    className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-zinc-700/50 transition-colors"
-                    title="Download"
+                    className="grid size-9 place-items-center rounded-lg text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    aria-label={`Download ${att.filename}`}
                   >
-                    <svg
-                      className="size-4"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-                    </svg>
+                    <IconDownload size={16} />
                   </button>
                 </div>
               );

@@ -229,12 +229,12 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            className="w-full max-w-lg rounded-3xl border border-zinc-800 bg-[#121622] p-4 sm:p-6 shadow-2xl space-y-4"
+            className="w-full max-w-lg rounded-3xl border border-[#282C35] bg-[#121622] p-4 sm:p-6 shadow-2xl space-y-4"
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+            <div className="flex items-center justify-between border-b border-[#282C35]/80 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="size-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20">
+                <div className="size-8 rounded-xl bg-[#FF8C42]/10 text-[#FF8C42] flex items-center justify-center border border-[#FF8C42]/20">
                   <svg
                     className="size-4"
                     viewBox="0 0 24 24"
@@ -248,7 +248,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-white">Schedule Send</h3>
-                  <p className="text-[11px] text-zinc-400">
+                  <p className="text-[11px] text-[#A1A4AC]">
                     Pick date & time to deliver your message
                   </p>
                 </div>
@@ -256,7 +256,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800"
+                className="p-1 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35]"
               >
                 ✕
               </button>
@@ -267,22 +267,22 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
               <button
                 type="button"
                 onClick={() => handleQuickPreset('today_evening')}
-                className="px-3.5 py-2.5 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800/90 border border-zinc-800 text-left transition-all hover:border-amber-500/40 group"
+                className="px-3.5 py-2.5 rounded-2xl bg-[#111318]/80 hover:bg-[#282C35]/90 border border-[#282C35] text-left transition-all hover:border-[#FF8C42]/40 group"
               >
-                <span className="block font-medium text-zinc-200 text-xs group-hover:text-white">
+                <span className="block font-medium text-[#F5F5F5] text-xs group-hover:text-white">
                   Today
                 </span>
-                <span className="text-xs text-amber-400 font-semibold">6:00 PM</span>
+                <span className="text-xs text-[#FF8C42] font-semibold">6:00 PM</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleQuickPreset('tomorrow_morning')}
-                className="px-3.5 py-2.5 rounded-2xl bg-zinc-900/80 hover:bg-zinc-800/90 border border-zinc-800 text-left transition-all hover:border-amber-500/40 group"
+                className="px-3.5 py-2.5 rounded-2xl bg-[#111318]/80 hover:bg-[#282C35]/90 border border-[#282C35] text-left transition-all hover:border-[#FF8C42]/40 group"
               >
-                <span className="block font-medium text-zinc-200 text-xs group-hover:text-white">
+                <span className="block font-medium text-[#F5F5F5] text-xs group-hover:text-white">
                   Tomorrow
                 </span>
-                <span className="text-xs text-amber-400 font-semibold">8:00 AM</span>
+                <span className="text-xs text-[#FF8C42] font-semibold">8:00 AM</span>
               </button>
             </div>
 
@@ -293,7 +293,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                 drag="x"
                 dragConstraints={{ left: 0, right: 0 }}
                 onDragEnd={handleCalendarDragEnd}
-                className="space-y-2.5 bg-zinc-950/40 p-3 rounded-2xl border border-zinc-800/80 touch-pan-y"
+                className="space-y-2.5 bg-[#090A0C]/40 p-3 rounded-2xl border border-[#282C35]/80 touch-pan-y"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-white">
@@ -303,7 +303,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                     <button
                       type="button"
                       onClick={handlePrevMonth}
-                      className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 text-xs"
+                      className="p-1 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] text-xs"
                       title="Previous month (or swipe right)"
                     >
                       ◀
@@ -311,7 +311,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                     <button
                       type="button"
                       onClick={handleNextMonth}
-                      className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 text-xs"
+                      className="p-1 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] text-xs"
                       title="Next month (or swipe left)"
                     >
                       ▶
@@ -320,7 +320,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                 </div>
 
                 {/* Weekday headers */}
-                <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-zinc-500">
+                <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-[#6B6E76]">
                   {WEEKDAYS.map((w, idx) => (
                     <span key={idx}>{w}</span>
                   ))}
@@ -347,14 +347,14 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                         onClick={() => handleSelectDay(item.date, item.isPast)}
                         className={`size-7 mx-auto rounded-lg flex items-center justify-center text-[11px] font-medium transition-all ${
                           isSelected
-                            ? 'bg-amber-500 text-black font-bold shadow-md scale-105'
+                            ? 'bg-[#FF8C42] text-black font-bold shadow-md scale-105'
                             : isToday
-                              ? 'border border-amber-500/50 text-amber-400'
+                              ? 'border border-[#FF8C42]/50 text-[#FF8C42]'
                               : item.isPast
-                                ? 'text-zinc-700 cursor-not-allowed'
+                                ? 'text-[#3A404D] cursor-not-allowed'
                                 : item.currentMonth
-                                  ? 'text-zinc-200 hover:bg-zinc-800'
-                                  : 'text-zinc-600'
+                                  ? 'text-[#F5F5F5] hover:bg-[#282C35]'
+                                  : 'text-[#6B6E76]'
                         }`}
                       >
                         {item.day}
@@ -362,35 +362,35 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                     );
                   })}
                 </div>
-                <p className="text-[9px] text-zinc-500 text-center">
+                <p className="text-[9px] text-[#6B6E76] text-center">
                   Swipe left/right to change month
                 </p>
               </motion.div>
 
               {/* Right Column: Google Clock Material Style Picker with Drag Gestures */}
-              <div className="flex flex-col items-center justify-between bg-zinc-950/40 p-3 rounded-2xl border border-zinc-800/80 space-y-2 select-none">
+              <div className="flex flex-col items-center justify-between bg-[#090A0C]/40 p-3 rounded-2xl border border-[#282C35]/80 space-y-2 select-none">
                 {/* Digital Time Display */}
                 <div className="flex items-center justify-center gap-2">
-                  <div className="flex items-center rounded-xl bg-zinc-900 border border-zinc-800 p-1">
+                  <div className="flex items-center rounded-xl bg-[#111318] border border-[#282C35] p-1">
                     <button
                       type="button"
                       onClick={() => setClockMode('hours')}
                       className={`px-2.5 py-1 rounded-lg text-sm font-bold transition-all ${
                         clockMode === 'hours'
-                          ? 'bg-amber-500 text-black shadow'
-                          : 'text-zinc-300 hover:text-white'
+                          ? 'bg-[#FF8C42] text-black shadow'
+                          : 'text-[#A1A4AC] hover:text-white'
                       }`}
                     >
                       {hour.toString().padStart(2, '0')}
                     </button>
-                    <span className="px-1 text-zinc-500 font-bold">:</span>
+                    <span className="px-1 text-[#6B6E76] font-bold">:</span>
                     <button
                       type="button"
                       onClick={() => setClockMode('minutes')}
                       className={`px-2.5 py-1 rounded-lg text-sm font-bold transition-all ${
                         clockMode === 'minutes'
-                          ? 'bg-amber-500 text-black shadow'
-                          : 'text-zinc-300 hover:text-white'
+                          ? 'bg-[#FF8C42] text-black shadow'
+                          : 'text-[#A1A4AC] hover:text-white'
                       }`}
                     >
                       {minute.toString().padStart(2, '0')}
@@ -398,14 +398,14 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                   </div>
 
                   {/* AM/PM Toggle */}
-                  <div className="flex rounded-xl bg-zinc-900 border border-zinc-800 p-0.5 text-xs font-bold">
+                  <div className="flex rounded-xl bg-[#111318] border border-[#282C35] p-0.5 text-xs font-bold">
                     <button
                       type="button"
                       onClick={() => setPeriod('AM')}
                       className={`px-2 py-1 rounded-lg transition-all ${
                         period === 'AM'
-                          ? 'bg-amber-500 text-black'
-                          : 'text-zinc-400 hover:text-white'
+                          ? 'bg-[#FF8C42] text-black'
+                          : 'text-[#A1A4AC] hover:text-white'
                       }`}
                     >
                       AM
@@ -415,8 +415,8 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                       onClick={() => setPeriod('PM')}
                       className={`px-2 py-1 rounded-lg transition-all ${
                         period === 'PM'
-                          ? 'bg-amber-500 text-black'
-                          : 'text-zinc-400 hover:text-white'
+                          ? 'bg-[#FF8C42] text-black'
+                          : 'text-[#A1A4AC] hover:text-white'
                       }`}
                     >
                       PM
@@ -430,20 +430,20 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                   onPointerDown={handleClockPointerDown}
                   onPointerMove={handleClockPointerMove}
                   onPointerUp={handleClockPointerUp}
-                  className="relative size-40 rounded-full bg-zinc-900/90 border border-zinc-800 flex items-center justify-center shadow-inner cursor-pointer touch-none"
+                  className="relative size-40 rounded-full bg-[#111318]/90 border border-[#282C35] flex items-center justify-center shadow-inner cursor-pointer touch-none"
                 >
                   {/* Center Pin */}
-                  <div className="size-2 rounded-full bg-amber-500 z-10 pointer-events-none" />
+                  <div className="size-2 rounded-full bg-[#FF8C42] z-10 pointer-events-none" />
 
                   {/* Clock Hand / Pointer */}
                   <div
-                    className="absolute bottom-1/2 left-1/2 w-0.5 origin-bottom bg-amber-500 transition-transform duration-100 z-0 pointer-events-none"
+                    className="absolute bottom-1/2 left-1/2 w-0.5 origin-bottom bg-[#FF8C42] transition-transform duration-100 z-0 pointer-events-none"
                     style={{
                       height: '56px',
                       transform: `translateX(-50%) rotate(${pointerRotation}deg)`,
                     }}
                   >
-                    <div className="size-6 -top-3 -left-[11px] absolute rounded-full bg-amber-500/30 border border-amber-500" />
+                    <div className="size-6 -top-3 -left-[11px] absolute rounded-full bg-[#FF8C42]/30 border border-[#FF8C42]" />
                   </div>
 
                   {/* Numbers accurately plotted at angle = (val * 30 - 90) deg */}
@@ -464,8 +464,8 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                         }}
                         className={`absolute size-6 rounded-full flex items-center justify-center text-[10px] font-semibold pointer-events-none transition-all ${
                           isCur
-                            ? 'bg-amber-500 text-black font-bold shadow scale-110'
-                            : 'text-zinc-300'
+                            ? 'bg-[#FF8C42] text-black font-bold shadow scale-110'
+                            : 'text-[#A1A4AC]'
                         }`}
                       >
                         {clockMode === 'hours' ? val : val.toString().padStart(2, '0')}
@@ -476,17 +476,17 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
 
                 {/* Minute Slider / Gesture Fine Tuner */}
                 <div className="w-full space-y-1">
-                  <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                  <div className="flex items-center justify-between text-[10px] text-[#A1A4AC]">
                     <span>
                       Fine-tune Minute:{' '}
-                      <strong className="text-amber-400">
+                      <strong className="text-[#FF8C42]">
                         {minute.toString().padStart(2, '0')}
                       </strong>
                     </span>
                     <button
                       type="button"
                       onClick={() => setClockMode(clockMode === 'hours' ? 'minutes' : 'hours')}
-                      className="text-amber-400 hover:underline capitalize"
+                      className="text-[#FF8C42] hover:underline capitalize"
                     >
                       Switch to {clockMode === 'hours' ? 'Minutes' : 'Hours'}
                     </button>
@@ -500,17 +500,17 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                       setMinute(parseInt(e.target.value, 10));
                       setClockMode('minutes');
                     }}
-                    className="w-full accent-amber-500 h-1.5 bg-zinc-800 rounded-lg cursor-pointer"
+                    className="w-full accent-[#FF8C42] h-1.5 bg-[#282C35] rounded-lg cursor-pointer"
                   />
                 </div>
               </div>
             </div>
 
             {/* Footer Preview & Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
-              <div className="text-xs text-zinc-300 truncate pr-2">
+            <div className="flex items-center justify-between pt-3 border-t border-[#282C35]">
+              <div className="text-xs text-[#A1A4AC] truncate pr-2">
                 <span>Send on: </span>
-                <strong className="text-amber-400 font-semibold">
+                <strong className="text-[#FF8C42] font-semibold">
                   {selectedDate.toLocaleDateString([], {
                     month: 'short',
                     day: 'numeric',
@@ -525,7 +525,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
                 >
                   Cancel
                 </button>

@@ -40,7 +40,7 @@ function ToastIcon({ type }: { type: ToastMessage['type'] }) {
     case 'warning':
       return (
         <svg
-          className="size-4 text-amber-400 shrink-0"
+          className="size-4 text-[#FF8C42] shrink-0"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

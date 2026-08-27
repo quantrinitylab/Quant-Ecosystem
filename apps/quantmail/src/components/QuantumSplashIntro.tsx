@@ -70,7 +70,7 @@ export function QuantumSplashIntro({ onComplete }: { onComplete?: () => void }) 
       color: string;
     }> = [];
 
-    const colors = ['#FF5500', '#FF7A00', '#FFAA00', '#FFD200', '#FFFFFF'];
+    const colors = ['#FF5500', '#FF8C42', '#FFAA00', '#FFD200', '#FFFFFF'];
     for (let i = 0; i < 70; i++) {
       const angle = Math.random() * Math.PI * 2;
       const dist = Math.random() * Math.min(width, height) * 0.45;
@@ -147,7 +147,7 @@ export function QuantumSplashIntro({ onComplete }: { onComplete?: () => void }) 
             opacity: phase === 'glow' ? 0.75 : 0.4,
           }}
           transition={{ duration: 0.5 }}
-          className="absolute size-96 rounded-full bg-gradient-to-r from-[#FF5500]/40 via-[#FF7A00]/50 to-[#FFAA00]/30 blur-3xl pointer-events-none"
+          className="absolute size-96 rounded-full bg-gradient-to-r from-[#FF5500]/40 via-[#FF8C42]/50 to-[#FFAA00]/30 blur-3xl pointer-events-none"
         />
 
         {/* Central Hero Assembly Box */}
@@ -167,13 +167,13 @@ export function QuantumSplashIntro({ onComplete }: { onComplete?: () => void }) 
             <motion.div
               animate={{ rotate: 360, scale: [1, 1.08, 1] }}
               transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-              className="absolute inset-0 rounded-3xl border border-[#FF7A00]/40 shadow-[0_0_30px_rgba(255,122,0,0.5)]"
+              className="absolute inset-0 rounded-3xl border border-[#FF8C42]/40 shadow-[0_0_30px_rgba(255,140,66,0.5)]"
             />
 
             {/* Inner Obsidian Tile */}
-            <div className="size-20 rounded-2xl bg-gradient-to-b from-[#20232E] to-[#0A0B0E] border border-[#FF9933]/60 flex items-center justify-center shadow-2xl relative overflow-hidden">
+            <div className="size-20 rounded-2xl bg-gradient-to-b from-[#20232E] to-[#0A0B0E] border border-[#FF8C42]/60 flex items-center justify-center shadow-2xl relative overflow-hidden">
               {/* Laser Seam Envelope SVG */}
-              <svg className="size-11 text-[#FF7A00]" viewBox="0 0 24 24" fill="none">
+              <svg className="size-11 text-[#FF8C42]" viewBox="0 0 24 24" fill="none">
                 <rect
                   x="2"
                   y="4"
@@ -185,7 +185,7 @@ export function QuantumSplashIntro({ onComplete }: { onComplete?: () => void }) 
                 />
                 <path
                   d="M2.5 4.5L12 13.5L21.5 4.5"
-                  stroke="#FFAA33"
+                  stroke="#FF8C42"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -196,7 +196,7 @@ export function QuantumSplashIntro({ onComplete }: { onComplete?: () => void }) 
               <motion.span
                 animate={{ scale: [1, 1.6, 1], opacity: [0.6, 1, 0.6] }}
                 transition={{ duration: 1, repeat: Infinity }}
-                className="absolute size-3 rounded-full bg-white shadow-[0_0_15px_#FF7A00]"
+                className="absolute size-3 rounded-full bg-white shadow-[0_0_15px_#FF8C42]"
                 style={{ top: '56%', left: '44%' }}
               />
             </div>
@@ -214,7 +214,7 @@ export function QuantumSplashIntro({ onComplete }: { onComplete?: () => void }) 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
-              className="text-xs tracking-widest text-zinc-400 uppercase font-mono mt-1"
+              className="text-xs tracking-widest text-[#A1A4AC] uppercase font-mono mt-1"
             >
               Zero-Noise Intelligence
             </motion.p>
