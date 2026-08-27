@@ -24,14 +24,10 @@
 
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { showToast } from '../components/InboxToast';
+import { showToast } from '../lib/toast-bus';
 import { enqueue, type MailMutationKind } from '../lib/offline/outbox';
 import { patchEmail } from '../lib/offline/mail-cache';
-import {
-  EMAIL_LIST_PREFIXES,
-  folderTypeOf,
-  reconcileList,
-} from '../lib/offline/folders';
+import { EMAIL_LIST_PREFIXES, folderTypeOf, reconcileList } from '../lib/offline/folders';
 import type { Email } from '../types';
 
 /**

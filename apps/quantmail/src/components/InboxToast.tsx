@@ -2,57 +2,24 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-
-export interface ToastMessage {
-  id: string;
-  text: string;
-  type: 'success' | 'info' | 'warning' | 'error';
-  undoAction?: () => void;
-  duration?: number;
-}
-
-let toastSubscribers: Array<(msg: ToastMessage) => void> = [];
-let dismissSubscribers: Array<(id: string) => void> = [];
+import {
+  forgetUndo,
+  subscribeToDismissals,
+  subscribeToToasts,
+  type ToastMessage,
+} from '../lib/toast-bus';
 
 /**
- * The most recent reversible action, and the toast whose lifetime it shares.
+ * The bus itself lives in `../lib/toast-bus` — a plain `.ts` module, so that
+ * non-component code can fire a toast without importing a `.tsx` file (see the
+ * note in that file for why the distinction matters to `pnpm typecheck`).
  *
- * Superhuman's `z` undoes the last action, and the toast is already the thing
- * that tells the user an action *was* reversible. Tying the two together means
- * the undo window is exactly the window the user was shown — an undo that still
- * fires ten minutes later would reverse something they have stopped thinking
- * about, and there is no second confirmation to warn them.
+ * Re-exported here because twenty-five components already import `showToast`
+ * from `./InboxToast`, and the toast API is genuinely part of what this module
+ * offers. Callers should not need to know where the plumbing sits.
  */
-let pendingUndo: { toastId: string; run: () => void } | null = null;
-
-/** Whether `z` currently has anything to reverse. Read live by the command's `enabled`. */
-export function hasPendingUndo(): boolean {
-  return pendingUndo !== null;
-}
-
-/** Reverse the last action. Returns `false` when the undo window has passed. */
-export function runPendingUndo(): boolean {
-  const entry = pendingUndo;
-  if (!entry) return false;
-  pendingUndo = null;
-  dismissSubscribers.forEach((fn) => fn(entry.toastId));
-  entry.run();
-  return true;
-}
-
-function forgetUndo(toastId: string): void {
-  if (pendingUndo?.toastId === toastId) pendingUndo = null;
-}
-
-/** Fire a toast from anywhere (no provider needed). */
-export function showToast(msg: Omit<ToastMessage, 'id'>) {
-  const toast: ToastMessage = {
-    ...msg,
-    id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-  };
-  if (msg.undoAction) pendingUndo = { toastId: toast.id, run: msg.undoAction };
-  toastSubscribers.forEach((fn) => fn(toast));
-}
+export { hasPendingUndo, runPendingUndo, showToast } from '../lib/toast-bus';
+export type { ToastMessage } from '../lib/toast-bus';
 
 function ToastIcon({ type }: { type: ToastMessage['type'] }) {
   switch (type) {
@@ -141,11 +108,11 @@ export function InboxToastContainer() {
         setToasts((prev) => prev.filter((t) => t.id !== msg.id));
       }, msg.duration ?? 3200);
     };
-    toastSubscribers.push(handler);
-    dismissSubscribers.push(dismiss);
+    const unsubscribeToasts = subscribeToToasts(handler);
+    const unsubscribeDismissals = subscribeToDismissals(dismiss);
     return () => {
-      toastSubscribers = toastSubscribers.filter((fn) => fn !== handler);
-      dismissSubscribers = dismissSubscribers.filter((fn) => fn !== dismiss);
+      unsubscribeToasts();
+      unsubscribeDismissals();
     };
   }, [dismiss]);
 
