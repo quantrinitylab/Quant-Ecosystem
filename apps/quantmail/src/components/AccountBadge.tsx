@@ -190,7 +190,7 @@ export function AccountBadge() {
                       <p className="text-xs font-semibold text-white truncate leading-tight">
                         {acc.displayName}
                       </p>
-                      <p className="text-[10px] text-zinc-400 truncate leading-tight">
+                      <p className="text-[10px] text-[#A1A4AC] truncate leading-tight">
                         {acc.email}
                       </p>
                     </div>
@@ -233,7 +233,7 @@ export function AccountBadge() {
                 setOpen(false);
                 router.push('/settings');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-zinc-200 hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors"
             >
               <svg
                 className="size-3.5 text-[#A1A4AC]"
@@ -257,7 +257,7 @@ export function AccountBadge() {
                 setOpen(false);
                 router.push('/security');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-zinc-200 hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors"
             >
               <svg
                 className="size-3.5 text-[#A1A4AC]"

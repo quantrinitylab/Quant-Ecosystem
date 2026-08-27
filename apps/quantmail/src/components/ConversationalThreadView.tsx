@@ -392,13 +392,13 @@ export function ConversationalThreadView({
   return (
     <div className={`flex flex-col h-full bg-[#090A0C] text-white select-text ${className}`}>
       {/* Top Header Actions Bar */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-zinc-800/90 bg-[#090A0C]/95 backdrop-blur-md sticky top-0 z-20">
+      <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#282C35]/90 bg-[#090A0C]/95 backdrop-blur-md sticky top-0 z-20">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="p-2 -ml-1.5 rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-800/80 active:bg-zinc-700/60 transition-all active:scale-95 flex items-center justify-center min-w-[40px] min-h-[40px]"
+              className="p-2 -ml-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 active:bg-[#3A404D]/60 transition-all active:scale-95 flex items-center justify-center min-w-[40px] min-h-[40px]"
               title="Back to inbox"
               aria-label="Back to inbox"
             >
@@ -421,11 +421,11 @@ export function ConversationalThreadView({
               <h2 className="text-sm sm:text-base font-bold text-white truncate">
                 {participantSummary}
               </h2>
-              <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-[10px] font-bold text-amber-400 shrink-0">
+              <span className="px-2 py-0.5 rounded-full bg-[#FF8C42]/15 border border-[#FF8C42]/30 text-[10px] font-bold text-[#FF8C42] shrink-0">
                 {messages.length} {messages.length === 1 ? 'Message' : 'Messages'}
               </span>
             </div>
-            <span className="text-[11px] text-zinc-400 truncate">
+            <span className="text-[11px] text-[#A1A4AC] truncate">
               {threadSubject || '(No Subject)'}
             </span>
           </div>
@@ -437,7 +437,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={allExpanded ? collapseAll : expandAll}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 text-[11px] font-medium text-zinc-300 transition-all shadow-sm active:scale-95"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#111318]/90 hover:bg-[#282C35] border border-[#282C35] text-[11px] font-medium text-[#A1A4AC] transition-all shadow-sm active:scale-95"
             title={allExpanded ? 'Collapse All Messages' : 'Expand All Messages'}
           >
             <svg
@@ -459,8 +459,8 @@ export function ConversationalThreadView({
             onClick={handleToggleStar}
             className={`p-2 rounded-xl transition-all active:scale-95 ${
               starred
-                ? 'text-amber-400 bg-amber-400/10'
-                : 'text-zinc-400 hover:text-amber-300 hover:bg-zinc-800'
+                ? 'text-[#FF8C42] bg-[#FF8C42]/10'
+                : 'text-[#A1A4AC] hover:text-[#FFB875] hover:bg-[#282C35]'
             }`}
             title={starred ? 'Pinned to top' : 'Pin to top'}
           >
@@ -483,7 +483,7 @@ export function ConversationalThreadView({
               onClick={() =>
                 router.push(`/thread/${primaryMessage?.threadId || primaryMessage?.id || threadId}`)
               }
-              className="p-2 rounded-xl text-zinc-400 hover:text-amber-300 hover:bg-zinc-800 transition-all"
+              className="p-2 rounded-xl text-[#A1A4AC] hover:text-[#FFB875] hover:bg-[#282C35] transition-all"
               title="Open in Full Thread View"
             >
               <svg
@@ -504,7 +504,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={() => window.print()}
-            className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+            className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
             title="Print entire conversation (Ctrl+P / Cmd+P)"
           >
             <svg
@@ -525,7 +525,7 @@ export function ConversationalThreadView({
             <button
               type="button"
               onClick={onArchive}
-              className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+              className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
               title="Archive conversation (E)"
             >
               <svg
@@ -547,7 +547,7 @@ export function ConversationalThreadView({
             <button
               type="button"
               onClick={onDelete}
-              className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+              className="p-2 rounded-xl text-[#A1A4AC] hover:text-rose-400 hover:bg-rose-500/10 transition-all"
               title="Move to Trash (#)"
             >
               <svg
@@ -570,8 +570,8 @@ export function ConversationalThreadView({
       <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4 max-w-4xl mx-auto w-full">
         {isLoading && (
           <div className="space-y-4 pt-4">
-            <div className="h-20 bg-zinc-900/60 rounded-2xl animate-pulse border border-zinc-800/60" />
-            <div className="h-64 bg-zinc-900/60 rounded-3xl animate-pulse border border-zinc-800/60" />
+            <div className="h-20 bg-[#111318]/60 rounded-2xl animate-pulse border border-[#282C35]/60" />
+            <div className="h-64 bg-[#111318]/60 rounded-3xl animate-pulse border border-[#282C35]/60" />
           </div>
         )}
 
@@ -702,11 +702,11 @@ export function ConversationalThreadView({
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[11px] text-zinc-500 font-mono">
+                      <span className="text-[11px] text-[#6B6E76] font-mono">
                         {formatMessageDate(message.receivedAt)}
                       </span>
                       <svg
-                        className="size-4 text-zinc-500 group-hover:text-zinc-300 transition-colors"
+                        className="size-4 text-[#6B6E76] group-hover:text-[#A1A4AC] transition-colors"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -719,8 +719,10 @@ export function ConversationalThreadView({
                 ) : (
                   /* Expanded Rich Card */
                   <div
-                    className={`w-full max-w-[96%] sm:max-w-[92%] rounded-xl sm:rounded-2xl border shadow-md overflow-hidden transition-all ${
-                      isOutbound ? 'border-[#3A2416] bg-[#14100E]' : 'border-[#282C35] bg-[#111318]'
+                    className={`w-full max-w-[96%] overflow-hidden rounded-xl transition-all sm:max-w-[92%] sm:rounded-2xl ${
+                      isOutbound
+                        ? 'bg-[#14100E] shadow-[inset_0_0_0_1px_#3A2416]'
+                        : 'bg-[#111318] shadow-[inset_0_0_0_1px_#282C35]'
                     }`}
                   >
                     {/* Header Bar */}
@@ -753,7 +755,7 @@ export function ConversationalThreadView({
                           <button
                             type="button"
                             onClick={() => toggleDetailsExpand(index)}
-                            className="group inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-amber-300 text-left pt-0.5 font-mono"
+                            className="group inline-flex items-center gap-1 text-xs text-[#A1A4AC] hover:text-[#FFB875] text-left pt-0.5 font-mono"
                           >
                             <span>to {isOutbound ? toDisplay : 'me'}</span>
                             <svg
@@ -774,7 +776,7 @@ export function ConversationalThreadView({
                         <button
                           type="button"
                           onClick={() => toggleMessageExpand(index)}
-                          className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                          className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors"
                           title="Collapse this message"
                         >
                           <svg
@@ -797,22 +799,23 @@ export function ConversationalThreadView({
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}
                           exit={{ opacity: 0, height: 0 }}
-                          className="px-4 sm:px-5 pb-3"
+                          className="px-4 sm:px-5"
                         >
-                          <div className="rounded-2xl border border-zinc-800/80 bg-zinc-950/80 p-3.5 text-xs text-zinc-300 font-mono space-y-1.5">
+                          {/* A hairline-ruled block, not a third nested card. */}
+                          <div className="space-y-1.5 border-t border-[#282C35] py-3 font-mono text-xs text-[#A1A4AC]">
                             <div className="flex">
-                              <span className="w-20 text-zinc-500">From:</span>
-                              <span className="text-white font-medium">
+                              <span className="w-20 text-[#6B6E76]">From:</span>
+                              <span className="font-medium text-[#F5F5F5]">
                                 {msgFromName} {msgFromEmail ? `<${msgFromEmail}>` : ''}
                               </span>
                             </div>
                             <div className="flex">
-                              <span className="w-20 text-zinc-500">To:</span>
-                              <span className="text-zinc-300">{toDisplay}</span>
+                              <span className="w-20 text-[#6B6E76]">To:</span>
+                              <span className="text-[#A1A4AC]">{toDisplay}</span>
                             </div>
                             <div className="flex">
-                              <span className="w-20 text-zinc-500">Date:</span>
-                              <span className="text-zinc-300">
+                              <span className="w-20 text-[#6B6E76]">Date:</span>
+                              <span className="text-[#A1A4AC]">
                                 {message.receivedAt
                                   ? new Date(message.receivedAt).toLocaleString()
                                   : 'N/A'}
@@ -823,8 +826,15 @@ export function ConversationalThreadView({
                       )}
                     </AnimatePresence>
 
-                    {/* Body Letterhead */}
-                    <div className="p-3 sm:p-5 pt-0">
+                    {/*
+                     * Body, rendered flat.
+                     *
+                     * `EmailLetterCard` used to draw its own `#0c0e14` card with a
+                     * border and an `shadow-xl`, nested inside this `#111318` card —
+                     * two frames around one paragraph of text. The letter card is now
+                     * chrome-free and this wrapper owns the only padding.
+                     */}
+                    <div className="px-4 pb-4 sm:px-5 sm:pb-5">
                       <EmailLetterCard email={message} />
                     </div>
                   </div>
@@ -837,7 +847,7 @@ export function ConversationalThreadView({
       </div>
 
       {/* Action Chips & Smart Reply Suggestions Bar */}
-      <div className="px-3 sm:px-4 pt-2.5 pb-1 bg-[#08090d]/95 border-t border-zinc-800/80 flex items-center justify-between gap-2 flex-wrap">
+      <div className="px-3 sm:px-4 pt-2.5 pb-1 bg-[#08090d]/95 border-t border-[#282C35]/80 flex items-center justify-between gap-2 flex-wrap">
         {/* Left: Action Chips (Reply / Reply All / Forward) */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
@@ -950,7 +960,7 @@ export function ConversationalThreadView({
       </div>
 
       {/* Chatbot-Style Bottom Floating Quick Reply Bar */}
-      <div className="p-3 sm:p-4 bg-[#08090d]/95 border-t border-zinc-800/60 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
+      <div className="p-3 sm:p-4 bg-[#08090d]/95 border-t border-[#282C35]/60 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
         {/* Pending Attachment Previews */}
         {pendingAttachments.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap px-2 py-1">
@@ -1008,7 +1018,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-1.5 sm:p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all shrink-0"
+            className="p-1.5 sm:p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all shrink-0"
             title="Attach Files / Photos"
           >
             <svg
@@ -1026,7 +1036,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={() => setIsQuantyOpen(true)}
-            className="p-1 sm:p-1.5 rounded-xl text-amber-400 hover:bg-amber-500/10 transition-all shrink-0"
+            className="p-1 sm:p-1.5 rounded-xl text-[#FF8C42] hover:bg-[#FF8C42]/10 transition-all shrink-0"
             title="Ask Quanty AI to write response"
           >
             <Quanty size={20} expression="happy" bob={false} />
@@ -1045,7 +1055,7 @@ export function ConversationalThreadView({
               }
             }}
             placeholder="Quick reply (↵ to send)…"
-            className="min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none px-1 sm:px-2 py-1.5"
+            className="min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[#6B6E76] focus:outline-none px-1 sm:px-2 py-1.5"
           />
 
           {/* Mail Button (Opens Full Corporate Composer with Prefilled To) */}
@@ -1075,7 +1085,7 @@ export function ConversationalThreadView({
               }
               router.push(`/compose?${params.toString()}`);
             }}
-            className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 text-amber-400 text-xs font-semibold transition-all shrink-0 border border-zinc-700/70 shadow-sm active:scale-95"
+            className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-[#282C35]/90 hover:bg-[#3A404D] text-[#FF8C42] text-xs font-semibold transition-all shrink-0 border border-[#3A404D]/70 shadow-sm active:scale-95"
             title="Open Full Mail Composer"
           >
             <svg

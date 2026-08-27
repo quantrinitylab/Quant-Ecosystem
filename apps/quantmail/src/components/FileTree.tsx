@@ -3,6 +3,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
+import { FileTypeIcon, IconChevronRight } from './icons';
+
 interface FileTreeProps {
   paths: string[];
   selectedFile: string | null;
@@ -76,20 +78,29 @@ function FileTreeNode({
       <button
         type="button"
         className={`file-tree-item ${isSelected ? 'is-selected' : ''}`}
-        style={{ paddingLeft: `${depth * 1 + 0.5}rem` }}
         onClick={() => {
           if (node.isFolder) onToggleFolder(node.path);
           else onSelectFile(node.path);
         }}
         aria-expanded={node.isFolder ? isExpanded : undefined}
       >
+        {Array.from({ length: depth }, (_, i) => (
+          <span key={i} className="file-tree-guide" />
+        ))}
         {node.isFolder ? (
-          <span className={`file-tree-chevron ${isExpanded ? 'is-open' : ''}`}>▸</span>
+          <span className={`file-tree-chevron ${isExpanded ? 'is-open' : ''}`}>
+            <IconChevronRight size={12} />
+          </span>
         ) : (
           <span className="file-tree-spacer" />
         )}
         <span className="file-tree-icon">
-          {node.isFolder ? (isExpanded ? '📂' : '📁') : getFileIcon(node.name)}
+          <FileTypeIcon
+            name={node.name}
+            isFolder={node.isFolder}
+            isExpanded={isExpanded}
+            size={14}
+          />
         </span>
         <span className="file-tree-name">{node.name}</span>
       </button>
@@ -119,26 +130,6 @@ function FileTreeNode({
   );
 }
 
-function getFileIcon(filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase();
-  switch (ext) {
-    case 'ts': case 'tsx': return '🟦';
-    case 'js': case 'jsx': return '🟨';
-    case 'py': return '🐍';
-    case 'rs': return '🦀';
-    case 'go': return '🔵';
-    case 'json': return '📋';
-    case 'md': return '📝';
-    case 'css': case 'scss': return '🎨';
-    case 'html': return '🌐';
-    case 'yml': case 'yaml': return '⚙️';
-    case 'sh': case 'bash': return '💻';
-    case 'sql': return '🗄️';
-    case 'svg': case 'png': case 'jpg': return '🖼️';
-    default: return '📄';
-  }
-}
-
 /**
  * Hierarchical file tree with folder expand/collapse.
  * Replaces the flat path list with a proper GitHub-style tree navigator.
@@ -162,9 +153,7 @@ export function FileTree({ paths, selectedFile, onSelectFile }: FileTreeProps) {
   // Expand all on first render if tree is small
   useMemo(() => {
     if (paths.length <= 20) {
-      const allFolders = paths
-        .filter((p) => p.endsWith('/'))
-        .map((p) => p);
+      const allFolders = paths.filter((p) => p.endsWith('/')).map((p) => p);
       // Also infer folder paths from file paths
       for (const path of paths) {
         const parts = path.split('/');

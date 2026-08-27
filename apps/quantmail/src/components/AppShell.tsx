@@ -500,7 +500,7 @@ export function AppShell({
             customHeader
           ) : (
             <header
-              className={`flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--border)] bg-zinc-950/90 backdrop-blur px-3 md:px-5 ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'hidden md:flex' : ''}`}
+              className={`flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--border)] bg-[#090A0C]/90 backdrop-blur px-3 md:px-5 ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'hidden md:flex' : ''}`}
             >
               {/* Left: Menu trigger + Brand Logo & Title */}
               <div className="flex items-center gap-3">
@@ -509,7 +509,7 @@ export function AppShell({
                   type="button"
                   // Hidden once the rail is pinned on a wide screen: the drawer it
                   // opens is `md:hidden` there, so the control had nothing to show.
-                  className={`inline-flex size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors ${isPinned ? 'md:hidden' : ''}`}
+                  className={`inline-flex size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors ${isPinned ? 'md:hidden' : ''}`}
                   aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
                   aria-expanded={isDrawerPresented}
                   aria-controls={drawerId}
@@ -550,9 +550,9 @@ export function AppShell({
               {/* Center: Real Contextual Live Search Bar (Desktop) */}
               <div className="hidden md:flex flex-1 max-w-xl mx-4">
                 {onSearchChange ? (
-                  <div className="w-full flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 focus-within:border-[#FF7A00]/60 focus-within:ring-1 focus-within:ring-[#FF7A00]/30 transition-all shadow-inner">
+                  <div className="w-full flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-[#111318]/90 border border-[#282C35] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner">
                     <svg
-                      className="size-4 text-zinc-400 shrink-0"
+                      className="size-4 text-[#A1A4AC] shrink-0"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -577,13 +577,13 @@ export function AppShell({
                               ? 'Search in QuantContacts…'
                               : 'Search in QuantMail (sender, subject, keyword)…')
                       }
-                      className="w-full bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                      className="w-full bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
                     />
                     {searchValue && (
                       <button
                         type="button"
                         onClick={() => onSearchChange('')}
-                        className="text-zinc-400 hover:text-white shrink-0 p-0.5"
+                        className="text-[#A1A4AC] hover:text-white shrink-0 p-0.5"
                         title="Clear search"
                       >
                         <svg
@@ -598,14 +598,14 @@ export function AppShell({
                         </svg>
                       </button>
                     )}
-                    <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] font-mono text-zinc-500 border border-zinc-700/60 shrink-0">
+                    <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#282C35] text-[10px] font-mono text-[#6B6E76] border border-[#3A404D]/60 shrink-0">
                       /
                     </kbd>
                   </div>
                 ) : (
-                  <div className="w-full flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs text-zinc-400">
+                  <div className="w-full flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-[#111318]/90 border border-[#282C35] text-xs text-[#A1A4AC]">
                     <svg
-                      className="size-4 text-zinc-400 shrink-0"
+                      className="size-4 text-[#A1A4AC] shrink-0"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"

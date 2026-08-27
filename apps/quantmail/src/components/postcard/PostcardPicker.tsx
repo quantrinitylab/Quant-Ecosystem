@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DEFAULT_VINTAGE_PRESETS, type PostcardTemplate } from '../../types/postcard';
+import { IconMailHeart } from '../icons';
 
 interface PostcardPickerProps {
   selectedTemplate: PostcardTemplate | null;
@@ -43,17 +44,19 @@ export function PostcardPicker({
           initial={{ opacity: 0, scale: 0.95, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 16 }}
-          className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden"
+          className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-[#111318] border border-[#282C35] rounded-2xl shadow-2xl overflow-hidden"
         >
           {/* Header */}
-          <header className="p-5 border-b border-zinc-800 flex items-center justify-between">
+          <header className="p-5 border-b border-[#282C35] flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <span className="text-xl">💌</span>
+              <span className="text-[#FF8C42]">
+                <IconMailHeart size={19} />
+              </span>
               <div>
                 <h2 className="text-base font-serif font-bold text-white">
                   Select Postcard Stationery
                 </h2>
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-[#A1A4AC]">
                   Pick a handcrafted vintage postcard template or standard mail format
                 </p>
               </div>
@@ -62,7 +65,7 @@ export function PostcardPicker({
             <button
               type="button"
               onClick={onClose}
-              className="size-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white hover:bg-zinc-800"
+              className="size-8 rounded-lg flex items-center justify-center text-[#A1A4AC] hover:text-white hover:bg-[#282C35]"
             >
               ✕
             </button>
@@ -78,23 +81,23 @@ export function PostcardPicker({
               }}
               className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center justify-between ${
                 selectedTemplate === null
-                  ? 'border-amber-500 bg-amber-500/10'
-                  : 'border-zinc-800 bg-zinc-950/50 hover:border-zinc-700'
+                  ? 'border-[#FF8C42] bg-[#FF8C42]/10'
+                  : 'border-[#282C35] bg-[#090A0C]/50 hover:border-[#3A404D]'
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="size-10 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 font-mono text-sm">
+                <div className="size-10 rounded-lg bg-[#282C35] border border-[#3A404D] flex items-center justify-center text-[#A1A4AC] font-mono text-sm">
                   ✉️
                 </div>
                 <div>
                   <h4 className="text-xs sm:text-sm font-semibold text-white">Standard Email</h4>
-                  <p className="text-[11px] text-zinc-400">
+                  <p className="text-[11px] text-[#A1A4AC]">
                     Clean, traditional rich-text email layout without postcard styling
                   </p>
                 </div>
               </div>
               {selectedTemplate === null && (
-                <span className="text-xs font-bold text-amber-400">Selected ✓</span>
+                <span className="text-xs font-bold text-[#FF8C42]">Selected ✓</span>
               )}
             </div>
 
@@ -111,15 +114,15 @@ export function PostcardPicker({
                     }}
                     className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
                       isSelected
-                        ? 'border-amber-500 bg-amber-500/10 shadow-lg shadow-amber-500/10'
-                        : 'border-zinc-800 bg-zinc-950/60 hover:border-amber-500/40'
+                        ? 'border-[#FF8C42] bg-[#FF8C42]/10 shadow-[0_4px_16px_rgba(0,0,0,0.6)]'
+                        : 'border-[#282C35] bg-[#090A0C]/60 hover:border-[#FF8C42]/40'
                     }`}
                   >
                     <div>
-                      <div className="flex items-center justify-between text-xs font-mono text-amber-400 mb-1.5">
+                      <div className="flex items-center justify-between text-xs font-mono text-[#FF8C42] mb-1.5">
                         <span className="uppercase">{template.category}</span>
                         {template.isCustom && (
-                          <span className="px-1.5 py-0.2 text-[9px] rounded bg-amber-500/20 text-amber-300 font-bold">
+                          <span className="px-1.5 py-0.2 text-[9px] rounded bg-[#FF8C42]/20 text-[#FFB875] font-bold">
                             CUSTOM
                           </span>
                         )}
@@ -128,16 +131,16 @@ export function PostcardPicker({
                       <h4 className="text-sm font-serif font-bold text-white mb-1">
                         {template.name}
                       </h4>
-                      <p className="text-[11px] text-zinc-400 line-clamp-2 leading-relaxed">
+                      <p className="text-[11px] text-[#A1A4AC] line-clamp-2 leading-relaxed">
                         {template.description}
                       </p>
                     </div>
 
-                    <div className="mt-3 pt-2.5 border-t border-zinc-800/80 flex items-center justify-between text-[11px]">
-                      <span className="text-zinc-500 font-mono">
+                    <div className="mt-3 pt-2.5 border-t border-[#282C35]/80 flex items-center justify-between text-[11px]">
+                      <span className="text-[#6B6E76] font-mono">
                         {template.paperTexture.replace('-', ' ')}
                       </span>
-                      <span className="text-amber-400 font-semibold font-mono">
+                      <span className="text-[#FF8C42] font-semibold font-mono">
                         {template.stamp.value}
                       </span>
                     </div>
@@ -148,10 +151,10 @@ export function PostcardPicker({
           </div>
 
           {/* Footer */}
-          <footer className="p-4 border-t border-zinc-800 bg-zinc-950/80 flex items-center justify-between">
+          <footer className="p-4 border-t border-[#282C35] bg-[#090A0C]/80 flex items-center justify-between">
             <a
               href="/postcards"
-              className="text-xs font-semibold text-amber-400 hover:underline flex items-center gap-1.5"
+              className="text-xs font-semibold text-[#FF8C42] hover:underline flex items-center gap-1.5"
             >
               <span>🎨 Open Postcard Studio</span>
               <span>➔</span>
@@ -160,7 +163,7 @@ export function PostcardPicker({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-white"
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#282C35] hover:bg-[#3A404D] text-white"
             >
               Done
             </button>

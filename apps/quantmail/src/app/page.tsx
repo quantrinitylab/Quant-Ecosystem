@@ -373,7 +373,7 @@ function EmailRow({
   const priorityColor =
     priorityLower === 'critical'
       ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-      : 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+      : 'bg-[#FF8C42]/15 text-[#FFB875] border-[#FF8C42]/30';
 
   return (
     <div className={`mail-row-shell relative ${showSnoozeMenu ? 'z-50' : ''}`}>
@@ -385,11 +385,11 @@ function EmailRow({
         <MailIcon name="archive" /> <span>Archive</span>
       </motion.div>
       <motion.div
-        className="mail-pin-reveal absolute inset-y-0 left-0 flex items-center gap-2 pl-4 text-amber-400 bg-amber-500/20 border-r border-amber-500/30 font-semibold text-xs"
+        className="mail-pin-reveal absolute inset-y-0 left-0 flex items-center gap-2 pl-4 text-[#FF8C42] bg-[#FF8C42]/20 border-r border-[#FF8C42]/30 font-semibold text-xs"
         style={{ opacity: pinOpacity }}
         aria-hidden="true"
       >
-        <MailIcon name="pin" className="size-4 text-amber-400" /> <span>Pin</span>
+        <MailIcon name="pin" className="size-4 text-[#FF8C42]" /> <span>Pin</span>
       </motion.div>
       <motion.article
         style={{ x }}
@@ -437,11 +437,11 @@ function EmailRow({
         <div className="mail-row-copy">
           <div className="mail-row-meta">
             <div className="flex items-center gap-1.5 min-w-0">
-              <strong className="truncate text-zinc-100 font-semibold">
+              <strong className="truncate text-[#F5F5F5] font-semibold">
                 {thread.sendersSummary}
               </strong>
               {thread.count > 1 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-zinc-800 text-[10px] font-mono text-zinc-400 shrink-0">
+                <span className="px-1.5 py-0.2 rounded-full bg-[#282C35] text-[10px] font-mono text-[#A1A4AC] shrink-0">
                   {thread.count}
                 </span>
               )}
@@ -456,10 +456,10 @@ function EmailRow({
             )}
             <time>{formatReceivedAt(thread.receivedAt)}</time>
           </div>
-          <h3 className="text-xs sm:text-sm font-medium text-zinc-300 truncate">
+          <h3 className="text-xs sm:text-sm font-medium text-[#A1A4AC] truncate">
             {sanitizeSnippetText(thread.subject) || '(no subject)'}
           </h3>
-          <p className="text-xs text-zinc-400 truncate">
+          <p className="text-xs text-[#A1A4AC] truncate">
             {sanitizeSnippetText(email.snippet || email.bodyText)}
           </p>
         </div>
@@ -491,8 +491,8 @@ function EmailRow({
             type="button"
             className={`p-1.5 rounded-xl transition-all ${
               email.isStarred
-                ? 'text-amber-400 fill-amber-400 bg-amber-500/15'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
+                ? 'text-[#FF8C42] fill-[#FF8C42] bg-[#FF8C42]/15'
+                : 'text-[#6B6E76] hover:text-[#A1A4AC] hover:bg-[#282C35]/60'
             }`}
             onClick={onToggleStar}
             aria-label={email.isStarred ? 'Unpin email' : 'Pin email'}
@@ -661,13 +661,13 @@ function CreateGroupModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
       <div
-        className="w-full max-w-md bg-[#121622] border border-zinc-700/80 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4"
+        className="w-full max-w-md bg-[#121622] border border-[#3A404D]/80 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4"
         role="dialog"
         aria-modal="true"
       >
-        <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+        <div className="flex items-center justify-between border-b border-[#282C35] pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="size-9 rounded-xl bg-[#FF7A00]/20 border border-[#FF7A00]/40 flex items-center justify-center text-[#FF7A00]">
+            <div className="size-9 rounded-xl bg-[#FF8C42]/20 border border-[#FF8C42]/40 flex items-center justify-center text-[#FF8C42]">
               <svg
                 className="size-5"
                 viewBox="0 0 24 24"
@@ -683,13 +683,13 @@ function CreateGroupModal({
             </div>
             <div>
               <h2 className="text-base font-bold text-white">Create New Group</h2>
-              <p className="text-xs text-zinc-400">Group mailing list & shared conversation</p>
+              <p className="text-xs text-[#A1A4AC]">Group mailing list & shared conversation</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="size-8 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 flex items-center justify-center transition-colors"
+            className="size-8 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] flex items-center justify-center transition-colors"
           >
             <MailIcon name="close" className="size-4" />
           </button>
@@ -697,8 +697,8 @@ function CreateGroupModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-              Group Name <span className="text-[#FF7A00]">*</span>
+            <label className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
+              Group Name <span className="text-[#FF8C42]">*</span>
             </label>
             <input
               type="text"
@@ -708,14 +708,14 @@ function CreateGroupModal({
                 setGroupName(e.target.value);
                 if (error) setError('');
               }}
-              className="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[#FF7A00]"
+              className="w-full bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
               autoFocus
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-              Add Members (Emails) <span className="text-[#FF7A00]">*</span>
+            <label className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
+              Add Members (Emails) <span className="text-[#FF8C42]">*</span>
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -727,12 +727,12 @@ function CreateGroupModal({
                   if (error) setError('');
                 }}
                 onKeyDown={handleKeyDown}
-                className="flex-1 bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-[#FF7A00]"
+                className="flex-1 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
               />
               <button
                 type="button"
                 onClick={handleAddMember}
-                className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-white transition-colors shrink-0"
+                className="px-3.5 py-2 rounded-xl bg-[#282C35] hover:bg-[#3A404D] text-xs font-semibold text-white transition-colors shrink-0"
               >
                 + Add
               </button>
@@ -742,13 +742,13 @@ function CreateGroupModal({
                 {members.map((email) => (
                   <span
                     key={email}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800/90 border border-zinc-700 text-xs text-zinc-200"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#282C35]/90 border border-[#3A404D] text-xs text-[#F5F5F5]"
                   >
                     <span>{email}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveMember(email)}
-                      className="text-zinc-400 hover:text-rose-400 ml-0.5 font-bold"
+                      className="text-[#A1A4AC] hover:text-rose-400 ml-0.5 font-bold"
                     >
                       ×
                     </button>
@@ -760,7 +760,7 @@ function CreateGroupModal({
 
           {error && <p className="text-xs text-rose-400 font-medium">{error}</p>}
 
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-800">
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#282C35]">
             <button
               type="button"
               onClick={onClose}
@@ -845,8 +845,11 @@ export default function InboxPage() {
   // The scroll container is needed as state by the virtualizer (so it re-measures
   // the moment the list mounts behind the loading state) and as a ref by the
   // pull-to-refresh touch handler, which reads `scrollTop` synchronously.
-  const { element: listElement, ref: listRef, elementRef: listElementRef } =
-    useScrollElement<HTMLDivElement>();
+  const {
+    element: listElement,
+    ref: listRef,
+    elementRef: listElementRef,
+  } = useScrollElement<HTMLDivElement>();
   const { data: allEmails, isLoading, error, refetch } = useInbox({ folderType: 'INBOX' });
   const { data: archivedEmails } = useInbox({ folderType: 'ARCHIVE' });
   const { data: searchResults, isLoading: isSearching } = useSearchEmails(
@@ -958,9 +961,10 @@ export default function InboxPage() {
     return () => observer.disconnect();
   }, []);
 
-  const threadKey = useCallback((index: number) => displayThreads[index]?.id ?? index, [
-    displayThreads,
-  ]);
+  const threadKey = useCallback(
+    (index: number) => displayThreads[index]?.id ?? index,
+    [displayThreads],
+  );
 
   /**
    * True when the windowed list owns the scroll area. The loading, error and empty
@@ -1166,7 +1170,9 @@ export default function InboxPage() {
   const batchMarkRead = useCallback(
     async (ids: string[], read: boolean) => {
       setSelectedIds(new Set());
-      await Promise.all(ids.map((id) => (read ? mutations.markRead(id) : mutations.markUnread(id))));
+      await Promise.all(
+        ids.map((id) => (read ? mutations.markRead(id) : mutations.markUnread(id))),
+      );
       showToast({
         text: `${ids.length} marked as ${read ? 'read' : 'unread'}`,
         type: 'info',
@@ -1245,13 +1251,13 @@ export default function InboxPage() {
   });
 
   const selectionHeader = (
-    <header className="flex min-h-14 flex-none items-center justify-between gap-3 border-b border-zinc-800 bg-[#121622] px-3 sm:px-5 shadow-xl select-none sticky top-0 z-50">
+    <header className="flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[#282C35] bg-[#121622] px-3 sm:px-5 shadow-xl select-none sticky top-0 z-50">
       {/* Left: Close/Deselect button & Count */}
       <div className="flex items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={() => setSelectedIds(new Set())}
-          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all active:scale-95"
+          className="size-9 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all active:scale-95"
           title="Deselect all (Esc)"
           aria-label="Deselect all"
         >
@@ -1278,7 +1284,7 @@ export default function InboxPage() {
               const allVisibleIds = new Set(displayThreads.map((t) => t.id));
               setSelectedIds(allVisibleIds);
             }}
-            className="ml-2 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-[#FF7A00] transition-colors"
+            className="ml-2 px-2.5 py-1 rounded-lg bg-[#282C35] hover:bg-[#3A404D] text-xs font-semibold text-[#FF8C42] transition-colors"
           >
             Select all {displayThreads.length}
           </button>
@@ -1302,8 +1308,8 @@ export default function InboxPage() {
               onClick={() => void batchToggleStar(Array.from(selectedIds), Boolean(allPinned))}
               className={`size-9 inline-flex items-center justify-center rounded-xl transition-all active:scale-95 ${
                 allPinned
-                  ? 'text-amber-400 bg-amber-500/20 hover:bg-amber-500/30'
-                  : 'text-zinc-300 hover:text-amber-400 hover:bg-zinc-800'
+                  ? 'text-[#FF8C42] bg-[#FF8C42]/20 hover:bg-[#FF8C42]/30'
+                  : 'text-[#A1A4AC] hover:text-[#FF8C42] hover:bg-[#282C35]'
               }`}
               title={allPinned ? 'Unpin selected (S)' : 'Pin selected (S)'}
               aria-label={allPinned ? 'Unpin selected' : 'Pin selected'}
@@ -1326,7 +1332,7 @@ export default function InboxPage() {
         <button
           type="button"
           onClick={() => void batchMarkRead(Array.from(selectedIds), false)}
-          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-amber-300 hover:bg-zinc-800 transition-all active:scale-95"
+          className="size-9 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-[#FFB875] hover:bg-[#282C35] transition-all active:scale-95"
           title="Mark as unread (U)"
         >
           <svg
@@ -1338,7 +1344,7 @@ export default function InboxPage() {
           >
             <rect x="3" y="5" width="18" height="14" rx="2" />
             <path d="m3 7 9 6 9-6" />
-            <circle cx="18" cy="6" r="2.5" fill="#FF7A00" stroke="none" />
+            <circle cx="18" cy="6" r="2.5" fill="#FF8C42" stroke="none" />
           </svg>
         </button>
 
@@ -1346,7 +1352,7 @@ export default function InboxPage() {
         <button
           type="button"
           onClick={() => void batchMarkRead(Array.from(selectedIds), true)}
-          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-sky-400 hover:bg-zinc-800 transition-all active:scale-95"
+          className="size-9 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-sky-400 hover:bg-[#282C35] transition-all active:scale-95"
           title="Mark as read"
         >
           <MailIcon name="mail" className="size-5" />
@@ -1356,7 +1362,7 @@ export default function InboxPage() {
         <button
           type="button"
           onClick={() => void batchAction('delete')}
-          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-rose-400 hover:bg-zinc-800 transition-all active:scale-95"
+          className="size-9 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-rose-400 hover:bg-[#282C35] transition-all active:scale-95"
           title="Move to Trash (#)"
         >
           <MailIcon name="trash" className="size-5" />
@@ -1366,7 +1372,7 @@ export default function InboxPage() {
         <button
           type="button"
           onClick={() => void batchAction('archive')}
-          className="size-9 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-emerald-400 hover:bg-zinc-800 transition-all active:scale-95"
+          className="size-9 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-emerald-400 hover:bg-[#282C35] transition-all active:scale-95"
           title="Archive (E)"
         >
           <MailIcon name="archive" className="size-5" />
@@ -1393,8 +1399,8 @@ export default function InboxPage() {
             type="button"
             className={`md:hidden inline-flex size-9 items-center justify-center rounded-lg transition-colors ${
               isSearchOpen
-                ? 'bg-zinc-800 text-[#FF7A00]'
-                : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
+                ? 'bg-[#282C35] text-[#FF8C42]'
+                : 'text-[#A1A4AC] hover:text-white hover:bg-[#282C35]'
             }`}
             onClick={() => setIsSearchOpen((prev) => !prev)}
             aria-label="Search messages"
@@ -1404,7 +1410,7 @@ export default function InboxPage() {
           <button
             type="button"
             onClick={() => setIsGlobalQuantyOpen(true)}
-            className="inline-flex size-9 items-center justify-center rounded-lg text-amber-400 hover:bg-zinc-800 transition-colors"
+            className="inline-flex size-9 items-center justify-center rounded-lg text-[#FF8C42] hover:bg-[#282C35] transition-colors"
             aria-label="Ask Quanty AI"
           >
             <Quanty size={24} expression="happy" bob={false} />
@@ -1449,10 +1455,10 @@ export default function InboxPage() {
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.18 }}
-                className="md:hidden overflow-hidden border-b border-zinc-800/80 bg-zinc-950 px-3 sm:px-4 py-2.5 flex items-center gap-2"
+                className="md:hidden overflow-hidden border-b border-[#282C35]/80 bg-[#090A0C] px-3 sm:px-4 py-2.5 flex items-center gap-2"
               >
-                <div className="flex-1 flex items-center gap-2 bg-zinc-900/90 border border-zinc-700/80 rounded-xl px-3 py-1.5 shadow-inner">
-                  <MailIcon name="search" className="size-4 text-zinc-400 shrink-0" />
+                <div className="flex-1 flex items-center gap-2 bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 py-1.5 shadow-inner">
+                  <MailIcon name="search" className="size-4 text-[#A1A4AC] shrink-0" />
                   <input
                     id="mobile-search-input"
                     name="search"
@@ -1460,14 +1466,14 @@ export default function InboxPage() {
                     placeholder="Search messages, contacts, keywords…"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    className="w-full bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                    className="w-full bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
                     autoFocus
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
-                      className="text-zinc-400 hover:text-white"
+                      className="text-[#A1A4AC] hover:text-white"
                       title="Clear search"
                     >
                       <MailIcon name="close" className="size-3.5" />
@@ -1480,7 +1486,7 @@ export default function InboxPage() {
                     setIsSearchOpen(false);
                     setSearchQuery('');
                   }}
-                  className="text-xs text-zinc-400 hover:text-white font-medium px-2 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
+                  className="text-xs text-[#A1A4AC] hover:text-white font-medium px-2 py-1.5 rounded-lg hover:bg-[#282C35] transition-colors"
                 >
                   Cancel
                 </button>
@@ -1532,10 +1538,10 @@ export default function InboxPage() {
                 animate={{ height: pullDistance > 0 ? pullDistance : 42, opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.18 }}
-                className="overflow-hidden flex items-center justify-center gap-2.5 text-xs font-semibold text-amber-400 bg-amber-500/10 border-b border-amber-500/20 py-2 select-none"
+                className="overflow-hidden flex items-center justify-center gap-2.5 text-xs font-semibold text-[#FF8C42] bg-[#FF8C42]/10 border-b border-[#FF8C42]/20 py-2 select-none"
               >
                 <div
-                  className={`size-4 rounded-full border-2 border-amber-400 border-t-transparent ${
+                  className={`size-4 rounded-full border-2 border-[#FF8C42] border-t-transparent ${
                     isRefreshing ? 'animate-spin' : ''
                   }`}
                   style={{
@@ -1634,7 +1640,7 @@ export default function InboxPage() {
                     </svg>
                   </div>
                   <h3 className="text-base font-bold text-white">No group conversations yet</h3>
-                  <p className="text-xs text-zinc-400 max-w-xs mx-auto">
+                  <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
                     Create a group to start a shared multi-recipient thread or mailing list.
                   </p>
                   <div className="pt-2 flex justify-center">
@@ -1657,7 +1663,7 @@ export default function InboxPage() {
                     </svg>
                   </div>
                   <h3 className="text-base font-bold text-white">All caught up!</h3>
-                  <p className="text-xs text-zinc-400">Zero unread messages in your inbox.</p>
+                  <p className="text-xs text-[#A1A4AC]">Zero unread messages in your inbox.</p>
                 </div>
               ) : activeCategoryTab !== 'all' ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-2">
@@ -1676,7 +1682,7 @@ export default function InboxPage() {
                   <h3 className="text-base font-bold text-white">
                     No {activeCategoryTab} messages
                   </h3>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-[#A1A4AC]">
                     Emails categorized as {activeCategoryTab} will appear here.
                   </p>
                 </div>

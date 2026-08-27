@@ -24,7 +24,7 @@ import { keyboardEngine, type ShortcutHandler } from './engine';
 export const COMMAND_GROUPS = [
   'Suggested',
   'Navigation',
-  'Mail actions',
+  'Conversation',
   'Compose',
   'Selection',
   'AI',

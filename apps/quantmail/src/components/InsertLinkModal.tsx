@@ -50,12 +50,12 @@ export function InsertLinkModal({
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative z-10 w-full max-w-md rounded-2xl border border-zinc-800 bg-[#121622] p-5 shadow-2xl space-y-4"
+          className="relative z-10 w-full max-w-md rounded-2xl border border-[#282C35] bg-[#121622] p-5 shadow-2xl space-y-4"
         >
-          <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+          <div className="flex items-center justify-between border-b border-[#282C35]/80 pb-3">
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               <svg
-                className="size-4 text-amber-400"
+                className="size-4 text-[#FF8C42]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -69,7 +69,7 @@ export function InsertLinkModal({
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 text-xs"
+              className="p-1 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] text-xs"
             >
               ✕
             </button>
@@ -77,7 +77,7 @@ export function InsertLinkModal({
 
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1">
+              <label className="block text-xs font-medium text-[#A1A4AC] mb-1">
                 Text to display
               </label>
               <input
@@ -85,12 +85,12 @@ export function InsertLinkModal({
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="e.g. Project Deliverables Document"
-                className="w-full rounded-xl bg-zinc-900/90 border border-zinc-800 px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/50"
+                className="w-full rounded-xl bg-[#111318]/90 border border-[#282C35] px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]/50"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1">
+              <label className="block text-xs font-medium text-[#A1A4AC] mb-1">
                 Web address (URL) <span className="text-rose-500">*</span>
               </label>
               <input
@@ -99,15 +99,15 @@ export function InsertLinkModal({
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com or mailto:user@domain.com"
                 required
-                className="w-full rounded-xl bg-zinc-900/90 border border-zinc-800 px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/50"
+                className="w-full rounded-xl bg-[#111318]/90 border border-[#282C35] px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]/50"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800/80">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#282C35]/80">
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
               >
                 Cancel
               </button>

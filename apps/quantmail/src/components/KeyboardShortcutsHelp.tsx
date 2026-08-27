@@ -6,8 +6,15 @@
  * Generated from the command registry rather than a hand-written table, so it can
  * no longer claim a key that does nothing — the previous version documented
  * `Z` for undo and `⌘S` for save draft, neither of which was bound anywhere. Only
- * commands that are actually registered and currently active are listed, and each
- * binding is rendered from the same string the engine matches against.
+ * commands that are actually registered are listed, and each binding is rendered
+ * from the same string the engine matches against.
+ *
+ * Commands whose `enabled()` guard is currently false are listed but dimmed. They
+ * used to be filtered out, which is why the sheet showed ten navigation keys
+ * beside a single compose key: every conversation action (`e`, `s`, `u`, `#`,
+ * `r`, `f`, `x`) is gated on a focused row, so opening the sheet from a fresh
+ * inbox erased the entire section. A shortcuts *reference* should answer "what
+ * keys exist here", not "what can I press this exact millisecond".
  */
 
 import { AnimatePresence, motion } from 'framer-motion';
@@ -15,9 +22,15 @@ import { useMemo } from 'react';
 import { chordToLabelParts, parseSequence } from '../lib/keyboard/chords';
 import { COMMAND_GROUPS, type Command } from '../lib/keyboard/command-registry';
 import { useCommandList, useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
+import { IconX } from './icons';
 import { useKeyboardSurfaces } from './KeyboardProvider';
 
 const SCOPE = 'shortcuts-help';
+
+interface HelpEntry {
+  command: Command;
+  available: boolean;
+}
 
 export function KeyboardShortcutsHelp() {
   const { isHelpOpen, closeHelp } = useKeyboardSurfaces();
@@ -27,19 +40,29 @@ export function KeyboardShortcutsHelp() {
   useShortcut(['escape', '?'], closeHelp, { scope: SCOPE, disabled: !isHelpOpen });
 
   const groups = useMemo(() => {
-    const byGroup = new Map<string, Command[]>();
+    const byGroup = new Map<string, HelpEntry[]>();
     for (const command of commands) {
       if (!command.keys || command.hiddenInHelp) continue;
-      if (command.enabled && !command.enabled()) continue;
+      const entry: HelpEntry = {
+        command,
+        available: !command.enabled || command.enabled(),
+      };
       const existing = byGroup.get(command.group);
-      if (existing) existing.push(command);
-      else byGroup.set(command.group, [command]);
+      if (existing) existing.push(entry);
+      else byGroup.set(command.group, [entry]);
+    }
+    // Available bindings first within a section, so the dimmed contextual ones
+    // collect at the bottom instead of interleaving with what works right now.
+    for (const entries of byGroup.values()) {
+      entries.sort((a, b) => Number(b.available) - Number(a.available));
     }
     return COMMAND_GROUPS.filter((group) => byGroup.has(group)).map((group) => ({
       group,
       items: byGroup.get(group)!,
     }));
   }, [commands]);
+
+  const hasContextual = groups.some(({ items }) => items.some((item) => !item.available));
 
   return (
     <AnimatePresence>
@@ -71,18 +94,7 @@ export function KeyboardShortcutsHelp() {
                 aria-label="Close keyboard shortcuts"
                 className="grid h-11 w-11 place-items-center rounded-lg text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
-                <svg
-                  className="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
+                <IconX size={16} strokeWidth={1.8} />
               </button>
             </header>
 
@@ -91,8 +103,8 @@ export function KeyboardShortcutsHelp() {
                 <section key={group}>
                   <h3>{group}</h3>
                   <ul>
-                    {items.map((command) => (
-                      <li key={command.id}>
+                    {items.map(({ command, available }) => (
+                      <li key={command.id} className={available ? undefined : 'is-unavailable'}>
                         <span className="shortcut-desc">{command.label}</span>
                         <span className="shortcut-keys">
                           <BindingKeys keys={command.keys!} />
@@ -107,6 +119,7 @@ export function KeyboardShortcutsHelp() {
             <footer className="shortcuts-footer">
               <span>
                 Press <kbd>?</kbd> to toggle this panel · <kbd>Esc</kbd> to close
+                {hasContextual && ' · dimmed keys need a focused conversation'}
               </span>
             </footer>
           </motion.div>

@@ -131,7 +131,7 @@ export function Interactive3DLogo({
       // ----------------------------------------------------
       const glowGrad = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r * 1.4);
       const glowAlpha = isHovered ? 0.35 : 0.18 + Math.sin(t * 2) * 0.05;
-      glowGrad.addColorStop(0, `rgba(255, 122, 0, ${glowAlpha})`);
+      glowGrad.addColorStop(0, `rgba(255, 140, 66, ${glowAlpha})`);
       glowGrad.addColorStop(0.6, `rgba(255, 85, 0, ${glowAlpha * 0.4})`);
       glowGrad.addColorStop(1, 'rgba(255, 85, 0, 0)');
 
@@ -162,7 +162,7 @@ export function Interactive3DLogo({
       // Chamfered 3D Bevel Border with Fresnel Glow
       const borderGrad = ctx.createLinearGradient(-tileHalf, -tileHalf, tileHalf, tileHalf);
       borderGrad.addColorStop(0, 'rgba(255, 170, 51, 0.7)');
-      borderGrad.addColorStop(0.4, 'rgba(255, 122, 0, 0.35)');
+      borderGrad.addColorStop(0.4, 'rgba(255, 140, 66, 0.35)');
       borderGrad.addColorStop(0.8, 'rgba(50, 55, 70, 0.5)');
       borderGrad.addColorStop(1, 'rgba(255, 140, 0, 0.6)');
 
@@ -190,7 +190,7 @@ export function Interactive3DLogo({
         ctx.fillStyle = 'rgba(15, 16, 20, 0.85)';
         ctx.fill();
         ctx.lineWidth = 1.4;
-        ctx.strokeStyle = 'rgba(255, 122, 0, 0.85)';
+        ctx.strokeStyle = 'rgba(255, 140, 66, 0.85)';
         ctx.stroke();
 
         // 3D Laser Envelope Flap (V-Shape with Pulse)
@@ -242,17 +242,17 @@ export function Interactive3DLogo({
         ctx.fillStyle = 'rgba(15, 16, 20, 0.85)';
         ctx.fill();
         ctx.lineWidth = 1.4;
-        ctx.strokeStyle = 'rgba(255, 122, 0, 0.85)';
+        ctx.strokeStyle = 'rgba(255, 140, 66, 0.85)';
         ctx.stroke();
 
         // Calendar Header Strip
         ctx.beginPath();
         ctx.roundRect(cx0, cy0, cw, 4.5, [2.5, 2.5, 0, 0]);
-        ctx.fillStyle = 'rgba(255, 122, 0, 0.35)';
+        ctx.fillStyle = 'rgba(255, 140, 66, 0.35)';
         ctx.fill();
 
         // Binding Rings
-        ctx.fillStyle = '#FFAA33';
+        ctx.fillStyle = '#FF8C42';
         ctx.beginPath();
         ctx.arc(cx0 + 4.5, cy0 + 1, 1.2, 0, Math.PI * 2);
         ctx.arc(cx0 + cw - 4.5, cy0 + 1, 1.2, 0, Math.PI * 2);
@@ -288,7 +288,7 @@ export function Interactive3DLogo({
         ctx.fillStyle = 'rgba(15, 16, 20, 0.85)';
         ctx.fill();
         ctx.lineWidth = 1.4;
-        ctx.strokeStyle = 'rgba(255, 122, 0, 0.85)';
+        ctx.strokeStyle = 'rgba(255, 140, 66, 0.85)';
         ctx.stroke();
 
         // Glowing Vault Keyline
@@ -326,8 +326,8 @@ export function Interactive3DLogo({
         ctx.font = 'bold 12px monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#FF9933';
-        ctx.shadowColor = 'rgba(255, 122, 0, 0.8)';
+        ctx.fillStyle = '#FF8C42';
+        ctx.shadowColor = 'rgba(255, 140, 66, 0.8)';
         ctx.shadowBlur = 6;
         ctx.fillText('< / >', 0, 0.5);
         ctx.shadowBlur = 0;
@@ -397,7 +397,7 @@ export function Interactive3DLogo({
         <canvas
           ref={canvasRef}
           style={{ width: size, height: size }}
-          className="block pointer-events-none drop-shadow-[0_4px_16px_rgba(255,122,0,0.35)]"
+          className="block pointer-events-none drop-shadow-[0_4px_16px_rgba(255,140,66,0.35)]"
         />
 
         {/* Pulse Ripple Burst on Tap / Click */}
@@ -409,7 +409,7 @@ export function Interactive3DLogo({
               animate={{ scale: 1.8, opacity: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
-              className="absolute inset-0 rounded-2xl border-2 border-[#FF7A00] pointer-events-none"
+              className="absolute inset-0 rounded-2xl border-2 border-[#FF8C42] pointer-events-none"
             />
           )}
         </AnimatePresence>
@@ -427,7 +427,7 @@ export function Interactive3DLogo({
               className="relative flex items-center justify-center"
             >
               {/* Outer Energy Pulse Ring */}
-              <span className="absolute size-4.5 rounded-full bg-[#FF7A00] opacity-40 animate-ping" />
+              <span className="absolute size-4.5 rounded-full bg-[#FF8C42] opacity-40 animate-ping" />
 
               {/* Clean Badge */}
               <span className="relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[9.5px] font-bold text-[#111111] bg-[#FF8C42] rounded-full border border-[#090A0C] shadow-sm">

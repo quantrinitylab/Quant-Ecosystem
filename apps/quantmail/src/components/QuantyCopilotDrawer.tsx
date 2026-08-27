@@ -597,11 +597,11 @@ export function QuantyCopilotDrawer({
                     <div className="shrink-0">
                       <Quanty size={22} expression="thinking" bob={false} />
                     </div>
-                    <div className="px-3.5 py-2 rounded-2xl bg-[#181c26] border border-amber-500/20 text-xs text-amber-400 flex items-center gap-1.5">
-                      <span className="size-1.5 rounded-full bg-[#FF7A00] animate-bounce" />
-                      <span className="size-1.5 rounded-full bg-[#FF7A00] animate-bounce [animation-delay:0.15s]" />
-                      <span className="size-1.5 rounded-full bg-[#FF7A00] animate-bounce [animation-delay:0.3s]" />
-                      <span className="ml-1 text-[11px] text-zinc-400">Quanty is thinking…</span>
+                    <div className="px-3.5 py-2 rounded-2xl bg-[#181c26] border border-[#FF8C42]/20 text-xs text-[#FF8C42] flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-[#FF8C42] animate-bounce" />
+                      <span className="size-1.5 rounded-full bg-[#FF8C42] animate-bounce [animation-delay:0.15s]" />
+                      <span className="size-1.5 rounded-full bg-[#FF8C42] animate-bounce [animation-delay:0.3s]" />
+                      <span className="ml-1 text-[11px] text-[#A1A4AC]">Quanty is thinking…</span>
                     </div>
                   </div>
                 )}
@@ -623,13 +623,13 @@ export function QuantyCopilotDrawer({
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   placeholder="Enter a prompt here"
-                  className="w-full rounded-full border border-zinc-700/80 bg-[#1a1f2c] pl-4 pr-11 py-3 text-xs sm:text-[13px] text-white placeholder-zinc-400 focus:outline-none focus:border-[#FF7A00] focus:ring-1 focus:ring-[#FF7A00]/40 transition-all shadow-inner font-sans"
+                  className="w-full rounded-full border border-[#3A404D]/80 bg-[#1a1f2c] pl-4 pr-11 py-3 text-xs sm:text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42]/40 transition-all shadow-inner font-sans"
                 />
 
                 <button
                   type="submit"
                   disabled={!inputValue.trim() || isLoading}
-                  className="absolute right-2 p-1.5 rounded-full text-amber-400 hover:text-amber-300 disabled:opacity-30 transition-all active:scale-95"
+                  className="absolute right-2 p-1.5 rounded-full text-[#FF8C42] hover:text-[#FFB875] disabled:opacity-30 transition-all active:scale-95"
                   title="Send"
                 >
                   <svg
@@ -645,7 +645,7 @@ export function QuantyCopilotDrawer({
               </form>
 
               <div className="pt-2 text-center">
-                <span className="text-[10px] text-zinc-500 font-sans tracking-wide">
+                <span className="text-[10px] text-[#6B6E76] font-sans tracking-wide">
                   Quanty can make mistakes.
                 </span>
               </div>

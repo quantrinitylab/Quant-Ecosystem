@@ -97,7 +97,7 @@ const TABS: Array<{ key: SettingsTab; label: string }> = [
 ];
 
 const ACCENT_COLORS = [
-  { name: 'Bharat Saffron', hex: '#ff9933' },
+  { name: 'Bharat Saffron', hex: '#FF8C42' },
   { name: 'Quantum Blue', hex: '#3b82f6' },
   { name: 'Emerald Vault', hex: '#10b981' },
   { name: 'Nebula Purple', hex: '#8b5cf6' },
@@ -134,7 +134,7 @@ export default function SettingsPage() {
     'loading' | 'idle' | 'saving' | 'saved' | 'error'
   >('loading');
   const [theme, setTheme] = useState<Theme>('dark');
-  const [accentColor, setAccentColor] = useState('#ff9933');
+  const [accentColor, setAccentColor] = useState('#FF8C42');
   const [density, setDensity] = useState<Density>('comfortable');
   const [undoSendDelay, setUndoSendDelay] = useState('5');
   const [defaultReplyAll, setDefaultReplyAll] = useState(false);
@@ -158,7 +158,7 @@ export default function SettingsPage() {
     try {
       setTheme((localStorage.getItem('quant-theme') as Theme) || 'dark');
       setDensity((localStorage.getItem('quant-density') as Density) || 'comfortable');
-      setAccentColor(localStorage.getItem('quant-accent') || '#ff9933');
+      setAccentColor(localStorage.getItem('quant-accent') || '#FF8C42');
       setUndoSendDelay(localStorage.getItem('quant-undo-delay') || '5');
       const savedModel = localStorage.getItem('quant-ai-model-mode');
       if (savedModel) setSelectedAIModel(savedModel);
@@ -296,9 +296,9 @@ export default function SettingsPage() {
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page settings-workspace flex h-full flex-col overflow-hidden bg-[#0a0d14]">
         {/* Sleek Settings Header */}
-        <header className="shrink-0 px-4 sm:px-6 pt-5 pb-3 border-b border-zinc-800/80 bg-[#0d1017]/95">
+        <header className="shrink-0 px-4 sm:px-6 pt-5 pb-3 border-b border-[#282C35]/80 bg-[#0d1017]/95">
           <div className="flex items-center gap-3">
-            <div className="size-10 rounded-2xl bg-gradient-to-br from-[#FF7A00]/20 to-orange-600/20 border border-[#FF7A00]/40 flex items-center justify-center text-[#FF7A00] shadow-lg shadow-orange-500/10">
+            <div className="size-10 rounded-2xl bg-gradient-to-br from-[#FF8C42]/20 to-[#E8752F]/20 border border-[#FF8C42]/40 flex items-center justify-center text-[#FF8C42] shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
               <svg
                 className="size-5"
                 viewBox="0 0 24 24"
@@ -314,7 +314,7 @@ export default function SettingsPage() {
               <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">
                 Settings & Preferences
               </h1>
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-[#A1A4AC]">
                 Manage profile, AI model router, security keys, and workspace preferences.
               </p>
             </div>
@@ -401,10 +401,10 @@ export default function SettingsPage() {
 
               <PhoneVerificationCard />
 
-              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-zinc-800 pb-3">
+              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-[#282C35] pb-3">
                   <h2 className="text-sm font-bold text-white">Email Signature</h2>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-[#A1A4AC]">
                     Automatically attached to all outgoing emails.
                   </p>
                 </div>
@@ -417,11 +417,11 @@ export default function SettingsPage() {
                   />
                 </FormField>
                 {signature.trim() && (
-                  <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 text-xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 block mb-1">
+                  <div className="p-3 rounded-xl bg-[#090A0C] border border-[#282C35] text-xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6E76] block mb-1">
                       Live Preview
                     </span>
-                    <div className="text-zinc-300 whitespace-pre-wrap">{signature}</div>
+                    <div className="text-[#A1A4AC] whitespace-pre-wrap">{signature}</div>
                   </div>
                 )}
                 <div className="flex items-center gap-3 pt-1">
@@ -435,16 +435,16 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-zinc-800 pb-3">
+              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-[#282C35] pb-3">
                   <h2 className="text-sm font-bold text-white">Composer & Delivery Rules</h2>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-[#A1A4AC]">
                     Fine-tune sending delays and thread behaviors.
                   </p>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                    <label className="block text-xs font-semibold text-[#A1A4AC] mb-1">
                       Undo Send Delay
                     </label>
                     <select
@@ -457,7 +457,7 @@ export default function SettingsPage() {
                           type: 'info',
                         });
                       }}
-                      className="h-9 w-full rounded-xl border border-zinc-700/80 bg-zinc-900 px-3 text-xs text-white focus:outline-none focus:border-[#FF7A00]"
+                      className="h-9 w-full rounded-xl border border-[#3A404D]/80 bg-[#111318] px-3 text-xs text-white focus:outline-none focus:border-[#FF8C42]"
                     >
                       <option value="5">5 seconds</option>
                       <option value="10">10 seconds</option>
@@ -466,7 +466,7 @@ export default function SettingsPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                    <label className="block text-xs font-semibold text-[#A1A4AC] mb-1">
                       Default Reply Action
                     </label>
                     <select
@@ -475,34 +475,34 @@ export default function SettingsPage() {
                         setDefaultReplyAll(e.target.value === 'all');
                         showToast({ text: 'Updated default reply behavior', type: 'info' });
                       }}
-                      className="h-9 w-full rounded-xl border border-zinc-700/80 bg-zinc-900 px-3 text-xs text-white focus:outline-none focus:border-[#FF7A00]"
+                      className="h-9 w-full rounded-xl border border-[#3A404D]/80 bg-[#111318] px-3 text-xs text-white focus:outline-none focus:border-[#FF8C42]"
                     >
                       <option value="single">Reply (Direct Sender)</option>
                       <option value="all">Reply All (All Recipients)</option>
                     </select>
                   </div>
                 </div>
-                <div className="space-y-2 pt-2 border-t border-zinc-800">
+                <div className="space-y-2 pt-2 border-t border-[#282C35]">
                   <label className="flex items-center justify-between py-1 cursor-pointer">
-                    <span className="text-xs text-zinc-300 font-medium">
+                    <span className="text-xs text-[#A1A4AC] font-medium">
                       Conversation Threading
                     </span>
                     <input
                       type="checkbox"
                       checked={conversationView}
                       onChange={(e) => setConversationView(e.target.checked)}
-                      className="accent-[#FF7A00] rounded cursor-pointer"
+                      className="accent-[#FF8C42] rounded cursor-pointer"
                     />
                   </label>
                   <label className="flex items-center justify-between py-1 cursor-pointer">
-                    <span className="text-xs text-zinc-300 font-medium">
+                    <span className="text-xs text-[#A1A4AC] font-medium">
                       Automatic Read Receipts
                     </span>
                     <input
                       type="checkbox"
                       checked={readReceipts}
                       onChange={(e) => setReadReceipts(e.target.checked)}
-                      className="accent-[#FF7A00] rounded cursor-pointer"
+                      className="accent-[#FF8C42] rounded cursor-pointer"
                     />
                   </label>
                 </div>
@@ -588,17 +588,17 @@ export default function SettingsPage() {
                             <span
                               className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                 isSelected
-                                  ? 'bg-[#FF7A00] text-white'
-                                  : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                                  ? 'bg-[#FF8C42] text-white'
+                                  : 'bg-[#282C35] text-[#A1A4AC] border border-[#3A404D]'
                               }`}
                             >
                               {model.badge}
                             </span>
-                            <span className="text-[10px] font-mono text-zinc-500">
+                            <span className="text-[10px] font-mono text-[#6B6E76]">
                               {model.latency}
                             </span>
                           </div>
-                          <p className="text-xs text-zinc-300">{model.description}</p>
+                          <p className="text-xs text-[#A1A4AC]">{model.description}</p>
                           <div className="flex items-center gap-2 pt-0.5">
                             <span className="text-[11px] text-[#FF8C42] font-semibold">
                               Best for: {model.bestFor}
@@ -610,8 +610,8 @@ export default function SettingsPage() {
                           <div
                             className={`size-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
                               isSelected
-                                ? 'border-[#FF7A00] bg-[#FF7A00]'
-                                : 'border-zinc-600 bg-transparent'
+                                ? 'border-[#FF8C42] bg-[#FF8C42]'
+                                : 'border-[#6B6E76] bg-transparent'
                             }`}
                           >
                             {isSelected && <div className="size-2 rounded-full bg-white" />}
@@ -624,15 +624,15 @@ export default function SettingsPage() {
               </section>
 
               {/* Failover & Advanced AI Options */}
-              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
+              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
                 <h2 className="text-sm font-bold text-white">Resilience & Routing Strategy</h2>
                 <div className="space-y-3">
-                  <label className="flex items-center justify-between py-2 border-b border-zinc-800 cursor-pointer">
+                  <label className="flex items-center justify-between py-2 border-b border-[#282C35] cursor-pointer">
                     <div>
                       <strong className="block text-xs text-white font-bold">
                         Automatic Health & Latency Failover
                       </strong>
-                      <span className="text-[11px] text-zinc-400">
+                      <span className="text-[11px] text-[#A1A4AC]">
                         If the primary model latency exceeds 1.5s or fails, automatically switch to
                         backup model.
                       </span>
@@ -645,12 +645,12 @@ export default function SettingsPage() {
                         localStorage.setItem('quant-ai-failover', e.target.checked ? '1' : '0');
                         showToast({ text: 'Updated auto-failover policy', type: 'info' });
                       }}
-                      className="accent-[#FF7A00] rounded h-4 w-4 cursor-pointer"
+                      className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
                     />
                   </label>
 
                   <div className="pt-2">
-                    <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                    <label className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
                       Copilot Response Temperature
                     </label>
                     <div className="grid grid-cols-3 gap-2.5">
@@ -673,12 +673,12 @@ export default function SettingsPage() {
                           }}
                           className={`p-2.5 rounded-xl border text-left transition-colors ${
                             aiCreativity === item.key
-                              ? 'border-[#FF7A00] bg-[#FF7A00]/15 text-white'
-                              : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white'
+                              ? 'border-[#FF8C42] bg-[#FF8C42]/15 text-white'
+                              : 'border-[#282C35] bg-[#111318] text-[#A1A4AC] hover:text-white'
                           }`}
                         >
                           <span className="text-xs font-bold block">{item.label}</span>
-                          <span className="text-[10px] text-zinc-500 block">{item.desc}</span>
+                          <span className="text-[10px] text-[#6B6E76] block">{item.desc}</span>
                         </button>
                       ))}
                     </div>
@@ -701,24 +701,24 @@ export default function SettingsPage() {
                     AES-256-GCM + Ed25519
                   </span>
                 </div>
-                <p className="text-xs text-zinc-300 leading-relaxed">
+                <p className="text-xs text-[#A1A4AC] leading-relaxed">
                   Your email payloads, attachments, and private thread contents are encrypted on
                   your device before transmission. No plaintext is accessible by intermediaries.
                 </p>
               </section>
 
-              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-zinc-800 pb-3">
+              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-[#282C35] pb-3">
                   <h2 className="text-sm font-bold text-white">Session & Active Credentials</h2>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-[#A1A4AC]">
                     Security status for current logged-in identity.
                   </p>
                 </div>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#111318] border border-[#282C35]">
                     <div>
                       <p className="text-xs font-bold text-white">Browser Local Keychain</p>
-                      <p className="text-[11px] text-zinc-400">
+                      <p className="text-[11px] text-[#A1A4AC]">
                         Ed25519 Mail signing key registered
                       </p>
                     </div>
@@ -737,10 +737,10 @@ export default function SettingsPage() {
                       Active
                     </span>
                   </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#111318] border border-[#282C35]">
                     <div>
                       <p className="text-xs font-bold text-white">DKIM & SPF Authorization</p>
-                      <p className="text-[11px] text-zinc-400">
+                      <p className="text-[11px] text-[#A1A4AC]">
                         quantmail.in domain verified on AWS SES
                       </p>
                     </div>
@@ -769,19 +769,19 @@ export default function SettingsPage() {
           {/* 4. NOTIFICATIONS TAB */}
           {activeTab === 'notifications' && (
             <div className="space-y-6 animate-in fade-in duration-150">
-              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-3">
-                <div className="border-b border-zinc-800 pb-3">
+              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-3">
+                <div className="border-b border-[#282C35] pb-3">
                   <h2 className="text-sm font-bold text-white">Notification Channels</h2>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-[#A1A4AC]">
                     Manage how and when you receive incoming email and calendar alerts.
                   </p>
                 </div>
-                <label className="flex items-center justify-between py-2.5 border-b border-zinc-800 cursor-pointer">
+                <label className="flex items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
                   <div>
                     <strong className="block text-xs text-white font-bold">
                       Email Notifications
                     </strong>
-                    <span className="text-[11px] text-zinc-400">
+                    <span className="text-[11px] text-[#A1A4AC]">
                       Receive daily digest and urgent priority forwards
                     </span>
                   </div>
@@ -789,16 +789,16 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={notifications.email}
                     onChange={(e) => updateNotif('email', e.target.checked)}
-                    className="accent-[#FF7A00] rounded h-4 w-4 cursor-pointer"
+                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
                   />
                 </label>
 
-                <label className="flex items-center justify-between py-2.5 border-b border-zinc-800 cursor-pointer">
+                <label className="flex items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
                   <div>
                     <strong className="block text-xs text-white font-bold">
                       Desktop Browser Notifications
                     </strong>
-                    <span className="text-[11px] text-zinc-400">
+                    <span className="text-[11px] text-[#A1A4AC]">
                       Show instant push notifications when new emails arrive
                     </span>
                   </div>
@@ -806,14 +806,14 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={notifications.desktop}
                     onChange={(e) => updateNotif('desktop', e.target.checked)}
-                    className="accent-[#FF7A00] rounded h-4 w-4 cursor-pointer"
+                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
                   />
                 </label>
 
-                <label className="flex items-center justify-between py-2.5 border-b border-zinc-800 cursor-pointer">
+                <label className="flex items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
                   <div>
                     <strong className="block text-xs text-white font-bold">Sound Alerts</strong>
-                    <span className="text-[11px] text-zinc-400">
+                    <span className="text-[11px] text-[#A1A4AC]">
                       Play subtle haptic chime on incoming mail
                     </span>
                   </div>
@@ -821,7 +821,7 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={notifications.sound}
                     onChange={(e) => updateNotif('sound', e.target.checked)}
-                    className="accent-[#FF7A00] rounded h-4 w-4 cursor-pointer"
+                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
                   />
                 </label>
 
@@ -830,7 +830,7 @@ export default function SettingsPage() {
                     <strong className="block text-xs text-white font-bold">
                       Direct Mentions Only
                     </strong>
-                    <span className="text-[11px] text-zinc-400">
+                    <span className="text-[11px] text-[#A1A4AC]">
                       Only trigger alerts when you are in To/CC or specifically @mentioned
                     </span>
                   </div>
@@ -838,7 +838,7 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={notifications.mentionsOnly}
                     onChange={(e) => updateNotif('mentionsOnly', e.target.checked)}
-                    className="accent-[#FF7A00] rounded h-4 w-4 cursor-pointer"
+                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
                   />
                 </label>
               </section>
@@ -848,19 +848,19 @@ export default function SettingsPage() {
           {/* 5. APPEARANCE TAB */}
           {activeTab === 'appearance' && (
             <div className="space-y-6 animate-in fade-in duration-150">
-              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-zinc-800 pb-3">
+              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-[#282C35] pb-3">
                   <h2 className="text-sm font-bold text-white">Theme & Palette</h2>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-[#A1A4AC]">
                     Select your workspace aesthetic and dark mode level.
                   </p>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
-                    { key: 'dark', label: 'Obsidian OLED', bg: 'bg-[#0a0a0c]' },
+                    { key: 'dark', label: 'Obsidian OLED', bg: 'bg-[#090A0C]' },
                     { key: 'midnight', label: 'Midnight Blue', bg: 'bg-[#0f172a]' },
-                    { key: 'light', label: 'Clean White', bg: 'bg-zinc-100 text-zinc-900' },
-                    { key: 'system', label: 'System Match', bg: 'bg-zinc-900' },
+                    { key: 'light', label: 'Clean White', bg: 'bg-[#F5F5F5] text-[#111318]' },
+                    { key: 'system', label: 'System Match', bg: 'bg-[#111318]' },
                   ].map((item) => (
                     <button
                       key={item.key}
@@ -868,8 +868,8 @@ export default function SettingsPage() {
                       onClick={() => changeTheme(item.key as Theme)}
                       className={`p-3.5 rounded-2xl border text-left transition-all ${
                         theme === item.key
-                          ? 'border-[#FF7A00] ring-1 ring-[#FF7A00]'
-                          : 'border-zinc-800 hover:border-zinc-700'
+                          ? 'border-[#FF8C42] ring-1 ring-[#FF8C42]'
+                          : 'border-[#282C35] hover:border-[#3A404D]'
                       } ${item.bg}`}
                     >
                       <span className="text-xs font-bold block">{item.label}</span>
@@ -881,10 +881,10 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-zinc-800 pb-3">
+              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-[#282C35] pb-3">
                   <h2 className="text-sm font-bold text-white">Accent Highlight</h2>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-[#A1A4AC]">
                     Primary brand color across buttons and active tabs.
                   </p>
                 </div>
@@ -906,10 +906,10 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-zinc-800 pb-3">
+              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
+                <div className="border-b border-[#282C35] pb-3">
                   <h2 className="text-sm font-bold text-white">Density Spacing</h2>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-[#A1A4AC]">
                     Adjust spacing for compact or spacious layouts.
                   </p>
                 </div>
@@ -921,8 +921,8 @@ export default function SettingsPage() {
                       onClick={() => changeDensity(item)}
                       className={`px-4 py-2 rounded-xl border text-xs font-semibold capitalize transition-colors ${
                         density === item
-                          ? 'border-[#FF7A00] bg-[#FF7A00]/15 text-[#FF7A00]'
-                          : 'border-zinc-800 text-zinc-400 hover:text-white'
+                          ? 'border-[#FF8C42] bg-[#FF8C42]/15 text-[#FF8C42]'
+                          : 'border-[#282C35] text-[#A1A4AC] hover:text-white'
                       }`}
                     >
                       {item}
@@ -936,18 +936,18 @@ export default function SettingsPage() {
           {/* 6. KEYBOARD SHORTCUTS TAB */}
           {activeTab === 'keyboard' && (
             <div className="space-y-4 animate-in fade-in duration-150">
-              <section className="rounded-2xl border border-zinc-800 bg-[#121622]/90 p-5 shadow-xl">
-                <div className="border-b border-zinc-800 pb-3 mb-3">
+              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl">
+                <div className="border-b border-[#282C35] pb-3 mb-3">
                   <h2 className="text-sm font-bold text-white">Keyboard Navigation Shortcuts</h2>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs text-[#A1A4AC]">
                     High-efficiency keyboard shortcuts to fly through your inbox.
                   </p>
                 </div>
-                <div className="divide-y divide-zinc-800">
+                <div className="divide-y divide-[#282C35]">
                   {SHORTCUTS.map(([keys, action]) => (
                     <div key={keys} className="flex items-center justify-between py-2.5">
                       <span className="text-xs font-medium text-white">{action}</span>
-                      <kbd className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-[11px] text-[#FF7A00]">
+                      <kbd className="rounded-lg border border-[#3A404D] bg-[#111318] px-2 py-1 font-mono text-[11px] text-[#FF8C42]">
                         {keys}
                       </kbd>
                     </div>

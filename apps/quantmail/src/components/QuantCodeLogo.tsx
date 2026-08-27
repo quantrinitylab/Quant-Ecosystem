@@ -32,7 +32,7 @@ export function QuantCodeLogo({ size = 32, className = '', title = 'QuantCode' }
             y2="28"
             gradientUnits="userSpaceOnUse"
           >
-            <stop stopColor="#FF7A00" />
+            <stop stopColor="#FF8C42" />
             <stop offset="1" stopColor="#FFA800" />
           </linearGradient>
         </defs>

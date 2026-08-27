@@ -232,7 +232,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
     {
       id: 'inbox.archive',
       label: 'Archive conversation',
-      group: 'Mail actions',
+      group: 'Conversation',
       keys: 'e',
       scope: SCOPE,
       icon: 'archive',
@@ -248,7 +248,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
     {
       id: 'inbox.trash',
       label: 'Move conversation to trash',
-      group: 'Mail actions',
+      group: 'Conversation',
       keys: '#',
       scope: SCOPE,
       icon: 'trash',
@@ -262,7 +262,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
     {
       id: 'inbox.star',
       label: 'Star conversation',
-      group: 'Mail actions',
+      group: 'Conversation',
       keys: 's',
       scope: SCOPE,
       icon: 'star',
@@ -275,7 +275,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
     {
       id: 'inbox.toggleRead',
       label: focusedRow?.isRead === false ? 'Mark as read' : 'Mark as unread',
-      group: 'Mail actions',
+      group: 'Conversation',
       keys: 'u',
       scope: SCOPE,
       icon: 'envelopeOpen',

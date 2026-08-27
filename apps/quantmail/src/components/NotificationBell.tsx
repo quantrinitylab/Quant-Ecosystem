@@ -188,7 +188,7 @@ export function NotificationBell() {
       default:
         return (
           <svg
-            className="size-4 text-amber-400"
+            className="size-4 text-[#FF8C42]"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"

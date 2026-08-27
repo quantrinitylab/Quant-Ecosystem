@@ -16,7 +16,7 @@ export default function ThreadPage() {
     return (
       <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
         <PageTransition className="workspace-page thread-workspace flex flex-col h-full bg-[#0a0d14]">
-          <div className="flex-1 flex items-center justify-center p-6 text-zinc-400">
+          <div className="flex-1 flex items-center justify-center p-6 text-[#A1A4AC]">
             Redirecting to inbox…
           </div>
         </PageTransition>

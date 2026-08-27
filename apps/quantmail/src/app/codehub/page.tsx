@@ -499,7 +499,7 @@ function CloneButton({ repo }: { repo: RepoLike }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="flex items-center gap-1 rounded-md border border-[var(--quant-border)] bg-[var(--quant-muted)] px-2 py-1 text-[11px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:border-[rgba(255,153,51,0.45)] hover:text-[var(--quant-foreground)]"
+      className="flex items-center gap-1 rounded-md border border-[var(--quant-border)] bg-[var(--quant-muted)] px-2 py-1 text-[11px] font-medium text-[var(--quant-muted-foreground)] transition-colors hover:border-[rgba(255,140,66,0.45)] hover:text-[var(--quant-foreground)]"
       title={`Clone: ${getCloneUrl(repo)}`}
       aria-label={copied ? 'Clone URL copied' : 'Copy clone URL'}
     >

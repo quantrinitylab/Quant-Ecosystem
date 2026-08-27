@@ -216,7 +216,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                   <button
                     type="button"
                     className={`size-7 rounded flex items-center justify-center transition-colors ${
-                      email.isStarred ? 'text-[#ffb547]' : 'text-zinc-500 hover:text-zinc-300'
+                      email.isStarred ? 'text-[#ffb547]' : 'text-[#6B6E76] hover:text-[#A1A4AC]'
                     }`}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -305,7 +305,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                     <button
                       type="button"
                       disabled={isLoadingAI}
-                      className="px-3 py-1.5 rounded-lg border border-[#ff9933]/30 text-[#ffad5c] hover:bg-[#ff9933]/10 text-xs font-medium transition-colors"
+                      className="px-3 py-1.5 rounded-lg border border-[#FF8C42]/30 text-[#FF9B5A] hover:bg-[#FF8C42]/10 text-xs font-medium transition-colors"
                       onClick={() => handleSummarize(email.id)}
                     >
                       ✦ AI Summarize
@@ -398,7 +398,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                           value={forwardTo}
                           onChange={(e) => setForwardTo(e.target.value)}
                           placeholder="recipient@example.com"
-                          className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[#ff9933]/60"
+                          className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-1.5 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[#FF8C42]/60"
                         />
                       </div>
                       <div>
@@ -410,7 +410,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                           onChange={(e) => setForwardMessage(e.target.value)}
                           rows={2}
                           placeholder="Add an optional note…"
-                          className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg p-3 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[#ff9933]/60"
+                          className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg p-3 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[#FF8C42]/60"
                         />
                       </div>
                       <div className="flex items-center justify-end gap-2">

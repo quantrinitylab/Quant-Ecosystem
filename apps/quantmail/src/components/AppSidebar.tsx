@@ -223,7 +223,7 @@ export function AppSidebar() {
             onClick={() => {
               window.dispatchEvent(new CustomEvent('quant:sidebar:close'));
             }}
-            className="size-8 inline-flex items-center justify-center rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition-colors"
+            className="size-8 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors"
             title="Close navigation"
             aria-label="Close navigation menu"
           >

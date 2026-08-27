@@ -42,6 +42,10 @@ const MONTH_NAMES = [
   'November',
   'December',
 ];
+// The agenda stream is a continuous run of days, so an empty day only gets one
+// line to identify itself — "27 Aug", not "27 Wednesday" with the month implied
+// by a header the user has already scrolled past.
+const MONTHS_SHORT = MONTH_NAMES.map((m) => m.slice(0, 3));
 
 export type EntryType = 'event' | 'task' | 'birthday' | 'period';
 
@@ -537,10 +541,15 @@ export default function CalendarPage() {
   const [isNotificationSliderOpen, setIsNotificationSliderOpen] = useState(false);
   const [notifSliderIndex, setNotifSliderIndex] = useState(3);
 
-  // Infinite agenda loading states & buffer
+  // Infinite agenda loading states & buffer.
+  //
+  // The past window used to open at 45 days, which is why the agenda's first
+  // visible rows read "13 Monday, 14 Tuesday" on 27 Aug: the stream started six
+  // weeks back and nothing ever scrolled it to today. A fortnight of history is
+  // enough to glance at, and scrolling up still pages in 30 days at a time.
   const [isLoadingPast, setIsLoadingPast] = useState(false);
   const [isLoadingFuture, setIsLoadingFuture] = useState(false);
-  const [agendaRangeDays, setAgendaRangeDays] = useState({ past: 45, future: 90 });
+  const [agendaRangeDays, setAgendaRangeDays] = useState({ past: 14, future: 60 });
 
   // Rich Entry Form State
   const [formState, setFormState] = useState<{
@@ -637,9 +646,12 @@ export default function CalendarPage() {
   const sheetPointerRef = useRef<{ startY: number; time: number } | null>(null);
 
   const scrollHostRef = useRef<HTMLDivElement>(null);
-  const dateItemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // HTMLElement, not HTMLDivElement: an empty day in the stream is a single
+  // `<button>` row rather than a card, and both shapes need to be scrollable to.
+  const dateItemRefs = useRef<Map<string, HTMLElement>>(new Map());
   const isProgrammaticScrollRef = useRef(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasAnchoredTodayRef = useRef(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -1030,6 +1042,9 @@ export default function CalendarPage() {
       key: string;
       dayNum: number;
       weekdayName: string;
+      monthShort: string;
+      /** Set on the first row of each month, so the stream can band itself. */
+      monthBreak: string | null;
       isToday: boolean;
       isTomorrow: boolean;
       events: CalendarEventLike[];
@@ -1066,11 +1081,19 @@ export default function CalendarPage() {
         dayEvents.some((e) => e.title.toLowerCase().includes(searchFilter.toLowerCase())) ||
         dayHolidays.some((h) => h.name.toLowerCase().includes(searchFilter.toLowerCase()))
       ) {
+        const previous = list[list.length - 1];
+        const monthChanged =
+          !previous ||
+          previous.date.getMonth() !== d.getMonth() ||
+          previous.date.getFullYear() !== d.getFullYear();
+
         list.push({
           date: d,
           key,
           dayNum: d.getDate(),
           weekdayName: FULL_WEEKDAYS[d.getDay()],
+          monthShort: MONTHS_SHORT[d.getMonth()],
+          monthBreak: monthChanged ? `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}` : null,
           isToday: isDayToday,
           isTomorrow: isDayTomorrow,
           events: dayEvents,
@@ -1081,6 +1104,32 @@ export default function CalendarPage() {
 
     return list;
   }, [today, agendaRangeDays, eventsByDay, searchFilter]);
+
+  /**
+   * Park the stream on today the first time it paints.
+   *
+   * The agenda is a two-way infinite list, so its natural scroll position is the
+   * oldest loaded day — which meant the screen opened on a fortnight of history
+   * the user did not ask for and today was somewhere below the fold. Anchoring
+   * happens once, with `scrollTop` rather than `scrollIntoView` so it lands
+   * instantly instead of animating past 14 rows, and the programmatic-scroll
+   * guard is held so the `onScroll` handler does not fight it for `selectedDate`.
+   */
+  useEffect(() => {
+    if (hasAnchoredTodayRef.current || isInitialLoading || activeView !== 'agenda') return;
+    const host = scrollHostRef.current;
+    const target = dateItemRefs.current.get(dayKey(today));
+    if (!host || !target) return;
+
+    hasAnchoredTodayRef.current = true;
+    isProgrammaticScrollRef.current = true;
+    // Rect delta rather than `offsetTop`: the scroll host is statically
+    // positioned, so `offsetParent` is not guaranteed to be the host itself.
+    host.scrollTop += target.getBoundingClientRect().top - host.getBoundingClientRect().top - 8;
+    requestAnimationFrame(() => {
+      isProgrammaticScrollRef.current = false;
+    });
+  }, [isInitialLoading, activeView, continuousAgendaDays, today]);
 
   const openDedicatedSheet = useCallback(
     (type: EntryType, date?: Date) => {
@@ -1110,7 +1159,7 @@ export default function CalendarPage() {
               ? '#10b981'
               : type === 'task'
                 ? '#f59e0b'
-                : '#ff9933',
+                : '#FF8C42',
         accountEmail: currentUserEmail,
         notifications:
           type === 'birthday'
@@ -1519,7 +1568,7 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => setIsSearchOpen((prev) => !prev)}
-            className="md:hidden size-8 inline-flex items-center justify-center rounded-xl text-zinc-300 hover:text-white hover:bg-zinc-800/80 transition-colors"
+            className="md:hidden size-8 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors"
             aria-label="Search calendar"
           >
             <svg
@@ -1538,7 +1587,7 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => setIsQuantyDrawerOpen(true)}
-            className="p-1 rounded-xl hover:bg-zinc-800 text-amber-400 hover:text-amber-300 transition-all flex items-center justify-center"
+            className="p-1 rounded-xl hover:bg-[#282C35] text-[#FF8C42] hover:text-[#FFB875] transition-all flex items-center justify-center"
             title="Open Quanty AI Copilot"
           >
             <Quanty size={22} expression="happy" bob={false} />
@@ -1549,13 +1598,13 @@ export default function CalendarPage() {
       <PageTransition className="flex flex-col h-full bg-[#08080a] text-white relative">
         {/* Search Bar on Mobile ONLY when toggled */}
         {isSearchOpen && (
-          <div className="md:hidden border-b border-zinc-800/80 bg-zinc-950 px-4 py-2 flex items-center gap-2">
+          <div className="md:hidden border-b border-[#282C35]/80 bg-[#090A0C] px-4 py-2 flex items-center gap-2">
             <input
               type="search"
               placeholder="Search events, meetings, tasks, birthdays…"
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full bg-zinc-900/90 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#ff9933]"
+              className="w-full bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
               autoFocus
             />
             <button
@@ -1564,7 +1613,7 @@ export default function CalendarPage() {
                 setIsSearchOpen(false);
                 setSearchFilter('');
               }}
-              className="text-xs text-zinc-400 hover:text-white px-2 py-1"
+              className="text-xs text-[#A1A4AC] hover:text-white px-2 py-1"
             >
               Cancel
             </button>
@@ -1572,20 +1621,20 @@ export default function CalendarPage() {
         )}
 
         {/* Desktop Header Toolbar */}
-        <div className="hidden md:flex items-center justify-between border-b border-zinc-800/80 px-6 py-3 bg-[#0c0c0f]">
+        <div className="hidden md:flex items-center justify-between border-b border-[#282C35]/80 px-6 py-3 bg-[#0c0c0f]">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => goMonth(-1)}
-                className="size-8 grid place-items-center rounded-xl border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition-colors"
+                className="size-8 grid place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors"
               >
                 ‹
               </button>
               <button
                 type="button"
                 onClick={() => goMonth(1)}
-                className="size-8 grid place-items-center rounded-xl border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition-colors"
+                className="size-8 grid place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors"
               >
                 ›
               </button>
@@ -1642,7 +1691,7 @@ export default function CalendarPage() {
 
         {/* Quant Brand 3D Glassmorphic Calendar Date Picker with Permanent Glowing Holiday Dots */}
         <div
-          className="border-b border-zinc-800/80 bg-[#101014] select-none overflow-hidden relative"
+          className="border-b border-[#282C35]/80 bg-[#101014] select-none overflow-hidden relative"
           style={{
             height: `${currentHeight}px`,
             transition: isDragging ? 'none' : 'height 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -1652,21 +1701,21 @@ export default function CalendarPage() {
           <div className="flex flex-col h-full justify-between px-3 pt-2 pb-1">
             {isMonthExpanded && (
               <div className="flex items-center justify-between px-2 pb-1">
-                <span className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-[#ff9933]">
+                <span className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-[#FF8C42]">
                   {MONTH_NAMES[month]} {year}
                 </span>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={() => goMonth(-1)}
-                    className="size-7 text-sm text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800/80 flex items-center justify-center"
+                    className="size-7 text-sm text-[#A1A4AC] hover:text-white rounded-lg hover:bg-[#282C35]/80 flex items-center justify-center"
                   >
                     ‹
                   </button>
                   <button
                     type="button"
                     onClick={() => goMonth(1)}
-                    className="size-7 text-sm text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800/80 flex items-center justify-center"
+                    className="size-7 text-sm text-[#A1A4AC] hover:text-white rounded-lg hover:bg-[#282C35]/80 flex items-center justify-center"
                   >
                     ›
                   </button>
@@ -1676,7 +1725,7 @@ export default function CalendarPage() {
 
             <div className="grid grid-cols-7 text-center py-1">
               {WEEKDAYS_SHORT.map((d, i) => (
-                <div key={i} className="text-[11px] font-bold text-zinc-400">
+                <div key={i} className="text-[11px] font-bold text-[#A1A4AC]">
                   {d}
                 </div>
               ))}
@@ -1695,7 +1744,7 @@ export default function CalendarPage() {
                         'text-rose-300 bg-rose-950/40 border border-rose-800/60 font-semibold';
                     } else if (d.hasUrgentTask) {
                       sphereClass =
-                        'text-amber-300 bg-amber-950/40 border border-amber-800/60 font-semibold';
+                        'text-[#FFB875] bg-[#2B1A11]/40 border border-[#5C3016]/60 font-semibold';
                     } else if (d.hasBirthday) {
                       sphereClass =
                         'text-emerald-300 bg-emerald-950/40 border border-emerald-800/60 font-semibold';
@@ -1735,7 +1784,7 @@ export default function CalendarPage() {
                             'text-rose-300 bg-rose-950/40 border border-rose-800/60 font-semibold';
                         } else if (d.hasUrgentTask) {
                           sphereClass =
-                            'text-amber-300 bg-amber-950/40 border border-amber-800/60 font-semibold';
+                            'text-[#FFB875] bg-[#2B1A11]/40 border border-[#5C3016]/60 font-semibold';
                         } else if (d.hasBirthday) {
                           sphereClass =
                             'text-emerald-300 bg-emerald-950/40 border border-emerald-800/60 font-semibold';
@@ -1773,8 +1822,8 @@ export default function CalendarPage() {
               <div
                 className={`w-12 h-1.5 rounded-full transition-all ${
                   isDragging
-                    ? 'bg-[#ff9933] scale-110 shadow-[0_0_10px_#ff9933]'
-                    : 'bg-zinc-700 group-hover:bg-zinc-500'
+                    ? 'bg-[#FF8C42] scale-110 shadow-[0_0_10px_#FF8C42]'
+                    : 'bg-[#3A404D] group-hover:bg-[#6B6E76]'
                 }`}
               />
             </div>
@@ -1788,7 +1837,7 @@ export default function CalendarPage() {
           className="flex-1 overflow-y-auto px-4 py-3 sm:px-6 space-y-6 pb-28 md:pb-6"
         >
           {isLoadingPast && (
-            <div className="flex items-center justify-center gap-2 py-2 text-xs font-bold text-[#ff9933] animate-pulse">
+            <div className="flex items-center justify-center gap-2 py-2 text-xs font-bold text-[#FF8C42] animate-pulse">
               <svg className="animate-spin size-4" viewBox="0 0 24 24" fill="none">
                 <circle
                   className="opacity-25"
@@ -1819,295 +1868,376 @@ export default function CalendarPage() {
           )}
 
           {!isInitialLoading && !error && (
-            <div className="space-y-6">
+            <div className="divide-y divide-[#282C35]/60">
               {continuousAgendaDays.map((item) => {
                 const isSelected = dayKey(item.date) === dayKey(selectedDate);
                 const hasEvents = item.events.length > 0;
                 const hasHolidays = item.holidays.length > 0;
 
-                return (
-                  <div
-                    key={item.key}
-                    ref={(el) => {
-                      if (el) dateItemRefs.current.set(item.key, el);
-                      else dateItemRefs.current.delete(item.key);
-                    }}
-                    className={`transition-all duration-200 ${
-                      isSelected
-                        ? 'bg-gradient-to-r from-[#ff9933]/15 via-[#ff9933]/5 to-transparent rounded-3xl p-3 border-l-4 border-[#ff9933] shadow-[0_8px_30px_rgba(255,153,51,0.15)]'
-                        : ''
-                    }`}
-                  >
-                    {/* Centered Date Header with 3D Aura */}
-                    <div className="flex items-baseline gap-2.5 mb-2.5">
-                      <span
-                        className={`text-lg font-black tracking-tight ${
-                          item.isToday
-                            ? 'text-transparent bg-clip-text bg-gradient-to-r from-[#ff9933] to-[#fbbf24]'
-                            : isSelected
-                              ? 'text-white font-black'
-                              : 'text-zinc-200'
-                        }`}
+                // The stream runs months deep, so each month announces itself once.
+                // Not sticky: a `position: sticky` band would only stick for the
+                // height of its own day row anyway, which reads as a glitch rather
+                // than a persistent header.
+                const monthBand = item.monthBreak && (
+                  <div className="flex items-center gap-3 pb-1.5 pt-3 first:pt-0">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6B6E76]">
+                      {item.monthBreak}
+                    </span>
+                    <span className="h-px flex-1 bg-[#282C35]/60" />
+                  </div>
+                );
+
+                // A day with nothing on it earns one line, not a card. 136 days of
+                // "No events scheduled / + Add plan" boxes was the single largest
+                // source of dead weight on this screen; now only days that hold
+                // something expand, and the rest read as a quiet ruled ledger you
+                // can still tap to schedule into.
+                if (!hasEvents && !hasHolidays) {
+                  return (
+                    <div key={item.key}>
+                      {monthBand}
+                      <button
+                        type="button"
+                        ref={(el) => {
+                          if (el) dateItemRefs.current.set(item.key, el);
+                          else dateItemRefs.current.delete(item.key);
+                        }}
+                        onClick={() => openDedicatedSheet('event', item.date)}
+                        aria-label={`No events on ${item.dayNum} ${item.monthShort}. Add an entry.`}
+                        className={`group flex w-full min-h-[32px] items-center gap-2.5 rounded-lg px-2 text-left transition-colors [@media(pointer:coarse)]:min-h-touch ${
+                          isSelected ? 'bg-[#16181D]' : 'hover:bg-[#111318]'
+                        } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]`}
                       >
-                        {item.dayNum} {item.weekdayName}
-                      </span>
-
-                      {item.isToday && (
-                        <span className="text-[10px] uppercase tracking-wider font-black px-2 py-0.5 rounded-full bg-[#ff9933]/20 text-[#ff9933] border border-[#ff9933]/40 shadow-[0_0_10px_rgba(255,153,51,0.3)]">
-                          Today
-                        </span>
-                      )}
-                      {item.isTomorrow && (
-                        <span className="text-[10px] uppercase tracking-wider font-semibold text-zinc-400">
-                          Tomorrow
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="space-y-3">
-                      {/* Holiday 3D Emerald Glass Card */}
-                      {item.holidays.map((h, hi) => (
-                        <div
-                          key={hi}
-                          style={{
-                            background:
-                              'radial-gradient(circle at 10% 20%, rgba(16,185,129,0.3) 0%, transparent 60%), radial-gradient(circle at 90% 80%, rgba(5,150,105,0.25) 0%, transparent 60%), linear-gradient(135deg, rgba(12,28,20,0.92) 0%, rgba(8,18,14,0.98) 100%)',
-                          }}
-                          className="relative flex items-center justify-between px-4 py-3 rounded-2xl border border-emerald-500/50 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_15px_rgba(16,185,129,0.25),inset_0_1px_1px_rgba(255,255,255,0.2)] text-xs overflow-hidden"
+                        <span
+                          className={`w-[52px] shrink-0 text-xs tabular-nums ${
+                            item.isToday
+                              ? 'font-semibold text-[#FF8C42]'
+                              : isSelected
+                                ? 'font-medium text-[#F5F5F5]'
+                                : 'text-[#A1A4AC]'
+                          }`}
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="size-8 rounded-full bg-emerald-500/25 border border-emerald-400/50 flex items-center justify-center text-base shadow-[0_0_10px_rgba(16,185,129,0.4)] shrink-0">
-                              🇮🇳
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-extrabold text-sm text-emerald-200 tracking-wide">
-                                  {h.name}
-                                </span>
-                                <span className="size-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
-                              </div>
-                              {h.description && (
-                                <p className="text-[11px] text-zinc-400 mt-0.5">{h.description}</p>
-                              )}
-                            </div>
-                          </div>
-                          <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 shadow-sm">
-                            Holiday
+                          {item.dayNum} {item.monthShort}
+                        </span>
+                        <span className="text-[#3A404D]">·</span>
+                        <span className="flex-1 truncate text-[11px] text-[#6B6E76]">
+                          {item.isToday ? 'Nothing left today' : 'No events'}
+                        </span>
+                        <span className="shrink-0 pr-1 text-[11px] font-medium text-[#FF8C42] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100">
+                          + Add
+                        </span>
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={item.key}>
+                    {monthBand}
+                    <div
+                      ref={(el) => {
+                        if (el) dateItemRefs.current.set(item.key, el);
+                        else dateItemRefs.current.delete(item.key);
+                      }}
+                      className={`rounded-xl py-3 transition-colors ${
+                        isSelected
+                          ? 'border-l-2 border-[#FF8C42] bg-[#16181D] pl-3 pr-2'
+                          : 'border-l-2 border-transparent pl-3 pr-2'
+                      }`}
+                    >
+                      <div className="mb-2.5 flex items-baseline gap-2.5">
+                        <span
+                          className={`text-sm font-semibold tabular-nums tracking-tight ${
+                            item.isToday ? 'text-[#FF8C42]' : 'text-[#F5F5F5]'
+                          }`}
+                        >
+                          {item.dayNum} {item.monthShort}
+                        </span>
+                        <span className="text-[11px] text-[#6B6E76]">{item.weekdayName}</span>
+
+                        {item.isToday && (
+                          <span className="rounded-full border border-[#5C3016] bg-[#2B1A11] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#FFB875]">
+                            Today
                           </span>
-                        </div>
-                      ))}
+                        )}
+                        {item.isTomorrow && (
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-[#6B6E76]">
+                            Tomorrow
+                          </span>
+                        )}
+                      </div>
 
-                      {/* 3D Liquid Glass Watercolor Cards with Guaranteed Distinct Category Colors */}
-                      {item.events.map((ev) => {
-                        const isTask = ev.type === 'task';
-                        const isBirthday = ev.type === 'birthday';
-                        const isPeriod = ev.type === 'period';
-
-                        // 3D Liquid Watercolor Blends
-                        let cardBackground = '';
-                        let cardBorder = 'border-white/10';
-                        let categoryColor = '#ff9933';
-                        let categoryLabel = 'Event';
-                        let urgencyColor = '#fbbf24';
-                        let urgencyLabel = 'Standard';
-                        let glowColor = 'rgba(255,153,51,0.25)';
-
-                        if (isPeriod) {
-                          categoryColor = '#f43f5e';
-                          categoryLabel = 'Period';
-                          urgencyColor =
-                            ev.flowIntensity === 'super_heavy'
-                              ? '#be123c'
-                              : ev.flowIntensity === 'heavy'
-                                ? '#e11d48'
-                                : ev.flowIntensity === 'light'
-                                  ? '#fda4af'
-                                  : '#f43f5e';
-                          urgencyLabel = ev.flowIntensity
-                            ? `${ev.flowIntensity.replace('_', ' ')}`
-                            : 'Cycle Log';
-                          glowColor = 'rgba(244,63,94,0.4)';
-                          cardBorder = 'border-rose-500/60';
-                          // Distinct 3D Pink / Rose watercolor liquid blend
-                          cardBackground =
-                            'radial-gradient(circle at 12% 20%, rgba(244,63,94,0.45) 0%, transparent 60%), radial-gradient(circle at 88% 80%, rgba(225,29,72,0.3) 0%, transparent 60%), linear-gradient(135deg, rgba(38,14,24,0.94) 0%, rgba(20,8,14,0.98) 100%)';
-                        } else if (isTask) {
-                          categoryColor = '#f59e0b';
-                          categoryLabel = 'Task';
-                          if (ev.priority === 'urgent') {
-                            urgencyColor = '#ef4444';
-                            urgencyLabel = 'Urgent';
-                            glowColor = 'rgba(239,68,68,0.45)';
-                            cardBorder = 'border-red-500/60';
-                            cardBackground =
-                              'radial-gradient(circle at 15% 25%, rgba(239,68,68,0.45) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(255,153,51,0.35) 0%, transparent 55%), linear-gradient(135deg, rgba(36,14,14,0.94) 0%, rgba(20,10,10,0.98) 100%)';
-                          } else if (ev.priority === 'low') {
-                            urgencyColor = '#10b981';
-                            urgencyLabel = 'Low';
-                            glowColor = 'rgba(16,185,129,0.3)';
-                            cardBorder = 'border-amber-500/40';
-                            cardBackground =
-                              'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(16,185,129,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(28,22,14,0.94) 0%, rgba(16,12,10,0.98) 100%)';
-                          } else {
-                            urgencyColor = '#fbbf24';
-                            urgencyLabel = 'Medium';
-                            glowColor = 'rgba(245,158,11,0.35)';
-                            cardBorder = 'border-amber-500/50';
-                            cardBackground =
-                              'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.4) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(32,22,12,0.94) 0%, rgba(18,12,8,0.98) 100%)';
-                          }
-                        } else if (isBirthday) {
-                          categoryColor = '#10b981';
-                          categoryLabel = 'Birthday';
-                          urgencyColor = '#84cc16';
-                          urgencyLabel = 'Annual';
-                          glowColor = 'rgba(16,185,129,0.35)';
-                          cardBorder = 'border-emerald-500/50';
-                          cardBackground =
-                            'radial-gradient(circle at 15% 25%, rgba(16,185,129,0.4) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(132,204,22,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(14,30,20,0.94) 0%, rgba(10,18,14,0.98) 100%)';
-                        } else {
-                          // Quant Brand Event
-                          categoryColor = '#ff9933';
-                          categoryLabel = 'Event';
-                          if (ev.location?.includes('meet')) {
-                            urgencyColor = '#a855f7';
-                            urgencyLabel = 'Video Meet';
-                            glowColor = 'rgba(168,85,247,0.35)';
-                            cardBorder = 'border-purple-500/50';
-                            cardBackground =
-                              'radial-gradient(circle at 15% 25%, rgba(255,153,51,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(168,85,247,0.3) 0%, transparent 55%), linear-gradient(135deg, rgba(28,18,28,0.94) 0%, rgba(16,10,18,0.98) 100%)';
-                          } else {
-                            urgencyColor = '#fbbf24';
-                            urgencyLabel = 'Standard';
-                            glowColor = 'rgba(255,153,51,0.3)';
-                            cardBorder = 'border-[#ff9933]/50';
-                            cardBackground =
-                              'radial-gradient(circle at 15% 25%, rgba(255,153,51,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(30,20,12,0.94) 0%, rgba(16,10,8,0.98) 100%)';
-                          }
-                        }
-
-                        return (
+                      <div className="space-y-3">
+                        {/* Holiday 3D Emerald Glass Card */}
+                        {item.holidays.map((h, hi) => (
                           <div
-                            key={ev.id}
-                            onClick={() => setSelectedEvent(ev)}
+                            key={hi}
                             style={{
-                              background: cardBackground,
-                              boxShadow: `0 12px 32px 0 rgba(0,0,0,0.6), 0 0 25px 0 ${glowColor}, inset 0 1px 1px 0 rgba(255,255,255,0.25)`,
+                              background:
+                                'radial-gradient(circle at 10% 20%, rgba(16,185,129,0.3) 0%, transparent 60%), radial-gradient(circle at 90% 80%, rgba(5,150,105,0.25) 0%, transparent 60%), linear-gradient(135deg, rgba(12,28,20,0.92) 0%, rgba(8,18,14,0.98) 100%)',
                             }}
-                            className={`relative flex items-center justify-between p-3.5 rounded-3xl border ${cardBorder} backdrop-blur-2xl transition-all cursor-pointer overflow-hidden group hover:scale-[1.01] hover:brightness-105 active:scale-[0.99]`}
+                            className="relative flex items-center justify-between px-4 py-3 rounded-2xl border border-emerald-500/50 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_15px_rgba(16,185,129,0.25),inset_0_1px_1px_rgba(255,255,255,0.2)] text-xs overflow-hidden"
                           >
-                            {/* 3D Liquid Mixing Pillar Accent */}
-                            <div className="absolute left-0 top-0 bottom-0 w-2 flex flex-col">
-                              <div className="flex-1" style={{ backgroundColor: categoryColor }} />
-                              <div className="flex-1" style={{ backgroundColor: urgencyColor }} />
-                            </div>
-
-                            <div className="flex items-start gap-3 pl-2.5 flex-1 min-w-0 pr-2">
-                              {/* 3D Glass Orb for Category Icon */}
-                              <div
-                                style={{
-                                  background: `radial-gradient(circle at 30% 30%, ${categoryColor}66 0%, ${urgencyColor}44 100%)`,
-                                  boxShadow: `0 0 12px ${categoryColor}66, inset 0 1px 2px rgba(255,255,255,0.4)`,
-                                }}
-                                className="size-9 rounded-2xl border border-white/25 flex items-center justify-center shrink-0 mt-0.5"
-                              >
-                                {isTask ? (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      showToast({
-                                        text: `Task "${ev.title}" completed`,
-                                        type: 'success',
-                                      });
-                                    }}
-                                    className="text-xs font-black text-amber-300 hover:text-white flex items-center justify-center"
-                                  >
-                                    <svg
-                                      className="size-3.5"
-                                      viewBox="0 0 24 24"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      strokeWidth="3"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                    >
-                                      <polyline points="20 6 9 17 4 12" />
-                                    </svg>
-                                  </button>
-                                ) : isBirthday ? (
-                                  <IconCake className="size-4 text-emerald-300" />
-                                ) : isPeriod ? (
-                                  <IconFlower className="size-4 text-rose-300" />
-                                ) : (
-                                  <IconCalendar className="size-4 text-[#FF8C42]" />
+                            <div className="flex items-center gap-3">
+                              <div className="size-8 rounded-full bg-emerald-500/25 border border-emerald-400/50 flex items-center justify-center text-base shadow-[0_0_10px_rgba(16,185,129,0.4)] shrink-0">
+                                🇮🇳
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-extrabold text-sm text-emerald-200 tracking-wide">
+                                    {h.name}
+                                  </span>
+                                  <span className="size-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+                                </div>
+                                {h.description && (
+                                  <p className="text-[11px] text-[#A1A4AC] mt-0.5">
+                                    {h.description}
+                                  </p>
                                 )}
                               </div>
+                            </div>
+                            <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 shadow-sm">
+                              Holiday
+                            </span>
+                          </div>
+                        ))}
 
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h5 className="text-sm font-black text-white tracking-wide truncate">
-                                    {ev.title}
-                                  </h5>
+                        {/* 3D Liquid Glass Watercolor Cards with Guaranteed Distinct Category Colors */}
+                        {item.events.map((ev) => {
+                          const isTask = ev.type === 'task';
+                          const isBirthday = ev.type === 'birthday';
+                          const isPeriod = ev.type === 'period';
 
-                                  {/* 3D Liquid Dual Split Capsule */}
-                                  <div
-                                    style={{
-                                      boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.2)',
-                                    }}
-                                    className="inline-flex items-center rounded-full overflow-hidden text-[9px] font-black border border-white/20 bg-black/50 backdrop-blur-md shrink-0"
-                                  >
-                                    <span
-                                      className="px-2 py-0.5 uppercase tracking-wider"
-                                      style={{
-                                        backgroundColor: `${categoryColor}44`,
-                                        color: categoryColor,
+                          // 3D Liquid Watercolor Blends
+                          let cardBackground = '';
+                          let cardBorder = 'border-white/10';
+                          let categoryColor = '#FF8C42';
+                          let categoryLabel = 'Event';
+                          let urgencyColor = '#fbbf24';
+                          let urgencyLabel = 'Standard';
+                          let glowColor = 'rgba(255, 140, 66,0.25)';
+
+                          if (isPeriod) {
+                            categoryColor = '#f43f5e';
+                            categoryLabel = 'Period';
+                            urgencyColor =
+                              ev.flowIntensity === 'super_heavy'
+                                ? '#be123c'
+                                : ev.flowIntensity === 'heavy'
+                                  ? '#e11d48'
+                                  : ev.flowIntensity === 'light'
+                                    ? '#fda4af'
+                                    : '#f43f5e';
+                            urgencyLabel = ev.flowIntensity
+                              ? `${ev.flowIntensity.replace('_', ' ')}`
+                              : 'Cycle Log';
+                            glowColor = 'rgba(244,63,94,0.4)';
+                            cardBorder = 'border-rose-500/60';
+                            // Distinct 3D Pink / Rose watercolor liquid blend
+                            cardBackground =
+                              'radial-gradient(circle at 12% 20%, rgba(244,63,94,0.45) 0%, transparent 60%), radial-gradient(circle at 88% 80%, rgba(225,29,72,0.3) 0%, transparent 60%), linear-gradient(135deg, rgba(38,14,24,0.94) 0%, rgba(20,8,14,0.98) 100%)';
+                          } else if (isTask) {
+                            categoryColor = '#f59e0b';
+                            categoryLabel = 'Task';
+                            if (ev.priority === 'urgent') {
+                              urgencyColor = '#ef4444';
+                              urgencyLabel = 'Urgent';
+                              glowColor = 'rgba(239,68,68,0.45)';
+                              cardBorder = 'border-red-500/60';
+                              cardBackground =
+                                'radial-gradient(circle at 15% 25%, rgba(239,68,68,0.45) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(255, 140, 66,0.35) 0%, transparent 55%), linear-gradient(135deg, rgba(36,14,14,0.94) 0%, rgba(20,10,10,0.98) 100%)';
+                            } else if (ev.priority === 'low') {
+                              urgencyColor = '#10b981';
+                              urgencyLabel = 'Low';
+                              glowColor = 'rgba(16,185,129,0.3)';
+                              cardBorder = 'border-[#FF8C42]/40';
+                              cardBackground =
+                                'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(16,185,129,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(28,22,14,0.94) 0%, rgba(16,12,10,0.98) 100%)';
+                            } else {
+                              urgencyColor = '#fbbf24';
+                              urgencyLabel = 'Medium';
+                              glowColor = 'rgba(245,158,11,0.35)';
+                              cardBorder = 'border-[#FF8C42]/50';
+                              cardBackground =
+                                'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.4) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(32,22,12,0.94) 0%, rgba(18,12,8,0.98) 100%)';
+                            }
+                          } else if (isBirthday) {
+                            categoryColor = '#10b981';
+                            categoryLabel = 'Birthday';
+                            urgencyColor = '#84cc16';
+                            urgencyLabel = 'Annual';
+                            glowColor = 'rgba(16,185,129,0.35)';
+                            cardBorder = 'border-emerald-500/50';
+                            cardBackground =
+                              'radial-gradient(circle at 15% 25%, rgba(16,185,129,0.4) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(132,204,22,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(14,30,20,0.94) 0%, rgba(10,18,14,0.98) 100%)';
+                          } else {
+                            // Quant Brand Event
+                            categoryColor = '#FF8C42';
+                            categoryLabel = 'Event';
+                            if (ev.location?.includes('meet')) {
+                              urgencyColor = '#a855f7';
+                              urgencyLabel = 'Video Meet';
+                              glowColor = 'rgba(168,85,247,0.35)';
+                              cardBorder = 'border-purple-500/50';
+                              cardBackground =
+                                'radial-gradient(circle at 15% 25%, rgba(255, 140, 66,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(168,85,247,0.3) 0%, transparent 55%), linear-gradient(135deg, rgba(28,18,28,0.94) 0%, rgba(16,10,18,0.98) 100%)';
+                            } else {
+                              urgencyColor = '#fbbf24';
+                              urgencyLabel = 'Standard';
+                              glowColor = 'rgba(255, 140, 66,0.3)';
+                              cardBorder = 'border-[#FF8C42]/50';
+                              cardBackground =
+                                'radial-gradient(circle at 15% 25%, rgba(255, 140, 66,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(30,20,12,0.94) 0%, rgba(16,10,8,0.98) 100%)';
+                            }
+                          }
+
+                          return (
+                            <div
+                              key={ev.id}
+                              onClick={() => setSelectedEvent(ev)}
+                              style={{
+                                background: cardBackground,
+                                boxShadow: `0 12px 32px 0 rgba(0,0,0,0.6), 0 0 25px 0 ${glowColor}, inset 0 1px 1px 0 rgba(255,255,255,0.25)`,
+                              }}
+                              className={`relative flex items-center justify-between p-3.5 rounded-3xl border ${cardBorder} backdrop-blur-2xl transition-all cursor-pointer overflow-hidden group hover:scale-[1.01] hover:brightness-105 active:scale-[0.99]`}
+                            >
+                              {/* 3D Liquid Mixing Pillar Accent */}
+                              <div className="absolute left-0 top-0 bottom-0 w-2 flex flex-col">
+                                <div
+                                  className="flex-1"
+                                  style={{ backgroundColor: categoryColor }}
+                                />
+                                <div className="flex-1" style={{ backgroundColor: urgencyColor }} />
+                              </div>
+
+                              <div className="flex items-start gap-3 pl-2.5 flex-1 min-w-0 pr-2">
+                                {/* 3D Glass Orb for Category Icon */}
+                                <div
+                                  style={{
+                                    background: `radial-gradient(circle at 30% 30%, ${categoryColor}66 0%, ${urgencyColor}44 100%)`,
+                                    boxShadow: `0 0 12px ${categoryColor}66, inset 0 1px 2px rgba(255,255,255,0.4)`,
+                                  }}
+                                  className="size-9 rounded-2xl border border-white/25 flex items-center justify-center shrink-0 mt-0.5"
+                                >
+                                  {isTask ? (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        showToast({
+                                          text: `Task "${ev.title}" completed`,
+                                          type: 'success',
+                                        });
                                       }}
+                                      className="text-xs font-black text-[#FFB875] hover:text-white flex items-center justify-center"
                                     >
-                                      {categoryLabel}
-                                    </span>
-                                    <span
-                                      className="px-2 py-0.5 uppercase tracking-wider border-l border-white/15"
-                                      style={{
-                                        backgroundColor: `${urgencyColor}55`,
-                                        color: urgencyColor,
-                                      }}
-                                    >
-                                      {urgencyLabel}
-                                    </span>
-                                  </div>
+                                      <svg
+                                        className="size-3.5"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="3"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      >
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </svg>
+                                    </button>
+                                  ) : isBirthday ? (
+                                    <IconCake className="size-4 text-emerald-300" />
+                                  ) : isPeriod ? (
+                                    <IconFlower className="size-4 text-rose-300" />
+                                  ) : (
+                                    <IconCalendar className="size-4 text-[#FF8C42]" />
+                                  )}
                                 </div>
 
-                                <p className="text-[11px] text-zinc-300/90 mt-1 flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-semibold text-white">
-                                    {ev.allDay
-                                      ? 'All Day'
-                                      : `${hhmm(startOf(ev))} – ${hhmm(endOf(ev))}`}
-                                  </span>
-                                  {ev.location && (
-                                    <span className="text-zinc-400 flex items-center gap-1">
-                                      · <IconMapPin className="size-3 text-[#A1A4AC] inline" />{' '}
-                                      {ev.location}
-                                    </span>
-                                  )}
-                                  {ev.description && (
-                                    <span className="text-zinc-400">· {ev.description}</span>
-                                  )}
-                                </p>
-                              </div>
-                            </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h5 className="text-sm font-black text-white tracking-wide truncate">
+                                      {ev.title}
+                                    </h5>
 
-                            <div className="flex items-center gap-2 shrink-0">
-                              {ev.location?.includes('meet.quantrinity.in') && (
-                                <a
-                                  href={ev.location}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="px-2.5 py-1 rounded-lg bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] text-[11px] font-semibold flex items-center gap-1.5 hover:brightness-110 transition-all"
+                                    {/* 3D Liquid Dual Split Capsule */}
+                                    <div
+                                      style={{
+                                        boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.2)',
+                                      }}
+                                      className="inline-flex items-center rounded-full overflow-hidden text-[9px] font-black border border-white/20 bg-black/50 backdrop-blur-md shrink-0"
+                                    >
+                                      <span
+                                        className="px-2 py-0.5 uppercase tracking-wider"
+                                        style={{
+                                          backgroundColor: `${categoryColor}44`,
+                                          color: categoryColor,
+                                        }}
+                                      >
+                                        {categoryLabel}
+                                      </span>
+                                      <span
+                                        className="px-2 py-0.5 uppercase tracking-wider border-l border-white/15"
+                                        style={{
+                                          backgroundColor: `${urgencyColor}55`,
+                                          color: urgencyColor,
+                                        }}
+                                      >
+                                        {urgencyLabel}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <p className="text-[11px] text-[#A1A4AC]/90 mt-1 flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-semibold text-white">
+                                      {ev.allDay
+                                        ? 'All Day'
+                                        : `${hhmm(startOf(ev))} – ${hhmm(endOf(ev))}`}
+                                    </span>
+                                    {ev.location && (
+                                      <span className="text-[#A1A4AC] flex items-center gap-1">
+                                        · <IconMapPin className="size-3 text-[#A1A4AC] inline" />{' '}
+                                        {ev.location}
+                                      </span>
+                                    )}
+                                    {ev.description && (
+                                      <span className="text-[#A1A4AC]">· {ev.description}</span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                {ev.location?.includes('meet.quantrinity.in') && (
+                                  <a
+                                    href={ev.location}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="px-2.5 py-1 rounded-lg bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] text-[11px] font-semibold flex items-center gap-1.5 hover:brightness-110 transition-all"
+                                  >
+                                    <svg
+                                      className="w-3 h-3"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                      />
+                                    </svg>
+                                    <span>Join Video</span>
+                                  </a>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteEvent(ev.id, e)}
+                                  className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F87171] hover:bg-[#2A1215] text-xs transition-colors"
+                                  title="Delete"
                                 >
                                   <svg
-                                    className="w-3 h-3"
+                                    className="w-3.5 h-3.5"
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -2115,52 +2245,16 @@ export default function CalendarPage() {
                                     <path
                                       strokeLinecap="round"
                                       strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                      strokeWidth={1.8}
+                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                                     />
                                   </svg>
-                                  <span>Join Video</span>
-                                </a>
-                              )}
-                              <button
-                                type="button"
-                                onClick={(e) => handleDeleteEvent(ev.id, e)}
-                                className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F87171] hover:bg-[#2A1215] text-xs transition-colors"
-                                title="Delete"
-                              >
-                                <svg
-                                  className="w-3.5 h-3.5"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={1.8}
-                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                  />
-                                </svg>
-                              </button>
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Empty state when no events or holidays on this date */}
-                      {!hasEvents && !hasHolidays && (
-                        <div
-                          onClick={() => openDedicatedSheet('event', item.date)}
-                          className="flex items-center justify-between py-2 px-3 rounded-lg border border-dashed border-[#282C35] hover:border-[#3A404D] bg-[#111318]/50 hover:bg-[#16181D] text-[#6B6E76] hover:text-[#A1A4AC] text-xs cursor-pointer transition-colors group"
-                        >
-                          <span className="font-normal text-xs text-[#6B6E76] group-hover:text-[#A1A4AC]">
-                            No events scheduled
-                          </span>
-                          <span className="text-xs font-medium text-[#FF8C42] group-hover:underline">
-                            + Add plan
-                          </span>
-                        </div>
-                      )}
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 );
@@ -2169,7 +2263,7 @@ export default function CalendarPage() {
           )}
 
           {isLoadingFuture && (
-            <div className="flex items-center justify-center gap-2 py-4 text-xs font-bold text-[#ff9933] animate-pulse">
+            <div className="flex items-center justify-center gap-2 py-4 text-xs font-bold text-[#FF8C42] animate-pulse">
               <svg className="animate-spin size-4" viewBox="0 0 24 24" fill="none">
                 <circle
                   className="opacity-25"
@@ -2209,9 +2303,9 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('task')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-amber-950/90 hover:bg-amber-900 text-amber-200 text-xs font-extrabold shadow-xl border border-amber-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(245,158,11,0.3)]"
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#2B1A11]/90 hover:bg-[#2B1A11] text-[#FFB875] text-xs font-extrabold shadow-xl border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(245,158,11,0.3)]"
                 >
-                  <IconTarget className="size-4 text-amber-400" />
+                  <IconTarget className="size-4 text-[#FF8C42]" />
                   <span>Task</span>
                 </button>
 
@@ -2227,9 +2321,9 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('event')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#2a1b10]/95 hover:bg-[#3d2716] text-[#ff9933] text-xs font-extrabold shadow-xl border border-[#ff9933]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(255,153,51,0.35)]"
+                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#2a1b10]/95 hover:bg-[#3d2716] text-[#FF8C42] text-xs font-extrabold shadow-xl border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(255,140,66,0.35)]"
                 >
-                  <IconCalendar className="size-4 text-[#ff9933]" />
+                  <IconCalendar className="size-4 text-[#FF8C42]" />
                   <span>Event</span>
                 </button>
               </motion.div>
@@ -2240,8 +2334,8 @@ export default function CalendarPage() {
             type="button"
             onClick={() => setIsFabOpen((prev) => !prev)}
             style={{
-              background: 'linear-gradient(135deg, #f97316 0%, #ff9933 50%, #fde047 100%)',
-              boxShadow: '0 0 25px rgba(255,153,51,0.55), inset 0 2px 4px rgba(255,255,255,0.4)',
+              background: 'linear-gradient(135deg, #f97316 0%, #FF8C42 50%, #fde047 100%)',
+              boxShadow: '0 0 25px rgba(255, 140, 66,0.55), inset 0 2px 4px rgba(255,255,255,0.4)',
             }}
             className={`size-14 rounded-full font-black text-black flex items-center justify-center active:scale-95 transition-all focus:outline-none ${
               isFabOpen ? 'rotate-45' : ''
@@ -2282,7 +2376,7 @@ export default function CalendarPage() {
                     ? { duration: 0 }
                     : { type: 'spring', damping: 28, stiffness: 300 }
                 }
-                className="relative w-full max-w-lg bg-[#121216] border-t md:border border-zinc-700/60 rounded-t-3xl md:rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-10 flex flex-col transition-all overflow-hidden h-[86vh] max-h-[86vh] mt-12 md:mt-0"
+                className="relative w-full max-w-lg bg-[#121216] border-t md:border border-[#3A404D]/60 rounded-t-3xl md:rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-10 flex flex-col transition-all overflow-hidden h-[86vh] max-h-[86vh] mt-12 md:mt-0"
               >
                 {/* Drag Handle & Sticky Top Header */}
                 <div
@@ -2290,14 +2384,14 @@ export default function CalendarPage() {
                   onPointerMove={handleSheetPointerMove}
                   onPointerUp={handleSheetPointerUp}
                   onPointerCancel={handleSheetPointerUp}
-                  className="pt-3 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none bg-[#121216] border-b border-zinc-800/80 shrink-0"
+                  className="pt-3 pb-1 px-4 flex flex-col cursor-grab active:cursor-grabbing select-none touch-none bg-[#121216] border-b border-[#282C35]/80 shrink-0"
                   style={{ touchAction: 'none' }}
                 >
                   <div
                     className={`w-14 h-1.5 rounded-full mx-auto mb-2 transition-all ${
                       isSheetDragging
-                        ? 'bg-[#ff9933] scale-110 shadow-[0_0_10px_#ff9933]'
-                        : 'bg-zinc-600 hover:bg-zinc-400'
+                        ? 'bg-[#FF8C42] scale-110 shadow-[0_0_10px_#FF8C42]'
+                        : 'bg-[#6B6E76] hover:bg-[#A1A4AC]'
                     }`}
                   />
 
@@ -2307,7 +2401,7 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={closeSheet}
-                        className="size-9 rounded-full hover:bg-zinc-800 text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
+                        className="size-9 rounded-full hover:bg-[#282C35] text-[#A1A4AC] hover:text-white flex items-center justify-center transition-colors"
                         aria-label="Close"
                       >
                         <svg
@@ -2331,8 +2425,8 @@ export default function CalendarPage() {
                           </span>
                         )}
                         {activeSheetType === 'task' && (
-                          <span className="flex items-center gap-1.5 text-amber-400">
-                            <IconTarget className="size-4 text-amber-400" />{' '}
+                          <span className="flex items-center gap-1.5 text-[#FF8C42]">
+                            <IconTarget className="size-4 text-[#FF8C42]" />{' '}
                             {editingEventId ? 'Edit Task' : 'New Task'}
                           </span>
                         )}
@@ -2417,7 +2511,7 @@ export default function CalendarPage() {
                 {/* Form Content Body */}
                 <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4 text-xs text-white pb-24">
                   {/* Account Row */}
-                  <div className="flex items-center justify-between py-1 border-b border-[#282C35] text-zinc-300">
+                  <div className="flex items-center justify-between py-1 border-b border-[#282C35] text-[#A1A4AC]">
                     <span className="text-xs text-[#6B6E76]">Account</span>
                     <span className="text-[11px] font-semibold text-[#FF8C42] bg-[#2B1A11] px-2.5 py-0.5 rounded-full border border-[#5C3016] flex items-center gap-1.5">
                       <svg
@@ -2446,21 +2540,21 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add event title"
-                          className="w-full bg-transparent text-xl font-bold text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-[#ff9933]"
+                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#6B6E76] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
                           autoFocus
                         />
                       </div>
 
-                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
-                        <div className="flex items-center gap-2.5 text-zinc-300">
-                          <IconClock className="size-4 text-[#ff9933]" />
+                      <div className="flex items-center justify-between py-2 border-b border-[#282C35]/60">
+                        <div className="flex items-center gap-2.5 text-[#A1A4AC]">
+                          <IconClock className="size-4 text-[#FF8C42]" />
                           <span className="font-semibold">All-day</span>
                         </div>
                         <button
                           type="button"
                           onClick={() => setFormState({ ...formState, allDay: !formState.allDay })}
                           className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
-                            formState.allDay ? 'bg-[#ff9933]' : 'bg-zinc-700'
+                            formState.allDay ? 'bg-[#FF8C42]' : 'bg-[#3A404D]'
                           }`}
                         >
                           <div
@@ -2479,7 +2573,7 @@ export default function CalendarPage() {
                             onChange={(e) =>
                               setFormState({ ...formState, startDate: e.target.value })
                             }
-                            className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                            className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                           />
                           {!formState.allDay && (
                             <input
@@ -2488,7 +2582,7 @@ export default function CalendarPage() {
                               onChange={(e) =>
                                 setFormState({ ...formState, startTime: e.target.value })
                               }
-                              className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                              className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                             />
                           )}
                         </div>
@@ -2500,7 +2594,7 @@ export default function CalendarPage() {
                             onChange={(e) =>
                               setFormState({ ...formState, endDate: e.target.value })
                             }
-                            className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                            className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                           />
                           {!formState.allDay && (
                             <input
@@ -2509,7 +2603,7 @@ export default function CalendarPage() {
                               onChange={(e) =>
                                 setFormState({ ...formState, endTime: e.target.value })
                               }
-                              className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                              className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                             />
                           )}
                         </div>
@@ -2518,7 +2612,7 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => setIsTimezoneModalOpen(true)}
-                        className="w-full flex items-center justify-between text-left text-zinc-300 hover:text-white py-2 border-b border-zinc-800/60"
+                        className="w-full flex items-center justify-between text-left text-[#A1A4AC] hover:text-white py-2 border-b border-[#282C35]/60"
                       >
                         <div className="flex items-center gap-2.5">
                           <IconGlobe className="size-4 text-cyan-400" />
@@ -2527,23 +2621,23 @@ export default function CalendarPage() {
                               'India Standard Time (IST)'}
                           </span>
                         </div>
-                        <span className="text-zinc-500 text-xs">›</span>
+                        <span className="text-[#6B6E76] text-xs">›</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setIsRecurrenceModalOpen(true)}
-                        className="w-full flex items-center justify-between text-left text-zinc-300 hover:text-white py-2 border-b border-zinc-800/60"
+                        className="w-full flex items-center justify-between text-left text-[#A1A4AC] hover:text-white py-2 border-b border-[#282C35]/60"
                       >
                         <div className="flex items-center gap-2.5">
-                          <IconRepeat className="size-4 text-amber-400" />
+                          <IconRepeat className="size-4 text-[#FF8C42]" />
                           <span>{formState.recurrence}</span>
                         </div>
-                        <span className="text-zinc-500 text-xs">›</span>
+                        <span className="text-[#6B6E76] text-xs">›</span>
                       </button>
 
-                      <div className="py-2 border-b border-zinc-800/60 space-y-2">
-                        <div className="flex items-center gap-2.5 text-zinc-300">
+                      <div className="py-2 border-b border-[#282C35]/60 space-y-2">
+                        <div className="flex items-center gap-2.5 text-[#A1A4AC]">
                           <IconUsers className="size-4 text-indigo-400" />
                           <input
                             type="email"
@@ -2553,7 +2647,7 @@ export default function CalendarPage() {
                               setFormState({ ...formState, attendeeInput: e.target.value })
                             }
                             onKeyDown={handleAddAttendee}
-                            className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                            className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
                           />
                         </div>
                         {formState.attendees.length > 0 && (
@@ -2561,13 +2655,13 @@ export default function CalendarPage() {
                             {formState.attendees.map((email) => (
                               <span
                                 key={email}
-                                className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-200 text-[11px]"
+                                className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#282C35] text-[#F5F5F5] text-[11px]"
                               >
                                 <span>{email}</span>
                                 <button
                                   type="button"
                                   onClick={() => removeAttendee(email)}
-                                  className="text-zinc-400 hover:text-rose-400"
+                                  className="text-[#A1A4AC] hover:text-rose-400"
                                 >
                                   ✕
                                 </button>
@@ -2577,8 +2671,8 @@ export default function CalendarPage() {
                         )}
                       </div>
 
-                      <div className="py-2 border-b border-zinc-800/60 space-y-1.5">
-                        <div className="flex items-center gap-2.5 text-zinc-300">
+                      <div className="py-2 border-b border-[#282C35]/60 space-y-1.5">
+                        <div className="flex items-center gap-2.5 text-[#A1A4AC]">
                           <IconMapPin className="size-4 text-rose-400" />
                           <input
                             type="text"
@@ -2587,7 +2681,7 @@ export default function CalendarPage() {
                             onChange={(e) =>
                               setFormState({ ...formState, location: e.target.value })
                             }
-                            className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                            className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
                           />
                         </div>
                         <div className="flex items-center gap-1.5 pl-7">
@@ -2596,7 +2690,7 @@ export default function CalendarPage() {
                               key={loc}
                               type="button"
                               onClick={() => setFormState({ ...formState, location: loc })}
-                              className="px-2 py-0.5 rounded-md bg-zinc-800 text-[10px] text-zinc-400 hover:text-white"
+                              className="px-2 py-0.5 rounded-md bg-[#282C35] text-[10px] text-[#A1A4AC] hover:text-white"
                             >
                               {loc}
                             </button>
@@ -2604,16 +2698,16 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      <div className="py-2 border-b border-zinc-800/60 space-y-2">
-                        <div className="flex items-center justify-between text-zinc-300">
+                      <div className="py-2 border-b border-[#282C35]/60 space-y-2">
+                        <div className="flex items-center justify-between text-[#A1A4AC]">
                           <div className="flex items-center gap-2.5">
-                            <IconBell className="size-4 text-amber-400" />
+                            <IconBell className="size-4 text-[#FF8C42]" />
                             <span className="font-semibold">Notifications</span>
                           </div>
                           <button
                             type="button"
                             onClick={() => setIsNotificationSliderOpen(true)}
-                            className="px-2.5 py-1 rounded-xl bg-[#ff9933]/20 text-[#ff9933] text-[11px] font-bold border border-[#ff9933]/30"
+                            className="px-2.5 py-1 rounded-xl bg-[#FF8C42]/20 text-[#FF8C42] text-[11px] font-bold border border-[#FF8C42]/30"
                           >
                             + Custom Time Slider
                           </button>
@@ -2622,13 +2716,13 @@ export default function CalendarPage() {
                           {formState.notifications.map((notif, idx) => (
                             <div
                               key={idx}
-                              className="flex items-center justify-between text-[11px] text-zinc-400"
+                              className="flex items-center justify-between text-[11px] text-[#A1A4AC]"
                             >
                               <span>{notif}</span>
                               <button
                                 type="button"
                                 onClick={() => removeNotificationReminder(idx)}
-                                className="text-zinc-500 hover:text-rose-400"
+                                className="text-[#6B6E76] hover:text-rose-400"
                               >
                                 ✕
                               </button>
@@ -2637,7 +2731,7 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
+                      <div className="flex items-start gap-2.5 py-2 border-b border-[#282C35]/60 text-[#A1A4AC]">
                         <span className="text-base mt-1">≡</span>
                         <textarea
                           rows={2}
@@ -2646,13 +2740,13 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none resize-none"
+                          className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none resize-none"
                         />
                       </div>
 
-                      <div className="py-2 space-y-1.5 text-zinc-300">
+                      <div className="py-2 space-y-1.5 text-[#A1A4AC]">
                         <div className="flex items-center gap-2.5">
-                          <IconPaperclip className="size-4 text-zinc-400" />
+                          <IconPaperclip className="size-4 text-[#A1A4AC]" />
                           <input
                             type="text"
                             placeholder="Attach QuantDrive file URL or link"
@@ -2660,7 +2754,7 @@ export default function CalendarPage() {
                             onChange={(e) =>
                               setFormState({ ...formState, driveLink: e.target.value })
                             }
-                            className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
+                            className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
                           />
                         </div>
                       </div>
@@ -2676,13 +2770,13 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add task title"
-                          className="w-full bg-transparent text-xl font-bold text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-amber-500"
+                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#6B6E76] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
                           autoFocus
                         />
                       </div>
 
-                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
-                        <span className="text-zinc-400 font-semibold">Priority</span>
+                      <div className="flex items-center justify-between py-2 border-b border-[#282C35]/60">
+                        <span className="text-[#A1A4AC] font-semibold">Priority</span>
                         <div className="flex items-center gap-1.5">
                           {(
                             [
@@ -2694,7 +2788,7 @@ export default function CalendarPage() {
                               {
                                 key: 'medium',
                                 label: 'Medium',
-                                color: 'text-amber-400 border-amber-500/40 bg-amber-950/40',
+                                color: 'text-[#FF8C42] border-[#FF8C42]/40 bg-[#2B1A11]/40',
                               },
                               {
                                 key: 'urgent',
@@ -2711,7 +2805,7 @@ export default function CalendarPage() {
                               className={`px-3 py-1 rounded-xl text-[11px] font-black border transition-all ${
                                 formState.priority === p.key
                                   ? `${p.color} ring-1 ring-white/20 scale-105 shadow-md`
-                                  : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                                  : 'bg-[#111318] border-[#282C35] text-[#A1A4AC]'
                               }`}
                             >
                               {p.label}
@@ -2720,9 +2814,9 @@ export default function CalendarPage() {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
-                        <div className="flex items-center gap-2 text-zinc-300">
-                          <IconCalendar className="size-4 text-amber-400" />
+                      <div className="flex items-center justify-between py-2 border-b border-[#282C35]/60">
+                        <div className="flex items-center gap-2 text-[#A1A4AC]">
+                          <IconCalendar className="size-4 text-[#FF8C42]" />
                           <span className="font-semibold">Due Date</span>
                         </div>
                         <input
@@ -2731,12 +2825,12 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, startDate: e.target.value })
                           }
-                          className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                          className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                         />
                       </div>
 
-                      <div className="space-y-2 p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800">
-                        <span className="font-bold text-zinc-300">Checklist & Subtasks</span>
+                      <div className="space-y-2 p-3 rounded-2xl bg-[#111318]/60 border border-[#282C35]">
+                        <span className="font-bold text-[#A1A4AC]">Checklist & Subtasks</span>
                         <input
                           type="text"
                           placeholder="+ Add subtask (press Enter)"
@@ -2745,13 +2839,13 @@ export default function CalendarPage() {
                             setFormState({ ...formState, subtaskInput: e.target.value })
                           }
                           onKeyDown={handleAddSubtask}
-                          className="w-full bg-zinc-950 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500"
+                          className="w-full bg-[#090A0C] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#6B6E76]"
                         />
                         {formState.subtasks.map((st, idx) => (
                           <div
                             key={idx}
                             onClick={() => toggleSubtask(idx)}
-                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-zinc-950 text-xs cursor-pointer hover:bg-zinc-800"
+                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-[#090A0C] text-xs cursor-pointer hover:bg-[#282C35]"
                           >
                             <span className="flex items-center justify-center shrink-0">
                               {st.done ? (
@@ -2767,11 +2861,11 @@ export default function CalendarPage() {
                                   <polyline points="20 6 9 17 4 12" />
                                 </svg>
                               ) : (
-                                <span className="size-3 rounded border border-zinc-600 inline-block" />
+                                <span className="size-3 rounded border border-[#6B6E76] inline-block" />
                               )}
                             </span>
                             <span
-                              className={st.done ? 'line-through text-zinc-500' : 'text-zinc-200'}
+                              className={st.done ? 'line-through text-[#6B6E76]' : 'text-[#F5F5F5]'}
                             >
                               {st.text}
                             </span>
@@ -2779,7 +2873,7 @@ export default function CalendarPage() {
                         ))}
                       </div>
 
-                      <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
+                      <div className="flex items-start gap-2.5 py-2 border-b border-[#282C35]/60 text-[#A1A4AC]">
                         <span className="text-base mt-1">≡</span>
                         <textarea
                           rows={2}
@@ -2788,7 +2882,7 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none resize-none"
+                          className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none resize-none"
                         />
                       </div>
                     </div>
@@ -2803,13 +2897,13 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add person's name (e.g. Rahul's Birthday)"
-                          className="w-full bg-transparent text-xl font-bold text-white placeholder-zinc-500 border-b border-zinc-700/80 pb-2 focus:outline-none focus:border-emerald-500"
+                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#6B6E76] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-emerald-500"
                           autoFocus
                         />
                       </div>
 
-                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
-                        <div className="flex items-center gap-2 text-zinc-300">
+                      <div className="flex items-center justify-between py-2 border-b border-[#282C35]/60">
+                        <div className="flex items-center gap-2 text-[#A1A4AC]">
                           <IconCake className="size-4 text-emerald-400" />
                           <span className="font-semibold">Birthday Date</span>
                         </div>
@@ -2819,12 +2913,12 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, startDate: e.target.value })
                           }
-                          className="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                          className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                         />
                       </div>
 
-                      <div className="flex items-center justify-between py-2 border-b border-zinc-800/60">
-                        <div className="flex items-center gap-2 text-zinc-300">
+                      <div className="flex items-center justify-between py-2 border-b border-[#282C35]/60">
+                        <div className="flex items-center gap-2 text-[#A1A4AC]">
                           <IconCalendar className="size-4 text-emerald-400" />
                           <span className="font-semibold">Birth Year (Optional)</span>
                         </div>
@@ -2835,11 +2929,11 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, birthYear: e.target.value })
                           }
-                          className="w-24 bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-1.5 text-xs text-white text-center"
+                          className="w-24 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white text-center"
                         />
                       </div>
 
-                      <div className="flex items-start gap-2.5 py-2 border-b border-zinc-800/60 text-zinc-300">
+                      <div className="flex items-start gap-2.5 py-2 border-b border-[#282C35]/60 text-[#A1A4AC]">
                         <svg
                           className="size-4 text-emerald-400 mt-1 shrink-0"
                           viewBox="0 0 24 24"
@@ -2862,7 +2956,7 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="flex-1 bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none resize-none"
+                          className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none resize-none"
                         />
                       </div>
                     </div>
@@ -2875,8 +2969,8 @@ export default function CalendarPage() {
                       {periodSubTab === 'track' && (
                         <div className="space-y-6">
                           {/* Mini Week Bar with Highlighted Period */}
-                          <div className="p-3 rounded-2xl bg-zinc-900/80 border border-zinc-800 space-y-2">
-                            <div className="flex items-center justify-between text-xs text-zinc-400">
+                          <div className="p-3 rounded-2xl bg-[#111318]/80 border border-[#282C35] space-y-2">
+                            <div className="flex items-center justify-between text-xs text-[#A1A4AC]">
                               <span className="font-semibold">Cycle Dates</span>
                               <button
                                 type="button"
@@ -2901,7 +2995,7 @@ export default function CalendarPage() {
                                   className={`py-1.5 rounded-xl flex flex-col items-center justify-center transition-all relative ${
                                     formState.startDate === d.key
                                       ? 'border-2 border-rose-400 bg-rose-950/80 text-white font-black scale-105 shadow-md shadow-rose-900/40'
-                                      : 'bg-zinc-950 text-zinc-400 hover:bg-zinc-800'
+                                      : 'bg-[#090A0C] text-[#A1A4AC] hover:bg-[#282C35]'
                                   }`}
                                 >
                                   <span className="text-[9px]">{d.dayLetter}</span>
@@ -2966,7 +3060,7 @@ export default function CalendarPage() {
                                   className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all ${
                                     formState.collectionMethod === cm.label
                                       ? 'bg-rose-600/40 border-rose-400 text-white font-black shadow'
-                                      : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                      : 'bg-[#1e1e24] border-[#282C35] text-[#A1A4AC] hover:text-[#F5F5F5]'
                                   }`}
                                 >
                                   <span className="text-base">{cm.icon}</span>
@@ -2999,7 +3093,7 @@ export default function CalendarPage() {
                                   className={`flex items-center justify-center gap-2 p-3 rounded-2xl border transition-all ${
                                     formState.spottingColor === sp.key
                                       ? 'bg-rose-600/30 border-rose-500 text-white font-black shadow'
-                                      : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                      : 'bg-[#1e1e24] border-[#282C35] text-[#A1A4AC] hover:text-[#F5F5F5]'
                                   }`}
                                 >
                                   <span>{sp.icon}</span>
@@ -3012,7 +3106,7 @@ export default function CalendarPage() {
                           {/* 4. FEELINGS / MOOD */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <span className="size-3.5 rounded-full bg-orange-500/30 flex items-center justify-center text-[10px]">
+                              <span className="size-3.5 rounded-full bg-[#FF8C42]/30 flex items-center justify-center text-[10px]">
                                 🧡
                               </span>{' '}
                               Feelings & Mood
@@ -3027,8 +3121,8 @@ export default function CalendarPage() {
                                     onClick={() => toggleFeeling(f.label)}
                                     className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${
                                       isSelected
-                                        ? 'bg-orange-600/30 border-orange-500 text-orange-100 font-black shadow'
-                                        : 'bg-[#1e1e24] border-orange-500/20 text-orange-300 hover:bg-[#25252e]'
+                                        ? 'bg-[#E8752F]/30 border-[#FF8C42] text-[#FFD1A3] font-black shadow'
+                                        : 'bg-[#1e1e24] border-[#FF8C42]/20 text-[#FFB875] hover:bg-[#25252e]'
                                     }`}
                                   >
                                     <span className="text-lg">{f.symbol}</span>
@@ -3092,7 +3186,7 @@ export default function CalendarPage() {
                                   className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all ${
                                     formState.intimateHealth === intm.label
                                       ? 'bg-blue-600/30 border-blue-400 text-white font-black shadow'
-                                      : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                      : 'bg-[#1e1e24] border-[#282C35] text-[#A1A4AC] hover:text-[#F5F5F5]'
                                   }`}
                                 >
                                   <span className="text-base">{intm.symbol}</span>
@@ -3107,7 +3201,7 @@ export default function CalendarPage() {
                           {/* 7. HOT FLASHES */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <span className="size-3.5 rounded-full bg-amber-500/30 flex items-center justify-center text-[10px]">
+                              <span className="size-3.5 rounded-full bg-[#FF8C42]/30 flex items-center justify-center text-[10px]">
                                 🔥
                               </span>{' '}
                               Hot Flashes
@@ -3122,8 +3216,8 @@ export default function CalendarPage() {
                                   }
                                   className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
                                     formState.hotFlashes === hf.label
-                                      ? 'bg-amber-600/30 border-amber-400 text-white font-black shadow'
-                                      : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                      ? 'bg-[#E8752F]/30 border-[#FF8C42] text-white font-black shadow'
+                                      : 'bg-[#1e1e24] border-[#282C35] text-[#A1A4AC] hover:text-[#F5F5F5]'
                                   }`}
                                 >
                                   <span className="text-base">{hf.symbol}</span>
@@ -3134,10 +3228,10 @@ export default function CalendarPage() {
                           </div>
 
                           {/* 8. PMS TOGGLE */}
-                          <div className="flex items-center justify-between p-3 rounded-2xl bg-[#1e1e24] border border-orange-500/20">
+                          <div className="flex items-center justify-between p-3 rounded-2xl bg-[#1e1e24] border border-[#FF8C42]/20">
                             <div className="flex items-center gap-2">
                               <span className="text-lg">☁️</span>
-                              <span className="text-xs font-bold text-orange-300">
+                              <span className="text-xs font-bold text-[#FFB875]">
                                 Premenstrual Syndrome (PMS)
                               </span>
                             </div>
@@ -3146,8 +3240,8 @@ export default function CalendarPage() {
                               onClick={() => setFormState({ ...formState, pms: !formState.pms })}
                               className={`px-3 py-1 rounded-xl text-[11px] font-bold border transition-all ${
                                 formState.pms
-                                  ? 'bg-orange-500 text-white font-bold border-orange-400'
-                                  : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                                  ? 'bg-[#FF8C42] text-white font-bold border-[#FF8C42]'
+                                  : 'bg-[#282C35] text-[#A1A4AC] border-[#3A404D]'
                               }`}
                             >
                               {formState.pms ? 'Active' : 'Off'}
@@ -3157,7 +3251,7 @@ export default function CalendarPage() {
                           {/* 9. SLEEP QUALITY */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <span className="size-3.5 rounded-full bg-amber-500/30 flex items-center justify-center text-[10px]">
+                              <span className="size-3.5 rounded-full bg-[#FF8C42]/30 flex items-center justify-center text-[10px]">
                                 😴
                               </span>{' '}
                               Sleep Quality
@@ -3170,8 +3264,8 @@ export default function CalendarPage() {
                                   onClick={() => setFormState({ ...formState, sleep: sl.label })}
                                   className={`flex items-center gap-2 p-2.5 rounded-2xl border transition-all ${
                                     formState.sleep === sl.label
-                                      ? 'bg-amber-600/30 border-amber-400 text-white font-black shadow'
-                                      : 'bg-[#1e1e24] border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                                      ? 'bg-[#E8752F]/30 border-[#FF8C42] text-white font-black shadow'
+                                      : 'bg-[#1e1e24] border-[#282C35] text-[#A1A4AC] hover:text-[#F5F5F5]'
                                   }`}
                                 >
                                   <span>{sl.symbol}</span>
@@ -3215,7 +3309,7 @@ export default function CalendarPage() {
                           {/* 11. ENERGY LEVEL */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <span className="size-3.5 rounded-full bg-amber-500/30 flex items-center justify-center text-[10px]">
+                              <span className="size-3.5 rounded-full bg-[#FF8C42]/30 flex items-center justify-center text-[10px]">
                                 🏃
                               </span>{' '}
                               Energy Level
@@ -3228,8 +3322,8 @@ export default function CalendarPage() {
                                   onClick={() => setFormState({ ...formState, energy: en.label })}
                                   className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
                                     formState.energy === en.label
-                                      ? 'bg-amber-600/30 border-amber-400 text-amber-200 font-black shadow'
-                                      : 'bg-[#1e1e24] border-amber-500/20 text-amber-300 hover:bg-[#25252e]'
+                                      ? 'bg-[#E8752F]/30 border-[#FF8C42] text-[#FFB875] font-black shadow'
+                                      : 'bg-[#1e1e24] border-[#FF8C42]/20 text-[#FFB875] hover:bg-[#25252e]'
                                   }`}
                                 >
                                   <span className="text-base">{en.symbol}</span>
@@ -3242,9 +3336,9 @@ export default function CalendarPage() {
                           </div>
 
                           {/* 12. BODY METRICS */}
-                          <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-[#1e1e24] border border-zinc-800">
+                          <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-[#1e1e24] border border-[#282C35]">
                             <div>
-                              <span className="block text-[10px] text-zinc-400 mb-1">
+                              <span className="block text-[10px] text-[#A1A4AC] mb-1">
                                 🌡️ Basal Body Temp
                               </span>
                               <input
@@ -3254,11 +3348,11 @@ export default function CalendarPage() {
                                 onChange={(e) =>
                                   setFormState({ ...formState, bbt: e.target.value })
                                 }
-                                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1 text-xs text-white"
+                                className="w-full bg-[#090A0C] border border-[#282C35] rounded-xl px-2.5 py-1 text-xs text-white"
                               />
                             </div>
                             <div>
-                              <span className="block text-[10px] text-zinc-400 mb-1">
+                              <span className="block text-[10px] text-[#A1A4AC] mb-1">
                                 ⚖️ Weight
                               </span>
                               <input
@@ -3268,14 +3362,14 @@ export default function CalendarPage() {
                                 onChange={(e) =>
                                   setFormState({ ...formState, weight: e.target.value })
                                 }
-                                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1 text-xs text-white"
+                                className="w-full bg-[#090A0C] border border-[#282C35] rounded-xl px-2.5 py-1 text-xs text-white"
                               />
                             </div>
                           </div>
 
                           {/* 13. MY CUSTOM TAGS */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-zinc-300">My tags</span>
+                            <span className="text-xs font-bold text-[#A1A4AC]">My tags</span>
                             <input
                               type="text"
                               placeholder="+ Create new tag (press Enter)"
@@ -3284,20 +3378,20 @@ export default function CalendarPage() {
                                 setFormState({ ...formState, customTagInput: e.target.value })
                               }
                               onKeyDown={handleAddCustomTag}
-                              className="w-full bg-[#1e1e24] border border-zinc-800 rounded-2xl p-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none"
+                              className="w-full bg-[#1e1e24] border border-[#282C35] rounded-2xl p-2.5 text-xs text-white placeholder-[#6B6E76] focus:outline-none"
                             />
                             {formState.customTags.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 pt-1">
                                 {formState.customTags.map((tag) => (
                                   <span
                                     key={tag}
-                                    className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zinc-800 text-cyan-300 text-[10px] font-semibold border border-cyan-500/20"
+                                    className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#282C35] text-cyan-300 text-[10px] font-semibold border border-cyan-500/20"
                                   >
                                     <span>{tag}</span>
                                     <button
                                       type="button"
                                       onClick={() => removeCustomTag(tag)}
-                                      className="text-zinc-400 hover:text-rose-400"
+                                      className="text-[#A1A4AC] hover:text-rose-400"
                                     >
                                       ✕
                                     </button>
@@ -3309,7 +3403,7 @@ export default function CalendarPage() {
 
                           {/* 14. DAILY NOTE */}
                           <div className="space-y-2">
-                            <span className="text-xs font-bold text-zinc-300">Daily Note</span>
+                            <span className="text-xs font-bold text-[#A1A4AC]">Daily Note</span>
                             <textarea
                               rows={2}
                               placeholder="Any extra details to add today?…"
@@ -3317,7 +3411,7 @@ export default function CalendarPage() {
                               onChange={(e) =>
                                 setFormState({ ...formState, description: e.target.value })
                               }
-                              className="w-full bg-[#1e1e24] border border-zinc-800 rounded-2xl p-3 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-rose-500 resize-none"
+                              className="w-full bg-[#1e1e24] border border-[#282C35] rounded-2xl p-3 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-rose-500 resize-none"
                             />
                           </div>
                         </div>
@@ -3326,8 +3420,8 @@ export default function CalendarPage() {
                       {/* Sub-tab 2: CYCLE DIAL */}
                       {periodSubTab === 'cycle' && (
                         <div className="space-y-6">
-                          <div className="flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-b from-zinc-900 via-rose-950/40 to-zinc-900 border border-rose-500/30 shadow-[0_0_30px_rgba(244,63,94,0.25)]">
-                            <div className="relative size-48 rounded-full border-4 border-zinc-800 flex items-center justify-center shadow-inner">
+                          <div className="flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-b from-[#111318] via-rose-950/40 to-[#111318] border border-rose-500/30 shadow-[0_0_30px_rgba(244,63,94,0.25)]">
+                            <div className="relative size-48 rounded-full border-4 border-[#282C35] flex items-center justify-center shadow-inner">
                               <div className="absolute inset-0 rounded-full border-4 border-rose-500 border-t-transparent border-r-transparent rotate-45 animate-pulse" />
 
                               <div className="text-center space-y-1">
@@ -3339,14 +3433,14 @@ export default function CalendarPage() {
                                     ? `${formState.periodDays - formState.currentCycleDay + 1} more days of period`
                                     : 'Fertile Window Forecast'}
                                 </h3>
-                                <p className="text-[10px] text-zinc-400">
+                                <p className="text-[10px] text-[#A1A4AC]">
                                   Next cycle in ~{formState.cycleLength - formState.currentCycleDay}{' '}
                                   days
                                 </p>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-3 mt-4 text-[10px] text-zinc-400">
+                            <div className="flex items-center gap-3 mt-4 text-[10px] text-[#A1A4AC]">
                               <span className="flex items-center gap-1">
                                 <span className="size-2 rounded-full bg-rose-500 shadow-[0_0_6px_#f43f5e]" />{' '}
                                 Period
@@ -3356,15 +3450,15 @@ export default function CalendarPage() {
                                 Fertile
                               </span>
                               <span className="flex items-center gap-1">
-                                <span className="size-2 rounded-full bg-amber-400 shadow-[0_0_6px_#fbbf24]" />{' '}
+                                <span className="size-2 rounded-full bg-[#FF8C42] shadow-[0_0_6px_#fbbf24]" />{' '}
                                 Ovulation
                               </span>
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-[#1e1e24] border border-zinc-800 text-[11px]">
+                          <div className="grid grid-cols-2 gap-3 p-3 rounded-2xl bg-[#1e1e24] border border-[#282C35] text-[11px]">
                             <div>
-                              <label className="block text-zinc-400 mb-1">
+                              <label className="block text-[#A1A4AC] mb-1">
                                 Period Length ({formState.periodDays}d)
                               </label>
                               <input
@@ -3382,7 +3476,7 @@ export default function CalendarPage() {
                               />
                             </div>
                             <div>
-                              <label className="block text-zinc-400 mb-1">
+                              <label className="block text-[#A1A4AC] mb-1">
                                 Cycle Length ({formState.cycleLength}d)
                               </label>
                               <input
@@ -3408,14 +3502,14 @@ export default function CalendarPage() {
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <span className="text-xs font-bold text-white">Cycle statistics</span>
-                            <p className="text-[10px] text-zinc-400">
+                            <p className="text-[10px] text-[#A1A4AC]">
                               Averages are based on your cycle inputs.
                             </p>
 
                             <div className="grid grid-cols-2 gap-2">
-                              <div className="p-3 rounded-2xl bg-[#1e1e24] border border-zinc-800 flex items-center justify-between">
+                              <div className="p-3 rounded-2xl bg-[#1e1e24] border border-[#282C35] flex items-center justify-between">
                                 <div>
-                                  <span className="text-[10px] text-zinc-400">Cycle length</span>
+                                  <span className="text-[10px] text-[#A1A4AC]">Cycle length</span>
                                   <h4 className="text-base font-extrabold text-rose-400">
                                     {formState.cycleLength} days
                                   </h4>
@@ -3423,17 +3517,21 @@ export default function CalendarPage() {
                                 <span className="text-base">⭕</span>
                               </div>
 
-                              <div className="p-3 rounded-2xl bg-[#1e1e24] border border-zinc-800 flex items-center justify-between">
+                              <div className="p-3 rounded-2xl bg-[#1e1e24] border border-[#282C35] flex items-center justify-between">
                                 <div>
-                                  <span className="text-[10px] text-zinc-400">Cycle variation</span>
-                                  <h4 className="text-base font-extrabold text-zinc-300">±1 day</h4>
+                                  <span className="text-[10px] text-[#A1A4AC]">
+                                    Cycle variation
+                                  </span>
+                                  <h4 className="text-base font-extrabold text-[#A1A4AC]">
+                                    ±1 day
+                                  </h4>
                                 </div>
                                 <span className="text-base">🔄</span>
                               </div>
                             </div>
                           </div>
 
-                          <div className="p-4 rounded-3xl bg-[#1e1e24] border border-zinc-800 space-y-3">
+                          <div className="p-4 rounded-3xl bg-[#1e1e24] border border-[#282C35] space-y-3">
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-bold text-white">Your cycle phase</span>
                               <span className="text-[10px] text-rose-400 font-semibold">
@@ -3441,7 +3539,7 @@ export default function CalendarPage() {
                               </span>
                             </div>
 
-                            <div className="h-14 w-full rounded-2xl bg-zinc-950 border border-zinc-800 overflow-hidden flex relative">
+                            <div className="h-14 w-full rounded-2xl bg-[#090A0C] border border-[#282C35] overflow-hidden flex relative">
                               <div className="w-[45%] bg-rose-900/60 border-r border-rose-500/40 flex items-center justify-center text-[10px] text-rose-200 font-bold">
                                 Follicular
                               </div>
@@ -3453,7 +3551,7 @@ export default function CalendarPage() {
                               </div>
                             </div>
 
-                            <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                            <div className="flex items-center justify-between text-[10px] text-[#A1A4AC]">
                               <span>Period (Day 1-{formState.periodDays})</span>
                               <span>Ovulation (~Day 14)</span>
                               <span>PMS (Day 24-28)</span>
@@ -3477,7 +3575,7 @@ export default function CalendarPage() {
         >
           <div className="space-y-4 text-xs text-white">
             <div>
-              <label className="block text-zinc-400 mb-1 font-semibold">
+              <label className="block text-[#A1A4AC] mb-1 font-semibold">
                 Period Length ({formState.periodDays} days)
               </label>
               <input
@@ -3493,7 +3591,7 @@ export default function CalendarPage() {
             </div>
 
             <div>
-              <label className="block text-zinc-400 mb-1 font-semibold">
+              <label className="block text-[#A1A4AC] mb-1 font-semibold">
                 Cycle Length ({formState.cycleLength} days)
               </label>
               <input
@@ -3509,7 +3607,7 @@ export default function CalendarPage() {
             </div>
 
             <div>
-              <label className="block text-zinc-400 mb-1 font-semibold">
+              <label className="block text-[#A1A4AC] mb-1 font-semibold">
                 Current Cycle Day ({formState.currentCycleDay})
               </label>
               <input
@@ -3520,11 +3618,11 @@ export default function CalendarPage() {
                 onChange={(e) =>
                   setFormState({ ...formState, currentCycleDay: Number(e.target.value) || 1 })
                 }
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                className="w-full bg-[#111318] border border-[#3A404D] rounded-xl px-3 py-1.5 text-xs text-white"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#282C35]">
               <Button variant="primary" onClick={() => setIsPeriodCustomizeOpen(false)}>
                 Done
               </Button>
@@ -3549,8 +3647,8 @@ export default function CalendarPage() {
                 }}
                 className={`w-full text-left p-2.5 rounded-xl transition-colors flex items-center justify-between ${
                   formState.timezone === tz.value
-                    ? 'bg-[#ff9933] text-black font-black'
-                    : 'text-zinc-300 hover:bg-zinc-800'
+                    ? 'bg-[#FF8C42] text-black font-black'
+                    : 'text-[#A1A4AC] hover:bg-[#282C35]'
                 }`}
               >
                 <span>{tz.label}</span>
@@ -3577,8 +3675,8 @@ export default function CalendarPage() {
                 }}
                 className={`w-full text-left p-2.5 rounded-xl transition-colors flex items-center justify-between ${
                   formState.recurrence === rec
-                    ? 'bg-[#ff9933] text-black font-black'
-                    : 'text-zinc-300 hover:bg-zinc-800'
+                    ? 'bg-[#FF8C42] text-black font-black'
+                    : 'text-[#A1A4AC] hover:bg-[#282C35]'
                 }`}
               >
                 <span>{rec}</span>
@@ -3596,7 +3694,7 @@ export default function CalendarPage() {
         >
           <div className="space-y-4 text-xs text-white">
             <div className="text-center py-2">
-              <span className="text-lg font-black text-[#ff9933]">
+              <span className="text-lg font-black text-[#FF8C42]">
                 {NOTIFICATION_SLIDER_VALUES[notifSliderIndex].label}
               </span>
             </div>
@@ -3607,17 +3705,17 @@ export default function CalendarPage() {
               max={NOTIFICATION_SLIDER_VALUES.length - 1}
               value={notifSliderIndex}
               onChange={(e) => setNotifSliderIndex(Number(e.target.value))}
-              className="w-full accent-[#ff9933]"
+              className="w-full accent-[#FF8C42]"
             />
 
-            <div className="flex items-center justify-between text-[10px] text-zinc-500">
+            <div className="flex items-center justify-between text-[10px] text-[#6B6E76]">
               <span>5m</span>
               <span>1h</span>
               <span>1d</span>
               <span>1w</span>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#282C35]">
               <Button variant="ghost" onClick={() => setIsNotificationSliderOpen(false)}>
                 Cancel
               </Button>
@@ -3641,9 +3739,9 @@ export default function CalendarPage() {
             onClose={() => setSelectedEvent(null)}
             title={selectedEvent.title}
           >
-            <div className="space-y-3 text-xs text-zinc-300">
+            <div className="space-y-3 text-xs text-[#A1A4AC]">
               <div className="flex items-center gap-2 text-white font-semibold">
-                <IconClock className="size-4 text-[#ff9933]" />
+                <IconClock className="size-4 text-[#FF8C42]" />
                 <span>
                   {selectedEvent.allDay
                     ? 'All Day Entry'
@@ -3658,10 +3756,10 @@ export default function CalendarPage() {
                       selectedEvent.type === 'period'
                         ? 'bg-rose-500/20 text-rose-300'
                         : selectedEvent.type === 'task'
-                          ? 'bg-amber-500/20 text-amber-300'
+                          ? 'bg-[#FF8C42]/20 text-[#FFB875]'
                           : selectedEvent.type === 'birthday'
                             ? 'bg-emerald-500/20 text-emerald-300'
-                            : 'bg-[#ff9933]/20 text-[#ff9933]'
+                            : 'bg-[#FF8C42]/20 text-[#FF8C42]'
                     }`}
                   >
                     {selectedEvent.type}
@@ -3682,7 +3780,7 @@ export default function CalendarPage() {
                       href={selectedEvent.location}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[#ff9933] hover:underline font-bold"
+                      className="text-[#FF8C42] hover:underline font-bold"
                     >
                       {selectedEvent.location} (🎥 Join Meeting)
                     </a>
@@ -3693,17 +3791,17 @@ export default function CalendarPage() {
               )}
 
               {selectedEvent.description && (
-                <div className="pt-2 border-t border-zinc-800 text-zinc-400">
+                <div className="pt-2 border-t border-[#282C35] text-[#A1A4AC]">
                   {selectedEvent.description}
                 </div>
               )}
 
-              <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
+              <div className="flex items-center justify-between pt-3 border-t border-[#282C35]">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => openEditSheet(selectedEvent)}
-                    className="px-3 py-1.5 rounded-xl bg-[#ff9933]/20 text-[#ff9933] hover:bg-[#ff9933]/30 text-xs font-bold"
+                    className="px-3 py-1.5 rounded-xl bg-[#FF8C42]/20 text-[#FF8C42] hover:bg-[#FF8C42]/30 text-xs font-bold"
                   >
                     Edit Entry
                   </button>

@@ -3,6 +3,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDrive } from '../hooks/useDrive';
+import {
+  IconCheck,
+  IconFolder,
+  IconGrid,
+  IconList,
+  IconSearch,
+  IconX,
+  MimeTypeIcon,
+} from './icons';
 import type { Attachment } from './EmailComposer';
 
 interface QuantDrivePickerModalProps {
@@ -19,20 +28,13 @@ function formatFileSize(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-function getFileEmoji(mimeType: string, type: string) {
-  if (type === 'folder') return '📁';
-  const m = (mimeType || '').toLowerCase();
-  if (m.startsWith('image/')) return '🖼️';
-  if (m.includes('pdf')) return '📕';
-  if (m.includes('spreadsheet') || m.includes('excel') || m.includes('csv')) return '📊';
-  if (m.includes('presentation') || m.includes('powerpoint')) return '📽️';
-  if (m.includes('word') || m.includes('document')) return '📄';
-  if (m.includes('zip') || m.includes('tar') || m.includes('archive') || m.includes('gz'))
-    return '📦';
-  if (m.includes('video/')) return '🎬';
-  if (m.includes('audio/')) return '🎵';
-  return '📎';
-}
+type PickerTab = 'recent' | 'my-drive' | 'shared';
+
+const PICKER_TABS: ReadonlyArray<{ id: PickerTab; label: string }> = [
+  { id: 'my-drive', label: 'My Drive' },
+  { id: 'recent', label: 'Recent' },
+  { id: 'shared', label: 'Shared with me' },
+];
 
 export function QuantDrivePickerModal({
   isOpen,
@@ -40,9 +42,7 @@ export function QuantDrivePickerModal({
   onSelectFiles,
 }: QuantDrivePickerModalProps) {
   const { files, loading, fetchFiles } = useDrive();
-  const [activeTab, setActiveTab] = useState<'recent' | 'my-drive' | 'shared' | 'upload'>(
-    'my-drive',
-  );
+  const [activeTab, setActiveTab] = useState<PickerTab>('my-drive');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -110,165 +110,110 @@ export function QuantDrivePickerModal({
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="relative z-10 w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl border border-zinc-800 bg-[#121622] shadow-2xl overflow-hidden"
+          className="relative z-10 w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl border border-[#282C35] bg-[#16181D] shadow-[0_24px_64px_rgba(0,0,0,0.62)] overflow-hidden"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-zinc-800">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-[#282C35]">
             <div className="flex items-center gap-2.5">
-              <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
-                <svg
-                  className="size-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
-                </svg>
-              </div>
-              <h3 className="text-sm font-bold text-white">Insert files using QuantDrive</h3>
+              <span className="grid size-7 place-items-center rounded-lg bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42]">
+                <IconFolder size={15} />
+              </span>
+              <h3 className="text-sm font-semibold tracking-[-0.01em] text-[#F5F5F5]">
+                Insert files using QuantDrive
+              </h3>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 text-xs"
+              aria-label="Close file picker"
+              className="grid size-11 place-items-center rounded-lg text-[#A1A4AC] transition-colors hover:text-[#F5F5F5] hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             >
-              ✕
+              <IconX size={16} />
             </button>
           </div>
 
           {/* Search bar & Tab Switcher */}
-          <div className="px-5 pt-3 pb-2 border-b border-zinc-800/60 space-y-3">
+          <div className="px-5 pt-3 pb-2 border-b border-[#282C35]/60 space-y-3">
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <svg
-                  className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-zinc-500"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="m21 21-4.3-4.3" />
-                </svg>
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#6B6E76]">
+                  <IconSearch size={14} />
+                </span>
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search in QuantDrive..."
-                  className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500/50"
+                  placeholder="Search in QuantDrive…"
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#111318] border border-[#282C35] text-xs text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus:border-[#FF8C42]"
                 />
               </div>
 
               {/* View Switcher */}
-              <div className="flex items-center rounded-xl bg-zinc-900 border border-zinc-800 p-0.5">
+              <div className="flex items-center rounded-xl bg-[#111318] border border-[#282C35] p-0.5">
                 <button
                   type="button"
                   onClick={() => setViewMode('grid')}
-                  className={`p-1.5 rounded-lg text-xs transition-all ${
+                  aria-pressed={viewMode === 'grid'}
+                  className={`grid size-9 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     viewMode === 'grid'
-                      ? 'bg-zinc-800 text-white'
-                      : 'text-zinc-500 hover:text-zinc-300'
+                      ? 'bg-[#282C35] text-[#F5F5F5]'
+                      : 'text-[#6B6E76] hover:text-[#A1A4AC]'
                   }`}
                   title="Grid view"
                 >
-                  <svg
-                    className="size-3.5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect width="7" height="7" x="3" y="3" rx="1" />
-                    <rect width="7" height="7" x="14" y="3" rx="1" />
-                    <rect width="7" height="7" x="14" y="14" rx="1" />
-                    <rect width="7" height="7" x="3" y="14" rx="1" />
-                  </svg>
+                  <IconGrid size={14} />
                 </button>
                 <button
                   type="button"
                   onClick={() => setViewMode('list')}
-                  className={`p-1.5 rounded-lg text-xs transition-all ${
+                  aria-pressed={viewMode === 'list'}
+                  className={`grid size-9 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     viewMode === 'list'
-                      ? 'bg-zinc-800 text-white'
-                      : 'text-zinc-500 hover:text-zinc-300'
+                      ? 'bg-[#282C35] text-[#F5F5F5]'
+                      : 'text-[#6B6E76] hover:text-[#A1A4AC]'
                   }`}
                   title="List view"
                 >
-                  <svg
-                    className="size-3.5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <line x1="8" x2="21" y1="6" y2="6" />
-                    <line x1="8" x2="21" y1="12" y2="12" />
-                    <line x1="8" x2="21" y1="18" y2="18" />
-                    <line x1="3" x2="3.01" y1="6" y2="6" />
-                    <line x1="3" x2="3.01" y1="12" y2="12" />
-                    <line x1="3" x2="3.01" y1="18" y2="18" />
-                  </svg>
+                  <IconList size={14} />
                 </button>
               </div>
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex items-center gap-1 overflow-x-auto text-xs pb-1">
-              <button
-                type="button"
-                onClick={() => setActiveTab('my-drive')}
-                className={`px-3 py-1 rounded-lg font-medium transition-all ${
-                  activeTab === 'my-drive'
-                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                    : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-                }`}
-              >
-                My Drive
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('recent')}
-                className={`px-3 py-1 rounded-lg font-medium transition-all ${
-                  activeTab === 'recent'
-                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                    : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-                }`}
-              >
-                Recent
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('shared')}
-                className={`px-3 py-1 rounded-lg font-medium transition-all ${
-                  activeTab === 'shared'
-                    ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                    : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-                }`}
-              >
-                Shared with me
-              </button>
+            <div
+              role="tablist"
+              aria-label="QuantDrive scope"
+              className="flex items-center gap-1 overflow-x-auto no-scrollbar text-xs pb-1"
+            >
+              {PICKER_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                    activeTab === tab.id
+                      ? 'bg-[#2B1A11] text-[#FFB875] shadow-[inset_0_0_0_1px_#5C3016]'
+                      : 'text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#111318]'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
 
           {/* Files List/Grid Body */}
           <div className="flex-1 overflow-y-auto p-4 min-h-[220px]">
             {loading ? (
-              <div className="flex flex-col items-center justify-center h-48 text-zinc-500 text-xs gap-2">
-                <div className="size-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-                <span>Loading QuantDrive files...</span>
+              <div className="flex flex-col items-center justify-center h-48 text-[#6B6E76] text-xs gap-2">
+                <div className="size-5 border-2 border-[#FF8C42] border-t-transparent rounded-full animate-spin" />
+                <span>Loading QuantDrive files…</span>
               </div>
             ) : filteredFiles.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-zinc-500 text-xs gap-2">
-                <svg
-                  className="size-8 text-zinc-600"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                >
-                  <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
-                </svg>
+              <div className="flex flex-col items-center justify-center h-48 text-[#6B6E76] text-xs gap-2">
+                <IconFolder size={32} />
                 <span>No files found in QuantDrive</span>
               </div>
             ) : viewMode === 'grid' ? (
@@ -280,30 +225,33 @@ export function QuantDrivePickerModal({
                       key={file.id}
                       type="button"
                       onClick={() => toggleSelect(file.id)}
-                      className={`relative flex flex-col items-start p-3 rounded-xl text-left border transition-all ${
+                      aria-pressed={isSelected}
+                      className={`relative flex min-h-touch flex-col items-start p-3 rounded-xl text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                         isSelected
-                          ? 'bg-amber-500/15 border-amber-500/50 shadow-md ring-1 ring-amber-500/30'
-                          : 'bg-zinc-900/80 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'
+                          ? 'bg-[#2B1A11] shadow-[inset_0_0_0_1px_#FF8C42]'
+                          : 'bg-[#111318] shadow-[inset_0_0_0_1px_#282C35] hover:bg-[#1C1F26]'
                       }`}
                     >
                       <div className="flex items-center justify-between w-full mb-2">
-                        <span className="text-xl">{getFileEmoji(file.mimeType, file.type)}</span>
+                        <MimeTypeIcon mimeType={file.mimeType} kind={file.type} size={20} />
                         {isSelected && (
-                          <div className="size-4 rounded-full bg-amber-500 flex items-center justify-center text-black text-[10px] font-bold">
-                            ✓
-                          </div>
+                          <span className="grid size-4 place-items-center rounded-full bg-[#FF8C42] text-[#111111]">
+                            <IconCheck size={11} strokeWidth={2.6} />
+                          </span>
                         )}
                       </div>
-                      <span className="text-xs font-semibold text-white truncate w-full mb-0.5">
+                      <span className="text-xs font-semibold text-[#F5F5F5] truncate w-full mb-0.5">
                         {file.name}
                       </span>
-                      <span className="text-[10px] text-zinc-500">{formatFileSize(file.size)}</span>
+                      <span className="text-[10px] text-[#6B6E76]">
+                        {formatFileSize(file.size)}
+                      </span>
                     </button>
                   );
                 })}
               </div>
             ) : (
-              <div className="divide-y divide-zinc-800/60 rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
+              <div className="divide-y divide-[#282C35]/60 rounded-xl border border-[#282C35] bg-[#111318] overflow-hidden">
                 {filteredFiles.map((file) => {
                   const isSelected = selectedFileIds.includes(file.id);
                   return (
@@ -311,26 +259,27 @@ export function QuantDrivePickerModal({
                       key={file.id}
                       type="button"
                       onClick={() => toggleSelect(file.id)}
-                      className={`flex items-center justify-between w-full px-3.5 py-2.5 text-xs text-left transition-all ${
+                      aria-pressed={isSelected}
+                      className={`flex min-h-touch items-center justify-between w-full px-3.5 py-2 text-xs text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42] ${
                         isSelected
-                          ? 'bg-amber-500/15 text-amber-300'
-                          : 'hover:bg-zinc-800/60 text-zinc-200'
+                          ? 'bg-[#2B1A11] text-[#FFB875]'
+                          : 'text-[#F5F5F5] hover:bg-[#1C1F26]'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 truncate">
-                        <span className="text-sm">{getFileEmoji(file.mimeType, file.type)}</span>
+                        <MimeTypeIcon mimeType={file.mimeType} kind={file.type} size={15} />
                         <span className="font-medium truncate">{file.name}</span>
                       </div>
                       <div className="flex items-center gap-3 shrink-0 ml-2">
-                        <span className="text-[10px] text-zinc-500">
+                        <span className="text-[10px] text-[#6B6E76]">
                           {formatFileSize(file.size)}
                         </span>
                         {isSelected ? (
-                          <span className="size-4 rounded-full bg-amber-500 flex items-center justify-center text-black text-[10px] font-bold">
-                            ✓
+                          <span className="grid size-4 place-items-center rounded-full bg-[#FF8C42] text-[#111111]">
+                            <IconCheck size={11} strokeWidth={2.6} />
                           </span>
                         ) : (
-                          <span className="size-4 rounded-full border border-zinc-700" />
+                          <span className="size-4 rounded-full border border-[#3A404D]" />
                         )}
                       </div>
                     </button>
@@ -341,10 +290,10 @@ export function QuantDrivePickerModal({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-between px-5 py-3 border-t border-zinc-800 bg-[#0d1017]">
-            <span className="text-xs text-zinc-400">
+          <div className="flex items-center justify-between gap-3 px-5 py-2.5 border-t border-[#282C35] bg-[#111318]">
+            <span className="text-xs text-[#A1A4AC]">
               {selectedFileIds.length > 0 ? (
-                <span className="text-amber-400 font-semibold">
+                <span className="text-[#FF8C42] font-semibold">
                   {selectedFileIds.length} file{selectedFileIds.length > 1 ? 's' : ''} selected
                 </span>
               ) : (
@@ -356,7 +305,7 @@ export function QuantDrivePickerModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3 py-1.5 rounded-xl text-xs font-medium text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all"
+                className="min-h-touch rounded-xl px-3 text-xs font-medium text-[#A1A4AC] transition-colors hover:text-[#F5F5F5] hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
                 Cancel
               </button>
@@ -364,7 +313,7 @@ export function QuantDrivePickerModal({
                 type="button"
                 onClick={handleConfirm}
                 disabled={selectedFileIds.length === 0}
-                className="px-4 py-1.5 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#111111] text-xs font-semibold shadow-sm transition-all disabled:opacity-40"
+                className="min-h-touch rounded-xl bg-[#FF8C42] px-4 text-xs font-semibold text-[#111111] shadow-[0_4px_16px_rgba(0,0,0,0.6)] transition-colors hover:bg-[#FF9B5A] active:bg-[#E8752F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111318] focus-visible:ring-[#FF8C42] disabled:opacity-40"
               >
                 Insert Attached ({selectedFileIds.length})
               </button>
