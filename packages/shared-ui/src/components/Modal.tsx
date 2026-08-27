@@ -1,14 +1,18 @@
 'use client';
 // ============================================================================
 // Shared UI - Modal Component
+// Themed with Quant design tokens (works in dark + light), premium surface,
+// responsive: centered dialog on desktop, bottom sheet on small screens.
 // ============================================================================
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
+  description?: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   closeOnOverlayClick?: boolean;
@@ -18,10 +22,18 @@ export interface ModalProps {
   className?: string;
 }
 
+const SURFACE = 'var(--quant-popover, #16181D)';
+const FOREGROUND = 'var(--quant-popover-foreground, #F5F5F5)';
+const BORDER = 'var(--quant-border, #282C35)';
+const MUTED = 'var(--quant-muted-foreground, #A1A4AC)';
+const RADIUS = '0.75rem';
+const SHADOW = 'var(--quant-shadow-xl, 0 24px 64px rgba(0,0,0,.6))';
+
 export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
   title,
+  description,
   children,
   size = 'md',
   closeOnOverlayClick = true,
@@ -30,6 +42,12 @@ export const Modal: React.FC<ModalProps> = ({
   footer,
   className = '',
 }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (event.key === 'Escape' && closeOnEscape) {
@@ -56,39 +74,60 @@ export const Modal: React.FC<ModalProps> = ({
     sm: 'max-w-sm',
     md: 'max-w-md',
     lg: 'max-w-lg',
-    xl: 'max-w-xl',
-    full: 'max-w-full mx-4',
+    xl: 'max-w-2xl',
+    full: 'max-w-5xl',
   };
 
-  return (
+  const modalContent = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'modal-title' : undefined}
     >
+      <style>{`@keyframes quantModalIn{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:none}}
+.quant-modal-panel{animation:quantModalIn .16s cubic-bezier(.16,1,.3,1) both}
+@media (prefers-reduced-motion:reduce){.quant-modal-panel{animation:none}}`}</style>
       <div
-        className="absolute inset-0 bg-black bg-opacity-50 transition-opacity"
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity"
         onClick={closeOnOverlayClick ? onClose : undefined}
         aria-hidden="true"
       />
       <div
-        className={`relative bg-white rounded-xl shadow-2xl w-full ${sizeStyles[size]} mx-4 transform transition-all ${className}`}
+        className={`quant-modal-panel relative w-full ${sizeStyles[size]} flex max-h-[88vh] flex-col overflow-hidden ${className}`}
+        style={{
+          background: SURFACE,
+          color: FOREGROUND,
+          border: `1px solid ${BORDER}`,
+          borderRadius: RADIUS,
+          boxShadow: SHADOW,
+        }}
       >
         {(title || showCloseButton) && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-            {title && (
-              <h2 id="modal-title" className="text-lg font-semibold text-gray-900">
-                {title}
-              </h2>
-            )}
+          <div
+            className="flex items-start justify-between gap-4 px-5 py-4 sm:px-6"
+            style={{ borderBottom: `1px solid ${BORDER}` }}
+          >
+            <div className="min-w-0">
+              {title && (
+                <h2 id="modal-title" className="truncate text-base font-semibold tracking-tight">
+                  {title}
+                </h2>
+              )}
+              {description && (
+                <p className="mt-1 text-xs leading-relaxed" style={{ color: MUTED }}>
+                  {description}
+                </p>
+              )}
+            </div>
             {showCloseButton && (
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors"
+                style={{ color: MUTED, border: `1px solid ${BORDER}` }}
                 aria-label="Close modal"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -100,11 +139,22 @@ export const Modal: React.FC<ModalProps> = ({
             )}
           </div>
         )}
-        <div className="px-6 py-4 max-h-96 overflow-y-auto">{children}</div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6">{children}</div>
         {footer && (
-          <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">{footer}</div>
+          <div
+            className="flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end sm:gap-3 sm:px-6"
+            style={{ borderTop: `1px solid ${BORDER}` }}
+          >
+            {footer}
+          </div>
         )}
       </div>
     </div>
   );
+
+  if (!mounted || typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(modalContent, document.body);
 };

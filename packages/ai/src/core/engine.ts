@@ -69,6 +69,7 @@ export class AIEngine {
   private safetyPipeline: SafetyPipeline;
   private costTracker: CostTracker;
   private activeRequests: number = 0;
+  private cloudflareProvider: ReturnType<typeof createOpenAI> | null = null;
   private openaiProvider: ReturnType<typeof createOpenAI> | null = null;
   private anthropicProvider: ReturnType<typeof createAnthropic> | null = null;
   private googleProvider: ReturnType<typeof createGoogleGenerativeAI> | null = null;
@@ -100,6 +101,18 @@ export class AIEngine {
    * Initialize AI SDK providers from environment variables
    */
   private initializeProviders(): void {
+    // Cloudflare Workers AI: ultra-fast edge inference powered by Cloudflare
+    const cloudflareToken =
+      process.env['CLOUDFLARE_API_TOKEN'] ?? process.env['CLOUDFLARE_API_KEY'];
+    const cloudflareAccountId =
+      process.env['CLOUDFLARE_ACCOUNT_ID'] ?? '9af698848a5edd00e756c3a2c908ec8d';
+    if (cloudflareToken) {
+      this.cloudflareProvider = createOpenAI({
+        apiKey: cloudflareToken,
+        baseURL: `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1`,
+      });
+    }
+
     const openaiKey = process.env['OPENAI_API_KEY'];
     const anthropicKey = process.env['ANTHROPIC_API_KEY'];
 
@@ -147,6 +160,7 @@ export class AIEngine {
     // Tell the router which providers are actually configured so it never
     // selects a model whose credentials are missing.
     const configured = new Set<AIProvider>();
+    if (this.cloudflareProvider) configured.add('cloudflare');
     if (this.openaiProvider) configured.add('openai');
     if (this.anthropicProvider) configured.add('anthropic');
     if (this.googleProvider) configured.add('google');
@@ -159,6 +173,14 @@ export class AIEngine {
    * Get the appropriate AI SDK model instance for a model config
    */
   private getProviderModel(model: AIModelConfig) {
+    if (model.provider === 'cloudflare') {
+      if (!this.cloudflareProvider) {
+        throw new Error(
+          'CLOUDFLARE_API_TOKEN not configured. Set the environment variable to use Cloudflare Workers AI models.',
+        );
+      }
+      return this.cloudflareProvider(model.id);
+    }
     if (model.provider === 'openai') {
       if (!this.openaiProvider) {
         throw new Error(

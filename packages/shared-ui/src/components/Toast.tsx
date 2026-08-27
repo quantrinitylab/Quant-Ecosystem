@@ -34,43 +34,65 @@ export const Toast: React.FC<ToastProps> = ({
     }
   }, [id, duration, onDismiss]);
 
-  const typeStyles: Record<string, string> = {
-    success: 'bg-green-50 border-green-200 text-green-800',
-    error: 'bg-red-50 border-red-200 text-red-800',
-    warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
-    info: 'bg-blue-50 border-blue-200 text-blue-800',
+  const typeStyles: Record<
+    'success' | 'error' | 'warning' | 'info',
+    { container: string; iconColor: string }
+  > = {
+    success: {
+      container: 'bg-[#16181D] border-[#1B4D2E] text-[#F5F5F5] shadow-xl',
+      iconColor: 'text-[#4ADE80]',
+    },
+    error: {
+      container: 'bg-[#16181D] border-[#4E1F24] text-[#F5F5F5] shadow-xl',
+      iconColor: 'text-[#F87171]',
+    },
+    warning: {
+      container: 'bg-[#16181D] border-[#543D15] text-[#F5F5F5] shadow-xl',
+      iconColor: 'text-[#FCD34D]',
+    },
+    info: {
+      container: 'bg-[#16181D] border-[#1E3A66] text-[#F5F5F5] shadow-xl',
+      iconColor: 'text-[#60A5FA]',
+    },
   };
 
-  const icons: Record<string, string> = {
+  const icons: Record<'success' | 'error' | 'warning' | 'info', string> = {
     success: 'M5 13l4 4L19 7',
     error: 'M6 18L18 6M6 6l12 12',
     warning: 'M12 9v2m0 4h.01M12 2a10 10 0 100 20 10 10 0 000-20z',
     info: 'M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z',
   };
 
+  const currentType = typeStyles[type] ?? typeStyles.info;
+
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg transition-all duration-300 ${typeStyles[type]} ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}
+      className={`flex items-center gap-3 px-4 py-3 rounded-lg border transition-all duration-200 ${currentType.container} ${isVisible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-2 scale-95'}`}
       role="alert"
     >
-      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg
+        className={`w-4 h-4 shrink-0 ${currentType.iconColor}`}
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icons[type]} />
       </svg>
-      <p className="flex-1 text-sm font-medium">{message}</p>
+      <p className="flex-1 text-sm font-medium text-[#F5F5F5]">{message}</p>
       {action && (
         <button
           onClick={action.onClick}
-          className="text-sm font-semibold underline hover:no-underline"
+          className="text-xs font-semibold text-[#FF8C42] hover:text-[#FF9B5A] px-2 py-1 rounded bg-[#2B1A11] border border-[#5C3016] transition-colors"
         >
           {action.label}
         </button>
       )}
       <button
         onClick={() => onDismiss(id)}
-        className="text-current opacity-50 hover:opacity-100"
+        className="text-[#6B6E76] hover:text-[#F5F5F5] p-1 rounded hover:bg-white/5 transition-colors"
         aria-label="Dismiss"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
             strokeLinejoin="round"

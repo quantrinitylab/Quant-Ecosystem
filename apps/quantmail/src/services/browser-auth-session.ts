@@ -51,7 +51,10 @@ const post = async <T>(path: string, body?: unknown): Promise<AuthResponse<T>> =
     const response = await fetch(endpoint(path), {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      // Only advertise a JSON body when one exists: Fastify rejects an empty
+      // body with Content-Type: application/json (FST_ERR_CTP_EMPTY_JSON_BODY),
+      // which used to break /auth/refresh and log users out on every reload.
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';

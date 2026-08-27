@@ -49,7 +49,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
 
   return (
     <div
-      className={`bg-[var(--quant-muted)] ${variantStyles[variant]} ${animateStyles} ${className}`}
+      className={`bg-[#16181D] border border-[#282C35]/50 ${variantStyles[variant]} ${animateStyles} ${className}`}
       style={style}
       role="status"
       aria-label={ariaLabel}

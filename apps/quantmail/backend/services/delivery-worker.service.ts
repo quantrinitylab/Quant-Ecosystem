@@ -12,6 +12,7 @@ import {
 } from '@quant/queue';
 import { OUTBOUND_DELIVERY_QUEUE } from './outbound-delivery.service';
 import type { DeliverabilityAuthService, DkimSigner } from './deliverability-auth.service';
+import { sendViaSes, isSesConfigured } from '../lib/ses-sender';
 
 /**
  * Delivery worker `processDelivery` (QuantMail SuperHub — Pillar 1, Phase 2, task 6.2).
@@ -189,7 +190,9 @@ export class NetSmtpTransport implements SmtpTransport {
       socket.setTimeout(this.timeoutMs);
       socket.setEncoding('utf-8');
 
-      socket.on('timeout', () => finish({ outcome: 'deferred', response: '451 connection timeout' }));
+      socket.on('timeout', () =>
+        finish({ outcome: 'deferred', response: '451 connection timeout' }),
+      );
       socket.on('error', (err) => finish({ outcome: 'deferred', response: `451 ${err.message}` }));
 
       socket.on('data', (chunk: string) => {
@@ -273,7 +276,10 @@ function toAddressList(value: unknown): string[] {
     return value.filter((v): v is string => typeof v === 'string' && v.length > 0);
   }
   if (typeof value === 'string' && value.length > 0) {
-    return value.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+    return value
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
   }
   return [];
 }
@@ -327,7 +333,9 @@ export class DeliveryWorker {
    * Process one queued send: DKIM-sign, resolve MX, attempt SMTP, and record a
    * per-recipient terminal-or-deferred Delivery_State.
    */
-  async processDelivery(job: TypedJob<SendEmailJob> | { data: SendEmailJob }): Promise<DeliveryReceipt> {
+  async processDelivery(
+    job: TypedJob<SendEmailJob> | { data: SendEmailJob },
+  ): Promise<DeliveryReceipt> {
     const data = job.data;
     if (!data.emailId) {
       throw createAppError('Delivery job is missing emailId', 400, 'INVALID_DELIVERY_JOB');
@@ -338,9 +346,12 @@ export class DeliveryWorker {
       throw createAppError('Email not found for delivery', 404, 'EMAIL_NOT_FOUND');
     }
 
-    const fromAddress = email.fromAddress && email.fromAddress.length > 0
-      ? email.fromAddress
-      : (data.userId ? `${data.userId}@${this.fallbackDomain}` : `noreply@${this.fallbackDomain}`);
+    const fromAddress =
+      email.fromAddress && email.fromAddress.length > 0
+        ? email.fromAddress
+        : data.userId
+          ? `${data.userId}@${this.fallbackDomain}`
+          : `noreply@${this.fallbackDomain}`;
     const fromDomain = senderDomainOf(fromAddress, this.fallbackDomain);
 
     const recipients = uniqueAddresses(
@@ -357,6 +368,45 @@ export class DeliveryWorker {
     const messageId = emailDelivery.messageId ?? `<${randomUUID()}@${fromDomain}>`;
     if (!emailDelivery.messageId) {
       await this.prisma.email.update({ where: { id: email.id }, data: { messageId } as never });
+    }
+
+    // When AWS SES is configured (production EKS with IRSA/IAM), transmit directly
+    // through SES for maximum deliverability and automatic DKIM/SPF alignment.
+    if (isSesConfigured()) {
+      const receipts: RecipientReceipt[] = [];
+      for (const recipient of recipients) {
+        let status: AttemptStatus = 'sent';
+        let response = '250 2.0.0 OK (AWS SES)';
+        try {
+          await sendViaSes({
+            from: fromAddress,
+            to: [recipient],
+            subject: email.subject ?? '',
+            bodyHtml: email.bodyHtml ?? undefined,
+            bodyText: email.bodyPlain ?? undefined,
+          });
+        } catch (sesErr) {
+          status = 'deferred';
+          response = `451 AWS SES delivery error: ${(sesErr as Error).message}`;
+        }
+        const persisted = await this.recordAttempt(
+          email.id,
+          recipient,
+          status,
+          response,
+          status === 'deferred',
+        );
+        receipts.push({
+          recipient,
+          status: persisted.status,
+          smtpResponse: persisted.smtpResponse ?? response,
+        });
+      }
+      const deliveryStatus = await this.finalizeEmailState(
+        email,
+        receipts.map((r) => r.status),
+      );
+      return { emailId: email.id, deliveryStatus, recipients: receipts };
     }
 
     // DKIM-sign once: the signed header set (From/To/Subject/Date/Message-ID) is
@@ -382,7 +432,10 @@ export class DeliveryWorker {
       const receipts = await Promise.all(
         recipients.map((r) => this.recordAttempt(email.id, r, 'deferred', response, true)),
       );
-      const status = await this.finalizeEmailState(email, receipts.map((x) => x.status));
+      const status = await this.finalizeEmailState(
+        email,
+        receipts.map((x) => x.status),
+      );
       return {
         emailId: email.id,
         deliveryStatus: status,
@@ -436,7 +489,10 @@ export class DeliveryWorker {
     try {
       mxRecords = await this.deps.mx.resolveMx(domain);
     } catch (err) {
-      return { outcome: 'deferred', response: `451 MX resolution failed: ${(err as Error).message}` };
+      return {
+        outcome: 'deferred',
+        response: `451 MX resolution failed: ${(err as Error).message}`,
+      };
     }
     if (!mxRecords || mxRecords.length === 0) {
       return { outcome: 'deferred', response: '451 no MX records for domain' };

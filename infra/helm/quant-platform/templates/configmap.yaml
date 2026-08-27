@@ -30,6 +30,9 @@ data:
   {{- if .Values.configmap.QUANTMAIL_BACKEND_URL }}
   QUANTMAIL_BACKEND_URL: {{ .Values.configmap.QUANTMAIL_BACKEND_URL | quote }}
   {{- end }}
+  {{- if .Values.configmap.QUANTDRIVE_BACKEND_URL }}
+  QUANTDRIVE_BACKEND_URL: {{ .Values.configmap.QUANTDRIVE_BACKEND_URL | quote }}
+  {{- end }}
   {{- if .Values.configmap.QUANTCHAT_BACKEND_URL }}
   QUANTCHAT_BACKEND_URL: {{ .Values.configmap.QUANTCHAT_BACKEND_URL | quote }}
   {{- end }}

@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
+import { IconDownload, IconShare, IconTrash, MimeTypeIcon } from './icons';
+
 interface DriveFile {
   id: string;
   name: string;
@@ -27,7 +29,13 @@ interface DriveFilePreviewProps {
  * Google Drive opens a full-page viewer. We show an inline split-pane preview
  * so you don't lose context of your file list.
  */
-export function DriveFilePreview({ file, onClose, onDownload, onShare, onDelete }: DriveFilePreviewProps) {
+export function DriveFilePreview({
+  file,
+  onClose,
+  onDownload,
+  onShare,
+  onDelete,
+}: DriveFilePreviewProps) {
   const isImage = file.mimeType.startsWith('image/');
   const isPDF = file.mimeType === 'application/pdf';
   const isText = file.mimeType.startsWith('text/') || file.mimeType.includes('json');
@@ -48,7 +56,12 @@ export function DriveFilePreview({ file, onClose, onDownload, onShare, onDelete 
     >
       <header className="drive-preview-header">
         <h3 className="drive-preview-title">{file.name}</h3>
-        <button type="button" className="drive-preview-close" onClick={onClose} aria-label="Close preview">
+        <button
+          type="button"
+          className="drive-preview-close"
+          onClick={onClose}
+          aria-label="Close preview"
+        >
           ×
         </button>
       </header>
@@ -67,12 +80,7 @@ export function DriveFilePreview({ file, onClose, onDownload, onShare, onDelete 
         {!isImage && !isPDF && (
           <div className="drive-preview-placeholder">
             <span className="drive-preview-icon">
-              {file.mimeType.includes('spreadsheet') ? '📊' :
-               file.mimeType.includes('presentation') ? '📽️' :
-               file.mimeType.includes('document') ? '📝' :
-               file.mimeType.includes('zip') ? '📦' :
-               file.mimeType.includes('audio') ? '🎵' :
-               file.mimeType.includes('video') ? '🎬' : '📄'}
+              <MimeTypeIcon mimeType={file.mimeType} size={40} tinted={false} />
             </span>
             <p>Preview not available for this file type</p>
           </div>
@@ -92,7 +100,11 @@ export function DriveFilePreview({ file, onClose, onDownload, onShare, onDelete 
           <div className="drive-meta-row">
             <span className="drive-meta-label">Modified</span>
             <span className="drive-meta-value">
-              {new Date(file.modifiedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+              {new Date(file.modifiedAt).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}
             </span>
           </div>
         )}
@@ -105,14 +117,25 @@ export function DriveFilePreview({ file, onClose, onDownload, onShare, onDelete 
       </div>
 
       <div className="drive-preview-actions">
-        <button type="button" className="drive-action-btn drive-action-primary" onClick={() => onDownload(file.id)}>
-          ⬇ Download
+        <button
+          type="button"
+          className="drive-action-btn drive-action-primary"
+          onClick={() => onDownload(file.id)}
+        >
+          <IconDownload size={14} />
+          Download
         </button>
         <button type="button" className="drive-action-btn" onClick={() => onShare(file.id)}>
-          🔗 Share
+          <IconShare size={14} />
+          Share
         </button>
-        <button type="button" className="drive-action-btn drive-action-danger" onClick={() => onDelete(file.id)}>
-          🗑 Delete
+        <button
+          type="button"
+          className="drive-action-btn drive-action-danger"
+          onClick={() => onDelete(file.id)}
+        >
+          <IconTrash size={14} />
+          Delete
         </button>
       </div>
     </motion.div>

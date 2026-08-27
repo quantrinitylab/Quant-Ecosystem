@@ -21,6 +21,9 @@ configmap:
   JWT_ISSUER: 'https://quantrinity.in'
   JWT_AUDIENCE: 'quant-platform-staging'
   QUANTMAIL_BACKEND_URL: 'http://quant-quantmail-backend:3011'
+  # Drive routes are served by the QuantMail backend in staging (no standalone
+  # QuantDrive service), so the Drive proxies target the same host.
+  QUANTDRIVE_BACKEND_URL: 'http://quant-quantmail-backend:3011'
 
 ingress:
   tls:

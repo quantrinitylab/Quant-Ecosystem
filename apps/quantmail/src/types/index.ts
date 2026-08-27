@@ -119,7 +119,7 @@ export interface ComposeEmailRequest {
   bodyText: string;
   bodyHtml?: string;
   priority?: EmailPriority;
-  attachments?: string[];
+  attachments?: any[];
   inReplyTo?: string;
   isDraft?: boolean;
   scheduledAt?: string;

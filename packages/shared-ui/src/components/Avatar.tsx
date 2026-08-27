@@ -61,9 +61,13 @@ export const Avatar: React.FC<AvatarProps> = ({
       .toUpperCase();
   };
 
-  const bgColors = [
-    'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500',
-    'bg-indigo-500', 'bg-red-500', 'bg-yellow-500', 'bg-teal-500',
+  const bgTints = [
+    'bg-[#2B1A11] text-[#FF9B5A] border border-[#5C3016]',
+    'bg-[#15232D] text-[#7DD3FC] border border-[#1E3A52]',
+    'bg-[#0E2A1A] text-[#86EFAC] border border-[#1B4D2E]',
+    'bg-[#2A1828] text-[#F472B6] border border-[#50224A]',
+    'bg-[#241E34] text-[#C084FC] border border-[#48336A]',
+    'bg-[#2C200C] text-[#FCD34D] border border-[#543D15]',
   ];
 
   const getColorIndex = (displayName: string): number => {
@@ -71,31 +75,29 @@ export const Avatar: React.FC<AvatarProps> = ({
     for (let i = 0; i < displayName.length; i++) {
       hash = ((hash << 5) - hash + displayName.charCodeAt(i)) | 0;
     }
-    return Math.abs(hash) % bgColors.length;
+    return Math.abs(hash) % bgTints.length;
   };
 
   const Component = onClick ? 'button' : 'div';
 
   return (
     <Component
-      className={`relative inline-flex items-center justify-center ${sizeStyles[size]} ${shapeStyles} overflow-hidden ${onClick ? 'cursor-pointer' : ''} ${className}`}
+      className={`relative inline-flex items-center justify-center shrink-0 ${sizeStyles[size]} ${shapeStyles} overflow-hidden ${onClick ? 'cursor-pointer' : ''} ${className}`}
       onClick={onClick}
       aria-label={alt}
     >
       {src ? (
-        <img
-          src={src}
-          alt={alt}
-          className={`w-full h-full object-cover ${shapeStyles}`}
-        />
+        <img src={src} alt={alt} className={`w-full h-full object-cover ${shapeStyles}`} />
       ) : (
-        <div className={`w-full h-full flex items-center justify-center text-white font-semibold ${bgColors[getColorIndex(name || 'User')]}`}>
+        <div
+          className={`w-full h-full flex items-center justify-center font-semibold text-xs ${bgTints[getColorIndex(name || 'User')]}`}
+        >
           {name ? getInitials(name) : '?'}
         </div>
       )}
       {showStatus && status && (
         <span
-          className={`absolute bottom-0 right-0 ${statusSizes[size]} ${statusColors[status]} border-2 border-white rounded-full`}
+          className={`absolute bottom-0 right-0 ${statusSizes[size]} ${statusColors[status]} border-2 border-[#090A0C] rounded-full`}
           aria-label={`Status: ${status}`}
         />
       )}

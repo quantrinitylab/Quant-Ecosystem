@@ -1,6 +1,7 @@
 import type { PrismaClient, Email } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import type { OutboundDeliveryPipeline } from './outbound-delivery.service';
+import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
 
 export interface PaginationOptions {
   page?: number;
@@ -74,14 +75,23 @@ export class EmailService {
     const sender = await (
       this.prisma as unknown as {
         user: {
-          findUnique(a: unknown): Promise<{ email: string; displayName: string | null } | null>;
+          findUnique(
+            a: unknown,
+          ): Promise<{ email: string; displayName: string | null; username: string | null } | null>;
         };
       }
     ).user.findUnique({
       where: { id: input.userId },
-      select: { email: true, displayName: true },
+      select: { email: true, displayName: true, username: true },
     });
 
+    const senderEmail = sender?.email?.includes('@')
+      ? sender.email
+      : `${sender?.username || sender?.email || 'user'}@quantmail.in`;
+    const senderName =
+      sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
+
+    const hasAttachments = Array.isArray(input.attachments) && input.attachments.length > 0;
     const email = await this.prisma.email.create({
       data: {
         userId: input.userId,
@@ -91,11 +101,12 @@ export class EmailService {
         subject: input.subject,
         bodyHtml: input.bodyHtml ?? '',
         bodyPlain: input.bodyPlain ?? '',
-        fromAddress: sender?.email ?? '',
-        fromName: sender?.displayName ?? null,
+        fromAddress: senderEmail,
+        fromName: senderName,
         isDraft: true,
         threadId: input.threadId ?? null,
         inReplyTo: input.inReplyTo ?? null,
+        hasAttachments,
         attachments: input.attachments ?? [],
       },
     });
@@ -120,6 +131,7 @@ export class EmailService {
     bccAddresses?: string[];
     threadId?: string;
     inReplyTo?: string;
+    attachments?: unknown[];
   }): Promise<number> {
     const recipients = Array.from(
       new Set(
@@ -132,30 +144,79 @@ export class EmailService {
 
     const userModel = this.prisma as unknown as {
       user: {
-        findUnique(a: unknown): Promise<{ email: string; displayName: string | null } | null>;
-        findMany(a: unknown): Promise<Array<{ id: string; email: string }>>;
+        findUnique(
+          a: unknown,
+        ): Promise<{ email: string; displayName: string | null; username: string | null } | null>;
+        findMany(
+          a: unknown,
+        ): Promise<Array<{ id: string; email: string; username: string | null }>>;
+      };
+      folder: {
+        findFirst(a: unknown): Promise<{ id: string } | null>;
       };
     };
 
     const sender = await userModel.user.findUnique({
       where: { id: input.fromUserId },
-      select: { email: true, displayName: true },
+      select: { email: true, displayName: true, username: true },
     });
+
+    const targetHandles = recipients.map((r) => r.split('@')[0].toLowerCase());
     const matches = await userModel.user.findMany({
-      where: { email: { in: recipients } },
-      select: { id: true, email: true },
+      where: {
+        OR: [
+          { email: { in: recipients, mode: 'insensitive' } },
+          { username: { in: targetHandles, mode: 'insensitive' } },
+          ...recipients.flatMap((r) => {
+            const h = r.split('@')[0].toLowerCase();
+            return [
+              { email: { equals: `${h}@quantmail.in`, mode: 'insensitive' as const } },
+              { email: { equals: `${h}@quantrinity.in`, mode: 'insensitive' as const } },
+              { email: { equals: `${h}@quantchat.online`, mode: 'insensitive' as const } },
+            ];
+          }),
+        ],
+      },
+      select: { id: true, email: true, username: true },
     });
 
     const snippet = (input.bodyPlain ?? input.bodyHtml ?? '').replace(/<[^>]+>/g, '').slice(0, 140);
+    const senderEmail = sender?.email?.includes('@')
+      ? sender.email
+      : `${sender?.username || sender?.email || 'user'}@quantmail.in`;
+    const senderName =
+      sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
 
+    const hasAttachments = Array.isArray(input.attachments) && input.attachments.length > 0;
     let delivered = 0;
     for (const recipient of matches) {
+      const inboxFolder = await userModel.folder
+        .findFirst({
+          where: { userId: recipient.id, type: 'INBOX' },
+        })
+        .catch(() => null);
+
+      let recipientThreadId: string | null = null;
+      try {
+        const { ThreadService } = await import('./thread.service');
+        const threadService = new ThreadService(this.prisma);
+        recipientThreadId = await threadService.stitchInbound({
+          userId: recipient.id,
+          subject: input.subject,
+          inReplyTo: input.inReplyTo,
+          participants: [senderEmail, ...input.toAddresses],
+          at: new Date(),
+        });
+      } catch {
+        recipientThreadId = null;
+      }
+
       await this.prisma.email.create({
         data: {
           userId: recipient.id,
-          folderId: null,
-          fromAddress: sender?.email ?? '',
-          fromName: sender?.displayName ?? null,
+          folderId: inboxFolder?.id ?? null,
+          fromAddress: senderEmail,
+          fromName: senderName,
           toAddresses: input.toAddresses,
           ccAddresses: input.ccAddresses ?? [],
           bccAddresses: [],
@@ -163,8 +224,10 @@ export class EmailService {
           bodyHtml: input.bodyHtml ?? '',
           bodyPlain: input.bodyPlain ?? '',
           snippet,
-          threadId: input.threadId ?? null,
+          threadId: recipientThreadId ?? input.threadId ?? null,
           inReplyTo: input.inReplyTo ?? null,
+          hasAttachments,
+          attachments: input.attachments ?? [],
           isRead: false,
           isSent: false,
           isDraft: false,
@@ -178,19 +241,14 @@ export class EmailService {
   }
 
   async send(userId: string, emailId: string, sentFolderId: string): Promise<Email> {
-    // When a durable delivery pipeline is wired in, sending a draft enqueues a
-    // real BullMQ delivery job and advances deliveryStatus to `queued`
-    // (Requirements 4.1/4.2). The pipeline enforces ownership and draft validity.
-    if (this.pipeline) {
-      await this.pipeline.enqueueSend(userId, emailId, { sentFolderId });
-      const queued = await this.prisma.email.findUnique({ where: { id: emailId } });
-      if (!queued) {
-        throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
-      }
-      return queued;
-    }
-
-    // Backward-compatible fallback (no pipeline injected): legacy flag-flip send.
+    // Sending has to do three things for the message to actually reach a human:
+    //   1. Recipients that are QuantMail users get an internal mailbox copy
+    //      (the route calls `deliverInternally` for that).
+    //   2. External recipients (Gmail, Outlook, ...) are handed to the durable
+    //      BullMQ pipeline when it is wired, AND transmitted immediately via SES
+    //      so mail leaves even when no outbound worker process is running.
+    //   3. The draft is always flipped into a real Sent message, otherwise the
+    //      UI keeps showing a "sent" mail as an unsent draft.
     const email = await this.prisma.email.findUnique({ where: { id: emailId } });
 
     if (!email) {
@@ -201,6 +259,109 @@ export class EmailService {
       throw createAppError('Not authorized to send this email', 403, 'FORBIDDEN');
     }
 
+    const asAddressList = (value: unknown): string[] => {
+      if (Array.isArray(value)) {
+        return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+      }
+      if (typeof value === 'string' && value.trim().length > 0) return [value];
+      return [];
+    };
+
+    const recipients = Array.from(
+      new Set(
+        [
+          ...asAddressList((email as { toAddresses?: unknown }).toAddresses),
+          ...asAddressList((email as { ccAddresses?: unknown }).ccAddresses),
+          ...asAddressList((email as { bccAddresses?: unknown }).bccAddresses),
+        ].map((a) => a.trim().toLowerCase()),
+      ),
+    );
+
+    let internal: string[] = [];
+    if (recipients.length > 0) {
+      try {
+        const userModel = this.prisma as unknown as {
+          user: {
+            findMany(a: unknown): Promise<Array<{ email: string; username: string | null }>>;
+          };
+        };
+        const targetHandles = recipients.map((r) => r.split('@')[0].toLowerCase());
+        const matches = await userModel.user.findMany({
+          where: {
+            OR: [
+              { email: { in: recipients, mode: 'insensitive' } },
+              { username: { in: targetHandles, mode: 'insensitive' } },
+              ...recipients.flatMap((r) => {
+                const h = r.split('@')[0].toLowerCase();
+                return [
+                  { email: { equals: `${h}@quantmail.in`, mode: 'insensitive' as const } },
+                  { email: { equals: `${h}@quantrinity.in`, mode: 'insensitive' as const } },
+                  { email: { equals: `${h}@quantchat.online`, mode: 'insensitive' as const } },
+                ];
+              }),
+            ],
+          },
+          select: { email: true, username: true },
+        });
+        internal = matches.flatMap((u) => [
+          u.email.toLowerCase(),
+          ...(u.username
+            ? [
+                `${u.username.toLowerCase()}@quantmail.in`,
+                `${u.username.toLowerCase()}@quantrinity.in`,
+              ]
+            : []),
+        ]);
+      } catch {
+        internal = [];
+      }
+    }
+    const external = recipients.filter((address) => !internal.includes(address));
+
+    let deliveryStatus = 'delivered';
+    let deliveryError: string | undefined;
+
+    if (external.length > 0) {
+      deliveryStatus = 'queued';
+
+      // Durable job (retries, per-recipient attempts) when Redis/queue exist.
+      if (this.pipeline) {
+        try {
+          await this.pipeline.enqueueSend(userId, emailId, { sentFolderId });
+        } catch (error) {
+          deliveryError = error instanceof Error ? error.message : String(error);
+        }
+      }
+
+      // Immediate transmission so delivery does not depend on a worker being up.
+      if (isSesConfigured()) {
+        try {
+          const fromDomain = process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.in';
+          let fromAddress = email.fromAddress;
+          if (!fromAddress || !fromAddress.includes('@')) {
+            fromAddress = `${fromAddress || 'noreply'}@${fromDomain}`;
+          }
+          const from = email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress;
+          await sendViaSes({
+            from,
+            to: external,
+            subject: email.subject,
+            ...(email.bodyHtml ? { bodyHtml: email.bodyHtml } : {}),
+            ...(email.bodyPlain ? { bodyText: email.bodyPlain } : {}),
+            replyTo: fromAddress,
+          });
+          deliveryStatus = 'delivered';
+          deliveryError = undefined;
+        } catch (error) {
+          deliveryError = error instanceof Error ? error.message : String(error);
+          if (!this.pipeline) deliveryStatus = 'failed';
+        }
+      } else if (!this.pipeline) {
+        deliveryStatus = 'failed';
+        deliveryError = 'No outbound transport configured (SES env vars missing)';
+      }
+    }
+
     const updated = await this.prisma.email.update({
       where: { id: emailId },
       data: {
@@ -208,7 +369,8 @@ export class EmailService {
         isSent: true,
         folderId: sentFolderId,
         sentAt: new Date(),
-      },
+        deliveryStatus,
+      } as never,
     });
 
     return updated;

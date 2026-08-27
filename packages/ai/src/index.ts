@@ -271,7 +271,13 @@ export type {
 export { TokenCounter } from './core/token-counter';
 export type { TokenCountResult } from './core/token-counter';
 
-// Providers
+// Providers & Adapters
+export {
+  CloudflareEmbeddingProvider,
+  loadCloudflareEmbeddingConfig,
+  CLOUDFLARE_EMBEDDING_DIMENSIONS,
+} from './adapters/cloudflare-embedding-provider';
+export type { CloudflareEmbeddingConfig } from './adapters/cloudflare-embedding-provider';
 export {
   OpenRouterProvider,
   loadOpenRouterConfig,

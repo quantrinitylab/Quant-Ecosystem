@@ -1,0 +1,46 @@
+name: verify-live
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/verify-live.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Curl public URLs via Cloudflare
+        run: |
+          mkdir -p infra/status
+          {
+            echo "=== verify-live $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+            for host in quantmail.quantrinity.in staging.quantrinity.in; do
+              echo "--- dig $host ---"
+              dig +short "$host" | head -4
+              echo "--- GET / ---"
+              code=$(curl -s -o /tmp/o.html -D /tmp/h.txt -w "%{http_code}" --connect-timeout 15 --max-time 40 "https://$host/" || echo FAIL)
+              echo "status=$code"
+              grep -i -E "^(server|cf-ray|cf-cache-status):" /tmp/h.txt || true
+              grep -o "<title>[^<]*</title>" /tmp/o.html | head -1 || true
+              echo "--- GET /api/ ---"
+              codea=$(curl -s -o /tmp/a.txt -w "%{http_code}" --connect-timeout 15 --max-time 40 "https://$host/api/" || echo FAIL)
+              echo "api_status=$codea"
+              head -c 200 /tmp/a.txt || true
+              echo ""
+              echo ""
+            done
+          } | tee infra/status/verify-live-result.txt
+
+      - name: Publish result
+        run: |
+          git config user.name "gha-bot"
+          git config user.email "gha-bot@users.noreply.github.com"
+          git add -f infra/status/verify-live-result.txt
+          git commit -m "verify live result"
+          git push -f origin HEAD:status-report

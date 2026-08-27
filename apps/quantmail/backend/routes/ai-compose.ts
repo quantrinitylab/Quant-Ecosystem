@@ -15,6 +15,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
+import { aiChat, isAIConfigured } from '../services/ai-provider.service';
 
 const composeSchema = z.object({
   instructions: z.string().min(1).max(4000),
@@ -49,61 +50,6 @@ function buildSystemPrompt(tone?: string, length?: string, recipient?: string): 
   return parts.join(' ');
 }
 
-async function inferViaWorkersAI(
-  prompt: string,
-  systemPrompt: string,
-): Promise<string> {
-  const accountId = process.env['CLOUDFLARE_ACCOUNT_ID'];
-  const apiToken = process.env['CLOUDFLARE_API_TOKEN'];
-  const model = process.env['CLOUDFLARE_AI_MODEL'] ?? '@cf/meta/llama-3.2-1b-instruct';
-  const baseUrl =
-    process.env['CLOUDFLARE_AI_BASE_URL'] ?? 'https://api.cloudflare.com/client/v4/accounts';
-
-  if (!accountId || !apiToken) {
-    throw new Error('Cloudflare Workers AI credentials not configured');
-  }
-
-  const url = `${baseUrl}/${accountId}/ai/run/${model}`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: prompt },
-      ],
-      max_tokens: 1024,
-      temperature: 0.7,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Workers AI returned ${response.status}`);
-  }
-
-  const data = (await response.json()) as {
-    success: boolean;
-    result?: { response?: string };
-  };
-
-  if (!data.success || !data.result?.response) {
-    throw new Error('Workers AI returned empty response');
-  }
-
-  return data.result.response;
-}
-
-function isWorkersAIConfigured(): boolean {
-  return (
-    process.env['AI_PROVIDER']?.toLowerCase() === 'cloudflare' &&
-    Boolean(process.env['CLOUDFLARE_ACCOUNT_ID']) &&
-    Boolean(process.env['CLOUDFLARE_API_TOKEN'])
-  );
-}
-
 export default async function aiComposeRoutes(fastify: FastifyInstance) {
   fastify.post('/compose', async (request, reply) => {
     const parsed = composeSchema.safeParse(request.body);
@@ -118,16 +64,22 @@ export default async function aiComposeRoutes(fastify: FastifyInstance) {
       ? `Subject: ${subject}\n\nInstructions: ${instructions}`
       : instructions;
 
-    // Primary: Cloudflare Workers AI
-    if (isWorkersAIConfigured()) {
+    // Primary: whichever provider the environment configures (Workers AI today).
+    if (isAIConfigured()) {
       try {
-        const body = await inferViaWorkersAI(userPrompt, systemPrompt);
+        const body = await aiChat(
+          [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          { maxTokens: 1024, temperature: 0.7 },
+        );
         return reply.send({
           success: true,
           data: { subject: subject ?? '', body, suggestions: [] },
         });
       } catch (err) {
-        request.log.error({ err }, 'Workers AI compose failed');
+        request.log.error({ err }, 'AI compose failed');
         return reply.code(503).send({
           success: false,
           error: {
@@ -144,11 +96,7 @@ export default async function aiComposeRoutes(fastify: FastifyInstance) {
       const { MailAIService, AIEngine } = await import('@quant/ai');
       const engine = new AIEngine();
       const mailAI = new MailAIService(engine);
-      const result = await mailAI.composeEmail(
-        instructions,
-        { tone, recipient, subject },
-        userId,
-      );
+      const result = await mailAI.composeEmail(instructions, { tone, recipient, subject }, userId);
       return reply.send({
         success: true,
         data: { subject: subject ?? '', body: result.content, suggestions: [] },

@@ -44,37 +44,40 @@ export interface EndorsedProductLockup {
 export const quantrinityPrimitives = {
   ink: {
     0: '#000000',
-    50: '#070A0C',
-    100: '#0D1113',
-    200: '#151B1E',
-    300: '#20282C',
-    700: '#A7ACA2',
-    800: '#D7DAD3',
-    900: '#F7F8F4',
+    50: '#090A0C', // Official Quant Canvas
+    100: '#111318', // Primary Surface
+    200: '#16181D', // Elevated Surface
+    300: '#1F2228', // Surface 3
+    700: '#6B6E76', // Muted Text
+    800: '#A1A4AC', // Secondary Text
+    900: '#F5F5F5', // Primary Text
     1000: '#FFFFFF',
   },
   saffron: {
-    400: '#FFB45E',
-    500: '#FF9F1C',
-    600: '#D97500',
-    700: '#9A4C00',
+    300: '#FFB875', // Highlight
+    400: '#FF9B5A', // Hover
+    500: '#FF8C42', // Primary Brand Orange
+    600: '#E8752F', // Pressed
+    700: '#C75D1E',
+    800: '#2B1A11', // Brand Soft
+    900: '#1D1410', // Brand Subtle
   },
   green: {
-    400: '#4ED17B',
-    500: '#2FC164',
-    600: '#168C43',
-    700: '#0B6130',
+    400: '#4ADE80',
+    500: '#22C55E',
+    600: '#16A34A',
+    700: '#15803D',
   },
   navy: {
-    400: '#6EA8F2',
-    500: '#2F74C8',
-    600: '#1F5AA6',
-    700: '#153E73',
+    400: '#60A5FA',
+    500: '#3B82F6',
+    600: '#2563EB',
+    700: '#1D4ED8',
   },
   light: {
-    100: '#FFF9EE',
-    200: '#F7F8F4',
-    300: '#E8EBE4',
+    100: '#FFFFFF',
+    200: '#F8F9FA',
+    300: '#ECEEF1',
   },
 } as const;
 
@@ -90,46 +93,51 @@ export const quantrinityMasterbrand = {
 
 export const foundationThemes: Record<FoundationMode, FoundationTheme> = {
   dark: {
-    canvas: quantrinityPrimitives.ink[50],
-    surface1: quantrinityPrimitives.ink[100],
-    surface2: quantrinityPrimitives.ink[200],
-    surface3: quantrinityPrimitives.ink[300],
-    textStrong: quantrinityPrimitives.ink[900],
-    textDefault: quantrinityPrimitives.ink[800],
-    textMuted: quantrinityPrimitives.ink[700],
-    borderSubtle: '#222A2E',
-    borderDefault: '#354045',
-    borderStrong: '#526066',
-    actionPrimary: quantrinityPrimitives.saffron[500],
-    actionPrimaryHover: quantrinityPrimitives.saffron[400],
-    actionPrimaryForeground: '#171006',
-    focusRing: quantrinityPrimitives.navy[400],
-    success: quantrinityPrimitives.green[400],
-    warning: quantrinityPrimitives.saffron[400],
-    danger: '#FF6B6B',
-    info: quantrinityPrimitives.navy[400],
-    aiContext: '#B99AFF',
+    canvas: '#090A0C',
+    surface1: '#111318',
+    surface2: '#16181D',
+    surface3: '#1F2228',
+    textStrong: '#F5F5F5',
+    textDefault: '#A1A4AC',
+    textMuted: '#6B6E76',
+    borderSubtle: '#1C1F26',
+    borderDefault: '#282C35',
+    borderStrong: '#3A404D',
+    actionPrimary: '#FF8C42',
+    actionPrimaryHover: '#FF9B5A',
+    actionPrimaryForeground: '#111111',
+    focusRing: '#FF8C42',
+    success: '#22C55E',
+    warning: '#F59E0B',
+    danger: '#EF4444',
+    info: '#3B82F6',
+    aiContext: '#A78BFA',
   },
   light: {
-    canvas: quantrinityPrimitives.light[200],
-    surface1: quantrinityPrimitives.ink[1000],
-    surface2: '#F0F2ED',
-    surface3: '#E6EAE3',
-    textStrong: '#101311',
-    textDefault: '#29302B',
-    textMuted: '#4F5850',
-    borderSubtle: '#DDE1DA',
-    borderDefault: '#C7CDC4',
-    borderStrong: '#8E998F',
-    actionPrimary: quantrinityPrimitives.saffron[700],
-    actionPrimaryHover: '#7B3C00',
-    actionPrimaryForeground: quantrinityPrimitives.ink[1000],
-    focusRing: quantrinityPrimitives.navy[600],
-    success: quantrinityPrimitives.green[700],
-    warning: '#7A4100',
-    danger: '#A52A2A',
-    info: quantrinityPrimitives.navy[700],
-    aiContext: '#5B3FA3',
+    canvas: '#F8F9FA',
+    surface1: '#FFFFFF',
+    surface2: '#F1F3F5',
+    surface3: '#E9ECEF',
+    textStrong: '#111318',
+    textDefault: '#495057',
+    textMuted: '#6C757D',
+    borderSubtle: '#E9ECEF',
+    borderDefault: '#CED4DA',
+    borderStrong: '#ADB5BD',
+    actionPrimary: '#E8752F',
+    actionPrimaryHover: '#D96520',
+    // Dark label, not white: white on #E8752F is 2.99:1, which fails AA and in
+    // fact misses even the 3:1 large-text floor. The accent itself is fixed by
+    // the brand palette, so the label is what moves — `textStrong` gives 6.21:1
+    // here and 5.16:1 against the hover shade, the same dark-on-saffron
+    // treatment the dark and high-contrast modes already use.
+    actionPrimaryForeground: '#111318',
+    focusRing: '#E8752F',
+    success: '#16A34A',
+    warning: '#D97706',
+    danger: '#DC2626',
+    info: '#2563EB',
+    aiContext: '#7C3AED',
   },
   highContrast: {
     canvas: '#000000',
@@ -142,10 +150,10 @@ export const foundationThemes: Record<FoundationMode, FoundationTheme> = {
     borderSubtle: '#FFFFFF',
     borderDefault: '#FFFFFF',
     borderStrong: '#FFFFFF',
-    actionPrimary: '#FFFF00',
-    actionPrimaryHover: '#FFF36A',
+    actionPrimary: '#FF8C42',
+    actionPrimaryHover: '#FF9B5A',
     actionPrimaryForeground: '#000000',
-    focusRing: '#00FFFF',
+    focusRing: '#FFFFFF',
     success: '#5CFF8A',
     warning: '#FFFF00',
     danger: '#FF7070',

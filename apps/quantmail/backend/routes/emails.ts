@@ -3,20 +3,92 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { CrossAppDispatcher } from '@quant/notifications';
 import { EmailService } from '../services/email.service';
+import { ThreadService } from '../services/thread.service';
 import { OutboundDeliveryPipeline } from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
+import { formatEmailRecord } from '../lib/format-email';
+import { sendViaSes, isSesConfigured } from '../lib/ses-sender';
 
 const notifier = new CrossAppDispatcher('quantmail');
 
+async function transmitExternalViaSes(params: {
+  fromEmail: string;
+  fromName?: string;
+  toAddresses: string[];
+  ccAddresses?: string[];
+  bccAddresses?: string[];
+  subject: string;
+  bodyPlain?: string;
+  bodyHtml?: string;
+  logger?: any;
+}) {
+  if (!isSesConfigured()) return;
+  const isExternal = (addr: string) => {
+    if (!addr || typeof addr !== 'string') return false;
+    const domain = addr.split('@')[1]?.toLowerCase();
+    return domain && !['quantmail.in', 'quantrinity.in', 'quantchat.online'].includes(domain);
+  };
+
+  const externalTo = params.toAddresses.filter(isExternal);
+  const externalCc = params.ccAddresses?.filter(isExternal) ?? [];
+  const externalBcc = params.bccAddresses?.filter(isExternal) ?? [];
+
+  if (externalTo.length === 0 && externalCc.length === 0 && externalBcc.length === 0) {
+    return;
+  }
+
+  try {
+    const fromStr = params.fromName ? `${params.fromName} <${params.fromEmail}>` : params.fromEmail;
+    await sendViaSes({
+      from: fromStr,
+      to: externalTo.length > 0 ? externalTo : externalCc,
+      cc: externalTo.length > 0 ? externalCc : [],
+      bcc: externalBcc,
+      subject: params.subject,
+      bodyText: params.bodyPlain,
+      bodyHtml: params.bodyHtml,
+    });
+    params.logger?.info(
+      { to: externalTo, subject: params.subject },
+      'external SES transmission succeeded',
+    );
+  } catch (error) {
+    params.logger?.error({ err: error, to: externalTo }, 'external SES transmission failed');
+  }
+}
+
+// Recipients typed as a bare handle ("krish") or as "Name <a@b.com>" are
+// normalised to a real address before validation, so the composer no longer
+// rejects what the user actually typed.
+const DEFAULT_MAIL_DOMAIN = process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.in';
+
+function normalizeAddress(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const angle = value.match(/<([^>]+)>/);
+  const raw = (angle ? angle[1] : value)
+    .trim()
+    .replace(/[,;]+$/, '')
+    .toLowerCase();
+  if (raw.length === 0) return raw;
+  return raw.includes('@') ? raw : `${raw}@${DEFAULT_MAIL_DOMAIN}`;
+}
+
+const addressArray = (min: number) =>
+  z.preprocess(
+    (value) => (Array.isArray(value) ? value.map(normalizeAddress) : value),
+    min > 0 ? z.array(z.string().email()).min(min) : z.array(z.string().email()),
+  );
+
 const composeSchema = z.object({
-  toAddresses: z.array(z.string().email()).min(1),
-  ccAddresses: z.array(z.string().email()).optional(),
-  bccAddresses: z.array(z.string().email()).optional(),
+  toAddresses: addressArray(1),
+  ccAddresses: addressArray(0).optional(),
+  bccAddresses: addressArray(0).optional(),
   subject: z.string().min(1).max(500),
   bodyHtml: z.string().optional(),
   bodyPlain: z.string().optional(),
   threadId: z.string().optional(),
   inReplyTo: z.string().optional(),
+  attachments: z.array(z.any()).optional(),
   send: z.boolean().optional(),
   sentFolderId: z.string().optional(),
 });
@@ -53,22 +125,17 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
   fastify.post('/', async (request, reply) => {
     const parseResult = composeSchema.safeParse(request.body);
     if (!parseResult.success) {
-      throw parseResult.error;
+      throw createAppError(
+        `Invalid request: ${parseResult.error.issues.map((i) => i.message).join(', ')}`,
+        400,
+        'VALIDATION_ERROR',
+      );
     }
 
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
-
-    validateComposeEmail({
-      toAddresses: parseResult.data.toAddresses,
-      ccAddresses: parseResult.data.ccAddresses,
-      bccAddresses: parseResult.data.bccAddresses,
-      subject: parseResult.data.subject,
-      bodyHtml: parseResult.data.bodyHtml,
-      bodyPlain: parseResult.data.bodyPlain,
-    });
 
     const sanitizedHtml = parseResult.data.bodyHtml
       ? sanitizeHtml(parseResult.data.bodyHtml)
@@ -81,6 +148,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       userId,
       ...parseResult.data,
       bodyHtml: sanitizedHtml,
+      attachments: parseResult.data.attachments ?? [],
     });
 
     if (parseResult.data.send && parseResult.data.sentFolderId) {
@@ -104,6 +172,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
           bccAddresses: parseResult.data.bccAddresses,
           threadId: parseResult.data.threadId,
           inReplyTo: parseResult.data.inReplyTo,
+          attachments: parseResult.data.attachments ?? [],
         });
       } catch {
         /* internal delivery failure must not block the send response */
@@ -111,20 +180,29 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
 
       // Notify recipients about the new email
       try {
-        notifier.notifyNewEmail(
-          parseResult.data.toAddresses,
-          userId,
-          parseResult.data.subject,
-          email.id,
-        );
-      } catch {
-        /* notification failure should not block email sending */
+        const me = await (prisma as any).user.findUnique({
+          where: { id: userId },
+          select: { email: true, username: true },
+        });
+        await transmitExternalViaSes({
+          fromEmail: me?.email || `${userId}@quantmail.in`,
+          fromName: me?.username || undefined,
+          toAddresses: parseResult.data.toAddresses,
+          ccAddresses: parseResult.data.ccAddresses,
+          bccAddresses: parseResult.data.bccAddresses,
+          subject: parseResult.data.subject,
+          bodyPlain: parseResult.data.bodyPlain,
+          bodyHtml: sanitizedHtml,
+          logger: request.log,
+        });
+      } catch (err) {
+        request.log.warn({ err }, 'direct SES send attempt failed');
       }
 
-      return reply.status(201).send({ success: true, data: sent });
+      return reply.status(201).send({ success: true, data: formatEmailRecord(sent) });
     }
 
-    return reply.status(201).send({ success: true, data: email });
+    return reply.status(201).send({ success: true, data: formatEmailRecord(email) });
   });
 
   // POST /emails/compose - create a draft (frontend composer contract).
@@ -140,6 +218,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     priority: z.enum(['high', 'normal', 'low']).optional(),
     inReplyTo: z.string().optional(),
     threadId: z.string().optional(),
+    attachments: z.array(z.any()).optional(),
   });
 
   fastify.post('/compose', async (request, reply) => {
@@ -163,8 +242,9 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       bodyPlain: d.bodyText,
       inReplyTo: d.inReplyTo,
       threadId: d.threadId,
+      attachments: d.attachments ?? [],
     });
-    return reply.status(201).send({ success: true, data: email });
+    return reply.status(201).send({ success: true, data: formatEmailRecord(email) });
   });
 
   // PUT /emails/:id - update an owned draft without creating duplicates.
@@ -195,10 +275,16 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         priority: d.priority?.toUpperCase(),
         inReplyTo: d.inReplyTo ?? null,
         threadId: d.threadId ?? null,
+        ...(d.attachments
+          ? {
+              attachments: d.attachments,
+              hasAttachments: d.attachments.length > 0,
+            }
+          : {}),
       },
     });
 
-    return reply.send({ success: true, data: email });
+    return reply.send({ success: true, data: formatEmailRecord(email) });
   });
 
   // POST /emails/:id/send - durably queue an owned draft for delivery.
@@ -227,6 +313,32 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
 
     const asArray = (value: unknown): string[] =>
       Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+
+    let targetThreadId = email.threadId;
+    try {
+      const threadService = new ThreadService(prisma);
+      if (!targetThreadId) {
+        targetThreadId = await threadService.stitchInbound({
+          userId,
+          subject: email.subject || 'Conversation',
+          inReplyTo: email.inReplyTo,
+          participants: [email.fromAddress, ...asArray(email.toAddresses)],
+          at: new Date(),
+        });
+        await prisma.email.update({
+          where: { id: email.id },
+          data: { threadId: targetThreadId },
+        });
+      } else {
+        await prisma.emailThread.update({
+          where: { id: targetThreadId },
+          data: { lastEmailAt: new Date(), messageCount: { increment: 1 } },
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+
     try {
       await sendService.deliverInternally({
         fromUserId: userId,
@@ -236,17 +348,32 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         toAddresses: asArray(email.toAddresses),
         ccAddresses: asArray(email.ccAddresses),
         bccAddresses: asArray(email.bccAddresses),
-        threadId: email.threadId ?? undefined,
+        threadId: targetThreadId ?? undefined,
         inReplyTo: email.inReplyTo ?? undefined,
+        attachments: (email.attachments as any[]) ?? [],
       });
     } catch (error) {
       request.log.warn({ err: error, emailId: email.id }, 'internal mailbox delivery failed');
     }
 
     try {
-      notifier.notifyNewEmail(asArray(email.toAddresses), userId, email.subject, email.id);
-    } catch (error) {
-      request.log.warn({ err: error, emailId: email.id }, 'new-email notification failed');
+      const me = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true, username: true },
+      });
+      await transmitExternalViaSes({
+        fromEmail: email.fromAddress || me?.email || `${userId}@quantmail.in`,
+        fromName: me?.username || undefined,
+        toAddresses: asArray(email.toAddresses),
+        ccAddresses: asArray(email.ccAddresses),
+        bccAddresses: asArray(email.bccAddresses),
+        subject: email.subject,
+        bodyPlain: email.bodyPlain ?? undefined,
+        bodyHtml: email.bodyHtml ?? undefined,
+        logger: request.log,
+      });
+    } catch (err) {
+      request.log.warn({ err }, 'direct SES send attempt in /:id/send failed');
     }
 
     return reply.status(202).send({
@@ -257,6 +384,135 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         deliveryStatus: 'queued',
       },
     });
+  });
+
+  // POST /emails/:id/reply - reply to a message. The client may pass either an
+  // email id or a thread id (the thread view historically sends the thread id),
+  // so both resolve here. Composes and sends immediately, reusing the same
+  // delivery path as /:id/send — this route was missing, which is why replies
+  // 404ed and never left the composer.
+  fastify.post<{ Params: { id: string } }>('/:id/reply', async (request, reply) => {
+    const parsed = z
+      .object({ body: z.string().min(1).max(100_000), replyAll: z.boolean().optional() })
+      .safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+
+    // Resolve the id as an owned email first, then as an owned thread's latest message.
+    let original = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (original && original.userId !== userId) original = null;
+    if (!original) {
+      const thread = await prisma.emailThread
+        .findUnique({ where: { id: request.params.id } })
+        .catch(() => null);
+      if (thread && thread.userId === userId) {
+        original = await prisma.email.findFirst({
+          where: { threadId: thread.id, userId, deletedAt: null },
+          orderBy: { receivedAt: 'desc' },
+        });
+      }
+    }
+    if (!original) {
+      throw createAppError('Message to reply to was not found', 404, 'EMAIL_NOT_FOUND');
+    }
+
+    const me = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    const myEmail = (me?.email ?? '').toLowerCase();
+    const asArray = (value: unknown): string[] =>
+      Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+
+    // Reply target: the original sender. When replying to my own sent message,
+    // fall back to the original recipients so the reply still goes somewhere real.
+    let to = [original.fromAddress].filter(
+      (a: string) => typeof a === 'string' && a.length > 0 && a.toLowerCase() !== myEmail,
+    );
+    if (to.length === 0) {
+      to = asArray(original.toAddresses).filter((a) => a.toLowerCase() !== myEmail);
+    }
+    if (to.length === 0 && original.fromAddress) to = [original.fromAddress];
+    if (to.length === 0) throw createAppError('No recipient to reply to', 400, 'NO_RECIPIENT');
+
+    let cc: string[] = [];
+    if (parsed.data.replyAll) {
+      cc = [...asArray(original.toAddresses), ...asArray(original.ccAddresses)].filter(
+        (a) => a && a.toLowerCase() !== myEmail && !to.includes(a),
+      );
+    }
+
+    const baseSubject = (original.subject ?? '') as string;
+    const subject = /^re:/i.test(baseSubject) ? baseSubject : `Re: ${baseSubject}`.trim();
+
+    // Ensure both original and reply are linked under a unified EmailThread
+    let targetThreadId = original.threadId;
+    if (!targetThreadId) {
+      try {
+        const threadService = new ThreadService(prisma);
+        targetThreadId = await threadService.stitchInbound({
+          userId,
+          subject: baseSubject || 'Conversation',
+          participants: [original.fromAddress, ...to],
+          at: original.receivedAt || new Date(),
+        });
+        await prisma.email.update({
+          where: { id: original.id },
+          data: { threadId: targetThreadId },
+        });
+      } catch {
+        targetThreadId = undefined;
+      }
+    }
+
+    const sendService = createSendService(prisma);
+    const draft = await sendService.compose({
+      userId,
+      toAddresses: to,
+      ccAddresses: cc,
+      bccAddresses: [],
+      subject,
+      bodyPlain: parsed.data.body,
+      threadId: targetThreadId ?? undefined,
+      inReplyTo: original.id,
+    });
+
+    const sentFolder = await prisma.emailFolder.upsert({
+      where: { userId_name: { userId, name: 'Sent' } },
+      update: { type: 'SENT' },
+      create: { userId, name: 'Sent', type: 'SENT' },
+    });
+    const sent = await sendService.send(userId, draft.id, sentFolder.id);
+
+    try {
+      await sendService.deliverInternally({
+        fromUserId: userId,
+        subject,
+        bodyPlain: parsed.data.body,
+        toAddresses: to,
+        ccAddresses: cc,
+        threadId: targetThreadId ?? undefined,
+        inReplyTo: original.id,
+      });
+    } catch (error) {
+      request.log.warn({ err: error, emailId: sent.id }, 'internal reply delivery failed');
+    }
+
+    try {
+      await transmitExternalViaSes({
+        fromEmail: myEmail || `${userId}@quantmail.in`,
+        toAddresses: to,
+        ccAddresses: cc,
+        subject,
+        bodyPlain: parsed.data.body,
+        logger: request.log,
+      });
+    } catch (err) {
+      request.log.warn({ err }, 'direct SES send attempt in /:id/reply failed');
+    }
+
+    return reply.status(201).send({ success: true, data: sent });
   });
 
   // POST /emails/:id/archive - move to the owner's archive folder without trashing it.
@@ -369,6 +625,41 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // POST /emails/:id/unsnooze - clear the wake timer so the thread returns to the inbox now.
+  fastify.post<{ Params: { id: string } }>('/:id/unsnooze', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email) throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    if (email.threadId) {
+      const thread = await prisma.emailThread.findUnique({ where: { id: email.threadId } });
+      if (thread && thread.userId === userId) {
+        await prisma.emailThread.update({
+          where: { id: thread.id },
+          data: { snoozedUntil: null },
+        });
+      }
+    }
+    return reply.send({ success: true, data: { message: 'Snooze cleared' } });
+  });
+
+  // POST /emails/:id/not-spam - rescue a wrongly flagged email back to the inbox.
+  fastify.post<{ Params: { id: string } }>('/:id/not-spam', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email) throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    await prisma.email.update({
+      where: { id: request.params.id },
+      data: { isSpam: false, folderId: null, isTrash: false, deletedAt: null },
+    });
+    return reply.send({ success: true, data: { message: 'Moved to inbox' } });
+  });
+
   // POST /emails/:id/unread - mark as unread.
   fastify.post<{ Params: { id: string } }>('/:id/unread', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
@@ -379,6 +670,52 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     if (email.userId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
     await prisma.email.update({ where: { id: request.params.id }, data: { isRead: false } });
     return reply.send({ success: true, data: { message: 'Marked as unread' } });
+  });
+
+  // POST /emails/mark-all-read - bulk-clear unread state for the current inbox
+  // view (optionally scoped to one category tab). Mirrors the GET / inbox
+  // filters so it never touches drafts, sent, spam, trash or snoozed threads.
+  fastify.post('/mark-all-read', async (request, reply) => {
+    const parsed = z
+      .object({ category: z.string().max(50).optional() })
+      .safeParse(request.body ?? {});
+    if (!parsed.success) throw parsed.error;
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+
+    const where: any = {
+      userId,
+      deletedAt: null,
+      isRead: false,
+      isDraft: false,
+      isSent: false,
+      isSpam: false,
+      isTrash: false,
+      AND: [
+        { OR: [{ folderId: null }, { folder: { is: { type: 'INBOX' } } }] },
+        {
+          OR: [
+            { threadId: null },
+            { thread: { is: { snoozedUntil: null } } },
+            { thread: { is: { snoozedUntil: { lte: new Date() } } } },
+          ],
+        },
+      ],
+    };
+    const category = parsed.data.category?.toLowerCase();
+    if (category && category !== 'primary') {
+      where.aiCategory = category;
+    } else if (category === 'primary') {
+      where.AND.push({ OR: [{ aiCategory: null }, { aiCategory: 'primary' }] });
+    }
+
+    const result = await prisma.email.updateMany({ where, data: { isRead: true } });
+    return reply.send({
+      success: true,
+      data: { message: 'All caught up', updated: result.count ?? 0 },
+    });
   });
 
   // GET /emails - List emails (requires folderId or search)
@@ -412,14 +749,28 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     } else if (folderType === 'SPAM') {
       where.isSpam = true;
       where.isTrash = false;
-    } else {
-      // Default inbox: received, recoverable, non-archived mail whose snooze has elapsed.
+    } else if (folderType === 'STARRED') {
+      // Starred is a flag, not a folder: show every recoverable starred email.
+      where.isStarred = true;
+      where.isTrash = false;
       where.isDraft = false;
-      where.isSent = false;
+      where.isSpam = false;
+    } else if (folderType === 'SNOOZED') {
+      // Threads whose wake time is still in the future.
+      where.isTrash = false;
+      where.isDraft = false;
+      where.isSpam = false;
+      where.thread = { is: { snoozedUntil: { gt: new Date() } } };
+    } else {
+      // Default inbox: active conversation messages (both received and sent in active threads)
+      // that are not in Trash, Archive, Spam, or Drafts, and whose snooze has elapsed.
+      where.isDraft = false;
       where.isSpam = false;
       where.isTrash = false;
       where.AND = [
-        { OR: [{ folderId: null }, { folder: { is: { type: 'INBOX' } } }] },
+        {
+          OR: [{ folderId: null }, { folder: { is: { type: 'INBOX' } } }, { isSent: true }],
+        },
         {
           OR: [
             { threadId: null },
@@ -428,6 +779,17 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
           ],
         },
       ];
+    }
+
+    // Category tabs (Focus/Updates/People/Offers/Groups): filter on aiCategory.
+    // Uncategorised mail counts as primary so Focus is never artificially empty,
+    // and the other tabs only show mail that actually belongs to them.
+    const category = typeof q.category === 'string' ? q.category.toLowerCase() : '';
+    if (category && category !== 'primary') {
+      where.aiCategory = category;
+    } else if (category === 'primary') {
+      const primaryOnly = { OR: [{ aiCategory: null }, { aiCategory: 'primary' }] };
+      where.AND = Array.isArray(where.AND) ? [...where.AND, primaryOnly] : [primaryOnly];
     }
 
     const [data, total, unreadCount] = await Promise.all([
@@ -440,7 +802,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     // Augment each email with a category (used by inbox tabs) and return a
     // shape that satisfies both consumers: useInbox reads response.data (the
     // array), useEmail reads response.emails.
-    const items = data.map((e: any) => ({ ...e, category: e.aiCategory || 'primary' }));
+    const items = data.map(formatEmailRecord);
     return reply.send({
       success: true,
       data: items,
@@ -473,7 +835,11 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       pageSize: queryResult.data.pageSize,
     });
 
-    return reply.send({ success: true, data: result });
+    const formattedData = {
+      ...result,
+      data: (result.data || []).map(formatEmailRecord),
+    };
+    return reply.send({ success: true, data: formattedData });
   });
 
   // GET /emails/:id
@@ -487,7 +853,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     const service = new EmailService(prisma as never);
     const email = await service.getEmail(request.params.id, userId);
 
-    return reply.send({ success: true, data: email });
+    return reply.send({ success: true, data: formatEmailRecord(email) });
   });
 
   // DELETE /emails/:id - first call moves to trash; a second call from trash

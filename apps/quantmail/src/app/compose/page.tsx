@@ -7,6 +7,7 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { EmailComposer } from '../../components/EmailComposer';
 import type { ComposerMessageData } from '../../components/EmailComposer';
+import { showToast } from '../../components/InboxToast';
 import { apiClient } from '../../services/api-client';
 
 export default function ComposePage() {
@@ -15,6 +16,9 @@ export default function ComposePage() {
   const replyTo = searchParams?.get('replyTo') ?? null;
   const forwardId = searchParams?.get('forward') ?? null;
   const draftId = searchParams?.get('draftId') ?? null;
+  const prefillBody = searchParams?.get('body') ?? null;
+  const prefillSubject = searchParams?.get('subject') ?? null;
+  const prefillTo = searchParams?.get('to') ?? null;
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId);
 
   const [draftData, setDraftData] = useState<{
@@ -55,16 +59,58 @@ export default function ComposePage() {
 
   const composeDraft = useCallback(
     async (data: ComposerMessageData) => {
+      const toAddresses: import('../../types').EmailAddress[] = Array.isArray(data.to)
+        ? (data.to as any[]).map((t) =>
+            typeof t === 'string' ? { email: t } : { email: t.email || '' },
+          )
+        : typeof data.to === 'string'
+          ? data.to
+              .split(/[,;\s]+/)
+              .filter(Boolean)
+              .map((email) => ({ email }))
+          : [];
+
+      const ccAddresses: import('../../types').EmailAddress[] | undefined = data.cc
+        ? typeof data.cc === 'string'
+          ? data.cc
+              .split(/[,;\s]+/)
+              .filter(Boolean)
+              .map((email) => ({ email }))
+          : Array.isArray(data.cc)
+            ? (data.cc as any[]).map((t) =>
+                typeof t === 'string' ? { email: t } : { email: t.email || '' },
+              )
+            : undefined
+        : undefined;
+
+      const bccAddresses: import('../../types').EmailAddress[] | undefined = data.bcc
+        ? typeof data.bcc === 'string'
+          ? data.bcc
+              .split(/[,;\s]+/)
+              .filter(Boolean)
+              .map((email) => ({ email }))
+          : Array.isArray(data.bcc)
+            ? (data.bcc as any[]).map((t) =>
+                typeof t === 'string' ? { email: t } : { email: t.email || '' },
+              )
+            : undefined
+        : undefined;
+
       const payload = {
-        to: data.to,
-        cc: data.cc,
-        bcc: data.bcc,
+        to: toAddresses,
+        cc: ccAddresses,
+        bcc: bccAddresses,
         subject: data.subject,
-        bodyText: data.bodyText,
-        bodyHtml: data.bodyHtml,
-        priority: data.priority,
-        scheduledAt: data.scheduledAt,
+        bodyText: data.bodyText || data.body || '',
+        bodyHtml: data.bodyHtml || data.body || '',
+        priority: data.priority || 'normal',
+        scheduledAt: data.scheduledAt
+          ? typeof data.scheduledAt === 'string'
+            ? data.scheduledAt
+            : new Date(data.scheduledAt).toISOString()
+          : undefined,
         inReplyTo: replyTo || undefined,
+        attachments: (data.attachments as any) || [],
         isDraft: true,
       };
       const response = currentDraftId
@@ -93,6 +139,7 @@ export default function ComposePage() {
         throw new Error(response.error?.message || 'Message could not be sent.');
       }
 
+      showToast({ text: 'Message sent', type: 'success' });
       router.push('/');
     },
     [composeDraft, router],
@@ -106,7 +153,11 @@ export default function ComposePage() {
   );
 
   const handleDiscard = useCallback(() => {
-    router.push('/');
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
   }, [router]);
 
   const handleAIAssist = useCallback(
@@ -126,33 +177,29 @@ export default function ComposePage() {
     [],
   );
 
+  if (draftLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0d1017] text-[#A1A4AC] text-sm">
+        <p>Loading draft…</p>
+      </div>
+    );
+  }
+
   return (
-    <AppShell
-      sidebar={<AppSidebar />}
-      theme="dark"
-      className="quantmail-shell"
-      aria-label="Compose a QuantMail message"
-    >
-      <PageTransition className="compose-page">
-        {draftLoading ? (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-[var(--quant-muted-foreground)]">Loading draft…</p>
-          </div>
-        ) : (
-          <EmailComposer
-            initialTo={draftData?.to}
-            initialSubject={
-              draftData?.subject ?? (forwardId ? 'Fwd: ' : replyTo ? 'Re: ' : undefined)
-            }
-            initialBody={draftData?.body}
-            inReplyTo={replyTo || undefined}
-            onSend={handleSend}
-            onSaveDraft={handleSaveDraft}
-            onDiscard={handleDiscard}
-            onAIAssist={handleAIAssist}
-          />
-        )}
-      </PageTransition>
-    </AppShell>
+    <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#0d1017]">
+      <EmailComposer
+        initialTo={draftData?.to ?? (prefillTo ? [{ email: prefillTo }] : undefined)}
+        initialSubject={
+          draftData?.subject ??
+          (prefillSubject ? prefillSubject.replace(/^(Re:\s*)+/i, '').trim() : '')
+        }
+        initialBody={draftData?.body ?? prefillBody ?? undefined}
+        inReplyTo={replyTo || undefined}
+        onSend={handleSend}
+        onSaveDraft={handleSaveDraft}
+        onDiscard={handleDiscard}
+        onAIAssist={handleAIAssist}
+      />
+    </div>
   );
 }

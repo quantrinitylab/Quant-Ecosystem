@@ -68,6 +68,7 @@ interface UseDriveReturn {
   navigateToBreadcrumb: (index: number) => void;
   searchFiles: (query: string) => Promise<void>;
   getDownloadUrl: (fileId: string) => string;
+  downloadFile: (fileId: string, fileName?: string) => Promise<void>;
   cancelUpload: (uploadId: string) => void;
 }
 
@@ -199,9 +200,19 @@ export function useDrive(): UseDriveReturn {
                 if (xhr.status >= 200 && xhr.status < 300) {
                   resolve();
                 } else {
-                  reject(
-                    new Error(xhr.statusText || `Upload failed with status ${xhr.status}`),
-                  );
+                  // Surface the backend reason (quota exceeded, too large, storage down)
+                  // instead of a bare status line.
+                  let message = xhr.statusText || `Upload failed with status ${xhr.status}`;
+                  try {
+                    const parsed = JSON.parse(xhr.responseText) as {
+                      error?: { message?: string };
+                      message?: string;
+                    };
+                    message = parsed.error?.message || parsed.message || message;
+                  } catch {
+                    /* non-JSON body: keep the status text */
+                  }
+                  reject(new Error(message));
                 }
               };
               xhr.onerror = () => rejectUpload(new Error('Upload failed'));
@@ -450,6 +461,30 @@ export function useDrive(): UseDriveReturn {
     [],
   );
 
+  // Authenticated download: navigating the browser straight to the download
+  // URL sends no Authorization header and lands on raw 401 JSON. Fetch the
+  // bytes with the session attached, then hand the user a real file.
+  const downloadFile = useCallback(async (fileId: string, fileName?: string) => {
+    setError(null);
+    try {
+      const response = await apiRequest(`/api/drive/files/${fileId}/download`);
+      if (!response.ok) throw new Error(`Download failed with status ${response.status}`);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      if (fileName) anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+    } catch (err) {
+      setError(
+        getDriveErrorMessage(err, 'Download is temporarily unavailable. Retry in a moment.'),
+      );
+    }
+  }, []);
+
   const cancelUpload = useCallback((uploadId: string) => {
     const controller = abortControllers.current.get(uploadId);
     if (controller) {
@@ -484,6 +519,7 @@ export function useDrive(): UseDriveReturn {
     navigateToBreadcrumb,
     searchFiles,
     getDownloadUrl,
+    downloadFile,
     cancelUpload,
   };
 }

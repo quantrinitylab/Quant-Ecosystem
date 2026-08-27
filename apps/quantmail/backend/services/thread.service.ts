@@ -63,10 +63,26 @@ export class ThreadService {
       throw createAppError('Not authorized to access this thread', 403, 'FORBIDDEN');
     }
 
-    const emails = await this.prisma.email.findMany({
-      where: { threadId, userId, deletedAt: null },
-      orderBy: { receivedAt: 'asc' },
+    let emails = await this.prisma.email.findMany({
+      where: {
+        OR: [
+          { threadId, deletedAt: null },
+          { id: threadId, deletedAt: null },
+        ],
+      },
+      orderBy: [{ receivedAt: 'asc' }, { createdAt: 'asc' }],
     });
+
+    if (emails.length === 0 && thread.subject) {
+      emails = await this.prisma.email.findMany({
+        where: {
+          userId,
+          subject: thread.subject,
+          deletedAt: null,
+        },
+        orderBy: [{ receivedAt: 'asc' }, { createdAt: 'asc' }],
+      });
+    }
 
     const unreadCount = emails.filter((e: Email) => !e.isRead).length;
 

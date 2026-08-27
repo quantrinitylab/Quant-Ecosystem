@@ -22,6 +22,8 @@ spec:
     # New primary brand domain (quantrinity.in). Separate cert secret so a
     # reissue here never disturbs the working quantchat.online certificate.
     - hosts:
+        - quantmail.in
+        - www.quantmail.in
         - quantmail.quantrinity.in
         - quantchat.quantrinity.in
         - quantai.quantrinity.in
@@ -29,6 +31,26 @@ spec:
         - quantws.quantrinity.in
       secretName: quant-trinity-tls
   rules:
+    - host: quantmail.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantmail
+                port:
+                  number: 3010
+    - host: www.quantmail.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-platform-production-quantmail
+                port:
+                  number: 3010
     - host: quantmail.quantrinity.in
       http:
         paths:

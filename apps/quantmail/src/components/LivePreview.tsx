@@ -18,7 +18,14 @@ export function LivePreview({ code, language, isVisible }: LivePreviewProps) {
   const [error, setError] = useState<string | null>(null);
 
   const isPreviewable = useMemo(() => {
-    return ['html', 'css', 'javascript', 'typescript', 'typescriptreact', 'javascriptreact'].includes(language);
+    return [
+      'html',
+      'css',
+      'javascript',
+      'typescript',
+      'typescriptreact',
+      'javascriptreact',
+    ].includes(language);
   }, [language]);
 
   const previewHtml = useMemo(() => {
@@ -41,7 +48,7 @@ export function LivePreview({ code, language, isVisible }: LivePreviewProps) {
 <html>
 <head>
   <style>
-    body { font-family: system-ui; padding: 1rem; background: #0a0a0c; color: #e5e5e7; }
+    body { font-family: system-ui; padding: 1rem; background: #090A0C; color: #F5F5F5; }
     * { box-sizing: border-box; }
   </style>
 </head>

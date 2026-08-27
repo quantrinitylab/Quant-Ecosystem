@@ -242,8 +242,41 @@ export default function RegisterPage() {
                   {fieldErrors.confirmPassword}
                 </p>
               ) : confirmPassword && password ? (
-                <p className={`mt-1.5 text-xs ${confirmPassword === password ? 'text-emerald-400' : 'text-[var(--quant-destructive)]'}`}>
-                  {confirmPassword === password ? '✓ Passwords match' : '✗ Passwords do not match'}
+                <p
+                  className={`mt-1.5 text-xs flex items-center gap-1.5 ${confirmPassword === password ? 'text-emerald-400' : 'text-[var(--quant-destructive)]'}`}
+                >
+                  {confirmPassword === password ? (
+                    <>
+                      <svg
+                        className="size-3.5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      <span>Passwords match</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="size-3.5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                      <span>Passwords do not match</span>
+                    </>
+                  )}
                 </p>
               ) : null}
             </div>

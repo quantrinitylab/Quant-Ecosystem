@@ -2413,6 +2413,15 @@ enum OrgMemberRole {
   OWNER
   ADMIN
   MEMBER
+  VIEWER
+}
+
+/// Lifecycle of an emailed workspace invitation.
+enum WorkspaceInviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
 }
 
 model Organization {
@@ -2424,19 +2433,24 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  description String?
+  createdById String?
+
   members    OrganizationMember[]
   workspaces OrgWorkspace[]
+  invites    WorkspaceInvite[]
 
   @@index([slug])
   @@map("organizations")
 }
 
 model OrganizationMember {
-  id       String        @id @default(cuid())
-  orgId    String
-  userId   String
-  role     OrgMemberRole @default(MEMBER)
-  joinedAt DateTime      @default(now())
+  id          String        @id @default(cuid())
+  orgId       String
+  userId      String
+  role        OrgMemberRole @default(MEMBER)
+  invitedById String?
+  joinedAt    DateTime      @default(now())
 
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -3849,4 +3863,34 @@ model TrinityControlState {
   updatedAt DateTime @updatedAt
 
   @@map("trinity_control_state")
+}
+
+// ==================== WORKSPACE INVITATIONS ====================
+// Email-based invitations that let people from *different* mail addresses join
+// one shared workspace and collaborate. The raw token is emailed to the
+// invitee; only its SHA-256 hash is persisted here.
+model WorkspaceInvite {
+  id          String                @id @default(cuid())
+  orgId       String
+  email       String
+  role        OrgMemberRole         @default(MEMBER)
+  status      WorkspaceInviteStatus @default(PENDING)
+  tokenHash   String                @unique
+  message     String?
+  invitedById String
+  acceptedById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  lastSentAt  DateTime              @default(now())
+  sendCount   Int                   @default(1)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([email])
+  @@index([status])
+  @@map("workspace_invites")
 }

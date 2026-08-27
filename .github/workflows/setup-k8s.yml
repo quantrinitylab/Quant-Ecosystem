@@ -1,0 +1,429 @@
+name: Setup K8s staging (one-time)
+
+# Run this ONCE after a fresh EKS cluster to install ingress, create namespace,
+# configmap, secrets, deploy all services, build Docker images, and go live.
+# Requires: EKS cluster ACTIVE, node group ACTIVE, RDS available.
+on:
+  workflow_dispatch:
+    inputs:
+      db_password:
+        description: 'RDS master password (quant user)'
+        required: true
+        type: string
+      jwt_secret:
+        description: 'JWT signing secret (min 64 chars)'
+        required: true
+        type: string
+      skip_build:
+        description: 'Skip Docker build (if images already in ECR)'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: k8s-setup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  setup:
+    name: Full K8s staging setup
+    environment: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      EKS_CLUSTER: ${{ vars.EKS_CLUSTER }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+      REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
+      RDS_ENDPOINT: quant-staging-postgres.cqzas6wik73y.us-east-1.rds.amazonaws.com
+      RDS_DB: quant_staging
+      RDS_USER: quant
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-k8s-setup-${{ github.run_id }}
+
+      - name: Verify AWS identity
+        run: |
+          aws sts get-caller-identity
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+          kubectl version --client
+          kubectl get nodes
+
+      # ---------------------------------------------------------------
+      # 1. Install nginx-ingress (creates AWS NLB → gives us ELB hostname)
+      # ---------------------------------------------------------------
+      - name: Install nginx-ingress controller
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/aws/deploy.yaml
+          echo "Waiting for nginx-ingress controller to be ready..."
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=300s
+
+      # ---------------------------------------------------------------
+      # 2. Install cert-manager
+      # ---------------------------------------------------------------
+      - name: Install cert-manager
+        run: |
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.3/cert-manager.yaml
+          kubectl wait --namespace cert-manager \
+            --for=condition=ready pod \
+            --selector=app.kubernetes.io/instance=cert-manager \
+            --timeout=180s
+
+      # ---------------------------------------------------------------
+      # 3. Create namespace
+      # ---------------------------------------------------------------
+      - name: Create staging namespace
+        run: |
+          kubectl create namespace "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          echo "Namespace: $K8S_NAMESPACE ready"
+
+      # ---------------------------------------------------------------
+      # 4. Create ConfigMap
+      # ---------------------------------------------------------------
+      - name: Create ConfigMap
+        run: |
+          DB_URL="postgresql://${RDS_USER}:${{ inputs.db_password }}@${RDS_ENDPOINT}:5432/${RDS_DB}"
+          kubectl create configmap quant-platform-production-config \
+            --from-literal=DATABASE_URL="${DB_URL}" \
+            --from-literal=DIRECT_URL="${DB_URL}" \
+            --from-literal=NODE_ENV=production \
+            --from-literal=NEXT_PUBLIC_APP_URL=https://quantmail.quantrinity.in \
+            --from-literal=NEXT_PUBLIC_API_URL=https://quantmail.quantrinity.in/api \
+            --from-literal=NEXT_PUBLIC_WS_URL=wss://quantmail.quantrinity.in \
+            --from-literal=AI_PROVIDER=custom \
+            --from-literal=AI_BASE_URL=https://quantmail-ai.quantrinity.workers.dev/v1 \
+            --from-literal=AI_MODEL=@cf/meta/llama-3.1-8b-instruct \
+            --from-literal=REDIS_URL=redis://redis:6379 \
+            --from-literal=MEILISEARCH_HOST=http://meilisearch:7700 \
+            --from-literal=QDRANT_URL=http://qdrant:6333 \
+            --from-literal=PORT=3000 \
+            -n "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          echo "ConfigMap created"
+
+      # ---------------------------------------------------------------
+      # 5. Create Secrets
+      # ---------------------------------------------------------------
+      - name: Create K8s Secrets
+        run: |
+          kubectl create secret generic quant-platform-production-secrets \
+            --from-literal=JWT_SECRET="${{ inputs.jwt_secret }}" \
+            --from-literal=AI_API_KEY="qk_c7f2a94e1d5b8360f4a2c9e7d1b5a8f3c6e0d9b2a4f7c1e5d8b3a6f0c4e7d2b9" \
+            --from-literal=MEILISEARCH_API_KEY="ChangeMe_Meilisearch_2026!" \
+            -n "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          echo "Secrets created"
+
+      # ---------------------------------------------------------------
+      # 6. Apply infrastructure K8s manifests (Redis, Meilisearch, Qdrant)
+      #    Replace old account ID and namespace with staging values
+      # ---------------------------------------------------------------
+      - name: Apply Redis
+        run: |
+          sed 's/quant-production/quant-staging/g; s/266176113726/${{ vars.AWS_ACCOUNT_ID }}/g' \
+            infra/k8s/redis-deployment.yaml | kubectl apply -f -
+          sed 's/quant-production/quant-staging/g' infra/k8s/redis-pvc.yaml | kubectl apply -f -
+          sed 's/quant-production/quant-staging/g' infra/k8s/redis-service.yaml | kubectl apply -f -
+
+      - name: Apply Meilisearch
+        run: |
+          sed 's/quant-production/quant-staging/g; s/266176113726/${{ vars.AWS_ACCOUNT_ID }}/g' \
+            infra/k8s/meilisearch-deployment.yaml | kubectl apply -f -
+          sed 's/quant-production/quant-staging/g' infra/k8s/meilisearch-pvc.yaml | kubectl apply -f -
+          sed 's/quant-production/quant-staging/g' infra/k8s/meilisearch-service.yaml | kubectl apply -f -
+
+      - name: Apply Qdrant
+        run: |
+          sed 's/quant-production/quant-staging/g; s/266176113726/${{ vars.AWS_ACCOUNT_ID }}/g' \
+            infra/k8s/qdrant-deployment.yaml | kubectl apply -f -
+          sed 's/quant-production/quant-staging/g' infra/k8s/qdrant-pvc.yaml | kubectl apply -f -
+          sed 's/quant-production/quant-staging/g' infra/k8s/qdrant-service.yaml | kubectl apply -f -
+
+      # ---------------------------------------------------------------
+      # 7. Create placeholder app Deployments (will be updated with real images)
+      # ---------------------------------------------------------------
+      - name: Create QuantMail frontend Deployment
+        run: |
+          cat <<EOF | kubectl apply -f -
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: quant-quantmail
+            namespace: $K8S_NAMESPACE
+            labels:
+              app.kubernetes.io/name: quantmail
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app.kubernetes.io/name: quantmail
+            template:
+              metadata:
+                labels:
+                  app.kubernetes.io/name: quantmail
+              spec:
+                containers:
+                  - name: quant-quantmail
+                    image: nginx:alpine
+                    ports:
+                      - containerPort: 3000
+                        name: http
+                    envFrom:
+                      - configMapRef:
+                          name: quant-platform-production-config
+                      - secretRef:
+                          name: quant-platform-production-secrets
+                    resources:
+                      requests:
+                        cpu: 100m
+                        memory: 256Mi
+                      limits:
+                        memory: 1Gi
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: quant-quantmail
+            namespace: $K8S_NAMESPACE
+          spec:
+            selector:
+              app.kubernetes.io/name: quantmail
+            ports:
+              - port: 3000
+                targetPort: 3000
+                name: http
+          EOF
+
+      - name: Create QuantMail backend Deployment
+        run: |
+          cat <<EOF | kubectl apply -f -
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: quant-quantmail-backend
+            namespace: $K8S_NAMESPACE
+            labels:
+              app.kubernetes.io/name: quantmail-backend
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app.kubernetes.io/name: quantmail-backend
+            template:
+              metadata:
+                labels:
+                  app.kubernetes.io/name: quantmail-backend
+              spec:
+                containers:
+                  - name: quantmail-backend
+                    image: nginx:alpine
+                    ports:
+                      - containerPort: 3011
+                        name: http
+                    envFrom:
+                      - configMapRef:
+                          name: quant-platform-production-config
+                      - secretRef:
+                          name: quant-platform-production-secrets
+                    env:
+                      - name: PORT
+                        value: '3011'
+                    resources:
+                      requests:
+                        cpu: 100m
+                        memory: 256Mi
+                      limits:
+                        memory: 768Mi
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: quant-quantmail-backend
+            namespace: $K8S_NAMESPACE
+          spec:
+            selector:
+              app.kubernetes.io/name: quantmail-backend
+            ports:
+              - port: 3011
+                targetPort: 3011
+                name: http
+          EOF
+
+      # ---------------------------------------------------------------
+      # 8. Apply Ingress (quantmail + api)
+      # ---------------------------------------------------------------
+      - name: Apply ClusterIssuer (Let's Encrypt)
+        run: |
+          sed 's/quant-production/quant-staging/g' \
+            infra/k8s/letsencrypt-clusterissuer.yaml | kubectl apply -f -
+
+      - name: Apply Ingress rules
+        run: |
+          cat <<EOF | kubectl apply -f -
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: quant-staging-main
+            namespace: $K8S_NAMESPACE
+            annotations:
+              nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+              nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+          spec:
+            ingressClassName: nginx
+            tls:
+              - hosts:
+                  - quantmail.quantrinity.in
+                  - staging.quantrinity.in
+                secretName: quant-staging-tls
+            rules:
+              - host: quantmail.quantrinity.in
+                http:
+                  paths:
+                    - path: /api(/|\$)(.*)
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: quant-quantmail-backend
+                          port:
+                            number: 3011
+                    - path: /
+                      pathType: Prefix
+                      backend:
+                        service:
+                          name: quant-quantmail
+                          port:
+                            number: 3000
+              - host: staging.quantrinity.in
+                http:
+                  paths:
+                    - path: /api(/|\$)(.*)
+                      pathType: ImplementationSpecific
+                      backend:
+                        service:
+                          name: quant-quantmail-backend
+                          port:
+                            number: 3011
+                    - path: /
+                      pathType: Prefix
+                      backend:
+                        service:
+                          name: quant-quantmail
+                          port:
+                            number: 3000
+          EOF
+
+      # ---------------------------------------------------------------
+      # 9. Build + push Docker images (skip if images already in ECR)
+      # ---------------------------------------------------------------
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY"
+
+      - name: Build + push QuantMail frontend
+        if: ${{ inputs.skip_build != true }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          IMAGE="$REGISTRY/quant-quantmail:$SHA"
+          docker build --pull -f apps/quantmail/Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "QUANTMAIL_IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          echo "RELEASE_SHA=$SHA" >> "$GITHUB_ENV"
+
+      - name: Build + push QuantMail backend
+        if: ${{ inputs.skip_build != true }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          IMAGE="$REGISTRY/quant-quantmail-backend:$SHA"
+          docker build --pull -f apps/quantmail/Dockerfile.backend -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "QUANTMAIL_BACKEND_IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      # ---------------------------------------------------------------
+      # 10. Update deployments with real images
+      # ---------------------------------------------------------------
+      - name: Deploy QuantMail frontend image
+        if: ${{ inputs.skip_build != true }}
+        run: |
+          kubectl set image deployment/quant-quantmail \
+            quant-quantmail="$QUANTMAIL_IMAGE" \
+            -n "$K8S_NAMESPACE"
+          kubectl rollout status deployment/quant-quantmail -n "$K8S_NAMESPACE" --timeout=600s
+
+      - name: Deploy QuantMail backend image
+        if: ${{ inputs.skip_build != true }}
+        run: |
+          kubectl set image deployment/quant-quantmail-backend \
+            quantmail-backend="$QUANTMAIL_BACKEND_IMAGE" \
+            -n "$K8S_NAMESPACE"
+          kubectl rollout status deployment/quant-quantmail-backend -n "$K8S_NAMESPACE" --timeout=600s
+
+      # ---------------------------------------------------------------
+      # 11. Run Prisma migrations
+      # ---------------------------------------------------------------
+      - name: Run Prisma migrations
+        if: ${{ inputs.skip_build != true }}
+        run: |
+          DB_URL="postgresql://${RDS_USER}:${{ inputs.db_password }}@${RDS_ENDPOINT}:5432/${RDS_DB}"
+          npm install -g pnpm
+          pnpm install --frozen-lockfile
+          DATABASE_URL="$DB_URL" pnpm --filter @quant/database exec prisma migrate deploy --schema=prisma/schema.prisma
+          echo "Migrations done"
+
+      # ---------------------------------------------------------------
+      # 12. Get ELB hostname (for Cloudflare DNS)
+      # ---------------------------------------------------------------
+      - name: Get ELB hostname
+        run: |
+          echo "Waiting for ELB to be assigned..."
+          for i in $(seq 1 30); do
+            ELB=$(kubectl get svc ingress-nginx-controller -n ingress-nginx \
+              -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            if [ -n "$ELB" ]; then
+              echo "ELB_HOSTNAME=$ELB" >> "$GITHUB_ENV"
+              break
+            fi
+            echo "Attempt $i/30 — waiting 10s..."
+            sleep 10
+          done
+
+      - name: Output summary
+        run: |
+          echo "## ✅ K8s Staging Setup Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Resource | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Cluster | $EKS_CLUSTER |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Namespace | $K8S_NAMESPACE |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| RDS Endpoint | $RDS_ENDPOINT |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ECR Registry | $REGISTRY |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **ELB Hostname** | **$ELB_HOSTNAME** |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Next step" >> "$GITHUB_STEP_SUMMARY"
+          echo "Update all Cloudflare CNAME records to point to: \`$ELB_HOSTNAME\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "ELB: $ELB_HOSTNAME"
+
+      - name: Docker logout
+        if: always()
+        run: docker logout "$REGISTRY" || true

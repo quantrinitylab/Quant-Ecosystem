@@ -1,0 +1,3 @@
+trigger=2
+time=2026-08-16T09:52:00Z
+reason=re-trigger after runner offline period - site still 522, please diagnose and auto-heal

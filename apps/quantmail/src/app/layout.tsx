@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Pacifico } from 'next/font/google';
 import './globals.css';
+import './shell.css';
+import './overrides.css';
 import { quantMailBrandMetadata } from '../brand/identity';
 import { AuthGuard } from '../components/AuthGuard';
-import { GlobalShortcutsProvider } from '../components/GlobalShortcutsProvider';
+import { CommandPalette } from '../components/CommandPalette';
 import { InboxToastContainer } from '../components/InboxToast';
+import { KeyboardProvider } from '../components/KeyboardProvider';
 import { KeyboardShortcutsHelp } from '../components/KeyboardShortcutsHelp';
 import { OfflineBar } from '../components/OfflineBar';
 import { AppProviders } from '../providers/app-providers';
@@ -14,6 +17,14 @@ import { QueryProvider } from '../providers/query-provider';
 
 const inter = Inter({ subsets: ['latin'] });
 
+// Brand script face: the QuantMail wordmark IS the logo (Instagram-style cursive).
+const brandScript = Pacifico({
+  weight: '400',
+  subsets: ['latin'],
+  variable: '--font-brand',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: {
     default: quantMailBrandMetadata.title,
@@ -22,9 +33,12 @@ export const metadata: Metadata = {
   description: quantMailBrandMetadata.description,
   applicationName: quantMailBrandMetadata.applicationName,
   icons: {
-    icon: '/quantrinity-mark.svg',
-    shortcut: '/quantrinity-mark.svg',
-    apple: '/quantrinity-mark.svg',
+    icon: [
+      { url: '/quantmail-mascot.svg', type: 'image/svg+xml' },
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/quantmail-mascot.svg',
+    apple: '/quantmail-mascot.svg',
   },
 };
 
@@ -54,7 +68,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
-      <body className={`${inter.className} quantmail-root`}>
+      <body className={`${inter.className} ${brandScript.variable} quantmail-root`}>
         <a href="#main-content" className="skip-to-content">
           Skip to content
         </a>
@@ -64,10 +78,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AuthProvider>
               <AppProviders>
                 <AuthGuard>
-                  <GlobalShortcutsProvider>
+                  {/* The palette and the shortcuts sheet read their open state
+                      from this provider, so both must live inside it. Both sit at
+                      the layout root rather than inside `AppShell`: `mod+k` is
+                      registered globally, and the palette used to render only on
+                      routes that happened to mount a shell — so on the others the
+                      shortcut set state nothing was listening to. */}
+                  <KeyboardProvider>
                     <main id="main-content">{children}</main>
-                  </GlobalShortcutsProvider>
-                  <KeyboardShortcutsHelp />
+                    <CommandPalette />
+                    <KeyboardShortcutsHelp />
+                  </KeyboardProvider>
                   <InboxToastContainer />
                 </AuthGuard>
               </AppProviders>

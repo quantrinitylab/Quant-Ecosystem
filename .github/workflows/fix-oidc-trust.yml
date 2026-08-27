@@ -1,0 +1,84 @@
+name: Fix OIDC trust
+
+# v5: decisive OIDC test from environment 'staging' on main.
+# Prints staging vars values and tries assuming both candidate roles.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-oidc-trust.yml'
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: fix-oidc-trust
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Try vars role
+        id: varsrole
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+          role-session-name: probe-vars-role
+
+      - name: Identity after vars role
+        run: |
+          set +e
+          aws sts get-caller-identity > /tmp/id1.txt 2>&1
+          echo "AWS_ACCESS_KEY_ID=" >> "$GITHUB_ENV"
+          echo "AWS_SECRET_ACCESS_KEY=" >> "$GITHUB_ENV"
+          echo "AWS_SESSION_TOKEN=" >> "$GITHUB_ENV"
+
+      - name: Try hardcoded quant-gha-deploy role
+        id: fixedrole
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        with:
+          role-to-assume: arn:aws:iam::266176113726:role/quant-gha-deploy
+          aws-region: us-east-1
+          role-session-name: probe-fixed-role
+
+      - name: Report
+        env:
+          V_ACCOUNT: ${{ vars.AWS_ACCOUNT_ID }}
+          V_ROLE: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          V_REGION: ${{ vars.AWS_REGION }}
+          V_CLUSTER: ${{ vars.EKS_CLUSTER }}
+          V_NS: ${{ vars.K8S_NAMESPACE }}
+          O_VARS: ${{ steps.varsrole.outcome }}
+          O_FIXED: ${{ steps.fixedrole.outcome }}
+        run: |
+          set +e
+          aws sts get-caller-identity > /tmp/id2.txt 2>&1
+          {
+            echo "=== fix-oidc-trust-v5 $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+            echo "staging vars: account=[$V_ACCOUNT] role=[$V_ROLE] region=[$V_REGION] cluster=[$V_CLUSTER] ns=[$V_NS]"
+            echo "vars_role_outcome=$O_VARS"
+            echo "--- identity after vars role ---"
+            cat /tmp/id1.txt
+            echo "fixed_role_outcome=$O_FIXED"
+            echo "--- identity after fixed role ---"
+            cat /tmp/id2.txt
+            echo "=== done ==="
+          } > /tmp/fix.log 2>&1
+          cat /tmp/fix.log
+          mkdir -p infra/status
+          cp /tmp/fix.log infra/status/oidc-fix-log.txt
+          git config user.name "gha-bot"
+          git config user.email "gha-bot@users.noreply.github.com"
+          git add -f infra/status/oidc-fix-log.txt
+          git commit -m "oidc fix log v5"
+          git push -f origin HEAD:oidc-fix-log

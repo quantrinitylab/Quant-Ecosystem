@@ -31,59 +31,65 @@ export function useCommandPalette() {
 const CROSS_APP_COMMANDS: CommandPaletteItem[] = [
   {
     id: 'nav-mail',
-    label: 'Go to QuantMail',
-    group: 'Navigation',
-    shortcut: undefined,
+    label: 'Go to QuantMail (Inbox)',
+    group: 'Workspace',
+    shortcut: 'G I',
     action: () => {
       window.location.href = '/';
     },
   },
   {
-    id: 'nav-chat',
-    label: 'Go to QuantChat',
-    group: 'Navigation',
+    id: 'nav-calendar',
+    label: 'Go to QuantCalendar',
+    group: 'Workspace',
+    shortcut: 'G C',
     action: () => {
-      window.location.href = 'http://localhost:3002';
+      window.location.href = '/calendar';
     },
   },
   {
-    id: 'nav-ai',
-    label: 'Go to QuantAI',
-    group: 'Navigation',
+    id: 'nav-drive',
+    label: 'Go to QuantDrive',
+    group: 'Workspace',
+    shortcut: 'G V',
     action: () => {
-      window.location.href = 'http://localhost:3001';
+      window.location.href = '/drive';
     },
   },
   {
-    id: 'nav-sync',
-    label: 'Go to QuantSync',
-    group: 'Navigation',
+    id: 'nav-contacts',
+    label: 'Go to QuantContacts',
+    group: 'Workspace',
+    shortcut: 'G A',
     action: () => {
-      window.location.href = 'http://localhost:3003';
+      window.location.href = '/contacts';
     },
   },
   {
-    id: 'nav-tube',
-    label: 'Go to QuantTube',
-    group: 'Navigation',
+    id: 'nav-code',
+    label: 'Go to QuantCode (CodeHub)',
+    group: 'Workspace',
+    shortcut: 'G K',
     action: () => {
-      window.location.href = 'http://localhost:3005';
+      window.location.href = '/codehub';
     },
   },
   {
-    id: 'nav-meet',
-    label: 'Go to QuantMeet',
-    group: 'Navigation',
+    id: 'nav-settings',
+    label: 'Open Settings & Preferences',
+    group: 'Control',
+    shortcut: 'G ,',
     action: () => {
-      window.location.href = 'http://localhost:3107';
+      window.location.href = '/settings';
     },
   },
   {
-    id: 'nav-docs',
-    label: 'Go to QuantDocs',
-    group: 'Navigation',
+    id: 'nav-security',
+    label: 'Account Security & 2FA',
+    group: 'Control',
+    shortcut: 'G 2',
     action: () => {
-      window.location.href = 'http://localhost:3040';
+      window.location.href = '/security';
     },
   },
 ];

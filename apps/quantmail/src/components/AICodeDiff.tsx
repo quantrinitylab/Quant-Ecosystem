@@ -22,9 +22,18 @@ interface AICodeDiffProps {
  * When AI suggests code changes, this shows the before/after diff so the developer
  * can review and accept/reject (like a PR review for AI suggestions).
  */
-export function AICodeDiff({ originalCode, modifiedCode, filename, onAccept, onReject }: AICodeDiffProps) {
-  const diffLines = useMemo(() => computeDiff(originalCode, modifiedCode), [originalCode, modifiedCode]);
-  
+export function AICodeDiff({
+  originalCode,
+  modifiedCode,
+  filename,
+  onAccept,
+  onReject,
+}: AICodeDiffProps) {
+  const diffLines = useMemo(
+    () => computeDiff(originalCode, modifiedCode),
+    [originalCode, modifiedCode],
+  );
+
   const stats = useMemo(() => {
     const adds = diffLines.filter((l) => l.type === 'add').length;
     const removes = diffLines.filter((l) => l.type === 'remove').length;
@@ -47,11 +56,34 @@ export function AICodeDiff({ originalCode, modifiedCode, filename, onAccept, onR
           </span>
         </div>
         <div className="diff-actions">
-          <button type="button" className="diff-reject" onClick={onReject}>
-            ✕ Reject
+          <button type="button" className="diff-reject flex items-center gap-1" onClick={onReject}>
+            <svg
+              className="size-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+            Reject
           </button>
-          <button type="button" className="diff-accept" onClick={onAccept}>
-            ✓ Accept changes
+          <button type="button" className="diff-accept flex items-center gap-1" onClick={onAccept}>
+            <svg
+              className="size-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            Accept changes
           </button>
         </div>
       </header>
@@ -85,7 +117,7 @@ function computeDiff(original: string, modified: string): DiffLine[] {
   const oldLines = original.split('\n');
   const newLines = modified.split('\n');
   const result: DiffLine[] = [];
-  
+
   let oldIdx = 0;
   let newIdx = 0;
 
@@ -101,7 +133,11 @@ function computeDiff(original: string, modified: string): DiffLine[] {
       oldIdx++;
     } else if (oldLines[oldIdx] === newLines[newIdx]) {
       // Same line
-      result.push({ type: 'context', content: oldLines[oldIdx], lineNumber: { old: oldIdx + 1, new: newIdx + 1 } });
+      result.push({
+        type: 'context',
+        content: oldLines[oldIdx],
+        lineNumber: { old: oldIdx + 1, new: newIdx + 1 },
+      });
       oldIdx++;
       newIdx++;
     } else {
