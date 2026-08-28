@@ -2141,7 +2141,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('birthday')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 text-xs font-extrabold shadow-xl border border-emerald-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(16,185,129,0.3)]"
+                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 text-xs font-extrabold border border-emerald-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   <IconCake className="size-4 text-emerald-400" />
                   <span>Birthday</span>
@@ -2150,7 +2150,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('task')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#2B1A11]/90 hover:bg-[#2B1A11] text-[#FFB875] text-xs font-extrabold shadow-xl border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(245,158,11,0.3)]"
+                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-[#2B1A11]/90 hover:bg-[#2B1A11] text-[#FFB875] text-xs font-extrabold border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   <IconTarget className="size-4 text-[#FF8C42]" />
                   <span>Task</span>
@@ -2159,7 +2159,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('period')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-rose-950/90 hover:bg-rose-900 text-rose-200 text-xs font-extrabold shadow-xl border border-rose-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(244,63,94,0.35)]"
+                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-rose-950/90 hover:bg-rose-900 text-rose-200 text-xs font-extrabold border border-rose-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   <IconFlower className="size-4 text-rose-400" />
                   <span>Period Tracker</span>
@@ -2168,7 +2168,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('event')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#2a1b10]/95 hover:bg-[#3d2716] text-[#FF8C42] text-xs font-extrabold shadow-xl border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(255,140,66,0.35)]"
+                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-[#2a1b10]/95 hover:bg-[#3d2716] text-[#FF8C42] text-xs font-extrabold border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   <IconCalendar className="size-4 text-[#FF8C42]" />
                   <span>Event</span>

@@ -479,7 +479,7 @@ export function ConversationalThreadView({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 -ml-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 active:bg-[#3A404D]/60 transition-all active:scale-95 flex items-center justify-center min-w-[40px] min-h-[40px]"
+              className="p-2 -ml-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 active:bg-[#3A404D]/60 transition-all active:scale-95 flex items-center justify-center min-w-[44px] min-h-[44px] sm:min-w-[40px] sm:min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               title="Back to inbox"
               aria-label="Back to inbox"
             >
