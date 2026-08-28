@@ -32,8 +32,15 @@ import { ConversationalThreadView } from '../components/ConversationalThreadView
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
+import {
+  groupEmailsIntoThreads,
+  sanitizeSnippetText,
+  type ConversationThread,
+} from '../lib/threading';
 import { useAuth } from '../providers/auth-provider';
-import type { Email, EmailCategory } from '../types';
+import type { Email } from '../types';
+
+export type { ConversationThread };
 
 /**
  * Starting height guess for a conversation row: `.mail-row`'s `min-height` of
@@ -147,141 +154,6 @@ function formatReceivedAt(value?: string | Date) {
     return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   }
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-export interface ConversationThread {
-  id: string;
-  threadId: string;
-  subject: string;
-  normalizedSubject: string;
-  latestEmail: Email;
-  messages: Email[];
-  count: number;
-  sendersSummary: string;
-  isRead: boolean;
-  isStarred: boolean;
-  receivedAt: string | Date;
-  category: EmailCategory;
-  priority?: string;
-  labels: string[];
-}
-
-function sanitizeSnippetText(text?: string): string {
-  if (!text) return '';
-  let clean = text;
-  try {
-    clean = decodeURIComponent(escape(text));
-  } catch {
-    clean = text
-      .replace(/ðŸŽ‰/g, '🎉')
-      .replace(/ðŸ‘\s*[\x80-\xBF]?/g, '👍')
-      .replace(/ðŸ”¥/g, '🔥')
-      .replace(/ðŸš€/g, '🚀')
-      .replace(/âœ…/g, '✅')
-      .replace(/â ¤ï¸ ?/g, '❤️')
-      .replace(/ðŸ˜Š/g, '😊')
-      .replace(/ðŸ’¡/g, '💡')
-      .replace(/ðŸ’¬/g, '💬')
-      .replace(/âš\xa0ï¸ ?/g, '⚠️')
-      .replace(/â€[™']/g, "'")
-      .replace(/â€œ|â€ /g, '"')
-      .replace(/â€“|â€”/g, '—')
-      .replace(/â€¦/g, '…');
-  }
-  return clean
-    .replace(/Â[\u00A0\s]?/g, ' ')
-    .replace(/\u00A0/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function normalizeSubject(subject: string = ''): string {
-  return sanitizeSnippetText(subject)
-    .replace(/^(re|fwd|fw):\s*/i, '')
-    .replace(/^(re|fwd|fw)\[\d+\]:\s*/i, '')
-    .trim()
-    .toLowerCase();
-}
-
-function groupEmailsIntoThreads(emails: Email[] = [], currentEmail?: string): ConversationThread[] {
-  if (!emails || emails.length === 0) return [];
-
-  const normMyEmail = (currentEmail || '').trim().toLowerCase();
-  const myHandle = normMyEmail.split('@')[0];
-
-  const threadMap = new Map<string, Email[]>();
-
-  for (const email of emails) {
-    const key =
-      email.threadId ||
-      (email.subject ? `subj:${normalizeSubject(email.subject)}` : `email:${email.id}`);
-    const existing = threadMap.get(key) || [];
-    existing.push(email);
-    threadMap.set(key, existing);
-  }
-
-  const threads: ConversationThread[] = [];
-
-  for (const [key, msgList] of threadMap.entries()) {
-    msgList.sort(
-      (a, b) =>
-        new Date(a.receivedAt || a.createdAt || 0).getTime() -
-        new Date(b.receivedAt || b.createdAt || 0).getTime(),
-    );
-
-    const latest = msgList[msgList.length - 1];
-    const isRead = msgList.every((m) => m.isRead);
-    const isStarred = msgList.some((m) => m.isStarred);
-
-    const senderNames: string[] = [];
-    let hasOther = false;
-    for (const m of msgList) {
-      const fromAddr = (m.from?.email || (m as any).fromAddress || '').toLowerCase();
-      const isMe = Boolean(
-        (normMyEmail &&
-          (fromAddr === normMyEmail || (myHandle && fromAddr.startsWith(`${myHandle}@`)))) ||
-        (m as any).isSent ||
-        m.status === 'sent',
-      );
-      if (isMe) {
-        if (!senderNames.includes('You')) senderNames.push('You');
-      } else {
-        hasOther = true;
-        const name =
-          m.from?.name ||
-          (m as any).fromName ||
-          m.from?.email?.split('@')[0] ||
-          (m as any).fromAddress?.split('@')[0] ||
-          'Sender';
-        if (!senderNames.includes(name)) senderNames.push(name);
-      }
-    }
-    let sendersSummary = senderNames.join(', ');
-    if (senderNames.length === 0) sendersSummary = 'Conversation';
-    else if (senderNames.length === 1 && senderNames[0] === 'You' && !hasOther)
-      sendersSummary = 'You';
-
-    threads.push({
-      id: latest.id,
-      threadId: latest.threadId || (key.startsWith('subj:') ? latest.id : key),
-      subject: latest.subject || '(no subject)',
-      normalizedSubject: normalizeSubject(latest.subject),
-      latestEmail: latest,
-      messages: msgList,
-      count: msgList.length,
-      sendersSummary,
-      isRead,
-      isStarred,
-      receivedAt: latest.receivedAt || latest.createdAt || new Date(),
-      category: latest.category || 'primary',
-      priority: latest.priority,
-      labels: Array.from(new Set(msgList.flatMap((m) => m.labels || []))),
-    });
-  }
-
-  threads.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
-
-  return threads;
 }
 
 type EmailRowProps = {
@@ -865,10 +737,6 @@ export default function InboxPage() {
   const currentEmail = currentUser?.email || '';
 
   const emails = debouncedQuery ? searchResults : allEmails;
-  const allThreads = useMemo(
-    () => groupEmailsIntoThreads(allEmails ?? [], currentEmail),
-    [allEmails, currentEmail],
-  );
   const threads = useMemo(
     () => groupEmailsIntoThreads(emails ?? [], currentEmail),
     [emails, currentEmail],
@@ -912,27 +780,42 @@ export default function InboxPage() {
     [isContactThread, isGroupThread],
   );
 
+  /**
+   * The population the visible list is drawn from, before the category tab
+   * narrows it.
+   *
+   * Everything that counts conversations for the user now counts *this* array,
+   * because three counters used to read three different sources: the chip counts
+   * and the hero's unread total were both computed from the unsearched inbox
+   * while the rows came from the search-aware list or from the archive. So a
+   * search for one word left `All 431` above four rows, and opening the
+   * archived view left the chips describing the inbox you had just navigated away
+   * from. A count that does not describe the list under it is worse than no count.
+   */
+  const activeThreadPool = useMemo(
+    () => (showArchivedView ? allArchivedThreads : (threads ?? [])),
+    [showArchivedView, allArchivedThreads, threads],
+  );
+
   const tabCounts = useMemo(() => {
     const counts: Record<string, number> = {
-      all: allThreads.length,
-      unread: allThreads.filter((t) => !t.isRead).length,
-      contacts: allThreads.filter((t) => isContactThread(t)).length,
-      groups: allThreads.filter((t) => isGroupThread(t)).length,
-      updates: allThreads.filter((t) => t.category === 'updates').length,
-      promotions: allThreads.filter((t) => t.category === 'promotions').length,
-      pinned: allThreads.filter((t) => t.isStarred).length,
+      all: activeThreadPool.length,
+      unread: activeThreadPool.filter((t) => !t.isRead).length,
+      contacts: activeThreadPool.filter((t) => isContactThread(t)).length,
+      groups: activeThreadPool.filter((t) => isGroupThread(t)).length,
+      updates: activeThreadPool.filter((t) => t.category === 'updates').length,
+      promotions: activeThreadPool.filter((t) => t.category === 'promotions').length,
+      pinned: activeThreadPool.filter((t) => t.isStarred).length,
     };
     return counts;
-  }, [allThreads, isContactThread, isGroupThread]);
+  }, [activeThreadPool, isContactThread, isGroupThread]);
 
   const currentArchivedThreads = useMemo(() => {
     return filterThreads(allArchivedThreads, activeCategoryTab);
   }, [allArchivedThreads, activeCategoryTab, filterThreads]);
 
   const displayThreads = useMemo(() => {
-    const sourceThreads = showArchivedView
-      ? currentArchivedThreads
-      : filterThreads(threads ?? [], activeCategoryTab);
+    const sourceThreads = filterThreads(activeThreadPool, activeCategoryTab);
 
     return [...sourceThreads].sort((a, b) => {
       if (a.isStarred !== b.isStarred) {
@@ -940,7 +823,24 @@ export default function InboxPage() {
       }
       return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
     });
-  }, [showArchivedView, currentArchivedThreads, threads, activeCategoryTab, filterThreads]);
+  }, [activeThreadPool, activeCategoryTab, filterThreads]);
+
+  /**
+   * Whether to say out loud that starred conversations are held at the top.
+   *
+   * The sort above is two-level — starred first, then newest — and nothing on
+   * screen said so, so a list whose first three rows were from last week read as
+   * a broken date sort rather than as a pin the user had asked for themselves.
+   * The caption appears only when the pin actually moved something: not in the
+   * `pinned` tab, where every row is starred, and not when nothing is starred or
+   * everything is.
+   */
+  const pinnedCount = useMemo(
+    () => displayThreads.filter((t) => t.isStarred).length,
+    [displayThreads],
+  );
+  const showPinnedNotice =
+    activeCategoryTab !== 'pinned' && pinnedCount > 0 && pinnedCount < displayThreads.length;
 
   /**
    * The archived toggle scrolls with the list, so the virtualizer has to know how
@@ -1083,14 +983,43 @@ export default function InboxPage() {
     }
   };
 
-  const unreadCount = useMemo(() => allThreads.filter((t) => !t.isRead).length, [allThreads]);
-  const categoryCounts = useMemo(() => {
-    const counts: Partial<Record<EmailCategory, number>> = {};
-    allThreads.forEach((t) => {
-      if (!t.isRead) counts[t.category] = (counts[t.category] ?? 0) + 1;
-    });
-    return counts;
-  }, [allThreads]);
+  /**
+   * Title and one-line summary for the hero, describing the list actually below
+   * it.
+   *
+   * The hero used to read "Your Inbox" and "N unread messages waiting for
+   * review" in every state, including the archived view and mid-search — so the
+   * two lines that frame the screen named a mailbox the user had navigated away
+   * from. `unreadCount` is drawn from the same pool as the rows and the chips, so
+   * all three agree by construction.
+   */
+  const unreadCount = useMemo(
+    () => activeThreadPool.filter((t) => !t.isRead).length,
+    [activeThreadPool],
+  );
+
+  const heroTitle = showArchivedView
+    ? 'Archived'
+    : debouncedQuery
+      ? 'Search results'
+      : 'Your Inbox';
+
+  const heroSummary = useMemo(() => {
+    const total = activeThreadPool.length;
+    const conversations = `${total} conversation${total === 1 ? '' : 's'}`;
+    const unread = `${unreadCount} unread message${unreadCount === 1 ? '' : 's'}`;
+
+    if (debouncedQuery) {
+      if (total === 0) return `Nothing matched "${debouncedQuery}".`;
+      return unreadCount > 0
+        ? `${conversations} matching "${debouncedQuery}", ${unread}.`
+        : `${conversations} matching "${debouncedQuery}".`;
+    }
+    if (showArchivedView) {
+      return total === 0 ? 'Nothing archived yet.' : `${conversations} out of the way.`;
+    }
+    return unreadCount > 0 ? `${unread} waiting for review.` : 'You are completely caught up.';
+  }, [activeThreadPool, debouncedQuery, showArchivedView, unreadCount]);
 
   const toggleSelect = useCallback(
     (id: string, event?: React.MouseEvent | null) => {
@@ -1426,12 +1355,8 @@ export default function InboxPage() {
               <p className="inbox-kicker">
                 <span /> QuantMail Intelligence
               </p>
-              <h1>Your Inbox</h1>
-              <p>
-                {unreadCount > 0
-                  ? `${unreadCount} unread message${unreadCount === 1 ? '' : 's'} waiting for review.`
-                  : 'You are completely caught up.'}
-              </p>
+              <h1>{heroTitle}</h1>
+              <p>{heroSummary}</p>
             </div>
             <button
               type="button"
@@ -1719,6 +1644,15 @@ export default function InboxPage() {
                       }
                       onToggle={() => setShowArchivedView((prev) => !prev)}
                     />
+                  )}
+                  {showPinnedNotice && (
+                    <p className="mail-pinned-notice">
+                      <MailIcon name="star" className="size-3.5 shrink-0" />
+                      <span>
+                        {pinnedCount} starred {pinnedCount === 1 ? 'conversation is' : 'are'} held
+                        at the top. The rest are newest first.
+                      </span>
+                    </p>
                   )}
                 </div>
 

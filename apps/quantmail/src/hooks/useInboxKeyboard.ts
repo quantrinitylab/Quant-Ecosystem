@@ -35,9 +35,12 @@ import type { MailMutations } from './useMailMutations';
 const SCOPE = 'inbox';
 
 /**
- * The minimum a row must expose. Structural rather than an import of
- * `ConversationThread`, which lives in the inbox page — the page imports this
- * hook, so the dependency has to point one way.
+ * The minimum a row must expose.
+ *
+ * Structural rather than an import of `ConversationThread` (`lib/threading.ts`)
+ * because these four fields are the whole of what the shortcuts touch: the hook
+ * is then usable by any list of thread-shaped things, and a field added to the
+ * inbox row cannot break it.
  */
 export interface InboxKeyboardRow {
   id: string;
