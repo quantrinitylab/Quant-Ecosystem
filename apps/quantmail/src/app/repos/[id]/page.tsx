@@ -10,6 +10,7 @@ import { PageTransition } from '../../../components/PageTransition';
 import { CodeEditor } from '../../../components/CodeEditor';
 import { AICodeReview } from '../../../components/AICodeReview';
 import { FileTree } from '../../../components/FileTree';
+import { IconCode } from '../../../components/icons';
 import {
   useRepo,
   useBranches,
@@ -64,8 +65,17 @@ export default function RepoDetailPage() {
               <p className="text-xs text-[var(--quant-muted-foreground)]">{repo.description}</p>
             </div>
           )}
-          <Button variant="primary" onClick={() => router.push(`/repos/${repoId}/editor`)}>
-            ✦ Open in AI Editor
+          {/* Was `✦ Open in AI Editor`. The destination is a read-only preview:
+              `GET /repos/:id/file` returns empty content, there is no write route,
+              and the AI panel there can suggest but not apply. Calling it an AI
+              editor promised two things it does not do. */}
+          <Button
+            variant="primary"
+            onClick={() => router.push(`/repos/${repoId}/editor`)}
+            className="inline-flex items-center gap-1.5"
+          >
+            <IconCode size={14} />
+            <span>Open editor</span>
           </Button>
         </div>
 
@@ -143,42 +153,37 @@ export default function RepoDetailPage() {
                   description="No PRs found for this repository"
                 />
               )}
-              {!loadingPRs &&
-                prs &&
-                prs.length > 0 && (
-                  <div className="space-y-3">
-                    {/* AI Code Review — GitHub doesn't have this */}
-                    <AICodeReview
-                      prId={prs[0].id}
-                      prTitle={prs[0].title}
-                    />
-                    {prs.map((pr) => (
-                      <Card key={pr.id} className="p-3">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={
-                              pr.status === 'open'
-                                ? 'success'
-                                : pr.status === 'merged'
-                                  ? 'info'
-                                  : 'default'
-                            }
-                          >
-                            {pr.status}
-                          </Badge>
-                          <span className="font-medium text-sm">{pr.title}</span>
-                          <span className="text-xs text-[var(--quant-muted-foreground)] ml-auto">
-                            #{pr.number}
-                          </span>
-                        </div>
-                        <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
-                          {pr.sourceBranch} → {pr.targetBranch} by{' '}
-                          {pr.author?.name || pr.author?.username}
-                        </p>
-                      </Card>
-                    ))}
-                  </div>
-                )}
+              {!loadingPRs && prs && prs.length > 0 && (
+                <div className="space-y-3">
+                  {/* AI Code Review — GitHub doesn't have this */}
+                  <AICodeReview prId={prs[0].id} prTitle={prs[0].title} />
+                  {prs.map((pr) => (
+                    <Card key={pr.id} className="p-3">
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant={
+                            pr.status === 'open'
+                              ? 'success'
+                              : pr.status === 'merged'
+                                ? 'info'
+                                : 'default'
+                          }
+                        >
+                          {pr.status}
+                        </Badge>
+                        <span className="font-medium text-sm">{pr.title}</span>
+                        <span className="text-xs text-[var(--quant-muted-foreground)] ml-auto">
+                          #{pr.number}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
+                        {pr.sourceBranch} → {pr.targetBranch} by{' '}
+                        {pr.author?.name || pr.author?.username}
+                      </p>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </>
           )}
 

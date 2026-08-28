@@ -19,6 +19,23 @@ export interface ToastMessage {
   type: 'success' | 'info' | 'warning' | 'error';
   undoAction?: () => void;
   duration?: number;
+  /**
+   * Dedupe key. A new toast evicts any live toast carrying the same `subject`,
+   * regardless of wording.
+   *
+   * Without it the container can only dedupe on `text`, which fails exactly when
+   * it matters most: star then unstar the same Drive file and you get
+   * `Starred "report.pdf"` and `Removed from starred` on screen together, two
+   * different strings making opposite claims about one file. Passing
+   * `subject: 'star:<id>'` means the second toast replaces the first, so the
+   * stack always shows the current state of that object rather than a transcript
+   * of everything that happened to it.
+   *
+   * Eviction is symmetrical only within a key: a toast with no `subject` will not
+   * displace one that has a subject, even on identical text. See
+   * {@link reduceToasts}.
+   */
+  subject?: string;
 }
 
 type ToastListener = (msg: ToastMessage) => void;
@@ -93,4 +110,47 @@ export function showToast(msg: Omit<ToastMessage, 'id'>) {
   };
   if (msg.undoAction) pendingUndo = { toastId: toast.id, run: msg.undoAction };
   toastSubscribers.forEach((fn) => fn(toast));
+}
+
+/** Most toasts on screen at once. Older ones are dropped from the top. */
+export const MAX_VISIBLE_TOASTS = 3;
+
+/**
+ * Work out the next visible stack when `incoming` arrives.
+ *
+ * Pure, and exported rather than inlined in the container, for two reasons: a
+ * `setState` updater is not the place for the `forgetUndo` side effect the
+ * eviction implies, and this is the rule most worth pinning in a test — that two
+ * toasts about the same object never sit on screen contradicting each other.
+ *
+ * Eviction is keyed on `subject` when the caller supplied one. Otherwise it falls
+ * back to identical `text` *among subjectless toasts only*, so holding `e` down a
+ * mail list still reads as one message. The `!t.subject` half of that fallback
+ * matters: a subjected toast carries object identity and a subjectless one knows
+ * nothing about that object, so a generic `Archived` must not displace the
+ * `Archived` that a specific thread put on screen — it has no claim to be the
+ * newer word on it.
+ *
+ * `evicted` carries the ids the caller must pass to {@link forgetUndo}: both the
+ * superseded toasts and anything pushed off the top by the cap, since an undo
+ * that outlives its own toast has no visible window left.
+ */
+export function reduceToasts(
+  current: ToastMessage[],
+  incoming: ToastMessage,
+  max: number = MAX_VISIBLE_TOASTS,
+): { next: ToastMessage[]; evicted: string[] } {
+  const supersedes = (t: ToastMessage) =>
+    incoming.subject ? t.subject === incoming.subject : !t.subject && t.text === incoming.text;
+
+  const kept = current.filter((t) => !supersedes(t));
+  const evicted = current.filter(supersedes).map((t) => t.id);
+
+  const stacked = [...kept, incoming];
+  const overflow = Math.max(0, stacked.length - Math.max(1, max));
+
+  return {
+    next: stacked.slice(overflow),
+    evicted: [...evicted, ...stacked.slice(0, overflow).map((t) => t.id)],
+  };
 }

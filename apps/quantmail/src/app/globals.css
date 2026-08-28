@@ -2241,30 +2241,39 @@ body {
   line-height: 1.4;
 }
 .inbox-toast-undo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
   border: 1px solid #5C3016;
   background: #2B1A11;
   color: #FF8C42;
   font-size: 0.72rem;
   font-weight: 650;
   cursor: pointer;
-  padding: 0.2rem 0.5rem;
-  border-radius: 0.3rem;
+  padding: 0 0.6rem;
+  border-radius: 0.4rem;
   transition: background 100ms;
 }
 .inbox-toast-undo:hover {
   background: #3D2214;
 }
 .inbox-toast-dismiss {
+  display: inline-grid;
+  place-items: center;
+  min-width: 36px;
+  min-height: 36px;
   border: none;
+  border-radius: 0.4rem;
   background: transparent;
   color: #6B6E76;
-  font-size: 1rem;
   cursor: pointer;
-  padding: 0 0.3rem;
   line-height: 1;
-  transition: color 100ms;
+  transition: color 100ms, background-color 100ms;
 }
-.inbox-toast-dismiss:hover { color: #F5F5F5; }
+.inbox-toast-dismiss:hover { color: #F5F5F5; background: #1C1F26; }
+.inbox-toast-undo:focus-visible,
+.inbox-toast-dismiss:focus-visible { outline: none; box-shadow: 0 0 0 2px #FF8C42; }
 
 /* ========================================================================== */
 /* Gmail-killer: Keyboard Shortcuts Help Panel                                */
@@ -2399,8 +2408,12 @@ body {
 
 @media (max-width: 639px) {
   .hover-actions { display: none; }
-  .inbox-toast-container { bottom: 4.5rem; left: 1rem; right: 1rem; transform: none; }
-  .inbox-toast { min-width: unset; width: 100%; }
+  /* Clears the bottom nav, and both controls go to the full 44px because a toast
+     auto-dismisses in ~3s — a missed tap costs you the action, not just a retry. */
+  .inbox-toast-container { bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)); left: 1rem; right: 1rem; transform: none; }
+  .inbox-toast { min-width: unset; width: 100%; padding: 0.5rem 0.6rem 0.5rem 1rem; }
+  .inbox-toast-undo { min-height: 44px; padding: 0 0.8rem; }
+  .inbox-toast-dismiss { min-width: 44px; min-height: 44px; }
 }
 
 /* ========================================================================== */
@@ -4192,9 +4205,18 @@ body {
 .ide-repo-name { font-size: 0.76rem; font-weight: 650; color: #F5F5F5; }
 .ide-file-path { font-size: 0.68rem; color: #888; font-family: monospace; }
 .ide-modified { color: #FF8C42; font-size: 0.9rem; }
-.ide-toggle-btn { padding: 0.3rem 0.6rem; border-radius: 0.4rem; border: 1px solid #282C35; background: transparent; color: #888; font-size: 0.64rem; font-weight: 550; cursor: pointer; transition: all 100ms; }
-.ide-toggle-btn:hover { border-color: #3A404D; color: #ccc; }
-.ide-toggle-btn.is-active { border-color: rgba(255, 140, 66,0.3); background: rgba(255, 140, 66,0.06); color: #FF8C42; }
+/* The topbar controls were 0.3rem-padded chips about 22px tall — under half the
+   44px minimum. They are now min-height 44px with the glyph and label on one
+   baseline, and every one of them has a visible focus ring. */
+.ide-back-btn { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 44px; padding: 0 0.7rem; border-radius: 0.6rem; border: 1px solid #282C35; background: #16181D; color: #A1A4AC; font-size: 0.7rem; font-weight: 550; cursor: pointer; transition: color 120ms, border-color 120ms, background-color 120ms; }
+.ide-back-btn:hover { border-color: #3A404D; background: #1C1F26; color: #F5F5F5; }
+.ide-toggle-btn { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 44px; padding: 0 0.7rem; border-radius: 0.6rem; border: 1px solid #282C35; background: transparent; color: #A1A4AC; font-size: 0.7rem; font-weight: 550; cursor: pointer; transition: color 120ms, border-color 120ms, background-color 120ms; }
+.ide-toggle-btn:hover { border-color: #3A404D; color: #F5F5F5; }
+.ide-toggle-btn.is-active { border-color: #5C3016; background: #2B1A11; color: #FF8C42; }
+.ide-readonly-pill { display: inline-flex; align-items: center; min-height: 44px; padding: 0 0.75rem; border-radius: 0.6rem; border: 1px solid #5C3016; background: #2B1A11; color: #E9C9A9; font-size: 0.7rem; font-weight: 600; letter-spacing: -0.01em; }
+.ide-back-btn:focus-visible,
+.ide-toggle-btn:focus-visible,
+.ide-terminal-header button:focus-visible { outline: none; box-shadow: 0 0 0 2px #FF8C42; }
 .ide-body { display: flex; flex: 1; overflow: hidden; }
 .ide-sidebar { width: 240px; border-right: 1px solid #1C1F26; overflow-y: auto; flex-shrink: 0; background: #0C0E11; }
 .ide-empty-tree { padding: 2rem 1rem; text-align: center; font-size: 0.7rem; color: #555; }
@@ -4202,8 +4224,12 @@ body {
 .ide-welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; padding: 2rem; }
 .ide-welcome h2 { font-size: 1.2rem; font-weight: 650; color: #F5F5F5; margin-bottom: 0.5rem; }
 .ide-welcome p { font-size: 0.76rem; color: #888; max-width: 300px; }
-.ide-welcome-shortcuts { display: flex; gap: 1rem; margin-top: 1.5rem; font-size: 0.62rem; color: #666; }
-.ide-welcome-shortcuts kbd { display: inline-block; padding: 0.15rem 0.4rem; border-radius: 0.25rem; border: 1px solid #333; background: #16181D; color: #aaa; font-family: monospace; margin-right: 0.3rem; }
+.ide-welcome-shortcuts { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; margin-top: 1.5rem; font-size: 0.62rem; color: #666; }
+/* These read `<kbd>Read only</kbd>` and `<kbd>AI</kbd>`, which told a screen
+   reader they were keys you could press. They are statements of fact, so they
+   are plain pills now. */
+.ide-welcome-fact { display: inline-flex; align-items: center; gap: 0.3rem; }
+.ide-welcome-fact > span:first-of-type { display: inline-block; padding: 0.15rem 0.4rem; border-radius: 0.25rem; border: 1px solid #282C35; background: #16181D; color: #A1A4AC; font-family: monospace; }
 .ide-editor-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .ide-editor-with-lines { display: flex; flex: 1; overflow: auto; }
 .ide-line-numbers { display: flex; flex-direction: column; padding: 0.75rem 0; min-width: 3.5rem; text-align: right; padding-right: 0.75rem; background: #090A0C; border-right: 1px solid #1C1F26; user-select: none; position: sticky; left: 0; }
@@ -4213,16 +4239,34 @@ body {
 .ide-statusbar { display: flex; align-items: center; gap: 1rem; padding: 0.3rem 1rem; background: #111318; border-top: 1px solid #1C1F26; font-size: 0.6rem; color: #666; flex-shrink: 0; }
 .ide-status-modified { color: #FF8C42; font-weight: 600; }
 
-/* Terminal */
+/* Output log. This was styled as a terminal — console green, a `$` prompt and a
+   live input — but nothing behind it ever executed a command, so anything typed
+   in printed "Terminal unavailable". The prompt is gone and the text is neutral,
+   because these lines are the editor talking, not a shell. */
 .ide-terminal { border-top: 1px solid #1C1F26; background: #090A0C; display: flex; flex-direction: column; overflow: hidden; }
-.ide-terminal-header { display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0.75rem; background: #111318; border-bottom: 1px solid #1C1F26; }
+.ide-terminal-header { display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0.35rem 0.3rem 0.75rem; background: #111318; border-bottom: 1px solid #1C1F26; }
 .ide-terminal-header span { font-size: 0.66rem; font-weight: 600; color: #999; }
-.ide-terminal-header button { border: none; background: transparent; color: #666; font-size: 1rem; cursor: pointer; }
-.ide-terminal-output { flex: 1; overflow-y: auto; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.68rem; color: #4ade80; }
+.ide-terminal-header button { display: inline-grid; place-items: center; width: 44px; height: 44px; border: none; border-radius: 0.5rem; background: transparent; color: #6B6E76; cursor: pointer; transition: color 120ms, background-color 120ms; }
+.ide-terminal-header button:hover { color: #F5F5F5; background: #1C1F26; }
+.ide-terminal-output { flex: 1; overflow-y: auto; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.68rem; color: #A1A4AC; }
 .ide-terminal-output pre { margin: 0; white-space: pre-wrap; line-height: 1.5; }
-.ide-terminal-input { display: flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.75rem; border-top: 1px solid #1C1F26; }
-.ide-prompt { color: #FF8C42; font-family: monospace; font-size: 0.7rem; font-weight: 700; }
-.ide-terminal-input input { flex: 1; border: none; background: transparent; color: #F5F5F5; font-family: monospace; font-size: 0.7rem; outline: none; }
+.ide-terminal-hint { color: #6B6E76; max-width: 46ch; }
+
+/* Mobile Chrome. The desktop layout is three fixed columns — a 240px file tree,
+   the editor, and a 360px AI panel whose width is set inline by framer-motion —
+   which on a 375px viewport left the editor about 0px wide. Below 768px the tree
+   becomes a capped strip above the editor and the AI panel takes the full width;
+   the `!important` is what beats the inline animated width. */
+@media (max-width: 767px) {
+  .code-ide { height: 100dvh; }
+  .ide-topbar { flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem 0.75rem; }
+  .ide-topbar-left { min-width: 0; flex: 1 1 100%; }
+  .ide-file-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ide-topbar-right { flex: 1 1 100%; overflow-x: auto; }
+  .ide-body { flex-direction: column; }
+  .ide-sidebar { width: 100%; max-height: 30vh; border-right: none; border-bottom: 1px solid #1C1F26; }
+  .ide-ai-panel { width: 100% !important; border-left: none; border-top: 1px solid #1C1F26; max-height: 60vh; }
+}
 
 /* AI Chat Panel */
 .ide-ai-panel { border-left: 1px solid #1C1F26; overflow: hidden; flex-shrink: 0; background: #0C0E11; }

@@ -3,6 +3,8 @@
 import type { ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useInbox } from '../hooks/useInbox';
+import { useStorageQuota } from '../hooks/useStorageQuota';
+import { formatBytes } from '../lib/format-bytes';
 import { QuantMailLogo } from './QuantMailLogo';
 import { BrandWordmark } from './BrandWordmark';
 import { AccountBadge } from './AccountBadge';
@@ -205,6 +207,7 @@ export function AppSidebar() {
   const { data: draftEmails } = useInbox({ folderType: 'DRAFTS' });
   const unreadCount = inboxEmails?.filter((e) => !e.isRead).length ?? 0;
   const draftCount = draftEmails?.length ?? 0;
+  const { quota, known: quotaKnown, usedPct } = useStorageQuota();
 
   return (
     <nav className="quant-sidebar" aria-label="QuantMail navigation">
@@ -295,6 +298,14 @@ export function AppSidebar() {
         ))}
 
         {/* QuantMail Storage Indicator */}
+        {/*
+          This read `1.2 / 15 GB` over an 8% bar, both hardcoded, while
+          `components/Sidebar.tsx` hardcoded `3.5 GB of 15 GB used` over a 35%
+          bar and the Drive page showed the real total. All three now come from
+          `GET /drive/quota`, which sums the user's undeleted files server-side,
+          and the bar is a real `progressbar` so a screen reader gets the number
+          instead of an unlabelled sliver of orange.
+        */}
         <section
           className="mt-4 px-2.5 py-3 border-t border-[var(--quant-border-subtle)]"
           aria-label="Storage status"
@@ -304,12 +315,28 @@ export function AppSidebar() {
               <span className="inline-block size-1.5 rounded-full bg-[#FF8C42]" />
               Cloud Storage
             </span>
-            <span className="font-mono text-[10px] text-[#F5F5F5]">1.2 / 15 GB</span>
+            <span className="font-mono text-[10px] text-[#F5F5F5]">
+              {quotaKnown && quota
+                ? `${formatBytes(quota.used)} / ${formatBytes(quota.total)}`
+                : 'Calculating…'}
+            </span>
           </div>
-          <div className="mt-2 h-1.5 w-full rounded-full bg-[#16181D] border border-[#282C35] overflow-hidden">
+          <div
+            className="mt-2 h-1.5 w-full rounded-full bg-[#16181D] border border-[#282C35] overflow-hidden"
+            role="progressbar"
+            aria-label="Cloud storage used"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={quotaKnown ? usedPct : undefined}
+            aria-valuetext={
+              quotaKnown && quota
+                ? `${formatBytes(quota.used)} of ${formatBytes(quota.total)} used`
+                : 'Calculating'
+            }
+          >
             <div
               className="h-full rounded-full bg-[#FF8C42] transition-all duration-300"
-              style={{ width: '8%' }}
+              style={{ width: `${usedPct}%` }}
             />
           </div>
         </section>

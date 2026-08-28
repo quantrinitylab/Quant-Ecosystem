@@ -1,9 +1,40 @@
+'use client';
+
 // ============================================================================
 // QuantMail - File Manager Component
 // File browser with breadcrumbs, grid/list toggle, context menu, navigation
+//
+// NOT MOUNTED. Nothing imports this file — `app/drive/page.tsx` is the Drive
+// surface the app actually ships. It is kept because
+// `.agents/tasks/task-fix-ts-enhance-apps/features/FEAT-001.json` and two other
+// task records still point at it, and it is kept *correct* so that mounting it
+// later does not reintroduce defects that were already fixed elsewhere:
+//
+//   - It held a fourth, divergent copy of `formatFileSize` that disagreed with
+//     the other three (`'-'` for zero, `.toFixed(2)` for GB, so the same file
+//     read `1.00 GB` here and `1 GB` on the Drive page). All four are now the
+//     one `lib/format-bytes.ts`.
+//   - `FILE_TYPE_ICONS` mapped MIME prefixes to emoji code points, which the
+//     design system forbids in product chrome. Replaced with the shared
+//     `MimeTypeIcon`, whose glyph vocabulary is a superset of the old map.
+//   - The starred marker was written as an unescaped JSX text node reading
+//     backslash-u-2-B-5-0, so it rendered those six literal characters on
+//     screen rather than a star. Both occurrences are now `IconStarFilled`.
+//   - It used `useState` with no `'use client'`, so it could not have been
+//     rendered from any App Router server component without throwing.
 // ============================================================================
 
 import React, { useState, useCallback, useMemo } from 'react';
+import { formatBytes } from '../lib/format-bytes';
+import {
+  IconArrowDown,
+  IconArrowUp,
+  IconGrid,
+  IconList,
+  IconStarFilled,
+  IconUsers,
+  MimeTypeIcon,
+} from './icons';
 
 interface FileItem {
   id: string;
@@ -47,33 +78,12 @@ interface ContextMenuState {
 type ViewMode = 'grid' | 'list';
 type SortField = 'name' | 'modified' | 'size' | 'type';
 
-const FILE_TYPE_ICONS: Record<string, string> = {
-  folder: '\u{1F4C1}',
-  'image/': '\u{1F5BC}',
-  'video/': '\u{1F3AC}',
-  'audio/': '\u{1F3B5}',
-  'application/pdf': '\u{1F4C4}',
-  'application/zip': '\u{1F4E6}',
-  'text/': '\u{1F4DD}',
-  'application/json': '\u{2699}',
-  default: '\u{1F4C4}',
-};
-
-const getFileIcon = (file: FileItem): string => {
-  if (file.type === 'folder') return FILE_TYPE_ICONS.folder;
-  for (const [key, icon] of Object.entries(FILE_TYPE_ICONS)) {
-    if (file.mimeType.startsWith(key) || file.mimeType === key) return icon;
-  }
-  return FILE_TYPE_ICONS.default;
-};
-
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '-';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${Math.round(bytes / 1024)} KB`;
-  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
-  return `${(bytes / 1073741824).toFixed(2)} GB`;
-};
+const SORT_COLUMNS: ReadonlyArray<{ field: SortField; label: string }> = [
+  { field: 'name', label: 'Name' },
+  { field: 'modified', label: 'Modified' },
+  { field: 'size', label: 'Size' },
+  { field: 'type', label: 'Type' },
+];
 
 const formatDate = (dateStr: string): string => {
   const date = new Date(dateStr);
@@ -257,18 +267,24 @@ export const FileManager: React.FC<FileManagerProps> = ({
         </div>
         <div className="fm-view-toggle">
           <button
+            type="button"
             onClick={() => setViewMode('grid')}
             className={viewMode === 'grid' ? 'active' : ''}
+            aria-pressed={viewMode === 'grid'}
+            aria-label="Grid view"
             title="Grid view"
           >
-            &#x2630;
+            <IconGrid size={15} />
           </button>
           <button
+            type="button"
             onClick={() => setViewMode('list')}
             className={viewMode === 'list' ? 'active' : ''}
+            aria-pressed={viewMode === 'list'}
+            aria-label="List view"
             title="List view"
           >
-            &#x2261;
+            <IconList size={15} />
           </button>
         </div>
       </div>
@@ -318,7 +334,9 @@ export const FileManager: React.FC<FileManagerProps> = ({
                 {file.thumbnailUrl ? (
                   <img src={file.thumbnailUrl} alt="" className="file-thumb" />
                 ) : (
-                  <span className="file-type-icon">{getFileIcon(file)}</span>
+                  <span className="file-type-icon">
+                    <MimeTypeIcon mimeType={file.mimeType} kind={file.type} size={34} />
+                  </span>
                 )}
               </div>
               <div className="fm-card-name">
@@ -338,8 +356,16 @@ export const FileManager: React.FC<FileManagerProps> = ({
                 ) : (
                   <span title={file.name}>{file.name}</span>
                 )}
-                {file.isStarred && <span className="star-mark">\u2B50</span>}
-                {file.isShared && <span className="shared-mark">{'\u{1F465}'}</span>}
+                {file.isStarred && (
+                  <span className="star-mark">
+                    <IconStarFilled size={13} role="img" aria-label="Starred" aria-hidden={false} />
+                  </span>
+                )}
+                {file.isShared && (
+                  <span className="shared-mark">
+                    <IconUsers size={13} role="img" aria-label="Shared" aria-hidden={false} />
+                  </span>
+                )}
               </div>
             </div>
           ))}
@@ -348,18 +374,32 @@ export const FileManager: React.FC<FileManagerProps> = ({
         <table className="fm-table">
           <thead>
             <tr>
-              <th onClick={() => handleSort('name')} className="sortable">
-                Name {sortField === 'name' && (sortOrder === 'asc' ? '\u2191' : '\u2193')}
-              </th>
-              <th onClick={() => handleSort('modified')} className="sortable">
-                Modified {sortField === 'modified' && (sortOrder === 'asc' ? '\u2191' : '\u2193')}
-              </th>
-              <th onClick={() => handleSort('size')} className="sortable">
-                Size {sortField === 'size' && (sortOrder === 'asc' ? '\u2191' : '\u2193')}
-              </th>
-              <th onClick={() => handleSort('type')} className="sortable">
-                Type
-              </th>
+              {SORT_COLUMNS.map((column) => {
+                const active = sortField === column.field;
+                return (
+                  <th
+                    key={column.field}
+                    className="sortable"
+                    aria-sort={active ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'none'}
+                  >
+                    {/*
+                      These were bare `<th onClick>` cells: sortable by mouse only,
+                      invisible to the keyboard and announced as plain headers. The
+                      control is now a real button and the direction is carried by
+                      `aria-sort` as well as the glyph.
+                    */}
+                    <button type="button" onClick={() => handleSort(column.field)}>
+                      <span>{column.label}</span>
+                      {active &&
+                        (sortOrder === 'asc' ? (
+                          <IconArrowUp size={12} />
+                        ) : (
+                          <IconArrowDown size={12} />
+                        ))}
+                    </button>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -380,7 +420,9 @@ export const FileManager: React.FC<FileManagerProps> = ({
                 onDrop={() => handleDrop(file)}
               >
                 <td className="name-cell">
-                  <span className="file-icon">{getFileIcon(file)}</span>
+                  <span className="file-icon">
+                    <MimeTypeIcon mimeType={file.mimeType} kind={file.type} size={15} />
+                  </span>
                   {renamingFile === file.id ? (
                     <input
                       type="text"
@@ -395,11 +437,24 @@ export const FileManager: React.FC<FileManagerProps> = ({
                   ) : (
                     <span className="file-name">{file.name}</span>
                   )}
-                  {file.isStarred && <span className="star-mark">\u2B50</span>}
-                  {file.isShared && <span className="shared-mark">{'\u{1F465}'}</span>}
+                  {file.isStarred && (
+                    <span className="star-mark">
+                      <IconStarFilled
+                        size={13}
+                        role="img"
+                        aria-label="Starred"
+                        aria-hidden={false}
+                      />
+                    </span>
+                  )}
+                  {file.isShared && (
+                    <span className="shared-mark">
+                      <IconUsers size={13} role="img" aria-label="Shared" aria-hidden={false} />
+                    </span>
+                  )}
                 </td>
                 <td>{formatDate(file.modifiedAt)}</td>
-                <td>{file.type === 'folder' ? '-' : formatFileSize(file.size)}</td>
+                <td>{file.type === 'folder' ? '-' : formatBytes(file.size)}</td>
                 <td>
                   {file.type === 'folder' ? 'Folder' : file.mimeType.split('/')[1] || file.mimeType}
                 </td>
