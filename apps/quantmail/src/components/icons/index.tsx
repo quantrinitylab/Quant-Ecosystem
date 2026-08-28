@@ -1301,3 +1301,20 @@ export function IconBed(props: IconProps) {
     </Svg>
   );
 }
+
+/**
+ * Bloom — the cycle tracker's own mark, standing in for the 🌸 the period log
+ * used to carry in its title and section headers. Four lobes rather than the
+ * five of a real blossom: at 14px an odd petal count reads as lopsided.
+ */
+export function IconFlower(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="2.6" />
+      <path d="M12 9.4a3.4 3.4 0 1 1 0-4.8 3.4 3.4 0 1 1 0 4.8Z" />
+      <path d="M12 14.6a3.4 3.4 0 1 0 0 4.8 3.4 3.4 0 1 0 0-4.8Z" />
+      <path d="M9.4 12a3.4 3.4 0 1 0-4.8 0 3.4 3.4 0 1 0 4.8 0Z" />
+      <path d="M14.6 12a3.4 3.4 0 1 1 4.8 0 3.4 3.4 0 1 1-4.8 0Z" />
+    </Svg>
+  );
+}
