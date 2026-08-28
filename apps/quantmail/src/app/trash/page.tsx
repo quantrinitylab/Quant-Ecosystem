@@ -9,6 +9,7 @@ import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { AppSidebar } from '../../components/AppSidebar';
 import { showToast } from '../../components/InboxToast';
+import { IconTrash, IconUndo } from '../../components/icons';
 import { PageTransition } from '../../components/PageTransition';
 import { useInbox } from '../../hooks/useInbox';
 import { apiClient } from '../../services/api-client';
@@ -233,20 +234,20 @@ export default function TrashPage() {
                           {email.receivedAt ? new Date(email.receivedAt).toLocaleDateString() : ''}
                         </span>
                         <button
-                          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-[var(--quant-foreground)] hover:opacity-80"
+                          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--quant-foreground)] hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded-lg"
                           onClick={() => handleRestore(email.id)}
                           title="Restore to inbox"
                           aria-label="Restore to inbox"
                         >
-                          ↩
+                          <IconUndo size={15} />
                         </button>
                         <button
-                          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs text-[var(--quant-destructive)] hover:opacity-80"
+                          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[var(--quant-destructive)] hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded-lg"
                           onClick={() => handlePermanentDelete(email.id)}
                           title="Delete permanently"
                           aria-label="Delete permanently"
                         >
-                          &#128465;
+                          <IconTrash size={15} />
                         </button>
                       </div>
                     </div>

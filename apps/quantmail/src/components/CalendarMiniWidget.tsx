@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { IconCalendar } from './icons';
+import { IconCalendar, IconClock } from './icons';
 
 interface CalendarEvent {
   id: string;
@@ -66,7 +66,10 @@ export function CalendarMiniWidget({
       </header>
 
       {timeUntilNext !== null && timeUntilNext <= 30 && timeUntilNext > 0 && (
-        <div className="cal-mini-alert">⏰ Next meeting in {timeUntilNext} min</div>
+        <div className="cal-mini-alert">
+          <IconClock size={12} />
+          Next meeting in {timeUntilNext} min
+        </div>
       )}
 
       <div className="cal-mini-events">

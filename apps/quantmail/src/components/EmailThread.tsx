@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { sanitizeHtmlContent } from '@quant/shared-ui';
 import type { Email, EmailThread as EmailThreadType, EmailAddress } from '../types';
 import { IdentityAvatar } from './IdentityAvatar';
+import { IconArrowLeft, IconPaperclip, IconSparkle, IconStar, IconStarFilled } from './icons';
 
 export interface EmailThreadProps {
   thread: EmailThreadType;
@@ -119,11 +120,11 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
         <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
-            className="inline-flex items-center justify-center size-8 rounded-lg bg-[var(--quant-muted)] hover:bg-[var(--quant-surface-hover)] text-xs text-[var(--quant-foreground)] transition-colors"
+            className="inline-flex items-center justify-center size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-lg bg-[var(--quant-muted)] hover:bg-[var(--quant-surface-hover)] text-xs text-[var(--quant-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             onClick={onBack}
             aria-label="Back to inbox"
           >
-            ←
+            <IconArrowLeft size={16} />
           </button>
           <div className="min-w-0">
             <h2 className="text-xl md:text-2xl font-semibold tracking-tight truncate">
@@ -160,7 +161,8 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
         <div className="mb-6 p-4 rounded-xl border border-[#5C3016] bg-[#2B1A11] text-sm">
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#FF8C42] flex items-center gap-1.5">
-              ✦ QuantAI Summary
+              <IconSparkle size={12} />
+              QuantAI Summary
             </span>
             <button
               type="button"
@@ -215,16 +217,17 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                   <span>{formatDate(email.receivedAt)}</span>
                   <button
                     type="button"
-                    className={`size-7 rounded flex items-center justify-center transition-colors ${
+                    className={`size-7 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                       email.isStarred ? 'text-[#ffb547]' : 'text-[#6B6E76] hover:text-[#A1A4AC]'
                     }`}
                     onClick={(e) => {
                       e.stopPropagation();
                       onToggleStar(email.id);
                     }}
-                    aria-label="Star email"
+                    aria-pressed={email.isStarred}
+                    aria-label={email.isStarred ? 'Unstar email' : 'Star email'}
                   >
-                    ★
+                    {email.isStarred ? <IconStarFilled size={15} /> : <IconStar size={15} />}
                   </button>
                 </div>
               </div>
@@ -260,7 +263,7 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                             key={att.id}
                             className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] text-xs text-[var(--quant-foreground)]"
                           >
-                            <span>📎</span>
+                            <IconPaperclip size={13} className="shrink-0" />
                             <span className="font-medium truncate max-w-[12rem]">
                               {att.filename}
                             </span>
@@ -305,18 +308,20 @@ export function EmailThread(props: EmailThreadProps): React.ReactElement {
                     <button
                       type="button"
                       disabled={isLoadingAI}
-                      className="px-3 py-1.5 rounded-lg border border-[#FF8C42]/30 text-[#FF9B5A] hover:bg-[#FF8C42]/10 text-xs font-medium transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] sm:min-h-0 rounded-lg border border-[#FF8C42]/30 text-[#FF9B5A] hover:bg-[#FF8C42]/10 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       onClick={() => handleSummarize(email.id)}
                     >
-                      ✦ AI Summarize
+                      <IconSparkle size={13} />
+                      AI Summarize
                     </button>
                     <button
                       type="button"
                       disabled={isLoadingAI}
-                      className="px-3 py-1.5 rounded-lg border border-[#5C3016] bg-[#2B1A11] text-[#FF8C42] hover:bg-[#3D2214] text-xs font-medium transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] sm:min-h-0 rounded-lg border border-[#5C3016] bg-[#2B1A11] text-[#FF8C42] hover:bg-[#3D2214] text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       onClick={() => handleSuggestReplies(email.id)}
                     >
-                      ✦ Smart Replies
+                      <IconSparkle size={13} />
+                      Smart Replies
                     </button>
                   </div>
 

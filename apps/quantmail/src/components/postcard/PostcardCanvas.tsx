@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { PostcardTemplate, PostcardPayload, PostcardSticker } from '../../types/postcard';
-import { IconMailHeart } from '../icons';
+import { IconCheck, IconMailHeart } from '../icons';
 
 interface PostcardCanvasProps {
   template: PostcardTemplate;
@@ -391,7 +391,10 @@ export function PostcardCanvas({
                     }}
                   >
                     <span>SEAL: QM-SEC-2026-TLS</span>
-                    <span>✓ E2EE VERIFIED</span>
+                    <span className="inline-flex items-center gap-0.5">
+                      <IconCheck size={8} />
+                      E2EE VERIFIED
+                    </span>
                   </div>
                 </div>
               </div>

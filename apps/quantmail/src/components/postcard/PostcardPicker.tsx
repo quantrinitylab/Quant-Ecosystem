@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DEFAULT_VINTAGE_PRESETS, type PostcardTemplate } from '../../types/postcard';
-import { IconMailHeart } from '../icons';
+import { IconArrowRight, IconCheck, IconMail, IconMailHeart, IconPalette, IconX } from '../icons';
 
 interface PostcardPickerProps {
   selectedTemplate: PostcardTemplate | null;
@@ -65,9 +65,10 @@ export function PostcardPicker({
             <button
               type="button"
               onClick={onClose}
-              className="size-8 rounded-lg flex items-center justify-center text-[#A1A4AC] hover:text-white hover:bg-[#282C35]"
+              aria-label="Close postcard picker"
+              className="size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 shrink-0 rounded-lg flex items-center justify-center text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             >
-              ✕
+              <IconX size={15} />
             </button>
           </header>
 
@@ -86,8 +87,8 @@ export function PostcardPicker({
               }`}
             >
               <div className="flex items-center gap-3">
-                <div className="size-10 rounded-lg bg-[#282C35] border border-[#3A404D] flex items-center justify-center text-[#A1A4AC] font-mono text-sm">
-                  ✉️
+                <div className="size-10 rounded-lg bg-[#282C35] border border-[#3A404D] flex items-center justify-center text-[#A1A4AC]">
+                  <IconMail size={18} />
                 </div>
                 <div>
                   <h4 className="text-xs sm:text-sm font-semibold text-white">Standard Email</h4>
@@ -97,7 +98,10 @@ export function PostcardPicker({
                 </div>
               </div>
               {selectedTemplate === null && (
-                <span className="text-xs font-bold text-[#FF8C42]">Selected ✓</span>
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-[#FF8C42]">
+                  Selected
+                  <IconCheck size={13} />
+                </span>
               )}
             </div>
 
@@ -154,16 +158,17 @@ export function PostcardPicker({
           <footer className="p-4 border-t border-[#282C35] bg-[#090A0C]/80 flex items-center justify-between">
             <a
               href="/postcards"
-              className="text-xs font-semibold text-[#FF8C42] hover:underline flex items-center gap-1.5"
+              className="inline-flex items-center gap-1.5 min-h-[44px] sm:min-h-0 text-xs font-semibold text-[#FF8C42] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
             >
-              <span>🎨 Open Postcard Studio</span>
-              <span>➔</span>
+              <IconPalette size={14} />
+              <span>Open Postcard Studio</span>
+              <IconArrowRight size={13} />
             </a>
 
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#282C35] hover:bg-[#3A404D] text-white"
+              className="px-4 py-1.5 min-h-[44px] sm:min-h-0 rounded-lg text-xs font-semibold bg-[#282C35] hover:bg-[#3A404D] text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             >
               Done
             </button>

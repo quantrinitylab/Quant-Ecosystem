@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { IconSparkle } from './icons';
+import { IconLoader, IconSearch, IconSparkle } from './icons';
 
 interface SearchResult {
   file: string;
@@ -97,8 +97,13 @@ export function AICodeSearch({ onNavigateToResult }: AICodeSearchProps) {
             className="code-search-btn"
             onClick={handleSearch}
             disabled={isSearching}
+            aria-label={isSearching ? 'Searching' : 'Run search'}
           >
-            {isSearching ? '...' : '⌘'}
+            {isSearching ? (
+              <IconLoader size={14} className="animate-spin" />
+            ) : (
+              <IconSearch size={14} />
+            )}
           </button>
         </div>
       </div>

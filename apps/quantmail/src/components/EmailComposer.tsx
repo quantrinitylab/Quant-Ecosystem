@@ -12,6 +12,21 @@ import { showToast } from './InboxToast';
 import { formatBytes } from '../lib/format-bytes';
 import { useAuth } from '../providers/auth-provider';
 import { RecipientChipInput, type RecipientOption } from './RecipientChipInput';
+import {
+  IconArrowRight,
+  IconChevronDown,
+  IconChevronUp,
+  IconClipboard,
+  IconClock,
+  IconFileText,
+  IconFolder,
+  IconLink,
+  IconPaperclip,
+  IconPlus,
+  IconSparkle,
+  IconTrash,
+  IconX,
+} from './icons';
 import { useContacts } from '../hooks/useContacts';
 
 export interface Attachment {
@@ -360,7 +375,7 @@ export function EmailComposer({
       }
 
       showToast({
-        text: scheduledAt ? 'Email scheduled successfully 🕒' : 'Email sent successfully 🚀',
+        text: scheduledAt ? 'Email scheduled' : 'Email sent',
         type: 'success',
       });
 
@@ -618,10 +633,11 @@ export function EmailComposer({
           <button
             type="button"
             onClick={handleBack}
-            className="p-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
+            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             title="Close"
+            aria-label="Close composer"
           >
-            ✕
+            <IconX size={16} />
           </button>
         </div>
       </div>
@@ -682,10 +698,11 @@ export function EmailComposer({
                       setShowCc(false);
                       setCcRecipients([]);
                     }}
-                    className="text-[#6B6E76] hover:text-rose-400 text-xs px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors"
+                    className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-[#6B6E76] hover:text-rose-400 rounded hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     title="Remove Cc"
+                    aria-label="Remove Cc field"
                   >
-                    ✕
+                    <IconX size={13} />
                   </button>
                 }
               />
@@ -710,10 +727,11 @@ export function EmailComposer({
                       setShowBcc(false);
                       setBccRecipients([]);
                     }}
-                    className="text-[#6B6E76] hover:text-rose-400 text-xs px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors"
+                    className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-[#6B6E76] hover:text-rose-400 rounded hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     title="Remove Bcc"
+                    aria-label="Remove Bcc field"
                   >
-                    ✕
+                    <IconX size={13} />
                   </button>
                 }
               />
@@ -745,15 +763,15 @@ export function EmailComposer({
           <button
             type="button"
             onClick={() => setIsTemplateMode((prev) => !prev)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1 min-h-[44px] sm:min-h-0 rounded-full text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
               isTemplateMode
                 ? 'bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40'
                 : 'bg-[#111318] text-[#A1A4AC] hover:text-[#F5F5F5] border border-[#282C35]'
             }`}
+            aria-pressed={isTemplateMode}
           >
-            <span>
-              {isTemplateMode ? '📋 Guided Corporate Mode: ON' : '✨ Structured Template Mode'}
-            </span>
+            {isTemplateMode ? <IconClipboard size={13} /> : <IconSparkle size={13} />}
+            <span>{isTemplateMode ? 'Guided Corporate Mode: ON' : 'Structured Template Mode'}</span>
           </button>
           <span className="text-[10px] text-[#6B6E76] font-mono">
             {selectedFont.name} · {selectedSize.name}
@@ -894,9 +912,10 @@ export function EmailComposer({
                   <button
                     type="button"
                     onClick={() => handleRemoveDetail(idx)}
-                    className="text-[#6B6E76] hover:text-rose-400 text-xs px-1 shrink-0"
+                    className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 rounded text-[#6B6E76] hover:text-rose-400 hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    aria-label={`Remove detail line ${idx + 1}`}
                   >
-                    ✕
+                    <IconX size={12} />
                   </button>
                 </div>
               ))}
@@ -905,9 +924,10 @@ export function EmailComposer({
                 <button
                   type="button"
                   onClick={handleAddDetail}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#FF8C42] hover:text-[#FFB875] transition-all"
+                  className="inline-flex items-center gap-1 min-h-[44px] sm:min-h-0 text-[11px] font-semibold text-[#FF8C42] hover:text-[#FFB875] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
                 >
-                  <span>+ Add detail / line</span>
+                  <IconPlus size={12} />
+                  <span>Add detail / line</span>
                 </button>
               </div>
             </div>
@@ -966,9 +986,10 @@ export function EmailComposer({
                   <button
                     type="button"
                     onClick={() => setAttachments((prev) => prev.filter((a) => a.id !== file.id))}
-                    className="text-[#6B6E76] hover:text-rose-400 font-bold"
+                    className="relative inline-flex items-center justify-center size-4 shrink-0 rounded text-[#6B6E76] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] after:absolute after:-inset-y-[13px] after:-inset-x-[10px] after:content-['']"
+                    aria-label={`Remove attachment ${file.name}`}
                   >
-                    ✕
+                    <IconX size={11} />
                   </button>
                 </div>
               ))}
@@ -991,10 +1012,12 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={() => setShowFontPicker((prev) => !prev)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#111318] border border-[#282C35] text-[#F5F5F5] hover:text-white"
+                className="flex items-center gap-1 px-2.5 py-1 min-h-[44px] sm:min-h-0 rounded-lg bg-[#111318] border border-[#282C35] text-[#F5F5F5] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                aria-expanded={showFontPicker}
+                aria-label={`Font family: ${selectedFont.name}`}
               >
                 <span>{selectedFont.name}</span>
-                <span className="text-[9px]">▼</span>
+                <IconChevronDown size={10} />
               </button>
               {showFontPicker && (
                 <>
@@ -1008,11 +1031,12 @@ export function EmailComposer({
                           setSelectedFont(font);
                           setShowFontPicker(false);
                         }}
-                        className={`w-full px-3 py-1.5 text-left text-xs ${font.css} hover:bg-[#282C35] ${
+                        className={`flex items-center w-full px-3 py-1.5 min-h-[44px] text-left text-xs ${font.css} hover:bg-[#282C35] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42] ${
                           selectedFont.id === font.id
                             ? 'text-[#FF8C42] font-bold'
                             : 'text-[#A1A4AC]'
                         }`}
+                        aria-pressed={selectedFont.id === font.id}
                       >
                         {font.name}
                       </button>
@@ -1027,10 +1051,12 @@ export function EmailComposer({
               <button
                 type="button"
                 onClick={() => setShowSizePicker((prev) => !prev)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-[#111318] border border-[#282C35] text-[#F5F5F5] hover:text-white"
+                className="flex items-center gap-1 px-2 py-1 min-h-[44px] sm:min-h-0 rounded-lg bg-[#111318] border border-[#282C35] text-[#F5F5F5] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                aria-expanded={showSizePicker}
+                aria-label={`Font size: ${selectedSize.name}`}
               >
                 <span>{selectedSize.name}</span>
-                <span className="text-[9px]">▼</span>
+                <IconChevronDown size={10} />
               </button>
               {showSizePicker && (
                 <>
@@ -1044,9 +1070,10 @@ export function EmailComposer({
                           setSelectedSize(s);
                           setShowSizePicker(false);
                         }}
-                        className={`w-full px-3 py-1.5 text-left text-xs hover:bg-[#282C35] ${
+                        className={`flex items-center w-full px-3 py-1.5 min-h-[44px] text-left text-xs hover:bg-[#282C35] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42] ${
                           selectedSize.id === s.id ? 'text-[#FF8C42] font-bold' : 'text-[#A1A4AC]'
                         }`}
+                        aria-pressed={selectedSize.id === s.id}
                       >
                         {s.name}
                       </button>
@@ -1258,15 +1285,7 @@ export function EmailComposer({
               ) : (
                 <>
                   <span>Send</span>
-                  <svg
-                    className="size-3.5 sm:size-4 text-[#111111]"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                  >
-                    <path d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
+                  <IconArrowRight className="size-3.5 sm:size-4 text-[#111111]" />
                 </>
               )}
             </button>
@@ -1275,10 +1294,12 @@ export function EmailComposer({
               type="button"
               onClick={() => setShowSendOptionsDropdown((prev) => !prev)}
               disabled={busy}
-              className="px-2 py-2 border-l border-[#111111]/20 text-[#111111] hover:bg-black/10 text-xs"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 px-2 py-2 border-l border-[#111111]/20 text-[#111111] hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#111111]"
               title="Send options (Save draft / Schedule send)"
+              aria-expanded={showSendOptionsDropdown}
+              aria-label="Send options"
             >
-              ▲
+              <IconChevronUp size={14} />
             </button>
 
             {/* Dropup Menu for Send Options */}
@@ -1295,18 +1316,9 @@ export function EmailComposer({
                       setShowScheduleModal(true);
                       setShowSendOptionsDropdown(false);
                     }}
-                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[#F5F5F5] hover:bg-[#282C35] transition-all"
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 min-h-[44px] text-left text-[#F5F5F5] hover:bg-[#282C35] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
                   >
-                    <svg
-                      className="size-3.5 text-[#FF8C42]"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
+                    <IconClock className="size-3.5 text-[#FF8C42]" />
                     <span>Schedule send</span>
                   </button>
 
@@ -1315,19 +1327,9 @@ export function EmailComposer({
                     onClick={() => {
                       void handleSaveDraft();
                     }}
-                    className="flex items-center gap-2.5 w-full px-3.5 py-2 text-left text-[#F5F5F5] hover:bg-[#282C35] transition-all"
+                    className="flex items-center gap-2.5 w-full px-3.5 py-2 min-h-[44px] text-left text-[#F5F5F5] hover:bg-[#282C35] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
                   >
-                    <svg
-                      className="size-3.5 text-[#A1A4AC]"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                      <polyline points="17 21 17 13 7 13 7 21" />
-                      <polyline points="7 3 7 8 15 8" />
-                    </svg>
+                    <IconFileText className="size-3.5 text-[#A1A4AC]" />
                     <span>{isSaving ? 'Saving draft…' : 'Save draft'}</span>
                   </button>
                 </div>
@@ -1339,95 +1341,69 @@ export function EmailComposer({
           <button
             type="button"
             onClick={() => setShowFormattingBar((prev) => !prev)}
-            className={`p-2 rounded-xl text-xs font-serif font-bold transition-all ${
+            className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-xs font-serif font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
               showFormattingBar
                 ? 'bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40'
                 : 'text-[#A1A4AC] hover:text-white hover:bg-[#282C35]'
             }`}
             title="Formatting options (Aa)"
+            aria-pressed={showFormattingBar}
+            aria-label="Formatting options"
           >
             Aa
           </button>
 
-          {/* Attach Local Device File (📎) */}
+          {/* Attach Local Device File */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
+            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             title="Attach files from device"
+            aria-label="Attach files from device"
           >
-            <svg
-              className="size-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-            </svg>
+            <IconPaperclip className="size-4" />
           </button>
 
-          {/* Insert Link (🔗) */}
+          {/* Insert Link */}
           <button
             type="button"
             onClick={() => setIsLinkModalOpen(true)}
-            className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
+            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             title="Insert Link"
+            aria-label="Insert link"
           >
-            <svg
-              className="size-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-            </svg>
+            <IconLink className="size-4" />
           </button>
 
-          {/* Insert from QuantDrive (📁) */}
+          {/* Insert from QuantDrive */}
           <button
             type="button"
             onClick={() => setIsDrivePickerOpen(true)}
-            className="p-2 rounded-xl text-[#FF8C42] hover:text-[#FFB875] hover:bg-[#FF8C42]/10 transition-all"
+            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[#FF8C42] hover:text-[#FFB875] hover:bg-[#FF8C42]/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             title="Insert files using QuantDrive"
+            aria-label="Insert files from QuantDrive"
           >
-            <svg
-              className="size-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
-            </svg>
+            <IconFolder className="size-4" />
           </button>
 
           {/* Discard Draft Trash Button (Right next to QuantDrive) */}
           <button
             type="button"
             onClick={handleBack}
-            className="p-2 rounded-xl text-[#A1A4AC] hover:text-rose-400 hover:bg-[#111318] transition-all"
+            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2 rounded-xl text-[#A1A4AC] hover:text-rose-400 hover:bg-[#111318] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             title="Discard draft"
+            aria-label="Discard draft"
           >
-            <svg
-              className="size-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
+            <IconTrash className="size-4" />
           </button>
 
           {/* Desktop Quanty Copilot Robot (Shown next to Discard on desktop - Icon only) */}
           <button
             type="button"
             onClick={() => setIsQuantyDrawerOpen(true)}
-            className="hidden sm:flex p-2 rounded-xl text-[#FF8C42] hover:text-[#FFB875] hover:bg-[#FF8C42]/10 transition-all ml-0.5 items-center justify-center"
+            className="hidden sm:flex p-2 rounded-xl text-[#FF8C42] hover:text-[#FFB875] hover:bg-[#FF8C42]/10 transition-all ml-0.5 items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             title="Open Quanty AI Copilot"
+            aria-label="Open Quanty AI Copilot"
           >
             <Quanty size={20} expression="happy" bob={false} />
           </button>

@@ -17,6 +17,7 @@
 
 import React, { useState } from 'react';
 import type { EmailLabel } from '../types';
+import { IconChevronDown, IconChevronRight } from './icons';
 
 export type SidebarSection =
   | 'inbox'
@@ -164,7 +165,8 @@ export function Sidebar(props: SidebarProps): React.ReactElement {
         <div className="nav-section">
           <div className="nav-section-header">
             <h4 className="nav-section-title" onClick={() => setLabelsExpanded(!labelsExpanded)}>
-              Labels {labelsExpanded ? '▾' : '▸'}
+              Labels{' '}
+              {labelsExpanded ? <IconChevronDown size={11} /> : <IconChevronRight size={11} />}
             </h4>
             <button
               className="btn-icon btn-sm"
