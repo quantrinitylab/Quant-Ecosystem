@@ -1670,10 +1670,7 @@ body {
   font-weight: 500;
   letter-spacing: 0.02em;
 }
-.read-time-estimate::before {
-  content: '◷';
-  font-size: 0.7rem;
-}
+/* The clock is an <IconClock> inside the component now, not a `content` glyph. */
 
 /* ==========================================================================
    Email Snooze

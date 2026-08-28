@@ -1,5 +1,7 @@
 'use client';
 
+import { IconClock } from './icons';
+
 interface ReadTimeEstimateProps {
   text: string;
   className?: string;
@@ -25,6 +27,9 @@ export function ReadTimeEstimate({ text, className = '' }: ReadTimeEstimateProps
       aria-label={label}
       title="Based on 238 words per minute average reading speed"
     >
+      {/* The clock used to be a CSS `content: '◷'`, which resolved to a
+          different glyph — or a tofu box — depending on the installed fonts. */}
+      <IconClock size={10} />
       {label}
     </span>
   );
