@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { groupEmailsIntoThreads, normalizeSubject, sanitizeSnippetText } from '../lib/threading';
+import {
+  groupEmailsIntoThreads,
+  isAutomatedSender,
+  isFromMe,
+  normalizeSubject,
+  sanitizeSnippetText,
+  threadFocus,
+  type ConversationThread,
+} from '../lib/threading';
 import type { Email } from '../types';
 
 /**
@@ -318,5 +326,199 @@ describe('groupEmailsIntoThreads', () => {
     const [thread] = groupEmailsIntoThreads([email({ subject: 'Uncategorised' })]);
 
     expect(thread.category).toBe('primary');
+  });
+});
+
+/**
+ * A thread built straight from a message list, the way the inbox builds it. Going
+ * through `groupEmailsIntoThreads` rather than hand-rolling a literal keeps these
+ * cases honest about the ordering `threadFocus` depends on: it reads the *last*
+ * element of `messages`, and that array is sorted oldest-first.
+ */
+const buildThread = (messages: Email[], currentEmail?: string): ConversationThread => {
+  const [built] = groupEmailsIntoThreads(messages, currentEmail);
+  return built;
+};
+
+const ME = 'kundan@quantmail.in';
+
+describe('isFromMe', () => {
+  it('matches the signed-in address exactly, ignoring case and padding', () => {
+    expect(
+      isFromMe(email({ subject: 'Hi', from: { email: 'KUNDAN@quantmail.in' } }), ` ${ME} `),
+    ).toBe(true);
+  });
+
+  it('matches a send from the same handle on another domain', () => {
+    // Anyone with an alias receives on one domain and sends from another, which is
+    // why a plain equality test is not enough.
+    expect(isFromMe(email({ subject: 'Hi', from: { email: 'kundan@quantrinity.com' } }), ME)).toBe(
+      true,
+    );
+  });
+
+  it('does not match a different handle on the same domain', () => {
+    expect(isFromMe(email({ subject: 'Hi', from: { email: 'arpita@quantmail.in' } }), ME)).toBe(
+      false,
+    );
+  });
+
+  it('does not match a handle that merely starts with mine', () => {
+    expect(
+      isFromMe(email({ subject: 'Hi', from: { email: 'kundansingh@quantmail.in' } }), ME),
+    ).toBe(false);
+  });
+
+  it('trusts the server when it flags a message as sent', () => {
+    // Mail that round-tripped through our own API carries `isSent`/`status`, and
+    // the reply the user just sent is in the thread before the address on it is
+    // ever compared against anything.
+    expect(isFromMe({ ...email({ subject: 'Hi' }), isSent: true } as unknown as Email, ME)).toBe(
+      true,
+    );
+    expect(isFromMe(email({ subject: 'Hi', status: 'sent' }), ME)).toBe(true);
+  });
+
+  it('reads a flat fromAddress when there is no nested from object', () => {
+    expect(
+      isFromMe(
+        { ...email({ subject: 'Hi' }), from: undefined, fromAddress: ME } as unknown as Email,
+        ME,
+      ),
+    ).toBe(true);
+  });
+
+  it('is false when no signed-in address is known and nothing is flagged', () => {
+    expect(isFromMe(email({ subject: 'Hi' }))).toBe(false);
+    expect(isFromMe(email({ subject: 'Hi' }), '')).toBe(false);
+  });
+});
+
+describe('isAutomatedSender', () => {
+  it.each([
+    'no-reply@github.com',
+    'noreply@github.com',
+    'do-not-reply@bank.example',
+    'notifications@linear.app',
+    'alerts@datadoghq.com',
+    'newsletter@stratechery.com',
+    'marketing@vendor.example',
+    'updates@vendor.example',
+    'promo@shop.example',
+    'mailer@lists.example',
+    'support@vendor.example',
+    'digest@substack.example',
+    'bot@dependabot.example',
+    'automated@ci.example',
+    'notify@slack.example',
+  ])('recognises %s as a machine', (address) => {
+    expect(isAutomatedSender(email({ subject: 'Hi', from: { email: address } }))).toBe(true);
+  });
+
+  it('leaves a person alone', () => {
+    expect(isAutomatedSender(email({ subject: 'Hi', from: { email: 'alice@example.com' } }))).toBe(
+      false,
+    );
+  });
+
+  it('is false when there is no address to look at, rather than guessing', () => {
+    expect(
+      isAutomatedSender({ ...email({ subject: 'Hi' }), from: undefined } as unknown as Email),
+    ).toBe(false);
+  });
+});
+
+describe('threadFocus', () => {
+  it('says needs_you when a person spoke last', () => {
+    const t = buildThread(
+      [
+        email({
+          threadId: 't1',
+          subject: 'Design review',
+          from: { email: ME },
+          receivedAt: new Date('2026-01-01T09:00:00Z'),
+        }),
+        email({
+          threadId: 't1',
+          subject: 'Re: Design review',
+          from: { email: 'alice@example.com' },
+          receivedAt: new Date('2026-01-01T10:00:00Z'),
+        }),
+      ],
+      ME,
+    );
+
+    expect(threadFocus(t, ME)).toBe('needs_you');
+  });
+
+  it('says waiting when I spoke last', () => {
+    // Same two messages, opposite order. The state is a property of the last
+    // message, not of who started the thread.
+    const t = buildThread(
+      [
+        email({
+          threadId: 't1',
+          subject: 'Design review',
+          from: { email: 'alice@example.com' },
+          receivedAt: new Date('2026-01-01T09:00:00Z'),
+        }),
+        email({
+          threadId: 't1',
+          subject: 'Re: Design review',
+          from: { email: ME },
+          receivedAt: new Date('2026-01-01T10:00:00Z'),
+        }),
+      ],
+      ME,
+    );
+
+    expect(threadFocus(t, ME)).toBe('waiting');
+  });
+
+  it('says neither when a machine spoke last', () => {
+    // A build notification is not a reply you owe. Keeping it out of `Needs you`
+    // is the whole reason that queue can be trusted; it still shows under `All`.
+    const t = buildThread(
+      [email({ subject: 'Your build passed', from: { email: 'no-reply@github.com' } })],
+      ME,
+    );
+
+    expect(threadFocus(t, ME)).toBe('neither');
+  });
+
+  it('falls back to latestEmail when messages is empty', () => {
+    const t = buildThread([email({ subject: 'Hello', from: { email: 'alice@example.com' } })], ME);
+
+    expect(threadFocus({ ...t, messages: [] }, ME)).toBe('needs_you');
+  });
+
+  it('says neither when there is no last message at all', () => {
+    const t = buildThread([email({ subject: 'Hello' })], ME);
+
+    expect(
+      threadFocus({ ...t, messages: [], latestEmail: undefined as unknown as Email }, ME),
+    ).toBe('neither');
+  });
+
+  it('treats a message the server flagged as sent as mine, whatever the address', () => {
+    // Sending through an alias the client has never heard of still puts the ball
+    // in the other court.
+    const t = buildThread(
+      [
+        {
+          ...email({ subject: 'Proposal', from: { email: 'k@alias.example' } }),
+          isSent: true,
+        } as unknown as Email,
+      ],
+      ME,
+    );
+
+    expect(threadFocus(t, ME)).toBe('waiting');
+  });
+
+  it('needs a signed-in address before it can call anything mine', () => {
+    const t = buildThread([email({ subject: 'Hello', from: { email: 'alice@example.com' } })]);
+
+    expect(threadFocus(t)).toBe('needs_you');
   });
 });
