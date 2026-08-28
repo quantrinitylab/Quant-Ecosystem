@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Quanty } from './Quanty';
 import { showToast } from './InboxToast';
+import { IconX } from './icons';
 import type { Email } from '../types';
 
 export interface QuantyEmailAction {
@@ -183,7 +184,7 @@ export function QuantyCopilotDrawer({
           if (isComposeContext && onApplyAction) {
             const action = parseEmailActionFromText(responseText);
             onApplyAction(action);
-            showToast({ text: 'Quanty updated your email draft ✨', type: 'success' });
+            showToast({ text: 'Quanty updated your email draft', type: 'success' });
           }
           return;
         }
@@ -206,7 +207,7 @@ export function QuantyCopilotDrawer({
         if (isComposeContext && onApplyAction) {
           const action = parseEmailActionFromText(simulated);
           onApplyAction(action);
-          showToast({ text: 'Quanty updated your email draft ✨', type: 'success' });
+          showToast({ text: 'Quanty updated your email draft', type: 'success' });
         }
       }, 500);
     } catch {
@@ -364,10 +365,11 @@ export function QuantyCopilotDrawer({
                             <button
                               type="button"
                               onClick={(e) => deleteChat(item.id, e)}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-[#6B6E76] hover:text-rose-400"
+                              className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] shrink-0 rounded-lg text-[#6B6E76] hover:text-rose-400 transition-opacity sm:min-h-0 sm:min-w-0 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                               title="Delete chat"
+                              aria-label="Delete chat"
                             >
-                              ✕
+                              <IconX size={13} />
                             </button>
                           </div>
                         ))}

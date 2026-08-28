@@ -5,7 +5,16 @@
 
 import React, { useState } from 'react';
 import type { Build, WorkflowJob, WorkflowStep, WorkflowStatus } from '../types';
-import { IconBan, IconCheck, IconClock, IconLoader, IconMinus, IconX } from './icons';
+import {
+  IconBan,
+  IconCheck,
+  IconChevronDown,
+  IconChevronRight,
+  IconClock,
+  IconLoader,
+  IconMinus,
+  IconX,
+} from './icons';
 
 export interface PipelineViewProps {
   build: Build;
@@ -154,7 +163,13 @@ export function PipelineView(props: PipelineViewProps): React.ReactElement {
               <span className="job-name">{job.name}</span>
               <span className="job-runner">{job.runner}</span>
               {job.duration && <span className="job-duration">{formatDuration(job.duration)}</span>}
-              <span className="job-expand">{expandedJobs.has(job.id) ? '▾' : '▸'}</span>
+              <span className="job-expand inline-flex">
+                {expandedJobs.has(job.id) ? (
+                  <IconChevronDown size={12} />
+                ) : (
+                  <IconChevronRight size={12} />
+                )}
+              </span>
             </div>
 
             {/* Job steps */}

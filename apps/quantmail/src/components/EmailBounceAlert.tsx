@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { IconBan, IconMail, IconWarning } from './icons';
 
 interface EmailBounceAlertProps {
   recipientEmail: string;
@@ -14,6 +15,10 @@ interface EmailBounceAlertProps {
  * Email Bounce Alert — shows when a sent email bounced.
  * Gmail shows a generic "delivery failed" email. We show a rich inline alert
  * with the specific bounce reason + actionable next steps.
+ *
+ * Each variant's glyph is a component rather than an emoji so it can take the
+ * variant's own `color`: the three states are told apart by hue as much as by
+ * shape, and a pictographic emoji ignores `currentColor` entirely.
  */
 export function EmailBounceAlert({
   recipientEmail,
@@ -24,7 +29,7 @@ export function EmailBounceAlert({
 }: EmailBounceAlertProps) {
   const config = {
     hard: {
-      icon: '🚫',
+      Icon: IconBan,
       title: 'Permanent delivery failure',
       description: `${recipientEmail} doesn't exist or permanently rejected the email.`,
       color: '#f87171',
@@ -32,7 +37,7 @@ export function EmailBounceAlert({
       border: 'rgba(248, 113, 113, 0.2)',
     },
     soft: {
-      icon: '⚠️',
+      Icon: IconWarning,
       title: 'Temporary delivery issue',
       description: `${recipientEmail} temporarily rejected — mailbox may be full or server busy.`,
       color: '#fbbf24',
@@ -40,7 +45,7 @@ export function EmailBounceAlert({
       border: 'rgba(251, 191, 36, 0.18)',
     },
     complaint: {
-      icon: '📧',
+      Icon: IconMail,
       title: 'Marked as spam by recipient',
       description: `${recipientEmail} marked your email as spam. Future emails may not deliver.`,
       color: '#f97316',
@@ -60,7 +65,9 @@ export function EmailBounceAlert({
       transition={{ duration: 0.2 }}
       role="alert"
     >
-      <span className="bounce-icon">{c.icon}</span>
+      <span className="bounce-icon" style={{ color: c.color }}>
+        <c.Icon size={18} />
+      </span>
       <div className="bounce-content">
         <strong style={{ color: c.color }}>{c.title}</strong>
         <p>{c.description}</p>
@@ -68,10 +75,14 @@ export function EmailBounceAlert({
       </div>
       <div className="bounce-actions">
         {bounceType === 'soft' && onRetry && (
-          <button type="button" className="bounce-retry" onClick={onRetry}>Retry</button>
+          <button type="button" className="bounce-retry" onClick={onRetry}>
+            Retry
+          </button>
         )}
         {bounceType === 'hard' && onRemoveRecipient && (
-          <button type="button" className="bounce-remove" onClick={onRemoveRecipient}>Remove from contacts</button>
+          <button type="button" className="bounce-remove" onClick={onRemoveRecipient}>
+            Remove from contacts
+          </button>
         )}
       </div>
     </motion.div>

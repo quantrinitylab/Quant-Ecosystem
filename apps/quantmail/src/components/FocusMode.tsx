@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { IconTarget } from './icons';
+import { IconCircle, IconDot, IconTarget } from './icons';
 
 interface FocusModeProps {
   isActive: boolean;
@@ -29,7 +29,7 @@ export function FocusMode({ isActive, onToggle, unreadCount, focusCount }: Focus
         title={isActive ? 'Exit Focus Mode' : 'Enter Focus Mode'}
       >
         <span className="focus-mode-icon" aria-hidden="true">
-          {isActive ? '◉' : '○'}
+          {isActive ? <IconDot size={9} /> : <IconCircle size={12} />}
         </span>
         <span className="focus-mode-label">{isActive ? 'Focus' : 'All mail'}</span>
         {isActive && focusCount > 0 && <span className="focus-mode-count">{focusCount}</span>}

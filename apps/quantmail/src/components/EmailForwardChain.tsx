@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { IdentityAvatar } from './IdentityAvatar';
+import { IconArrowRight } from './icons';
 
 interface ForwardHop {
   from: { name?: string; email: string };
@@ -37,7 +37,9 @@ export function EmailForwardChain({ hops }: EmailForwardChainProps) {
             <IdentityAvatar name={hop.from.name || hop.from.email} size="sm" />
             <div className="forward-chain-detail">
               <span className="forward-chain-sender">{hop.from.name || hop.from.email}</span>
-              <span className="forward-chain-arrow">→</span>
+              <span className="forward-chain-arrow">
+                <IconArrowRight size={11} />
+              </span>
               <span className="forward-chain-receiver">{hop.to.name || hop.to.email}</span>
             </div>
             <time className="forward-chain-time">

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { IconX } from './icons';
 
 interface InsertLinkModalProps {
   isOpen: boolean;
@@ -69,9 +70,10 @@ export function InsertLinkModal({
             <button
               type="button"
               onClick={onClose}
-              className="p-1 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] text-xs"
+              aria-label="Close insert link dialog"
+              className="inline-flex items-center justify-center size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 -mr-1.5 sm:mr-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             >
-              ✕
+              <IconX size={15} />
             </button>
           </div>
 

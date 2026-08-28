@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { IdentityAvatar } from './IdentityAvatar';
+import { IconX } from './icons';
 import type { ContactSuggestion } from '../types';
 
 export type { ContactSuggestion } from '../types';
@@ -190,7 +191,7 @@ export function ContactAutocomplete({
       )}
 
       <div
-        className={`flex flex-wrap items-center gap-1.5 min-h-[36px] w-full rounded-xl p-1 transition-all ${
+        className={`flex flex-wrap items-center gap-2 min-h-[36px] w-full rounded-xl p-1 transition-all ${
           isFocused ? 'ring-1 ring-[#FF8C42]/50 bg-[#090A0C]/60' : 'bg-transparent'
         }`}
         onClick={() => inputRef.current?.focus()}
@@ -207,14 +208,14 @@ export function ContactAutocomplete({
               </span>
               <button
                 type="button"
-                className="hover:bg-[#FF8C42]/30 text-[#FF8C42] hover:text-white rounded size-3.5 flex items-center justify-center text-xs ml-0.5 transition-colors"
+                className="relative size-5 shrink-0 ml-0.5 flex items-center justify-center rounded hover:bg-[#FF8C42]/30 text-[#FF8C42] hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] after:absolute after:-inset-y-[12px] after:-inset-x-[8px] after:content-['']"
                 onClick={(e) => {
                   e.stopPropagation();
                   removeChip(email);
                 }}
                 aria-label={`Remove ${email}`}
               >
-                ✕
+                <IconX size={11} />
               </button>
             </span>
           );

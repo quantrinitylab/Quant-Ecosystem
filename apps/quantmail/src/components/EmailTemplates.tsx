@@ -1,7 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ComponentType } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import {
+  IconCalendar,
+  IconHandshake,
+  IconRefresh,
+  IconSparkle,
+  IconWave,
+  type IconProps,
+} from './icons';
 
 export interface EmailTemplate {
   id: string;
@@ -18,7 +26,7 @@ const DEFAULT_TEMPLATES: EmailTemplate[] = [
     id: 'tpl-follow-up',
     name: 'Gentle Follow-up',
     subject: 'Following up on our conversation',
-    body: 'Hi,\n\nJust wanted to follow up on our previous conversation. Let me know if there\'s anything else I can help with or if you have any questions.\n\nBest regards',
+    body: "Hi,\n\nJust wanted to follow up on our previous conversation. Let me know if there's anything else I can help with or if you have any questions.\n\nBest regards",
     category: 'follow-up',
     createdAt: new Date().toISOString(),
     usageCount: 0,
@@ -27,7 +35,7 @@ const DEFAULT_TEMPLATES: EmailTemplate[] = [
     id: 'tpl-intro',
     name: 'Introduction',
     subject: 'Introduction — ',
-    body: 'Hi,\n\nI wanted to reach out and introduce myself. I\'m [your name] and I [context].\n\nI\'d love to connect and [purpose]. Would you be open to a brief chat?\n\nBest,',
+    body: "Hi,\n\nI wanted to reach out and introduce myself. I'm [your name] and I [context].\n\nI'd love to connect and [purpose]. Would you be open to a brief chat?\n\nBest,",
     category: 'introduction',
     createdAt: new Date().toISOString(),
     usageCount: 0,
@@ -44,8 +52,8 @@ const DEFAULT_TEMPLATES: EmailTemplate[] = [
   {
     id: 'tpl-schedule',
     name: 'Schedule Meeting',
-    subject: 'Let\'s find a time to meet',
-    body: 'Hi,\n\nWould you be available for a quick call this week? I\'m free:\n\n- [Day 1], [Time range]\n- [Day 2], [Time range]\n\nLet me know what works best for you, or feel free to suggest another time.\n\nBest',
+    subject: "Let's find a time to meet",
+    body: "Hi,\n\nWould you be available for a quick call this week? I'm free:\n\n- [Day 1], [Time range]\n- [Day 2], [Time range]\n\nLet me know what works best for you, or feel free to suggest another time.\n\nBest",
     category: 'scheduling',
     createdAt: new Date().toISOString(),
     usageCount: 0,
@@ -54,7 +62,7 @@ const DEFAULT_TEMPLATES: EmailTemplate[] = [
     id: 'tpl-not-interested',
     name: 'Polite Decline',
     subject: 'Re: ',
-    body: 'Hi,\n\nThank you for reaching out. I appreciate the opportunity, but this isn\'t something I\'m looking to pursue right now.\n\nWishing you all the best.\n\nRegards',
+    body: "Hi,\n\nThank you for reaching out. I appreciate the opportunity, but this isn't something I'm looking to pursue right now.\n\nWishing you all the best.\n\nRegards",
     category: 'custom',
     createdAt: new Date().toISOString(),
     usageCount: 0,
@@ -69,18 +77,18 @@ interface EmailTemplatesProps {
 
 const CATEGORY_LABELS: Record<EmailTemplate['category'], string> = {
   'follow-up': 'Follow-up',
-  'introduction': 'Introduction',
+  introduction: 'Introduction',
   'thank-you': 'Thank You',
-  'scheduling': 'Scheduling',
-  'custom': 'Custom',
+  scheduling: 'Scheduling',
+  custom: 'Custom',
 };
 
-const CATEGORY_ICONS: Record<EmailTemplate['category'], string> = {
-  'follow-up': '🔄',
-  'introduction': '👋',
-  'thank-you': '🙏',
-  'scheduling': '📅',
-  'custom': '✨',
+const CATEGORY_ICONS: Record<EmailTemplate['category'], ComponentType<IconProps>> = {
+  'follow-up': IconRefresh,
+  introduction: IconWave,
+  'thank-you': IconHandshake,
+  scheduling: IconCalendar,
+  custom: IconSparkle,
 };
 
 /**
@@ -160,39 +168,46 @@ export function EmailTemplates({ isOpen, onClose, onSelectTemplate }: EmailTempl
             >
               All
             </button>
-            {(Object.keys(CATEGORY_LABELS) as EmailTemplate['category'][]).map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                className={activeCategory === cat ? 'is-active' : ''}
-                onClick={() => setActiveCategory(cat)}
-              >
-                {CATEGORY_ICONS[cat]} {CATEGORY_LABELS[cat]}
-              </button>
-            ))}
+            {(Object.keys(CATEGORY_LABELS) as EmailTemplate['category'][]).map((cat) => {
+              const Icon = CATEGORY_ICONS[cat];
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  className={activeCategory === cat ? 'is-active' : ''}
+                  onClick={() => setActiveCategory(cat)}
+                >
+                  <Icon size={13} />
+                  {CATEGORY_LABELS[cat]}
+                </button>
+              );
+            })}
           </nav>
 
           <div className="templates-list">
             {filteredTemplates.length === 0 && (
               <p className="templates-empty">No templates match your search</p>
             )}
-            {filteredTemplates.map((template) => (
-              <button
-                key={template.id}
-                type="button"
-                className="template-item"
-                onClick={() => handleSelect(template)}
-              >
-                <div className="template-item-header">
-                  <span className="template-icon">{CATEGORY_ICONS[template.category]}</span>
-                  <span className="template-name">{template.name}</span>
-                </div>
-                <p className="template-subject">{template.subject}</p>
-                <p className="template-preview">
-                  {template.body.slice(0, 80)}...
-                </p>
-              </button>
-            ))}
+            {filteredTemplates.map((template) => {
+              const Icon = CATEGORY_ICONS[template.category];
+              return (
+                <button
+                  key={template.id}
+                  type="button"
+                  className="template-item"
+                  onClick={() => handleSelect(template)}
+                >
+                  <div className="template-item-header">
+                    <span className="template-icon">
+                      <Icon size={14} />
+                    </span>
+                    <span className="template-name">{template.name}</span>
+                  </div>
+                  <p className="template-subject">{template.subject}</p>
+                  <p className="template-preview">{template.body.slice(0, 80)}...</p>
+                </button>
+              );
+            })}
           </div>
         </motion.div>
       )}
