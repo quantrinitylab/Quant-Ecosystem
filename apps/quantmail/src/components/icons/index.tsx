@@ -1168,3 +1168,136 @@ export function IconStarFilled({ size = 16, ...rest }: IconProps) {
     </svg>
   );
 }
+
+// --- Phase 2: glyphs the chrome purge needed -------------------------------
+// Added when the second emoji sweep ran out of reusable shapes. Anything that
+// could sensibly reuse an existing glyph does (♻️ → IconRefresh, 📜 →
+// IconFileText, 🙏 → IconHeart) rather than adding a near-duplicate.
+
+/**
+ * Delivered/read, the two-tick receipt. `IconCheck` is the one-tick "sent"
+ * state; this is deliberately the same stroke so the three states read as a
+ * progression rather than three unrelated marks.
+ */
+export function IconCheckDouble(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M2 12.6l3.4 3.4L13.2 8" />
+      <path d="M9.4 15.6l1.2 1.2L21 6.4" />
+    </Svg>
+  );
+}
+
+/** Split a component apart. */
+export function IconScissors(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="6.5" cy="17.5" r="2.5" />
+      <circle cx="6.5" cy="6.5" r="2.5" />
+      <path d="M8.3 8.3 20 20M20 4 8.3 15.7" />
+    </Svg>
+  );
+}
+
+/** Memoization, caching — anything where the point is "remember this". */
+export function IconBrain(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 5.2a3 3 0 0 0-5.6 1.3A2.9 2.9 0 0 0 4.6 12a2.9 2.9 0 0 0 1.5 4.8A3 3 0 0 0 12 18.4Z" />
+      <path d="M12 5.2a3 3 0 0 1 5.6 1.3A2.9 2.9 0 0 1 19.4 12a2.9 2.9 0 0 1-1.5 4.8A3 3 0 0 1 12 18.4Z" />
+      <path d="M12 5.2v13.2" />
+    </Svg>
+  );
+}
+
+/** Test generation. */
+export function IconFlask(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M9.4 3h5.2M10.4 3v5.6L5.6 17a2 2 0 0 0 1.7 3h9.4a2 2 0 0 0 1.7-3l-4.8-8.4V3" />
+      <path d="M7.6 14.4h8.8" />
+    </Svg>
+  );
+}
+
+/** Flow volume, water intake, discharge — the cycle logger's measures. */
+export function IconDroplet(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 3.2s5.6 6 5.6 9.6a5.6 5.6 0 0 1-11.2 0C6.4 9.2 12 3.2 12 3.2Z" />
+    </Svg>
+  );
+}
+
+/** A bare ring — the "nothing selected yet" marker that ⭕ was standing in for. */
+export function IconCircle(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="8.4" />
+    </Svg>
+  );
+}
+
+/** Desktop/CLI project template. */
+export function IconMonitor(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="2.8" y="4" width="18.4" height="12.4" rx="1.8" />
+      <path d="M8.4 20h7.2M12 16.4V20" />
+    </Svg>
+  );
+}
+
+/** Energy or activity level — the 🏃 row in the cycle logger. */
+export function IconActivity(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M2.8 12.4h4l2.6-6.6 3.8 12 2.6-5.4h5.4" />
+    </Svg>
+  );
+}
+
+/** Simplify, tidy up, remove redundancy. */
+export function IconBroom(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M20 4 11 13" />
+      <path d="M9.6 10.6 13.4 14.4l-4.6 4.6a2.4 2.4 0 0 1-3.4 0l-.4-.4a2.4 2.4 0 0 1 0-3.4Z" />
+      <path d="M7.4 16.6 10 19.2" />
+    </Svg>
+  );
+}
+
+/** Greeting — the introduction and "say hello" template category. */
+export function IconWave(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M6.6 11.4V6.2a1.4 1.4 0 0 1 2.8 0v4.4" />
+      <path d="M9.4 10.2V4.8a1.4 1.4 0 0 1 2.8 0v5.4" />
+      <path d="M12.2 10.4V6.4a1.4 1.4 0 0 1 2.8 0v4.6" />
+      <path d="M15 11.4V8.8a1.4 1.4 0 0 1 2.8 0v3.8a7 7 0 0 1-7 7 6.2 6.2 0 0 1-6.2-6.2v-2a1.3 1.3 0 0 1 2.6 0" />
+    </Svg>
+  );
+}
+
+/** Gratitude — the thank-you and apology template category. */
+export function IconHandshake(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M11.6 7.4 9.2 9.8a2 2 0 0 0 0 2.8l1 1a2 2 0 0 0 2.8 0l2.4-2.4" />
+      <path d="M2.8 12.6 7 8.4l3 .6 1.6-1.6h2.6l1.8 1.8 4.2 4.2" />
+      <path d="M2.8 15.4 6 18.6M21.2 15.4 18 18.6" />
+    </Svg>
+  );
+}
+
+/** Rest, low energy, the 😴 row in the cycle logger. */
+export function IconBed(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M2.8 18.4v-8M2.8 14.4h18.4v4" />
+      <path d="M21.2 14.4a3.2 3.2 0 0 0-3.2-3.2h-6.4v3.2" />
+      <circle cx="7" cy="12" r="1.8" />
+    </Svg>
+  );
+}

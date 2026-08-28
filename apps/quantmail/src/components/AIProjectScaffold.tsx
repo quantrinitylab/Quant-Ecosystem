@@ -1,12 +1,27 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import type { ReactElement } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import {
+  IconBolt,
+  IconCode,
+  IconFile,
+  IconLayers,
+  IconMonitor,
+  IconSparkle,
+  IconTerminal,
+} from './icons';
 
 interface ScaffoldTemplate {
   id: string;
   name: string;
-  icon: string;
+  /**
+   * The template's glyph. A component rather than a string: emoji renders
+   * differently on every platform and ignores `currentColor`, so a picker built
+   * from them never matches the surrounding type.
+   */
+  Icon: (props: { size?: number }) => ReactElement;
   description: string;
   stack: string[];
   files: string[];
@@ -20,15 +35,20 @@ const TEMPLATES: ScaffoldTemplate[] = [
   {
     id: 'nextjs-api',
     name: 'Next.js API',
-    icon: '▲',
+    Icon: IconLayers,
     description: 'Full-stack Next.js app with API routes, auth, and database',
     stack: ['Next.js 15', 'TypeScript', 'Prisma', 'Tailwind'],
-    files: ['src/app/page.tsx', 'src/app/api/route.ts', 'prisma/schema.prisma', 'tailwind.config.ts'],
+    files: [
+      'src/app/page.tsx',
+      'src/app/api/route.ts',
+      'prisma/schema.prisma',
+      'tailwind.config.ts',
+    ],
   },
   {
     id: 'express-api',
     name: 'Express REST API',
-    icon: '⚡',
+    Icon: IconBolt,
     description: 'Production-ready Express.js API with middleware and validation',
     stack: ['Express', 'TypeScript', 'Zod', 'Prisma'],
     files: ['src/server.ts', 'src/routes/index.ts', 'src/middleware/auth.ts', 'src/types.ts'],
@@ -36,7 +56,7 @@ const TEMPLATES: ScaffoldTemplate[] = [
   {
     id: 'react-component',
     name: 'React Component Library',
-    icon: '⚛️',
+    Icon: IconCode,
     description: 'Reusable component library with Storybook and tests',
     stack: ['React', 'TypeScript', 'Storybook', 'Vitest'],
     files: ['src/Button.tsx', 'src/Button.stories.tsx', 'src/Button.test.tsx', 'src/index.ts'],
@@ -44,7 +64,7 @@ const TEMPLATES: ScaffoldTemplate[] = [
   {
     id: 'python-fastapi',
     name: 'Python FastAPI',
-    icon: '🐍',
+    Icon: IconTerminal,
     description: 'Async Python API with type safety and auto-docs',
     stack: ['FastAPI', 'Python 3.12', 'Pydantic', 'SQLAlchemy'],
     files: ['main.py', 'models.py', 'routes/users.py', 'requirements.txt'],
@@ -52,7 +72,7 @@ const TEMPLATES: ScaffoldTemplate[] = [
   {
     id: 'cli-tool',
     name: 'CLI Tool',
-    icon: '💻',
+    Icon: IconMonitor,
     description: 'Command-line tool with argument parsing and colored output',
     stack: ['Node.js', 'TypeScript', 'Commander', 'Chalk'],
     files: ['src/cli.ts', 'src/commands/init.ts', 'src/utils.ts', 'package.json'],
@@ -60,7 +80,7 @@ const TEMPLATES: ScaffoldTemplate[] = [
   {
     id: 'custom',
     name: 'Custom Project',
-    icon: '✨',
+    Icon: IconSparkle,
     description: 'Describe what you want and AI generates the project structure',
     stack: ['Any'],
     files: ['AI-generated'],
@@ -90,7 +110,9 @@ export function AIProjectScaffold({ onGenerate }: AIProjectScaffoldProps) {
   return (
     <div className="ai-scaffold">
       <header className="scaffold-header">
-        <span className="scaffold-icon">✦</span>
+        <span className="scaffold-icon inline-flex">
+          <IconSparkle size={14} />
+        </span>
         <div>
           <h3>AI Project Generator</h3>
           <p>Choose a template or describe your project. AI generates the full structure.</p>
@@ -105,13 +127,17 @@ export function AIProjectScaffold({ onGenerate }: AIProjectScaffoldProps) {
             className={`scaffold-template ${selectedTemplate?.id === template.id ? 'is-selected' : ''}`}
             onClick={() => setSelectedTemplate(template)}
           >
-            <span className="scaffold-template-icon">{template.icon}</span>
+            <span className="scaffold-template-icon inline-flex">
+              <template.Icon size={18} />
+            </span>
             <div className="scaffold-template-info">
               <strong>{template.name}</strong>
               <p>{template.description}</p>
               <div className="scaffold-stack">
                 {template.stack.map((tech) => (
-                  <span key={tech} className="scaffold-tech">{tech}</span>
+                  <span key={tech} className="scaffold-tech">
+                    {tech}
+                  </span>
                 ))}
               </div>
             </div>
@@ -132,7 +158,10 @@ export function AIProjectScaffold({ onGenerate }: AIProjectScaffoldProps) {
                 <p className="scaffold-preview-label">Files that will be generated:</p>
                 <div className="scaffold-file-list">
                   {selectedTemplate.files.map((file) => (
-                    <span key={file} className="scaffold-file">📄 {file}</span>
+                    <span key={file} className="scaffold-file inline-flex items-center gap-1">
+                      <IconFile size={11} />
+                      {file}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -150,11 +179,18 @@ export function AIProjectScaffold({ onGenerate }: AIProjectScaffoldProps) {
             />
             <button
               type="button"
-              className="scaffold-generate-btn"
+              className="scaffold-generate-btn inline-flex items-center justify-center gap-1.5"
               onClick={handleGenerate}
               disabled={isGenerating || (selectedTemplate.id === 'custom' && !customPrompt.trim())}
             >
-              {isGenerating ? 'Generating...' : `✦ Generate ${selectedTemplate.name}`}
+              {isGenerating ? (
+                'Generating...'
+              ) : (
+                <>
+                  <IconSparkle size={13} />
+                  Generate {selectedTemplate.name}
+                </>
+              )}
             </button>
           </motion.div>
         )}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { showToast } from './InboxToast';
+import { IconCheck } from './icons';
 
 interface Label {
   id: string;
@@ -85,7 +86,15 @@ export function LabelQuickApply({
         aria-expanded={isOpen}
         title="Apply label (L)"
       >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="w-4 h-4"
+        >
           <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
           <line x1="7" y1="7" x2="7.01" y2="7" />
         </svg>
@@ -113,9 +122,7 @@ export function LabelQuickApply({
               />
             </div>
             <div className="label-dropdown-list">
-              {filtered.length === 0 && (
-                <p className="label-dropdown-empty">No matching labels</p>
-              )}
+              {filtered.length === 0 && <p className="label-dropdown-empty">No matching labels</p>}
               {filtered.map((label) => {
                 const isApplied = currentLabels.includes(label.id);
                 return (
@@ -129,7 +136,11 @@ export function LabelQuickApply({
                   >
                     <span className="label-dot" style={{ backgroundColor: label.color }} />
                     <span className="label-name">{label.name}</span>
-                    {isApplied && <span className="label-check">✓</span>}
+                    {isApplied && (
+                      <span className="label-check inline-flex">
+                        <IconCheck size={12} />
+                      </span>
+                    )}
                   </button>
                 );
               })}

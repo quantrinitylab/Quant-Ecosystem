@@ -1,11 +1,28 @@
 'use client';
 
+import type { ReactElement } from 'react';
 import { motion } from 'framer-motion';
 import { IdentityAvatar } from './IdentityAvatar';
+import {
+  IconAlertCircle,
+  IconCheckCircle,
+  IconEye,
+  IconGitCommit,
+  IconGitMerge,
+  IconGitPullRequest,
+  IconTag,
+} from './icons';
 
 interface ActivityItem {
   id: string;
-  type: 'commit' | 'pr_opened' | 'pr_merged' | 'issue_opened' | 'issue_closed' | 'release' | 'review';
+  type:
+    | 'commit'
+    | 'pr_opened'
+    | 'pr_merged'
+    | 'issue_opened'
+    | 'issue_closed'
+    | 'release'
+    | 'review';
   actor: { name: string; email?: string; avatarUrl?: string };
   message: string;
   timestamp: string;
@@ -17,14 +34,17 @@ interface RepoActivityFeedProps {
   repoName: string;
 }
 
-const ACTIVITY_CONFIG: Record<ActivityItem['type'], { icon: string; color: string; verb: string }> = {
-  commit: { icon: '●', color: '#4ade80', verb: 'committed' },
-  pr_opened: { icon: '◐', color: '#60a5fa', verb: 'opened PR' },
-  pr_merged: { icon: '◉', color: '#a78bfa', verb: 'merged' },
-  issue_opened: { icon: '○', color: '#fbbf24', verb: 'opened issue' },
-  issue_closed: { icon: '●', color: '#666', verb: 'closed issue' },
-  release: { icon: '🏷', color: '#4ade80', verb: 'released' },
-  review: { icon: '👁', color: '#ec4899', verb: 'reviewed' },
+const ACTIVITY_CONFIG: Record<
+  ActivityItem['type'],
+  { Icon: (props: { size?: number }) => ReactElement; color: string; verb: string }
+> = {
+  commit: { Icon: IconGitCommit, color: '#4ade80', verb: 'committed' },
+  pr_opened: { Icon: IconGitPullRequest, color: '#60a5fa', verb: 'opened PR' },
+  pr_merged: { Icon: IconGitMerge, color: '#a78bfa', verb: 'merged' },
+  issue_opened: { Icon: IconAlertCircle, color: '#fbbf24', verb: 'opened issue' },
+  issue_closed: { Icon: IconCheckCircle, color: '#666', verb: 'closed issue' },
+  release: { Icon: IconTag, color: '#4ade80', verb: 'released' },
+  review: { Icon: IconEye, color: '#ec4899', verb: 'reviewed' },
 };
 
 /**
@@ -52,16 +72,20 @@ export function RepoActivityFeed({ activities, repoName }: RepoActivityFeedProps
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: idx * 0.04 }}
             >
-              <span className="activity-dot" style={{ color: config.color }}>{config.icon}</span>
-              <IdentityAvatar name={activity.actor.name} size="sm" imageUrl={activity.actor.avatarUrl} />
+              <span className="activity-dot inline-flex" style={{ color: config.color }}>
+                <config.Icon size={12} />
+              </span>
+              <IdentityAvatar
+                name={activity.actor.name}
+                size="sm"
+                imageUrl={activity.actor.avatarUrl}
+              />
               <div className="activity-content">
                 <span className="activity-actor">{activity.actor.name}</span>
                 <span className="activity-verb">{config.verb}</span>
                 {activity.ref && <code className="activity-ref">{activity.ref}</code>}
               </div>
-              <time className="activity-time">
-                {formatRelativeTime(activity.timestamp)}
-              </time>
+              <time className="activity-time">{formatRelativeTime(activity.timestamp)}</time>
             </motion.div>
           );
         })}

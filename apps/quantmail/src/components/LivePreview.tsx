@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { IconWarning } from './icons';
 
 interface LivePreviewProps {
   code: string;
@@ -87,7 +88,12 @@ export function LivePreview({ code, language, isVisible }: LivePreviewProps) {
       <header className="live-preview-header">
         <span className="live-preview-dot" />
         <span>Live Preview</span>
-        {error && <span className="live-preview-error">⚠️ {error}</span>}
+        {error && (
+          <span className="live-preview-error inline-flex items-center gap-1">
+            <IconWarning size={11} />
+            {error}
+          </span>
+        )}
       </header>
       <iframe
         ref={iframeRef}
