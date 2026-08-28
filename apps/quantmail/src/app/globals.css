@@ -781,17 +781,26 @@ body {
 .sidebar-group { margin-top: 0.65rem; }
 .sidebar-group h2, .sidebar-section-trigger { padding: 0 0.6rem 0.45rem; color: #6B6E76; font-size: 0.58rem; font-weight: 750; letter-spacing: 0.17em; text-transform: uppercase; }
 .sidebar-group ul { display: grid; gap: 0.18rem; }
-.sidebar-nav-item, .sidebar-label-item { position: relative; display: flex; width: 100%; min-height: 2.25rem; align-items: center; gap: 0.68rem; border-radius: 0.62rem; padding: 0 0.68rem; color: #A1A4AC; font-size: 0.78rem; font-weight: 520; transition: color 140ms ease, background 140ms ease, transform 140ms ease; }
+.sidebar-nav-item, .sidebar-label-item { position: relative; display: flex; width: 100%; min-height: 2.75rem; align-items: center; gap: 0.68rem; border-radius: 0.62rem; padding: 0 0.68rem; color: #A1A4AC; font-size: 0.78rem; font-weight: 520; transition: color 140ms ease, background 140ms ease, transform 140ms ease; }
 .sidebar-nav-item:hover, .sidebar-label-item:hover { background: rgba(255, 255, 255, 0.045); color: #f3f3ef; }
 .sidebar-nav-item.is-active { background: linear-gradient(90deg, rgba(255, 140, 66, 0.14), rgba(255, 140, 66, 0.035)); color: #FFB875; box-shadow: inset 2px 0 #FF8C42; }
-.sidebar-nav-item.is-active svg { filter: drop-shadow(0 0 7px rgba(255, 140, 66, 0.4)); }
 .sidebar-nav-item svg { flex: none; }
 .sidebar-nav-spark { width: 0.32rem; height: 0.32rem; margin-left: auto; border-radius: 50%; background: #FF8C42; box-shadow: 0 0 0 3px rgba(255, 140, 66, 0.14); }
 .sidebar-labels { margin-top: 0.75rem; padding-top: 0.8rem; border-top: 1px solid var(--quant-border-subtle); }
 .sidebar-section-trigger { display: flex; width: 100%; align-items: center; justify-content: space-between; padding-bottom: 0.5rem; }
-.sidebar-label-item { min-height: 2rem; font-size: 0.74rem; }
+.sidebar-label-item { min-height: 2.75rem; font-size: 0.74rem; }
 .sidebar-count { color: #6f6f75; font-size: 0.66rem; font-variant-numeric: tabular-nums; }
-.sidebar-create-label { display: flex; width: 100%; min-height: 2rem; align-items: center; gap: 0.45rem; padding: 0 0.65rem; color: #c9a27c; font-size: 0.7rem; }
+.sidebar-create-label { display: flex; width: 100%; min-height: 2.75rem; align-items: center; gap: 0.45rem; padding: 0 0.65rem; color: #c9a27c; font-size: 0.7rem; }
+/*
+ * A compact row is a pointer affordance. A finger needs 44px — 2.75rem, the
+ * mandated minimum — so the tight heights above only apply once the viewport is
+ * wide enough to imply a mouse. Written as a floor rather than a fixed height so a
+ * row with a wrapping label still grows.
+ */
+@media (min-width: 640px) {
+  .sidebar-nav-item { min-height: 2.25rem; }
+  .sidebar-label-item, .sidebar-create-label { min-height: 2rem; }
+}
 .sidebar-label-skeleton { height: 2rem; margin: 0.25rem; border-radius: 0.55rem; background: var(--quant-muted); animation: pulse-brand 1.5s infinite; }
 .sidebar-label-form { margin: 0.35rem 0.25rem; border: 1px solid var(--quant-border); border-radius: 0.75rem; padding: 0.65rem; background: #111318; }
 .sidebar-label-form input { width: 100%; height: 2.2rem; border: 1px solid var(--quant-border); border-radius: 0.5rem; padding: 0 0.6rem; background: #0C0E11; color: var(--quant-foreground); font-size: 0.75rem; }
@@ -820,7 +829,7 @@ body {
 .inbox-search:focus-within { border-color: rgba(255, 140, 66, 0.48); box-shadow: 0 0 0 3px rgba(255, 140, 66, 0.08); }
 .inbox-search input { min-width: 0; flex: 1; outline: none; background: transparent; color: var(--quant-foreground); font-size: 0.76rem; }
 .inbox-search input::placeholder { color: #68686e; }
-.inbox-search kbd, .reading-shortcuts kbd { border: 1px solid #3A404D; border-radius: 0.3rem; padding: 0.08rem 0.34rem; background: #1C1F26; color: #85858a; font-size: 0.6rem; box-shadow: inset 0 -1px rgba(0, 0, 0, 0.4); }
+.inbox-search kbd, .reading-shortcuts kbd { border: 1px solid #3A404D; border-radius: 0.3rem; padding: 0.08rem 0.34rem; background: #1C1F26; color: #C6C8CE; font-size: 0.6875rem; box-shadow: inset 0 -1px rgba(0, 0, 0, 0.4); }
 .inbox-categories { display: flex; gap: 0.2rem; overflow-x: auto; padding: 0 1.05rem 0.65rem; border-bottom: 1px solid var(--quant-border-subtle); scrollbar-width: none; }
 .inbox-categories button { display: inline-flex; min-height: 2rem; align-items: center; gap: 0.4rem; border-radius: 0.5rem; padding: 0 0.68rem; color: #6B6E76; font-size: 0.68rem; font-weight: 620; white-space: nowrap; }
 .inbox-categories button:hover { color: #e7e7e3; background: rgba(255,255,255,.035); }
@@ -835,7 +844,22 @@ body {
 .mail-row { position: relative; display: flex; min-height: 4.85rem; align-items: center; gap: 0.7rem; border: 1px solid transparent; border-radius: 0.72rem; padding: 0.65rem 0.65rem; background: #0C0E11; cursor: pointer; transition: background 130ms ease, border-color 130ms ease, transform 130ms ease; }
 .mail-row:hover { border-color: #2d2d30; background: #111318; }.mail-row.is-active { border-color: rgba(255, 140, 66,.32); background: linear-gradient(90deg, rgba(255, 140, 66,.09), #111318 44%); }
 .mail-row.is-unread { background: #111318; }.mail-row.is-unread::before { position: absolute; inset: 0 auto 0 0; width: 2px; border-radius: 2px; background: #FF8C42; content: ''; }
-.mail-row > input { width: 0.9rem; height: 0.9rem; flex: none; accent-color: #FF8C42; opacity: 0; transition: opacity 120ms ease; }.mail-row:hover > input, .mail-row > input:checked { opacity: 1; }
+/*
+ * The raw checkbox is a pointer affordance: it appears on hover, which is the only
+ * reason a 0.9rem box is acceptable — a finger never has to find it, because the
+ * avatar beside it toggles the same selection and long-press opens the same menu.
+ * So it is `display: none` under `sm`, where hover does not exist and an invisible
+ * but still tappable 14px target sat on top of the avatar.
+ *
+ * `:focus-visible` reveals it as well as `:hover`. Keyboard focus landing on a
+ * control at `opacity: 0` is a control you cannot see while you are using it.
+ */
+.mail-row > input { display: none; }
+@media (min-width: 640px) {
+  .mail-row > input { display: block; width: 0.9rem; height: 0.9rem; flex: none; accent-color: #FF8C42; opacity: 0; transition: opacity 120ms ease; }
+  .mail-row:hover > input, .mail-row > input:checked, .mail-row > input:focus-visible { opacity: 1; }
+  .mail-row > input:focus-visible { outline: 2px solid #FF8C42; outline-offset: 2px; }
+}
 .mail-row-copy { min-width: 0; flex: 1; }.mail-row-meta { display: flex; align-items: center; gap: 0.4rem; }.mail-row-meta strong { overflow: hidden; color: #A1A4AC; font-size: 0.68rem; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }.mail-row.is-unread .mail-row-meta strong { color: #f1f1ed; font-weight: 730; }.mail-row-meta time { margin-left: auto; color: #6B6E76; font-size: 0.58rem; font-variant-numeric: tabular-nums; }.mail-unread-dot { width: 0.32rem; height: 0.32rem; flex: none; border-radius: 50%; background: #FF8C42; box-shadow: 0 0 7px rgba(255, 140, 66,.5); }
 .mail-row-copy h3 { margin-top: 0.22rem; overflow: hidden; color: #c8c8c9; font-size: 0.74rem; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }.mail-row.is-unread h3 { color: #f5f5f0; font-weight: 680; }.mail-row-copy p { margin-top: 0.16rem; overflow: hidden; color: #707076; font-size: 0.66rem; text-overflow: ellipsis; white-space: nowrap; }
 .mail-star { display: grid; width: 1.85rem; height: 1.85rem; flex: none; place-items: center; border-radius: 0.45rem; color: #6B6E76; opacity: 0; }.mail-row:hover .mail-star, .mail-star.is-starred { opacity: 1; }.mail-star.is-starred { color: #ffb547; }.mail-star.is-starred svg { fill: currentColor; }
@@ -845,7 +869,10 @@ body {
 .mail-pinned-notice { display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.5rem 0.45rem; color: #6B6E76; font-size: 0.6rem; line-height: 1.4; }
 .mail-pinned-notice svg { color: #ffb547; fill: currentColor; }
 .mail-empty { display: flex; min-height: 100%; align-items: center; justify-content: center; flex-direction: column; padding: 3rem 1.5rem; text-align: center; }.mail-empty-icon { display: grid; width: 3.4rem; height: 3.4rem; place-items: center; margin-bottom: 1.2rem; border: 1px solid rgba(255, 140, 66,.18); border-radius: 1rem; background: rgba(255, 140, 66,.07); color: #FF9B5A; }.mail-empty-icon svg { width: 1.25rem; height: 1.25rem; }.mail-empty h2 { margin-top: 0.55rem; font-size: 1.45rem; font-weight: 650; letter-spacing: -.045em; }.mail-empty > p:last-of-type { max-width: 18rem; margin-top: 0.6rem; color: var(--quant-muted-foreground); font-size: 0.72rem; line-height: 1.6; }.mail-empty .signal-button { margin-top: 1.15rem; }.mail-error { display: grid; min-height: 100%; place-items: center; }
-.inbox-list-footer { display: flex; min-height: 2.25rem; align-items: center; justify-content: space-between; padding: 0 1.2rem; border-top: 1px solid var(--quant-border-subtle); color: #57575c; font-size: 0.56rem; letter-spacing: 0.04em; }
+/* The count and the sync state, at 8.96px in #57575C, measured 2.69:1 — the least
+   legible text on the page, and it is the line that tells you how much mail you
+   are looking at. 11px in the palette's secondary tier measures 7.55:1. */
+.inbox-list-footer { display: flex; min-height: 2.25rem; align-items: center; justify-content: space-between; padding: 0 1.2rem; border-top: 1px solid var(--quant-border-subtle); color: #A1A4AC; font-size: 0.6875rem; letter-spacing: 0.04em; }
 
 /* Reading surface */
 .reading-pane { position: relative; display: flex; min-width: 0; flex: 1; flex-direction: column; overflow: hidden; background: #090A0C; }
@@ -854,8 +881,13 @@ body {
 .reading-empty-content { display: flex; align-items: center; flex-direction: column; padding: 2rem; text-align: center; }
 .reading-empty-mark { width: 6.8rem; height: 5.4rem; margin-bottom: 2rem; border-radius: 1.5rem; transform: perspective(500px) rotateX(6deg) rotateY(-8deg); box-shadow: inset 0 1px rgba(255,255,255,.1), 22px 28px 70px rgba(0,0,0,.5); }
 .reading-empty-content h2 { margin-top: 0.8rem; font-size: clamp(2.1rem, 4.5vw, 4.6rem); font-weight: 610; line-height: 0.95; letter-spacing: -0.075em; }
-.reading-empty-content > p:not(.reading-eyebrow) { max-width: 24rem; margin-top: 1.2rem; color: #77777c; font-size: 0.78rem; line-height: 1.6; }
-.reading-shortcuts { display: flex; gap: 1.1rem; margin-top: 2.2rem; color: #68686d; font-size: 0.62rem; }.reading-shortcuts span { display: flex; align-items: center; gap: 0.3rem; }
+/* 12.48px in #77777C measured 4.45:1 against the empty pane — just under the 4.5:1
+   floor, so it moves to the palette's secondary tier. */
+.reading-empty-content > p:not(.reading-eyebrow) { max-width: 24rem; margin-top: 1.2rem; color: #A1A4AC; font-size: 0.8125rem; line-height: 1.6; }
+/* The shortcut legend is the only place the app teaches its keyboard, so it has to
+   be readable: it was 9.92px in #68686D, 3.57:1. Same for the key caps, which were
+   #85858A on #1C1F26 — the cap is a small target for the eye already. */
+.reading-shortcuts { display: flex; gap: 1.1rem; margin-top: 2.2rem; color: #A1A4AC; font-size: 0.6875rem; }.reading-shortcuts span { display: flex; align-items: center; gap: 0.3rem; }
 .reading-header { display: flex; min-height: 4.3rem; align-items: center; justify-content: space-between; padding: 0 1.35rem; border-bottom: 1px solid var(--quant-border-subtle); }
 .icon-button { display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border-radius: 0.55rem; color: #A1A4AC; }.icon-button:hover { background: var(--quant-muted); color: white; }
 .reading-header-actions { display: flex; gap: 0.55rem; }.quiet-button { min-height: 2.3rem; border: 1px solid var(--quant-border); border-radius: 0.6rem; padding: 0 .8rem; color: #aaa; font-size: .7rem; font-weight: 620; }.quiet-button:hover { background: #16181D; color: white; }
@@ -906,6 +938,18 @@ body {
 }
 @media (max-width: 899px) {
   .inbox-list-pane { width: 100%; min-width: 0; border-right: 0; }.reading-pane { display: none; }
+}
+/*
+ * Below `md` the compose control is a floating button pinned 5rem above the
+ * viewport bottom, which puts it *inside* the list's scroll area — it sat over the
+ * bottom-right of the last row, covering that row's pin control with no way to
+ * scroll past it. The padding is the button's own height plus its offset, so the
+ * end of the list now scrolls clear of it. Matches the button's own `md:hidden`
+ * breakpoint rather than the 639px one below, or the gap would be missing on a
+ * tablet where the button is still shown.
+ */
+@media (max-width: 767px) {
+  .mail-list { padding-bottom: 8.5rem; }
 }
 @media (max-width: 639px) {
   .inbox-hero { padding: 1.3rem 1rem .85rem; }.inbox-hero h1 { font-size: 2rem; }.inbox-hero > div > p:last-child { display: none; }.hero-compose { width: 2.5rem; padding: 0; }.hero-compose svg { width: 1rem; }.hero-compose { font-size: 0; }.inbox-search-wrap { padding-inline: .9rem; }.inbox-categories { padding-inline: .8rem; }.mail-list { padding-inline: .35rem; }.mail-row { min-height: 4.6rem; }.mail-row > input { display: none; }.mail-star { opacity: 1; }.inbox-list-footer { display: none; }
@@ -3228,6 +3272,9 @@ body {
   left: 50%;
   transform: translateX(-50%);
   z-index: 99999;
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
   padding: 0.75rem 1.5rem;
   border-radius: 0 0 0.5rem 0.5rem;
   background: var(--brand-primary);

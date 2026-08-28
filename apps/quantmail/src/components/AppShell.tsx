@@ -509,7 +509,7 @@ export function AppShell({
                   type="button"
                   // Hidden once the rail is pinned on a wide screen: the drawer it
                   // opens is `md:hidden` there, so the control had nothing to show.
-                  className={`inline-flex size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors ${isPinned ? 'md:hidden' : ''}`}
+                  className={`inline-flex size-11 sm:size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${isPinned ? 'md:hidden' : ''}`}
                   aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
                   aria-expanded={isDrawerPresented}
                   aria-controls={drawerId}
@@ -550,13 +550,24 @@ export function AppShell({
               {/* Center: Real Contextual Live Search Bar (Desktop) */}
               <div className="hidden md:flex flex-1 max-w-xl mx-4">
                 {onSearchChange ? (
-                  <div className="w-full flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-[#111318]/90 border border-[#282C35] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner">
+                  /*
+                   * The vertical padding is on the input, not on this wrapper. With
+                   * `py-1.5` here the box looked 34px tall but the field that
+                   * actually took the click was the 16px line of text inside it, so
+                   * a click aimed at the top or bottom of the search bar did
+                   * nothing. `min-h` keeps the box the same size it looked before.
+                   */
+                  <div className="w-full flex min-h-[38px] items-center gap-2.5 px-3.5 rounded-xl bg-[#111318]/90 border border-[#282C35] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner">
                     <svg
                       className="size-4 text-[#A1A4AC] shrink-0"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
-                      strokeWidth="2"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                      focusable="false"
                     >
                       <circle cx="11" cy="11" r="7" />
                       <path d="m20 20-4-4" />
@@ -567,6 +578,9 @@ export function AppShell({
                       type="search"
                       value={searchValue ?? ''}
                       onChange={(e) => onSearchChange(e.target.value)}
+                      // The placeholder says what is searchable, which is context,
+                      // not a name — and it is gone the moment anyone types.
+                      aria-label="Search"
                       placeholder={
                         searchPlaceholder ||
                         (currentApp === 'calendar'
@@ -577,21 +591,26 @@ export function AppShell({
                               ? 'Search in QuantContacts…'
                               : 'Search in QuantMail (sender, subject, keyword)…')
                       }
-                      className="w-full bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
+                      className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#6B6E76] focus:outline-none"
                     />
                     {searchValue && (
                       <button
                         type="button"
                         onClick={() => onSearchChange('')}
-                        className="text-[#A1A4AC] hover:text-white shrink-0 p-0.5"
+                        className="shrink-0 rounded p-0.5 text-[#A1A4AC] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                         title="Clear search"
+                        aria-label="Clear search"
                       >
                         <svg
                           className="size-3.5"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
-                          strokeWidth="2"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                          focusable="false"
                         >
                           <line x1="18" y1="6" x2="6" y2="18" />
                           <line x1="6" y1="6" x2="18" y2="18" />

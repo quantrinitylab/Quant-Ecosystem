@@ -11,7 +11,7 @@
  * `jsx` option, so nothing here may import a `.tsx` file.
  */
 
-import type { Email, EmailCategory, MessageKind } from '../types';
+import type { Email, EmailAddress, EmailCategory, MessageKind } from '../types';
 
 /** One row in the inbox: a group of messages plus the summary the row shows. */
 export interface ConversationThread {
@@ -22,7 +22,14 @@ export interface ConversationThread {
   latestEmail: Email;
   messages: Email[];
   count: number;
-  sendersSummary: string;
+  /**
+   * Everyone in the conversation who is not the signed-in user, in the order they
+   * first appear. Empty for a note-to-self. The row uses the first entry to seed
+   * the avatar, so a given person keeps one colour across every row they appear in.
+   */
+  participants: string[];
+  /** `participants` rendered for one line — see `summarizeParticipants`. */
+  participantsSummary: string;
   isRead: boolean;
   isStarred: boolean;
   receivedAt: string | Date;
@@ -38,25 +45,36 @@ export interface ConversationThread {
 }
 
 /**
+ * Whether an address belongs to the signed-in user.
+ *
+ * The handle-prefix check catches the case where the same person receives on one
+ * domain and sends from another — a real situation for anyone with an alias, and
+ * the reason a plain equality test is not enough. It is deliberately a prefix on
+ * `handle@` and not on `handle`, so `kundansingh@` is not read as `kundan@`.
+ *
+ * Address only: no `isSent` flag, because this also has to answer the question for
+ * a *recipient*, where no such flag exists.
+ */
+function isMyAddress(address?: string | null, currentEmail?: string): boolean {
+  const addr = (address || '').trim().toLowerCase();
+  const mine = (currentEmail || '').trim().toLowerCase();
+  if (!addr || !mine) return false;
+  if (addr === mine) return true;
+  const handle = mine.split('@')[0];
+  return Boolean(handle && addr.startsWith(`${handle}@`));
+}
+
+/**
  * Whether a message was sent by the signed-in user.
  *
  * Three signals, because the shape of a message depends on where it came from:
  * the server's own `isSent`/`status` when it round-tripped through our API, and
- * the address otherwise. The handle-prefix check catches the case where the same
- * person receives on one domain and sends from another — a real situation for
- * anyone with an alias, and the reason a plain equality test is not enough.
+ * the address otherwise.
  */
 export function isFromMe(email: Email, currentEmail?: string): boolean {
-  const normMyEmail = (currentEmail || '').trim().toLowerCase();
-  const myHandle = normMyEmail.split('@')[0];
-  const fromAddr = (
-    email.from?.email ||
-    (email as { fromAddress?: string }).fromAddress ||
-    ''
-  ).toLowerCase();
+  const fromAddr = email.from?.email || (email as { fromAddress?: string }).fromAddress || '';
   return Boolean(
-    (normMyEmail &&
-      (fromAddr === normMyEmail || (myHandle && fromAddr.startsWith(`${myHandle}@`)))) ||
+    isMyAddress(fromAddr, currentEmail) ||
     (email as { isSent?: boolean }).isSent ||
     email.status === 'sent',
   );
@@ -217,6 +235,120 @@ export function normalizeSubject(subject: string = ''): string {
 }
 
 /**
+ * The addresses a message was written to, from whichever shape it arrived in.
+ *
+ * `formatEmailRecord` on the server populates both the structured `to`/`cc` arrays
+ * and the flat `toAddresses`/`ccAddresses` string arrays, but a message read back
+ * out of IndexedDB or built optimistically by the composer may carry only one of
+ * them, so both are read.
+ */
+function recipientsOf(email: Email): EmailAddress[] {
+  const out: EmailAddress[] = [];
+  for (const field of ['to', 'cc'] as const) {
+    const structured = email[field];
+    if (Array.isArray(structured)) {
+      for (const entry of structured) {
+        if (typeof entry === 'string') out.push({ email: entry });
+        else if (entry?.email) out.push(entry);
+      }
+    }
+    const flat = (email as unknown as Record<string, unknown>)[`${field}Addresses`];
+    if (Array.isArray(flat)) {
+      for (const entry of flat) if (typeof entry === 'string' && entry) out.push({ email: entry });
+    }
+  }
+  return out;
+}
+
+/**
+ * How to show a person on one line, and the key that decides whether two mentions
+ * of them are the same person.
+ *
+ * Keyed on the address, not the display name: the server synthesizes a recipient's
+ * `name` from the local part, so the same human is `Alice` when they write to you
+ * and `alice` when you write to them, and keying on the name lists them twice.
+ */
+function identityOf(address?: EmailAddress | null): { key: string; name: string } | null {
+  const addr = (address?.email || '').trim();
+  const name = (address?.name || '').trim();
+  if (!addr && !name) return null;
+  return {
+    key: (addr || name).toLowerCase(),
+    name: name || addr.split('@')[0] || addr,
+  };
+}
+
+/**
+ * Everyone in a conversation who is not the signed-in user, in the order they
+ * first appear.
+ *
+ * Which end of a message to read depends on who wrote it: a message *to* you is
+ * described by its sender, a message *from* you by its recipients. Reading only
+ * the sender — which is what this did until recently — labelled every thread you
+ * had sent with your own name, so in a unified inbox where most rows are yours the
+ * list was a column of "You" and the row could not say who the conversation was
+ * with.
+ *
+ * Recipients of *inbound* mail are deliberately left out. They are usually just
+ * you, and on a group thread they push the person who actually wrote to you off
+ * the end of a row that has a count, a dot, a kind mark and a timestamp to fit.
+ *
+ * Returns `[]` for a genuine note-to-self, which `summarizeParticipants` renders.
+ */
+export function threadParticipants(messages: Email[] = [], currentEmail?: string): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+
+  const add = (identity: { key: string; name: string } | null) => {
+    if (!identity || seen.has(identity.key)) return;
+    seen.add(identity.key);
+    names.push(identity.name);
+  };
+
+  for (const message of messages) {
+    if (isFromMe(message, currentEmail)) {
+      for (const recipient of recipientsOf(message)) {
+        if (isMyAddress(recipient.email, currentEmail)) continue;
+        add(identityOf(recipient));
+      }
+      continue;
+    }
+    const from =
+      message.from ??
+      ({
+        email: (message as { fromAddress?: string }).fromAddress,
+        name: (message as { fromName?: string }).fromName,
+      } as EmailAddress);
+    add(identityOf(from) ?? { key: `unknown:${message.id}`, name: 'Sender' });
+  }
+
+  return names;
+}
+
+/**
+ * How many participants a row names before it counts the rest.
+ *
+ * Three fits the narrowest supported row; beyond that the names are truncated
+ * mid-word by CSS, which reads as a rendering fault rather than as a group thread.
+ */
+const MAX_NAMED_PARTICIPANTS = 3;
+
+/**
+ * `threadParticipants` on one line.
+ *
+ * Nobody else in the conversation means you wrote to yourself, so the row says
+ * `You` — the only case where it should, and the reason the empty list is not
+ * rendered as a generic placeholder.
+ */
+export function summarizeParticipants(participants: string[]): string {
+  if (participants.length === 0) return 'You';
+  if (participants.length <= MAX_NAMED_PARTICIPANTS) return participants.join(', ');
+  return `${participants.slice(0, MAX_NAMED_PARTICIPANTS).join(', ')} +${
+    participants.length - MAX_NAMED_PARTICIPANTS
+  }`;
+}
+
+/**
  * Group messages into conversations, newest conversation first.
  *
  * `threadId` wins when the server supplied one. Otherwise messages are grouped by
@@ -263,26 +395,7 @@ export function groupEmailsIntoThreads(
     const isRead = msgList.every((m) => m.isRead);
     const isStarred = msgList.some((m) => m.isStarred);
 
-    const senderNames: string[] = [];
-    let hasOther = false;
-    for (const m of msgList) {
-      if (isFromMe(m, currentEmail)) {
-        if (!senderNames.includes('You')) senderNames.push('You');
-      } else {
-        hasOther = true;
-        const name =
-          m.from?.name ||
-          (m as any).fromName ||
-          m.from?.email?.split('@')[0] ||
-          (m as any).fromAddress?.split('@')[0] ||
-          'Sender';
-        if (!senderNames.includes(name)) senderNames.push(name);
-      }
-    }
-    let sendersSummary = senderNames.join(', ');
-    if (senderNames.length === 0) sendersSummary = 'Conversation';
-    else if (senderNames.length === 1 && senderNames[0] === 'You' && !hasOther)
-      sendersSummary = 'You';
+    const participants = threadParticipants(msgList, currentEmail);
 
     const normalizedLatest = normalizeSubject(latest.subject);
 
@@ -294,7 +407,8 @@ export function groupEmailsIntoThreads(
       latestEmail: latest,
       messages: msgList,
       count: msgList.length,
-      sendersSummary,
+      participants,
+      participantsSummary: summarizeParticipants(participants),
       isRead,
       isStarred,
       receivedAt: latest.receivedAt || latest.createdAt || new Date(),

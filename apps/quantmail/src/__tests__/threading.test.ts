@@ -178,7 +178,7 @@ describe('groupEmailsIntoThreads', () => {
     expect(threads).toHaveLength(3);
     expect(threads.every((t) => t.count === 1)).toBe(true);
     expect(new Set(threads.map((t) => t.threadId)).size).toBe(3);
-    expect(threads.map((t) => t.sendersSummary).sort()).toEqual(['Alice', 'Bob', 'Carol']);
+    expect(threads.map((t) => t.participantsSummary).sort()).toEqual(['Alice', 'Bob', 'Carol']);
   });
 
   it('titles a prefix-only subject as (no subject) rather than showing the bare prefix', () => {
@@ -245,7 +245,7 @@ describe('groupEmailsIntoThreads', () => {
     expect(thread.receivedAt).toEqual(new Date('2026-02-01T09:00:00Z'));
   });
 
-  it('names the other participants, and calls the signed-in user You', () => {
+  it('names the other person, not the signed-in user, when both have spoken', () => {
     const [thread] = groupEmailsIntoThreads(
       [
         email({
@@ -258,14 +258,109 @@ describe('groupEmailsIntoThreads', () => {
           threadId: 't1',
           subject: 'Re: Design review',
           from: { email: 'kundan@quantmail.in', name: 'Kundan' },
+          to: [{ email: 'alice@example.com', name: 'Alice' }],
           receivedAt: new Date('2026-01-01T10:00:00Z'),
         }),
       ],
       'kundan@quantmail.in',
     );
 
-    // Oldest first, so the person who started it is named first.
-    expect(thread.sendersSummary).toBe('Alice, You');
+    // A row is a conversation *with* someone, the way a chat list is; that you are
+    // also in it is not information. Who owes the reply is `threadFocus`'s job.
+    expect(thread.participants).toEqual(['Alice']);
+    expect(thread.participantsSummary).toBe('Alice');
+  });
+
+  it('names the recipient of a message you sent', () => {
+    // The defect this pins: reading only `from` labelled every thread you had sent
+    // with your own name, so a unified inbox — where most rows are yours — showed a
+    // column of "You" and no row could say who the conversation was with.
+    const [thread] = groupEmailsIntoThreads(
+      [
+        email({
+          subject: 'Invoice',
+          from: { email: 'kundan@quantmail.in', name: 'Kundan' },
+          to: [{ email: 'bob@example.com', name: 'Bob' }],
+        }),
+      ],
+      'kundan@quantmail.in',
+    );
+
+    expect(thread.participantsSummary).toBe('Bob');
+  });
+
+  it('reads recipients from the flat toAddresses shape too', () => {
+    // A message rehydrated from IndexedDB, or built optimistically by the composer,
+    // may carry only one of the two shapes the server sends.
+    const [thread] = groupEmailsIntoThreads(
+      [
+        {
+          ...email({ subject: 'Invoice', from: { email: 'kundan@quantmail.in' }, to: undefined }),
+          toAddresses: ['bob@example.com'],
+        } as unknown as Email,
+      ],
+      'kundan@quantmail.in',
+    );
+
+    expect(thread.participantsSummary).toBe('bob');
+  });
+
+  it('counts a cc as a participant, after the direct recipients', () => {
+    const [thread] = groupEmailsIntoThreads(
+      [
+        email({
+          subject: 'Invoice',
+          from: { email: 'kundan@quantmail.in' },
+          to: [{ email: 'bob@example.com', name: 'Bob' }],
+          cc: [{ email: 'carol@example.com', name: 'Carol' }],
+        }),
+      ],
+      'kundan@quantmail.in',
+    );
+
+    expect(thread.participants).toEqual(['Bob', 'Carol']);
+  });
+
+  it('does not list the signed-in user among the recipients of their own message', () => {
+    const [thread] = groupEmailsIntoThreads(
+      [
+        email({
+          subject: 'Loop myself in',
+          from: { email: 'kundan@quantmail.in' },
+          to: [
+            { email: 'kundan@quantmail.in', name: 'Kundan' },
+            { email: 'bob@example.com', name: 'Bob' },
+          ],
+        }),
+      ],
+      'kundan@quantmail.in',
+    );
+
+    expect(thread.participantsSummary).toBe('Bob');
+  });
+
+  it('counts the rest once a conversation names more people than a row fits', () => {
+    const [thread] = groupEmailsIntoThreads(
+      [
+        email({
+          subject: 'Launch',
+          from: { email: 'kundan@quantmail.in' },
+          to: [
+            { email: 'a@example.com', name: 'Alice' },
+            { email: 'b@example.com', name: 'Bob' },
+            { email: 'c@example.com', name: 'Carol' },
+            { email: 'd@example.com', name: 'Dana' },
+            { email: 'e@example.com', name: 'Erin' },
+          ],
+        }),
+      ],
+      'kundan@quantmail.in',
+    );
+
+    // Truncating the fourth name mid-word reads as a rendering fault; a count reads
+    // as a group thread.
+    expect(thread.participants).toHaveLength(5);
+    expect(thread.participantsSummary).toBe('Alice, Bob, Carol +2');
   });
 
   it('recognises the user by handle across their own domains', () => {
@@ -279,14 +374,15 @@ describe('groupEmailsIntoThreads', () => {
       'kundan@quantmail.in',
     );
 
-    expect(thread.sendersSummary).toBe('You');
+    expect(thread.participants).toEqual([]);
+    expect(thread.participantsSummary).toBe('You');
   });
 
   it('says You for a conversation with nobody else in it', () => {
     const [thread] = groupEmailsIntoThreads([email({ subject: 'Sent thing', status: 'sent' })]);
 
     // No signed-in address to compare against: `status: 'sent'` is enough.
-    expect(thread.sendersSummary).toBe('You');
+    expect(thread.participantsSummary).toBe('You');
   });
 
   it('falls back to the local part, then to Sender, for a message with no display name', () => {
@@ -295,7 +391,7 @@ describe('groupEmailsIntoThreads', () => {
       email({ subject: 'No sender at all', from: undefined }),
     ]);
 
-    expect(threads.map((t) => t.sendersSummary).sort()).toEqual(['Sender', 'dana']);
+    expect(threads.map((t) => t.participantsSummary).sort()).toEqual(['Sender', 'dana']);
   });
 
   it('lists each participant once however many messages they sent', () => {
@@ -312,7 +408,33 @@ describe('groupEmailsIntoThreads', () => {
       }),
     ]);
 
-    expect(thread.sendersSummary).toBe('Alice');
+    expect(thread.participantsSummary).toBe('Alice');
+  });
+
+  it('treats a person as one participant whichever end of a message they are on', () => {
+    // The server synthesizes a recipient's display name from the local part, so the
+    // same human is `Alice` when they write to you and `alice` when you write to
+    // them. Keyed on the name, that listed them twice.
+    const [thread] = groupEmailsIntoThreads(
+      [
+        email({
+          threadId: 't1',
+          subject: 'Design review',
+          from: { email: 'kundan@quantmail.in' },
+          to: [{ email: 'alice@example.com', name: 'alice' }],
+          receivedAt: new Date('2026-01-01T09:00:00Z'),
+        }),
+        email({
+          threadId: 't1',
+          subject: 'Re: Design review',
+          from: { email: 'alice@example.com', name: 'Alice' },
+          receivedAt: new Date('2026-01-01T10:00:00Z'),
+        }),
+      ],
+      'kundan@quantmail.in',
+    );
+
+    expect(thread.participants).toEqual(['alice']);
   });
 
   it('unions the labels of every message without repeating one', () => {

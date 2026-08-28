@@ -1,225 +1,146 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+/**
+ * The first thing anyone sees: a short brand hold while the shell hydrates.
+ *
+ * It used to be a 70-particle canvas vortex in five colours gravitating toward a
+ * 24rem blurred orange blob, ringed by three neon `0 0 30px` glows and held for
+ * 1.45s. Three problems, in order of how much they cost: the glow is the exact
+ * "AI template" look the product is defined against; a `requestAnimationFrame`
+ * loop competing with hydration is the slowest possible first paint for an app
+ * whose pitch is speed; and 1.45s is a long time to stand between someone and
+ * their mail, every session.
+ *
+ * What replaced it says the same thing with the design system's own vocabulary —
+ * the mark, the wordmark, and a determinate bar that runs for exactly as long as
+ * the hold, so the wait is legible rather than decorative.
+ */
+
+import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { BrandWordmark } from './BrandWordmark';
+
+/** How long the hold lasts, and how long it takes to fade out. */
+const HOLD_MS = 850;
+const FADE_MS = 260;
 
 export function QuantumSplashIntro({ onComplete }: { onComplete?: () => void }) {
   const [isVisible, setIsVisible] = useState(false);
-  const [phase, setPhase] = useState<'particles' | 'assemble' | 'glow' | 'exit'>('particles');
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animRef = useRef<number | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
+  /*
+   * Held in a ref so the dismiss path can be called from a click, a key and a
+   * timer without any of them racing to fire `onComplete` twice — the shell reads
+   * that callback as "the splash is gone", and calling it again after the element
+   * has unmounted would re-run whatever the host does on completion.
+   */
+  const finishedRef = useRef(false);
 
   useEffect(() => {
-    // Only show once per session for instant snappiness on navigation
+    // Once per session: on a second navigation the shell is already warm, and a
+    // brand hold there is pure delay.
     try {
-      const shown = sessionStorage.getItem('quant_splash_shown');
-      if (shown) {
-        if (onComplete) onComplete();
+      if (sessionStorage.getItem('quant_splash_shown')) {
+        onComplete?.();
         return;
       }
       sessionStorage.setItem('quant_splash_shown', 'true');
     } catch {
-      // ignore storage errors
+      // Private-mode or blocked storage: show it, just don't remember.
     }
 
     setIsVisible(true);
-
-    const t1 = setTimeout(() => setPhase('assemble'), 250);
-    const t2 = setTimeout(() => setPhase('glow'), 600);
-    const t3 = setTimeout(() => {
-      setPhase('exit');
-      setTimeout(() => {
-        setIsVisible(false);
-        if (onComplete) onComplete();
-      }, 350);
-    }, 1100);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-    };
   }, [onComplete]);
 
-  // Particle vortex canvas animation
   useEffect(() => {
     if (!isVisible) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
 
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
-
-    const onResize = () => {
-      if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-    };
-    window.addEventListener('resize', onResize);
-
-    const particles: Array<{
-      x: number;
-      y: number;
-      vx: number;
-      vy: number;
-      size: number;
-      alpha: number;
-      color: string;
-    }> = [];
-
-    const colors = ['#FF5500', '#FF8C42', '#FFAA00', '#FFD200', '#FFFFFF'];
-    for (let i = 0; i < 70; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = Math.random() * Math.min(width, height) * 0.45;
-      particles.push({
-        x: width / 2 + Math.cos(angle) * dist,
-        y: height / 2 + Math.sin(angle) * dist,
-        vx: (Math.random() - 0.5) * 1.5,
-        vy: (Math.random() - 0.5) * 1.5,
-        size: Math.random() * 2.5 + 1,
-        alpha: Math.random() * 0.8 + 0.2,
-        color: colors[Math.floor(Math.random() * colors.length)],
-      });
-    }
-
-    let running = true;
-    const render = () => {
-      if (!running) return;
-      ctx.clearRect(0, 0, width, height);
-
-      const cx = width / 2;
-      const cy = height / 2;
-
-      for (const p of particles) {
-        // Gravitate toward center
-        const dx = cx - p.x;
-        const dy = cy - p.y;
-        p.vx += dx * 0.003;
-        p.vy += dy * 0.003;
-        p.x += p.vx;
-        p.y += p.vy;
-
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = p.alpha;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-
-      animRef.current = requestAnimationFrame(render);
+    const finish = () => {
+      if (finishedRef.current) return;
+      finishedRef.current = true;
+      setIsLeaving(true);
+      window.setTimeout(() => {
+        setIsVisible(false);
+        onComplete?.();
+      }, FADE_MS);
     };
 
-    animRef.current = requestAnimationFrame(render);
+    const hold = window.setTimeout(finish, HOLD_MS);
+    // Escape dismisses it, because a full-screen overlay that only answers to a
+    // mouse click is a trap for anyone driving the app from the keyboard.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' || event.key === 'Enter' || event.key === ' ') finish();
+    };
+    window.addEventListener('keydown', onKeyDown);
 
     return () => {
-      running = false;
-      window.removeEventListener('resize', onResize);
-      if (animRef.current) cancelAnimationFrame(animRef.current);
+      window.clearTimeout(hold);
+      window.removeEventListener('keydown', onKeyDown);
     };
-  }, [isVisible]);
+  }, [isVisible, onComplete]);
 
   if (!isVisible) return null;
+
+  const dismiss = () => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    setIsVisible(false);
+    onComplete?.();
+  };
 
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ opacity: 1 }}
-        animate={{ opacity: phase === 'exit' ? 0 : 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.35, ease: 'easeInOut' }}
-        onClick={() => {
-          setIsVisible(false);
-          if (onComplete) onComplete();
-        }}
-        className="fixed inset-0 z-[99999] flex items-center justify-center bg-[#07080A] select-none cursor-pointer overflow-hidden"
+        initial={{ opacity: prefersReducedMotion ? 1 : 0 }}
+        animate={{ opacity: isLeaving ? 0 : 1 }}
+        transition={{ duration: FADE_MS / 1000, ease: 'easeOut' }}
+        onClick={dismiss}
+        className="fixed inset-0 z-[99999] flex select-none flex-col items-center justify-center gap-6 bg-[#090A0C]"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
       >
-        {/* Background Particle Canvas */}
-        <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
-
-        {/* Central Radial Light Glow */}
         <motion.div
-          animate={{
-            scale: phase === 'glow' ? 1.4 : 1,
-            opacity: phase === 'glow' ? 0.75 : 0.4,
-          }}
-          transition={{ duration: 0.5 }}
-          className="absolute size-96 rounded-full bg-gradient-to-r from-[#FF5500]/40 via-[#FF8C42]/50 to-[#FFAA00]/30 blur-3xl pointer-events-none"
-        />
-
-        {/* Central Hero Assembly Box */}
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0, y: 10 }}
-          animate={{
-            scale: phase === 'exit' ? 0.85 : 1,
-            opacity: phase === 'exit' ? 0 : 1,
-            y: phase === 'exit' ? -20 : 0,
-          }}
-          transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-          className="relative z-10 flex flex-col items-center gap-5 text-center"
+          initial={prefersReducedMotion ? undefined : { opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28, ease: 'easeOut' }}
+          className="flex flex-col items-center gap-5"
         >
-          {/* 3D Laser Envelope Tile */}
-          <div className="relative size-24 flex items-center justify-center">
-            {/* Outer Pulsating Ring */}
-            <motion.div
-              animate={{ rotate: 360, scale: [1, 1.08, 1] }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-              className="absolute inset-0 rounded-3xl border border-[#FF8C42]/40 shadow-[0_0_30px_rgba(255,140,66,0.5)]"
-            />
-
-            {/* Inner Obsidian Tile */}
-            <div className="size-20 rounded-2xl bg-gradient-to-b from-[#20232E] to-[#0A0B0E] border border-[#FF8C42]/60 flex items-center justify-center shadow-2xl relative overflow-hidden">
-              {/* Laser Seam Envelope SVG */}
-              <svg className="size-11 text-[#FF8C42]" viewBox="0 0 24 24" fill="none">
-                <rect
-                  x="2"
-                  y="4"
-                  width="20"
-                  height="16"
-                  rx="3"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                />
-                <path
-                  d="M2.5 4.5L12 13.5L21.5 4.5"
-                  stroke="#FF8C42"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-
-              {/* Quantum Core Light Glint */}
-              <motion.span
-                animate={{ scale: [1, 1.6, 1], opacity: [0.6, 1, 0.6] }}
-                transition={{ duration: 1, repeat: Infinity }}
-                className="absolute size-3 rounded-full bg-white shadow-[0_0_15px_#FF8C42]"
-                style={{ top: '56%', left: '44%' }}
-              />
-            </div>
+          <div className="flex size-16 items-center justify-center rounded-2xl border border-[#282C35] bg-[#111318] shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
+            <svg
+              className="size-8 text-[#FF8C42]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
+              <path d="M3 5.5 12 13l9-7.5" />
+            </svg>
           </div>
 
-          {/* Flowing Cursive Signature Wordmark */}
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.4 }}
-            className="flex flex-col items-center"
-          >
-            <BrandWordmark app="mail" size="text-4xl" />
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="text-xs tracking-widest text-[#A1A4AC] uppercase font-mono mt-1"
-            >
-              Zero-Noise Intelligence
-            </motion.p>
-          </motion.div>
+          <BrandWordmark app="mail" size="text-2xl" />
         </motion.div>
+
+        {/*
+          A determinate bar, not a spinner: the hold is a known length, so the
+          honest signal is how much of it is left. Fixed width rather than a
+          percentage so it reads the same on a phone and a monitor.
+        */}
+        <div className="h-0.5 w-32 overflow-hidden rounded-full bg-[#282C35]" aria-hidden="true">
+          <motion.div
+            className="h-full rounded-full bg-[#FF8C42]"
+            initial={{ width: prefersReducedMotion ? '100%' : '0%' }}
+            animate={{ width: '100%' }}
+            transition={{ duration: prefersReducedMotion ? 0 : HOLD_MS / 1000, ease: 'linear' }}
+          />
+        </div>
+
+        <span className="sr-only">Loading QuantMail</span>
       </motion.div>
     </AnimatePresence>
   );

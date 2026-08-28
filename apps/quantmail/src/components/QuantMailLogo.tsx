@@ -399,7 +399,15 @@ export function QuantMailLogo({
         <canvas
           ref={canvasRef}
           style={{ width: size, height: size }}
-          className="w-full h-full drop-shadow-[0_4px_16px_rgba(255,85,0,0.45)]"
+          /*
+           * A neutral shadow, not a coloured one. This was
+           * `drop-shadow(0 4px 16px rgba(255,85,0,0.45))` — a saturated orange at
+           * 45% that isn't in the palette and, on the near-black canvas, read as a
+           * halo around the mark rather than as elevation. The mark is drawn in
+           * brand orange already; ringing it in more orange is the exact look the
+           * product is defined against.
+           */
+          className="w-full h-full drop-shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
         />
       </motion.div>
 

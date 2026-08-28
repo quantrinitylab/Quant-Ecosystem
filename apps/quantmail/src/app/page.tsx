@@ -324,7 +324,7 @@ function EmailRow({
             event.stopPropagation();
             onToggleSelect(event);
           }}
-          aria-label={`Select conversation with ${thread.sendersSummary}`}
+          aria-label={`Select conversation with ${thread.participantsSummary}`}
         />
         <button
           type="button"
@@ -332,17 +332,22 @@ function EmailRow({
             event.stopPropagation();
             onToggleSelect(event);
           }}
-          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          className="flex shrink-0 items-center justify-center rounded-full min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
           title="Select conversation"
-          aria-label={`Select ${thread.sendersSummary}`}
+          aria-label={`Select ${thread.participantsSummary}`}
         >
-          <IdentityAvatar name={thread.sendersSummary || '?'} size="sm" />
+          {/*
+            Seeded on the first participant rather than the whole summary so one
+            person keeps one colour across every row they appear in — the summary
+            changes as a thread grows, the person does not.
+          */}
+          <IdentityAvatar name={thread.participants[0] || 'You'} size="sm" />
         </button>
         <div className="mail-row-copy">
           <div className="mail-row-meta">
             <div className="flex items-center gap-1.5 min-w-0">
               <strong className="truncate text-[#F5F5F5] font-semibold">
-                {thread.sendersSummary}
+                {thread.participantsSummary}
               </strong>
               {thread.count > 1 && (
                 <span className="px-1.5 py-0.2 rounded-full bg-[#282C35] text-[10px] font-mono text-[#A1A4AC] shrink-0">
@@ -401,7 +406,7 @@ function EmailRow({
         {!isHovered && !showSnoozeMenu && (
           <button
             type="button"
-            className={`p-1.5 rounded-xl transition-all ${
+            className={`flex items-center justify-center shrink-0 p-1.5 rounded-xl transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
               email.isStarred
                 ? 'text-[#FF8C42] fill-[#FF8C42] bg-[#FF8C42]/15'
                 : 'text-[#6B6E76] hover:text-[#A1A4AC] hover:bg-[#282C35]/60'
@@ -727,7 +732,13 @@ function ArchivedFolderRow({
           <span className="text-sm font-semibold text-[#F5F5F5] truncate">
             {isViewing ? 'Back to inbox' : 'Archived'}
           </span>
-          <span className="text-[11px] text-[#6B6E76] truncate">
+          {/*
+            The secondary tier, not the tertiary one: `#6B6E76` at 11px measures
+            3.64:1 on this surface, under the 4.5:1 small text needs. It still
+            reads as the quieter of the two lines because the line above it is
+            larger and semibold.
+          */}
+          <span className="text-[11px] text-[#A1A4AC] truncate">
             {isViewing
               ? `Viewing archived ${categoryLabel}`
               : `${count} archived conversation${count === 1 ? '' : 's'}`}
@@ -1462,7 +1473,7 @@ export default function InboxPage() {
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            className={`md:hidden inline-flex size-9 items-center justify-center rounded-lg transition-colors ${
+            className={`md:hidden inline-flex size-11 sm:size-9 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
               isSearchOpen
                 ? 'bg-[#282C35] text-[#FF8C42]'
                 : 'text-[#A1A4AC] hover:text-white hover:bg-[#282C35]'
@@ -1475,7 +1486,7 @@ export default function InboxPage() {
           <button
             type="button"
             onClick={() => setIsGlobalQuantyOpen(true)}
-            className="inline-flex size-9 items-center justify-center rounded-lg text-[#FF8C42] hover:bg-[#282C35] transition-colors"
+            className="inline-flex size-11 sm:size-9 items-center justify-center rounded-lg text-[#FF8C42] hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             aria-label="Ask Quanty AI"
           >
             <Quanty size={24} expression="happy" bob={false} />
@@ -1579,7 +1590,7 @@ export default function InboxPage() {
                       setActiveFocus(focus.key);
                       setShowArchivedView(false);
                     }}
-                    className={`px-3.5 min-h-[40px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                    className={`px-3.5 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                       isActive
                         ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] font-semibold'
                         : 'border border-transparent text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#1C1F26]'
@@ -1588,10 +1599,15 @@ export default function InboxPage() {
                     <span>{focus.label}</span>
                     {count > 0 && (
                       <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold leading-tight ${
+                        /*
+                          The unselected count was `#6B6E76` on `#090A0C` — 3.88:1,
+                          under the floor, on the one glyph in the pill that carries
+                          information rather than a label.
+                        */
+                        className={`text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight ${
                           isActive
                             ? 'bg-[#FF8C42]/20 text-[#FF9B5A]'
-                            : 'bg-[#090A0C] text-[#6B6E76] border border-[#282C35]'
+                            : 'bg-[#090A0C] text-[#A1A4AC] border border-[#282C35]'
                         }`}
                       >
                         {count}
@@ -1611,7 +1627,7 @@ export default function InboxPage() {
                     ? `Filter conversations, ${activeFilters.size} active`
                     : 'Filter conversations'
                 }
-                className={`inline-flex items-center gap-1.5 px-3 min-h-[44px] sm:min-h-[34px] rounded-full text-xs font-medium border whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                className={`inline-flex items-center justify-center gap-1.5 px-3 min-h-[44px] min-w-[44px] sm:min-h-[34px] sm:min-w-0 rounded-full text-xs font-medium border whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                   activeFilters.size > 0 || isFilterMenuOpen
                     ? 'bg-[#2B1A11] text-[#FF8C42] border-[#5C3016] font-semibold'
                     : 'bg-[#111318] text-[#A1A4AC] border-[#282C35] hover:text-[#F5F5F5] hover:bg-[#1C1F26]'
@@ -1620,7 +1636,7 @@ export default function InboxPage() {
                 <IconFilter size={14} />
                 <span className="hidden sm:inline">Filter</span>
                 {activeFilters.size > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold leading-tight bg-[#FF8C42]/20 text-[#FF9B5A]">
+                  <span className="text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight bg-[#FF8C42]/20 text-[#FF9B5A]">
                     {activeFilters.size}
                   </span>
                 )}

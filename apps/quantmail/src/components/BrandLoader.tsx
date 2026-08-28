@@ -50,18 +50,16 @@ export function BrandLoader({
 
       {/* Center Precision Mascot & Smooth Orbital Progress */}
       <div className="relative flex flex-col items-center justify-center">
-        {/* Soft Ambient Warm Glow */}
-        <div className="absolute -inset-12 rounded-full bg-gradient-to-tr from-[#FF8C42]/20 via-[#FF8C42]/10 to-transparent blur-3xl" />
-
         <div className="relative flex items-center justify-center size-24 sm:size-28">
           {/* Track Ring */}
           <div className="absolute inset-0 rounded-full border border-[#282C35]/80" />
 
-          {/* Smooth Conic Orbital Spinner */}
-          <div
-            className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#FF8C42] border-r-amber-400/80 animate-[spin_1s_cubic-bezier(0.4,0,0.2,1)_infinite]"
-            style={{ filter: 'drop-shadow(0 0 8px rgba(255, 140, 66, 0.4))' }}
-          />
+          {/*
+            Smooth conic orbital spinner. The arc is the whole signal — it had a
+            blurred amber blob behind it and a drop-shadow around it, which on the
+            near-black canvas read as a neon bloom rather than as progress.
+          */}
+          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#FF8C42] border-r-[#FF9B5A]/70 animate-[spin_1s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
 
           {/* Center Mascot Logo */}
           <div className="relative z-10 flex items-center justify-center size-14 sm:size-16 rounded-2xl bg-[#090A0C]/80 border border-[#282C35]/90 shadow-2xl">
