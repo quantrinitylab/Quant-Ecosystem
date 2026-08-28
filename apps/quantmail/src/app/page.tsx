@@ -26,7 +26,6 @@ import { QuantMailLogo } from '../components/QuantMailLogo';
 import { Quanty } from '../components/Quanty';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { EmailSenderHeader } from '../components/EmailSenderHeader';
-import { EmailLetterCard } from '../components/EmailLetterCard';
 import { QuantyCopilotDrawer } from '../components/QuantyCopilotDrawer';
 import { ConversationalThreadView } from '../components/ConversationalThreadView';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
@@ -35,9 +34,11 @@ import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer'
 import {
   groupEmailsIntoThreads,
   sanitizeSnippetText,
+  threadFocus,
   type ConversationThread,
 } from '../lib/threading';
 import { useAuth } from '../providers/auth-provider';
+import { IconCheck, IconFilter, IconX } from '../components/icons';
 import type { Email } from '../types';
 
 export type { ConversationThread };
@@ -49,14 +50,44 @@ export type { ConversationThread };
  */
 const ESTIMATED_ROW_HEIGHT = 80;
 
-const TELEGRAM_CATEGORIES: Array<{ key: string; label: string }> = [
-  { key: 'all', label: 'All' },
+/**
+ * The two halves of the inbox's Focus Bar.
+ *
+ * `InboxFocus` partitions the list by who spoke last, which is the one thing
+ * about a conversation this client can always answer from the messages already in
+ * hand. The seven category chips it replaces could not: `Updates` and `Offers`
+ * read `ConversationThread.category`, which resolves from the server's
+ * `aiCategory` column — declared in `packages/database/prisma/schema.prisma`,
+ * read in five places, and written in none. Every message ever stored therefore
+ * arrives as `'primary'`, so both chips were permanently empty, and `Contacts`
+ * (`!automated && (count <= 2 || category === 'primary')`) collapsed to "not
+ * automated" and returned nearly everything. Three of seven tabs described a
+ * classifier that was never built.
+ *
+ * `InboxFilter` keeps the narrowings that were always honest and makes them
+ * *compose* with the partition — which the chip strip could not do, since
+ * choosing `Unread` there discarded the category and vice versa. Each filter
+ * reads a field the row itself renders, so it can never disagree with what is on
+ * screen.
+ */
+type InboxFocus = 'needs_you' | 'waiting' | 'all';
+type InboxFilter = 'unread' | 'starred' | 'attachment' | 'group';
+
+const INBOX_FOCUSES: Array<{ key: InboxFocus; label: string; hint: string }> = [
+  {
+    key: 'needs_you',
+    label: 'Needs you',
+    hint: 'A person wrote last, so the next reply is yours',
+  },
+  { key: 'waiting', label: 'Waiting', hint: 'You wrote last, so you are waiting on them' },
+  { key: 'all', label: 'All', hint: 'Every conversation, automated mail included' },
+];
+
+const INBOX_FILTERS: Array<{ key: InboxFilter; label: string }> = [
   { key: 'unread', label: 'Unread' },
-  { key: 'contacts', label: 'Contacts' },
-  { key: 'groups', label: 'Groups' },
-  { key: 'updates', label: 'Updates' },
-  { key: 'promotions', label: 'Offers' },
-  { key: 'pinned', label: 'Pinned' },
+  { key: 'starred', label: 'Starred' },
+  { key: 'attachment', label: 'Has attachment' },
+  { key: 'group', label: 'Group thread' },
 ];
 
 type MailIconName =
@@ -703,7 +734,10 @@ function ArchivedFolderRow({
 
 export default function InboxPage() {
   const router = useRouter();
-  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('all');
+  const [activeFocus, setActiveFocus] = useState<InboxFocus>('all');
+  const [activeFilters, setActiveFilters] = useState<Set<InboxFilter>>(() => new Set());
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -746,19 +780,6 @@ export default function InboxPage() {
     [archivedEmails, currentEmail],
   );
 
-  const isContactThread = useCallback((t: ConversationThread) => {
-    const fromAddr = (
-      t.latestEmail.from?.email ||
-      (t.latestEmail as any).fromAddress ||
-      ''
-    ).toLowerCase();
-    const isAutomated =
-      /no-?reply|notification|alert|newsletter|marketing|updates?@|promo|mailer|support@|digest|bot@/i.test(
-        fromAddr,
-      );
-    return !isAutomated && (t.count <= 2 || t.category === 'primary');
-  }, []);
-
   const isGroupThread = useCallback((t: ConversationThread) => {
     if (t.category === 'forums') return true;
     const msg = t.latestEmail;
@@ -767,18 +788,80 @@ export default function InboxPage() {
     return toCount + ccCount > 1 || (msg as any).isGroup === true;
   }, []);
 
-  const filterThreads = useCallback(
-    (list: ConversationThread[], tab: string) => {
-      if (tab === 'unread') return list.filter((t) => !t.isRead);
-      if (tab === 'pinned') return list.filter((t) => t.isStarred);
-      if (tab === 'contacts') return list.filter((t) => isContactThread(t));
-      if (tab === 'groups') return list.filter((t) => isGroupThread(t));
-      if (tab === 'updates') return list.filter((t) => t.category === 'updates');
-      if (tab === 'promotions') return list.filter((t) => t.category === 'promotions');
-      return list; // 'all'
-    },
-    [isContactThread, isGroupThread],
+  /**
+   * A conversation carries an attachment when any message in it does — not just
+   * the latest, since the file you are hunting for is usually the one someone sent
+   * three replies ago.
+   */
+  const threadHasAttachment = useCallback(
+    (t: ConversationThread) =>
+      t.messages.some((m) => Array.isArray(m.attachments) && m.attachments.length > 0),
+    [],
   );
+
+  const matchesFilter = useCallback(
+    (t: ConversationThread, filter: InboxFilter) => {
+      if (filter === 'unread') return !t.isRead;
+      if (filter === 'starred') return t.isStarred;
+      if (filter === 'attachment') return threadHasAttachment(t);
+      return isGroupThread(t);
+    },
+    [isGroupThread, threadHasAttachment],
+  );
+
+  /**
+   * Narrow a list to one focus and every active filter.
+   *
+   * Filters are ANDed with each other and with the partition, so `Needs you` +
+   * `Unread` + `Has attachment` means all three at once. The default view narrows
+   * nothing and returns the array untouched.
+   */
+  const narrowThreads = useCallback(
+    (list: ConversationThread[], focus: InboxFocus, filters: Set<InboxFilter>) => {
+      const active = Array.from(filters);
+      if (focus === 'all' && active.length === 0) return list;
+      return list.filter(
+        (t) =>
+          (focus === 'all' || threadFocus(t, currentEmail) === focus) &&
+          active.every((f) => matchesFilter(t, f)),
+      );
+    },
+    [currentEmail, matchesFilter],
+  );
+
+  const resetInboxView = useCallback(() => {
+    setActiveFocus('all');
+    setActiveFilters(new Set());
+  }, []);
+
+  const toggleFilter = useCallback((filter: InboxFilter) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(filter)) next.delete(filter);
+      else next.add(filter);
+      return next;
+    });
+    setShowArchivedView(false);
+  }, []);
+
+  /** Dismiss the filter popover on an outside click or Escape. */
+  useEffect(() => {
+    if (!isFilterMenuOpen) return;
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!filterMenuRef.current?.contains(event.target as Node)) setIsFilterMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsFilterMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isFilterMenuOpen]);
 
   /**
    * The population the visible list is drawn from, before the category tab
@@ -797,25 +880,69 @@ export default function InboxPage() {
     [showArchivedView, allArchivedThreads, threads],
   );
 
-  const tabCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      all: activeThreadPool.length,
-      unread: activeThreadPool.filter((t) => !t.isRead).length,
-      contacts: activeThreadPool.filter((t) => isContactThread(t)).length,
-      groups: activeThreadPool.filter((t) => isGroupThread(t)).length,
-      updates: activeThreadPool.filter((t) => t.category === 'updates').length,
-      promotions: activeThreadPool.filter((t) => t.category === 'promotions').length,
-      pinned: activeThreadPool.filter((t) => t.isStarred).length,
-    };
+  /**
+   * Focus counts, measured on the pool the active filters have already narrowed.
+   *
+   * Cross-tabulating is the whole reason the two controls can compose. A count
+   * that ignored the other control would promise rows the list will not show: with
+   * `Unread` on, `Needs you 12` has to mean twelve unread conversations waiting on
+   * a reply, not twelve conversations of which some are already read.
+   *
+   * `needs_you + waiting` deliberately falls short of `all` — a receipt from
+   * `no-reply@` is neither a reply you owe nor one you are owed. `heldBackCount`
+   * says so out loud rather than leaving the gap to look like a bug.
+   */
+  const focusCounts = useMemo(() => {
+    const pool = narrowThreads(activeThreadPool, 'all', activeFilters);
+    const counts: Record<InboxFocus, number> = { needs_you: 0, waiting: 0, all: pool.length };
+    for (const t of pool) {
+      const focus = threadFocus(t, currentEmail);
+      if (focus === 'needs_you') counts.needs_you += 1;
+      else if (focus === 'waiting') counts.waiting += 1;
+    }
     return counts;
-  }, [activeThreadPool, isContactThread, isGroupThread]);
+  }, [activeThreadPool, activeFilters, narrowThreads, currentEmail]);
+
+  /**
+   * Each filter's count is "how many rows you would get by turning this on",
+   * measured against the active focus and the *other* active filters. For a filter
+   * already on, that is exactly the length of the list under it.
+   */
+  const filterCounts = useMemo(() => {
+    const counts = { unread: 0, starred: 0, attachment: 0, group: 0 } as Record<
+      InboxFilter,
+      number
+    >;
+    for (const { key } of INBOX_FILTERS) {
+      const others = new Set(activeFilters);
+      others.delete(key);
+      counts[key] = narrowThreads(activeThreadPool, activeFocus, others).filter((t) =>
+        matchesFilter(t, key),
+      ).length;
+    }
+    return counts;
+  }, [activeThreadPool, activeFocus, activeFilters, narrowThreads, matchesFilter]);
+
+  const heldBackCount =
+    activeFocus === 'all' ? 0 : focusCounts.all - focusCounts.needs_you - focusCounts.waiting;
+
+  /** What the archived shelf calls the population it is counting. */
+  const viewLabel = useMemo(() => {
+    const base =
+      activeFocus === 'needs_you'
+        ? 'conversations needing you'
+        : activeFocus === 'waiting'
+          ? 'conversations you are waiting on'
+          : 'conversations';
+    return activeFilters.size > 0 ? `filtered ${base}` : base;
+  }, [activeFocus, activeFilters]);
 
   const currentArchivedThreads = useMemo(() => {
-    return filterThreads(allArchivedThreads, activeCategoryTab);
-  }, [allArchivedThreads, activeCategoryTab, filterThreads]);
+    return narrowThreads(allArchivedThreads, activeFocus, activeFilters);
+  }, [allArchivedThreads, activeFocus, activeFilters, narrowThreads]);
 
   const displayThreads = useMemo(() => {
-    const sourceThreads = filterThreads(activeThreadPool, activeCategoryTab);
+    const sourceThreads = narrowThreads(activeThreadPool, activeFocus, activeFilters);
 
     return [...sourceThreads].sort((a, b) => {
       if (a.isStarred !== b.isStarred) {
@@ -823,7 +950,7 @@ export default function InboxPage() {
       }
       return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
     });
-  }, [activeThreadPool, activeCategoryTab, filterThreads]);
+  }, [activeThreadPool, activeFocus, activeFilters, narrowThreads]);
 
   /**
    * Whether to say out loud that starred conversations are held at the top.
@@ -831,16 +958,16 @@ export default function InboxPage() {
    * The sort above is two-level — starred first, then newest — and nothing on
    * screen said so, so a list whose first three rows were from last week read as
    * a broken date sort rather than as a pin the user had asked for themselves.
-   * The caption appears only when the pin actually moved something: not in the
-   * `pinned` tab, where every row is starred, and not when nothing is starred or
-   * everything is.
+   * The caption appears only when the pin actually moved something: not under the
+   * `Starred` filter, where every row is starred, and not when nothing is starred
+   * or everything is.
    */
   const pinnedCount = useMemo(
     () => displayThreads.filter((t) => t.isStarred).length,
     [displayThreads],
   );
   const showPinnedNotice =
-    activeCategoryTab !== 'pinned' && pinnedCount > 0 && pinnedCount < displayThreads.length;
+    !activeFilters.has('starred') && pinnedCount > 0 && pinnedCount < displayThreads.length;
 
   /**
    * The archived toggle scrolls with the list, so the virtualizer has to know how
@@ -894,7 +1021,7 @@ export default function InboxPage() {
     virtualizer.scrollToTop();
     // `scrollToTop` is stable for a given scroll container; re-running on every
     // virtualizer commit would fight the user's own scrolling.
-  }, [activeCategoryTab, showArchivedView, debouncedQuery]);
+  }, [activeFocus, activeFilters, showArchivedView, debouncedQuery]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
@@ -1320,7 +1447,7 @@ export default function InboxPage() {
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search in QuantMail (sender, subject, keyword)…"
       onFabClick={() =>
-        activeCategoryTab === 'groups' ? setIsCreateGroupModalOpen(true) : router.push('/compose')
+        activeFilters.has('group') ? setIsCreateGroupModalOpen(true) : router.push('/compose')
       }
       mobileActions={
         <div className="flex items-center gap-1.5">
@@ -1362,13 +1489,12 @@ export default function InboxPage() {
               type="button"
               className="hero-compose"
               onClick={() =>
-                activeCategoryTab === 'groups'
+                activeFilters.has('group')
                   ? setIsCreateGroupModalOpen(true)
                   : router.push('/compose')
               }
             >
-              <MailIcon name="compose" />{' '}
-              {activeCategoryTab === 'groups' ? 'Create Group' : 'Compose'}
+              <MailIcon name="compose" /> {activeFilters.has('group') ? 'Create Group' : 'Compose'}
             </button>
           </header>
 
@@ -1419,40 +1545,137 @@ export default function InboxPage() {
             )}
           </AnimatePresence>
 
-          {/* Telegram-Style Sleek Horizontal Category Pill Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto py-3 px-3 sm:px-4 no-scrollbar select-none border-b border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md">
-            {TELEGRAM_CATEGORIES.map((cat) => {
-              const isActive = activeCategoryTab === cat.key;
-              const count = tabCounts[cat.key] || 0;
-              return (
-                <button
-                  key={cat.key}
-                  type="button"
-                  onClick={() => {
-                    setActiveCategoryTab(cat.key);
-                    setShowArchivedView(false);
-                  }}
-                  className={`relative px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 ${
-                    isActive
-                      ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] font-semibold'
-                      : 'bg-[#16181D] hover:bg-[#1C1F26] text-[#A1A4AC] hover:text-[#F5F5F5] border border-[#282C35]'
-                  }`}
-                >
-                  <span>{cat.label}</span>
-                  {count > 0 && (
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold leading-tight ${
-                        isActive
-                          ? 'bg-[#FF8C42]/20 text-[#FF9B5A]'
-                          : 'bg-[#111318] text-[#6B6E76] border border-[#282C35]'
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+          {/*
+            Focus Bar. Left: which side of the conversation the ball is on, a
+            partition derived from the messages in hand. Right: the filters that
+            compose with it. See `InboxFocus` for why the category chips went.
+          */}
+          <div className="flex items-center gap-2 py-2 px-3 sm:px-4 border-b border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md">
+            <div
+              role="tablist"
+              aria-label="Conversation focus"
+              className="flex-1 min-w-0 flex items-center gap-1 p-1 rounded-full bg-[#111318] border border-[#282C35] overflow-x-auto no-scrollbar select-none"
+            >
+              {INBOX_FOCUSES.map((focus) => {
+                const isActive = activeFocus === focus.key;
+                const count = focusCounts[focus.key];
+                return (
+                  <button
+                    key={focus.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    title={focus.hint}
+                    onClick={() => {
+                      setActiveFocus(focus.key);
+                      setShowArchivedView(false);
+                    }}
+                    className={`px-3.5 min-h-[40px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                      isActive
+                        ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] font-semibold'
+                        : 'border border-transparent text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#1C1F26]'
+                    }`}
+                  >
+                    <span>{focus.label}</span>
+                    {count > 0 && (
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold leading-tight ${
+                          isActive
+                            ? 'bg-[#FF8C42]/20 text-[#FF9B5A]'
+                            : 'bg-[#090A0C] text-[#6B6E76] border border-[#282C35]'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="relative shrink-0" ref={filterMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsFilterMenuOpen((prev) => !prev)}
+                aria-expanded={isFilterMenuOpen}
+                aria-label={
+                  activeFilters.size > 0
+                    ? `Filter conversations, ${activeFilters.size} active`
+                    : 'Filter conversations'
+                }
+                className={`inline-flex items-center gap-1.5 px-3 min-h-[44px] sm:min-h-[34px] rounded-full text-xs font-medium border whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  activeFilters.size > 0 || isFilterMenuOpen
+                    ? 'bg-[#2B1A11] text-[#FF8C42] border-[#5C3016] font-semibold'
+                    : 'bg-[#111318] text-[#A1A4AC] border-[#282C35] hover:text-[#F5F5F5] hover:bg-[#1C1F26]'
+                }`}
+              >
+                <IconFilter size={14} />
+                <span className="hidden sm:inline">Filter</span>
+                {activeFilters.size > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold leading-tight bg-[#FF8C42]/20 text-[#FF9B5A]">
+                    {activeFilters.size}
+                  </span>
+                )}
+              </button>
+              <AnimatePresence>
+                {isFilterMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.14 }}
+                    className="absolute right-0 top-full mt-2 z-30 w-64 rounded-2xl bg-[#16181D] border border-[#282C35] shadow-[0_4px_16px_rgba(0,0,0,0.6)] overflow-hidden"
+                  >
+                    <p className="px-3 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#6B6E76]">
+                      Narrow this view
+                    </p>
+                    {INBOX_FILTERS.map((filter) => {
+                      const isOn = activeFilters.has(filter.key);
+                      return (
+                        <button
+                          key={filter.key}
+                          type="button"
+                          aria-pressed={isOn}
+                          onClick={() => toggleFilter(filter.key)}
+                          className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`size-[18px] shrink-0 rounded-md border inline-flex items-center justify-center transition-colors ${
+                              isOn
+                                ? 'bg-[#FF8C42] border-[#FF8C42] text-[#090A0C]'
+                                : 'border-[#3A404D] text-transparent'
+                            }`}
+                          >
+                            <IconCheck size={12} strokeWidth={2.4} />
+                          </span>
+                          <span
+                            className={`flex-1 truncate ${isOn ? 'text-[#F5F5F5] font-semibold' : 'text-[#A1A4AC]'}`}
+                          >
+                            {filter.label}
+                          </span>
+                          <span className="shrink-0 text-[10px] font-semibold text-[#6B6E76]">
+                            {filterCounts[filter.key]}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {activeFilters.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveFilters(new Set());
+                          setIsFilterMenuOpen(false);
+                        }}
+                        className="w-full min-h-[44px] px-3 flex items-center gap-2 text-left text-xs font-semibold text-[#A1A4AC] border-t border-[#282C35] transition-colors hover:bg-[#1C1F26] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+                      >
+                        <IconX size={13} />
+                        Clear {activeFilters.size} filter{activeFilters.size === 1 ? '' : 's'}
+                      </button>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* Pull to Refresh Indicator Bar */}
@@ -1501,7 +1724,7 @@ export default function InboxPage() {
               <ArchivedFolderRow
                 count={currentArchivedThreads.length}
                 isViewing={showArchivedView}
-                categoryLabel={activeCategoryTab === 'all' ? 'conversations' : activeCategoryTab}
+                categoryLabel={viewLabel}
                 onToggle={() => setShowArchivedView((prev) => !prev)}
               />
             )}
@@ -1548,7 +1771,7 @@ export default function InboxPage() {
                     </Button>
                   </div>
                 </div>
-              ) : activeCategoryTab === 'groups' ? (
+              ) : activeFilters.has('group') ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-3">
                   <div className="size-12 rounded-full bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto mb-1">
                     <svg
@@ -1574,7 +1797,7 @@ export default function InboxPage() {
                     </Button>
                   </div>
                 </div>
-              ) : activeCategoryTab === 'unread' ? (
+              ) : activeFilters.has('unread') ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-2">
                   <div className="size-12 rounded-full bg-emerald-950/40 border border-emerald-800/60 text-emerald-400 flex items-center justify-center mx-auto mb-1">
                     <svg
@@ -1590,26 +1813,28 @@ export default function InboxPage() {
                   <h3 className="text-base font-bold text-white">All caught up!</h3>
                   <p className="text-xs text-[#A1A4AC]">Zero unread messages in your inbox.</p>
                 </div>
-              ) : activeCategoryTab !== 'all' ? (
+              ) : activeFocus !== 'all' || activeFilters.size > 0 ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-2">
                   <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
-                    <svg
-                      className="size-6"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <rect x="2" y="4" width="20" height="16" rx="2" />
-                      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                    </svg>
+                    <IconFilter size={22} />
                   </div>
-                  <h3 className="text-base font-bold text-white">
-                    No {activeCategoryTab} messages
-                  </h3>
-                  <p className="text-xs text-[#A1A4AC]">
-                    Emails categorized as {activeCategoryTab} will appear here.
+                  <h3 className="text-base font-bold text-white">Nothing in this view</h3>
+                  <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
+                    {activeFocus === 'needs_you'
+                      ? 'No conversation is waiting on a reply from you.'
+                      : activeFocus === 'waiting'
+                        ? 'You are not waiting on a reply from anyone.'
+                        : 'No conversation matches the filters you have on.'}
+                    {heldBackCount > 0 &&
+                      ` ${heldBackCount} automated ${
+                        heldBackCount === 1 ? 'conversation is' : 'conversations are'
+                      } held out of this view.`}
                   </p>
+                  <div className="pt-2 flex justify-center">
+                    <Button variant="secondary" onClick={resetInboxView}>
+                      Show all conversations
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <InboxZeroState />
@@ -1639,9 +1864,7 @@ export default function InboxPage() {
                     <ArchivedFolderRow
                       count={currentArchivedThreads.length}
                       isViewing={showArchivedView}
-                      categoryLabel={
-                        activeCategoryTab === 'all' ? 'conversations' : activeCategoryTab
-                      }
+                      categoryLabel={viewLabel}
                       onToggle={() => setShowArchivedView((prev) => !prev)}
                     />
                   )}
@@ -1651,6 +1874,28 @@ export default function InboxPage() {
                       <span>
                         {pinnedCount} starred {pinnedCount === 1 ? 'conversation is' : 'are'} held
                         at the top. The rest are newest first.
+                      </span>
+                    </p>
+                  )}
+                  {/*
+                    `Needs you` and `Waiting` do not sum to `All`, and an
+                    unexplained gap between two counts reads as a bug. Say where
+                    the difference went, and offer the one click that shows it.
+                  */}
+                  {heldBackCount > 0 && (
+                    <p className="mail-pinned-notice">
+                      <IconFilter size={13} className="shrink-0" />
+                      <span>
+                        {heldBackCount} automated{' '}
+                        {heldBackCount === 1 ? 'conversation is' : 'conversations are'} held out of
+                        this view — no one is waiting on a reply to them.{' '}
+                        <button
+                          type="button"
+                          onClick={() => setActiveFocus('all')}
+                          className="relative font-semibold text-[#FF8C42] underline decoration-dotted underline-offset-2 hover:text-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded after:absolute after:-inset-y-[13px] after:-inset-x-[10px] after:content-['']"
+                        >
+                          Show all
+                        </button>
                       </span>
                     </p>
                   )}

@@ -32,6 +32,79 @@ export interface ConversationThread {
 }
 
 /**
+ * Whether a message was sent by the signed-in user.
+ *
+ * Three signals, because the shape of a message depends on where it came from:
+ * the server's own `isSent`/`status` when it round-tripped through our API, and
+ * the address otherwise. The handle-prefix check catches the case where the same
+ * person receives on one domain and sends from another — a real situation for
+ * anyone with an alias, and the reason a plain equality test is not enough.
+ */
+export function isFromMe(email: Email, currentEmail?: string): boolean {
+  const normMyEmail = (currentEmail || '').trim().toLowerCase();
+  const myHandle = normMyEmail.split('@')[0];
+  const fromAddr = (
+    email.from?.email ||
+    (email as { fromAddress?: string }).fromAddress ||
+    ''
+  ).toLowerCase();
+  return Boolean(
+    (normMyEmail &&
+      (fromAddr === normMyEmail || (myHandle && fromAddr.startsWith(`${myHandle}@`)))) ||
+    (email as { isSent?: boolean }).isSent ||
+    email.status === 'sent',
+  );
+}
+
+/**
+ * Whether a message came from a machine rather than a person.
+ *
+ * Address shape only. It is deliberately not a classifier: the server has an
+ * `aiCategory` column for that and nothing in the codebase ever writes to it, so
+ * a UI claiming to tell "Updates" from "Offers" would be claiming knowledge it
+ * does not have. What this *can* say honestly is that `no-reply@` will never read
+ * your answer, which is enough to keep a notification out of a queue whose whole
+ * promise is that a person is waiting on you.
+ */
+export function isAutomatedSender(email: Email): boolean {
+  const fromAddr = (
+    email.from?.email ||
+    (email as { fromAddress?: string }).fromAddress ||
+    ''
+  ).toLowerCase();
+  if (!fromAddr) return false;
+  return /no-?reply|do-?not-?reply|notification|alert|newsletter|marketing|updates?@|promo|mailer|support@|digest|bot@|automated|noti(fy|ce)@/i.test(
+    fromAddr,
+  );
+}
+
+/** Which side of a conversation the ball is on. */
+export type ThreadFocus = 'needs_you' | 'waiting' | 'neither';
+
+/**
+ * The conversational state of a thread: who spoke last.
+ *
+ * - `waiting` — you sent the most recent message, so you are waiting on them.
+ * - `needs_you` — a person sent the most recent message, so they are waiting on
+ *   you.
+ * - `neither` — the most recent message is from a machine. Not a reply you owe,
+ *   and not one you are owed.
+ *
+ * This is what replaced the inbox's category tabs. Those read `category`, which
+ * `groupEmailsIntoThreads` resolves to `'primary'` for every message ever stored
+ * because nothing writes `aiCategory` — so `Updates` and `Offers` were
+ * permanently empty and `Contacts` collapsed to "not automated", three tabs
+ * describing a classifier that was never built. Who spoke last is derivable from
+ * the messages actually in hand, so the answer is always true.
+ */
+export function threadFocus(thread: ConversationThread, currentEmail?: string): ThreadFocus {
+  const last = thread.messages[thread.messages.length - 1] ?? thread.latestEmail;
+  if (!last) return 'neither';
+  if (isFromMe(last, currentEmail)) return 'waiting';
+  return isAutomatedSender(last) ? 'neither' : 'needs_you';
+}
+
+/**
  * Repair mojibake and collapse whitespace in text destined for a single line.
  *
  * The `escape`/`decodeURIComponent` pair round-trips UTF-8 that arrived decoded as
@@ -119,9 +192,6 @@ export function groupEmailsIntoThreads(
 ): ConversationThread[] {
   if (!emails || emails.length === 0) return [];
 
-  const normMyEmail = (currentEmail || '').trim().toLowerCase();
-  const myHandle = normMyEmail.split('@')[0];
-
   const threadMap = new Map<string, Email[]>();
 
   for (const email of emails) {
@@ -148,14 +218,7 @@ export function groupEmailsIntoThreads(
     const senderNames: string[] = [];
     let hasOther = false;
     for (const m of msgList) {
-      const fromAddr = (m.from?.email || (m as any).fromAddress || '').toLowerCase();
-      const isMe = Boolean(
-        (normMyEmail &&
-          (fromAddr === normMyEmail || (myHandle && fromAddr.startsWith(`${myHandle}@`)))) ||
-        (m as any).isSent ||
-        m.status === 'sent',
-      );
-      if (isMe) {
+      if (isFromMe(m, currentEmail)) {
         if (!senderNames.includes('You')) senderNames.push('You');
       } else {
         hasOther = true;
