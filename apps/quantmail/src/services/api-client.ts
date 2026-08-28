@@ -19,6 +19,7 @@ import type {
   EmailLabel,
   EmailFilter,
   ComposeEmailRequest,
+  MessageKind,
   SearchEmailRequest,
   Repository,
   Branch,
@@ -193,8 +194,21 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/send`, {});
   }
 
-  async replyToEmail(id: string, body: string, replyAll?: boolean): Promise<ApiResponse<Email>> {
-    return this.post(`/emails/${id}/reply`, { body, replyAll });
+  /**
+   * Reply in place, without going through the composer.
+   *
+   * `messageKind` is what the quick input in a thread uses to say the line it just
+   * sent is chat, not a letter. Optional because the route defaults to `chat` for
+   * exactly this call — the only sender of a letter is the full composer, which
+   * posts to `/emails/compose` instead.
+   */
+  async replyToEmail(
+    id: string,
+    body: string,
+    replyAll?: boolean,
+    messageKind?: MessageKind,
+  ): Promise<ApiResponse<Email>> {
+    return this.post(`/emails/${id}/reply`, { body, replyAll, messageKind });
   }
 
   async forwardEmail(

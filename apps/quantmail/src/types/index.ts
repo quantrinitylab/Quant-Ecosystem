@@ -14,6 +14,17 @@ export type EmailPriority = 'high' | 'normal' | 'low';
 export type EmailCategory = 'primary' | 'social' | 'promotions' | 'updates' | 'forums' | 'spam';
 export type EmailStatus = 'draft' | 'sending' | 'sent' | 'delivered' | 'failed' | 'bounced';
 
+/**
+ * Mail or chat: the two ways a message in a conversation can be written.
+ *
+ * A `mail` is a full letter — its own subject line, a rich body, cc/bcc,
+ * attachments. A `chat` is a line typed straight into the thread. Both are real
+ * messages that leave over the same delivery path and land in the same thread, so
+ * the difference is only which composer wrote it and which mark the conversation
+ * shows. Lowercase to match how `priority` and `category` read on the wire.
+ */
+export type MessageKind = 'mail' | 'chat';
+
 export interface EmailAddress {
   email: string;
   name?: string;
@@ -33,6 +44,13 @@ export interface Email extends BaseEntity {
   priority: EmailPriority;
   category: EmailCategory;
   status: EmailStatus;
+  /**
+   * How the message was written: a full letter or a line typed into the
+   * conversation. Optional because a message stored before the column existed
+   * comes back without it; read it through `messageKindOf` in `lib/threading`,
+   * which supplies the fallback in one place.
+   */
+  messageKind?: MessageKind;
   isRead: boolean;
   isStarred: boolean;
   isArchived: boolean;
@@ -123,6 +141,12 @@ export interface ComposeEmailRequest {
   inReplyTo?: string;
   isDraft?: boolean;
   scheduledAt?: string;
+  /**
+   * Which composer wrote this. Optional so a caller that has no opinion keeps the
+   * server's default of a letter; the server never reclassifies a draft on an
+   * update that omits it.
+   */
+  messageKind?: MessageKind;
 }
 
 export interface SearchEmailRequest {

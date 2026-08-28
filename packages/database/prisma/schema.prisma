@@ -426,9 +426,21 @@ model Email {
   // outbound and existing rows leave it null.
   authResults    Json?
   priority       EmailPriority @default(NORMAL)
+  // How this message was written, so the conversation can show both kinds side by
+  // side and mark which is which. `MAIL` is a full letter — its own subject line,
+  // a rich body, cc/bcc, attachments. `CHAT` is a line typed straight into the
+  // thread. Both are real messages that leave over the same delivery path and
+  // land in the same thread; only the composer and the mark differ. Defaults to
+  // `MAIL` so every row written before this column existed keeps its meaning.
+  messageKind    EmailMessageKind @default(MAIL)
   aiSummary      String?
   aiCategory     String?
   sentAt         DateTime?
+  // When this copy entered *this* mailbox. Set for received mail on ingest and for
+  // a sent copy at the moment it is sent, because the unified inbox is one
+  // timeline ordered by this column — a null here means the message has no
+  // position in that timeline and cannot be shown next to the conversation it
+  // belongs to. Nullable only because drafts have not entered any timeline yet.
   receivedAt     DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -446,6 +458,11 @@ model Email {
   @@index([folderId])
   @@index([isRead])
   @@index([receivedAt])
+  // The inbox pages with `orderBy: [{ receivedAt: 'desc' }, { createdAt: 'desc' }]`.
+  // The composite keeps that an index scan, and the second column makes the page
+  // window deterministic when two messages share a timestamp — without it, a row
+  // can appear on two pages or on none.
+  @@index([receivedAt(sort: Desc), createdAt(sort: Desc)])
   @@map("emails")
 }
 
@@ -466,6 +483,15 @@ enum EmailDeliveryStatus {
   deferred
   bounced
   delivered
+}
+
+// Mail or chat: the two ways a message in a QuantMail conversation can be
+// written. The distinction is recorded rather than guessed, because the only
+// things a reader could guess from are body length and whether an HTML part
+// exists — and a one-line letter and a long chat message both defeat that.
+enum EmailMessageKind {
+  MAIL
+  CHAT
 }
 
 model EmailThread {

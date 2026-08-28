@@ -28,6 +28,7 @@ import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { EmailSenderHeader } from '../components/EmailSenderHeader';
 import { QuantyCopilotDrawer } from '../components/QuantyCopilotDrawer';
 import { ConversationalThreadView } from '../components/ConversationalThreadView';
+import { ThreadKindBadge } from '../components/MessageKindBadge';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
@@ -357,6 +358,14 @@ function EmailRow({
                 {priorityLower}
               </span>
             )}
+            {/*
+              Mail or chat, on the row itself. The glyph alone here: the meta line
+              already carries a name, a count, a dot, a priority and a time, and
+              `.mail-row-meta time` takes `margin-left: auto`, so every word added
+              to its left eats into the subject beneath it. The word is still in the
+              accessibility tree via the badge's `sr-only` text.
+            */}
+            <ThreadKindBadge mix={thread.kindMix} />
             <time>{formatReceivedAt(thread.receivedAt)}</time>
           </div>
           <h3 className="text-xs sm:text-sm font-medium text-[#A1A4AC] truncate">

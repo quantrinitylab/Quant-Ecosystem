@@ -11,7 +11,7 @@
  * `jsx` option, so nothing here may import a `.tsx` file.
  */
 
-import type { Email, EmailCategory } from '../types';
+import type { Email, EmailCategory, MessageKind } from '../types';
 
 /** One row in the inbox: a group of messages plus the summary the row shows. */
 export interface ConversationThread {
@@ -29,6 +29,12 @@ export interface ConversationThread {
   category: EmailCategory;
   priority?: string;
   labels: string[];
+  /**
+   * Which kinds of message the conversation holds: only letters, only chat, or
+   * both. Computed once here so the row does not walk the message list again, and
+   * so `mixed` — the case that makes the unified thread worth having — has a name.
+   */
+  kindMix: ThreadKindMix;
 }
 
 /**
@@ -102,6 +108,48 @@ export function threadFocus(thread: ConversationThread, currentEmail?: string): 
   if (!last) return 'neither';
   if (isFromMe(last, currentEmail)) return 'waiting';
   return isAutomatedSender(last) ? 'neither' : 'needs_you';
+}
+
+/** What kinds of message a conversation holds. */
+export type ThreadKindMix = 'mail' | 'chat' | 'mixed';
+
+/**
+ * Whether a message is a letter or a line typed into the conversation.
+ *
+ * The server records this on the message, so the answer is normally just read
+ * back. The fallback matters only for mail stored before the column existed: those
+ * rows are letters, because the chat composer did not exist when they were
+ * written, and every one of them came in through a mail client or the full
+ * composer.
+ *
+ * It is read through one function rather than inline at each call site because the
+ * previous behaviour was to *guess* — `!bodyHtml && bodyText.length < 120` — which
+ * called a one-line letter a chat message and a long chat message a letter, and
+ * which the thread view's own optimistic update defeated by filling in `bodyHtml`
+ * for every reply it had just sent.
+ */
+export function messageKindOf(email?: Email | null): MessageKind {
+  if (!email) return 'mail';
+  return String(email.messageKind ?? '').toLowerCase() === 'chat' ? 'chat' : 'mail';
+}
+
+/**
+ * The kinds present across a list of messages.
+ *
+ * `mixed` is the interesting answer: it is the case the unified thread exists for,
+ * where a letter and a chat message sit in one conversation. An empty list reads
+ * as `mail`, matching `messageKindOf`'s own default rather than inventing a fourth
+ * state for a thread with nothing in it.
+ */
+export function threadKindMix(messages: Email[] = []): ThreadKindMix {
+  let hasMail = false;
+  let hasChat = false;
+  for (const message of messages) {
+    if (messageKindOf(message) === 'chat') hasChat = true;
+    else hasMail = true;
+    if (hasMail && hasChat) return 'mixed';
+  }
+  return hasChat ? 'chat' : 'mail';
 }
 
 /**
@@ -253,6 +301,7 @@ export function groupEmailsIntoThreads(
       category: latest.category || 'primary',
       priority: latest.priority,
       labels: Array.from(new Set(msgList.flatMap((m) => m.labels || []))),
+      kindMix: threadKindMix(msgList),
     });
   }
 

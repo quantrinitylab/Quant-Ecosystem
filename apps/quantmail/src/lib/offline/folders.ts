@@ -13,10 +13,29 @@
  * update apply exactly the same rules.
  */
 
+import type { QueryClient } from '@tanstack/react-query';
 import type { Email } from '../../types';
 
 /** Query key prefixes whose data is an `Email[]`. */
 export const EMAIL_LIST_PREFIXES = [['inbox'], ['email-search']] as const;
+
+/**
+ * Mark every cached mailbox list stale, so the next render refetches it.
+ *
+ * The one thing every send path has to do and none of them did. `useInbox` holds
+ * `staleTime: 15_000` with `refetchInterval: 30_000`, which is right for mail
+ * arriving from other people and wrong for mail the user just sent: the composer
+ * pushed back to `/` and the message the user was looking for was absent for up
+ * to half a minute, which reads as "it wasn't sent". Invalidating is enough —
+ * React Query refetches the mounted list and the message appears in its real
+ * timeline position, rather than being spliced in optimistically at a guessed
+ * one.
+ */
+export function invalidateMailLists(queryClient: QueryClient): void {
+  for (const prefix of EMAIL_LIST_PREFIXES) {
+    void queryClient.invalidateQueries({ queryKey: prefix });
+  }
+}
 
 /**
  * Extract the folder from a React Query key.

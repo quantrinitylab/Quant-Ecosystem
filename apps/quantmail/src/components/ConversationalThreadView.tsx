@@ -2,14 +2,19 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient } from '../services/api-client';
-import type { Email, EmailAttachment, EmailThread } from '../types';
+import type { Email, EmailAttachment, EmailThread, MessageKind } from '../types';
 import { showToast } from './InboxToast';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
+import { MessageKindBadge } from './MessageKindBadge';
 import { QuantyCopilotDrawer } from './QuantyCopilotDrawer';
 import { Quanty } from './Quanty';
+import { IconChat, IconMail } from './icons';
+import { messageKindOf } from '../lib/threading';
+import { invalidateMailLists } from '../lib/offline/folders';
 import { useAuth } from '../providers/auth-provider';
 
 function formatMessageDate(value?: string | Date): string {
@@ -57,6 +62,7 @@ export function ConversationalThreadView({
   variant = 'pane',
 }: ConversationalThreadViewProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   // Normalized messages state
   const [messages, setMessages] = useState<Email[]>(() => {
@@ -80,6 +86,18 @@ export function ConversationalThreadView({
   const [isSendingQuickReply, setIsSendingQuickReply] = useState(false);
   const [isQuantyOpen, setIsQuantyOpen] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+
+  /**
+   * Which of the two things the bar at the bottom is about to write.
+   *
+   * `chat` sends the typed line straight into this conversation. `mail` hands the
+   * same text to the full composer, where it gains a subject, cc/bcc and rich
+   * formatting before it leaves. Both land in this thread and both are marked, so
+   * the choice is about how much ceremony the message needs, not about where it
+   * ends up. Defaults to `chat` because that is the cheap case and the one the bar
+   * is shaped for.
+   */
+  const [composeMode, setComposeMode] = useState<MessageKind>('chat');
 
   // Attachments in quick reply bar
   const [pendingAttachments, setPendingAttachments] = useState<
@@ -308,7 +326,10 @@ export function ConversationalThreadView({
     const replyTarget = messages.length > 0 ? messages[messages.length - 1].id : threadId;
 
     try {
-      const res = await apiClient.replyToEmail(replyTarget, replyContent);
+      // `'chat'` is the whole point of the bar: what is typed here is a line in the
+      // conversation, and the server records that so the mark on it is a fact rather
+      // than a guess about its length.
+      const res = await apiClient.replyToEmail(replyTarget, replyContent, undefined, 'chat');
       if (!res.success) {
         setReplyError(res.error?.message || 'Failed to send reply');
         showToast({ text: res.error?.message || 'Failed to send reply', type: 'error' });
@@ -326,6 +347,11 @@ export function ConversationalThreadView({
         bodyText: replyContent,
         bodyHtml: `<p>${replyContent.replace(/\n/g, '<br/>')}</p>`,
         snippet: replyContent.slice(0, 100),
+        // Carried on the optimistic copy so the message keeps its mark for the
+        // moment it is on screen before the refetch replaces it with the server's
+        // row. Without this the row would render as a letter — the field would be
+        // absent and `messageKindOf` defaults to `mail` — and then visibly flip.
+        messageKind: 'chat',
         from: { name: 'You', email: 'me@quantmail.in' },
         to: targetTo,
         cc: [],
@@ -366,6 +392,11 @@ export function ConversationalThreadView({
       setPendingAttachments([]);
       showToast({ text: 'Reply sent successfully', type: 'success' });
 
+      // The conversation has a new message, so every mailbox list showing this
+      // thread is now wrong — including the inbox behind this pane, which is where
+      // the user goes looking for what they just sent.
+      invalidateMailLists(queryClient);
+
       // Scroll to bottom
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -384,7 +415,57 @@ export function ConversationalThreadView({
     threadId,
     threadSubject,
     expandedIndices,
+    queryClient,
   ]);
+
+  /**
+   * Hand what is typed here to the full composer.
+   *
+   * The text travels as `?body=`, so flipping to Mail after starting to type keeps
+   * the words — the mode switch is a change of ceremony, not a reset. The recipient
+   * is read from the conversation: whoever the first message is from, unless that
+   * message is one of ours, in which case it is whoever it went to.
+   */
+  const openFullComposer = useCallback(() => {
+    const primary = messages[0];
+    const isOut =
+      primary &&
+      Boolean(
+        (primary as any).isOutbound ||
+        (primary as any).folder === 'SENT' ||
+        (primary as any).folder === 'sent' ||
+        (primary as any).folderType === 'SENT',
+      );
+    const recipientEmail = isOut
+      ? primary?.to?.[0]?.email || (primary as any)?.toAddresses?.[0] || ''
+      : primary?.from?.email || (primary as any)?.fromAddress || '';
+    const cleanSubject =
+      threadSubject?.replace(/^(Re:\s*)+/i, '').trim() ||
+      primary?.subject?.replace(/^(Re:\s*)+/i, '').trim() ||
+      '';
+
+    const params = new URLSearchParams();
+    if (recipientEmail) params.set('to', recipientEmail);
+    if (cleanSubject) params.set('subject', cleanSubject);
+    if (quickReplyText.trim()) params.set('body', quickReplyText.trim());
+    if (primary?.id || threadId) params.set('replyTo', primary?.id || threadId);
+
+    router.push(`/compose?${params.toString()}`);
+  }, [messages, quickReplyText, router, threadId, threadSubject]);
+
+  /**
+   * One entry point for the bar's Send, whichever mode it is in.
+   *
+   * The mode decides where the text goes, and nothing else in the bar has to know
+   * which mode is active — the input, the Enter key and the button all call this.
+   */
+  const handleBarSend = useCallback(() => {
+    if (composeMode === 'mail') {
+      openFullComposer();
+      return;
+    }
+    void handleSendReply();
+  }, [composeMode, handleSendReply, openFullComposer]);
 
   const primaryMessage = messages[0];
   const allExpanded = messages.length > 0 && expandedIndices.size === messages.length;
@@ -628,14 +709,17 @@ export function ConversationalThreadView({
               (message as any).toAddresses?.join(', ') ||
               'me';
 
-            // Detect if this message is a full rich email or a chat quick thread
-            const isThreadQuick = Boolean(
-              !message.subject ||
-              message.subject.toLowerCase() === '(no subject)' ||
-              message.subject.toLowerCase() === 'quick reply' ||
-              (message.bodyText && message.bodyText.length < 120 && !message.bodyHtml),
-            );
-            const messageTypeBadge = isThreadQuick ? 'Thread' : 'Mail';
+            /*
+             * Letter or line: read from the message, never guessed.
+             *
+             * This used to infer the kind from `!bodyHtml && bodyText.length < 120`,
+             * which called a one-line letter a chat message and a long chat message
+             * a letter — and which this component's own optimistic reply defeated
+             * outright by filling in `bodyHtml` for everything it had just sent, so
+             * a message typed into the bar below was always badged `Mail`. The
+             * server records the kind now; `messageKindOf` just reads it back.
+             */
+            const messageKind = messageKindOf(message);
 
             return (
               <motion.div
@@ -664,17 +748,9 @@ export function ConversationalThreadView({
                           {msgFromName}
                         </span>
 
-                        {/* Badges: Mail or Thread */}
+                        {/* Badges: Mail or Chat */}
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${
-                              messageTypeBadge === 'Mail'
-                                ? 'bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42]'
-                                : 'bg-[#16181D] border border-[#282C35] text-[#A1A4AC]'
-                            }`}
-                          >
-                            {messageTypeBadge}
-                          </span>
+                          <MessageKindBadge kind={messageKind} />
                           {hasAtt && (
                             <span className="px-1.5 py-0.5 rounded bg-[#2B1A11] border border-[#5C3016] text-[9px] font-semibold text-[#FF8C42] flex items-center gap-1">
                               <svg
@@ -737,15 +813,7 @@ export function ConversationalThreadView({
                             >
                               {msgFromName}
                             </span>
-                            <span
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-semibold font-mono ${
-                                messageTypeBadge === 'Mail'
-                                  ? 'bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42]'
-                                  : 'bg-[#16181D] border border-[#282C35] text-[#A1A4AC]'
-                              }`}
-                            >
-                              {messageTypeBadge}
-                            </span>
+                            <MessageKindBadge kind={messageKind} />
                             <span className="text-xs text-[#6B6E76] font-mono">
                               {formatMessageDate(message.receivedAt)}
                             </span>
@@ -961,6 +1029,51 @@ export function ConversationalThreadView({
 
       {/* Chatbot-Style Bottom Floating Quick Reply Bar */}
       <div className="p-3 sm:p-4 bg-[#08090d]/95 border-t border-[#282C35]/60 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
+        {/*
+          Message or Mail: the choice, stated.
+
+          It lives on its own line rather than in the bar because the bar is already
+          five controls wide at 360px, and because the choice governs everything to
+          its right — putting it above reads as a heading for the input, which is
+          what it is. `role="group"` with `aria-pressed` on each half, not a
+          `radiogroup`: these are two buttons that change what the next one does,
+          and a screen reader should hear which is active without the arrow-key
+          navigation a radio group promises.
+        */}
+        <div
+          role="group"
+          aria-label="Send as"
+          className="flex items-center gap-1 rounded-xl border border-[#282C35] bg-[#111318] p-1 w-fit"
+        >
+          {[
+            { mode: 'chat' as const, label: 'Message', Glyph: IconChat },
+            { mode: 'mail' as const, label: 'Mail', Glyph: IconMail },
+          ].map(({ mode, label, Glyph }) => {
+            const isActive = composeMode === mode;
+            return (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setComposeMode(mode)}
+                aria-pressed={isActive}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors min-h-[44px] sm:min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  isActive
+                    ? 'bg-[#2B1A11] text-[#FF8C42] shadow-[inset_0_0_0_1px_#5C3016]'
+                    : 'text-[#6B6E76] hover:bg-[#16181D] hover:text-[#A1A4AC]'
+                }`}
+                title={
+                  mode === 'chat'
+                    ? 'Send a line straight into this conversation'
+                    : 'Write a full letter — subject, cc, formatting'
+                }
+              >
+                <Glyph size={13} aria-hidden="true" />
+                <span>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Pending Attachment Previews */}
         {pendingAttachments.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap px-2 py-1">
@@ -1051,76 +1164,42 @@ export function ConversationalThreadView({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                void handleSendReply();
+                handleBarSend();
               }
             }}
-            placeholder="Quick reply (↵ to send)…"
+            placeholder={
+              composeMode === 'mail'
+                ? 'Start the letter — Enter opens the composer…'
+                : 'Message (↵ to send)…'
+            }
             className="min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[#6B6E76] focus:outline-none px-1 sm:px-2 py-1.5"
           />
 
-          {/* Mail Button (Opens Full Corporate Composer with Prefilled To) */}
+          {/* Send Button — sends the line, or carries it into the full composer */}
           <button
             type="button"
-            onClick={() => {
-              const isOut =
-                primaryMessage &&
-                Boolean(
-                  (primaryMessage as any).isOutbound ||
-                  (primaryMessage as any).folder === 'SENT' ||
-                  (primaryMessage as any).folder === 'sent' ||
-                  (primaryMessage as any).folderType === 'SENT',
-                );
-              const recipientEmail = isOut
-                ? primaryMessage?.to?.[0]?.email || (primaryMessage as any)?.toAddresses?.[0] || ''
-                : primaryMessage?.from?.email || (primaryMessage as any)?.fromAddress || '';
-              const cleanSubject =
-                threadSubject?.replace(/^(Re:\s*)+/i, '').trim() ||
-                primaryMessage?.subject?.replace(/^(Re:\s*)+/i, '').trim() ||
-                '';
-              const params = new URLSearchParams();
-              if (recipientEmail) params.set('to', recipientEmail);
-              if (cleanSubject) params.set('subject', cleanSubject);
-              if (primaryMessage?.id || threadId) {
-                params.set('replyTo', primaryMessage?.id || threadId);
-              }
-              router.push(`/compose?${params.toString()}`);
-            }}
-            className="inline-flex items-center gap-1 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-[#282C35]/90 hover:bg-[#3A404D] text-[#FF8C42] text-xs font-semibold transition-all shrink-0 border border-[#3A404D]/70 shadow-sm active:scale-95"
-            title="Open Full Mail Composer"
-          >
-            <svg
-              className="size-3.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <rect width="20" height="16" x="2" y="4" rx="2" />
-              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-            </svg>
-            <span className="text-xs">Mail</span>
-          </button>
-
-          {/* Send Button */}
-          <button
-            type="button"
-            onClick={handleSendReply}
+            onClick={handleBarSend}
             disabled={
-              (!quickReplyText.trim() && pendingAttachments.length === 0) || isSendingQuickReply
+              composeMode === 'chat' &&
+              ((!quickReplyText.trim() && pendingAttachments.length === 0) || isSendingQuickReply)
             }
-            className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1.5"
+            className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1.5 min-h-[44px] sm:min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111318]"
           >
-            <span>{isSendingQuickReply ? '…' : 'Send'}</span>
-            <svg
-              className="size-3.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-            >
-              <path d="m22 2-7 20-4-9-9-4Z" />
-              <path d="M22 2 11 13" />
-            </svg>
+            <span>{composeMode === 'mail' ? 'Compose' : isSendingQuickReply ? '…' : 'Send'}</span>
+            {composeMode === 'mail' ? (
+              <IconMail size={14} aria-hidden="true" />
+            ) : (
+              <svg
+                className="size-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+              >
+                <path d="m22 2-7 20-4-9-9-4Z" />
+                <path d="M22 2 11 13" />
+              </svg>
+            )}
           </button>
         </div>
 

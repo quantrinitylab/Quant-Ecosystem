@@ -84,8 +84,34 @@ describe('EmailService', () => {
           // must persist `false` rather than leaving the column unset.
           hasAttachments: false,
           attachments: [],
+          // A caller that says nothing is writing a letter. Recorded rather than
+          // left to the column default so the row's kind is explicit from the
+          // moment it exists.
+          messageKind: 'MAIL',
         },
       });
+    });
+
+    it('records a chat message as one', async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        email: 'user-1@quantchat.online',
+        displayName: 'User One',
+      });
+      prisma.email.create.mockResolvedValue({ id: 'email-2' });
+
+      await service.compose({
+        userId: 'user-1',
+        toAddresses: ['recipient@test.com'],
+        subject: 'Re: Design review',
+        bodyPlain: 'on my way',
+        messageKind: 'CHAT',
+      });
+
+      expect(prisma.email.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ messageKind: 'CHAT' }),
+        }),
+      );
     });
   });
 
@@ -128,9 +154,51 @@ describe('EmailService', () => {
           isSent: true,
           folderId: 'sent-folder-id',
           sentAt: expect.any(Date),
+          // The sender's own copy needs a position on the inbox timeline, not just
+          // a send time: the mailbox list is ordered by `receivedAt`, so a null
+          // here is why a message you sent never appeared beside the conversation
+          // it belongs to.
+          receivedAt: expect.any(Date),
           deliveryStatus: expect.any(String),
         },
       });
+    });
+
+    it('gives the sent copy the same timeline position as its send time', async () => {
+      prisma.email.findUnique.mockResolvedValue({
+        id: 'email-1',
+        userId: 'user-1',
+        isDraft: true,
+        toAddresses: ['recipient@test.com'],
+        fromAddress: 'user-1@quantmail.in',
+      });
+      prisma.email.update.mockResolvedValue({ id: 'email-1' });
+
+      await service.send('user-1', 'email-1', 'sent-folder-id');
+
+      const { data } = prisma.email.update.mock.calls[0][0];
+      expect(data.receivedAt).toEqual(data.sentAt);
+    });
+
+    it('leaves an existing timeline position alone', async () => {
+      // A scheduled or re-sent message already has a place in the timeline;
+      // overwriting it would move the message to today.
+      const original = new Date('2026-08-01T09:00:00Z');
+      prisma.email.findUnique.mockResolvedValue({
+        id: 'email-1',
+        userId: 'user-1',
+        isDraft: true,
+        toAddresses: ['recipient@test.com'],
+        fromAddress: 'user-1@quantmail.in',
+        receivedAt: original,
+      });
+      prisma.email.update.mockResolvedValue({ id: 'email-1' });
+
+      await service.send('user-1', 'email-1', 'sent-folder-id');
+
+      const { data } = prisma.email.update.mock.calls[0][0];
+      expect(data.receivedAt).toBe(original);
+      expect(data.sentAt).not.toBe(original);
     });
 
     it('throws EMAIL_NOT_FOUND for non-existent email', async () => {
