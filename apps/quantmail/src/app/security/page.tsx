@@ -5,6 +5,7 @@ import { Button, Input, FormField, Skeleton } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
+import { IconCheck } from '../../components/icons';
 import { apiClient } from '../../services/api-client';
 
 // ---------------------------------------------------------------------------
@@ -239,7 +240,9 @@ export default function SecurityPage() {
                   {twoFactorStep === 'done' && (
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                        <span className="text-green-400 text-lg">✓</span>
+                        <span className="text-green-400">
+                          <IconCheck size={20} strokeWidth={2.4} />
+                        </span>
                       </div>
                       <div>
                         <p className="text-sm font-medium text-green-400">

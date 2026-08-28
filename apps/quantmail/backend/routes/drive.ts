@@ -109,6 +109,19 @@ const uploadBodySchema = z.object({
 });
 
 export default async function driveRoutes(fastify: FastifyInstance) {
+  // GET /drive/quota — just the two numbers, no file list.
+  //
+  // The sidebars used to render hardcoded storage figures — `1.2 / 15 GB` in
+  // AppSidebar and `3.5 GB of 15 GB used` in Sidebar, on the same account, at
+  // the same time. Both are on every screen in the app, so neither can afford
+  // to pull the full `/drive/files` payload just to draw a progress bar.
+  fastify.get('/drive/quota', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const used = await usedBytes(prisma, userId);
+    return reply.send({ used, total: TOTAL_QUOTA });
+  });
+
   // GET /drive/files?folderId= — folders + files in the current folder.
   fastify.get<{ Querystring: { folderId?: string } }>('/drive/files', async (request, reply) => {
     const userId = requireUserId(request);

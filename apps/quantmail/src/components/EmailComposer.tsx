@@ -9,6 +9,7 @@ import { QuantDrivePickerModal } from './QuantDrivePickerModal';
 import { InsertLinkModal } from './InsertLinkModal';
 import { ScheduleSendModal } from './ScheduleSendModal';
 import { showToast } from './InboxToast';
+import { formatBytes } from '../lib/format-bytes';
 import { useAuth } from '../providers/auth-provider';
 import { RecipientChipInput, type RecipientOption } from './RecipientChipInput';
 import { useContacts } from '../hooks/useContacts';
@@ -99,14 +100,6 @@ const SMART_PREDICTIONS: Array<{ regex: RegExp; suggestion: string }> = [
   { regex: /\bhave a great\s*$/i, suggestion: ' day ahead.' },
   { regex: /\bhave a wonderful\s*$/i, suggestion: ' weekend.' },
 ];
-
-function formatFileSize(bytes: number): string {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
 
 export function EmailComposer({
   initialTo = '',
@@ -969,7 +962,7 @@ export function EmailComposer({
                   className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#111318] border border-[#282C35] text-xs text-white shadow-sm"
                 >
                   <span className="truncate max-w-[140px]">{file.name}</span>
-                  <span className="text-[10px] text-[#6B6E76]">({formatFileSize(file.size)})</span>
+                  <span className="text-[10px] text-[#6B6E76]">({formatBytes(file.size)})</span>
                   <button
                     type="button"
                     onClick={() => setAttachments((prev) => prev.filter((a) => a.id !== file.id))}

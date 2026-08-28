@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDrive } from '../hooks/useDrive';
+import { formatBytes } from '../lib/format-bytes';
 import {
   IconCheck,
   IconFolder,
@@ -18,14 +19,6 @@ interface QuantDrivePickerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectFiles: (attachments: Attachment[]) => void;
-}
-
-function formatFileSize(bytes: number): string {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
 type PickerTab = 'recent' | 'my-drive' | 'shared';
@@ -243,9 +236,7 @@ export function QuantDrivePickerModal({
                       <span className="text-xs font-semibold text-[#F5F5F5] truncate w-full mb-0.5">
                         {file.name}
                       </span>
-                      <span className="text-[10px] text-[#6B6E76]">
-                        {formatFileSize(file.size)}
-                      </span>
+                      <span className="text-[10px] text-[#6B6E76]">{formatBytes(file.size)}</span>
                     </button>
                   );
                 })}
@@ -271,9 +262,7 @@ export function QuantDrivePickerModal({
                         <span className="font-medium truncate">{file.name}</span>
                       </div>
                       <div className="flex items-center gap-3 shrink-0 ml-2">
-                        <span className="text-[10px] text-[#6B6E76]">
-                          {formatFileSize(file.size)}
-                        </span>
+                        <span className="text-[10px] text-[#6B6E76]">{formatBytes(file.size)}</span>
                         {isSelected ? (
                           <span className="grid size-4 place-items-center rounded-full bg-[#FF8C42] text-[#111111]">
                             <IconCheck size={11} strokeWidth={2.6} />

@@ -6,6 +6,7 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { useDrive } from '../../hooks/useDrive';
+import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
 import {
   IconDownload,
@@ -32,13 +33,8 @@ type DriveItem = {
 
 type DriveFilter = 'all' | 'folders' | 'documents' | 'images' | 'starred';
 
-function formatFileSize(bytes: number): string {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
+/** Shared dedupe key so an upload's progress line is replaced by its outcome. */
+const UPLOAD_TOAST = 'drive-upload';
 
 function getFileIcon(mimeType: string, type: string, className = 'w-5 h-5'): React.ReactNode {
   if (type === 'folder') {
@@ -314,20 +310,22 @@ export default function DrivePage() {
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    if (fileList && fileList.length > 0) {
-      const arr = Array.from(fileList);
-      showToast({
-        text: `Uploading ${arr.length} file${arr.length > 1 ? 's' : ''}…`,
-        type: 'info',
-      });
+  /**
+   * One upload path for the file picker and for drag-and-drop.
+   *
+   * These were two copies of the same twenty lines. Both also fired a
+   * `Uploading N files…` toast whose text differs from the outcome toast, so the
+   * progress line and the result sat on screen together for the rest of its 3.2s
+   * life. Every toast here now shares `subject: 'drive-upload'`, so the outcome
+   * replaces the progress line instead of queueing behind it.
+   */
+  const runUpload = useCallback(
+    async (arr: File[], verb: string) => {
+      const count = `${arr.length} file${arr.length > 1 ? 's' : ''}`;
+      showToast({ text: `${verb} ${count}…`, type: 'info', subject: UPLOAD_TOAST });
       try {
         await uploadFiles(arr);
-        showToast({
-          text: `Uploaded ${arr.length} file${arr.length > 1 ? 's' : ''} successfully`,
-          type: 'success',
-        });
+        showToast({ text: `Uploaded ${count}`, type: 'success', subject: UPLOAD_TOAST });
       } catch (err) {
         showToast({
           text:
@@ -335,7 +333,18 @@ export default function DrivePage() {
               ? `Upload failed: ${err.message}`
               : 'Upload failed — please try again (max 50 MB per file)',
           type: 'error',
+          subject: UPLOAD_TOAST,
         });
+      }
+    },
+    [uploadFiles],
+  );
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (fileList && fileList.length > 0) {
+      try {
+        await runUpload(Array.from(fileList), 'Uploading');
       } finally {
         e.target.value = '';
       }
@@ -352,26 +361,7 @@ export default function DrivePage() {
     e.preventDefault();
     setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const arr = Array.from(e.dataTransfer.files);
-      showToast({
-        text: `Uploading ${arr.length} dropped file${arr.length > 1 ? 's' : ''}…`,
-        type: 'info',
-      });
-      try {
-        await uploadFiles(arr);
-        showToast({
-          text: `Uploaded ${arr.length} file${arr.length > 1 ? 's' : ''} successfully`,
-          type: 'success',
-        });
-      } catch (err) {
-        showToast({
-          text:
-            err instanceof Error && err.message
-              ? `Upload failed: ${err.message}`
-              : 'Upload failed — please try again (max 50 MB per file)',
-          type: 'error',
-        });
-      }
+      await runUpload(Array.from(e.dataTransfer.files), 'Uploading dropped');
     }
   };
 
@@ -382,40 +372,46 @@ export default function DrivePage() {
       await createFolder(name, currentFolderId);
       setShowNewFolderModal(false);
       setNewFolderName('');
-      showToast({ text: `Created folder "${name}"`, type: 'success' });
+      showToast({ text: `Created folder "${name}"`, type: 'success', subject: 'drive-folder' });
     } catch {
-      showToast({ text: 'Failed to create folder', type: 'error' });
+      showToast({ text: 'Failed to create folder', type: 'error', subject: 'drive-folder' });
     }
   };
 
   const handleToggleStar = async (item: DriveItem, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    // Keyed on the file, and both messages name it. Previously the unstar toast
+    // read a bare `Removed from starred` while the star toast named the file, so
+    // starring and unstarring the same item left two contradictory toasts up with
+    // no way to tell which one described the current state.
+    const subject = `drive-star-${item.id}`;
     try {
       if (item.isStarred) {
         await unstarFile(item.id);
-        showToast({ text: `Removed from starred`, type: 'info' });
+        showToast({ text: `Unstarred "${item.name}"`, type: 'info', subject });
       } else {
         await starFile(item.id);
-        showToast({ text: `Starred "${item.name}"`, type: 'success' });
+        showToast({ text: `Starred "${item.name}"`, type: 'success', subject });
       }
     } catch {
-      showToast({ text: 'Could not update star status', type: 'error' });
+      showToast({ text: `Could not update star on "${item.name}"`, type: 'error', subject });
     }
   };
 
   const handleDeleteItem = async (id: string, name: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     if (confirm(`Permanently delete "${name}"? This cannot be undone.`)) {
+      const subject = `drive-delete-${id}`;
       try {
         await deleteFiles([id]);
-        showToast({ text: `Deleted "${name}"`, type: 'info' });
+        showToast({ text: `Deleted "${name}"`, type: 'info', subject });
         setSelectedIds((prev) => {
           const next = new Set(prev);
           next.delete(id);
           return next;
         });
       } catch {
-        showToast({ text: 'Failed to delete item', type: 'error' });
+        showToast({ text: `Failed to delete "${name}"`, type: 'error', subject });
       }
     }
   };
@@ -423,19 +419,45 @@ export default function DrivePage() {
   const handleBatchDelete = async () => {
     const count = selectedIds.size;
     if (count === 0) return;
-    if (
-      confirm(
-        `Permanently delete ${count} selected item${count > 1 ? 's' : ''}? This cannot be undone.`,
-      )
-    ) {
+    const label = `${count} item${count > 1 ? 's' : ''}`;
+    if (confirm(`Permanently delete ${label}? This cannot be undone.`)) {
       try {
         await deleteFiles(Array.from(selectedIds));
-        showToast({ text: `Deleted ${count} items`, type: 'info' });
+        // Was `Deleted ${count} items`, which said "Deleted 1 items".
+        showToast({ text: `Deleted ${label}`, type: 'info', subject: 'drive-delete-batch' });
         setSelectedIds(new Set());
       } catch {
-        showToast({ text: 'Failed to delete items', type: 'error' });
+        showToast({
+          text: `Failed to delete ${label}`,
+          type: 'error',
+          subject: 'drive-delete-batch',
+        });
       }
     }
+  };
+
+  /**
+   * Download every selected file, and say what actually happened.
+   *
+   * The old inline handler always announced `Downloading selected files…`, even
+   * when the selection was folders only and the loop downloaded nothing — a
+   * folder has no download endpoint. The count now comes from the same filter the
+   * loop uses.
+   */
+  const handleDownloadSelected = () => {
+    const targets = Array.from(selectedIds)
+      .map((id) => items.find((i) => i.id === id))
+      .filter((item): item is DriveItem => !!item && item.type !== 'folder');
+
+    targets.forEach((item) => downloadFile(item.id, item.name));
+
+    showToast({
+      text: targets.length
+        ? `Downloading ${targets.length} file${targets.length > 1 ? 's' : ''}…`
+        : 'Nothing to download — folders cannot be downloaded.',
+      type: targets.length ? 'info' : 'warning',
+      subject: 'drive-download',
+    });
   };
 
   const handleOpenRename = (item: DriveItem, e?: React.MouseEvent) => {
@@ -446,12 +468,15 @@ export default function DrivePage() {
 
   const handleSaveRename = async () => {
     if (!renameTarget || !renameValue.trim()) return;
+    const subject = `drive-rename-${renameTarget.id}`;
+    const from = renameTarget.name;
+    const to = renameValue.trim();
     try {
-      await renameFile(renameTarget.id, renameValue.trim());
-      showToast({ text: `Renamed to "${renameValue.trim()}"`, type: 'success' });
+      await renameFile(renameTarget.id, to);
+      showToast({ text: `Renamed "${from}" to "${to}"`, type: 'success', subject });
       setRenameTarget(null);
     } catch {
-      showToast({ text: 'Failed to rename', type: 'error' });
+      showToast({ text: `Failed to rename "${from}"`, type: 'error', subject });
     }
   };
 
@@ -619,14 +644,8 @@ export default function DrivePage() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  for (const id of selectedIds) {
-                    const item = items.find((i) => i.id === id);
-                    if (item && item.type !== 'folder') downloadFile(item.id, item.name);
-                  }
-                  showToast({ text: `Downloading selected files…`, type: 'info' });
-                }}
-                className="px-2.5 py-1 rounded-md bg-[#16181D] border border-[#282C35] text-[#F5F5F5] hover:bg-[#1C1F26] font-medium flex items-center gap-1.5"
+                onClick={handleDownloadSelected}
+                className="min-h-touch px-2.5 rounded-md bg-[#16181D] border border-[#282C35] text-[#F5F5F5] hover:bg-[#1C1F26] font-medium flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -641,7 +660,7 @@ export default function DrivePage() {
               <button
                 type="button"
                 onClick={handleBatchDelete}
-                className="px-2.5 py-1 rounded-md bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 font-medium flex items-center gap-1.5"
+                className="min-h-touch px-2.5 rounded-md bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 font-medium flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -656,7 +675,7 @@ export default function DrivePage() {
               <button
                 type="button"
                 onClick={() => setSelectedIds(new Set())}
-                className="px-2.5 py-1 rounded-md text-[#6B6E76] hover:text-[#F5F5F5] flex items-center gap-1.5"
+                className="min-h-touch px-2.5 rounded-md text-[#6B6E76] hover:text-[#F5F5F5] flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
                 <svg
                   className="size-3.5"
@@ -742,7 +761,7 @@ export default function DrivePage() {
                 <span className="text-[#6B6E76]">Storage Used</span>
                 <span className="text-[#F5F5F5] font-medium">
                   {quotaKnown
-                    ? `${formatFileSize(usedBytes)} / ${formatFileSize(totalBytes)} (${usedPct}%)`
+                    ? `${formatBytes(usedBytes)} / ${formatBytes(totalBytes)} (${usedPct}%)`
                     : 'Calculating…'}
                 </span>
               </div>
@@ -1059,7 +1078,7 @@ export default function DrivePage() {
                                 {file.name}
                               </h4>
                               <div className="flex items-center justify-between text-[11px] text-[#A1A4AC] mt-1">
-                                <span>{formatFileSize(file.size)}</span>
+                                <span>{formatBytes(file.size)}</span>
                                 <button
                                   type="button"
                                   onClick={() => downloadFile(file.id, file.name)}
@@ -1140,7 +1159,7 @@ export default function DrivePage() {
                                   {file.mimeType}
                                 </td>
                                 <td className="py-3 px-4 text-[#A1A4AC]">
-                                  {formatFileSize(file.size)}
+                                  {formatBytes(file.size)}
                                 </td>
                                 <td className="py-3 px-4 text-right">
                                   <div className="flex items-center justify-end gap-2">
@@ -1207,7 +1226,7 @@ export default function DrivePage() {
               </span>
               <h4 className="text-sm font-bold text-[#F5F5F5]">{previewItem?.name}</h4>
               <p className="text-xs text-[#A1A4AC] mt-1">
-                {previewItem?.mimeType} · {formatFileSize(previewItem?.size ?? 0)}
+                {previewItem?.mimeType} · {formatBytes(previewItem?.size ?? 0)}
               </p>
             </div>
             <div className="flex items-center justify-end gap-2">
