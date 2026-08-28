@@ -29,6 +29,25 @@ export interface ComposeEmailInput {
   threadId?: string;
   inReplyTo?: string;
   attachments?: unknown[];
+  /**
+   * How the message was written: a full letter (`MAIL`) or a line typed into the
+   * conversation (`CHAT`). Recorded so the thread can mark each message and show
+   * both kinds in one timeline. Omitted means `MAIL`, matching the column default
+   * and the behaviour of every caller that predates the chat composer.
+   */
+  messageKind?: MessageKind;
+}
+
+/**
+ * The two ways a message can be written. Mirrors the `EmailMessageKind` enum in
+ * `packages/database/prisma/schema.prisma`; spelled out here so this module does
+ * not depend on the generated client having been regenerated.
+ */
+export type MessageKind = 'MAIL' | 'CHAT';
+
+/** Normalize whatever a caller passed into a storable kind, defaulting to a letter. */
+export function toMessageKind(value: unknown): MessageKind {
+  return String(value ?? '').toUpperCase() === 'CHAT' ? 'CHAT' : 'MAIL';
 }
 
 export interface ReceiveEmailInput {
@@ -108,7 +127,8 @@ export class EmailService {
         inReplyTo: input.inReplyTo ?? null,
         hasAttachments,
         attachments: input.attachments ?? [],
-      },
+        messageKind: toMessageKind(input.messageKind),
+      } as never,
     });
 
     return email;
@@ -132,6 +152,12 @@ export class EmailService {
     threadId?: string;
     inReplyTo?: string;
     attachments?: unknown[];
+    /**
+     * Stamped on the recipient's copy so both sides of the conversation mark the
+     * message the same way. Without it a line typed into the thread would arrive
+     * badged as a letter in the recipient's inbox.
+     */
+    messageKind?: MessageKind;
   }): Promise<number> {
     const recipients = Array.from(
       new Set(
@@ -232,6 +258,7 @@ export class EmailService {
           isSent: false,
           isDraft: false,
           receivedAt: new Date(),
+          messageKind: toMessageKind(input.messageKind),
           deliveryStatus: 'delivered',
         } as never,
       });
@@ -362,13 +389,25 @@ export class EmailService {
       }
     }
 
+    const sentAt = new Date();
     const updated = await this.prisma.email.update({
       where: { id: emailId },
       data: {
         isDraft: false,
         isSent: true,
         folderId: sentFolderId,
-        sentAt: new Date(),
+        sentAt,
+        /*
+         * A sent copy needs a timeline position, not just a send time.
+         *
+         * The unified inbox is one list ordered by `receivedAt`, and this column
+         * was left null on every message the user sent — so their own messages had
+         * no place in that order at all and never appeared beside the conversation
+         * they belong to. `sentAt` is when the message entered this mailbox, so it
+         * is the honest value. An existing `receivedAt` is never overwritten,
+         * which keeps a scheduled or re-sent message on its original timeline.
+         */
+        receivedAt: (email as { receivedAt?: Date | null }).receivedAt ?? sentAt,
         deliveryStatus,
       } as never,
     });

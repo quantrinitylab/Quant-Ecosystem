@@ -3,9 +3,11 @@ import {
   groupEmailsIntoThreads,
   isAutomatedSender,
   isFromMe,
+  messageKindOf,
   normalizeSubject,
   sanitizeSnippetText,
   threadFocus,
+  threadKindMix,
   type ConversationThread,
 } from '../lib/threading';
 import type { Email } from '../types';
@@ -520,5 +522,132 @@ describe('threadFocus', () => {
     const t = buildThread([email({ subject: 'Hello', from: { email: 'alice@example.com' } })]);
 
     expect(threadFocus(t)).toBe('needs_you');
+  });
+});
+
+/**
+ * The mark on a message, and the mark on the conversation holding it.
+ *
+ * Every case below is a shape that the previous heuristic —
+ * `!bodyHtml && bodyText.length < 120` — got wrong. It is worth being explicit
+ * about them because each one is a real message a user can produce in one action.
+ */
+describe('messageKindOf', () => {
+  it('reads the kind the server recorded', () => {
+    expect(messageKindOf(email({ subject: 'Hi', messageKind: 'chat' }))).toBe('chat');
+    expect(messageKindOf(email({ subject: 'Hi', messageKind: 'mail' }))).toBe('mail');
+  });
+
+  it('calls a message with no kind a letter', () => {
+    // Everything stored before the column existed came in through a mail client or
+    // the full composer, because the chat composer did not exist yet.
+    expect(messageKindOf(email({ subject: 'Older mail' }))).toBe('mail');
+  });
+
+  it('is not fooled by a missing message', () => {
+    expect(messageKindOf()).toBe('mail');
+    expect(messageKindOf(null)).toBe('mail');
+    expect(messageKindOf(undefined)).toBe('mail');
+  });
+
+  it('accepts the enum casing the database uses', () => {
+    // A payload that skipped `formatEmailRecord` carries the Prisma spelling.
+    expect(
+      messageKindOf({ ...email({ subject: 'Hi' }), messageKind: 'CHAT' } as unknown as Email),
+    ).toBe('chat');
+  });
+
+  it('ignores body shape entirely', () => {
+    // A one-line letter is still a letter…
+    expect(
+      messageKindOf(
+        email({ subject: 'Re: ok', bodyText: 'ok', bodyHtml: '', messageKind: 'mail' }),
+      ),
+    ).toBe('mail');
+    // …and a chat message the thread view has optimistically given an HTML body is
+    // still a chat message. This exact pair is what the old guess inverted.
+    expect(
+      messageKindOf(
+        email({
+          subject: 'Re: Design review',
+          bodyText: 'x'.repeat(400),
+          bodyHtml: '<p>x</p>',
+          messageKind: 'chat',
+        }),
+      ),
+    ).toBe('chat');
+  });
+
+  it('treats an unrecognized value as a letter rather than throwing', () => {
+    expect(
+      messageKindOf({ ...email({ subject: 'Hi' }), messageKind: 'sms' } as unknown as Email),
+    ).toBe('mail');
+  });
+});
+
+describe('threadKindMix', () => {
+  it('reports the single kind when a conversation holds only one', () => {
+    expect(threadKindMix([email({ subject: 'A', messageKind: 'mail' })])).toBe('mail');
+    expect(threadKindMix([email({ subject: 'A', messageKind: 'chat' })])).toBe('chat');
+  });
+
+  it('reports `mixed` when a letter and a chat message share a conversation', () => {
+    // The case the unified thread exists for.
+    expect(
+      threadKindMix([
+        email({ subject: 'Design review', messageKind: 'mail' }),
+        email({ subject: 'Re: Design review', messageKind: 'chat' }),
+      ]),
+    ).toBe('mixed');
+  });
+
+  it('reports `mixed` regardless of which kind came first', () => {
+    expect(
+      threadKindMix([
+        email({ subject: 'Re: Design review', messageKind: 'chat' }),
+        email({ subject: 'Design review', messageKind: 'mail' }),
+      ]),
+    ).toBe('mixed');
+  });
+
+  it('reads an empty conversation as mail, matching the single-message default', () => {
+    expect(threadKindMix([])).toBe('mail');
+    expect(threadKindMix()).toBe('mail');
+  });
+
+  it('counts a message with no recorded kind as a letter', () => {
+    expect(
+      threadKindMix([
+        email({ subject: 'Old' }),
+        email({ subject: 'Re: Old', messageKind: 'chat' }),
+      ]),
+    ).toBe('mixed');
+  });
+});
+
+describe('ConversationThread.kindMix', () => {
+  it('is computed for the row, so the row never walks the message list', () => {
+    const t = buildThread([
+      email({ subject: 'Contract', threadId: 't1', messageKind: 'mail' }),
+      email({ subject: 'Re: Contract', threadId: 't1', messageKind: 'chat' }),
+    ]);
+
+    expect(t.kindMix).toBe('mixed');
+    expect(t.count).toBe(2);
+  });
+
+  it('marks a conversation that is only chat as chat', () => {
+    const t = buildThread([
+      email({ subject: 'Standup', threadId: 't2', messageKind: 'chat' }),
+      email({ subject: 'Standup', threadId: 't2', messageKind: 'chat' }),
+    ]);
+
+    expect(t.kindMix).toBe('chat');
+  });
+
+  it('marks a conversation of letters as mail', () => {
+    const t = buildThread([email({ subject: 'Invoice', messageKind: 'mail' })]);
+
+    expect(t.kindMix).toBe('mail');
   });
 });
