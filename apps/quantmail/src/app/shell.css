@@ -228,25 +228,6 @@
 }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
 
-.mail-pin-reveal {
-  position: absolute;
-  inset-block: 0;
-  left: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding-left: 1.25rem;
-  padding-right: 1.5rem;
-  border-radius: 0.75rem 0 0 0.75rem;
-  background: #2B1A11;
-  border-right: 1px solid #5C3016;
-  color: #FF8C42;
-  font-size: 0.8rem;
-  font-weight: 600;
-  pointer-events: none;
-  z-index: 1;
-}
-
 /* ──────────────────────────────────────────────────────────────────────────
    Superhuman-style Snooze Popover (Floating, Glassmorphic, High Z-Index)
    ────────────────────────────────────────────────────────────────────────── */

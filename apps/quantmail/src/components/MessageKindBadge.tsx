@@ -62,15 +62,20 @@ export interface ThreadKindBadgeProps {
  *
  * A thread holding both kinds gets both glyphs under one border rather than two
  * separate pills — a conversation that is *both* is one fact about it, not two,
- * and two pills in a row that already carries a count, a priority and a timestamp
- * is where a row stops being scannable.
+ * and two pills in a row that already carries a count and a timestamp is where a
+ * row stops being scannable.
+ *
+ * Neutral rather than brand-soft, unlike the per-message `mail` badge. Inside a
+ * thread, orange is what separates a letter from a typed line and it is doing
+ * work. On an inbox row it competes with the unread dot, which is the one accent a
+ * row is allowed; the mark still reads at 7.94:1 without it.
  */
 export function ThreadKindBadge({ mix, className = '' }: ThreadKindBadgeProps) {
   if (mix !== 'mixed') return <MessageKindBadge kind={mix} compact className={className} />;
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded border border-[#5C3016] bg-[#2B1A11] px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-[#FF8C42] ${className}`}
+      className={`inline-flex shrink-0 items-center gap-1 rounded border border-[#282C35] bg-[#16181D] px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-[#A1A4AC] ${className}`}
       title="Mail and chat in this conversation"
     >
       <IconMail size={11} aria-hidden="true" />
