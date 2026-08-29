@@ -126,9 +126,8 @@ jobs:
                 "StringLike": {
                   "token.actions.githubusercontent.com:sub": [
                     "repo:quantrinitylab@301608588/Quant-Ecosystem@1294727574:*",
-                    "repo:quantrinitylab*Quant-Ecosystem*:*",
                     "repo:quantrinitylab/Quant-Ecosystem:*",
-                    "repo:quantrinitylabsgo*Quant-Ecosystem*:*"
+                    "repo:quantrinitylabsgo/Quant-Ecosystem:*"
                   ]
                 }
               }
