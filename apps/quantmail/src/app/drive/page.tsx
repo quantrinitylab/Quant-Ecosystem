@@ -5,6 +5,7 @@ import { Button, Skeleton, Modal, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
+import { useConfirm } from '../../hooks/useConfirm';
 import { useDrive } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
@@ -245,6 +246,8 @@ export default function DrivePage() {
     quota,
   } = useDrive();
 
+  const { confirm, dialog } = useConfirm();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
@@ -400,7 +403,14 @@ export default function DrivePage() {
 
   const handleDeleteItem = async (id: string, name: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (confirm(`Permanently delete "${name}"? This cannot be undone.`)) {
+    const ok = await confirm({
+      title: `Delete "${name}" permanently?`,
+      message:
+        'The file leaves your Drive for good. There is no undo and no trash to recover it from.',
+      confirmLabel: 'Delete permanently',
+      variant: 'destructive',
+    });
+    if (ok) {
       const subject = `drive-delete-${id}`;
       try {
         await deleteFiles([id]);
@@ -420,7 +430,14 @@ export default function DrivePage() {
     const count = selectedIds.size;
     if (count === 0) return;
     const label = `${count} item${count > 1 ? 's' : ''}`;
-    if (confirm(`Permanently delete ${label}? This cannot be undone.`)) {
+    const ok = await confirm({
+      title: `Delete ${label} permanently?`,
+      message:
+        'They leave your Drive for good. There is no undo and no trash to recover them from.',
+      confirmLabel: 'Delete permanently',
+      variant: 'destructive',
+    });
+    if (ok) {
       try {
         await deleteFiles(Array.from(selectedIds));
         // Was `Deleted ${count} items`, which said "Deleted 1 items".
@@ -1324,6 +1341,7 @@ export default function DrivePage() {
             </div>
           </div>
         </Modal>
+        {dialog}
       </PageTransition>
     </AppShell>
   );

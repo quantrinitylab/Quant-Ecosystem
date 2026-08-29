@@ -15,6 +15,7 @@ import {
   useDeleteEvent,
 } from '../../hooks/useCalendar';
 import { useAuth } from '../../providers/auth-provider';
+import { useConfirm } from '../../hooks/useConfirm';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
 import {
@@ -527,6 +528,7 @@ export default function CalendarPage() {
   const createEvent = useCreateEvent();
   const updateEvent = useUpdateEvent();
   const deleteEvent = useDeleteEvent();
+  const { confirm, dialog } = useConfirm();
 
   const dayKey = (date: Date) =>
     `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
@@ -1236,7 +1238,14 @@ export default function CalendarPage() {
   const handleDeleteEvent = useCallback(
     async (id: string, e?: React.MouseEvent) => {
       e?.stopPropagation();
-      if (confirm('Delete this entry?')) {
+      const ok = await confirm({
+        title: 'Delete this entry?',
+        message:
+          'It is removed from your calendar. Anyone you invited keeps their own copy unless you cancel it with them.',
+        confirmLabel: 'Delete entry',
+        variant: 'destructive',
+      });
+      if (ok) {
         try {
           await deleteEvent.mutateAsync(id);
           setSelectedEvent(null);
@@ -1247,7 +1256,7 @@ export default function CalendarPage() {
         }
       }
     },
-    [deleteEvent, refetch],
+    [confirm, deleteEvent, refetch],
   );
 
   const handleAddAttendee = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -3682,6 +3691,7 @@ export default function CalendarPage() {
           isOpen={isQuantyDrawerOpen}
           onClose={() => setIsQuantyDrawerOpen(false)}
         />
+        {dialog}
       </PageTransition>
     </AppShell>
   );

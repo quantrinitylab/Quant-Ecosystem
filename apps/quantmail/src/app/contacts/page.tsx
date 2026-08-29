@@ -13,6 +13,7 @@ import {
   useDeleteContact,
 } from '../../hooks/useContacts';
 import { useInbox } from '../../hooks/useInbox';
+import { useConfirm } from '../../hooks/useConfirm';
 import { IconChevronRight, IconStar, IconStarFilled } from '../../components/icons';
 import type { Contact } from '../../types';
 import { showToast } from '../../components/InboxToast';
@@ -55,6 +56,7 @@ export default function ContactsPage() {
   const createContact = useCreateContact();
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
+  const { confirm, dialog } = useConfirm();
 
   const handleOpenCreate = useCallback(() => {
     setFormData({ name: '', email: '', phone: '', company: '', tags: '' });
@@ -114,7 +116,14 @@ export default function ContactsPage() {
   const handleDelete = useCallback(
     async (id: string, name?: string, e?: React.MouseEvent) => {
       e?.stopPropagation();
-      if (confirm(`Are you sure you want to delete ${name ? `"${name}"` : 'this contact'}?`)) {
+      const ok = await confirm({
+        title: `Delete ${name ? `"${name}"` : 'this contact'}?`,
+        message:
+          'The contact and its details are removed from your address book. Mail already sent or received is not affected.',
+        confirmLabel: 'Delete contact',
+        variant: 'destructive',
+      });
+      if (ok) {
         try {
           await deleteContact.mutateAsync(id);
           setInspectContact(null);
@@ -124,7 +133,7 @@ export default function ContactsPage() {
         }
       }
     },
-    [deleteContact],
+    [confirm, deleteContact],
   );
 
   const handleToggleFavorite = useCallback(
@@ -1135,6 +1144,7 @@ export default function ContactsPage() {
             </div>
           </div>
         </Modal>
+        {dialog}
       </PageTransition>
     </AppShell>
   );

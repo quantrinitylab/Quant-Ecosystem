@@ -26,7 +26,10 @@ export default function InviteAcceptPage() {
         mutationError instanceof Error ? mutationError.message : 'Could not accept the invitation.';
       setAcceptError(message);
       if (/sign in|unauthor/i.test(message)) {
-        router.push(`/login?next=${encodeURIComponent(`/invite/${token}`)}`);
+        // `returnTo` is the name AuthGuard and the login page share. This sent
+        // `next`, which nothing read, so accepting an invitation while signed
+        // out landed on the inbox and lost the invitation.
+        router.push(`/login?returnTo=${encodeURIComponent(`/invite/${token}`)}`);
       }
     }
   };

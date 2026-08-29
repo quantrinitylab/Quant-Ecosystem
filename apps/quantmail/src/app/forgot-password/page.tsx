@@ -77,7 +77,8 @@ export default function ForgotPasswordPage() {
               </p>
               <Link
                 href="/login"
-                className="mt-5 inline-flex text-sm font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                /* The only way forward from the sent-confirmation state, so it gets a real target. */
+                className="mt-5 inline-flex min-h-[44px] items-center text-sm font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               >
                 Return to sign in
               </Link>
@@ -146,7 +147,8 @@ export default function ForgotPasswordPage() {
               Remember your password?{' '}
               <Link
                 href="/login"
-                className="font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                /* Padding for a 44px hit area, negative margin so the line keeps its height. */
+                className="-my-3.5 inline-flex items-center px-1.5 py-3.5 font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               >
                 Sign in
               </Link>

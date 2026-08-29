@@ -16,6 +16,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { browserApiRequest as apiRequest } from '../services/browser-api-request';
+import { ApiRequestError } from '../lib/query-retry';
 
 export interface StorageQuota {
   used: number;
@@ -24,10 +25,15 @@ export interface StorageQuota {
 
 async function fetchQuota(): Promise<StorageQuota> {
   const response = await apiRequest('/api/drive/quota');
-  if (!response.ok) throw new Error('Failed to load storage quota');
+  // The status matters here: this hook renders in both sidebars on every route,
+  // so a 401 that gets retried is two wasted requests per navigation.
+  if (!response.ok) {
+    throw new ApiRequestError('Failed to load storage quota', response.status, 'QUOTA_FAILED');
+  }
   const data = (await response.json()) as Partial<StorageQuota>;
   if (typeof data.used !== 'number' || typeof data.total !== 'number') {
-    throw new Error('Storage quota response was malformed');
+    // Asking again cannot change a malformed body, so it is explicitly final.
+    throw new ApiRequestError('Storage quota response was malformed', 0, 'MALFORMED', false);
   }
   return { used: data.used, total: data.total };
 }
@@ -37,7 +43,8 @@ export function useStorageQuota() {
     queryKey: ['drive-quota'],
     queryFn: fetchQuota,
     staleTime: 60_000,
-    retry: 1,
+    // `retry: 1` used to sit here, which retried a 401 as readily as a 502.
+    // The shared policy in `lib/query-retry.ts` is both quieter and smarter.
   });
 
   const quota = query.data;

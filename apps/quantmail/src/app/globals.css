@@ -909,15 +909,23 @@ body {
 .auth-brand-panel { position: relative; height: 100%; overflow: hidden; background: linear-gradient(145deg, #101012, #070708 68%); color: #F5F5F5; }
 .auth-brand-orbit { position: absolute; border: 1px solid rgba(255,255,255,.06); border-radius: 50%; }.auth-brand-orbit-one { width: 42rem; height: 42rem; right: -22rem; top: -18rem; }.auth-brand-orbit-two { width: 28rem; height: 28rem; right: -14rem; top: -11rem; }
 .auth-mobile-brand { display: none; }.auth-brand-desktop { position: relative; display: flex; height: 100%; flex-direction: column; padding: clamp(2rem, 4vw, 3.5rem); }.auth-brand-desktop > header { display: flex; align-items: center; justify-content: space-between; }
-.auth-brand-lockup { display: flex; align-items: center; gap: .85rem; }.auth-brand-lockup p { font-size: .95rem; font-weight: 730; letter-spacing: -.035em; }.auth-brand-lockup .auth-byline { display: block; margin-top: .15rem; color: #A1A4AC; font-size: .56rem; font-weight: 650; letter-spacing: .17em; text-transform: uppercase; }
-.auth-country-pill { display: inline-flex; align-items: center; gap: .45rem; border: 1px solid rgba(255,255,255,.08); border-radius: 999px; padding: .38rem .65rem; color: #6B6E76; font-size: .56rem; font-weight: 650; letter-spacing: .14em; }.auth-country-pill i { width: .4rem; height: .4rem; border-radius: 50%; background: #43c95b; box-shadow: 0 0 8px rgba(67,201,91,.6); }
+.auth-brand-lockup { display: flex; align-items: center; gap: .85rem; }.auth-brand-lockup p { font-size: .95rem; font-weight: 730; letter-spacing: -.035em; }
+/* Byline and country pill were both .56rem — 9px, under the size at which
+   letter-spaced uppercase stops being readable on a phone. The pill also used
+   the tertiary grey (#6B6E76, 3.9:1) for its only piece of text. */
+.auth-brand-lockup .auth-byline { display: block; margin-top: .15rem; color: #A1A4AC; font-size: .65rem; font-weight: 650; letter-spacing: .17em; text-transform: uppercase; }
+.auth-country-pill { display: inline-flex; align-items: center; gap: .45rem; border: 1px solid rgba(255,255,255,.08); border-radius: 999px; padding: .38rem .65rem; color: #A1A4AC; font-size: .65rem; font-weight: 650; letter-spacing: .14em; }.auth-country-pill i { width: .4rem; height: .4rem; border-radius: 50%; background: #43c95b; box-shadow: 0 0 8px rgba(67,201,91,.6); }
 .auth-brand-content { margin: auto 0; padding: 2rem 0; }.auth-brand-eyebrow { display: flex; align-items: center; gap: .65rem; color: #d59455; font-size: .62rem; font-weight: 750; letter-spacing: .19em; text-transform: uppercase; }.auth-brand-eyebrow span { width: 2rem; height: 1px; background: #FF8C42; }
 .auth-brand-content > h2 { max-width: 44rem; margin-top: 1.25rem; font-size: clamp(3.15rem, 6.3vw, 6.6rem); font-weight: 590; line-height: .88; letter-spacing: -.08em; }.auth-brand-subtitle { max-width: 34rem; margin-top: 1.6rem; color: #99999e; font-size: clamp(.82rem, 1.3vw, 1rem); line-height: 1.7; }
 .auth-proof-card { max-width: 36rem; margin-top: 2.2rem; border: 1px solid rgba(255,255,255,.09); border-radius: 1rem; background: rgba(18,18,20,.72); box-shadow: 0 24px 70px rgba(0,0,0,.32); backdrop-filter: blur(18px); }
-.auth-proof-topline { display: flex; align-items: center; justify-content: space-between; padding: .9rem 1rem; border-bottom: 1px solid rgba(255,255,255,.07); color: #6B6E76; font-size: .58rem; letter-spacing: .08em; text-transform: uppercase; }.auth-proof-topline > div { display: flex; align-items: center; gap: .5rem; color: #c8c8c8; }.auth-proof-pulse { width: .4rem; height: .4rem; border-radius: 50%; background: #FF8C42; box-shadow: 0 0 10px rgba(255, 140, 66,.7); }
-.auth-preview-row { display: grid; grid-template-columns: 2rem minmax(0,1fr) auto; align-items: center; gap: .65rem; padding: .75rem 1rem; border-bottom: 1px solid rgba(255,255,255,.055); }.auth-preview-row.is-active { background: linear-gradient(90deg, rgba(255, 140, 66,.07), transparent); }.auth-preview-avatar { display: grid; width: 1.8rem; height: 1.8rem; place-items: center; border: 1px solid rgba(255,255,255,.08); border-radius: .55rem; background: #222225; color: #bdbdc1; font-size: .65rem; font-weight: 700; }.auth-preview-row strong { color: #c7c7c9; font-size: .64rem; }.auth-preview-row p { margin-top: .18rem; color: #99999e; font-size: .64rem; }.auth-preview-row p span { color: #626268; }.auth-preview-row time { color: #6B6E76; font-size: .56rem; }
-.auth-proof-footer { display: flex; gap: .45rem; padding: .7rem 1rem; }.auth-proof-footer span { border-radius: 999px; padding: .22rem .5rem; background: rgba(255,255,255,.04); color: #6B6E76; font-size: .54rem; }
-.auth-brand-desktop > footer { display: flex; justify-content: space-between; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,.07); color: #5f5f64; font-size: .55rem; letter-spacing: .1em; text-transform: uppercase; }
+/* The proof card and footer ran on #6B6E76 / #626268 / #5f5f64 at .54–.58rem:
+   between 2.9:1 and 3.9:1 on the panel gradient, at 8.6–9.3px. It is the only
+   text on the signed-out desktop screen besides the headline, so it is held to
+   the same 4.5:1 as the form beside it. */
+.auth-proof-topline { display: flex; align-items: center; justify-content: space-between; padding: .9rem 1rem; border-bottom: 1px solid rgba(255,255,255,.07); color: #A1A4AC; font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; }.auth-proof-topline > div { display: flex; align-items: center; gap: .5rem; color: #c8c8c8; }.auth-proof-pulse { width: .4rem; height: .4rem; border-radius: 50%; background: #FF8C42; box-shadow: 0 0 10px rgba(255, 140, 66,.7); }
+.auth-preview-row { display: grid; grid-template-columns: 2rem minmax(0,1fr) auto; align-items: center; gap: .65rem; padding: .75rem 1rem; border-bottom: 1px solid rgba(255,255,255,.055); }.auth-preview-row.is-active { background: linear-gradient(90deg, rgba(255, 140, 66,.07), transparent); }.auth-preview-avatar { display: grid; width: 1.8rem; height: 1.8rem; place-items: center; border: 1px solid rgba(255,255,255,.08); border-radius: .55rem; background: #222225; color: #bdbdc1; font-size: .65rem; font-weight: 700; }.auth-preview-row strong { color: #c7c7c9; font-size: .64rem; }.auth-preview-row p { margin-top: .18rem; color: #99999e; font-size: .64rem; }.auth-preview-row p span { color: #83838A; }.auth-preview-row time { color: #A1A4AC; font-size: .62rem; }
+.auth-proof-footer { display: flex; gap: .45rem; padding: .7rem 1rem; }.auth-proof-footer span { border-radius: 999px; padding: .22rem .5rem; background: rgba(255,255,255,.04); color: #A1A4AC; font-size: .62rem; }
+.auth-brand-desktop > footer { display: flex; justify-content: space-between; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,.07); color: #A1A4AC; font-size: .63rem; letter-spacing: .1em; text-transform: uppercase; }
 
 /* Composer — floating, focused, and complete */
 .compose-page { height: 100%; overflow-y: auto; background: radial-gradient(circle at 50% -10%, rgba(255, 140, 66,.055), transparent 35rem), #090A0C; }
@@ -2149,19 +2157,48 @@ body {
   align-items: center;
   gap: 0.35rem;
   flex: none;
-  opacity: 0;
-  transition: opacity 120ms ease;
 }
-.draft-row:hover .draft-actions {
-  opacity: 1;
+/*
+ * The reveal-on-hover is a pointer affordance and now says so. It used to apply at
+ * every width, which on a phone left Resume and Delete permanently at `opacity: 0`
+ * — invisible, still tappable, and stacked against the right edge of a row whose
+ * whole body is also a click target. Discard was reachable only by accident.
+ *
+ * `:focus-within` counts as a reveal too: keyboard focus landing on an invisible
+ * button is a WCAG 2.4.7 failure, and this is the pair that discards writing.
+ */
+@media (min-width: 640px) {
+  .draft-actions {
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+  .draft-row:hover .draft-actions,
+  .draft-actions:focus-within {
+    opacity: 1;
+  }
+}
+.draft-resume,
+.draft-delete {
+  /* 29.6px before, both of them, on the row where one control throws away unsent
+     writing. Compact again at 640px where a mouse is the likely input. */
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}
+.draft-resume:focus-visible,
+.draft-delete:focus-visible {
+  outline: 2px solid #FF8C42;
+  outline-offset: 2px;
 }
 .draft-resume {
-  min-height: 1.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(255, 140, 66, 0.3);
   border-radius: 0.4rem;
-  padding: 0 0.6rem;
+  padding: 0 0.75rem;
   color: var(--brand-primary);
-  font-size: 0.66rem;
+  /* Was 10.56px. Small enough that the word was a shape rather than a label. */
+  font-size: 0.75rem;
   font-weight: 600;
   transition: background 100ms ease;
 }
@@ -2170,12 +2207,19 @@ body {
 }
 .draft-delete {
   display: grid;
-  width: 1.85rem;
-  height: 1.85rem;
   place-items: center;
   border-radius: 0.4rem;
   color: #6B6E76;
   transition: background 100ms ease, color 100ms ease;
+}
+@media (min-width: 640px) {
+  .draft-resume,
+  .draft-delete {
+    min-height: 1.85rem;
+    min-width: 0;
+  }
+  .draft-resume { padding: 0 0.6rem; }
+  .draft-delete { width: 1.85rem; height: 1.85rem; }
 }
 .draft-delete:hover {
   background: rgba(248, 113, 113, 0.1);
@@ -3589,40 +3633,71 @@ body {
   margin-bottom: 0.5rem;
 }
 .confirm-message {
-  font-size: 0.76rem;
-  color: #999;
-  line-height: 1.5;
+  /*
+   * Was 12.16px in `#999` — a grey that is not in the palette. This is the line
+   * that says what is about to be destroyed and whether it can be undone, so it
+   * gets the secondary tier at a size that can be read on a phone.
+   */
+  font-size: 0.8125rem;
+  color: #A1A4AC;
+  line-height: 1.55;
   margin-bottom: 1.25rem;
 }
 .confirm-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
+  /*
+   * Wider than the usual 0.5rem. These two buttons sit next to each other and one
+   * of them permanently deletes mail; the gap is mis-tap insurance.
+   */
+  gap: 0.75rem;
+}
+/*
+ * Both buttons were 0.45rem padding at 0.76rem type — about 29px tall, adjacent,
+ * and the destructive one of the pair. The worst place in the app to put a target
+ * a finger can miss.
+ */
+.confirm-cancel,
+.confirm-confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.45rem 1.15rem;
+  border-radius: 0.55rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 100ms, border-color 100ms, color 100ms;
+}
+.confirm-cancel:focus-visible,
+.confirm-confirm:focus-visible {
+  outline: 2px solid #FF8C42;
+  outline-offset: 2px;
 }
 .confirm-cancel {
-  padding: 0.45rem 1rem;
-  border-radius: 0.45rem;
   border: 1px solid #282C35;
-  background: transparent;
-  color: #bbb;
-  font-size: 0.76rem;
+  background: #16181D;
+  /* `#bbb` before, which is also not in the palette. Cancel is the safe answer on
+     a destructive dialog, so it is legible rather than dimmed. */
+  color: #F5F5F5;
   font-weight: 550;
-  cursor: pointer;
-  transition: background 100ms, border-color 100ms;
 }
 .confirm-cancel:hover { background: #1C1F26; border-color: #3A404D; }
+.confirm-cancel:active { background: #111318; }
 .confirm-confirm {
-  padding: 0.45rem 1rem;
-  border-radius: 0.45rem;
   border: 1px solid rgba(255, 140, 66, 0.3);
   background: rgba(255, 140, 66, 0.1);
   color: #FF8C42;
-  font-size: 0.76rem;
   font-weight: 600;
-  cursor: pointer;
-  transition: background 100ms, border-color 100ms;
 }
 .confirm-confirm:hover { background: rgba(255, 140, 66, 0.18); border-color: rgba(255, 140, 66, 0.5); }
+.confirm-confirm:active { background: rgba(232, 117, 47, 0.24); }
+@media (max-width: 479px) {
+  /* Two ~160px targets instead of two ~90px ones, in the same order as desktop so
+     the safe answer does not move under the thumb between breakpoints. */
+  .confirm-cancel,
+  .confirm-confirm { flex: 1 1 0; }
+}
 .confirm-confirm.is-destructive {
   border-color: rgba(239, 68, 68, 0.3);
   background: rgba(239, 68, 68, 0.1);
@@ -4520,7 +4595,9 @@ body {
 .git-panel-count { font-size: 0.6rem; color: #888; background: rgba(255,255,255,0.06); padding: 0.1rem 0.4rem; border-radius: 1rem; }
 .git-panel-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #4ade80; }
 .git-panel-empty svg { margin-bottom: 0.35rem; }
-.git-panel-empty p { font-size: 0.68rem; color: #666; }
+/* "Working tree clean" was #666 at 10.9px — 3.2:1, and the only sentence on the
+   panel when there is nothing to commit. Secondary tier, 11px. */
+.git-panel-empty p { font-size: 0.7rem; color: #A1A4AC; }
 .git-commit-input { padding: 0.5rem; border-bottom: 1px solid #1C1F26; }
 .git-commit-input textarea { width: 100%; padding: 0.4rem; border-radius: 0.35rem; border: 1px solid #282C35; background: #090A0C; color: #F5F5F5; font-size: 0.68rem; resize: none; outline: none; }
 .git-commit-actions { display: flex; gap: 0.3rem; margin-top: 0.3rem; }
@@ -4541,8 +4618,11 @@ body {
 .git-diff-del { color: #f87171; }
 /* Discard is hover-revealed on a pointer, but a touch device has no hover: left
    as-is the only way to undo a change would be unreachable on a phone, so it is
-   always present there. Keyboard focus reveals it too. */
-.git-file-discard { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; margin: -0.3rem -0.5rem -0.3rem 0; border: none; background: transparent; color: #555; cursor: pointer; opacity: 0; flex-shrink: 0; transition: opacity 80ms, color 80ms; }
+   always present there. Keyboard focus reveals it too.
+   #555 was 2.5:1 against the panel — under the 3:1 a non-text control needs, and
+   on a phone this is the one state where the icon is permanently visible rather
+   than a hover hint. #6B6E76 is the palette's tertiary grey at 3.6:1. */
+.git-file-discard { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; margin: -0.3rem -0.5rem -0.3rem 0; border: none; background: transparent; color: #6B6E76; cursor: pointer; opacity: 0; flex-shrink: 0; transition: opacity 80ms, color 80ms; }
 .git-file-item:hover .git-file-discard { opacity: 1; }
 .git-file-discard:hover { color: #f87171; }
 .git-file-discard:focus-visible { opacity: 1; outline: 2px solid #FF8C42; outline-offset: -2px; }

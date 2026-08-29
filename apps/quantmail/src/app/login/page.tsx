@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
 import { AuthShell } from '../../components/auth/AuthShell';
 import { PageTransition } from '../../components/PageTransition';
 import { QUANT_MAIL_DOMAIN, toQuantAddress } from '../../config/identity';
+import { safeReturnPath } from '../../lib/safe-return-path';
 import { useAuth } from '../../providers/auth-provider';
 
 interface LoginFieldErrors {
@@ -26,6 +27,30 @@ export default function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
 
   const successMessage = searchParams?.get('success');
+  /*
+   * The account menu and the invite page both send you here with state in the
+   * URL that nothing read: `switch_to` and `add_account` from AccountBadge, and
+   * `next` from an invite link. So "Switch account" landed on an empty form with
+   * no clue which account it wanted, and signing in from an invite dropped you
+   * at the inbox instead of the invitation you had been sent.
+   */
+  const switchTo = searchParams?.get('switch_to') ?? null;
+  const isAddingAccount = searchParams?.get('add_account') === 'true';
+
+  const contextNotice = switchTo
+    ? `Switching to ${switchTo}. Enter the password for that account.`
+    : isAddingAccount
+      ? 'Adding another account. Sign in with the address you want to add.'
+      : null;
+
+  // Prefill once, and only while the field is untouched, so a later render
+  // cannot overwrite an address someone has started correcting by hand.
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current || !switchTo) return;
+    prefilled.current = true;
+    setIdentifier(switchTo);
+  }, [switchTo]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,7 +69,9 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      const returnTo = searchParams?.get('returnTo');
+      // `returnTo` is what AuthGuard sends; `next` is kept for the invite link.
+      const returnTo =
+        safeReturnPath(searchParams?.get('returnTo')) ?? safeReturnPath(searchParams?.get('next'));
       router.push(returnTo || '/');
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Sign-in failed. Try again.');
@@ -74,6 +101,12 @@ export default function LoginPage() {
               Use your QuantMail address or account handle.
             </p>
           </div>
+
+          {contextNotice ? (
+            <div className="mb-5 rounded-xl border border-[#5C3016] bg-[#2B1A11] px-4 py-3 text-sm text-[var(--quant-foreground)]">
+              {contextNotice}
+            </div>
+          ) : null}
 
           {successMessage ? (
             <div
@@ -125,7 +158,13 @@ export default function LoginPage() {
                 </label>
                 <Link
                   href="/forgot-password"
-                  className="text-xs font-medium text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  /*
+                   * 103x16 before. Padding grows the hit area to 44px and the
+                   * matching negative margin keeps the label row its original
+                   * height, so the target is finger-sized without the field
+                   * moving down the screen.
+                   */
+                  className="-my-3.5 -mr-2 inline-flex items-center px-2 py-3.5 text-xs font-medium text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                 >
                   Forgot password?
                 </Link>
@@ -178,14 +217,22 @@ export default function LoginPage() {
               {isLoading ? 'Signing in.' : ''}
             </p>
 
-            <label className="flex items-center gap-2 cursor-pointer">
+            {/*
+              The label is the target — clicking the text toggles the box — and it
+              was 20px tall. `w-fit` keeps it from spanning the form width, so the
+              row is a 44px target rather than a full-width strip that toggles
+              "keep me signed in" on any stray tap beside it.
+            */}
+            <label className="flex w-fit min-h-[44px] cursor-pointer items-center gap-2.5 sm:min-h-0">
               <input
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)]"
+                className="h-4 w-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0c]"
               />
-              <span className="text-sm text-[var(--quant-muted-foreground)]">Keep me signed in</span>
+              <span className="text-sm text-[var(--quant-muted-foreground)]">
+                Keep me signed in
+              </span>
             </label>
 
             <button
@@ -201,7 +248,8 @@ export default function LoginPage() {
             New to QuantMail?{' '}
             <Link
               href="/register"
-              className="font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+              /* 123x17 before — same padding/negative-margin pair as Forgot password. */
+              className="-my-3.5 inline-flex items-center px-1.5 py-3.5 font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
               Create an address
             </Link>
