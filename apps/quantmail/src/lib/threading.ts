@@ -457,6 +457,14 @@ function isSameSend(a: Email, b: Email): boolean {
  * copy's `isRead: false` is a storage artefact — nobody has to open their own
  * outgoing message before it stops being new.
  *
+ * It also inherits the loser's *id*, in `collapsedIds`. Flags alone were not
+ * enough: the copy that disappears here is still a row in the mailbox, and a
+ * conversation that is entirely your own sends — every self-sent thread, and every
+ * thread you have replied to — is made of nothing but these pairs. Archiving one
+ * moved the halves the screen had kept and left the halves it had folded away, so
+ * the conversation was in the archive and the inbox at once and the row survived a
+ * reload. Read state failed the same way, one copy at a time.
+ *
  * `messages` must already be sorted oldest-first.
  */
 function collapseDuplicateSends(messages: Email[]): Email[] {
@@ -474,6 +482,15 @@ function collapseDuplicateSends(messages: Email[]): Email[] {
       isStarred: Boolean(twin.isStarred) || Boolean(message.isStarred),
       snippet: twin.snippet || message.snippet,
       threadId: twin.threadId || message.threadId,
+      // A pair can itself be paired with a third copy, so the loser's own folded
+      // ids come along too rather than being dropped one level down.
+      collapsedIds: Array.from(
+        new Set(
+          [...(twin.collapsedIds ?? []), message.id, ...(message.collapsedIds ?? [])].filter(
+            Boolean,
+          ),
+        ),
+      ),
     } as Email;
   }
   return out;
@@ -608,13 +625,20 @@ export function findConversation(
  * when *any* inbound message in it is, so marking one message read left the row
  * bold with no way to clear it.
  *
- * De-duplicated, because `collapseDuplicateSends` can leave two ids pointing at one
- * visible bubble, and empty ids are dropped so an optimistic copy that has not been
- * issued an id yet cannot become a request for `undefined`.
+ * De-duplicated, because a message and a folded copy can name the same row, and
+ * empty ids are dropped so an optimistic copy that has not been issued an id yet
+ * cannot become a request for `undefined`.
+ *
+ * `collapsedIds` is read as well as `id`. A visible bubble can stand for two stored
+ * rows — see `collapseDuplicateSends` — and an action given only the survivors
+ * moves half of a conversation: the live inbox listed an archived self-sent thread
+ * because two of its four rows were never asked to move.
  */
 export function threadMessageIds(thread: ConversationThread | null | undefined): string[] {
   if (!thread || !Array.isArray(thread.messages)) return [];
-  return Array.from(new Set(thread.messages.map((m) => m.id).filter(Boolean)));
+  return Array.from(
+    new Set(thread.messages.flatMap((m) => [m.id, ...(m.collapsedIds ?? [])]).filter(Boolean)),
+  );
 }
 
 /**

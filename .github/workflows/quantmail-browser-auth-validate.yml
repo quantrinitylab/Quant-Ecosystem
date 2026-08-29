@@ -68,7 +68,7 @@ jobs:
 
       - name: Check out stacked base for baseline comparison
         if: startsWith(matrix.stage, 'base-')
-        run: git checkout e2a5b895ea310076557d960c7cd9f76810a2fcef
+        run: git checkout ${{ github.event.pull_request.base.sha || 'main' }}
 
       - name: Install pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9

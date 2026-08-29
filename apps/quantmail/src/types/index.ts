@@ -51,6 +51,17 @@ export interface Email extends BaseEntity {
    * which supplies the fallback in one place.
    */
   messageKind?: MessageKind;
+  /**
+   * The ids of the stored rows folded into this one bubble by
+   * `collapseDuplicateSends` — the Sent copy and its delivery copy are two rows
+   * for one send, and only one of them survives grouping.
+   *
+   * It exists so a mailbox action can still reach the copy that stopped being
+   * visible: archiving what the screen calls one conversation has to move every
+   * row it was made of, or the twin stays in the inbox and the row comes back.
+   * Absent on a message that was never part of a pair.
+   */
+  collapsedIds?: string[];
   isRead: boolean;
   isStarred: boolean;
   isArchived: boolean;
