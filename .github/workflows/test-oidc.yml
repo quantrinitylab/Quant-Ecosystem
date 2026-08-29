@@ -12,6 +12,19 @@ jobs:
     runs-on: ubuntu-latest
     environment: staging
     steps:
+      - name: Inspect OIDC Token Claims
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('sts.amazonaws.com');
+            const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString('utf8'));
+            console.log('OIDC iss:', payload.iss);
+            console.log('OIDC aud:', payload.aud);
+            console.log('OIDC sub:', payload.sub);
+            console.log('OIDC repository:', payload.repository);
+            console.log('OIDC repository_owner:', payload.repository_owner);
+            console.log('OIDC environment:', payload.environment);
+
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
         with:
