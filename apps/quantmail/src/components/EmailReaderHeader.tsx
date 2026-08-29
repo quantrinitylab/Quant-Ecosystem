@@ -142,7 +142,9 @@ export function EmailReaderHeader({
               {senderName || senderEmail || 'QuantMail Conversation'}
             </span>
             {senderEmail && senderName && (
-              <span className="hidden lg:inline text-[#6B6E76] truncate">&lt;{senderEmail}&gt;</span>
+              <span className="hidden lg:inline text-[#A1A4AC] truncate">
+                &lt;{senderEmail}&gt;
+              </span>
             )}
           </div>
         </div>

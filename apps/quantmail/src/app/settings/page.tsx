@@ -408,7 +408,7 @@ export default function SettingsPage() {
                 </FormField>
                 {signature.trim() && (
                   <div className="p-3 rounded-xl bg-[#090A0C] border border-[#282C35] text-xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6E76] block mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] block mb-1">
                       Live Preview
                     </span>
                     <div className="text-[#A1A4AC] whitespace-pre-wrap">{signature}</div>
@@ -646,7 +646,7 @@ export default function SettingsPage() {
                           }`}
                         >
                           <span className="text-xs font-bold block">{item.label}</span>
-                          <span className="text-[10px] text-[#6B6E76] block">{item.desc}</span>
+                          <span className="text-[10px] text-[#A1A4AC] block">{item.desc}</span>
                         </button>
                       ))}
                     </div>
@@ -709,7 +709,7 @@ export default function SettingsPage() {
                         Not generated on this browser yet
                       </p>
                     </div>
-                    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#6B6E76]">
+                    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#A1A4AC]">
                       Not set up
                     </span>
                   </div>

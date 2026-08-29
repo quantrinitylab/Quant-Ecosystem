@@ -137,7 +137,7 @@ export function QuantDrivePickerModal({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search in QuantDrive…"
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#111318] border border-[#282C35] text-xs text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus:border-[#FF8C42]"
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#111318] border border-[#282C35] text-xs text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus:border-[#FF8C42]"
                 />
               </div>
 
@@ -200,12 +200,12 @@ export function QuantDrivePickerModal({
           {/* Files List/Grid Body */}
           <div className="flex-1 overflow-y-auto p-4 min-h-[220px]">
             {loading ? (
-              <div className="flex flex-col items-center justify-center h-48 text-[#6B6E76] text-xs gap-2">
+              <div className="flex flex-col items-center justify-center h-48 text-[#A1A4AC] text-xs gap-2">
                 <div className="size-5 border-2 border-[#FF8C42] border-t-transparent rounded-full animate-spin" />
                 <span>Loading QuantDrive files…</span>
               </div>
             ) : filteredFiles.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-[#6B6E76] text-xs gap-2">
+              <div className="flex flex-col items-center justify-center h-48 text-[#A1A4AC] text-xs gap-2">
                 <IconFolder size={32} />
                 <span>No files found in QuantDrive</span>
               </div>
@@ -236,7 +236,7 @@ export function QuantDrivePickerModal({
                       <span className="text-xs font-semibold text-[#F5F5F5] truncate w-full mb-0.5">
                         {file.name}
                       </span>
-                      <span className="text-[10px] text-[#6B6E76]">{formatBytes(file.size)}</span>
+                      <span className="text-[10px] text-[#A1A4AC]">{formatBytes(file.size)}</span>
                     </button>
                   );
                 })}
@@ -262,7 +262,7 @@ export function QuantDrivePickerModal({
                         <span className="font-medium truncate">{file.name}</span>
                       </div>
                       <div className="flex items-center gap-3 shrink-0 ml-2">
-                        <span className="text-[10px] text-[#6B6E76]">{formatBytes(file.size)}</span>
+                        <span className="text-[10px] text-[#A1A4AC]">{formatBytes(file.size)}</span>
                         {isSelected ? (
                           <span className="grid size-4 place-items-center rounded-full bg-[#FF8C42] text-[#111111]">
                             <IconCheck size={11} strokeWidth={2.6} />

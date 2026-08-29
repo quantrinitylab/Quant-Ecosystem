@@ -72,7 +72,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     };
 
     const baseInputStyles =
-      'block rounded-lg border bg-[#111318] text-[#F5F5F5] placeholder-[#6B6E76] transition-colors duration-150 focus:outline-none focus:border-[#FF8C42] focus:ring-2 focus:ring-[#FF8C42]/20';
+      'block rounded-lg border bg-[#111318] text-[#F5F5F5] placeholder-[#A1A4AC] transition-colors duration-150 focus:outline-none focus:border-[#FF8C42] focus:ring-2 focus:ring-[#FF8C42]/20';
     const normalStyles = 'border-[#282C35] hover:border-[#3A404D]';
     const errorStyles =
       'border-[#EF4444] text-[#F87171] focus:border-[#EF4444] focus:ring-[#EF4444]/20';
@@ -142,7 +142,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           </p>
         )}
         {!error && helperText && (
-          <p id={`${inputId}-helper`} className="mt-1 text-xs text-[#6B6E76]">
+          <p id={`${inputId}-helper`} className="mt-1 text-xs text-[#A1A4AC]">
             {helperText}
           </p>
         )}

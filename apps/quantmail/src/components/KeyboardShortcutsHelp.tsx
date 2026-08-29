@@ -143,7 +143,7 @@ function BindingKeys({ keys }: { keys: string | string[] }) {
     <>
       {chords.map((chord, chordIndex) => (
         <span key={`${chord}-${chordIndex}`} className="inline-flex items-center gap-1">
-          {chordIndex > 0 && <span className="px-0.5 text-[10px] text-[#6B6E76]">then</span>}
+          {chordIndex > 0 && <span className="px-0.5 text-[10px] text-[#A1A4AC]">then</span>}
           {chordToLabelParts(chord).map((part, partIndex) => (
             <kbd key={`${part}-${partIndex}`}>{part}</kbd>
           ))}

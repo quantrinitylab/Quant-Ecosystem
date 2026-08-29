@@ -141,7 +141,7 @@ export function PostcardPicker({
                     </div>
 
                     <div className="mt-3 pt-2.5 border-t border-[#282C35]/80 flex items-center justify-between text-[11px]">
-                      <span className="text-[#6B6E76] font-mono">
+                      <span className="text-[#A1A4AC] font-mono">
                         {template.paperTexture.replace('-', ' ')}
                       </span>
                       <span className="text-[#FF8C42] font-semibold font-mono">

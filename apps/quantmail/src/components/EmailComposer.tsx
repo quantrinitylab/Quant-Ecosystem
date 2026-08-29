@@ -662,7 +662,7 @@ export function EmailComposer({
                   <button
                     type="button"
                     onClick={() => setShowCc(true)}
-                    className="text-[#6B6E76] hover:text-[#FF8C42] font-medium px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors"
+                    className="text-[#A1A4AC] hover:text-[#FF8C42] font-medium px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors"
                   >
                     Cc
                   </button>
@@ -671,7 +671,7 @@ export function EmailComposer({
                   <button
                     type="button"
                     onClick={() => setShowBcc(true)}
-                    className="text-[#6B6E76] hover:text-[#FF8C42] font-medium px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors"
+                    className="text-[#A1A4AC] hover:text-[#FF8C42] font-medium px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors"
                   >
                     Bcc
                   </button>
@@ -754,7 +754,7 @@ export function EmailComposer({
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Subject of the email"
-            className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-[#6B6E76] focus:outline-none"
+            className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-[#A1A4AC] focus:outline-none"
           />
         </div>
 
@@ -773,7 +773,7 @@ export function EmailComposer({
             {isTemplateMode ? <IconClipboard size={13} /> : <IconSparkle size={13} />}
             <span>{isTemplateMode ? 'Guided Corporate Mode: ON' : 'Structured Template Mode'}</span>
           </button>
-          <span className="text-[10px] text-[#6B6E76] font-mono">
+          <span className="text-[10px] text-[#A1A4AC] font-mono">
             {selectedFont.name} · {selectedSize.name}
           </span>
         </div>
@@ -791,7 +791,7 @@ export function EmailComposer({
                 value={greeting}
                 onChange={(e) => setGreeting(e.target.value)}
                 placeholder="Dear Sir/Madam,"
-                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
               />
             </div>
 
@@ -805,7 +805,7 @@ export function EmailComposer({
                 value={opening}
                 onChange={(e) => setOpening(e.target.value)}
                 placeholder="Reason for writing / brief opening statement..."
-                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
               />
             </div>
           </div>
@@ -835,7 +835,7 @@ export function EmailComposer({
                 `${isUnderline ? 'underline ' : ''}${isStrikethrough ? 'line-through' : ''}`.trim() ||
                 'none',
             }}
-            className={`w-full max-w-full box-border bg-[#090A0C]/40 border border-[#282C35]/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]/50 resize-y leading-relaxed shadow-inner min-h-[200px]`}
+            className={`w-full max-w-full box-border bg-[#090A0C]/40 border border-[#282C35]/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]/50 resize-y leading-relaxed shadow-inner min-h-[200px]`}
           />
 
           {/* Smart Compose Predictive Autocomplete Chip */}
@@ -871,7 +871,7 @@ export function EmailComposer({
                 value={closing}
                 onChange={(e) => setClosing(e.target.value)}
                 placeholder="Thank you for your time."
-                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
               />
             </div>
 
@@ -887,14 +887,14 @@ export function EmailComposer({
                     value={signoff}
                     onChange={(e) => setSignoff(e.target.value)}
                     placeholder="Best regards,"
-                    className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none border-b border-[#282C35] pb-0.5"
+                    className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35] pb-0.5"
                   />
                   <input
                     type="text"
                     value={senderName}
                     onChange={(e) => setSenderName(e.target.value)}
                     placeholder="Your Name"
-                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none border-b border-[#282C35] pb-0.5"
+                    className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35] pb-0.5"
                   />
                 </div>
               </div>
@@ -907,7 +907,7 @@ export function EmailComposer({
                     value={detail}
                     onChange={(e) => handleUpdateDetail(idx, e.target.value)}
                     placeholder="Designation / Company / Contact..."
-                    className="flex-1 min-w-0 bg-transparent text-xs text-[#A1A4AC] placeholder-[#6B6E76] focus:outline-none border-b border-[#282C35]/80 pb-0.5"
+                    className="flex-1 min-w-0 bg-transparent text-xs text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35]/80 pb-0.5"
                   />
                   <button
                     type="button"
@@ -982,7 +982,7 @@ export function EmailComposer({
                   className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#111318] border border-[#282C35] text-xs text-white shadow-sm"
                 >
                   <span className="truncate max-w-[140px]">{file.name}</span>
-                  <span className="text-[10px] text-[#6B6E76]">({formatBytes(file.size)})</span>
+                  <span className="text-[10px] text-[#A1A4AC]">({formatBytes(file.size)})</span>
                   <button
                     type="button"
                     onClick={() => setAttachments((prev) => prev.filter((a) => a.id !== file.id))}
@@ -1259,7 +1259,7 @@ export function EmailComposer({
                 setTextColor(TEXT_COLORS[0]);
                 setTextAlign('left');
               }}
-              className="ml-auto p-1.5 rounded-lg text-[#6B6E76] hover:text-[#A1A4AC] text-xs"
+              className="ml-auto p-1.5 rounded-lg text-[#A1A4AC] hover:text-[#A1A4AC] text-xs"
               title="Clear formatting"
             >
               T<span className="text-[10px]">x</span>
@@ -1410,7 +1410,15 @@ export function EmailComposer({
         </div>
       </div>
 
-      {/* Clean Gmail-Grade Print Document (Visible ONLY during print) */}
+      {/*
+       * Clean Gmail-Grade Print Document (Visible ONLY during print).
+       *
+       * Everything below sits on white paper, so the app's dark-canvas type
+       * ramp is inverted here and none of it applies: #A1A4AC is 2.49:1 on
+       * white and #F5F5F5 is invisible. Secondary copy on this sheet is
+       * #3A404D (10.4:1) and hairline rules are #A1A4AC. A colour sweep that
+       * assumes the dark canvas must skip this subtree.
+       */}
       <div className="hidden print:block bg-white text-black p-4 sm:p-8 font-sans w-full min-h-screen">
         <style
           dangerouslySetInnerHTML={{
@@ -1439,7 +1447,7 @@ export function EmailComposer({
             </div>
             <span className="text-xl font-bold tracking-tight text-black">QuantMail</span>
           </div>
-          <div className="text-xs text-[#6B6E76] font-medium">
+          <div className="text-xs text-[#3A404D] font-medium">
             {senderName || authUser?.displayName || 'Kundan Kumar'} &lt;
             {authUser?.email || 'kundan@quantmail.in'}&gt;
           </div>
@@ -1458,23 +1466,23 @@ export function EmailComposer({
               &lt;{authUser?.email || 'kundan@quantmail.in'}&gt;
             </div>
             <div>
-              <span className="text-[#6B6E76]">Draft To: </span>
+              <span className="text-[#3A404D]">Draft To: </span>
               <span className="font-medium text-black">{to || '(no recipients)'}</span>
             </div>
             {cc && (
               <div>
-                <span className="text-[#6B6E76]">Cc: </span>
+                <span className="text-[#3A404D]">Cc: </span>
                 <span className="text-black">{cc}</span>
               </div>
             )}
             {bcc && (
               <div>
-                <span className="text-[#6B6E76]">Bcc: </span>
+                <span className="text-[#3A404D]">Bcc: </span>
                 <span className="text-black">{bcc}</span>
               </div>
             )}
           </div>
-          <div className="text-right text-[#6B6E76] text-xs shrink-0">
+          <div className="text-right text-[#3A404D] text-xs shrink-0">
             {new Date().toLocaleDateString('en-GB', {
               day: 'numeric',
               month: 'long',
@@ -1491,7 +1499,7 @@ export function EmailComposer({
 
         {/* Attachments Footer if any */}
         {attachments.length > 0 && (
-          <div className="mt-8 pt-4 border-t border-[#F5F5F5] text-xs text-[#6B6E76]">
+          <div className="mt-8 pt-4 border-t border-[#A1A4AC] text-xs text-[#3A404D]">
             <strong className="text-black">Attachments ({attachments.length}): </strong>
             <span>{attachments.map((a) => a.name).join(', ')}</span>
           </div>

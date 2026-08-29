@@ -692,7 +692,7 @@ export default function DrivePage() {
               <button
                 type="button"
                 onClick={() => setSelectedIds(new Set())}
-                className="min-h-touch px-2.5 rounded-md text-[#6B6E76] hover:text-[#F5F5F5] flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                className="min-h-touch px-2.5 rounded-md text-[#A1A4AC] hover:text-[#F5F5F5] flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
                 <svg
                   className="size-3.5"
@@ -775,7 +775,7 @@ export default function DrivePage() {
 
             <div className="w-full sm:w-64 flex flex-col gap-1.5 shrink-0">
               <div className="flex items-center justify-between text-[11px] font-mono">
-                <span className="text-[#6B6E76]">Storage Used</span>
+                <span className="text-[#A1A4AC]">Storage Used</span>
                 <span className="text-[#F5F5F5] font-medium">
                   {quotaKnown
                     ? `${formatBytes(usedBytes)} / ${formatBytes(totalBytes)} (${usedPct}%)`
@@ -1081,7 +1081,7 @@ export default function DrivePage() {
                               <div className="mb-2 grid size-12 place-items-center text-[#A1A4AC] transition-transform group-hover:scale-105">
                                 {getFileIcon(file.mimeType, file.type, 'w-6 h-6')}
                               </div>
-                              <span className="font-mono text-[10px] uppercase tracking-wider text-[#6B6E76]">
+                              <span className="font-mono text-[10px] uppercase tracking-wider text-[#A1A4AC]">
                                 {file.mimeType.split('/')[1] || 'FILE'}
                               </span>
                             </div>
@@ -1207,7 +1207,7 @@ export default function DrivePage() {
                                     <button
                                       type="button"
                                       onClick={(e) => handleDeleteItem(file.id, file.name, e)}
-                                      className="text-xs text-[#6B6E76] hover:text-rose-400 font-semibold"
+                                      className="text-xs text-[#A1A4AC] hover:text-rose-400 font-semibold"
                                     >
                                       Delete
                                     </button>
@@ -1289,7 +1289,7 @@ export default function DrivePage() {
                   if (e.key === 'Enter') handleCreateFolder();
                 }}
                 placeholder="e.g. Invoices, Project Assets, Designs…"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
                 autoFocus
               />
             </div>
@@ -1327,7 +1327,7 @@ export default function DrivePage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveRename();
                 }}
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
                 autoFocus
               />
             </div>

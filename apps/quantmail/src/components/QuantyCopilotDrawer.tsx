@@ -347,7 +347,7 @@ export function QuantyCopilotDrawer({
                     </div>
 
                     {historyList.length === 0 ? (
-                      <p className="text-[11px] text-[#6B6E76] py-2 text-center">
+                      <p className="text-[11px] text-[#A1A4AC] py-2 text-center">
                         No previous chats recorded
                       </p>
                     ) : (
@@ -360,7 +360,7 @@ export function QuantyCopilotDrawer({
                           >
                             <div className="min-w-0 flex-1 pr-2">
                               <p className="text-xs text-[#F5F5F5] truncate">{item.preview}</p>
-                              <p className="text-[10px] text-[#6B6E76]">{item.date}</p>
+                              <p className="text-[10px] text-[#A1A4AC]">{item.date}</p>
                             </div>
                             <button
                               type="button"
@@ -647,7 +647,7 @@ export function QuantyCopilotDrawer({
               </form>
 
               <div className="pt-2 text-center">
-                <span className="text-[10px] text-[#6B6E76] font-sans tracking-wide">
+                <span className="text-[10px] text-[#A1A4AC] font-sans tracking-wide">
                   Quanty can make mistakes.
                 </span>
               </div>

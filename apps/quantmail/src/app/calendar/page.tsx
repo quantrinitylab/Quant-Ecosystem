@@ -1464,7 +1464,7 @@ export default function CalendarPage() {
               placeholder="Search events, meetings, tasks, birthdays…"
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+              className="w-full bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
               autoFocus
             />
             <button
@@ -1502,7 +1502,7 @@ export default function CalendarPage() {
 
             <h2 className="text-xl font-bold tracking-tight text-[#F5F5F5] flex items-center gap-2">
               <span>{activeMonthName}</span>
-              <span className="text-[#6B6E76] font-normal">{activeYear}</span>
+              <span className="text-[#A1A4AC] font-normal">{activeYear}</span>
             </h2>
 
             <button
@@ -1635,7 +1635,7 @@ export default function CalendarPage() {
                       {week.map((d) => {
                         let sphereClass = d.isCurrentMonth
                           ? 'text-[#A1A4AC] hover:bg-[#16181D]'
-                          : 'text-[#6B6E76]/50';
+                          : 'text-[#A1A4AC]/50';
 
                         if (d.isSelected) {
                           sphereClass = 'bg-[#FF8C42] text-[#111111] font-bold shadow-sm';
@@ -1740,7 +1740,7 @@ export default function CalendarPage() {
                 // than a persistent header.
                 const monthBand = item.monthBreak && (
                   <div className="flex items-center gap-3 pb-1.5 pt-3 first:pt-0">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6B6E76]">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#A1A4AC]">
                       {item.monthBreak}
                     </span>
                     <span className="h-px flex-1 bg-[#282C35]/60" />
@@ -1779,8 +1779,12 @@ export default function CalendarPage() {
                         >
                           {item.dayNum} {item.monthShort}
                         </span>
-                        <span className="text-[#3A404D]">·</span>
-                        <span className="flex-1 truncate text-[11px] text-[#6B6E76]">
+                        {/* Decorative separator only, so 3:1 is the bar (WCAG
+                            1.4.11) — but #3A404D was 1.91:1 and did not render
+                            at all. #6B6E76 matches `.wm-divider`, the same
+                            glyph doing the same job elsewhere. */}
+                        <span className="text-[#6B6E76]">·</span>
+                        <span className="flex-1 truncate text-[11px] text-[#A1A4AC]">
                           {item.isToday ? 'Nothing left today' : 'No events'}
                         </span>
                         <span className="shrink-0 pr-1 text-[11px] font-medium text-[#FF8C42] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100">
@@ -1813,7 +1817,7 @@ export default function CalendarPage() {
                         >
                           {item.dayNum} {item.monthShort}
                         </span>
-                        <span className="text-[11px] text-[#6B6E76]">{item.weekdayName}</span>
+                        <span className="text-[11px] text-[#A1A4AC]">{item.weekdayName}</span>
 
                         {item.isToday && (
                           <span className="rounded-full border border-[#5C3016] bg-[#2B1A11] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#FFB875]">
@@ -1821,7 +1825,7 @@ export default function CalendarPage() {
                           </span>
                         )}
                         {item.isTomorrow && (
-                          <span className="text-[10px] font-medium uppercase tracking-wider text-[#6B6E76]">
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-[#A1A4AC]">
                             Tomorrow
                           </span>
                         )}
@@ -2343,7 +2347,7 @@ export default function CalendarPage() {
                           className={`pb-1 px-3 font-semibold transition-colors border-b-2 flex items-center gap-1.5 ${
                             periodSubTab === tab.key
                               ? 'border-rose-400 text-rose-300 font-bold'
-                              : 'border-transparent text-[#6B6E76] hover:text-[#F5F5F5]'
+                              : 'border-transparent text-[#A1A4AC] hover:text-[#F5F5F5]'
                           }`}
                         >
                           <span>{tab.label}</span>
@@ -2357,7 +2361,7 @@ export default function CalendarPage() {
                 <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4 text-xs text-white pb-24">
                   {/* Account Row */}
                   <div className="flex items-center justify-between py-1 border-b border-[#282C35] text-[#A1A4AC]">
-                    <span className="text-xs text-[#6B6E76]">Account</span>
+                    <span className="text-xs text-[#A1A4AC]">Account</span>
                     <span className="text-[11px] font-semibold text-[#FF8C42] bg-[#2B1A11] px-2.5 py-0.5 rounded-full border border-[#5C3016] flex items-center gap-1.5">
                       <svg
                         className="w-3 h-3 text-[#FF8C42]"
@@ -2385,7 +2389,7 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add event title"
-                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#6B6E76] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
+                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
                           autoFocus
                         />
                       </div>
@@ -2492,7 +2496,7 @@ export default function CalendarPage() {
                               setFormState({ ...formState, attendeeInput: e.target.value })
                             }
                             onKeyDown={handleAddAttendee}
-                            className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
+                            className="flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
                           />
                         </div>
                         {formState.attendees.length > 0 && (
@@ -2527,7 +2531,7 @@ export default function CalendarPage() {
                             onChange={(e) =>
                               setFormState({ ...formState, location: e.target.value })
                             }
-                            className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
+                            className="flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
                           />
                         </div>
                         <div className="flex items-center gap-1.5 pl-7">
@@ -2587,7 +2591,7 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none resize-none"
+                          className="flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none resize-none"
                         />
                       </div>
 
@@ -2601,7 +2605,7 @@ export default function CalendarPage() {
                             onChange={(e) =>
                               setFormState({ ...formState, driveLink: e.target.value })
                             }
-                            className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
+                            className="flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
                           />
                         </div>
                       </div>
@@ -2617,7 +2621,7 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add task title"
-                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#6B6E76] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
+                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
                           autoFocus
                         />
                       </div>
@@ -2686,7 +2690,7 @@ export default function CalendarPage() {
                             setFormState({ ...formState, subtaskInput: e.target.value })
                           }
                           onKeyDown={handleAddSubtask}
-                          className="w-full bg-[#090A0C] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#6B6E76]"
+                          className="w-full bg-[#090A0C] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#A1A4AC]"
                         />
                         {formState.subtasks.map((st, idx) => (
                           <div
@@ -2712,7 +2716,7 @@ export default function CalendarPage() {
                               )}
                             </span>
                             <span
-                              className={st.done ? 'line-through text-[#6B6E76]' : 'text-[#F5F5F5]'}
+                              className={st.done ? 'line-through text-[#A1A4AC]' : 'text-[#F5F5F5]'}
                             >
                               {st.text}
                             </span>
@@ -2729,7 +2733,7 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none resize-none"
+                          className="flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none resize-none"
                         />
                       </div>
                     </div>
@@ -2744,7 +2748,7 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add person's name (e.g. Rahul's Birthday)"
-                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#6B6E76] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-emerald-500"
+                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-emerald-500"
                           autoFocus
                         />
                       </div>
@@ -2803,7 +2807,7 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none resize-none"
+                          className="flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none resize-none"
                         />
                       </div>
                     </div>
@@ -3235,7 +3239,7 @@ export default function CalendarPage() {
                                 setFormState({ ...formState, customTagInput: e.target.value })
                               }
                               onKeyDown={handleAddCustomTag}
-                              className="w-full bg-[#1e1e24] border border-[#282C35] rounded-2xl p-2.5 text-xs text-white placeholder-[#6B6E76] focus:outline-none"
+                              className="w-full bg-[#1e1e24] border border-[#282C35] rounded-2xl p-2.5 text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
                             />
                             {formState.customTags.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 pt-1">
@@ -3269,7 +3273,7 @@ export default function CalendarPage() {
                               onChange={(e) =>
                                 setFormState({ ...formState, description: e.target.value })
                               }
-                              className="w-full bg-[#1e1e24] border border-[#282C35] rounded-2xl p-3 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-rose-500 resize-none"
+                              className="w-full bg-[#1e1e24] border border-[#282C35] rounded-2xl p-3 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-rose-500 resize-none"
                             />
                           </div>
                         </div>
@@ -3571,7 +3575,7 @@ export default function CalendarPage() {
               className="w-full accent-[#FF8C42]"
             />
 
-            <div className="flex items-center justify-between text-[10px] text-[#6B6E76]">
+            <div className="flex items-center justify-between text-[10px] text-[#A1A4AC]">
               <span>5m</span>
               <span>1h</span>
               <span>1d</span>

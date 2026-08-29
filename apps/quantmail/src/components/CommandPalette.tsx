@@ -180,7 +180,7 @@ export function CommandPalette() {
                 id="command-palette-input"
                 name="commandQuery"
                 ref={inputRef}
-                className="min-w-0 flex-1 bg-transparent text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none"
+                className="min-w-0 flex-1 bg-transparent text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
                 type="text"
                 placeholder="Type a command, or jump to a workspace…"
                 value={query}
@@ -207,23 +207,21 @@ export function CommandPalette() {
               aria-label="Commands"
             >
               {flatOrder.length === 0 && (
-                <p className="py-10 text-center text-xs text-[#6B6E76]">
+                <p className="py-10 text-center text-xs text-[#A1A4AC]">
                   No commands match &ldquo;{query}&rdquo;
                 </p>
               )}
 
               {groups.map(({ group, items }) => (
                 <div key={group} className="space-y-1">
-                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#6B6E76]">
+                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]">
                     {group}
                   </div>
                   {items.map((command) => {
                     const index = cursor++;
                     const isActive = index === activeIndex;
                     const binding = command.keys
-                      ? formatBinding(
-                          Array.isArray(command.keys) ? command.keys[0] : command.keys,
-                        )
+                      ? formatBinding(Array.isArray(command.keys) ? command.keys[0] : command.keys)
                       : null;
 
                     return (
@@ -275,7 +273,7 @@ export function CommandPalette() {
                             className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] ${
                               isActive
                                 ? 'border-[#5C3016] bg-[#1D1410] text-[#FF8C42]'
-                                : 'border-[#282C35] bg-[#111318] text-[#6B6E76]'
+                                : 'border-[#282C35] bg-[#111318] text-[#A1A4AC]'
                             }`}
                           >
                             {binding}
@@ -288,7 +286,7 @@ export function CommandPalette() {
               ))}
             </div>
 
-            <footer className="flex items-center justify-between border-t border-[#282C35] bg-[#111318] px-4 py-2 text-[11px] text-[#6B6E76]">
+            <footer className="flex items-center justify-between border-t border-[#282C35] bg-[#111318] px-4 py-2 text-[11px] text-[#A1A4AC]">
               <span className="flex items-center gap-3">
                 <span>
                   <kbd className="font-mono text-[#A1A4AC]">↑↓</kbd> navigate

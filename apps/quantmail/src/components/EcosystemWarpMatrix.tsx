@@ -197,7 +197,7 @@ export function EcosystemWarpMatrix({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 text-[#6B6E76] group-hover:text-[#FF8C42] transition-colors text-xs font-bold pl-2">
+                  <div className="flex items-center gap-1.5 text-[#A1A4AC] group-hover:text-[#FF8C42] transition-colors text-xs font-bold pl-2">
                     <span>Open</span>
                     <svg
                       className="size-3.5 flex-none"
@@ -266,7 +266,7 @@ export function EcosystemWarpMatrix({
                 )}
               </div>
 
-              <span className="text-[11px] text-[#6B6E76] font-mono">Press Esc to close</span>
+              <span className="text-[11px] text-[#A1A4AC] font-mono">Press Esc to close</span>
             </div>
           </motion.div>
         </div>
