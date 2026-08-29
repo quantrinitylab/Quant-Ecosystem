@@ -282,16 +282,17 @@ function identityOf(address?: EmailAddress | null): { key: string; name: string 
  * Everyone in a conversation who is not the signed-in user, in the order they
  * first appear.
  *
- * Which end of a message to read depends on who wrote it: a message *to* you is
- * described by its sender, a message *from* you by its recipients. Reading only
- * the sender — which is what this did until recently — labelled every thread you
- * had sent with your own name, so in a unified inbox where most rows are yours the
- * list was a column of "You" and the row could not say who the conversation was
- * with.
+ * This is deliberately the same set of people that `conversationKeyOf` groups on,
+ * so the row's label and the reason the row exists cannot disagree. They used to:
+ * recipients of *inbound* mail were left out, on the grounds that they are usually
+ * just you. Once a row became a person rather than a subject, that shortcut
+ * produced two rows both labelled `Alice` — the 1:1 and the group Alice happened
+ * to have written to — which is the same "one person, several rows" confusion the
+ * subject-keyed grouping used to cause, arriving by a different route.
  *
- * Recipients of *inbound* mail are deliberately left out. They are usually just
- * you, and on a group thread they push the person who actually wrote to you off
- * the end of a row that has a count, a dot, a kind mark and a timestamp to fit.
+ * The sender still goes in first, so the primary name on the row is whoever wrote
+ * the message being previewed, and the avatar keeps one colour per person.
+ * `summarizeParticipants` is what stops a long list from overflowing.
  *
  * Returns `[]` for a genuine note-to-self, which `summarizeParticipants` renders.
  */
@@ -306,20 +307,27 @@ export function threadParticipants(messages: Email[] = [], currentEmail?: string
   };
 
   for (const message of messages) {
-    if (isFromMe(message, currentEmail)) {
-      for (const recipient of recipientsOf(message)) {
-        if (isMyAddress(recipient.email, currentEmail)) continue;
-        add(identityOf(recipient));
+    if (!isFromMe(message, currentEmail)) {
+      const from =
+        message.from ??
+        ({
+          email: (message as { fromAddress?: string }).fromAddress,
+          name: (message as { fromName?: string }).fromName,
+        } as EmailAddress);
+      const identity = identityOf(from);
+      if (identity) {
+        if (!isMyAddress(from?.email, currentEmail)) add(identity);
+      } else if (recipientsOf(message).length === 0) {
+        // Nothing on the message names anyone. The row still has to say something,
+        // and `Sender` is more honest than the reader's own name.
+        add({ key: `unknown:${message.id}`, name: 'Sender' });
       }
-      continue;
     }
-    const from =
-      message.from ??
-      ({
-        email: (message as { fromAddress?: string }).fromAddress,
-        name: (message as { fromName?: string }).fromName,
-      } as EmailAddress);
-    add(identityOf(from) ?? { key: `unknown:${message.id}`, name: 'Sender' });
+
+    for (const recipient of recipientsOf(message)) {
+      if (isMyAddress(recipient.email, currentEmail)) continue;
+      add(identityOf(recipient));
+    }
   }
 
   return names;
@@ -349,22 +357,144 @@ export function summarizeParticipants(participants: string[]): string {
 }
 
 /**
+ * The key that decides which row a message belongs to: who the conversation is
+ * *with*.
+ *
+ * This is the one place where QuantMail stops being a mail client. A mail client
+ * threads by subject, so `Hello`, `How are you` and `Re: Good` to the same person
+ * are three rows, and a note you wrote yourself last Tuesday is a fourth row away
+ * from the one you wrote today. That is what the inbox did, and it is what the
+ * reader was complaining about: one person spread over four rows, `You` appearing
+ * twice in the same screen, and no row that could show a send and its reply side
+ * by side.
+ *
+ * A chat list threads by *person*, and that is the product this is. So the key is
+ * the set of addresses on the message that are not yours — sender if the message
+ * came in, recipients and cc if it went out — which makes a send and the reply to
+ * it land in one place by construction rather than by hoping the server issued
+ * the same `threadId` for both. Subject still names each message inside the
+ * thread; it just no longer decides where the thread is.
+ *
+ * A group of three is its own key, not a merge into any of the three 1:1
+ * conversations, for the same reason a group chat is its own row.
+ *
+ * `self` is the note-to-self bucket: nobody else on the message. `threadId` is not
+ * consulted at all — it was the thing splitting these rows — but it is still
+ * carried on the thread from the newest message, which is what a reply targets.
+ */
+function conversationKeyOf(email: Email, currentEmail?: string): string {
+  const keys = new Set<string>();
+
+  if (!isFromMe(email, currentEmail)) {
+    const from =
+      email.from ??
+      ({
+        email: (email as { fromAddress?: string }).fromAddress,
+        name: (email as { fromName?: string }).fromName,
+      } as EmailAddress);
+    const identity = identityOf(from);
+    if (identity && !isMyAddress(from?.email, currentEmail)) keys.add(identity.key);
+  }
+
+  for (const recipient of recipientsOf(email)) {
+    if (isMyAddress(recipient.email, currentEmail)) continue;
+    const identity = identityOf(recipient);
+    if (identity) keys.add(identity.key);
+  }
+
+  if (keys.size === 0) return 'self';
+  return `with:${Array.from(keys).sort().join('|')}`;
+}
+
+/**
+ * How far apart two copies of one send may be timestamped and still be recognised
+ * as the same message.
+ *
+ * The pair is written by two statements in the same request, so the real gap is
+ * milliseconds; the allowance is generous because the two rows take their time
+ * from different clocks (`sentAt` on the stored copy, `receivedAt` on the
+ * delivered one) and a slow write should not turn one message into two.
+ */
+const DUPLICATE_WINDOW_MS = 120_000;
+
+/**
+ * Whether two messages in the same conversation are one message stored twice.
+ *
+ * Sending to an address that is also yours writes two rows: the copy in Sent
+ * (`isSent: true`) and the copy that was delivered (`isSent: false`). They carry
+ * different ids, so nothing downstream could tell they were one send — a
+ * two-message conversation counted 4, and because the Sent copy is written with
+ * `isRead: false`, every such conversation also read as unread forever.
+ *
+ * The test is deliberately narrow. Disagreeing on `isSent` is required, which is
+ * what makes this a send/delivery pair rather than two genuinely similar messages
+ * — a person who sends `ok` twice in a minute has said two things, and both of
+ * those carry the same `isSent`.
+ */
+function isSameSend(a: Email, b: Email): boolean {
+  const sentA = Boolean((a as { isSent?: boolean }).isSent);
+  const sentB = Boolean((b as { isSent?: boolean }).isSent);
+  if (sentA === sentB) return false;
+  if (normalizeSubject(a.subject) !== normalizeSubject(b.subject)) return false;
+  if (messageKindOf(a) !== messageKindOf(b)) return false;
+  const bodyA = (a.bodyText || (a as { bodyPlain?: string }).bodyPlain || '').trim();
+  const bodyB = (b.bodyText || (b as { bodyPlain?: string }).bodyPlain || '').trim();
+  if (bodyA !== bodyB) return false;
+  const replyA = (a as { inReplyTo?: string | null }).inReplyTo || '';
+  const replyB = (b as { inReplyTo?: string | null }).inReplyTo || '';
+  if (replyA !== replyB) return false;
+  const timeA = new Date(a.receivedAt || a.createdAt || 0).getTime();
+  const timeB = new Date(b.receivedAt || b.createdAt || 0).getTime();
+  return Math.abs(timeA - timeB) <= DUPLICATE_WINDOW_MS;
+}
+
+/**
+ * Collapse each send/delivery pair into the one message it is.
+ *
+ * The surviving copy is the earlier of the two, so ordering is untouched, and it
+ * inherits the union of the flags: read if either copy was read, starred if
+ * either was starred. Read is a union rather than an `every` because the Sent
+ * copy's `isRead: false` is a storage artefact — nobody has to open their own
+ * outgoing message before it stops being new.
+ *
+ * `messages` must already be sorted oldest-first.
+ */
+function collapseDuplicateSends(messages: Email[]): Email[] {
+  const out: Email[] = [];
+  for (const message of messages) {
+    const twinIndex = out.findIndex((seen) => isSameSend(seen, message));
+    if (twinIndex === -1) {
+      out.push(message);
+      continue;
+    }
+    const twin = out[twinIndex];
+    out[twinIndex] = {
+      ...twin,
+      isRead: Boolean(twin.isRead) || Boolean(message.isRead),
+      isStarred: Boolean(twin.isStarred) || Boolean(message.isStarred),
+      snippet: twin.snippet || message.snippet,
+      threadId: twin.threadId || message.threadId,
+    } as Email;
+  }
+  return out;
+}
+
+/**
  * Group messages into conversations, newest conversation first.
  *
- * `threadId` wins when the server supplied one. Otherwise messages are grouped by
- * normalized subject — and the test for "has a subject" is the *normalized* form,
- * not the raw one. That distinction is the fix for a real defect: a subject of
- * literally `Re:` (or `Fwd:`, or two spaces) is truthy but normalizes to nothing,
- * so keying off the raw string sent every one of them to the single key `subj:`
- * and merged unrelated mail from unrelated senders into one thread. Such messages
- * are unthreadable, so each becomes its own conversation.
+ * Grouping is by counterparty — see `conversationKeyOf` for why a chat list and a
+ * mail client answer this differently, and why this is the chat list's answer.
  *
- * The same test decides the displayed title, for the same reason: `subject || '(no
- * subject)'` let `Re:` through and rendered a prefix with nothing after it.
+ * The displayed title comes from the newest message, and the test for "has a
+ * subject" is the *normalized* form, not the raw one: a subject of literally `Re:`
+ * is truthy but normalizes to nothing, and `subject || '(no subject)'` let it
+ * through and rendered a reply marker pointing at nothing.
  *
- * `isRead` is `every` and `isStarred` is `some`: a conversation with one unread
- * message is unread, and starring any message flags the whole conversation, which
- * is what the star control on the row toggles.
+ * `isRead` treats anything you sent as read — you cannot have unread mail from
+ * yourself, and the Sent copy of a message is stored with `isRead: false` — so a
+ * conversation is unread only when a message *someone else* sent is unread.
+ * `isStarred` is `some`: starring any message flags the whole conversation, which
+ * is what the pin control on the row toggles.
  */
 export function groupEmailsIntoThreads(
   emails: Email[] = [],
@@ -375,8 +505,7 @@ export function groupEmailsIntoThreads(
   const threadMap = new Map<string, Email[]>();
 
   for (const email of emails) {
-    const normalized = normalizeSubject(email.subject);
-    const key = email.threadId || (normalized ? `subj:${normalized}` : `email:${email.id}`);
+    const key = conversationKeyOf(email, currentEmail);
     const existing = threadMap.get(key) || [];
     existing.push(email);
     threadMap.set(key, existing);
@@ -384,29 +513,30 @@ export function groupEmailsIntoThreads(
 
   const threads: ConversationThread[] = [];
 
-  for (const [key, msgList] of threadMap.entries()) {
+  for (const msgList of threadMap.values()) {
     msgList.sort(
       (a, b) =>
         new Date(a.receivedAt || a.createdAt || 0).getTime() -
         new Date(b.receivedAt || b.createdAt || 0).getTime(),
     );
 
-    const latest = msgList[msgList.length - 1];
-    const isRead = msgList.every((m) => m.isRead);
-    const isStarred = msgList.some((m) => m.isStarred);
+    const messages = collapseDuplicateSends(msgList);
+    const latest = messages[messages.length - 1];
+    const isRead = messages.every((m) => m.isRead || isFromMe(m, currentEmail));
+    const isStarred = messages.some((m) => m.isStarred);
 
-    const participants = threadParticipants(msgList, currentEmail);
+    const participants = threadParticipants(messages, currentEmail);
 
     const normalizedLatest = normalizeSubject(latest.subject);
 
     threads.push({
       id: latest.id,
-      threadId: latest.threadId || (key.startsWith('subj:') ? latest.id : key),
+      threadId: latest.threadId || latest.id,
       subject: normalizedLatest ? latest.subject : '(no subject)',
       normalizedSubject: normalizedLatest,
       latestEmail: latest,
-      messages: msgList,
-      count: msgList.length,
+      messages,
+      count: messages.length,
       participants,
       participantsSummary: summarizeParticipants(participants),
       isRead,
@@ -414,8 +544,8 @@ export function groupEmailsIntoThreads(
       receivedAt: latest.receivedAt || latest.createdAt || new Date(),
       category: latest.category || 'primary',
       priority: latest.priority,
-      labels: Array.from(new Set(msgList.flatMap((m) => m.labels || []))),
-      kindMix: threadKindMix(msgList),
+      labels: Array.from(new Set(messages.flatMap((m) => m.labels || []))),
+      kindMix: threadKindMix(messages),
     });
   }
 

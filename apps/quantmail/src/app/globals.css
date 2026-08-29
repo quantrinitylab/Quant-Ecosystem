@@ -839,11 +839,27 @@ body {
 .batch-toolbar strong { margin-right: auto; }.batch-toolbar button { min-height: 1.8rem; border: 1px solid var(--quant-border); border-radius: 0.45rem; padding: 0 0.55rem; color: #aaa; }.batch-toolbar button:hover { background: var(--quant-muted); color: white; }
 .mail-list { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0.45rem 0.55rem; scrollbar-width: thin; scrollbar-color: #3A404D transparent; }
 .mail-loading { display: grid; gap: 0.45rem; padding: 0.35rem; }.mail-loading > * { border-radius: 0.72rem !important; background: #16181D !important; }
+/* `overflow: hidden` here is what keeps the row's 0.72rem corners from being
+   squared off by the opaque child backgrounds. It used to also clip the swipe
+   reveal panels, which are gone — see `EmailRow` for why the drag went. */
 .mail-row-shell { position: relative; overflow: hidden; border-radius: 0.72rem; }
-.mail-archive-reveal { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; gap: 0.45rem; padding-right: 1.25rem; background: #176e27; color: white; font-size: 0.7rem; font-weight: 700; }
-.mail-row { position: relative; display: flex; min-height: 4.85rem; align-items: center; gap: 0.7rem; border: 1px solid transparent; border-radius: 0.72rem; padding: 0.65rem 0.65rem; background: #0C0E11; cursor: pointer; transition: background 130ms ease, border-color 130ms ease, transform 130ms ease; }
-.mail-row:hover { border-color: #2d2d30; background: #111318; }.mail-row.is-active { border-color: rgba(255, 140, 66,.32); background: linear-gradient(90deg, rgba(255, 140, 66,.09), #111318 44%); }
-.mail-row.is-unread { background: #111318; }.mail-row.is-unread::before { position: absolute; inset: 0 auto 0 0; width: 2px; border-radius: 2px; background: #FF8C42; content: ''; }
+.mail-row { position: relative; display: flex; min-height: 4.85rem; align-items: center; gap: 0.7rem; border: 1px solid transparent; border-radius: 0.72rem; padding: 0.65rem 0.65rem; background: #0C0E11; cursor: pointer; transition: background 130ms ease, border-color 130ms ease; }
+.mail-row:hover { border-color: #2d2d30; background: #111318; }
+/*
+ * Selection is a surface and a border, not a brand wash. There is one accent
+ * signal on a row and it belongs to unread; painting the open row orange too
+ * meant two rows in the same list wore the same colour for unrelated reasons.
+ */
+.mail-row.is-active { border-color: #3A404D; background: #16181D; }
+/*
+ * Unread is carried by weight and surface: a lighter card than a read row, a
+ * near-white name at 730, a near-white subject at 680, and the one orange dot on
+ * the meta line. The 2px orange rail that used to run down the left edge of every
+ * unread row is deliberately gone — stacked against the dot, the kind badge, the
+ * priority chip and the pin it read as decoration on a list that already had
+ * four accents competing, and it was the loudest of them.
+ */
+.mail-row.is-unread { background: #111318; }
 /*
  * The raw checkbox is a pointer affordance: it appears on hover, which is the only
  * reason a 0.9rem box is acceptable — a finger never has to find it, because the
@@ -2279,9 +2295,10 @@ body {
 /* ========================================================================== */
 .mail-row.is-focused {
   border-color: rgba(255, 140, 66, 0.45) !important;
-  background: linear-gradient(90deg, rgba(255, 140, 66, 0.07), #111318 55%) !important;
-  /* Crisp inset ring plus a 2px brand rail. No outer bloom — a coloured
-     drop-shadow here bleeds onto the adjacent row as the focus moves. */
+  /* No background override. The row's own surface is what says read or unread,
+     and a wash here erased that distinction for whichever row the keyboard
+     happened to be on. The ring alone is enough to locate focus, and unlike the
+     unread rail it is transient — it moves with J/K rather than marking state. */
   box-shadow:
     inset 0 0 0 1px rgba(255, 140, 66, 0.28),
     inset 2px 0 0 0 #FF8C42;

@@ -2,14 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  AnimatePresence,
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useTransform,
-  type PanInfo,
-} from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ErrorState, Skeleton, Button } from '@quant/shared-ui';
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
@@ -75,13 +68,23 @@ type InboxFocus = 'needs_you' | 'waiting' | 'all';
 type InboxFilter = 'unread' | 'starred' | 'attachment' | 'group';
 
 const INBOX_FOCUSES: Array<{ key: InboxFocus; label: string; hint: string }> = [
+  /*
+   * `All` leads because it is the default and the widest: a reader lands on the
+   * full list and narrows from there, so the first tab should be the one already
+   * selected rather than a partition they have to opt out of.
+   *
+   * The two partitions are named as a pair — `Your turn` / `Their turn` — so the
+   * axis reads off the labels. `Needs you` / `Waiting` named the same split from
+   * two unrelated angles: one an instruction, one a state, with nothing to say
+   * they were opposite halves of one whole.
+   */
+  { key: 'all', label: 'All', hint: 'Every conversation, automated mail included' },
   {
     key: 'needs_you',
-    label: 'Needs you',
+    label: 'Your turn',
     hint: 'A person wrote last, so the next reply is yours',
   },
-  { key: 'waiting', label: 'Waiting', hint: 'You wrote last, so you are waiting on them' },
-  { key: 'all', label: 'All', hint: 'Every conversation, automated mail included' },
+  { key: 'waiting', label: 'Their turn', hint: 'You wrote last, so you are waiting on them' },
 ];
 
 const INBOX_FILTERS: Array<{ key: InboxFilter; label: string }> = [
@@ -188,6 +191,28 @@ function formatReceivedAt(value?: string | Date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/*
+ * The row used to be a two-sided drag target: pull left past 96px to archive,
+ * right past 96px to pin, with a green and an orange panel revealed underneath.
+ * All of it is gone, for three reasons the gesture could not be tuned out of.
+ *
+ * A horizontal drag on a vertically-scrolling list has no honest resting state.
+ * framer's `drag="x"` claims the pointer on the first horizontal pixel, so a
+ * thumb travelling up the list at any angle off vertical would slide a row a
+ * few pixels, and a slightly generous flick would archive a message the reader
+ * only meant to scroll past. Second, the two directions were not peers: archive
+ * is destructive and reversible only through a toast, pin is a decoration, and
+ * putting them on opposite ends of one motion made the expensive one as easy to
+ * trigger as the cheap one. Third, the affordance was invisible — nothing on the
+ * row said a swipe existed, so the only people who found it found it by
+ * accident.
+ *
+ * What replaces it is the boring thing: buttons. Archive and Pin sit on the row
+ * at 44px, always visible on a phone, always in the same place, and a mis-tap
+ * costs one undo rather than a message. Pointers keep `HoverActions` for the
+ * fuller set. The row itself no longer transforms at all, so vertical scrolling
+ * is the only gesture the list interprets.
+ */
 type EmailRowProps = {
   thread: ConversationThread;
   isChecked: boolean;
@@ -226,11 +251,6 @@ function EmailRow({
   onMarkUnread,
   onSnooze,
 }: EmailRowProps) {
-  const x = useMotionValue(0);
-  const archiveOpacity = useTransform(x, [-108, -44], [1, 0]);
-  const pinOpacity = useTransform(x, [44, 108], [0, 1]);
-  const prefersReducedMotion = useReducedMotion();
-  const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -261,47 +281,11 @@ function EmailRow({
     }
   };
 
-  const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    setIsDragging(false);
-    if (info.offset.x < -96) {
-      void onArchive();
-    } else if (info.offset.x > 96) {
-      onToggleStar(null);
-    }
-  };
-
   const email = thread.latestEmail;
-  const priorityLower = thread.priority?.toLowerCase();
-  const isHighPriority =
-    priorityLower === 'high' || priorityLower === 'urgent' || priorityLower === 'critical';
-  const priorityColor =
-    priorityLower === 'critical'
-      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-      : 'bg-[#FF8C42]/15 text-[#FFB875] border-[#FF8C42]/30';
 
   return (
     <div className={`mail-row-shell relative ${showSnoozeMenu ? 'z-50' : ''}`}>
-      <motion.div
-        className="mail-archive-reveal"
-        style={{ opacity: archiveOpacity }}
-        aria-hidden="true"
-      >
-        <MailIcon name="archive" /> <span>Archive</span>
-      </motion.div>
-      <motion.div
-        className="mail-pin-reveal absolute inset-y-0 left-0 flex items-center gap-2 pl-4 text-[#FF8C42] bg-[#FF8C42]/20 border-r border-[#FF8C42]/30 font-semibold text-xs"
-        style={{ opacity: pinOpacity }}
-        aria-hidden="true"
-      >
-        <MailIcon name="pin" className="size-4 text-[#FF8C42]" /> <span>Pin</span>
-      </motion.div>
-      <motion.article
-        style={{ x }}
-        drag={prefersReducedMotion ? false : 'x'}
-        dragConstraints={{ left: -128, right: 128 }}
-        dragElastic={0.08}
-        onDragStart={() => setIsDragging(true)}
-        onDragEnd={handleDragEnd}
+      <article
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onTouchStart={handleTouchStart}
@@ -309,7 +293,7 @@ function EmailRow({
         onTouchEnd={handleTouchEnd}
         className={`mail-row ${thread.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''}`}
         onClick={() => {
-          if (!isDragging && !isLongPressRef.current) onOpen();
+          if (!isLongPressRef.current) onOpen();
         }}
       >
         <input
@@ -356,21 +340,20 @@ function EmailRow({
               )}
             </div>
             {!thread.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
-            {isHighPriority && (
-              <span
-                className={`text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded border ${priorityColor}`}
-              >
-                {priorityLower}
-              </span>
-            )}
             {/*
-              Mail or chat, on the row itself. The glyph alone here: the meta line
-              already carries a name, a count, a dot, a priority and a time, and
-              `.mail-row-meta time` takes `margin-left: auto`, so every word added
-              to its left eats into the subject beneath it. The word is still in the
-              accessibility tree via the badge's `sr-only` text.
+              The kind mark is here only when it says something. A conversation of
+              letters is what an inbox holds by default, so a `Mail` pill on every
+              row was 100% coverage carrying 0 bits — and it was the loudest thing
+              on the line, since a letter takes the brand-soft fill. `chat` and
+              `mixed` are the cases worth a mark, and `mixed` is the one that makes
+              a unified thread worth having.
+
+              The glyph alone: the meta line already carries a name, a count, a dot
+              and a time, and `.mail-row-meta time` takes `margin-left: auto`, so
+              every word added to its left eats into the subject beneath it. The
+              word stays in the accessibility tree via the badge's `sr-only` text.
             */}
-            <ThreadKindBadge mix={thread.kindMix} />
+            {thread.kindMix !== 'mail' && <ThreadKindBadge mix={thread.kindMix} />}
             <time>{formatReceivedAt(thread.receivedAt)}</time>
           </div>
           <h3 className="text-xs sm:text-sm font-medium text-[#A1A4AC] truncate">
@@ -382,7 +365,7 @@ function EmailRow({
         </div>
         {/* Hover actions bar — quick actions on hover (Desktop) */}
         <AnimatePresence>
-          {(isHovered || showSnoozeMenu) && !isDragging && (
+          {(isHovered || showSnoozeMenu) && (
             <HoverActions
               emailId={thread.id}
               isRead={thread.isRead}
@@ -402,6 +385,27 @@ function EmailRow({
           onOpenChange={setShowSnoozeMenu}
           triggerHidden={true}
         />
+        {/*
+          Archive and Pin, the two row-level actions, as buttons rather than as
+          the two ends of a drag. `sm:hidden` on Archive because a pointer already
+          has it in `HoverActions` and a permanent button there would sit under the
+          hover bar; a finger has no hover, so on a phone this is the only way to
+          archive without opening the thread.
+        */}
+        {!isHovered && !showSnoozeMenu && (
+          <button
+            type="button"
+            className="sm:hidden flex items-center justify-center shrink-0 p-1.5 rounded-xl min-h-[44px] min-w-[44px] text-[#A1A4AC] transition-colors hover:text-[#F5F5F5] hover:bg-[#282C35]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            onClick={(event) => {
+              event.stopPropagation();
+              void onArchive();
+            }}
+            aria-label={`Archive conversation with ${thread.participantsSummary}`}
+            title="Archive"
+          >
+            <MailIcon name="archive" className="size-4" />
+          </button>
+        )}
         {/* Pin button */}
         {!isHovered && !showSnoozeMenu && (
           <button
@@ -428,7 +432,7 @@ function EmailRow({
             </svg>
           </button>
         )}
-      </motion.article>
+      </article>
     </div>
   );
 }
@@ -1570,7 +1574,19 @@ export default function InboxPage() {
             partition derived from the messages in hand. Right: the filters that
             compose with it. See `InboxFocus` for why the category chips went.
           */}
-          <div className="flex items-center gap-2 py-2 px-3 sm:px-4 border-b border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md">
+          {/*
+           * `relative z-30` is load-bearing, not decoration. `backdrop-blur-md`
+           * makes this row a stacking context, and a *static* stacking context
+           * paints with the in-flow blocks — below every stacking context that
+           * follows it in the DOM. The virtualiser below carries
+           * `will-change: transform`, so the mail rows are one such context, and
+           * the filter popover's own `z-30` was being resolved inside a box that
+           * had already lost the paint order: the panel rendered *behind* the
+           * rows and could not be tapped. Positioning this row lifts its whole
+           * subtree into the positioned layer, where the z-indexes mean what
+           * they say. Any popover added to this row inherits the fix.
+           */}
+          <div className="relative z-30 flex items-center gap-2 py-2 px-3 sm:px-4 border-b border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md">
             <div
               role="tablist"
               aria-label="Conversation focus"

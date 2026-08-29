@@ -27,8 +27,12 @@ let seq = 0;
  * The cast is deliberate. `Email` has thirty-odd fields from the API shape and
  * none of the others take part in grouping, so spelling them all out would bury
  * the one or two fields each case is actually about.
+ *
+ * `isSent` is named separately because the server sends it and the client `Email`
+ * type does not declare it, and threading reads it in two places — `isFromMe` and
+ * the send/delivery dedupe — so most cases here need to set it.
  */
-const email = (over: Partial<Email> & { subject: string }): Email =>
+const email = (over: Partial<Email> & { subject: string; isSent?: boolean }): Email =>
   ({
     id: `e${++seq}`,
     threadId: '',
@@ -120,27 +124,83 @@ describe('groupEmailsIntoThreads', () => {
     expect(groupEmailsIntoThreads()).toEqual([]);
   });
 
-  it('groups by threadId when the server supplied one', () => {
+  it('puts every message with one person in a single conversation, whatever the subject', () => {
+    // The model this pins is the chat list's, not the mail client's: a row is a
+    // person, so two unrelated subjects to the same address are one row. The mail
+    // client's answer produced the defect that prompted the change — one
+    // correspondent spread across four rows of the same screen, none of which
+    // could show a send next to the reply it drew.
     const threads = groupEmailsIntoThreads([
       email({ threadId: 't1', subject: 'Design review' }),
-      email({ threadId: 't1', subject: 'Something else entirely' }),
+      email({ threadId: 't2', subject: 'Something else entirely' }),
     ]);
 
     expect(threads).toHaveLength(1);
     expect(threads[0].count).toBe(2);
-    expect(threads[0].threadId).toBe('t1');
   });
 
-  it('keeps different threadIds apart even when the subject is identical', () => {
+  it('carries the newest message threadId, which is what a reply targets', () => {
     const threads = groupEmailsIntoThreads([
-      email({ threadId: 't1', subject: 'Weekly report' }),
-      email({ threadId: 't2', subject: 'Weekly report' }),
+      email({
+        threadId: 't1',
+        subject: 'Design review',
+        receivedAt: new Date('2026-01-01T09:00:00Z'),
+      }),
+      email({
+        threadId: 't2',
+        subject: 'Re: Design review',
+        receivedAt: new Date('2026-01-01T10:00:00Z'),
+      }),
     ]);
 
+    expect(threads).toHaveLength(1);
+    expect(threads[0].threadId).toBe('t2');
+  });
+
+  it('keeps different people apart even when the subject is identical', () => {
+    const threads = groupEmailsIntoThreads([
+      email({
+        threadId: 't1',
+        subject: 'Weekly report',
+        from: { email: 'alice@example.com', name: 'Alice' },
+      }),
+      email({
+        threadId: 't1',
+        subject: 'Weekly report',
+        from: { email: 'bob@example.com', name: 'Bob' },
+      }),
+    ]);
+
+    // Same subject, same server thread, two people: two rows. A shared `threadId`
+    // does not merge them, because the key is who the conversation is with.
     expect(threads).toHaveLength(2);
   });
 
-  it('merges a reply with its parent by subject when no threadId came back', () => {
+  it('keeps a group conversation separate from the 1:1s inside it', () => {
+    const threads = groupEmailsIntoThreads(
+      [
+        email({
+          id: 'solo',
+          subject: 'Lunch',
+          from: { email: 'alice@example.com', name: 'Alice' },
+          to: [{ email: ME }],
+        }),
+        email({
+          id: 'group',
+          subject: 'Lunch',
+          from: { email: 'alice@example.com', name: 'Alice' },
+          to: [{ email: ME }, { email: 'bob@example.com', name: 'Bob' }],
+        }),
+      ],
+      ME,
+    );
+
+    // A group of three is its own row, for the same reason a group chat is.
+    expect(threads).toHaveLength(2);
+    expect(threads.map((t) => t.participantsSummary).sort()).toEqual(['Alice', 'Alice, Bob']);
+  });
+
+  it('merges a reply with its parent when no threadId came back', () => {
     const threads = groupEmailsIntoThreads([
       email({ subject: 'Design review', receivedAt: new Date('2026-01-01T09:00:00Z') }),
       email({ subject: 'Re: Design review', receivedAt: new Date('2026-01-01T10:00:00Z') }),
@@ -152,11 +212,45 @@ describe('groupEmailsIntoThreads', () => {
     expect(threads[0].normalizedSubject).toBe('design review');
   });
 
+  it('puts what you sent and what you received in the one conversation', () => {
+    // Verbatim the requirement: a message you sent to someone belongs in the same
+    // place as the messages they sent you. Neither of these carries a `threadId`
+    // and the subjects differ, so nothing the old model looked at could have
+    // joined them.
+    const threads = groupEmailsIntoThreads(
+      [
+        email({
+          id: 'inbound',
+          subject: 'Hello',
+          from: { email: 'friend@example.com', name: 'Friend' },
+          to: [{ email: ME }],
+          receivedAt: new Date('2026-01-01T09:00:00Z'),
+        }),
+        email({
+          id: 'outbound',
+          subject: 'How are you',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: 'friend@example.com', name: 'Friend' }],
+          isSent: true,
+          receivedAt: new Date('2026-01-02T09:00:00Z'),
+        }),
+      ],
+      ME,
+    );
+
+    expect(threads).toHaveLength(1);
+    expect(threads[0].messages.map((m) => m.id)).toEqual(['inbound', 'outbound']);
+    expect(threads[0].participantsSummary).toBe('Friend');
+    expect(threads[0].kindMix).toBe('mail');
+  });
+
   it('keeps prefix-only subjects in separate conversations', () => {
-    // The defect this pins: `email.subject` of `Re:` is truthy, so keying off the
-    // raw string sent every such message to the single key `subj:` and merged
-    // unrelated mail from unrelated people into one conversation. Nothing about
-    // these two messages says they belong together.
+    // A subject of `Re:` is truthy but normalizes to nothing. Under the old
+    // subject-keyed model that sent every such message to the single key `subj:`
+    // and merged unrelated mail from unrelated people into one conversation.
+    // Keying on the counterparty removes the class of defect rather than the
+    // instance: nothing about these three can collapse, because three people
+    // cannot become one.
     const threads = groupEmailsIntoThreads([
       email({
         id: 'a',
@@ -197,7 +291,7 @@ describe('groupEmailsIntoThreads', () => {
     expect(thread.normalizedSubject).toBe('design review');
   });
 
-  it('reads as unread if any message is unread, and starred if any message is starred', () => {
+  it('reads as unread if any message someone else sent is unread, and starred if any is starred', () => {
     const [thread] = groupEmailsIntoThreads([
       email({ threadId: 't1', subject: 'Design review', isRead: true, isStarred: false }),
       email({ threadId: 't1', subject: 'Design review', isRead: false, isStarred: true }),
@@ -209,19 +303,128 @@ describe('groupEmailsIntoThreads', () => {
     expect(thread.isStarred).toBe(true);
   });
 
+  it('never counts a message you sent as unread', () => {
+    // The Sent copy of a message is stored with `isRead: false`, so an `every`
+    // over the raw flag left every conversation you had replied to permanently
+    // bold. You cannot have unread mail from yourself.
+    const [thread] = groupEmailsIntoThreads(
+      [
+        email({
+          id: 'theirs',
+          subject: 'Good',
+          from: { email: 'friend@example.com', name: 'Friend' },
+          to: [{ email: ME }],
+          isRead: true,
+          receivedAt: new Date('2026-01-01T09:00:00Z'),
+        }),
+        email({
+          id: 'mine',
+          subject: 'Re: Good',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: 'friend@example.com', name: 'Friend' }],
+          isSent: true,
+          isRead: false,
+          receivedAt: new Date('2026-01-01T10:00:00Z'),
+        }),
+      ],
+      ME,
+    );
+
+    expect(thread.isRead).toBe(true);
+  });
+
+  it('collapses the Sent and delivered copies of one send into one message', () => {
+    // Sending to an address that is also yours writes two rows with different
+    // ids: the copy in Sent and the copy that arrived. Counting both made a
+    // two-message conversation report 4, and the Sent copy's `isRead: false`
+    // made it read as unread forever.
+    const [thread] = groupEmailsIntoThreads(
+      [
+        email({
+          id: 'delivered',
+          threadId: 't1',
+          subject: 'Re: Good',
+          bodyText: 'Sounds good, thanks!',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: ME }],
+          inReplyTo: 'parent-1',
+          isSent: false,
+          isRead: true,
+          receivedAt: new Date('2026-01-01T09:00:00Z'),
+        }),
+        email({
+          id: 'sent-copy',
+          threadId: 't1',
+          subject: 'Re: Good',
+          bodyText: 'Sounds good, thanks!',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: ME }],
+          inReplyTo: 'parent-1',
+          isSent: true,
+          isRead: false,
+          isStarred: true,
+          receivedAt: new Date('2026-01-01T09:00:04Z'),
+        }),
+      ],
+      ME,
+    );
+
+    expect(thread.count).toBe(1);
+    expect(thread.messages[0].id).toBe('delivered');
+    // The surviving copy inherits the union of the flags, so a star on either
+    // copy still flags the conversation.
+    expect(thread.isStarred).toBe(true);
+    expect(thread.isRead).toBe(true);
+  });
+
+  it('does not collapse two real messages that happen to look alike', () => {
+    // Both of these are outgoing, so neither is the other's delivery record. A
+    // person who sends the same word twice has said two things.
+    const [thread] = groupEmailsIntoThreads(
+      [
+        email({
+          id: 'first',
+          subject: 'ok',
+          bodyText: 'ok',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: 'friend@example.com' }],
+          isSent: true,
+          receivedAt: new Date('2026-01-01T09:00:00Z'),
+        }),
+        email({
+          id: 'second',
+          subject: 'ok',
+          bodyText: 'ok',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: 'friend@example.com' }],
+          isSent: true,
+          receivedAt: new Date('2026-01-01T09:00:10Z'),
+        }),
+      ],
+      ME,
+    );
+
+    expect(thread.count).toBe(2);
+  });
+
   it('orders conversations newest first while ordering messages oldest first', () => {
     const threads = groupEmailsIntoThreads([
-      email({ id: 'old', subject: 'Older thread', receivedAt: new Date('2026-01-01T09:00:00Z') }),
+      email({
+        id: 'old',
+        subject: 'Older thread',
+        from: { email: 'alice@example.com', name: 'Alice' },
+        receivedAt: new Date('2026-01-01T09:00:00Z'),
+      }),
       email({
         id: 'new-first',
-        threadId: 't2',
         subject: 'Newer thread',
+        from: { email: 'bob@example.com', name: 'Bob' },
         receivedAt: new Date('2026-01-02T09:00:00Z'),
       }),
       email({
         id: 'new-last',
-        threadId: 't2',
         subject: 'Newer thread',
+        from: { email: 'bob@example.com', name: 'Bob' },
         receivedAt: new Date('2026-01-03T09:00:00Z'),
       }),
     ]);
@@ -560,12 +763,14 @@ describe('threadFocus', () => {
           threadId: 't1',
           subject: 'Design review',
           from: { email: ME },
+          to: [{ email: 'alice@example.com' }],
           receivedAt: new Date('2026-01-01T09:00:00Z'),
         }),
         email({
           threadId: 't1',
           subject: 'Re: Design review',
           from: { email: 'alice@example.com' },
+          to: [{ email: ME }],
           receivedAt: new Date('2026-01-01T10:00:00Z'),
         }),
       ],
@@ -584,12 +789,14 @@ describe('threadFocus', () => {
           threadId: 't1',
           subject: 'Design review',
           from: { email: 'alice@example.com' },
+          to: [{ email: ME }],
           receivedAt: new Date('2026-01-01T09:00:00Z'),
         }),
         email({
           threadId: 't1',
           subject: 'Re: Design review',
           from: { email: ME },
+          to: [{ email: 'alice@example.com' }],
           receivedAt: new Date('2026-01-01T10:00:00Z'),
         }),
       ],
