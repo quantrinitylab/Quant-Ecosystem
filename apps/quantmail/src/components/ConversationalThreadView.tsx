@@ -13,9 +13,17 @@ import { MessageKindBadge } from './MessageKindBadge';
 import { QuantyCopilotDrawer } from './QuantyCopilotDrawer';
 import { Quanty } from './Quanty';
 import { IconChat, IconMail } from './icons';
-import { messageKindOf } from '../lib/threading';
+import {
+  findConversation,
+  groupEmailsIntoThreads,
+  messageKindOf,
+  summarizeParticipants,
+  threadKindMix,
+  threadParticipants,
+} from '../lib/threading';
 import { invalidateMailLists } from '../lib/offline/folders';
 import { useAuth } from '../providers/auth-provider';
+import { useInbox } from '../hooks/useInbox';
 
 function formatMessageDate(value?: string | Date): string {
   if (!value) return '';
@@ -113,35 +121,112 @@ export function ConversationalThreadView({
   const currentHandle = currentEmail.split('@')[0];
 
   // Derive participant summary for header
-  const participantSummary = useMemo(() => {
-    const names: string[] = [];
-    let hasOther = false;
-    for (const m of messages) {
-      const fromAddr = (m.from?.email || (m as any).fromAddress || '').toLowerCase();
-      const isMe = Boolean(
-        (currentEmail &&
-          (fromAddr === currentEmail ||
-            (currentHandle && fromAddr.startsWith(`${currentHandle}@`)))) ||
-        (m as any).isSent ||
-        m.status === 'sent',
-      );
-      if (isMe) {
-        if (!names.includes('You')) names.push('You');
-      } else {
-        hasOther = true;
-        const name =
-          m.from?.name ||
-          (m as any).fromName ||
-          m.from?.email?.split('@')[0] ||
-          (m as any).fromAddress?.split('@')[0] ||
-          'Sender';
-        if (!names.includes(name)) names.push(name);
-      }
+  /**
+   * The name at the top of the conversation.
+   *
+   * Whoever this conversation is *with* — which is not the same question as "who
+   * wrote the message you are looking at", and the difference is what put `You` at
+   * the top of an eleven-message conversation with someone else. This component
+   * used to walk the messages itself and collect a sender per message, so a thread
+   * you had done all the talking in was titled with your own name and gave the
+   * reader nothing: they already know they sent it.
+   *
+   * `threadParticipants` is the inbox row's own answer, so the title of the page
+   * now matches the row that opened it by construction. It returns `[]` for a
+   * genuine note-to-self, and `summarizeParticipants` renders that as `You` — the
+   * one case where your own name is the right title.
+   */
+  const participantSummary = useMemo(
+    () => summarizeParticipants(threadParticipants(messages, currentEmail)),
+    [messages, currentEmail],
+  );
+
+  /**
+   * Whether this conversation holds both letters and typed lines.
+   *
+   * The per-message mark is worth its pixels only when the two kinds are mixed. A
+   * conversation of nothing but letters put `Mail` on every message in it, which is
+   * 100% coverage carrying no information, in the loudest colour on the palette —
+   * the same defect the inbox row had. Where the kinds do mix, the mark is the only
+   * thing distinguishing a letter from a line, so it stays and keeps its orange.
+   */
+  const showKindBadges = useMemo(() => threadKindMix(messages) === 'mixed', [messages]);
+
+  /**
+   * The conversation this view is about, resolved the way the inbox resolved it.
+   *
+   * `GET /threads/:id` answers a different question than the row asked. It returns
+   * the messages that share one server `threadId`, and a row is now a person, so
+   * tapping a row that counted `11` opened a page that said `1 Message`. The row and
+   * the page it opened cannot be allowed to disagree about what a conversation is,
+   * and the row is the one that is right.
+   *
+   * So the id is resolved against the same grouping, over the same mailbox queries the
+   * inbox is already subscribed to — same keys, so this costs no request when the view
+   * is the reading pane, and two the sidebar was making anyway on the `/thread/<id>`
+   * route. Refetches flow straight through, which is what makes a reply that arrives
+   * while you are reading appear without a reload.
+   *
+   * Archive is unioned in, and that union is the point. `isArchived` is a per-message
+   * flag, so archiving a received message removed it from its own conversation: this
+   * correspondent's live thread held eleven messages I had sent and *none* of the
+   * three they had sent back, because those three sat in `ARCHIVE`. A folder-scoped
+   * list is the right shape for the inbox — a row you archived should leave it — but
+   * inside a conversation it reads as the other person never having replied. Reading
+   * a conversation is not a folder query. Trash and spam stay out; those are removals,
+   * not filing.
+   *
+   * `null` while both queries are cold and when the id is in neither mailbox — spam,
+   * trash, or a link to something older than the page being held — which is what the
+   * server fetch below is still here for.
+   */
+  const { data: inboxMail, isPending: inboxPending } = useInbox({ folderType: 'INBOX' });
+  const { data: archivedMail, isPending: archivePending } = useInbox({ folderType: 'ARCHIVE' });
+  const mailboxPending = inboxPending || archivePending;
+
+  const conversationSource = useMemo(() => {
+    // Deduped by id: the default mailbox already carries sent mail, so a message can
+    // legitimately answer to more than one folder query. Inbox order wins.
+    const byId = new Map<string, Email>();
+    for (const email of [...(inboxMail ?? []), ...(archivedMail ?? [])]) {
+      if (email?.id && !byId.has(email.id)) byId.set(email.id, email);
     }
-    if (names.length === 0) return 'Conversation';
-    if (names.length === 1 && names[0] === 'You' && !hasOther) return 'You';
-    return names.join(', ');
-  }, [messages, currentEmail, currentHandle]);
+    return Array.from(byId.values());
+  }, [inboxMail, archivedMail]);
+
+  const resolvedConversation = useMemo(() => {
+    if (!threadId || conversationSource.length === 0) return null;
+    return findConversation(groupEmailsIntoThreads(conversationSource, currentEmail), threadId);
+  }, [conversationSource, threadId, currentEmail]);
+
+  /**
+   * Once the grouped conversation is in hand it is authoritative, and the server
+   * thread fetch below must not be allowed to land on top of it — the two are racing
+   * and the loser is whichever answers second, not whichever is right. Recording the
+   * id it was resolved *for* rather than a bare flag is what makes this correct when
+   * the reader moves to another conversation: the flag would still be set from the
+   * last one, and effects declared earlier in this component run first.
+   */
+  const adoptedThreadIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!resolvedConversation) return;
+
+    const msgs = resolvedConversation.messages;
+    setMessages(msgs);
+    setThreadSubject(resolvedConversation.subject || '(No Subject)');
+    setStarred(resolvedConversation.isStarred);
+    setIsLoading(false);
+
+    // Only the first adoption of a conversation chooses what is open. Later ones are
+    // refetches of the same conversation, and re-deciding then would close a message
+    // the reader had just opened every time the mailbox polled.
+    if (adoptedThreadIdRef.current !== threadId) {
+      adoptedThreadIdRef.current = threadId;
+      loadedThreadIdRef.current = threadId;
+      setExpandedIndices(new Set(msgs.length <= 2 ? msgs.map((_, i) => i) : [msgs.length - 1]));
+    }
+  }, [resolvedConversation, threadId]);
 
   // Fetch thread messages if not pre-populated or update when threadId changes
   useEffect(() => {
@@ -151,9 +236,18 @@ export function ConversationalThreadView({
       return;
     }
 
+    /*
+     * The reading pane hands us the row's own messages, which is the right thing to
+     * paint instantly and the wrong thing to keep: the row is folder-scoped, so an
+     * archived reply is missing from it. So this is the seed, not the answer — it
+     * yields the moment the union resolves the same conversation, and the adoption
+     * effect above owns `messages` from then on.
+     */
     if (initialEmails && initialEmails.length > 0) {
-      setMessages(initialEmails);
-      setExpandedIndices(new Set([initialEmails.length - 1]));
+      if (!resolvedConversation) {
+        setMessages(initialEmails);
+        setExpandedIndices(new Set([initialEmails.length - 1]));
+      }
       setIsLoading(false);
       return;
     }
@@ -163,8 +257,22 @@ export function ConversationalThreadView({
       return;
     }
 
+    // The mailbox holds the better answer and it is still in flight. Fetching the
+    // server thread now would paint the one-message version of an eleven-message
+    // conversation for as long as the two requests are apart, and spend a request to
+    // do it.
+    if (mailboxPending) return;
+    if (resolvedConversation) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     loadedThreadIdRef.current = threadId;
+
+    // The grouped conversation is the answer whenever there is one; anything set
+    // here after it arrives would be the narrower server thread overwriting it.
+    const stale = () => !isMounted || adoptedThreadIdRef.current === threadId;
 
     const loadData = async () => {
       try {
@@ -173,7 +281,7 @@ export function ConversationalThreadView({
         if (threadRes && threadRes.success && threadRes.data) {
           const msgs = (threadRes.data.messages || (threadRes.data as any).emails || []) as Email[];
           if (msgs.length > 0) {
-            if (!isMounted) return;
+            if (stale()) return;
             setMessages(msgs);
             setThreadSubject(threadRes.data.subject || msgs[0]?.subject || '(No Subject)');
             setStarred(threadRes.data.isStarred || false);
@@ -190,7 +298,7 @@ export function ConversationalThreadView({
         // 2. Fallback: Fetch as single email
         const emailRes = await apiClient.getEmail(threadId).catch(() => null);
         if (emailRes && emailRes.success && emailRes.data) {
-          if (!isMounted) return;
+          if (stale()) return;
           const email = emailRes.data;
           // If the email belongs to a thread, try fetching the full thread
           if (email.threadId && email.threadId !== threadId) {
@@ -200,6 +308,7 @@ export function ConversationalThreadView({
                 (fullThreadRes.data as any).emails ||
                 []) as Email[];
               if (fullMsgs.length > 0) {
+                if (stale()) return;
                 setMessages(fullMsgs);
                 setThreadSubject(
                   fullThreadRes.data.subject ||
@@ -216,6 +325,7 @@ export function ConversationalThreadView({
               }
             }
           }
+          if (stale()) return;
           setMessages([email]);
           setThreadSubject(email.subject || '(No Subject)');
           setStarred(email.isStarred || false);
@@ -237,7 +347,7 @@ export function ConversationalThreadView({
     return () => {
       isMounted = false;
     };
-  }, [threadId]);
+  }, [threadId, mailboxPending, resolvedConversation]);
 
   // Expand / Collapse Helpers
   const toggleMessageExpand = (index: number) => {
@@ -498,27 +608,60 @@ export function ConversationalThreadView({
           )}
 
           <div className="flex flex-col min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm sm:text-base font-bold text-white truncate">
-                {participantSummary}
-              </h2>
-              <span className="px-2 py-0.5 rounded-full bg-[#FF8C42]/15 border border-[#FF8C42]/30 text-[10px] font-bold text-[#FF8C42] shrink-0">
+            {/*
+              Line one is the person, and nothing shares it.
+
+              The count pill used to sit beside the name with `shrink-0`, and on a
+              375px header — back button, four 44px actions — what was left for the two
+              of them was 83px against the pill's 84. `truncate` sets `overflow:hidden`,
+              which lets a flex item's automatic minimum size fall to zero, so the name
+              did not ellipsize, it *vanished*: a chat header whose whole job is to say
+              who you are talking to, rendering it at width 0. The pill reads the same
+              on line two, where the subject can afford to give up the room.
+            */}
+            <h2 className="min-w-0 truncate text-sm font-bold text-white sm:text-base">
+              {participantSummary}
+            </h2>
+            <div className="flex min-w-0 items-center gap-2">
+              {/*
+                A count, not an alert. This was a brand-orange pill, which put the
+                loudest colour on the palette on a number that is present on every
+                conversation ever opened — the same "100% coverage, 0 bits" the inbox
+                row's `Mail` pill had. Neutral card surface; the number still reads at
+                7.94:1.
+              */}
+              <span className="shrink-0 rounded-full border border-[#282C35] bg-[#16181D] px-2 py-0.5 text-[10px] font-bold text-[#A1A4AC]">
                 {messages.length} {messages.length === 1 ? 'Message' : 'Messages'}
               </span>
+              <span className="min-w-0 truncate text-[11px] text-[#A1A4AC]">
+                {threadSubject || '(No Subject)'}
+              </span>
             </div>
-            <span className="text-[11px] text-[#A1A4AC] truncate">
-              {threadSubject || '(No Subject)'}
-            </span>
           </div>
         </div>
 
-        {/* Right Action Icons: Expand/Collapse All + Open Full Thread + Star + Archive + Delete */}
-        <div className="flex items-center gap-1 shrink-0">
-          {/* Global Accordion Toggle Button */}
+        {/*
+          Right Action Icons: Expand/Collapse All + Open Full Thread + Star + Archive + Delete
+
+          Every one of these was a 34px box on a phone, against a 44px floor, and the
+          two at the end of the row are Archive and Delete — the pair where a mis-tap
+          costs you a message. They cannot simply be padded out: five 44px boxes plus
+          gaps eat 236 of 375 pixels and the correspondent's name is what would give up
+          the room. So Print stands down below `sm` — it is the one action here with no
+          phone story at all — and the four that are left take the full target inside
+          the footprint the five were already using.
+        */}
+        <div className="flex items-center gap-1.5 shrink-0 sm:gap-1">
+          {/*
+            Expand All is a desktop convenience and a phone liability: on a fourteen
+            message conversation it produces a page you have to scroll past, and the
+            model here is that you tap the message you want. It stands down below `sm`
+            with Print, and the ~50px it frees goes to the correspondent's name.
+          */}
           <button
             type="button"
             onClick={allExpanded ? collapseAll : expandAll}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#111318]/90 hover:bg-[#282C35] border border-[#282C35] text-[11px] font-medium text-[#A1A4AC] transition-all shadow-sm active:scale-95"
+            className="hidden min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-xl border border-[#282C35] bg-[#111318]/90 px-2.5 py-1.5 text-[11px] font-medium text-[#A1A4AC] shadow-sm transition-all hover:bg-[#282C35] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:flex sm:min-h-0 sm:min-w-0"
             title={allExpanded ? 'Collapse All Messages' : 'Expand All Messages'}
           >
             <svg
@@ -538,7 +681,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={handleToggleStar}
-            className={`p-2 rounded-xl transition-all active:scale-95 ${
+            className={`flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:min-w-0 ${
               starred
                 ? 'text-[#FF8C42] bg-[#FF8C42]/10'
                 : 'text-[#A1A4AC] hover:text-[#FFB875] hover:bg-[#282C35]'
@@ -546,7 +689,7 @@ export function ConversationalThreadView({
             title={starred ? 'Pinned to top' : 'Pin to top'}
           >
             <svg
-              className="size-4.5"
+              className="size-[18px]"
               viewBox="0 0 24 24"
               fill={starred ? 'currentColor' : 'none'}
               stroke="currentColor"
@@ -568,7 +711,7 @@ export function ConversationalThreadView({
               title="Open in Full Thread View"
             >
               <svg
-                className="size-4.5"
+                className="size-[18px]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -585,11 +728,11 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={() => window.print()}
-            className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
+            className="hidden rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:block"
             title="Print entire conversation (Ctrl+P / Cmd+P)"
           >
             <svg
-              className="size-4.5"
+              className="size-[18px]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -606,11 +749,11 @@ export function ConversationalThreadView({
             <button
               type="button"
               onClick={onArchive}
-              className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:min-w-0"
               title="Archive conversation (E)"
             >
               <svg
-                className="size-4.5"
+                className="size-[18px]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -628,11 +771,11 @@ export function ConversationalThreadView({
             <button
               type="button"
               onClick={onDelete}
-              className="p-2 rounded-xl text-[#A1A4AC] hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-rose-500/10 hover:text-rose-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:min-w-0"
               title="Move to Trash (#)"
             >
               <svg
-                className="size-4.5"
+                className="size-[18px]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -742,15 +885,21 @@ export function ConversationalThreadView({
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <IdentityAvatar name={msgFromName} size="sm" />
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span
-                          className={`text-xs font-semibold truncate ${isOutbound ? 'text-[#FF9B5A]' : 'text-[#F5F5F5]'}`}
-                        >
+                        {/*
+                          The name is text, so it takes the text ramp. It used to take
+                          the brand accent whenever the message was yours, which in a
+                          conversation you had done all the talking in painted every
+                          name on the page orange. Which side the bubble sits on and
+                          the warm surface under it already say who spoke, and those
+                          are surfaces rather than the loudest colour on the palette.
+                        */}
+                        <span className="truncate text-xs font-semibold text-[#F5F5F5]">
                           {msgFromName}
                         </span>
 
                         {/* Badges: Mail or Chat */}
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <MessageKindBadge kind={messageKind} />
+                          {showKindBadges && <MessageKindBadge kind={messageKind} />}
                           {hasAtt && (
                             <span className="px-1.5 py-0.5 rounded bg-[#2B1A11] border border-[#5C3016] text-[9px] font-semibold text-[#FF8C42] flex items-center gap-1">
                               <svg
@@ -801,29 +950,62 @@ export function ConversationalThreadView({
                         : 'bg-[#111318] shadow-[inset_0_0_0_1px_#282C35]'
                     }`}
                   >
-                    {/* Header Bar */}
-                    <div className="flex items-start justify-between gap-3 p-4 sm:p-5 pb-3">
+                    {/*
+                      Header Bar — and the way back out.
+
+                      A tap opened this message; a tap has to close it, because that is
+                      the gesture the reader just used and the only one they were taught.
+                      Collapse lived solely on the chevron at the right edge, so the way
+                      in and the way out were different targets and the way out was a
+                      24px glyph in the corner.
+
+                      The bar, not the card: the body holds links and selectable letter
+                      HTML, and a card-wide handler would close the message out from under
+                      anyone tapping a link in it. The chevron stays — it is the visible
+                      affordance, and it keeps this reachable from the keyboard without the
+                      bar becoming a second tab stop for the same action.
+                    */}
+                    <div
+                      onClick={(e) => {
+                        // The two buttons in this bar own their clicks: `to …` opens the
+                        // metadata, the chevron closes the card. Acting as well would
+                        // reopen what the chevron just closed.
+                        if ((e.target as HTMLElement).closest('button,a')) return;
+                        // A tap that turned out to be a drag across the name is a
+                        // selection, not a tap.
+                        if (window.getSelection()?.isCollapsed === false) return;
+                        toggleMessageExpand(index);
+                      }}
+                      className="flex cursor-pointer items-start justify-between gap-3 p-4 sm:p-5 pb-3"
+                    >
                       <div className="flex items-start gap-3 min-w-0">
                         <IdentityAvatar name={msgFromName} size="md" />
 
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span
-                              className={`text-sm font-semibold ${isOutbound ? 'text-[#FF9B5A]' : 'text-[#F5F5F5]'}`}
-                            >
+                            <span className="text-sm font-semibold text-[#F5F5F5]">
                               {msgFromName}
                             </span>
-                            <MessageKindBadge kind={messageKind} />
+                            {showKindBadges && <MessageKindBadge kind={messageKind} />}
                             <span className="text-xs text-[#A1A4AC] font-mono">
                               {formatMessageDate(message.receivedAt)}
                             </span>
                           </div>
 
                           {/* "to me ⌵" Security Accordion Trigger */}
+                          {/*
+                            The hit area is grown with a pseudo-element rather than
+                            padding: this is an 18px line of text sitting directly under
+                            the sender's name, so 26px of real padding would push every
+                            expanded message apart to buy a target. `before` reaches the
+                            44px floor and occupies no layout. It cannot swallow a
+                            neighbour — the name above it is a span, and the collapse
+                            chevron is at the far edge of the bar.
+                          */}
                           <button
                             type="button"
                             onClick={() => toggleDetailsExpand(index)}
-                            className="group inline-flex items-center gap-1 text-xs text-[#A1A4AC] hover:text-[#FFB875] text-left pt-0.5 font-mono"
+                            className="group relative inline-flex items-center gap-1 pt-0.5 text-left font-mono text-xs text-[#A1A4AC] before:absolute before:inset-x-0 before:-inset-y-[13px] before:content-[''] hover:text-[#FFB875] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                           >
                             <span>to {isOutbound ? toDisplay : 'me'}</span>
                             <svg
@@ -844,11 +1026,11 @@ export function ConversationalThreadView({
                         <button
                           type="button"
                           onClick={() => toggleMessageExpand(index)}
-                          className="p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors"
+                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:min-w-0"
                           title="Collapse this message"
                         >
                           <svg
-                            className="size-4.5"
+                            className="size-[18px]"
                             viewBox="0 0 24 24"
                             fill="none"
                             stroke="currentColor"
@@ -927,7 +1109,7 @@ export function ConversationalThreadView({
                 `/compose?to=${encodeURIComponent(recipient)}&subject=${encodeURIComponent(subj)}&replyTo=${primaryMessage?.id || threadId}`,
               );
             }}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] hover:border-[#3A404D] text-[11px] font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-all shadow-sm active:scale-95"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-[#282C35] bg-[#16181D] px-3 py-1 text-[11px] font-medium text-[#A1A4AC] shadow-sm transition-all hover:border-[#3A404D] hover:bg-[#1C1F26] hover:text-[#F5F5F5] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:px-2.5"
             title="Reply to sender (R)"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -954,7 +1136,7 @@ export function ConversationalThreadView({
                 `/compose?to=${encodeURIComponent(allRecipients)}&subject=${encodeURIComponent(subj)}&replyTo=${primaryMessage?.id || threadId}`,
               );
             }}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] hover:border-[#3A404D] text-[11px] font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-all shadow-sm active:scale-95"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-[#282C35] bg-[#16181D] px-3 py-1 text-[11px] font-medium text-[#A1A4AC] shadow-sm transition-all hover:border-[#3A404D] hover:bg-[#1C1F26] hover:text-[#F5F5F5] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:px-2.5"
             title="Reply to all recipients (A)"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -979,7 +1161,7 @@ export function ConversationalThreadView({
                 `/compose?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(forwardBody)}`,
               );
             }}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] hover:border-[#3A404D] text-[11px] font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-all shadow-sm active:scale-95"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-[#282C35] bg-[#16181D] px-3 py-1 text-[11px] font-medium text-[#A1A4AC] shadow-sm transition-all hover:border-[#3A404D] hover:bg-[#1C1F26] hover:text-[#F5F5F5] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:px-2.5"
             title="Forward this conversation (F)"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1005,7 +1187,7 @@ export function ConversationalThreadView({
                   setQuickReplyText(suggestion);
                   setTimeout(() => document.getElementById('chatbot-reply-input')?.focus(), 50);
                 }}
-                className="whitespace-nowrap px-2.5 py-1 rounded-full bg-[#2B1A11] hover:bg-[#3D2315] border border-[#5C3016] text-[11px] font-medium text-[#FF9B5A] hover:text-[#F5F5F5] transition-all active:scale-95 flex items-center gap-1"
+                className="flex min-h-[44px] items-center gap-1 whitespace-nowrap rounded-full border border-[#5C3016] bg-[#2B1A11] px-3 py-1 text-[11px] font-medium text-[#FF9B5A] transition-all hover:bg-[#3D2315] hover:text-[#F5F5F5] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:px-2.5"
               >
                 <svg
                   className="w-2.5 h-2.5 text-[#FF8C42]"
@@ -1127,15 +1309,23 @@ export function ConversationalThreadView({
             className="hidden"
           />
 
-          {/* Attachment Button */}
+          {/*
+            Attachment. The complaint was that there was no way to send a photo, and
+            there had been one here all along — behind a `size-4.5` that Tailwind's
+            scale does not define, so the paperclip compiled to `width: 0`. What was
+            left was twelve pixels of padding with nothing in it: an option that
+            existed, did work, and could not be seen or reliably hit. Sized in pixels
+            now, and given the 44px target the bar's Send button already had.
+          */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="p-1.5 sm:p-2 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all shrink-0"
+            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-1.5 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111318] sm:min-h-0 sm:min-w-0 sm:p-2"
             title="Attach Files / Photos"
+            aria-label="Attach files or photos"
           >
             <svg
-              className="size-4.5 sm:size-5"
+              className="size-[18px] sm:size-5"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -1149,8 +1339,9 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={() => setIsQuantyOpen(true)}
-            className="p-1 sm:p-1.5 rounded-xl text-[#FF8C42] hover:bg-[#FF8C42]/10 transition-all shrink-0"
+            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-1 text-[#FF8C42] transition-all hover:bg-[#FF8C42]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111318] sm:min-h-0 sm:min-w-0 sm:p-1.5"
             title="Ask Quanty AI to write response"
+            aria-label="Ask Quanty AI to write a response"
           >
             <Quanty size={20} expression="happy" bob={false} />
           </button>

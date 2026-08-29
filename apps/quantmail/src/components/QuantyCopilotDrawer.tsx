@@ -295,7 +295,7 @@ export function QuantyCopilotDrawer({
                   title="Chat History"
                 >
                   <svg
-                    className="size-4.5"
+                    className="size-[18px]"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -314,7 +314,7 @@ export function QuantyCopilotDrawer({
                   aria-label="Close"
                 >
                   <svg
-                    className="size-4.5"
+                    className="size-[18px]"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
