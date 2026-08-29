@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  filterThreadsByQuery,
   findConversation,
   groupEmailsIntoThreads,
   isAutomatedSender,
@@ -9,6 +10,7 @@ import {
   sanitizeSnippetText,
   threadFocus,
   threadKindMix,
+  threadMatchesQuery,
   type ConversationThread,
 } from '../lib/threading';
 import type { Email } from '../types';
@@ -1075,5 +1077,192 @@ describe('findConversation', () => {
     expect(findConversation(conversations(), undefined)).toBeNull();
     expect(findConversation([], 'a1')).toBeNull();
     expect(findConversation(undefined, 'a1')).toBeNull();
+  });
+});
+
+/**
+ * Search asked the inbox to render a pagination object as a list of mail.
+ *
+ * `GET /emails/search` wrapped its array one level deeper than `GET /emails`, the
+ * client typed both as `Email[]`, and this function got `{data, total, page, …}`. The
+ * object was truthy so the `?? []` upstream never fired, `.length === 0` was
+ * `undefined === 0` so the early return was skipped, and `for (const email of emails)`
+ * threw. The error boundary caught it, so the failure surfaced as an inbox that said
+ * "Nothing matched" — the one shape of failure that looks like an answer.
+ */
+describe('groupEmailsIntoThreads: a shape it does not understand', () => {
+  it('returns no conversations rather than throwing on a non-array', () => {
+    const envelope = { data: [], total: 0, page: 1 } as unknown as Email[];
+
+    expect(() => groupEmailsIntoThreads(envelope, ME)).not.toThrow();
+    expect(groupEmailsIntoThreads(envelope, ME)).toEqual([]);
+    expect(groupEmailsIntoThreads(null as unknown as Email[], ME)).toEqual([]);
+    expect(groupEmailsIntoThreads('hello' as unknown as Email[], ME)).toEqual([]);
+  });
+});
+
+/**
+ * What the search box has to answer to.
+ *
+ * The complaint that opened this was that searching found nothing at all, including
+ * `You` — and `You` is a name this app puts on screen, so it is a name search owes an
+ * answer for. These cases are the fields a person actually types: a subject word, the
+ * other person's name, an address they only ever wrote *to*, a word from the body, and
+ * their own side of the conversation.
+ */
+describe('threadMatchesQuery', () => {
+  const outbound = () =>
+    buildThread(
+      [
+        email({
+          id: 's1',
+          subject: 'Hello',
+          isSent: true,
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: 'alice@startup.example', name: 'Alice Kapoor' }],
+          bodyText: 'Sending over the budget sheet',
+        }),
+      ],
+      ME,
+    );
+
+  it('matches a word from the subject, case-insensitively', () => {
+    expect(threadMatchesQuery(outbound(), 'hello', ME)).toBe(true);
+    expect(threadMatchesQuery(outbound(), 'HELLO', ME)).toBe(true);
+  });
+
+  it('matches a recipient you only ever wrote to, by name and by address', () => {
+    expect(threadMatchesQuery(outbound(), 'alice', ME)).toBe(true);
+    expect(threadMatchesQuery(outbound(), 'kapoor', ME)).toBe(true);
+    expect(threadMatchesQuery(outbound(), 'startup.example', ME)).toBe(true);
+  });
+
+  it('matches a word from the body', () => {
+    expect(threadMatchesQuery(outbound(), 'budget', ME)).toBe(true);
+  });
+
+  /*
+   * The thread view signs your own messages `You`. Typing that has to find them,
+   * which was the user's own example of search being broken.
+   */
+  it('matches `you` and `me` on a conversation you spoke in', () => {
+    expect(threadMatchesQuery(outbound(), 'you', ME)).toBe(true);
+    expect(threadMatchesQuery(outbound(), 'me', ME)).toBe(true);
+
+    const inbound = buildThread(
+      [
+        email({
+          id: 'i1',
+          subject: 'Standup',
+          from: { email: 'bob@example.com', name: 'Bob' },
+          to: [{ email: ME }],
+          bodyText: 'Notes attached',
+        }),
+      ],
+      ME,
+    );
+    expect(threadMatchesQuery(inbound, 'you', ME)).toBe(false);
+  });
+
+  it('ANDs its tokens, so a second word narrows rather than widens', () => {
+    expect(threadMatchesQuery(outbound(), 'alice budget', ME)).toBe(true);
+    expect(threadMatchesQuery(outbound(), 'alice mortgage', ME)).toBe(false);
+  });
+
+  it('does not match a token across the seam between two fields', () => {
+    // `Hello` ends the subject and `Kundan` starts the sender; joined without a
+    // separator that would match `hellokundan`.
+    expect(threadMatchesQuery(outbound(), 'hellokundan', ME)).toBe(false);
+  });
+
+  it('matches everything on an empty query, so a caller need not branch', () => {
+    expect(threadMatchesQuery(outbound(), '', ME)).toBe(true);
+    expect(threadMatchesQuery(outbound(), '   ', ME)).toBe(true);
+  });
+
+  it('reads the flat field spellings a rehydrated message carries', () => {
+    const flat = buildThread(
+      [
+        email({
+          id: 'f1',
+          subject: 'Invoice',
+          from: undefined,
+          fromAddress: 'billing@vendor.example',
+          fromName: 'Vendor Billing',
+          toAddresses: [ME],
+          bodyPlain: 'Payment received, thank you',
+        } as unknown as Parameters<typeof email>[0]),
+      ],
+      ME,
+    );
+
+    expect(threadMatchesQuery(flat, 'vendor', ME)).toBe(true);
+    expect(threadMatchesQuery(flat, 'billing@vendor.example', ME)).toBe(true);
+    expect(threadMatchesQuery(flat, 'payment', ME)).toBe(true);
+  });
+});
+
+/**
+ * Filtering conversations, and the one case where the client has to defer to the
+ * server: a hit in a body the client never loaded.
+ */
+describe('filterThreadsByQuery', () => {
+  const threads = () =>
+    groupEmailsIntoThreads(
+      [
+        email({
+          id: 'a1',
+          subject: 'Budget review',
+          threadId: 'ta',
+          from: { email: 'alice@example.com', name: 'Alice' },
+          to: [{ email: ME }],
+        }),
+        email({
+          id: 'b1',
+          subject: 'Deploy window',
+          threadId: 'tb',
+          from: { email: 'bob@example.com', name: 'Bob' },
+          to: [{ email: ME }],
+        }),
+      ],
+      ME,
+    );
+
+  it('keeps only the conversations that answer to the query', () => {
+    const kept = filterThreadsByQuery(threads(), 'budget', ME);
+
+    expect(kept).toHaveLength(1);
+    expect(kept[0].participants).toContain('Alice');
+  });
+
+  it('returns the list untouched when nothing was typed', () => {
+    const all = threads();
+
+    expect(filterThreadsByQuery(all, '', ME)).toBe(all);
+    expect(filterThreadsByQuery(all, '  ', ME)).toBe(all);
+  });
+
+  /*
+   * The server matched on a body the client only holds a snippet of. Dropping that
+   * conversation because the local text does not contain the word would undo the very
+   * fetch that found it.
+   */
+  it('keeps a server hit whose text the client cannot see', () => {
+    const kept = filterThreadsByQuery(threads(), 'attachment-only-word', ME, new Set(['b1']));
+
+    expect(kept).toHaveLength(1);
+    expect(kept[0].participants).toContain('Bob');
+  });
+
+  it('keeps a server hit named by the conversation id as well as by a message id', () => {
+    const all = threads();
+    const alice = all.find((t) => t.participants.includes('Alice'))!;
+
+    expect(filterThreadsByQuery(all, 'nowhere', ME, new Set([alice.id]))).toEqual([alice]);
+  });
+
+  it('degrades to an empty list rather than throwing on a shape it cannot filter', () => {
+    expect(filterThreadsByQuery(null as unknown as ConversationThread[], 'x', ME)).toEqual([]);
+    expect(filterThreadsByQuery(undefined, 'x', ME)).toEqual([]);
   });
 });
