@@ -573,14 +573,28 @@ export class EmailService {
     const pageSize = options.pageSize ?? 20;
     const skip = (page - 1) * pageSize;
 
+    // Trash and spam stay out. A search is a way of finding mail you filed, not of
+    // exhuming mail you threw away — the same line the thread view draws when it
+    // resolves a conversation over INBOX ∪ ARCHIVE.
+    //
+    // `toAddresses` is a `Json` array, so Postgres can only be asked for an exact
+    // element (`array_contains`, the pattern `search-query.service.ts` already uses for
+    // `to:`): pasting a full address finds what you sent them. A substring of a
+    // recipient — typing `kundan` to find the thread you wrote to
+    // `kundansinghrajput…@gmail.com` — is matched client-side by
+    // `filterThreadsByQuery`, which reads the recipients the loaded corpus already has.
     const where = {
       userId,
       deletedAt: null,
+      isTrash: false,
+      isSpam: false,
       OR: [
         { subject: { contains: query, mode: 'insensitive' as const } },
         { bodyPlain: { contains: query, mode: 'insensitive' as const } },
         { fromAddress: { contains: query, mode: 'insensitive' as const } },
         { fromName: { contains: query, mode: 'insensitive' as const } },
+        { toAddresses: { array_contains: query } },
+        { ccAddresses: { array_contains: query } },
       ],
     };
 

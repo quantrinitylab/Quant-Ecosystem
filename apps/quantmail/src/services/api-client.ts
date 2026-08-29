@@ -174,9 +174,20 @@ export class QuantMailApiClient {
     return this.get(`/emails/${id}`);
   }
 
+  /**
+   * The backend's search schema requires `q`; the app has always called the parameter
+   * `query`. The Next proxy renames it, so the two only agreed as long as every call
+   * went through the proxy — point `NEXT_PUBLIC_API_URL` at the backend and every
+   * search is a 400. Sending both costs one query parameter and removes the hop.
+   */
   async searchEmails(params: Partial<SearchEmailRequest>): Promise<PaginatedResponse<Email>> {
+    const query = (params as { query?: string; q?: string }).query;
+    const q = (params as { q?: string }).q ?? query;
     return this.get('/emails/search', {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: { ...params, ...(q ? { q } : {}) } as Record<
+        string,
+        string | number | boolean | undefined
+      >,
     }) as Promise<PaginatedResponse<Email>>;
   }
 

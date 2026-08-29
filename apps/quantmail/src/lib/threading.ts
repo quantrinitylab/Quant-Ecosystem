@@ -500,7 +500,13 @@ export function groupEmailsIntoThreads(
   emails: Email[] = [],
   currentEmail?: string,
 ): ConversationThread[] {
-  if (!emails || emails.length === 0) return [];
+  // `Array.isArray` and not a truthiness check: this was handed the search route's
+  // pagination envelope — an object, so truthy, and `.length === 0` was
+  // `undefined === 0` — and threw `emails is not iterable` on the line below. The
+  // error boundary caught it, so the inbox looked empty rather than broken and the
+  // bug read as "search finds nothing". A shape the grouper does not understand
+  // should cost you results, never the screen.
+  if (!Array.isArray(emails) || emails.length === 0) return [];
 
   const threadMap = new Map<string, Email[]>();
 
@@ -590,4 +596,98 @@ export function findConversation(
   }
 
   return null;
+}
+
+/**
+ * Everything about a conversation that a person could reasonably expect to find it by.
+ *
+ * Joined with whitespace, which a token can never contain — the query is split on it —
+ * so no token can match across the seam between two fields.
+ *
+ * Both spellings of every field are read, for the same reason `recipientsOf` reads
+ * both: a message rehydrated from IndexedDB or built optimistically by the composer
+ * carries `fromAddress`/`bodyPlain`, while one straight from `formatEmailRecord`
+ * carries `from`/`bodyText`.
+ *
+ * `bodyHtml` is deliberately not in here. Searching markup matches tag and attribute
+ * names, so `div`, `span` and `href` would hit nearly every letter in the mailbox.
+ */
+function searchHaystack(thread: ConversationThread, currentEmail?: string): string {
+  const parts: string[] = [thread.subject, thread.normalizedSubject, ...thread.participants];
+
+  for (const message of thread.messages) {
+    const raw = message as unknown as Record<string, unknown>;
+    parts.push(
+      message.subject || '',
+      message.from?.name || '',
+      message.from?.email || '',
+      typeof raw.fromName === 'string' ? raw.fromName : '',
+      typeof raw.fromAddress === 'string' ? raw.fromAddress : '',
+      message.bodyText || '',
+      typeof raw.bodyPlain === 'string' ? raw.bodyPlain : '',
+      message.snippet || '',
+    );
+
+    for (const person of recipientsOf(message)) {
+      parts.push(person.name || '', person.email || '');
+    }
+
+    // The thread view signs your own messages `You`, so `you` is a name in this
+    // mailbox and search has to answer to it. `me` for the same reason — it is what
+    // people type when `you` does not work.
+    if (isFromMe(message, currentEmail)) parts.push('you me');
+  }
+
+  return parts.join('   ').toLowerCase();
+}
+
+/**
+ * Whether a conversation answers to what was typed.
+ *
+ * Tokens are ANDed: every word has to appear somewhere in the conversation, in any
+ * field, in any message. That is the behaviour people already expect from a search
+ * box, and it is what makes a second word narrow the list instead of widening it.
+ * Order does not matter and neither does which field each word came from, so
+ * `alice budget` finds Alice's thread about the budget.
+ *
+ * An empty query matches everything, so a caller can pass whatever is in the box
+ * without branching on it.
+ */
+export function threadMatchesQuery(
+  thread: ConversationThread,
+  query: string,
+  currentEmail?: string,
+): boolean {
+  const tokens = (query || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+
+  const haystack = searchHaystack(thread, currentEmail);
+  return tokens.every((token) => haystack.includes(token));
+}
+
+/**
+ * The conversations that answer to a query.
+ *
+ * `alwaysInclude` carries the ids the server matched. The server searches the whole
+ * mailbox and looks at fields this function cannot see the same way — `bodyPlain` of a
+ * message on a page the client never loaded — so a server hit is kept even when the
+ * local match fails. Without it, widening the corpus to catch what the server found
+ * would then filter those same messages back out.
+ */
+export function filterThreadsByQuery(
+  threads: ConversationThread[] = [],
+  query: string = '',
+  currentEmail?: string,
+  alwaysInclude?: ReadonlySet<string>,
+): ConversationThread[] {
+  if (!Array.isArray(threads)) return [];
+  if (!(query || '').trim()) return threads;
+
+  return threads.filter((thread) => {
+    if (alwaysInclude && alwaysInclude.size > 0) {
+      if (alwaysInclude.has(thread.id)) return true;
+      if (thread.messages.some((m) => alwaysInclude.has(m.id))) return true;
+    }
+    return threadMatchesQuery(thread, query, currentEmail);
+  });
 }

@@ -26,6 +26,7 @@ import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
 import {
+  filterThreadsByQuery,
   groupEmailsIntoThreads,
   sanitizeSnippetText,
   threadFocus,
@@ -794,14 +795,65 @@ export default function InboxPage() {
   const { user: currentUser } = useAuth();
   const currentEmail = currentUser?.email || '';
 
-  const emails = debouncedQuery ? searchResults : allEmails;
-  const threads = useMemo(
-    () => groupEmailsIntoThreads(emails ?? [], currentEmail),
-    [emails, currentEmail],
+  /**
+   * The ids the server matched.
+   *
+   * The server searches the whole mailbox and reads full message bodies; the client
+   * holds two folders and mostly snippets. So a server hit is authoritative even when
+   * the local match fails, and it is passed to `filterThreadsByQuery` to be kept.
+   */
+  const serverHitIds = useMemo(() => {
+    if (!debouncedQuery) return undefined;
+    return new Set((searchResults ?? []).map((m) => m.id).filter(Boolean));
+  }, [debouncedQuery, searchResults]);
+
+  /**
+   * What a query is answered from.
+   *
+   * Searching used to *replace* the corpus with the server's answer, which threw away
+   * everything the client already had: the response is one page of loose messages, so
+   * conversations lost the rest of their messages and the participants, counts and
+   * focus computed from them. Now it widens instead — the mailbox already loaded, plus
+   * the server hits it did not contain — and one grouping pass rebuilds whole
+   * conversations from the union, exactly as the unsearched inbox does.
+   *
+   * Hits that are archived are left out on purpose: they belong to the archived shelf's
+   * pool below, and adding them here would put an archived conversation in the inbox.
+   */
+  const searchedEmails = useMemo(() => {
+    const local = allEmails ?? [];
+    if (!debouncedQuery) return local;
+
+    const archivedIds = new Set((archivedEmails ?? []).map((m) => m.id));
+    const seen = new Set(local.map((m) => m.id));
+    const corpus = [...local];
+
+    for (const hit of searchResults ?? []) {
+      if (!hit?.id || seen.has(hit.id) || archivedIds.has(hit.id)) continue;
+      seen.add(hit.id);
+      corpus.push(hit);
+    }
+
+    return corpus;
+  }, [debouncedQuery, allEmails, archivedEmails, searchResults]);
+
+  const groupedThreads = useMemo(
+    () => groupEmailsIntoThreads(searchedEmails, currentEmail),
+    [searchedEmails, currentEmail],
   );
-  const allArchivedThreads = useMemo(
+  const threads = useMemo(
+    () => filterThreadsByQuery(groupedThreads, debouncedQuery, currentEmail, serverHitIds),
+    [groupedThreads, debouncedQuery, currentEmail, serverHitIds],
+  );
+  const groupedArchivedThreads = useMemo(
     () => groupEmailsIntoThreads(archivedEmails ?? [], currentEmail),
     [archivedEmails, currentEmail],
+  );
+  // The archived shelf gets the same filter, so its count keeps describing the list
+  // under it while a search is running.
+  const allArchivedThreads = useMemo(
+    () => filterThreadsByQuery(groupedArchivedThreads, debouncedQuery, currentEmail, serverHitIds),
+    [groupedArchivedThreads, debouncedQuery, currentEmail, serverHitIds],
   );
 
   const isGroupThread = useCallback((t: ConversationThread) => {
@@ -1522,7 +1574,18 @@ export default function InboxPage() {
             </button>
           </header>
 
-          {/* Unified Expandable Search Dropdown Tab (Mobile ONLY) */}
+          {/*
+            Unified Expandable Search Dropdown Tab (Mobile ONLY).
+
+            Sizes are the reason this reads as a comment. The field was the 16px text
+            line and nothing else — `py-1.5` sat on the wrapper, so the padding around
+            the input was not part of the input, and the only thing a thumb could hit
+            was the glyph height. The wrapper carries the 44px now and the input fills
+            it; Clear grows its hit area with a pseudo-element so a 14px × in a 44px
+            target costs no layout, and Cancel is a real 44px button rather than a
+            26px line of text. The same mistake, and the same fix, as the desktop bar
+            in `AppShell`.
+          */}
           <AnimatePresence>
             {isSearchOpen && (
               <motion.div
@@ -1532,7 +1595,7 @@ export default function InboxPage() {
                 transition={{ duration: 0.18 }}
                 className="md:hidden overflow-hidden border-b border-[#282C35]/80 bg-[#090A0C] px-3 sm:px-4 py-2.5 flex items-center gap-2"
               >
-                <div className="flex-1 flex items-center gap-2 bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 py-1.5 shadow-inner">
+                <div className="flex-1 flex items-center gap-2 bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 min-h-[44px] shadow-inner">
                   <MailIcon name="search" className="size-4 text-[#A1A4AC] shrink-0" />
                   <input
                     id="mobile-search-input"
@@ -1541,15 +1604,16 @@ export default function InboxPage() {
                     placeholder="Search messages, contacts, keywords…"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    className="w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
+                    className="w-full h-11 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
                     autoFocus
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
-                      className="text-[#A1A4AC] hover:text-white"
+                      className="relative shrink-0 text-[#A1A4AC] hover:text-white before:absolute before:-inset-[15px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
                       title="Clear search"
+                      aria-label="Clear search"
                     >
                       <MailIcon name="close" className="size-3.5" />
                     </button>
@@ -1561,7 +1625,7 @@ export default function InboxPage() {
                     setIsSearchOpen(false);
                     setSearchQuery('');
                   }}
-                  className="text-xs text-[#A1A4AC] hover:text-white font-medium px-2 py-1.5 rounded-lg hover:bg-[#282C35] transition-colors"
+                  className="inline-flex items-center justify-center min-h-[44px] text-xs text-[#A1A4AC] hover:text-white font-medium px-3 rounded-lg hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   Cancel
                 </button>

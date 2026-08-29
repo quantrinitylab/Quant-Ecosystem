@@ -870,11 +870,23 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       pageSize: queryResult.data.pageSize,
     });
 
-    const formattedData = {
-      ...result,
-      data: (result.data || []).map(formatEmailRecord),
-    };
-    return reply.send({ success: true, data: formattedData });
+    // One API, one shape for a list of emails. This route used to nest the array a
+    // second level down (`data.data`) while `GET /emails` above returns it flat in
+    // `data`, and the client — which types both as `Email[]` — handed the pagination
+    // object to the thread grouper and threw. Same envelope as the folder listing now,
+    // pagination fields alongside the array rather than wrapped around it.
+    const items = (result.data || []).map(formatEmailRecord);
+    return reply.send({
+      success: true,
+      data: items,
+      emails: items,
+      page: result.page,
+      pageSize: result.pageSize,
+      totalPages: result.totalPages,
+      totalCount: result.total,
+      hasNext: result.hasNext,
+      hasPrev: result.hasPrev,
+    });
   });
 
   // GET /emails/:id
