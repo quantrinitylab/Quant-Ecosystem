@@ -797,6 +797,25 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         {
           OR: [{ folderId: null }, { folder: { is: { type: 'INBOX' } } }, { isSent: true }],
         },
+        /*
+         * Archive has to outrank the `isSent` arm above, or it cannot remove a sent
+         * message from the inbox at all.
+         *
+         * That arm is what puts your own replies in the same thread as the mail they
+         * answer, and it is unconditional: `POST /:id/archive` moves the row into the
+         * ARCHIVE folder, and the row matched `isSent: true` on the way back out. A
+         * conversation that is entirely outbound therefore could not be archived —
+         * eleven messages moved folder, eleven came back, and the only visible effect
+         * was the list flickering. Received mail hid the bug, because it leaves the
+         * inbox through the `folder.type` arm.
+         *
+         * Written as "no folder, or a folder that is not the archive" rather than as a
+         * `NOT`, because the relation is nullable and a `NOT` over it reads as though
+         * it might drop the unfiled mail that makes up most of the inbox.
+         */
+        {
+          OR: [{ folderId: null }, { folder: { is: { type: { not: 'ARCHIVE' } } } }],
+        },
         {
           OR: [
             { threadId: null },

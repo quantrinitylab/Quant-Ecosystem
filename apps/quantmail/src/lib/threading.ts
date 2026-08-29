@@ -599,6 +599,25 @@ export function findConversation(
 }
 
 /**
+ * Every message a conversation is made of, as ids.
+ *
+ * What a mailbox action has to be given. `thread.id` is the *newest message's* id,
+ * which is the right thing to link with and the wrong thing to act on: archiving a
+ * row that counted eleven moved one message and left ten behind, so the row came
+ * straight back one shorter. Read state was worse than wasteful — a row is unread
+ * when *any* inbound message in it is, so marking one message read left the row
+ * bold with no way to clear it.
+ *
+ * De-duplicated, because `collapseDuplicateSends` can leave two ids pointing at one
+ * visible bubble, and empty ids are dropped so an optimistic copy that has not been
+ * issued an id yet cannot become a request for `undefined`.
+ */
+export function threadMessageIds(thread: ConversationThread | null | undefined): string[] {
+  if (!thread || !Array.isArray(thread.messages)) return [];
+  return Array.from(new Set(thread.messages.map((m) => m.id).filter(Boolean)));
+}
+
+/**
  * Everything about a conversation that a person could reasonably expect to find it by.
  *
  * Joined with whitespace, which a token can never contain — the query is split on it —
