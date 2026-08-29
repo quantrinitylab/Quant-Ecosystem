@@ -328,7 +328,8 @@ export default function RegisterPage() {
             Already have an account?{' '}
             <Link
               href="/login"
-              className="font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+              /* Padding for a 44px hit area, negative margin so the line keeps its height. */
+              className="-my-3.5 inline-flex items-center px-1.5 py-3.5 font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
               Sign in
             </Link>

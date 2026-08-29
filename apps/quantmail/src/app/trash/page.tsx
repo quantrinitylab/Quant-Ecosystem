@@ -11,6 +11,7 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { showToast } from '../../components/InboxToast';
 import { IconTrash, IconUndo } from '../../components/icons';
 import { PageTransition } from '../../components/PageTransition';
+import { useConfirm } from '../../hooks/useConfirm';
 import { useInbox } from '../../hooks/useInbox';
 import { apiClient } from '../../services/api-client';
 import { listContainerVariants, listItemVariants } from '../../lib/motion-variants';
@@ -19,6 +20,7 @@ export default function TrashPage() {
   const router = useRouter();
   const { data: emails, isLoading, error, refetch } = useInbox({ folderType: 'TRASH' });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { confirm, dialog } = useConfirm();
 
   const handleToggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -40,7 +42,14 @@ export default function TrashPage() {
 
   const handlePermanentDelete = useCallback(
     async (id: string) => {
-      if (!window.confirm('Permanently delete this email? This cannot be undone.')) return;
+      const ok = await confirm({
+        title: 'Delete this email permanently?',
+        message:
+          'It leaves trash and is gone for good — there is no undo and no copy left on the server.',
+        confirmLabel: 'Delete permanently',
+        variant: 'destructive',
+      });
+      if (!ok) return;
       const response = await apiClient.deleteEmail(id);
       if (!response.success) {
         showToast({
@@ -57,7 +66,7 @@ export default function TrashPage() {
       showToast({ text: 'Email permanently deleted', type: 'success' });
       await refetch();
     },
-    [refetch],
+    [confirm, refetch],
   );
 
   const handleRestore = useCallback(
@@ -82,8 +91,15 @@ export default function TrashPage() {
   );
 
   const handleBatchDelete = useCallback(async () => {
-    if (!window.confirm(`Permanently delete ${selectedIds.size} email(s)? This cannot be undone.`))
-      return;
+    const count = selectedIds.size;
+    const ok = await confirm({
+      title: `Delete ${count} email${count === 1 ? '' : 's'} permanently?`,
+      message:
+        'They leave trash and are gone for good — there is no undo and no copy left on the server.',
+      confirmLabel: 'Delete permanently',
+      variant: 'destructive',
+    });
+    if (!ok) return;
     const ids = Array.from(selectedIds);
     const responses = await Promise.all(ids.map((id) => apiClient.deleteEmail(id)));
     const failed = responses.find((response) => !response.success);
@@ -97,7 +113,7 @@ export default function TrashPage() {
     setSelectedIds(new Set());
     showToast({ text: `${ids.length} email(s) permanently deleted`, type: 'success' });
     await refetch();
-  }, [selectedIds, refetch]);
+  }, [selectedIds, confirm, refetch]);
 
   const handleBatchRestore = useCallback(async () => {
     const ids = Array.from(selectedIds);
@@ -115,6 +131,36 @@ export default function TrashPage() {
     await refetch();
   }, [selectedIds, refetch]);
 
+  const handleEmptyTrash = useCallback(async () => {
+    const count = emails?.length ?? 0;
+    if (count === 0) return;
+    const ok = await confirm({
+      title: `Empty trash — all ${count} item${count === 1 ? '' : 's'}?`,
+      message:
+        'Everything in trash is deleted for good, including messages still inside their 30-day recovery window.',
+      confirmLabel: 'Empty trash',
+      variant: 'destructive',
+    });
+    if (!ok) return;
+    // This used to swallow its result: a failed delete left the row on screen with
+    // no explanation, and the refetch made it look like a no-op rather than an
+    // error.
+    const responses = await Promise.all(
+      (emails ?? []).map((email) => apiClient.deleteEmail(email.id)),
+    );
+    const failed = responses.find((response) => !response.success);
+    setSelectedIds(new Set());
+    await refetch();
+    if (failed) {
+      showToast({
+        text: failed.error?.message || 'Some emails could not be permanently deleted',
+        type: 'error',
+      });
+      return;
+    }
+    showToast({ text: 'Trash is empty', type: 'success' });
+  }, [emails, confirm, refetch]);
+
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <PageTransition className="workspace-page trash-workspace flex flex-col h-full">
@@ -127,20 +173,7 @@ export default function TrashPage() {
           </div>
           <div className="flex items-center gap-2">
             {emails && emails.length > 0 && (
-              <Button
-                variant="secondary"
-                onClick={async () => {
-                  if (
-                    !window.confirm(
-                      `Permanently delete all ${emails.length} items in trash? This cannot be undone.`,
-                    )
-                  )
-                    return;
-                  await Promise.all(emails.map((e) => apiClient.deleteEmail(e.id)));
-                  setSelectedIds(new Set());
-                  refetch();
-                }}
-              >
+              <Button variant="secondary" onClick={() => void handleEmptyTrash()}>
                 Empty Trash
               </Button>
             )}
@@ -257,6 +290,7 @@ export default function TrashPage() {
             </motion.div>
           )}
         </div>
+        {dialog}
       </PageTransition>
     </AppShell>
   );

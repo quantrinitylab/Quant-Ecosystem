@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { ComponentType } from 'react';
+import { useConfirm } from '../hooks/useConfirm';
 import {
   IconArrowRight,
   IconArrowUp,
@@ -59,6 +60,7 @@ export function GitCommitPanel({ changedFiles, onCommit, onPush, onDiscard }: Gi
   const [isCommitting, setIsCommitting] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [lastCommit, setLastCommit] = useState<string | null>(null);
+  const { confirm, dialog } = useConfirm();
 
   const toggleFile = useCallback((path: string) => {
     setSelectedFiles((prev) => {
@@ -68,6 +70,28 @@ export function GitCommitPanel({ changedFiles, onCommit, onPush, onDiscard }: Gi
       return next;
     });
   }, []);
+
+  /*
+   * Discarding is `git checkout --` on one file: the edits are gone, and unlike
+   * every other destructive action in the app there is no undo and no trash to
+   * fish them out of. The control was a 13px icon button one row below the
+   * checkbox someone taps to stage, firing on the first click. So it asks first,
+   * and the file it is about to throw away is named in the question rather than
+   * left for the reader to infer from which row they think they hit.
+   */
+  const handleDiscard = useCallback(
+    async (path: string) => {
+      const confirmed = await confirm({
+        title: 'Discard changes?',
+        message: `All uncommitted changes in ${path} will be lost. This cannot be undone.`,
+        confirmLabel: 'Discard changes',
+        cancelLabel: 'Keep changes',
+        variant: 'destructive',
+      });
+      if (confirmed) onDiscard(path);
+    },
+    [confirm, onDiscard],
+  );
 
   const handleCommit = useCallback(async () => {
     if (!message.trim() || selectedFiles.size === 0) return;
@@ -95,6 +119,9 @@ export function GitCommitPanel({ changedFiles, onCommit, onPush, onDiscard }: Gi
       <div className="git-panel-empty">
         <IconCheckCircle size={18} />
         <p>Working tree clean</p>
+        {/* Discarding the last file empties the tree, so the dialog has to exist
+            on this branch too or it would unmount mid-question. */}
+        {dialog}
       </div>
     );
   }
@@ -183,7 +210,7 @@ export function GitCommitPanel({ changedFiles, onCommit, onPush, onDiscard }: Gi
               <button
                 type="button"
                 className="git-file-discard"
-                onClick={() => onDiscard(file.path)}
+                onClick={() => void handleDiscard(file.path)}
                 title="Discard changes"
                 aria-label={`Discard changes in ${file.path}`}
               >
@@ -193,6 +220,7 @@ export function GitCommitPanel({ changedFiles, onCommit, onPush, onDiscard }: Gi
           );
         })}
       </div>
+      {dialog}
     </div>
   );
 }

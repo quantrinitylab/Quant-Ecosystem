@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { apiClient } from '../services/api-client';
 import { belongsInFolder } from '../lib/offline/folders';
 import { mailboxKey, readMailbox, writeMailbox } from '../lib/offline/mail-cache';
+import { apiRequestError, backoffInterval } from '../lib/query-retry';
 import type { Email } from '../types';
 
 export interface UseInboxOptions {
@@ -28,10 +29,21 @@ export interface UseInboxOptions {
  * 3. **Write-through.** Successful responses are persisted, once per fetch. This
  *    deliberately does not react to `data` changing, because optimistic updates
  *    also change `data`; those write their own single-record patches instead.
+ *
+ * A missing `folderType` means the default mailbox, which is the same thing
+ * `'INBOX'` means — see the `else` branch of `GET /emails`, which `'INBOX'` also
+ * falls into. Both spellings were in use (`AppSidebar` and `contacts` passed
+ * nothing, `AppShell` and the inbox page passed `'INBOX'`), so every route was
+ * running two query keys, two 30s polls, two retry bursts and two IndexedDB
+ * snapshots against one server response. Worse, they disagreed on the client:
+ * `belongsInFolder(undefined)` keeps archived and snoozed mail while
+ * `belongsInFolder('INBOX')` drops it, so an optimistic archive left the message
+ * visible in one view and gone from the other. Normalising here collapses both.
  */
 export function useInbox(options?: UseInboxOptions) {
   const queryClient = useQueryClient();
-  const { label, category, folderType, page, pageSize, offline = true } = options ?? {};
+  const { label, category, page, pageSize, offline = true } = options ?? {};
+  const folderType = options?.folderType ?? 'INBOX';
 
   const queryKey = useMemo(
     () => ['inbox', label, category, folderType, page] as const,
@@ -72,7 +84,8 @@ export function useInbox(options?: UseInboxOptions) {
       try {
         const response = await apiClient.getEmails({ label, category, folderType, page, pageSize });
         if (!response.success) {
-          throw new Error(response.error?.message || 'Failed to load inbox');
+          // Carries the status through, so a 401 is not retried like a 502.
+          throw apiRequestError(response.error, 'Failed to load inbox');
         }
         const emails = response.data ?? [];
         if (offline) void writeMailbox(cacheKey, emails);
@@ -87,8 +100,15 @@ export function useInbox(options?: UseInboxOptions) {
         throw error;
       }
     },
-    // Live updates: refetch every 30 seconds when window is focused
-    refetchInterval: 30_000,
+    /*
+     * 30s while healthy. On a failing backend the interval kept firing at full
+     * rate on top of each fetch's retries, which is how a local outage produced
+     * unbroken runs of the same three mailbox requests. Backing off to 2 minutes
+     * keeps the view self-healing without being the reason the gateway stays
+     * busy; returning `false` would be quieter but the mailbox would then never
+     * notice the backend came back.
+     */
+    refetchInterval: (query) => backoffInterval(30_000, query.state.status === 'error'),
     refetchIntervalInBackground: false,
     // Refetch when user tabs back into QuantMail
     refetchOnWindowFocus: true,
