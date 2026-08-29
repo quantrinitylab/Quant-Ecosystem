@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  findConversation,
   groupEmailsIntoThreads,
   isAutomatedSender,
   isFromMe,
@@ -978,5 +979,101 @@ describe('ConversationThread.kindMix', () => {
     const t = buildThread([email({ subject: 'Invoice', messageKind: 'mail' })]);
 
     expect(t.kindMix).toBe('mail');
+  });
+});
+
+/**
+ * The route `/thread/<id>` has to answer the question the row asked, and the row is
+ * no longer a server thread. Every one of these cases is a link that exists in the
+ * app: the inbox links with the conversation id, a notification with a message id,
+ * and an optimistic reply with whatever the server just issued.
+ */
+describe('findConversation', () => {
+  const conversations = () =>
+    groupEmailsIntoThreads(
+      [
+        email({
+          id: 'a1',
+          subject: 'Hii',
+          threadId: 'ta',
+          from: { email: 'alice@example.com', name: 'Alice' },
+          to: [{ email: ME }],
+        }),
+        email({
+          id: 'a2',
+          subject: 'Re: Hii',
+          threadId: 'ta',
+          from: { email: 'alice@example.com', name: 'Alice' },
+          to: [{ email: ME }],
+        }),
+        email({
+          id: 'b1',
+          subject: 'Deploy',
+          threadId: 'tb',
+          from: { email: 'bob@example.com', name: 'Bob' },
+          to: [{ email: ME }],
+        }),
+      ],
+      ME,
+    );
+
+  it('resolves the conversation by its own id', () => {
+    const threads = conversations();
+    const alice = threads.find((t) => t.participants.includes('Alice'));
+
+    expect(findConversation(threads, alice!.id)).toBe(alice);
+  });
+
+  it('resolves by the id of any message inside it, not just the newest', () => {
+    const threads = conversations();
+    const alice = threads.find((t) => t.participants.includes('Alice'));
+
+    expect(findConversation(threads, 'a1')).toBe(alice);
+    expect(findConversation(threads, 'a2')).toBe(alice);
+  });
+
+  it('resolves by server thread id, which is what an older link still carries', () => {
+    const threads = conversations();
+
+    expect(findConversation(threads, 'tb')?.participants).toContain('Bob');
+  });
+
+  /*
+   * A conversation carries the `threadId` of its newest message, so an id that is
+   * one conversation's message and another's thread identifies exactly one of them:
+   * the message. Checking thread ids first would return the wrong conversation here,
+   * and it would look right — a real conversation, just not the one that was opened.
+   */
+  it('prefers a message id over a thread id when one id is both', () => {
+    const threads = groupEmailsIntoThreads(
+      [
+        email({
+          id: 'shared',
+          subject: 'Hii',
+          threadId: 'ta',
+          from: { email: 'alice@example.com', name: 'Alice' },
+          to: [{ email: ME }],
+        }),
+        email({
+          id: 'b1',
+          subject: 'Deploy',
+          threadId: 'shared',
+          from: { email: 'bob@example.com', name: 'Bob' },
+          to: [{ email: ME }],
+        }),
+      ],
+      ME,
+    );
+
+    expect(findConversation(threads, 'shared')?.participants).toContain('Alice');
+  });
+
+  it('returns null rather than a guess when the id is in no conversation', () => {
+    expect(findConversation(conversations(), 'not-here')).toBeNull();
+    expect(findConversation(conversations(), '')).toBeNull();
+    expect(findConversation(conversations(), null)).toBeNull();
+    expect(findConversation(conversations(), undefined)).toBeNull();
+    expect(findConversation([], 'a1')).toBeNull();
+    expect(findConversation(undefined, 'a1')).toBeNull();
   });
 });

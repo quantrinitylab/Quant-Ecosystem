@@ -553,3 +553,41 @@ export function groupEmailsIntoThreads(
 
   return threads;
 }
+
+/**
+ * The conversation a given id belongs to.
+ *
+ * Once a row stopped being a server thread, `/thread/<id>` could no longer be
+ * answered by the server: `GET /threads/:id` returns the messages that share one
+ * `threadId`, which is one message out of the eleven the row had just counted. So
+ * tapping a row that said `11` opened a page that said `1 Message`, and the row and
+ * the page it opened disagreed about what a conversation is.
+ *
+ * This resolves the id against the same grouping the row came from, so they cannot.
+ * Any of the four things a caller might be holding will find it — the conversation's
+ * own `id` or `threadId`, or the `id` or `threadId` of any message inside it —
+ * because the inbox links with the thread id, a notification with a message id, and
+ * a reply's optimistic copy with whatever the server just issued.
+ *
+ * Message ids are checked before thread ids on purpose. A conversation carries the
+ * `threadId` of its newest message, so with several conversations open on the same
+ * server thread the message id is the one that identifies exactly one of them.
+ */
+export function findConversation(
+  threads: ConversationThread[] = [],
+  id?: string | null,
+): ConversationThread | null {
+  if (!id) return null;
+
+  for (const thread of threads) {
+    if (thread.id === id) return thread;
+    if (thread.messages.some((m) => m.id === id)) return thread;
+  }
+
+  for (const thread of threads) {
+    if (thread.threadId === id) return thread;
+    if (thread.messages.some((m) => m.threadId === id)) return thread;
+  }
+
+  return null;
+}
