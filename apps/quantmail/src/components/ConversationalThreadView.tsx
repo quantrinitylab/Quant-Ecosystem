@@ -48,8 +48,14 @@ export interface ConversationalThreadViewProps {
   initialEmails?: Email[];
   subject?: string;
   onClose?: () => void;
-  onArchive?: () => void;
-  onDelete?: () => void;
+  /**
+   * Called with every message id in the conversation as resolved *here* — which is
+   * the union of INBOX and ARCHIVE, so it is the widest and truest answer anyone
+   * has. `/thread/<id>` had no other way to know what to archive, and archived
+   * nothing at all as a result: its handler only navigated back to the inbox.
+   */
+  onArchive?: (messageIds: string[]) => void;
+  onDelete?: (messageIds: string[]) => void;
   onStarToggle?: (starred: boolean) => void;
   isStarred?: boolean;
   className?: string;
@@ -114,6 +120,37 @@ export function ConversationalThreadView({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * The phone's home for the two header actions that have no room of their own.
+   *
+   * Five 44px targets plus gaps eat 236 of 375 pixels, so Expand All and Print used
+   * to simply stand down below `sm` — which is not the same as having an answer for
+   * them. They live in here now: one 44px button, and the actions keep their full
+   * target inside a sheet instead of being unavailable on the device most of this
+   * mailbox is read on.
+   */
+  const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
+  const headerMenuRef = useRef<HTMLDivElement | null>(null);
+
+  /** Dismiss the overflow menu on an outside press or Escape. */
+  useEffect(() => {
+    if (!isHeaderMenuOpen) return;
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!headerMenuRef.current?.contains(event.target as Node)) setIsHeaderMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsHeaderMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isHeaderMenuOpen]);
+
   const loadedThreadIdRef = useRef<string | null>(null);
 
   const { user: currentUser } = useAuth();
@@ -151,6 +188,18 @@ export function ConversationalThreadView({
    * thing distinguishing a letter from a line, so it stays and keeps its orange.
    */
   const showKindBadges = useMemo(() => threadKindMix(messages) === 'mixed', [messages]);
+
+  /**
+   * What the header's Archive and Trash buttons act on: the conversation, all of it.
+   *
+   * Falls back to the id in the URL when the messages have not arrived yet, so the
+   * button is never wired to an empty list — a request for one id that turns out to
+   * be a thread id is still better than a request for nothing.
+   */
+  const conversationMessageIds = useMemo(() => {
+    const ids = Array.from(new Set(messages.map((m) => m.id).filter(Boolean)));
+    return ids.length > 0 ? ids : [threadId].filter(Boolean);
+  }, [messages, threadId]);
 
   /**
    * The conversation this view is about, resolved the way the inbox resolved it.
@@ -647,16 +696,17 @@ export function ConversationalThreadView({
           two at the end of the row are Archive and Delete — the pair where a mis-tap
           costs you a message. They cannot simply be padded out: five 44px boxes plus
           gaps eat 236 of 375 pixels and the correspondent's name is what would give up
-          the room. So Print stands down below `sm` — it is the one action here with no
-          phone story at all — and the four that are left take the full target inside
-          the footprint the five were already using.
+          the room. So Expand All and Print stand down below `sm` and hand their slot to
+          a single "…" that holds both, and the four buttons that are left take the full
+          target inside the footprint the five were already using.
         */}
         <div className="flex items-center gap-1.5 shrink-0 sm:gap-1">
           {/*
             Expand All is a desktop convenience and a phone liability: on a fourteen
             message conversation it produces a page you have to scroll past, and the
-            model here is that you tap the message you want. It stands down below `sm`
-            with Print, and the ~50px it frees goes to the correspondent's name.
+            model here is that you tap the message you want. So it stands down below
+            `sm` — into the overflow menu, not out of existence — and the ~50px it
+            frees goes to the correspondent's name.
           */}
           <button
             type="button"
@@ -744,11 +794,92 @@ export function ConversationalThreadView({
             </svg>
           </button>
 
+          {/*
+            The phone's home for the two buttons above.
+
+            `sm:hidden`, so it is exactly the inverse of Expand All and Print: one of
+            the two is always reachable at every width, and neither action is simply
+            absent on the device this mailbox is mostly read on. `relative` so the
+            sheet hangs off this button rather than off the header — the header is
+            `sticky z-20` with no clipping, so it can.
+          */}
+          <div className="relative sm:hidden" ref={headerMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsHeaderMenuOpen((open) => !open)}
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]"
+              aria-label="More conversation actions"
+              aria-haspopup="menu"
+              aria-expanded={isHeaderMenuOpen}
+            >
+              <svg className="size-[18px]" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="5" r="1.9" />
+                <circle cx="12" cy="12" r="1.9" />
+                <circle cx="12" cy="19" r="1.9" />
+              </svg>
+            </button>
+
+            {isHeaderMenuOpen && (
+              <div
+                role="menu"
+                aria-label="Conversation actions"
+                className="absolute right-0 top-[calc(100%+6px)] z-30 w-52 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] py-1 shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    if (allExpanded) collapseAll();
+                    else expandAll();
+                    setIsHeaderMenuOpen(false);
+                  }}
+                  disabled={messages.length === 0}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[#F5F5F5] transition-colors hover:bg-[#282C35] focus-visible:outline-none focus-visible:bg-[#282C35] disabled:cursor-not-allowed disabled:text-[#6B6E76] disabled:hover:bg-transparent"
+                >
+                  <svg
+                    className={`size-4 shrink-0 text-[#A1A4AC] transition-transform ${allExpanded ? 'rotate-180' : ''}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                  >
+                    <path d="m7 15 5 5 5-5" />
+                    <path d="m7 9 5-5 5 5" />
+                  </svg>
+                  {allExpanded ? 'Collapse all' : 'Expand all'}
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsHeaderMenuOpen(false);
+                    window.print();
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[#F5F5F5] transition-colors hover:bg-[#282C35] focus-visible:outline-none focus-visible:bg-[#282C35]"
+                >
+                  <svg
+                    className="size-4 shrink-0 text-[#A1A4AC]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="6 9 6 2 18 2 18 9" />
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                    <rect width="12" height="8" x="6" y="14" />
+                  </svg>
+                  Print conversation
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Archive */}
           {onArchive && (
             <button
               type="button"
-              onClick={onArchive}
+              onClick={() => onArchive(conversationMessageIds)}
               className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:min-w-0"
               title="Archive conversation (E)"
             >
@@ -770,7 +901,7 @@ export function ConversationalThreadView({
           {onDelete && (
             <button
               type="button"
-              onClick={onDelete}
+              onClick={() => onDelete(conversationMessageIds)}
               className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-rose-500/10 hover:text-rose-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:min-w-0"
               title="Move to Trash (#)"
             >

@@ -61,6 +61,12 @@ export interface UseInboxKeyboardOptions<Row extends InboxKeyboardRow> {
   /** Toggle the row's selection checkbox. */
   onToggleSelect: (id: string) => void;
   mutations: MailMutations;
+  /**
+   * Every message id a row stands for. A row is a conversation, so `e` has to
+   * archive all of it — `row.id` alone is just the newest message. Defaults to the
+   * row's own id for lists whose rows really are single messages.
+   */
+  expandIds?: (row: Row) => string[];
   /** Usually the virtualizer's `scrollToIndex`; without it the cursor can leave the viewport. */
   scrollToIndex?: (index: number) => void;
   /** Set `false` on views that render the list but should not own the keys. */
@@ -86,6 +92,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
     onClose,
     onToggleSelect,
     mutations,
+    expandIds,
     scrollToIndex,
     active = true,
   } = options;
@@ -180,6 +187,15 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
     if (selectedId !== null) onOpen(row);
   };
 
+  /**
+   * Every message the row stands for. Falls back to the row's own id, so a caller
+   * that does not group loses nothing.
+   */
+  const idsOf = (row: Row): string[] => {
+    const ids = expandIds?.(row) ?? [];
+    return ids.length > 0 ? ids : [row.id];
+  };
+
   // Rebuilt every render; `useRegisterCommands` re-registers only when the
   // *shape* changes, and always calls the newest closure. That is what lets these
   // read `focusedRow` directly instead of through a ref.
@@ -245,7 +261,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       run: () => {
         // No explicit advance: the row leaves `rows`, and the re-seat effect
         // hands focus to whatever takes its index.
-        if (focusedRow) void mutations.archive(focusedRow.id);
+        if (focusedRow) void mutations.archive(idsOf(focusedRow));
       },
     },
     {
@@ -259,7 +275,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       keywords: ['delete', 'bin', 'remove'],
       enabled: () => focusedRow !== null,
       run: () => {
-        if (focusedRow) void mutations.trash(focusedRow.id);
+        if (focusedRow) void mutations.trash(idsOf(focusedRow));
       },
     },
     {
@@ -272,7 +288,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       keywords: ['flag', 'pin', 'important'],
       enabled: () => focusedRow !== null,
       run: () => {
-        if (focusedRow) void mutations.toggleStar(focusedRow.id);
+        if (focusedRow) void mutations.toggleStar(idsOf(focusedRow));
       },
     },
     {
@@ -286,8 +302,8 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       enabled: () => focusedRow !== null,
       run: () => {
         if (!focusedRow) return;
-        if (focusedRow.isRead) void mutations.markUnread(focusedRow.id);
-        else void mutations.markRead(focusedRow.id);
+        if (focusedRow.isRead) void mutations.markUnread(idsOf(focusedRow));
+        else void mutations.markRead(idsOf(focusedRow));
       },
     },
     {

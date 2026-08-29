@@ -27,9 +27,11 @@ import { useMailMutations } from '../hooks/useMailMutations';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
 import {
   filterThreadsByQuery,
+  findConversation,
   groupEmailsIntoThreads,
   sanitizeSnippetText,
   threadFocus,
+  threadMessageIds,
   type ConversationThread,
 } from '../lib/threading';
 import { useAuth } from '../providers/auth-provider';
@@ -961,7 +963,7 @@ export default function InboxPage() {
    *
    * Cross-tabulating is the whole reason the two controls can compose. A count
    * that ignored the other control would promise rows the list will not show: with
-   * `Unread` on, `Needs you 12` has to mean twelve unread conversations waiting on
+   * `Unread` on, `Your turn 12` has to mean twelve unread conversations waiting on
    * a reply, not twelve conversations of which some are already read.
    *
    * `needs_you + waiting` deliberately falls short of `all` — a receipt from
@@ -1004,11 +1006,15 @@ export default function InboxPage() {
 
   /** What the archived shelf calls the population it is counting. */
   const viewLabel = useMemo(() => {
+    // Named off the tabs. These read `conversations needing you` / `conversations
+    // you are waiting on` when the tabs still said `Needs you` / `Waiting`, and kept
+    // saying it after the relabel — so the shelf described a partition by a name
+    // that appeared nowhere on screen.
     const base =
       activeFocus === 'needs_you'
-        ? 'conversations needing you'
+        ? 'conversations on your turn'
         : activeFocus === 'waiting'
-          ? 'conversations you are waiting on'
+          ? 'conversations on their turn'
           : 'conversations';
     return activeFilters.size > 0 ? `filtered ${base}` : base;
   }, [activeFocus, activeFilters]);
@@ -1278,60 +1284,106 @@ export default function InboxPage() {
     },
   });
 
+  /**
+   * Every message id the conversation an action was aimed at is made of.
+   *
+   * The handlers below used to be handed `thread.id`, which is the *newest
+   * message's* id. So archiving a row that counted eleven moved one message and
+   * left ten in the inbox: the row came straight back, one shorter. Marking read
+   * was worse — a row is unread while any inbound message in it is, so opening a
+   * conversation cleared the newest and left the row bold with nothing to press.
+   *
+   * Resolved against both pools, because the same handlers serve the archived
+   * shelf. Falls back to the id itself so an action can never become a no-op just
+   * because the pools have not settled yet.
+   */
+  const conversationIds = useCallback(
+    (id: string): string[] => {
+      const thread = findConversation(threads, id) ?? findConversation(allArchivedThreads, id);
+      const ids = threadMessageIds(thread);
+      return ids.length > 0 ? ids : [id];
+    },
+    [threads, allArchivedThreads],
+  );
+
   const batchAction = useCallback(
     async (action: 'archive' | 'delete') => {
       const ids = Array.from(selectedIds);
       setSelectedIds(new Set());
-      await mutations.batch(action === 'archive' ? 'archive' : 'trash', ids);
+      // `ids.length` is the number of conversations, which is what the toast counts;
+      // the request list is every message inside them.
+      await mutations.batch(
+        action === 'archive' ? 'archive' : 'trash',
+        ids.flatMap(conversationIds),
+        ids.length,
+      );
     },
-    [mutations, selectedIds],
+    [mutations, selectedIds, conversationIds],
   );
 
   const batchToggleStar = useCallback(
     async (ids: string[], allPinned: boolean) => {
       setSelectedIds(new Set());
-      await Promise.all(ids.map((id) => mutations.toggleStar(id)));
+      await Promise.all(ids.map((id) => mutations.toggleStar(conversationIds(id))));
       showToast({
-        text: allPinned ? 'Unpinned selected messages' : 'Pinned selected messages to top',
+        text: allPinned
+          ? 'Unpinned selected conversations'
+          : 'Pinned selected conversations to top',
         type: 'success',
       });
     },
-    [mutations],
+    [mutations, conversationIds],
   );
 
   const batchMarkRead = useCallback(
     async (ids: string[], read: boolean) => {
       setSelectedIds(new Set());
       await Promise.all(
-        ids.map((id) => (read ? mutations.markRead(id) : mutations.markUnread(id))),
+        ids.map((id) =>
+          read
+            ? mutations.markRead(conversationIds(id))
+            : mutations.markUnread(conversationIds(id)),
+        ),
       );
       showToast({
         text: `${ids.length} marked as ${read ? 'read' : 'unread'}`,
         type: 'info',
       });
     },
-    [mutations],
+    [mutations, conversationIds],
   );
 
   const toggleStar = useCallback(
     async (event: React.MouseEvent | null, id: string) => {
       event?.stopPropagation();
-      await mutations.toggleStar(id);
+      await mutations.toggleStar(conversationIds(id));
     },
-    [mutations],
+    [mutations, conversationIds],
   );
 
-  const archiveEmail = useCallback((id: string) => mutations.archive(id), [mutations]);
+  const archiveEmail = useCallback(
+    (id: string) => mutations.archive(conversationIds(id)),
+    [mutations, conversationIds],
+  );
 
-  const deleteEmail = useCallback((id: string) => mutations.trash(id), [mutations]);
+  const deleteEmail = useCallback(
+    (id: string) => mutations.trash(conversationIds(id)),
+    [mutations, conversationIds],
+  );
 
-  const markRead = useCallback((id: string) => mutations.markRead(id), [mutations]);
+  const markRead = useCallback(
+    (id: string) => mutations.markRead(conversationIds(id)),
+    [mutations, conversationIds],
+  );
 
-  const markUnread = useCallback((id: string) => mutations.markUnread(id), [mutations]);
+  const markUnread = useCallback(
+    (id: string) => mutations.markUnread(conversationIds(id)),
+    [mutations, conversationIds],
+  );
 
   const snoozeEmail = useCallback(
-    (emailId: string, snoozeUntil: Date) => mutations.snooze(emailId, snoozeUntil),
-    [mutations],
+    (emailId: string, snoozeUntil: Date) => mutations.snooze(conversationIds(emailId), snoozeUntil),
+    [mutations, conversationIds],
   );
 
   const openEmail = useCallback(
@@ -1353,13 +1405,16 @@ export default function InboxPage() {
         );
         setSelectedThread(matching || null);
       }
-      void mutations.markRead(email.id);
+      // The whole conversation, not the message that was tapped. `isRead` on a row
+      // is an `every`, so clearing only the newest left the row bold after the user
+      // had plainly just read it.
+      void mutations.markRead(conversationIds(email.id));
       const targetId = email.threadId || email.id;
       if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 900px)').matches) {
         router.push(`/thread/${targetId}`);
       }
     },
-    [mutations, router, threads],
+    [mutations, router, threads, conversationIds],
   );
 
   /**
@@ -1379,6 +1434,8 @@ export default function InboxPage() {
     },
     onToggleSelect: (id) => toggleSelect(id),
     mutations,
+    // `e` and `#` act on the conversation the cursor is on, all of it.
+    expandIds: threadMessageIds,
     scrollToIndex: virtualizer.scrollToIndex,
   });
 
@@ -1926,9 +1983,9 @@ export default function InboxPage() {
                   <h3 className="text-base font-bold text-white">Nothing in this view</h3>
                   <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
                     {activeFocus === 'needs_you'
-                      ? 'No conversation is waiting on a reply from you.'
+                      ? 'Nothing is on your turn — no one is waiting on a reply from you.'
                       : activeFocus === 'waiting'
-                        ? 'You are not waiting on a reply from anyone.'
+                        ? 'Nothing is on their turn — you are not waiting on a reply from anyone.'
                         : 'No conversation matches the filters you have on.'}
                     {heldBackCount > 0 &&
                       ` ${heldBackCount} automated ${
@@ -1983,7 +2040,7 @@ export default function InboxPage() {
                     </p>
                   )}
                   {/*
-                    `Needs you` and `Waiting` do not sum to `All`, and an
+                    `Your turn` and `Their turn` do not sum to `All`, and an
                     unexplained gap between two counts reads as a bug. Say where
                     the difference went, and offer the one click that shows it.
                   */}

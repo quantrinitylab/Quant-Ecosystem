@@ -11,6 +11,7 @@ import {
   threadFocus,
   threadKindMix,
   threadMatchesQuery,
+  threadMessageIds,
   type ConversationThread,
 } from '../lib/threading';
 import type { Email } from '../types';
@@ -1264,5 +1265,45 @@ describe('filterThreadsByQuery', () => {
   it('degrades to an empty list rather than throwing on a shape it cannot filter', () => {
     expect(filterThreadsByQuery(null as unknown as ConversationThread[], 'x', ME)).toEqual([]);
     expect(filterThreadsByQuery(undefined, 'x', ME)).toEqual([]);
+  });
+});
+
+/**
+ * What a mailbox action is given.
+ *
+ * `thread.id` is `latest.id` — the newest *message* — so every handler that took it
+ * acted on one message of eleven: archiving a row moved the newest and the row came
+ * straight back one shorter, and opening a conversation cleared one message's
+ * `isRead` while the row stayed bold, because a row is unread while *any* inbound
+ * message in it is.
+ */
+describe('threadMessageIds', () => {
+  const threadOf = (...ids: string[]): ConversationThread =>
+    ({ id: ids[ids.length - 1], messages: ids.map((id) => ({ id })) }) as ConversationThread;
+
+  it('returns every message, not just the newest one the id names', () => {
+    const thread = threadOf('m1', 'm2', 'm3');
+
+    expect(threadMessageIds(thread)).toEqual(['m1', 'm2', 'm3']);
+    // The bug in one line: the id alone is the last of the three.
+    expect(thread.id).toBe('m3');
+  });
+
+  /*
+   * `collapseDuplicateSends` can leave two ids behind one visible bubble, and an
+   * optimistic copy has no id until the server issues one. Neither may become a
+   * duplicate request or a request for `undefined`.
+   */
+  it('de-duplicates and drops ids a message does not have yet', () => {
+    expect(threadMessageIds(threadOf('m1', 'm1', 'm2'))).toEqual(['m1', 'm2']);
+    expect(
+      threadMessageIds({ id: 'm1', messages: [{ id: 'm1' }, { id: '' }] } as ConversationThread),
+    ).toEqual(['m1']);
+  });
+
+  it('returns nothing rather than throwing when there is no conversation to expand', () => {
+    expect(threadMessageIds(null)).toEqual([]);
+    expect(threadMessageIds(undefined)).toEqual([]);
+    expect(threadMessageIds({ id: 'm1' } as ConversationThread)).toEqual([]);
   });
 });
