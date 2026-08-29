@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { safeFetch } from '../_lib/safe-fetch';
-
-// Drive routes are served by the QuantMail backend; QUANTDRIVE_BACKEND_URL stays
-// as an override for deployments that run a standalone QuantDrive service.
-const BACKEND_URL =
-  process.env.QUANTDRIVE_BACKEND_URL ||
-  process.env.QUANTMAIL_BACKEND_URL ||
-  'http://localhost:3011';
+import { DRIVE_BACKEND_URL } from '../_lib/backend-url';
 
 // 25 MB plaintext ceiling, mirroring DRIVE_MAX_FILE_BYTES on the backend.
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -32,7 +26,7 @@ export async function POST(request: NextRequest) {
   const bytes = Buffer.from(await file.arrayBuffer());
 
   // The backend has no multipart parser, so the form is normalised to JSON here.
-  const res = await safeFetch(`${BACKEND_URL}/drive/upload`, {
+  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/upload`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { safeFetch } from '../../_lib/safe-fetch';
-
-// Drive routes are served by the QuantMail backend; QUANTDRIVE_BACKEND_URL stays
-// as an override for deployments that run a standalone QuantDrive service.
-const BACKEND_URL =
-  process.env.QUANTDRIVE_BACKEND_URL ||
-  process.env.QUANTMAIL_BACKEND_URL ||
-  'http://localhost:3011';
+import { DRIVE_BACKEND_URL } from '../../_lib/backend-url';
 
 export async function PUT(
   request: NextRequest,
@@ -14,7 +8,7 @@ export async function PUT(
 ) {
   const { fileId } = await params;
   const body = await request.json();
-  const res = await safeFetch(`${BACKEND_URL}/drive/files/${fileId}`, {
+  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${fileId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -31,7 +25,7 @@ export async function DELETE(
   { params }: { params: Promise<{ fileId: string }> },
 ) {
   const { fileId } = await params;
-  const res = await safeFetch(`${BACKEND_URL}/drive/files/${fileId}`, {
+  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${fileId}`, {
     method: 'DELETE',
     headers: { Authorization: request.headers.get('Authorization') || '' },
   });
