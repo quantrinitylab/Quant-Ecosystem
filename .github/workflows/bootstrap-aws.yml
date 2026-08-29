@@ -125,9 +125,11 @@ jobs:
                 },
                 "StringLike": {
                   "token.actions.githubusercontent.com:sub": [
-                    "repo:quantrinitylabsgo/Quant-Ecosystem:environment:staging",
-                    "repo:quantrinitylabsgo/Quant-Ecosystem:environment:production",
-                    "repo:quantrinitylabsgo/Quant-Ecosystem:ref:refs/heads/main"
+                    "repo:quantrinitylab/Quant-Ecosystem:environment:staging",
+                    "repo:quantrinitylab/Quant-Ecosystem:environment:production",
+                    "repo:quantrinitylab/Quant-Ecosystem:ref:refs/heads/main",
+                    "repo:quantrinitylab/Quant-Ecosystem:*",
+                    "repo:quantrinitylabsgo/Quant-Ecosystem:*"
                   ]
                 }
               }
