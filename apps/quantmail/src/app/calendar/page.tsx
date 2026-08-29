@@ -227,6 +227,72 @@ const toTimeInput = (date: Date) =>
 
 type CalendarView = 'agenda' | 'week' | 'day' | 'month';
 
+/**
+ * What a day cell is allowed to say about itself.
+ *
+ * Both grids already work this out for every date they draw — and then drew none of
+ * it, which is why 28 August looked exactly like 27 August with Raksha Bandhan on it.
+ * The `sphereClass` branches tint the circle, but they are mutually exclusive and only
+ * three of the five kinds get a branch at all, so a day holding a holiday or an
+ * ordinary meeting came out blank.
+ */
+type DayMarkFlags = {
+  hasHoliday?: boolean;
+  hasPeriod?: boolean;
+  hasBirthday?: boolean;
+  hasTask?: boolean;
+  hasPlainEvent?: boolean;
+};
+
+/**
+ * Priority order, and the colour each kind already wears everywhere else in this page
+ * — the speed dial, the sheets and the agenda cards all use these five.
+ */
+const DAY_MARKS: Array<{ key: keyof DayMarkFlags; color: string; label: string }> = [
+  { key: 'hasHoliday', color: '#FF8C42', label: 'holiday' },
+  { key: 'hasPeriod', color: '#FB7185', label: 'cycle entry' },
+  { key: 'hasBirthday', color: '#34D399', label: 'birthday' },
+  { key: 'hasTask', color: '#FFB875', label: 'task' },
+  { key: 'hasPlainEvent', color: '#A1A4AC', label: 'event' },
+];
+
+/**
+ * The dots under a date.
+ *
+ * Dots rather than another tint, because a day can hold four kinds at once and a
+ * background can only say one thing. Capped at three: past that the row stops reading
+ * as marks and starts reading as texture.
+ *
+ * `onBrand` covers the selected cell, whose background is the same `#FF8C42` a holiday
+ * dot would be drawn in — there the dots switch to the dark ink the day number already
+ * uses, so a selected day does not silently lose its marks.
+ */
+function DayMarks({ flags, onBrand }: { flags: DayMarkFlags; onBrand: boolean }) {
+  const marks = DAY_MARKS.filter((mark) => flags[mark.key]).slice(0, 3);
+  if (marks.length === 0) return null;
+
+  return (
+    <span
+      className="pointer-events-none absolute inset-x-0 bottom-[3px] flex items-center justify-center gap-[3px]"
+      aria-hidden="true"
+    >
+      {marks.map((mark) => (
+        <span
+          key={mark.key}
+          className="size-[3px] rounded-full"
+          style={{ backgroundColor: onBrand ? '#111111' : mark.color }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** The marks a day carries, as words, for the button's accessible name. */
+function dayMarkLabel(flags: DayMarkFlags): string {
+  const labels = DAY_MARKS.filter((mark) => flags[mark.key]).map((mark) => mark.label);
+  return labels.length === 0 ? '' : `, has ${labels.join(', ')}`;
+}
+
 const TIMEZONES = [
   { label: 'India Standard Time (IST, UTC+5:30)', value: 'Asia/Kolkata' },
   { label: 'Greenwich Mean Time (UTC / GMT+0)', value: 'UTC' },
@@ -590,6 +656,9 @@ export default function CalendarPage() {
       const hasUrgentTask = dayEvts.some((e) => e.type === 'task' && e.priority === 'urgent');
       const hasBirthday = dayEvts.some((e) => e.type === 'birthday');
       const hasEvent = dayEvts.length > 0;
+      // A day can hold a birthday *and* a meeting, so "plain event" has to exclude the
+      // kinds that already have a mark of their own rather than just meaning "not empty".
+      const hasPlainEvent = dayEvts.some((e) => (e.type ?? 'event') === 'event');
 
       return {
         date: d,
@@ -604,6 +673,7 @@ export default function CalendarPage() {
         hasUrgentTask,
         hasBirthday,
         hasEvent,
+        hasPlainEvent,
         holidayName: (holidaysByDay[k] ?? [])[0]?.name,
         key: k,
       };
@@ -624,6 +694,7 @@ export default function CalendarPage() {
       hasTask: boolean;
       hasUrgentTask: boolean;
       hasBirthday: boolean;
+      hasPlainEvent: boolean;
       holidayName?: string;
     }> = [];
 
@@ -645,6 +716,7 @@ export default function CalendarPage() {
         hasTask: dayEvts.some((e) => e.type === 'task'),
         hasUrgentTask: dayEvts.some((e) => e.type === 'task' && e.priority === 'urgent'),
         hasBirthday: dayEvts.some((e) => e.type === 'birthday'),
+        hasPlainEvent: dayEvts.some((e) => (e.type ?? 'event') === 'event'),
         holidayName: hols[0]?.name,
       });
     }
@@ -667,6 +739,7 @@ export default function CalendarPage() {
         hasTask: dayEvts.some((e) => e.type === 'task'),
         hasUrgentTask: dayEvts.some((e) => e.type === 'task' && e.priority === 'urgent'),
         hasBirthday: dayEvts.some((e) => e.type === 'birthday'),
+        hasPlainEvent: dayEvts.some((e) => (e.type ?? 'event') === 'event'),
         holidayName: hols[0]?.name,
       });
     }
@@ -689,6 +762,7 @@ export default function CalendarPage() {
         hasTask: dayEvts.some((e) => e.type === 'task'),
         hasUrgentTask: dayEvts.some((e) => e.type === 'task' && e.priority === 'urgent'),
         hasBirthday: dayEvts.some((e) => e.type === 'birthday'),
+        hasPlainEvent: dayEvts.some((e) => (e.type ?? 'event') === 'event'),
         holidayName: hols[0]?.name,
       });
     }
@@ -1050,12 +1124,6 @@ export default function CalendarPage() {
     },
     [selectedDate, currentUserEmail],
   );
-
-  useEffect(() => {
-    const handler = () => openDedicatedSheet('event');
-    window.addEventListener('quant:calendar:create', handler);
-    return () => window.removeEventListener('quant:calendar:create', handler);
-  }, [openDedicatedSheet]);
 
   const openEditSheet = useCallback((ev: CalendarEventLike) => {
     const type: EntryType =
@@ -1549,7 +1617,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Quant Brand 3D Glassmorphic Calendar Date Picker with Permanent Glowing Holiday Dots */}
+        {/* Date picker: drag the handle at the bottom to swap the week strip for the month grid. */}
         <div
           className="border-b border-[#282C35]/80 bg-[#101014] select-none overflow-hidden relative"
           style={{
@@ -1618,8 +1686,11 @@ export default function CalendarPage() {
                           type="button"
                           onClick={() => selectDate(d.date)}
                           className={`relative size-9 rounded-full flex flex-col items-center justify-center text-xs transition-all ${sphereClass}`}
+                          aria-label={`${d.dayNum} ${MONTH_NAMES[d.date.getMonth()]}${d.holidayName ? `, ${d.holidayName}` : ''}${dayMarkLabel(d)}`}
+                          title={d.holidayName}
                         >
                           <span>{d.dayNum}</span>
+                          <DayMarks flags={d} onBrand={d.isSelected} />
                         </button>
                       </div>
                     );
@@ -1652,14 +1723,28 @@ export default function CalendarPage() {
                           sphereClass = 'border border-[#FF8C42] text-[#FF8C42] font-semibold';
                         }
 
+                        // The month grid names these `hasHolidays`/`hasEvents`; the week
+                        // strip names them in the singular. Normalised here rather than
+                        // renamed across four builders that three other views read.
+                        const marks: DayMarkFlags = {
+                          hasHoliday: d.hasHolidays,
+                          hasPeriod: d.hasPeriod,
+                          hasBirthday: d.hasBirthday,
+                          hasTask: d.hasTask,
+                          hasPlainEvent: d.hasPlainEvent,
+                        };
+
                         return (
                           <div key={d.key} className="flex justify-center">
                             <button
                               type="button"
                               onClick={() => selectDate(d.date)}
                               className={`relative size-8 rounded-full flex flex-col items-center justify-center text-xs transition-all ${sphereClass}`}
+                              aria-label={`${d.dayNum} ${MONTH_NAMES[d.date.getMonth()]}${d.holidayName ? `, ${d.holidayName}` : ''}${dayMarkLabel(marks)}`}
+                              title={d.holidayName}
                             >
                               <span>{d.dayNum}</span>
+                              <DayMarks flags={marks} onBrand={d.isSelected} />
                             </button>
                           </div>
                         );

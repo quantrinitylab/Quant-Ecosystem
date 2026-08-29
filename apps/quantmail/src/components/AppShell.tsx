@@ -401,9 +401,7 @@ export function AppShell({
       onFabClick();
       return;
     }
-    if (pathname.startsWith('/calendar')) {
-      window.dispatchEvent(new CustomEvent('quant:calendar:create'));
-    } else if (pathname.startsWith('/drive')) {
+    if (pathname.startsWith('/drive')) {
       window.dispatchEvent(new CustomEvent('quant:drive:upload'));
     } else if (pathname.startsWith('/contacts')) {
       window.dispatchEvent(new CustomEvent('quant:contacts:create'));
@@ -655,8 +653,18 @@ export function AppShell({
         </main>
       </div>
 
-      {/* Floating Action Button (FAB) — Contextual & Clean */}
+      {/*
+        Floating action button.
+
+        Not on the calendar: that page ships its own speed dial at the same
+        `bottom-20 right-4`, and the two were stacking — a 48px circle sitting on top of
+        a 56px one, both orange, one of them opening the plain Event sheet directly and
+        the other offering Event / Task / Birthday / Cycle. Whichever the thumb landed
+        on was luck. The speed dial is the one that can reach all four, so it stays and
+        this one stands down there.
+      */}
       {!isSidebarOpen &&
+        !pathname.startsWith('/calendar') &&
         !pathname.startsWith('/compose') &&
         !pathname.startsWith('/thread') &&
         !pathname.includes('/settings') && (
@@ -665,35 +673,16 @@ export function AppShell({
             onClick={handleFabClick}
             className="fixed bottom-20 right-4 md:hidden z-40 size-12 rounded-full bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.6)] border border-[#FF9B5A]/30 flex items-center justify-center active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#FF8C42]/50"
             aria-label={
-              pathname.startsWith('/calendar')
-                ? 'Create event'
-                : pathname.startsWith('/drive')
-                  ? 'Upload files'
-                  : pathname.startsWith('/contacts')
-                    ? 'New contact'
-                    : pathname.startsWith('/codehub')
-                      ? 'New repository'
-                      : 'Compose email'
+              pathname.startsWith('/drive')
+                ? 'Upload files'
+                : pathname.startsWith('/contacts')
+                  ? 'New contact'
+                  : pathname.startsWith('/codehub')
+                    ? 'New repository'
+                    : 'Compose email'
             }
           >
-            {pathname.startsWith('/calendar') ? (
-              <svg
-                className="size-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-                <line x1="12" y1="14" x2="12" y2="18" />
-                <line x1="10" y1="16" x2="14" y2="16" />
-              </svg>
-            ) : pathname.startsWith('/drive') ? (
+            {pathname.startsWith('/drive') ? (
               <svg
                 className="size-5"
                 viewBox="0 0 24 24"
