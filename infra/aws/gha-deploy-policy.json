@@ -23,7 +23,7 @@
         "ecr:CompleteLayerUpload",
         "ecr:PutImage"
       ],
-      "Resource": "arn:aws:ecr:us-east-1:121701583740:repository/quant-*"
+      "Resource": "arn:aws:ecr:us-east-1:178313340246:repository/quant-*"
     },
     {
       "Sid": "EKSRead",
@@ -35,7 +35,7 @@
       "Sid": "SecretsRead",
       "Effect": "Allow",
       "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
-      "Resource": "arn:aws:secretsmanager:us-east-1:121701583740:secret:quant/*"
+      "Resource": "arn:aws:secretsmanager:us-east-1:178313340246:secret:quant/*"
     },
     {
       "Sid": "STSIdentity",
