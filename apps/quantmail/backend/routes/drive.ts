@@ -101,6 +101,105 @@ async function usedBytes(prisma: any, userId: string): Promise<number> {
   return rows.reduce((sum, r) => sum + (r.size || 0), 0);
 }
 
+// ── AI Memory (the /drive/memory surface) ───────────────────────────────────
+//
+// Drive is where the user's things live, and what the assistant has learned
+// about them is one of those things — so it belongs here rather than behind a
+// settings tab nobody opens. The rows come from `memory_records`, the one
+// durable table every app writes through (`@quant/ai`'s PrismaMemoryStore).
+// That shared table is what makes this a unified view rather than a
+// QuantMail-only one: a writing style learned from a sent mail and a preference
+// learned in QuantChat are the same row shape in the same place.
+
+/** How many rows we will project a latest-version view over in one request. */
+const MEMORY_SCAN_LIMIT = 2000;
+
+/** Apps that write memory under a `<app>-<topic>` session name. */
+const MEMORY_APP_LABELS: Record<string, string> = {
+  quantmail: 'QuantMail',
+  quantchat: 'QuantChat',
+  quantube: 'QuantTube',
+  quantai: 'QuantAI',
+  quantdocs: 'QuantDocs',
+  quantmeet: 'QuantMeet',
+  quantcalendar: 'QuantCalendar',
+  quantdrive: 'QuantDrive',
+};
+
+/**
+ * Channels that are shared by design. `UserStyleMemory` and
+ * `UserContactMemory` are written by whichever app noticed first and read by
+ * all of them, so pinning them on one app would be a guess dressed up as a
+ * fact. They get their own bucket instead.
+ */
+const MEMORY_SHARED_SESSIONS = new Set(['user-style', 'user-contacts']);
+
+type MemoryRow = {
+  logicalId: string;
+  version: number;
+  kind: string;
+  level: string;
+  content: string;
+  pinned: boolean;
+  metadata: unknown;
+  expiresAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function metaStr(metadata: unknown, key: string): string | null {
+  if (!metadata || typeof metadata !== 'object') return null;
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/**
+ * Best-effort provenance. `RememberRequest.metadata` is documented as freeform
+ * and owned by the writer, so there is no guaranteed `app` field — `session` is
+ * the signal that is actually always there.
+ */
+function memorySource(metadata: unknown): { app: string; label: string } {
+  const declared = (metaStr(metadata, 'app') || metaStr(metadata, 'sourceApp') || '').toLowerCase();
+  if (MEMORY_APP_LABELS[declared]) return { app: declared, label: MEMORY_APP_LABELS[declared] };
+
+  const session = metaStr(metadata, 'session');
+  if (session) {
+    if (MEMORY_SHARED_SESSIONS.has(session)) return { app: 'shared', label: 'Shared across apps' };
+    const prefix = session.split('-')[0]?.toLowerCase() ?? '';
+    if (MEMORY_APP_LABELS[prefix]) return { app: prefix, label: MEMORY_APP_LABELS[prefix] };
+  }
+  if (declared) return { app: declared, label: declared };
+  return { app: 'shared', label: 'Shared across apps' };
+}
+
+/**
+ * The one line a memory shows.
+ *
+ * `UserStyleMemory` stores its profile as `user-style-profile {…json…}` — right
+ * for the retriever, unreadable for a person — so that one shape gets unpacked
+ * into words. Everything else is already a sentence and is left alone.
+ */
+function memorySummary(content: string): string {
+  const STYLE_PREFIX = 'user-style-profile ';
+  if (!content.startsWith(STYLE_PREFIX)) return content;
+  try {
+    const p = JSON.parse(content.slice(STYLE_PREFIX.length)) as Record<string, unknown>;
+    const bits: string[] = [];
+    if (typeof p['tone'] === 'string' && p['tone']) bits.push(`${p['tone']} tone`);
+    if (typeof p['vocabularyLevel'] === 'string' && p['vocabularyLevel'])
+      bits.push(`${p['vocabularyLevel']} vocabulary`);
+    if (typeof p['greetingStyle'] === 'string' && p['greetingStyle'])
+      bits.push(`opens with "${p['greetingStyle']}"`);
+    if (typeof p['closingStyle'] === 'string' && p['closingStyle'])
+      bits.push(`signs off "${p['closingStyle']}"`);
+    if (Array.isArray(p['traits']))
+      bits.push(...p['traits'].filter((t): t is string => typeof t === 'string'));
+    return bits.length > 0 ? `Writing style — ${bits.join(', ')}` : 'Writing style profile';
+  } catch {
+    return 'Writing style profile';
+  }
+}
+
 const uploadBodySchema = z.object({
   name: z.string().min(1).max(255),
   mimeType: z.string().max(255).optional(),
@@ -422,4 +521,94 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     await prisma.file.delete({ where: { id: file.id } });
     return reply.send({ ok: true });
   });
+
+  // GET /drive/memory — the head version of every live memory this user owns.
+  fastify.get('/drive/memory', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+
+    const rows = (await prisma.memoryRecord.findMany({
+      where: { ownerType: 'user', ownerId: userId, deletedAt: null, archivedAt: null },
+      orderBy: [{ updatedAt: 'desc' }, { version: 'desc' }],
+      take: MEMORY_SCAN_LIMIT,
+      select: {
+        logicalId: true,
+        version: true,
+        kind: true,
+        level: true,
+        content: true,
+        pinned: true,
+        metadata: true,
+        expiresAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })) as MemoryRow[];
+
+    // Writes are immutable-append, so a logicalId can hold several versions.
+    // Newest-first ordering means the first row we see for one IS its head.
+    const heads = new Map<string, MemoryRow>();
+    for (const row of rows) {
+      if (!heads.has(row.logicalId)) heads.set(row.logicalId, row);
+    }
+
+    const now = Date.now();
+    const memories = [...heads.values()]
+      .filter((row) => !row.expiresAt || row.expiresAt.getTime() > now)
+      .map((row) => {
+        const source = memorySource(row.metadata);
+        return {
+          id: row.logicalId,
+          version: row.version,
+          kind: row.kind,
+          level: row.level,
+          content: row.content,
+          summary: memorySummary(row.content),
+          sourceApp: source.app,
+          sourceLabel: source.label,
+          pinned: row.pinned,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        };
+      });
+
+    return reply.send({
+      memories,
+      total: memories.length,
+      truncated: rows.length >= MEMORY_SCAN_LIMIT,
+    });
+  });
+
+  // DELETE /drive/memory/:logicalId — forget, the way the port defines forgetting.
+  //
+  // `ForgetPolicy`'s documented default is 'archive', not 'hard': every version
+  // of the slot gets an `archivedAt` so the row stays auditable and a mistaken
+  // tap is recoverable. It leaves the user's view either way, which is the part
+  // they asked for.
+  fastify.delete<{ Params: { logicalId: string } }>(
+    '/drive/memory/:logicalId',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+      const prisma = getPrisma(fastify);
+      const { logicalId } = request.params;
+
+      const owned = await prisma.memoryRecord.findFirst({
+        where: { logicalId, ownerType: 'user', ownerId: userId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!owned) throw createAppError('Not found', 404, 'NOT_FOUND');
+
+      const result = await prisma.memoryRecord.updateMany({
+        where: {
+          logicalId,
+          ownerType: 'user',
+          ownerId: userId,
+          archivedAt: null,
+          deletedAt: null,
+        },
+        data: { archivedAt: new Date() },
+      });
+      return reply.send({ ok: true, archived: result?.count ?? 0 });
+    },
+  );
 }

@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button, Skeleton, Modal, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
+import { AIMemoryPanel } from '../../components/AIMemoryPanel';
 import { PageTransition } from '../../components/PageTransition';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useDrive } from '../../hooks/useDrive';
@@ -243,7 +244,6 @@ export default function DrivePage() {
     navigateToFolder,
     navigateToBreadcrumb,
     searchFiles,
-    quota,
   } = useDrive();
 
   const { confirm, dialog } = useConfirm();
@@ -507,12 +507,6 @@ export default function DrivePage() {
     });
   };
 
-  // Only show storage numbers we actually know — never fabricate them
-  const quotaKnown = Boolean(quota && typeof quota.total === 'number' && quota.total > 0);
-  const usedBytes = quota?.used ?? 0;
-  const totalBytes = quota?.total ?? 0;
-  const usedPct = quotaKnown ? Math.min(100, Math.round((usedBytes / totalBytes) * 100)) : 0;
-
   return (
     <AppShell
       sidebar={<AppSidebar />}
@@ -745,51 +739,12 @@ export default function DrivePage() {
             </div>
           )}
 
-          {/* Storage Meter & Security Banner */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border border-[#282C35] bg-[#111318] shadow-sm gap-4">
-            <div className="flex items-center gap-3">
-              <div className="size-9 rounded-lg bg-[#2B1A11] border border-[#5C3016] flex items-center justify-center text-[#FF8C42] shrink-0">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <strong className="text-sm font-semibold text-[#F5F5F5]">
-                    Quant Memory & Cloud Vault
-                  </strong>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    Encrypted at rest
-                  </span>
-                </div>
-                <p className="text-xs text-[#A1A4AC] mt-0.5">
-                  High-speed cloud drive integrated with Mail attachments and AI workspace context.
-                </p>
-              </div>
-            </div>
-
-            <div className="w-full sm:w-64 flex flex-col gap-1.5 shrink-0">
-              <div className="flex items-center justify-between text-[11px] font-mono">
-                <span className="text-[#A1A4AC]">Storage Used</span>
-                <span className="text-[#F5F5F5] font-medium">
-                  {quotaKnown
-                    ? `${formatBytes(usedBytes)} / ${formatBytes(totalBytes)} (${usedPct}%)`
-                    : 'Calculating…'}
-                </span>
-              </div>
-              <div className="w-full h-1.5 rounded-full bg-[#16181D] overflow-hidden border border-[#282C35]">
-                <div
-                  className="h-full bg-[#FF8C42] rounded-full transition-all duration-500"
-                  style={{ width: `${usedPct}%` }}
-                />
-              </div>
-            </div>
-          </div>
+          {/*
+            What the assistant has learned, alongside what the user has stored — the
+            two halves of "my things live here". Collapsed by default so the files
+            stay the point of the page.
+          */}
+          <AIMemoryPanel query={searchQuery} />
 
           {loading && (
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4">
