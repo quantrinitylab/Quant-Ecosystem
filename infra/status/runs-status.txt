@@ -1,0 +1,53 @@
+=== deploy-log 2026-08-29T21:37:50Z ===
+run_id=32941161593
+{
+  "conclusion": "failure",
+  "createdAt": "2026-08-26T07:06:31Z",
+  "status": "completed",
+  "updatedAt": "2026-08-26T07:08:49Z"
+}
+--- failed step logs (tail) ---
+p.
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.3973630Z Post job cleanup.
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.4833078Z [command]/usr/bin/git version
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.4879271Z git version 2.55.0
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.4921369Z Temporarily overriding HOME='/home/runner/work/_temp/af29a895-3248-44c4-b6e8-6f2fb9283c9f' before making global git config changes
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.4923214Z Adding repository directory to the temporary git global config as a safe directory
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.4935596Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Quant-Ecosystem/Quant-Ecosystem
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.4970123Z Removing SSH command configuration
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.4977396Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5040533Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5316874Z Removing HTTP extra header
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5325213Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5369413Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5682205Z Removing includeIf entries pointing to credentials config files
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5683389Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5694595Z includeif.gitdir:/home/runner/work/Quant-Ecosystem/Quant-Ecosystem/.git.path
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5705422Z includeif.gitdir:/home/runner/work/Quant-Ecosystem/Quant-Ecosystem/.git/worktrees/*.path
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5706150Z includeif.gitdir:/github/workspace/.git.path
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5706655Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5739484Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/Quant-Ecosystem/Quant-Ecosystem/.git.path
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5746879Z /home/runner/work/_temp/git-credentials-644c48c2-7bd8-4f07-bb6c-5acbf187a729.config
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5755044Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/Quant-Ecosystem/Quant-Ecosystem/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-644c48c2\-7bd8\-4f07\-bb6c\-5acbf187a729\.config
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5804231Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/Quant-Ecosystem/Quant-Ecosystem/.git/worktrees/*.path
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5844000Z /home/runner/work/_temp/git-credentials-644c48c2-7bd8-4f07-bb6c-5acbf187a729.config
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5864232Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/Quant-Ecosystem/Quant-Ecosystem/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-644c48c2\-7bd8\-4f07\-bb6c\-5acbf187a729\.config
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5900423Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5930499Z /github/runner_temp/git-credentials-644c48c2-7bd8-4f07-bb6c-5acbf187a729.config
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5949743Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-644c48c2\-7bd8\-4f07\-bb6c\-5acbf187a729\.config
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.5990238Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.6011503Z /github/runner_temp/git-credentials-644c48c2-7bd8-4f07-bb6c-5acbf187a729.config
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.6023755Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-644c48c2\-7bd8\-4f07\-bb6c\-5acbf187a729\.config
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.6068132Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.6328437Z Removing credentials config '/home/runner/work/_temp/git-credentials-644c48c2-7bd8-4f07-bb6c-5acbf187a729.config'
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.6512148Z Cleaning up orphan processes
+Build and deploy quantmail	UNKNOWN STEP	2026-08-26T07:08:46.6837275Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+
+--- recent runs ---
+2026-08-29T21:37:43Z | CodeQL Advanced | in_progress | 
+2026-08-29T21:37:43Z | Action pin policy | in_progress | 
+2026-08-29T21:37:43Z | Apply Calendar Patch | in_progress | 
+2026-08-29T21:37:43Z | Run Deploy | in_progress | 
+2026-08-29T21:37:43Z | ui-probe | in_progress | 
+2026-08-29T21:37:43Z | CI | in_progress | 
+=== done ===
