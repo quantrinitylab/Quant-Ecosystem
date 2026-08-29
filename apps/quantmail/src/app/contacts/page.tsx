@@ -572,7 +572,7 @@ export default function ContactsPage() {
                                 </h4>
                                 <p className="text-xs text-[#A1A4AC] truncate">{contact.email}</p>
                                 {contact.company && (
-                                  <p className="text-[11px] text-[#6B6E76] mt-0.5 truncate flex items-center gap-1">
+                                  <p className="text-[11px] text-[#A1A4AC] mt-0.5 truncate flex items-center gap-1">
                                     <svg
                                       className="w-3 h-3 text-[#6B6E76]"
                                       fill="none"
@@ -590,7 +590,7 @@ export default function ContactsPage() {
                                   </p>
                                 )}
                                 {contact.phone && (
-                                  <p className="text-[11px] text-[#6B6E76] truncate flex items-center gap-1">
+                                  <p className="text-[11px] text-[#A1A4AC] truncate flex items-center gap-1">
                                     <svg
                                       className="w-3 h-3 text-[#6B6E76]"
                                       fill="none"
@@ -618,7 +618,7 @@ export default function ContactsPage() {
                                       </span>
                                     ))}
                                     {contact.tags.length > 3 && (
-                                      <span className="px-1.5 py-0.5 rounded-md bg-[#111318] border border-[#282C35] text-[10px] text-[#6B6E76]">
+                                      <span className="px-1.5 py-0.5 rounded-md bg-[#111318] border border-[#282C35] text-[10px] text-[#A1A4AC]">
                                         +{contact.tags.length - 3}
                                       </span>
                                     )}
@@ -639,7 +639,7 @@ export default function ContactsPage() {
                                   title={`${threads} recent thread${threads === 1 ? '' : 's'} with ${contact.email}`}
                                 >
                                   {threads}
-                                  <span className="ml-0.5 font-medium text-[#6B6E76]">
+                                  <span className="ml-0.5 font-medium text-[#A1A4AC]">
                                     {threads === 1 ? 'thread' : 'threads'}
                                   </span>
                                 </span>
@@ -833,6 +833,15 @@ export default function ContactsPage() {
               className="absolute bottom-24 right-0.5 top-2 z-20 flex w-8 select-none flex-col items-stretch [touch-action:none] sm:right-1.5 md:bottom-3"
             >
               {ALPHABET.map((letter) => {
+                /*
+                 * A letter with no contacts is still a live jump target —
+                 * `resolveLetter` falls through to the nearest section — so it
+                 * is not disabled and owes the full 4.5:1. It was #3A404D
+                 * (1.91:1), invisible. Both ends move up rather than the quiet
+                 * end alone: #A1A4AC is the floor for text, so flattening onto
+                 * it would erase the "has contacts" signal the rail exists to
+                 * give.
+                 */
                 const exists = availableLetters.has(letter);
                 return (
                   <button
@@ -844,7 +853,7 @@ export default function ContactsPage() {
                     }}
                     aria-label={`Jump to ${letter === '#' ? 'other' : letter}`}
                     className={`flex flex-1 items-center justify-center rounded text-[9px] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                      exists ? 'text-[#A1A4AC] hover:text-[#FF8C42]' : 'text-[#3A404D]'
+                      exists ? 'text-[#F5F5F5] hover:text-[#FF8C42]' : 'text-[#A1A4AC]'
                     }`}
                   >
                     {letter}
@@ -1050,7 +1059,7 @@ export default function ContactsPage() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g. Sundar Pichai"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
                 autoFocus
               />
             </div>
@@ -1069,7 +1078,7 @@ export default function ContactsPage() {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="e.g. sundar@quantmail.in"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
               />
             </div>
 
@@ -1088,7 +1097,7 @@ export default function ContactsPage() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+91 98765 43210"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
                 />
               </div>
               <div>
@@ -1105,7 +1114,7 @@ export default function ContactsPage() {
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   placeholder="e.g. Quantrinity"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
                 />
               </div>
             </div>
@@ -1124,7 +1133,7 @@ export default function ContactsPage() {
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                 placeholder="Team, VIP, Client…"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
               />
             </div>
 

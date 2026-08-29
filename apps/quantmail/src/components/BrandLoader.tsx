@@ -72,7 +72,7 @@ export function BrandLoader({
           {message}
         </p>
         {hint ? (
-          <div className="text-center text-xs text-[#6B6E76] mt-1 font-sans">{hint}</div>
+          <div className="text-center text-xs text-[#A1A4AC] mt-1 font-sans">{hint}</div>
         ) : null}
       </div>
 
@@ -81,7 +81,7 @@ export function BrandLoader({
         <span className="text-sm font-semibold tracking-wider text-[#F5F5F5] font-sans">
           QUANTMAIL
         </span>
-        <div className="flex items-center gap-1.5 text-[10px] font-mono tracking-[0.25em] text-[#6B6E76] uppercase">
+        <div className="flex items-center gap-1.5 text-[10px] font-mono tracking-[0.25em] text-[#A1A4AC] uppercase">
           <span>BY</span>
           <span className="font-bold text-[#FF8C42] tracking-[0.3em]">QUANTRINITY</span>
         </div>

@@ -591,7 +591,7 @@ export function AppShell({
                               ? 'Search in QuantContacts…'
                               : 'Search in QuantMail (sender, subject, keyword)…')
                       }
-                      className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#6B6E76] focus:outline-none"
+                      className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none"
                     />
                     {searchValue && (
                       <button

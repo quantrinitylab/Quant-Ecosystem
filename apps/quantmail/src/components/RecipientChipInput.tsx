@@ -263,7 +263,7 @@ export function RecipientChipInput({
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={recipients.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[120px] bg-transparent text-xs sm:text-sm text-white placeholder-[#6B6E76] focus:outline-none py-1"
+          className="flex-1 min-w-[120px] bg-transparent text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none py-1"
           autoComplete="off"
           spellCheck={false}
         />
@@ -277,7 +277,7 @@ export function RecipientChipInput({
           ref={dropdownRef}
           className="absolute left-14 sm:left-20 top-full mt-1 z-50 w-72 sm:w-80 bg-[#090A0C]/95 border border-[#282C35] rounded-2xl shadow-2xl overflow-hidden backdrop-blur-md max-h-56 overflow-y-auto"
         >
-          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#6B6E76] border-b border-[#282C35]/80 bg-[#111318]/60">
+          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] border-b border-[#282C35]/80 bg-[#111318]/60">
             Contacts & Suggestions
           </div>
           {suggestions.map((contact, idx) => (
@@ -307,7 +307,7 @@ export function RecipientChipInput({
                 <span className="text-[11px] text-[#A1A4AC] truncate">{contact.email}</span>
               </div>
               {contact.company && (
-                <span className="text-[10px] text-[#6B6E76] px-1.5 py-0.5 rounded bg-[#111318] border border-[#282C35] shrink-0">
+                <span className="text-[10px] text-[#A1A4AC] px-1.5 py-0.5 rounded bg-[#111318] border border-[#282C35] shrink-0">
                   {contact.company}
                 </span>
               )}

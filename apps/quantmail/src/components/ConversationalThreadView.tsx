@@ -657,7 +657,7 @@ export function ConversationalThreadView({
         )}
 
         {!isLoading && messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center p-12 text-center text-[#6B6E76]">
+          <div className="flex flex-col items-center justify-center p-12 text-center text-[#A1A4AC]">
             <svg
               className="w-10 h-10 mb-3 text-[#6B6E76]"
               fill="none"
@@ -771,14 +771,14 @@ export function ConversationalThreadView({
                           )}
                         </div>
 
-                        <span className="text-xs text-[#6B6E76] truncate max-w-xs sm:max-w-md">
+                        <span className="text-xs text-[#A1A4AC] truncate max-w-xs sm:max-w-md">
                           — {message.snippet || message.bodyText?.slice(0, 80) || '(No preview)'}
                         </span>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[11px] text-[#6B6E76] font-mono">
+                      <span className="text-[11px] text-[#A1A4AC] font-mono">
                         {formatMessageDate(message.receivedAt)}
                       </span>
                       <svg
@@ -814,7 +814,7 @@ export function ConversationalThreadView({
                               {msgFromName}
                             </span>
                             <MessageKindBadge kind={messageKind} />
-                            <span className="text-xs text-[#6B6E76] font-mono">
+                            <span className="text-xs text-[#A1A4AC] font-mono">
                               {formatMessageDate(message.receivedAt)}
                             </span>
                           </div>
@@ -872,17 +872,17 @@ export function ConversationalThreadView({
                           {/* A hairline-ruled block, not a third nested card. */}
                           <div className="space-y-1.5 border-t border-[#282C35] py-3 font-mono text-xs text-[#A1A4AC]">
                             <div className="flex">
-                              <span className="w-20 text-[#6B6E76]">From:</span>
+                              <span className="w-20 text-[#A1A4AC]">From:</span>
                               <span className="font-medium text-[#F5F5F5]">
                                 {msgFromName} {msgFromEmail ? `<${msgFromEmail}>` : ''}
                               </span>
                             </div>
                             <div className="flex">
-                              <span className="w-20 text-[#6B6E76]">To:</span>
+                              <span className="w-20 text-[#A1A4AC]">To:</span>
                               <span className="text-[#A1A4AC]">{toDisplay}</span>
                             </div>
                             <div className="flex">
-                              <span className="w-20 text-[#6B6E76]">Date:</span>
+                              <span className="w-20 text-[#A1A4AC]">Date:</span>
                               <span className="text-[#A1A4AC]">
                                 {message.receivedAt
                                   ? new Date(message.receivedAt).toLocaleString()
@@ -1059,7 +1059,7 @@ export function ConversationalThreadView({
                 className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors min-h-[44px] sm:min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                   isActive
                     ? 'bg-[#2B1A11] text-[#FF8C42] shadow-[inset_0_0_0_1px_#5C3016]'
-                    : 'text-[#6B6E76] hover:bg-[#16181D] hover:text-[#A1A4AC]'
+                    : 'text-[#A1A4AC] hover:bg-[#16181D] hover:text-[#A1A4AC]'
                 }`}
                 title={
                   mode === 'chat'
@@ -1172,7 +1172,7 @@ export function ConversationalThreadView({
                 ? 'Start the letter — Enter opens the composer…'
                 : 'Message (↵ to send)…'
             }
-            className="min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[#6B6E76] focus:outline-none px-1 sm:px-2 py-1.5"
+            className="min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none px-1 sm:px-2 py-1.5"
           />
 
           {/* Send Button — sends the line, or carries it into the full composer */}

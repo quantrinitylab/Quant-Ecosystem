@@ -225,7 +225,7 @@ export function ContactAutocomplete({
           ref={inputRef}
           id={id}
           type="text"
-          className="flex-1 min-w-[160px] bg-transparent text-xs sm:text-sm text-white placeholder-[#6B6E76] focus:outline-none py-1 px-1 font-mono"
+          className="flex-1 min-w-[160px] bg-transparent text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none py-1 px-1 font-mono"
           value={inputValue}
           onChange={(e) => {
             setInputValue(e.target.value);

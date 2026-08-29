@@ -625,7 +625,7 @@ function CreateGroupModal({
                 setGroupName(e.target.value);
                 if (error) setError('');
               }}
-              className="w-full bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+              className="w-full bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
               autoFocus
             />
           </div>
@@ -644,7 +644,7 @@ function CreateGroupModal({
                   if (error) setError('');
                 }}
                 onKeyDown={handleKeyDown}
-                className="flex-1 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                className="flex-1 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
               />
               <button
                 type="button"
@@ -1537,7 +1537,7 @@ export default function InboxPage() {
                     placeholder="Search messages, contacts, keywords…"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    className="w-full bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
+                    className="w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
                     autoFocus
                   />
                   {searchQuery && (
@@ -1650,7 +1650,7 @@ export default function InboxPage() {
                     transition={{ duration: 0.14 }}
                     className="absolute right-0 top-full mt-2 z-30 w-64 rounded-2xl bg-[#16181D] border border-[#282C35] shadow-[0_4px_16px_rgba(0,0,0,0.6)] overflow-hidden"
                   >
-                    <p className="px-3 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#6B6E76]">
+                    <p className="px-3 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]">
                       Narrow this view
                     </p>
                     {INBOX_FILTERS.map((filter) => {
@@ -1678,7 +1678,7 @@ export default function InboxPage() {
                           >
                             {filter.label}
                           </span>
-                          <span className="shrink-0 text-[10px] font-semibold text-[#6B6E76]">
+                          <span className="shrink-0 text-[10px] font-semibold text-[#A1A4AC]">
                             {filterCounts[filter.key]}
                           </span>
                         </button>

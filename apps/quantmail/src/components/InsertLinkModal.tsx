@@ -87,7 +87,7 @@ export function InsertLinkModal({
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="e.g. Project Deliverables Document"
-                className="w-full rounded-xl bg-[#111318]/90 border border-[#282C35] px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]/50"
+                className="w-full rounded-xl bg-[#111318]/90 border border-[#282C35] px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]/50"
               />
             </div>
 
@@ -101,7 +101,7 @@ export function InsertLinkModal({
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com or mailto:user@domain.com"
                 required
-                className="w-full rounded-xl bg-[#111318]/90 border border-[#282C35] px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]/50"
+                className="w-full rounded-xl bg-[#111318]/90 border border-[#282C35] px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]/50"
               />
             </div>
 

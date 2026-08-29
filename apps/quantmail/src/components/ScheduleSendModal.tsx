@@ -324,7 +324,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                 </div>
 
                 {/* Weekday headers */}
-                <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-[#6B6E76]">
+                <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-[#A1A4AC]">
                   {WEEKDAYS.map((w, idx) => (
                     <span key={idx}>{w}</span>
                   ))}
@@ -355,10 +355,14 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                             : isToday
                               ? 'border border-[#FF8C42]/50 text-[#FF8C42]'
                               : item.isPast
-                                ? 'text-[#3A404D] cursor-not-allowed'
+                                ? // Genuinely `disabled`, so 1.4.3 does not
+                                  // apply — but #3A404D is 1.91:1 and the past
+                                  // half of the grid read as empty holes rather
+                                  // than as dates you cannot pick.
+                                  'text-[#6B6E76] cursor-not-allowed'
                                 : item.currentMonth
                                   ? 'text-[#F5F5F5] hover:bg-[#282C35]'
-                                  : 'text-[#6B6E76]'
+                                  : 'text-[#A1A4AC]'
                         }`}
                       >
                         {item.day}
@@ -366,7 +370,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                     );
                   })}
                 </div>
-                <p className="text-[9px] text-[#6B6E76] text-center">
+                <p className="text-[9px] text-[#A1A4AC] text-center">
                   Swipe left/right to change month
                 </p>
               </motion.div>

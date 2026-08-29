@@ -247,7 +247,7 @@ export function PostcardStudio() {
                 className="w-full"
               />
 
-              <p className="text-[11px] text-[#6B6E76] font-mono mt-4 text-center">
+              <p className="text-[11px] text-[#A1A4AC] font-mono mt-4 text-center">
                 Tip: Type directly onto the card above to test your message flow and letterpress
                 layout.
               </p>
@@ -314,7 +314,7 @@ export function PostcardStudio() {
                   <div className="text-xs font-semibold text-[#F5F5F5]">
                     Victorian Filigree Corners
                   </div>
-                  <div className="text-[11px] text-[#6B6E76]">
+                  <div className="text-[11px] text-[#A1A4AC]">
                     Ornate hand-drawn corner flourishes
                   </div>
                 </div>
@@ -425,7 +425,7 @@ export function PostcardStudio() {
                   <div className="text-xs font-bold uppercase tracking-wider text-[#FF8C42] font-mono">
                     Add Custom PNG Stickers
                   </div>
-                  <span className="text-[11px] text-[#6B6E76]">
+                  <span className="text-[11px] text-[#A1A4AC]">
                     {currentTemplate.stickers.length} active
                   </span>
                 </div>
