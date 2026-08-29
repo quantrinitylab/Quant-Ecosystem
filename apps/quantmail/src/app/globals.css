@@ -2422,14 +2422,38 @@ body {
   letter-spacing: -0.01em;
   color: #F5F5F5;
 }
-/* Three columns balance the section lengths; two left a tall Navigation
-   column beside a one-line Compose column and a column of dead space. */
+/*
+ * Balanced columns, not a grid.
+ *
+ * `grid-template-columns: repeat(auto-fit, minmax(215px, 1fr))` resolves to two
+ * tracks at this panel width and fills them row-major, so the 13 `g …` jumps in
+ * Navigation (571px) sat beside Conversation actions (279px) and left ~290px of
+ * dead space before the next row could start. Multicolumn with the default
+ * `column-fill: balance` cuts the flow at equal heights instead, and the two
+ * columns come out within a section of each other.
+ *
+ * `flex: none` and `overflow: visible` undo the legacy `.shortcuts-body` rule
+ * further up this file, which is still in the cascade: a multicol box that is
+ * also a scroll container fragments *sideways*, and the panel's inherited
+ * `overflow-x: hidden` would have clipped every column past the second. The
+ * panel is the scroll container — it already declares `overflow-y: auto` and the
+ * sticky header that goes with it.
+ */
 .shortcuts-body {
+  display: block;
+  flex: none;
+  overflow: visible;
   padding: 1.15rem 1.5rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
-  gap: 1.35rem 1.75rem;
-  align-items: start;
+  column-width: 215px;
+  column-gap: 1.75rem;
+}
+.shortcuts-body section {
+  /* A section split across the column break would leave its heading stranded. */
+  break-inside: avoid;
+  margin-bottom: 1.35rem;
+}
+.shortcuts-body section:last-child {
+  margin-bottom: 0;
 }
 .shortcuts-body section h3 {
   font-size: 0.66rem;

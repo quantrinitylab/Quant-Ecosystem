@@ -210,10 +210,15 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       keywords: ['find', 'query', 'filter'],
       run: go('/search'),
     },
+    // ── Apps ──────────────────────────────────────────────────────────────────
+    // Separate from Navigation: these leave QuantMail. Keeping them together
+    // with the mailbox jumps made one 13-row section that no two-column layout
+    // could balance, and told the reader that `g s` and `g c` do the same sort
+    // of thing.
     {
       id: 'nav.calendar',
       label: 'Go to QuantCalendar',
-      group: 'Navigation',
+      group: 'Apps',
       keys: ['g c', 'g l'],
       icon: 'calendar',
       keywords: ['schedule', 'agenda', 'meetings', 'events'],
@@ -222,7 +227,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     {
       id: 'nav.contacts',
       label: 'Go to QuantContacts',
-      group: 'Navigation',
+      group: 'Apps',
       keys: 'g a',
       icon: 'contacts',
       keywords: ['address book', 'directory', 'people'],
@@ -231,7 +236,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     {
       id: 'nav.drive',
       label: 'Go to QuantDrive',
-      group: 'Navigation',
+      group: 'Apps',
       keys: 'g v',
       icon: 'drive',
       keywords: ['files', 'storage', 'documents', 'encrypted'],
@@ -240,7 +245,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     {
       id: 'nav.codehub',
       label: 'Go to CodeHub',
-      group: 'Navigation',
+      group: 'Apps',
       keys: ['g k', 'g p'],
       icon: 'code',
       keywords: ['git', 'repositories', 'branches', 'pull requests'],

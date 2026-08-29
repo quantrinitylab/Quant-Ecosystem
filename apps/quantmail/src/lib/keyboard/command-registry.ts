@@ -27,6 +27,13 @@ export const COMMAND_GROUPS = [
   'Conversation',
   'Compose',
   'Selection',
+  // The jumps that leave QuantMail — Calendar, Contacts, Drive, CodeHub. They
+  // sat in Navigation beside the eight `g …` mailbox jumps, which made it a
+  // 13-row section: long enough that the shortcuts sheet could not balance its
+  // columns around it, and vague enough that "Go to sent" and "Go to
+  // QuantCalendar" read as the same kind of move. Listed late because it is the
+  // one section whose destinations are other products.
+  'Apps',
   'AI',
   'View',
   'Account',
@@ -68,6 +75,89 @@ export interface Command {
   preventDefault?: boolean;
   /** Keeps the binding alive inside modals. See `BindingOptions.unmaskable`. */
   unmaskable?: boolean;
+}
+
+/**
+ * The documentable half of a command: what it is called and what it is bound to,
+ * without the closure that performs it.
+ *
+ * A command only exists while the surface that owns it is mounted, which is
+ * correct for the *binding* and wrong for the *reference*. `e` archives a
+ * conversation whether or not the reader is currently looking at the inbox, so
+ * the shortcuts sheet needs to be able to say so from the Calendar page.
+ */
+export interface CommandReference {
+  id: string;
+  label: string;
+  group: CommandGroup;
+  keys: string | string[];
+  description?: string;
+  destructive?: boolean;
+}
+
+export type InboxCommandId =
+  | 'inbox.next'
+  | 'inbox.previous'
+  | 'inbox.open'
+  | 'inbox.close'
+  | 'inbox.archive'
+  | 'inbox.trash'
+  | 'inbox.star'
+  | 'inbox.toggleRead'
+  | 'inbox.reply'
+  | 'inbox.forward'
+  | 'inbox.toggleSelect';
+
+/**
+ * Every binding the thread list owns, in the order the sheet should read them.
+ *
+ * This is the single declaration of their ids, labels, groups and keys:
+ * `useInboxKeyboard` spreads these entries onto its live commands rather than
+ * restating them, so the sheet cannot document a key the inbox does not bind or
+ * label it differently. It is also what the sheet falls back to when the inbox
+ * is not mounted — which is why the panel used to open on Calendar or Drive
+ * showing one Compose line beside one Navigation column and a column of nothing.
+ */
+export const INBOX_COMMAND_REFERENCE: Array<CommandReference & { id: InboxCommandId }> = [
+  { id: 'inbox.next', label: 'Next conversation', group: 'Conversation', keys: ['j', 'arrowdown'] },
+  {
+    id: 'inbox.previous',
+    label: 'Previous conversation',
+    group: 'Conversation',
+    keys: ['k', 'arrowup'],
+  },
+  {
+    id: 'inbox.archive',
+    label: 'Archive conversation',
+    group: 'Conversation',
+    keys: 'e',
+    description: 'Move out of the inbox — the cursor stays on the next thread',
+  },
+  { id: 'inbox.star', label: 'Star conversation', group: 'Conversation', keys: 's' },
+  { id: 'inbox.toggleRead', label: 'Mark as unread', group: 'Conversation', keys: 'u' },
+  {
+    id: 'inbox.trash',
+    label: 'Move conversation to trash',
+    group: 'Conversation',
+    keys: '#',
+    destructive: true,
+  },
+  { id: 'inbox.open', label: 'Open conversation', group: 'Navigation', keys: ['enter', 'o'] },
+  { id: 'inbox.close', label: 'Close conversation', group: 'Navigation', keys: 'escape' },
+  { id: 'inbox.reply', label: 'Reply to conversation', group: 'Compose', keys: 'r' },
+  { id: 'inbox.forward', label: 'Forward conversation', group: 'Compose', keys: 'f' },
+  { id: 'inbox.toggleSelect', label: 'Select conversation', group: 'Selection', keys: 'x' },
+];
+
+const inboxReferenceById = new Map(INBOX_COMMAND_REFERENCE.map((entry) => [entry.id, entry]));
+
+/**
+ * The reference entry for an inbox binding. The id is a union rather than a
+ * `string`, so a typo is a type error and not a command that silently loses its
+ * label and key at runtime.
+ */
+export function inboxCommand(id: InboxCommandId): CommandReference & { id: InboxCommandId } {
+  return inboxReferenceById.get(id)!;
 }
 
 interface Registration {

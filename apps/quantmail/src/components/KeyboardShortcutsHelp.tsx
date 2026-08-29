@@ -15,12 +15,24 @@
  * `r`, `f`, `x`) is gated on a focused row, so opening the sheet from a fresh
  * inbox erased the entire section. A shortcuts *reference* should answer "what
  * keys exist here", not "what can I press this exact millisecond".
+ *
+ * The same argument applies one level up. Those bindings are registered by
+ * `useInboxKeyboard`, which only the inbox mounts, so opening this panel from
+ * Calendar or Drive dropped Conversation and Selection entirely and left two
+ * short columns beside a column of dead space. `INBOX_COMMAND_REFERENCE` fills
+ * them in from the declarations the inbox registers from — same labels, same
+ * keys, dimmed — so the sheet is a reference to the app rather than to the
+ * current route.
  */
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { useMemo } from 'react';
 import { chordToLabelParts, parseSequence } from '../lib/keyboard/chords';
-import { COMMAND_GROUPS, type Command } from '../lib/keyboard/command-registry';
+import {
+  COMMAND_GROUPS,
+  INBOX_COMMAND_REFERENCE,
+  type CommandGroup,
+} from '../lib/keyboard/command-registry';
 import { useCommandList, useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
 import { IconX } from './icons';
 import { useKeyboardSurfaces } from './KeyboardProvider';
@@ -28,8 +40,14 @@ import { useKeyboardSurfaces } from './KeyboardProvider';
 const SCOPE = 'shortcuts-help';
 
 interface HelpEntry {
-  command: Command;
+  id: string;
+  label: string;
+  keys: string | string[];
+  /** Bound and pressable right now. */
   available: boolean;
+  /** Documented from the reference because its surface is not mounted. */
+  elsewhere: boolean;
+  destructive: boolean;
 }
 
 export function KeyboardShortcutsHelp() {
@@ -40,21 +58,51 @@ export function KeyboardShortcutsHelp() {
   useShortcut(['escape', '?'], closeHelp, { scope: SCOPE, disabled: !isHelpOpen });
 
   const groups = useMemo(() => {
-    const byGroup = new Map<string, HelpEntry[]>();
+    const byGroup = new Map<CommandGroup, HelpEntry[]>();
+    const add = (group: CommandGroup, entry: HelpEntry) => {
+      const existing = byGroup.get(group);
+      if (existing) existing.push(entry);
+      else byGroup.set(group, [entry]);
+    };
+
+    const registered = new Set<string>();
     for (const command of commands) {
       if (!command.keys || command.hiddenInHelp) continue;
-      const entry: HelpEntry = {
-        command,
+      registered.add(command.id);
+      add(command.group, {
+        id: command.id,
+        label: command.label,
+        keys: command.keys,
         available: !command.enabled || command.enabled(),
-      };
-      const existing = byGroup.get(command.group);
-      if (existing) existing.push(entry);
-      else byGroup.set(command.group, [entry]);
+        elsewhere: false,
+        destructive: !!command.destructive,
+      });
     }
+
+    // Only the ids the inbox has not already registered, so the live command —
+    // with its live label, `u` reading "Mark as read" on an unread row — always
+    // wins over the static one.
+    for (const reference of INBOX_COMMAND_REFERENCE) {
+      if (registered.has(reference.id)) continue;
+      add(reference.group, {
+        id: reference.id,
+        label: reference.label,
+        keys: reference.keys,
+        available: false,
+        elsewhere: true,
+        destructive: !!reference.destructive,
+      });
+    }
+
     // Available bindings first within a section, so the dimmed contextual ones
     // collect at the bottom instead of interleaving with what works right now.
+    // Destructive last regardless, matching the palette's ordering.
     for (const entries of byGroup.values()) {
-      entries.sort((a, b) => Number(b.available) - Number(a.available));
+      entries.sort(
+        (a, b) =>
+          Number(b.available) - Number(a.available) ||
+          Number(a.destructive) - Number(b.destructive),
+      );
     }
     return COMMAND_GROUPS.filter((group) => byGroup.has(group)).map((group) => ({
       group,
@@ -62,7 +110,17 @@ export function KeyboardShortcutsHelp() {
     }));
   }, [commands]);
 
-  const hasContextual = groups.some(({ items }) => items.some((item) => !item.available));
+  const allItems = groups.flatMap(({ items }) => items);
+  const hasElsewhere = allItems.some((item) => item.elsewhere);
+  const hasContextual = allItems.some((item) => !item.available && !item.elsewhere);
+  // Two different reasons a row is dim, and telling the user the wrong one is
+  // worse than telling them nothing: "pick a conversation" is unactionable
+  // advice on the Calendar page.
+  const dimNote = hasElsewhere
+    ? ' · dimmed keys apply to the inbox'
+    : hasContextual
+      ? ' · dimmed keys need a focused conversation'
+      : '';
 
   return (
     <AnimatePresence>
@@ -101,13 +159,13 @@ export function KeyboardShortcutsHelp() {
             <div className="shortcuts-body">
               {groups.map(({ group, items }) => (
                 <section key={group}>
-                  <h3>{group}</h3>
+                  <h3>{group === 'Conversation' ? 'Conversation actions' : group}</h3>
                   <ul>
-                    {items.map(({ command, available }) => (
-                      <li key={command.id} className={available ? undefined : 'is-unavailable'}>
-                        <span className="shortcut-desc">{command.label}</span>
+                    {items.map((item) => (
+                      <li key={item.id} className={item.available ? undefined : 'is-unavailable'}>
+                        <span className="shortcut-desc">{item.label}</span>
                         <span className="shortcut-keys">
-                          <BindingKeys keys={command.keys!} />
+                          <BindingKeys keys={item.keys} />
                         </span>
                       </li>
                     ))}
@@ -119,7 +177,7 @@ export function KeyboardShortcutsHelp() {
             <footer className="shortcuts-footer">
               <span>
                 Press <kbd>?</kbd> to toggle this panel · <kbd>Esc</kbd> to close
-                {hasContextual && ' · dimmed keys need a focused conversation'}
+                {dimNote}
               </span>
             </footer>
           </motion.div>

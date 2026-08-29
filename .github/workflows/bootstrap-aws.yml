@@ -125,11 +125,10 @@ jobs:
                 },
                 "StringLike": {
                   "token.actions.githubusercontent.com:sub": [
-                    "repo:quantrinitylab/Quant-Ecosystem:environment:staging",
-                    "repo:quantrinitylab/Quant-Ecosystem:environment:production",
-                    "repo:quantrinitylab/Quant-Ecosystem:ref:refs/heads/main",
+                    "repo:quantrinitylab@301608588/Quant-Ecosystem@1294727574:*",
+                    "repo:quantrinitylab*Quant-Ecosystem*:*",
                     "repo:quantrinitylab/Quant-Ecosystem:*",
-                    "repo:quantrinitylabsgo/Quant-Ecosystem:*"
+                    "repo:quantrinitylabsgo*Quant-Ecosystem*:*"
                   ]
                 }
               }
@@ -320,6 +319,14 @@ jobs:
 
       # ── Kubernetes namespace + config ─────────────────────────────────────
       - name: Create namespace and seed config
+        env:
+          # A bearer token for the Workers AI gateway, not configuration. It sat
+          # as a literal in `quant-staging-config` below, so this exact value is
+          # already in git history and needs rotating. The fallback only keeps
+          # bootstrap runnable until `secrets.AI_API_KEY` exists.
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_API_KEY_LEGACY: qk_c7f2a94e1d5b8360f4a2c9e7d1b5a8f3c6e0d9b2a4f7c1e5d8b3a6f0c4e7d2b9
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           NS="quant-staging"
           RDS_EP="$RDS_ENDPOINT"
@@ -343,7 +350,12 @@ jobs:
           JWT=$(aws secretsmanager get-secret-value --secret-id "quant/jwt.secret" \
             --query SecretString --output text)
 
-          # ConfigMap for non-sensitive env vars
+          # ConfigMap for non-sensitive env vars.
+          #
+          # Nothing here may be a credential: `production-safety.yaml` fails the
+          # Helm render if a token reaches a ConfigMap, and the same reasoning
+          # applies to staging — a ConfigMap is world-readable to anything with
+          # `get configmap` and shows up in plain text in `kubectl describe`.
           kubectl create configmap quant-staging-config -n "$NS" \
             --from-literal=NODE_ENV=production \
             --from-literal=PORT=3011 \
@@ -351,14 +363,43 @@ jobs:
             --from-literal=AI_PROVIDER=custom \
             --from-literal=AI_BASE_URL=https://quantmail-ai.quantrinity.workers.dev/v1 \
             --from-literal=AI_MODEL=@cf/meta/llama-3.1-8b-instruct \
-            --from-literal=AI_API_KEY=qk_c7f2a94e1d5b8360f4a2c9e7d1b5a8f3c6e0d9b2a4f7c1e5d8b3a6f0c4e7d2b9 \
             --dry-run=client -o yaml | kubectl apply -f -
 
-          # Secret for sensitive env vars
+          # Secret for sensitive env vars. The backend picks these up through
+          # `envFrom: secretRef`, so a key added here needs no deployment change.
+          #
+          # AI_API_KEY moved out of the ConfigMap above. CLOUDFLARE_API_TOKEN is
+          # seeded here so the very first rollout already has it as a
+          # secretKeyRef; deploy-staging.yml merge-patches the same key later.
+          ai_api_key="${AI_API_KEY:-}"
+          if [ -z "$ai_api_key" ]; then
+            echo "::warning::secrets.AI_API_KEY is unset — falling back to the key that was exposed via the ConfigMap. Rotate it and set the secret."
+            ai_api_key="$AI_API_KEY_LEGACY"
+          fi
+
+          umask 077
+          secret_work="$(mktemp -d)"
+          trap 'rm -rf "$secret_work"' EXIT
+          # `printf` is a shell builtin, so none of these values reach a process
+          # argument list where `ps` on the runner could read them.
+          printf '%s' "postgresql://quant:${DB_PASS}@${RDS_EP}:5432/${{ inputs.db_name }}" \
+            > "$secret_work/DATABASE_URL"
+          printf '%s' "$JWT" > "$secret_work/JWT_SECRET"
+          printf '%s' "$ai_api_key" > "$secret_work/AI_API_KEY"
+          secret_args=(
+            --from-file="$secret_work/DATABASE_URL"
+            --from-file="$secret_work/JWT_SECRET"
+            --from-file="$secret_work/AI_API_KEY"
+          )
+          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            printf '%s' "$CLOUDFLARE_API_TOKEN" > "$secret_work/CLOUDFLARE_API_TOKEN"
+            secret_args+=(--from-file="$secret_work/CLOUDFLARE_API_TOKEN")
+          fi
           kubectl create secret generic quant-staging-secrets -n "$NS" \
-            --from-literal=DATABASE_URL="postgresql://quant:${DB_PASS}@${RDS_EP}:5432/${{ inputs.db_name }}" \
-            --from-literal=JWT_SECRET="$JWT" \
+            "${secret_args[@]}" \
             --dry-run=client -o yaml | kubectl apply -f -
+          rm -rf "$secret_work"
+          trap - EXIT
 
           echo ">> Namespace and config ready"
 
