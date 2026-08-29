@@ -154,22 +154,28 @@ jobs:
           case "$TARGET" in
             quantmail)
               repository=quant-quantmail; dockerfile=apps/quantmail/Dockerfile
-              deployment=quant-quantmail; container=quant-quantmail ;;
+              deployment=quant-quantmail; container=quant-quantmail
+              needs_cloudflare=false ;;
             quantmail-backend)
               repository=quant-quantmail-backend; dockerfile=apps/quantmail/Dockerfile.backend
-              deployment=quant-quantmail-backend; container=quantmail-backend ;;
+              deployment=quant-quantmail-backend; container=quantmail-backend
+              needs_cloudflare=true ;;
             quantchat)
               repository=quant-quantchat; dockerfile=apps/quantchat/Dockerfile
-              deployment=quant-quantchat; container=quant-quantchat ;;
+              deployment=quant-quantchat; container=quant-quantchat
+              needs_cloudflare=false ;;
             quantai)
               repository=quant-quantai; dockerfile=apps/quantai/Dockerfile
-              deployment=quant-quantai; container=quant-quantai ;;
+              deployment=quant-quantai; container=quant-quantai
+              needs_cloudflare=true ;;
             admin)
               repository=quant-admin; dockerfile=apps/admin/Dockerfile
-              deployment=quant-platform-staging-admin; container=admin ;;
+              deployment=quant-platform-staging-admin; container=admin
+              needs_cloudflare=false ;;
             ws-gateway)
               repository=quant-ws-gateway; dockerfile=services/ws-gateway/Dockerfile
-              deployment=quant-ws-gateway; container=ws-gateway ;;
+              deployment=quant-ws-gateway; container=ws-gateway
+              needs_cloudflare=false ;;
             *) echo "Unsupported target: $TARGET" >&2; exit 1 ;;
           esac
           test -f "$dockerfile"
@@ -178,6 +184,7 @@ jobs:
             echo "dockerfile=$dockerfile"
             echo "deployment=$deployment"
             echo "container=$container"
+            echo "needs_cloudflare=$needs_cloudflare"
             echo "registry=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
           } >> "$GITHUB_OUTPUT"
 
@@ -251,6 +258,7 @@ jobs:
           DEPLOYMENT: ${{ steps.target.outputs.deployment }}
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
           IMMUTABLE_IMAGE: ${{ steps.image.outputs.uri }}
+          NEEDS_CLOUDFLARE: ${{ steps.target.outputs.needs_cloudflare }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
@@ -260,21 +268,74 @@ jobs:
           kubectl auth can-i patch deployments -n "$K8S_NAMESPACE" | grep -qx yes
           kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" >/dev/null
 
-          if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
-            kubectl set env "deployment/$DEPLOYMENT" \
-              -c "$CONTAINER" \
-              CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" \
-              CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-9af698848a5edd00e756c3a2c908ec8d}" \
-              AI_PROVIDER="cloudflare" \
-              -n "$K8S_NAMESPACE" || true
-          fi
-
           previous_image="$(kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" \
             -o "jsonpath={.spec.template.spec.containers[?(@.name=='$CONTAINER')].image}")"
           test -n "$previous_image" || {
             echo "Container $CONTAINER not found in deployment $DEPLOYMENT" >&2
             exit 1
           }
+
+          # ── Cloudflare Workers AI credentials ──────────────────────────────
+          #
+          # The token reaches the pod as a `secretKeyRef` into
+          # `quant-staging-secrets`. It used to be passed as
+          # `kubectl set env CLOUDFLARE_API_TOKEN=<literal>`, which writes the
+          # value into the Deployment's pod template: readable by anyone holding
+          # `get deployment` in the namespace, echoed by `kubectl describe`, and
+          # frozen into every ReplicaSet the rollout history keeps. A Secret is
+          # not encryption, but it is the boundary RBAC is drawn around and the
+          # shape the ExternalSecrets migration already expects.
+          #
+          # Only the two backends that read the token get it. Nothing under
+          # `apps/quantmail/src` or in quantchat/admin/ws-gateway reads
+          # CLOUDFLARE_API_TOKEN, AI_PROVIDER or CLOUDFLARE_ACCOUNT_ID, so
+          # handing those deployments a live API key bought exposure and no
+          # behaviour.
+          if [ "$NEEDS_CLOUDFLARE" = 'true' ] && [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            umask 077
+            work="$(mktemp -d)"
+            trap 'rm -rf "$work"' EXIT
+            # `printf` is a shell builtin, so the token never appears in a
+            # process argument list where `ps` on the runner could read it.
+            printf '%s' "$CLOUDFLARE_API_TOKEN" > "$work/CLOUDFLARE_API_TOKEN"
+            kubectl create secret generic quant-staging-secrets \
+              -n "$K8S_NAMESPACE" \
+              --from-file="$work/CLOUDFLARE_API_TOKEN" \
+              --dry-run=client -o yaml > "$work/patch.yaml"
+
+            # A merge patch, never `apply`: bootstrap-aws.yml owns DATABASE_URL,
+            # JWT_SECRET and AI_API_KEY in this same Secret, and `apply` with a
+            # single-key manifest would prune them.
+            kubectl create secret generic quant-staging-secrets \
+              -n "$K8S_NAMESPACE" >/dev/null 2>&1 || true
+            kubectl patch secret quant-staging-secrets -n "$K8S_NAMESPACE" \
+              --type=merge --patch-file "$work/patch.yaml"
+
+            # The non-secret half stays plain env. Removing the old literal in
+            # the same call costs one rollout instead of two.
+            kubectl set env "deployment/$DEPLOYMENT" \
+              -c "$CONTAINER" \
+              CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-9af698848a5edd00e756c3a2c908ec8d}" \
+              AI_PROVIDER="cloudflare" \
+              CLOUDFLARE_API_TOKEN- \
+              -n "$K8S_NAMESPACE"
+            kubectl set env "deployment/$DEPLOYMENT" \
+              -c "$CONTAINER" \
+              --from=secret/quant-staging-secrets \
+              --keys=CLOUDFLARE_API_TOKEN \
+              -n "$K8S_NAMESPACE"
+
+            # A literal `value` for this key is the exact defect being fixed, so
+            # it fails the deploy rather than shipping quietly.
+            leaked="$(kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" \
+              -o "jsonpath={.spec.template.spec.containers[?(@.name=='$CONTAINER')].env[?(@.name=='CLOUDFLARE_API_TOKEN')].value}")"
+            test -z "$leaked" || {
+              echo 'CLOUDFLARE_API_TOKEN is still a literal in the pod template.' >&2
+              exit 1
+            }
+            rm -rf "$work"
+            trap - EXIT
+          fi
 
           kubectl set image "deployment/$DEPLOYMENT" \
             "$CONTAINER=$IMMUTABLE_IMAGE" -n "$K8S_NAMESPACE"

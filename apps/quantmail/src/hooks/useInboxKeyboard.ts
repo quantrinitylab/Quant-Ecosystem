@@ -24,12 +24,18 @@
  * the scope stack is what resolves the conflicts the old `document` listener lost:
  * the inbox's `r` (reply to the focused thread) outranks the global `r` (focus an
  * inline reply box), and `Escape` reaches the list only when nothing modal is open.
+ *
+ * Their ids, labels, groups and keys come from `INBOX_COMMAND_REFERENCE` and are
+ * spread in below rather than restated, because the shortcuts sheet also reads
+ * that list to document these bindings from pages where this hook is not mounted.
+ * Two copies would drift, and the copy the user reads is the one that cannot be
+ * pressed to check.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useKeyboardScope, useRegisterCommands } from '../lib/keyboard/hooks';
-import type { Command } from '../lib/keyboard/command-registry';
+import { inboxCommand, type Command } from '../lib/keyboard/command-registry';
 import type { MailMutations } from './useMailMutations';
 
 const SCOPE = 'inbox';
@@ -201,30 +207,21 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
   // read `focusedRow` directly instead of through a ref.
   const commands: Command[] = [
     {
-      id: 'inbox.next',
-      label: 'Next conversation',
-      group: 'Navigation',
-      keys: ['j', 'arrowdown'],
+      ...inboxCommand('inbox.next'),
       scope: SCOPE,
       hidden: true,
       enabled: () => rows.length > 0,
       run: () => move(1),
     },
     {
-      id: 'inbox.previous',
-      label: 'Previous conversation',
-      group: 'Navigation',
-      keys: ['k', 'arrowup'],
+      ...inboxCommand('inbox.previous'),
       scope: SCOPE,
       hidden: true,
       enabled: () => rows.length > 0,
       run: () => move(-1),
     },
     {
-      id: 'inbox.open',
-      label: 'Open conversation',
-      group: 'Navigation',
-      keys: ['enter', 'o'],
+      ...inboxCommand('inbox.open'),
       scope: SCOPE,
       icon: 'envelopeOpen',
       keywords: ['read', 'expand', 'view'],
@@ -234,10 +231,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       },
     },
     {
-      id: 'inbox.close',
-      label: 'Close conversation',
-      group: 'Navigation',
-      keys: 'escape',
+      ...inboxCommand('inbox.close'),
       scope: SCOPE,
       hidden: true,
       // Only claims Escape when there is something to dismiss, so it falls
@@ -249,13 +243,9 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       },
     },
     {
-      id: 'inbox.archive',
-      label: 'Archive conversation',
-      group: 'Conversation',
-      keys: 'e',
+      ...inboxCommand('inbox.archive'),
       scope: SCOPE,
       icon: 'archive',
-      description: 'Move out of the inbox — the cursor stays on the next thread',
       keywords: ['done', 'remove', 'clear'],
       enabled: () => focusedRow !== null,
       run: () => {
@@ -265,13 +255,9 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       },
     },
     {
-      id: 'inbox.trash',
-      label: 'Move conversation to trash',
-      group: 'Conversation',
-      keys: '#',
+      ...inboxCommand('inbox.trash'),
       scope: SCOPE,
       icon: 'trash',
-      destructive: true,
       keywords: ['delete', 'bin', 'remove'],
       enabled: () => focusedRow !== null,
       run: () => {
@@ -279,10 +265,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       },
     },
     {
-      id: 'inbox.star',
-      label: 'Star conversation',
-      group: 'Conversation',
-      keys: 's',
+      ...inboxCommand('inbox.star'),
       scope: SCOPE,
       icon: 'star',
       keywords: ['flag', 'pin', 'important'],
@@ -292,10 +275,10 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       },
     },
     {
-      id: 'inbox.toggleRead',
+      ...inboxCommand('inbox.toggleRead'),
+      // The only label that cannot live in the reference: it names the effect of
+      // pressing `u` on *this* row, and the sheet has no row to read.
       label: focusedRow?.isRead === false ? 'Mark as read' : 'Mark as unread',
-      group: 'Conversation',
-      keys: 'u',
       scope: SCOPE,
       icon: 'envelopeOpen',
       keywords: ['unread', 'read', 'seen'],
@@ -307,10 +290,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       },
     },
     {
-      id: 'inbox.reply',
-      label: 'Reply to conversation',
-      group: 'Compose',
-      keys: 'r',
+      ...inboxCommand('inbox.reply'),
       scope: SCOPE,
       icon: 'reply',
       keywords: ['respond', 'answer'],
@@ -320,10 +300,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       },
     },
     {
-      id: 'inbox.forward',
-      label: 'Forward conversation',
-      group: 'Compose',
-      keys: 'f',
+      ...inboxCommand('inbox.forward'),
       scope: SCOPE,
       icon: 'forward',
       keywords: ['share', 'send on'],
@@ -333,10 +310,7 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       },
     },
     {
-      id: 'inbox.toggleSelect',
-      label: 'Select conversation',
-      group: 'Selection',
-      keys: 'x',
+      ...inboxCommand('inbox.toggleSelect'),
       scope: SCOPE,
       icon: 'select',
       keywords: ['check', 'tick', 'multi'],
