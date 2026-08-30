@@ -259,7 +259,7 @@ export default function SearchPage() {
           </div>
 
           {/* Filter chips — compact pills */}
-          <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-0.5">
+          <div className="mt-3 flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
             {FILTER_CHIPS.map((chip) => {
               const isActive = activeFilters.some((f) => f.type === chip.type);
               return (
@@ -269,7 +269,7 @@ export default function SearchPage() {
                   onClick={() =>
                     isActive ? handleRemoveFilter(chip.type) : handleAddFilter(chip.type)
                   }
-                  className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium whitespace-nowrap transition-colors ${
+                  className={`inline-flex min-h-11 sm:min-h-0 sm:h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium whitespace-nowrap transition-colors ${
                     isActive
                       ? 'border-[var(--brand-primary)]/60 bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
                       : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)]'
@@ -401,7 +401,7 @@ export default function SearchPage() {
                       key={example}
                       type="button"
                       onClick={() => runSearchString(example)}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--quant-border)] px-3 text-xs font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)]"
+                      className="inline-flex min-h-11 sm:min-h-0 sm:h-8 items-center gap-1.5 rounded-full border border-[var(--quant-border)] px-3 text-xs font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)]"
                     >
                       <Icon name="search" className="h-3 w-3" />
                       {example}

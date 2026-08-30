@@ -212,9 +212,22 @@ export function CommandPalette() {
                 </p>
               )}
 
+              {/* A listbox may only contain options and groups, so the section
+               * wrapper carries `role="group"` and borrows the label above it —
+               * otherwise the eight "NAVIGATION"-style headings read as stray
+               * children and the group names never reach a screen reader. */}
               {groups.map(({ group, items }) => (
-                <div key={group} className="space-y-1">
-                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]">
+                <div
+                  key={group}
+                  className="space-y-1"
+                  role="group"
+                  aria-labelledby={`command-palette-group-${group.replace(/\s+/g, '-').toLowerCase()}`}
+                >
+                  <div
+                    id={`command-palette-group-${group.replace(/\s+/g, '-').toLowerCase()}`}
+                    role="presentation"
+                    className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]"
+                  >
                     {group}
                   </div>
                   {items.map((command) => {

@@ -447,7 +447,7 @@ export default function SettingsPage() {
                           type: 'info',
                         });
                       }}
-                      className="h-9 w-full rounded-xl border border-[#3A404D]/80 bg-[#111318] px-3 text-xs text-white focus:outline-none focus:border-[#FF8C42]"
+                      className="h-11 sm:h-9 w-full rounded-xl border border-[#3A404D]/80 bg-[#111318] px-3 text-xs text-white focus:outline-none focus:border-[#FF8C42]"
                     >
                       <option value="5">5 seconds</option>
                       <option value="10">10 seconds</option>
@@ -465,7 +465,7 @@ export default function SettingsPage() {
                         setDefaultReplyAll(e.target.value === 'all');
                         showToast({ text: 'Updated default reply behavior', type: 'info' });
                       }}
-                      className="h-9 w-full rounded-xl border border-[#3A404D]/80 bg-[#111318] px-3 text-xs text-white focus:outline-none focus:border-[#FF8C42]"
+                      className="h-11 sm:h-9 w-full rounded-xl border border-[#3A404D]/80 bg-[#111318] px-3 text-xs text-white focus:outline-none focus:border-[#FF8C42]"
                     >
                       <option value="single">Reply (Direct Sender)</option>
                       <option value="all">Reply All (All Recipients)</option>
@@ -473,7 +473,10 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="space-y-2 pt-2 border-t border-[#282C35]">
-                  <label className="flex items-center justify-between py-1 cursor-pointer">
+                  {/* The label is the hit area — a tap anywhere on the row toggles
+                   * the box — so the 44px floor belongs here, not on the 13px
+                   * native checkbox that a phone was measuring. */}
+                  <label className="flex min-h-11 items-center justify-between py-1 cursor-pointer">
                     <span className="text-xs text-[#A1A4AC] font-medium">
                       Conversation Threading
                     </span>
@@ -481,10 +484,10 @@ export default function SettingsPage() {
                       type="checkbox"
                       checked={conversationView}
                       onChange={(e) => setConversationView(e.target.checked)}
-                      className="accent-[#FF8C42] rounded cursor-pointer"
+                      className="size-4 shrink-0 accent-[#FF8C42] rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     />
                   </label>
-                  <label className="flex items-center justify-between py-1 cursor-pointer">
+                  <label className="flex min-h-11 items-center justify-between py-1 cursor-pointer">
                     <span className="text-xs text-[#A1A4AC] font-medium">
                       Automatic Read Receipts
                     </span>
@@ -492,7 +495,7 @@ export default function SettingsPage() {
                       type="checkbox"
                       checked={readReceipts}
                       onChange={(e) => setReadReceipts(e.target.checked)}
-                      className="accent-[#FF8C42] rounded cursor-pointer"
+                      className="size-4 shrink-0 accent-[#FF8C42] rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     />
                   </label>
                 </div>
@@ -752,7 +755,7 @@ export default function SettingsPage() {
                     Manage how and when you receive incoming email and calendar alerts.
                   </p>
                 </div>
-                <label className="flex items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
+                <label className="flex min-h-11 items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
                   <div>
                     <strong className="block text-xs text-white font-bold">
                       Email Notifications
@@ -765,11 +768,11 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={notifications.email}
                     onChange={(e) => updateNotif('email', e.target.checked)}
-                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
+                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </label>
 
-                <label className="flex items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
+                <label className="flex min-h-11 items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
                   <div>
                     <strong className="block text-xs text-white font-bold">
                       Desktop Browser Notifications
@@ -782,11 +785,11 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={notifications.desktop}
                     onChange={(e) => updateNotif('desktop', e.target.checked)}
-                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
+                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </label>
 
-                <label className="flex items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
+                <label className="flex min-h-11 items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
                   <div>
                     <strong className="block text-xs text-white font-bold">Sound Alerts</strong>
                     <span className="text-[11px] text-[#A1A4AC]">
@@ -797,11 +800,11 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={notifications.sound}
                     onChange={(e) => updateNotif('sound', e.target.checked)}
-                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
+                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </label>
 
-                <label className="flex items-center justify-between py-2.5 cursor-pointer">
+                <label className="flex min-h-11 items-center justify-between py-2.5 cursor-pointer">
                   <div>
                     <strong className="block text-xs text-white font-bold">
                       Direct Mentions Only
@@ -814,7 +817,7 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={notifications.mentionsOnly}
                     onChange={(e) => updateNotif('mentionsOnly', e.target.checked)}
-                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
+                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </label>
               </section>
