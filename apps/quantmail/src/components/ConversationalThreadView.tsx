@@ -17,6 +17,7 @@ import {
   findConversation,
   groupEmailsIntoThreads,
   messageKindOf,
+  messageRowIds,
   summarizeParticipants,
   threadKindMix,
   threadParticipants,
@@ -192,12 +193,16 @@ export function ConversationalThreadView({
   /**
    * What the header's Archive and Trash buttons act on: the conversation, all of it.
    *
+   * `messageRowIds`, not `messages.map(m => m.id)`, because a bubble can stand for
+   * two stored rows — a send and its delivery copy — and moving only the visible
+   * half left the conversation in the inbox and the archive at once.
+   *
    * Falls back to the id in the URL when the messages have not arrived yet, so the
    * button is never wired to an empty list — a request for one id that turns out to
    * be a thread id is still better than a request for nothing.
    */
   const conversationMessageIds = useMemo(() => {
-    const ids = Array.from(new Set(messages.map((m) => m.id).filter(Boolean)));
+    const ids = messageRowIds(messages);
     return ids.length > 0 ? ids : [threadId].filter(Boolean);
   }, [messages, threadId]);
 

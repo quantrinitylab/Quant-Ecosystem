@@ -379,6 +379,80 @@ describe('groupEmailsIntoThreads', () => {
     // copy still flags the conversation.
     expect(thread.isStarred).toBe(true);
     expect(thread.isRead).toBe(true);
+    /*
+     * And it inherits the loser's id. The copy that stopped being visible is still
+     * a row in the mailbox: archiving this conversation with only `delivered`
+     * moved half of it, so the live inbox listed a thread that the archive was
+     * listing at the same time, and it survived a reload.
+     */
+    expect(thread.messages[0].collapsedIds).toEqual(['sent-copy']);
+    expect(threadMessageIds(thread)).toEqual(['delivered', 'sent-copy']);
+  });
+
+  /*
+   * The live inbox's own case, reduced: a conversation you sent to yourself and then
+   * replied to is four stored rows behind two bubbles. Archiving it moved the two the
+   * screen had kept, so `/archive` listed it while the inbox still did, and the row
+   * came back on reload.
+   */
+  it('reaches every stored row of a conversation made entirely of send pairs', () => {
+    const [thread] = groupEmailsIntoThreads(
+      [
+        email({
+          id: 'first-sent',
+          threadId: 't1',
+          subject: 'Live audit',
+          bodyText: 'Live audit body',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: ME }],
+          isSent: true,
+          receivedAt: new Date('2026-01-01T09:00:00Z'),
+        }),
+        email({
+          id: 'first-delivered',
+          threadId: 't1',
+          subject: 'Live audit',
+          bodyText: 'Live audit body',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: ME }],
+          isSent: false,
+          receivedAt: new Date('2026-01-01T09:00:01Z'),
+        }),
+        email({
+          id: 'reply-sent',
+          threadId: 't1',
+          subject: 'Re: Live audit',
+          bodyText: 'Live audit reply',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: ME }],
+          inReplyTo: 'first-sent',
+          isSent: true,
+          receivedAt: new Date('2026-01-01T09:07:00Z'),
+        }),
+        email({
+          id: 'reply-delivered',
+          threadId: 't1',
+          subject: 'Re: Live audit',
+          bodyText: 'Live audit reply',
+          from: { email: ME, name: 'Kundan' },
+          to: [{ email: ME }],
+          inReplyTo: 'first-sent',
+          isSent: false,
+          receivedAt: new Date('2026-01-01T09:07:01Z'),
+        }),
+      ],
+      ME,
+    );
+
+    // Two bubbles, which is what the row counts and what a person sees…
+    expect(thread.count).toBe(2);
+    // …and four rows to move, which is what the archive button has to send.
+    expect(threadMessageIds(thread)).toEqual([
+      'first-sent',
+      'first-delivered',
+      'reply-sent',
+      'reply-delivered',
+    ]);
   });
 
   it('does not collapse two real messages that happen to look alike', () => {
@@ -1299,6 +1373,23 @@ describe('threadMessageIds', () => {
     expect(
       threadMessageIds({ id: 'm1', messages: [{ id: 'm1' }, { id: '' }] } as ConversationThread),
     ).toEqual(['m1']);
+  });
+
+  /*
+   * The rows folded away by `collapseDuplicateSends` are the other half of every
+   * conversation you have sent to yourself or replied to, and they are what made
+   * an archived thread come back on reload.
+   */
+  it('reaches the rows a bubble was folded from, without repeating one', () => {
+    const thread = {
+      id: 'm2',
+      messages: [
+        { id: 'm1', collapsedIds: ['m1-sent'] },
+        { id: 'm2', collapsedIds: ['m2-sent', '', 'm2'] },
+      ],
+    } as unknown as ConversationThread;
+
+    expect(threadMessageIds(thread)).toEqual(['m1', 'm1-sent', 'm2', 'm2-sent']);
   });
 
   it('returns nothing rather than throwing when there is no conversation to expand', () => {
