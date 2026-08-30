@@ -1037,7 +1037,7 @@ export function ConversationalThreadView({
                         <div className="flex items-center gap-1.5 shrink-0">
                           {showKindBadges && <MessageKindBadge kind={messageKind} />}
                           {hasAtt && (
-                            <span className="px-1.5 py-0.5 rounded bg-[#2B1A11] border border-[#5C3016] text-[9px] font-semibold text-[#FF8C42] flex items-center gap-1">
+                            <span className="px-1.5 py-0.5 rounded bg-[#2B1A11] border border-[#5C3016] text-[10px] font-semibold text-[#FF8C42] flex items-center gap-1">
                               <svg
                                 className="w-2.5 h-2.5"
                                 fill="none"

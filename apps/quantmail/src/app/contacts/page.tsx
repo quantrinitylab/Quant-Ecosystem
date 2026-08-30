@@ -852,7 +852,7 @@ export default function ContactsPage() {
                       if (target) jumpToLetter(target, true);
                     }}
                     aria-label={`Jump to ${letter === '#' ? 'other' : letter}`}
-                    className={`flex flex-1 items-center justify-center rounded text-[9px] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                    className={`flex flex-1 items-center justify-center rounded text-[10px] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                       exists ? 'text-[#F5F5F5] hover:text-[#FF8C42]' : 'text-[#A1A4AC]'
                     }`}
                   >

@@ -74,7 +74,7 @@ export function PostcardReader({ email, className = '' }: PostcardReaderProps) {
           <span className="text-xs font-serif font-bold text-[#FF8C42] uppercase tracking-widest">
             {payload.template.name}
           </span>
-          <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-[#FF8C42]/15 text-[#FFB875] border border-[#FF8C42]/30">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#FF8C42]/15 text-[#FFB875] border border-[#FF8C42]/30">
             AUTHENTIC POSTCARD
           </span>
         </div>
