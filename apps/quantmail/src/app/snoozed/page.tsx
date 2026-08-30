@@ -16,7 +16,7 @@ export default function SnoozedPage() {
         label: 'Wake now',
         pendingLabel: 'Waking…',
         successToast: 'Back in your inbox',
-        run: (email) => apiClient.unsnoozeEmail(email.id),
+        run: (id) => apiClient.unsnoozeEmail(id),
       }}
     />
   );

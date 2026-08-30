@@ -16,7 +16,9 @@ export default function StarredPage() {
         label: 'Unstar',
         pendingLabel: 'Removing…',
         successToast: 'Removed from Starred',
-        run: (email) => apiClient.toggleStar(email.id),
+        // Every row this list returned is starred, so flipping each one clears the
+        // whole conversation rather than trading a star between its two copies.
+        run: (id) => apiClient.toggleStar(id),
       }}
     />
   );

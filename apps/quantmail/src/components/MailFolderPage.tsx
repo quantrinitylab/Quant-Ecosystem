@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Button, EmptyState, ErrorState, Skeleton } from '@quant/shared-ui';
@@ -10,6 +10,12 @@ import { IdentityAvatar } from './IdentityAvatar';
 import { showToast } from './InboxToast';
 import { PageTransition } from './PageTransition';
 import { useInbox } from '../hooks/useInbox';
+import { useAuth } from '../providers/auth-provider';
+import {
+  groupEmailsIntoThreads,
+  threadMessageIds,
+  type ConversationThread,
+} from '../lib/threading';
 import type { Email } from '../types';
 
 /** True when a value is safe to place in a route segment or query param. */
@@ -45,7 +51,13 @@ export interface FolderRowAction {
   label: string;
   pendingLabel: string;
   successToast: string;
-  run: (email: Email) => Promise<{ success: boolean; error?: { message?: string } }>;
+  /**
+   * Run against one stored row, by id. The page calls it once for every row the
+   * conversation is made of — a send and its delivery copy are two rows behind
+   * one line in this list, and rescuing only the one the row is named after left
+   * the other in the archive.
+   */
+  run: (id: string) => Promise<{ success: boolean; error?: { message?: string } }>;
 }
 
 export interface MailFolderPageProps {
@@ -63,6 +75,12 @@ export interface MailFolderPageProps {
  * Shared mailbox view for the flag/folder mailboxes (Starred, Snoozed,
  * Archive, Spam). Mirrors the Sent page pattern: header + list + empty state,
  * plus an optional per-row rescue action (unstar, wake, move to inbox…).
+ *
+ * Rows are conversations, grouped the same way the inbox groups them. Listing
+ * stored rows instead counted the same conversation twice — the archive said
+ * "2 conversations archived" for the one thread the inbox called "1 archived
+ * conversation", because a self-sent message is stored twice, and it offered two
+ * "Move to inbox" buttons for the one thing a person had archived.
  */
 export function MailFolderPage({
   folderType,
@@ -75,11 +93,18 @@ export function MailFolderPage({
 }: MailFolderPageProps) {
   const router = useRouter();
   const { data: emails, isLoading, error, refetch } = useInbox({ folderType });
+  const { user: currentUser } = useAuth();
+  const currentEmail = currentUser?.email || '';
   const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const openEmail = useCallback(
-    (email: Email) => {
-      const target = resolveThreadTarget(email);
+  const threads = useMemo(
+    () => groupEmailsIntoThreads(emails ?? [], currentEmail),
+    [emails, currentEmail],
+  );
+
+  const openThread = useCallback(
+    (thread: ConversationThread) => {
+      const target = resolveThreadTarget(thread.latestEmail);
       if (!target) {
         showToast({
           text: 'This conversation is still syncing — try again in a moment.',
@@ -93,17 +118,23 @@ export function MailFolderPage({
   );
 
   const runRowAction = useCallback(
-    async (email: Email) => {
+    async (thread: ConversationThread) => {
       if (!rowAction) return;
-      setPendingId(email.id);
+      const ids = threadMessageIds(thread);
+      if (ids.length === 0) return;
+      setPendingId(thread.id);
       try {
-        const response = await rowAction.run(email);
-        if (!response.success) {
-          showToast({
-            text: response.error?.message || 'That did not work — try again.',
-            type: 'error',
-          });
-          return;
+        // Sequential on purpose: these hit the same rows' folder and flags, and a
+        // failure part-way through should stop rather than race the rest.
+        for (const id of ids) {
+          const response = await rowAction.run(id);
+          if (!response.success) {
+            showToast({
+              text: response.error?.message || 'That did not work — try again.',
+              type: 'error',
+            });
+            return;
+          }
         }
         showToast({ text: rowAction.successToast, type: 'success' });
         await refetch();
@@ -124,8 +155,8 @@ export function MailFolderPage({
             </p>
             <h1>{title}</h1>
             <p className="sent-subtitle">
-              {emails?.length
-                ? `${emails.length} conversation${emails.length === 1 ? '' : 's'} ${subtitle}`
+              {threads.length
+                ? `${threads.length} conversation${threads.length === 1 ? '' : 's'} ${subtitle}`
                 : emptyTitle}
             </p>
           </div>
@@ -145,47 +176,50 @@ export function MailFolderPage({
 
           {error && <ErrorState message={error.message} onRetry={() => void refetch()} />}
 
-          {!isLoading && !error && (!emails || emails.length === 0) && (
+          {!isLoading && !error && threads.length === 0 && (
             <EmptyState title={emptyTitle} description={emptyDescription} />
           )}
 
-          {!isLoading && !error && emails && emails.length > 0 && (
+          {!isLoading && !error && threads.length > 0 && (
             <motion.div
               initial="hidden"
               animate="visible"
               variants={{ visible: { transition: { staggerChildren: 0.02 } } }}
               className="sent-list"
             >
-              {emails.map((email) => (
+              {threads.map((thread) => (
                 <motion.article
-                  key={email.id}
+                  key={thread.id}
                   variants={{ hidden: { opacity: 0, y: 4 }, visible: { opacity: 1, y: 0 } }}
                   className="sent-row"
-                  onClick={() => openEmail(email)}
+                  onClick={() => openThread(thread)}
                 >
-                  <IdentityAvatar name={email.from?.name || email.from?.email || '?'} size="sm" />
+                  <IdentityAvatar name={thread.participantsSummary || 'Unknown sender'} size="sm" />
                   <div className="sent-row-content">
                     <div className="sent-row-meta">
                       <span className="sent-row-recipients">
-                        {email.from?.name || email.from?.email || 'Unknown sender'}
+                        {thread.participantsSummary || 'Unknown sender'}
                       </span>
-                      {!email.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
-                      <time className="sent-row-time">{formatRowDate(email.receivedAt)}</time>
+                      {thread.count > 1 && (
+                        <span className="folder-row-count">{thread.count} messages</span>
+                      )}
+                      {!thread.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
+                      <time className="sent-row-time">{formatRowDate(thread.receivedAt)}</time>
                     </div>
-                    <h3 className="sent-row-subject">{email.subject || '(no subject)'}</h3>
-                    <p className="sent-row-snippet">{email.snippet}</p>
+                    <h3 className="sent-row-subject">{thread.subject || '(no subject)'}</h3>
+                    <p className="sent-row-snippet">{thread.latestEmail.snippet}</p>
                   </div>
                   {rowAction && (
                     <button
                       type="button"
                       className="folder-row-action"
-                      disabled={pendingId === email.id}
+                      disabled={pendingId === thread.id}
                       onClick={(event) => {
                         event.stopPropagation();
-                        void runRowAction(email);
+                        void runRowAction(thread);
                       }}
                     >
-                      {pendingId === email.id ? rowAction.pendingLabel : rowAction.label}
+                      {pendingId === thread.id ? rowAction.pendingLabel : rowAction.label}
                     </button>
                   )}
                 </motion.article>
