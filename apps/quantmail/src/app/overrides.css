@@ -1178,6 +1178,30 @@
   border-color: #5C3016;
   background: #2B1A11;
 }
+
+/*
+  CodeHub's Quanty composer is styled here rather than in Tailwind, so it never
+  picked up the 44px floor the rest of the app enforces with
+  `[@media(pointer:coarse)]:`. On a phone the Plan/Build tabs measured 31px, the
+  quick action 30px, the submit 40px and the prompt field 42px -- the field being
+  the one you have to hit before any of the others matter. Padding stays as it
+  is; only the box grows, and the flex centring keeps the labels put.
+*/
+@media (pointer: coarse) {
+  .ch-mode-toggle button,
+  .ch-quanty-composer button,
+  .ch-quanty-quick button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .ch-quanty-composer input {
+    min-height: 44px;
+  }
+}
+
 .ch-agents {
   margin: 0 0 16px;
 }

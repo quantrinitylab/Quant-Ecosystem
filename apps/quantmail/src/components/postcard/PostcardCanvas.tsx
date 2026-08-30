@@ -479,7 +479,7 @@ export function PostcardCanvas({
           <button
             type="button"
             onClick={() => setIsFlipped((prev) => !prev)}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold bg-[#111318]/90 dark:bg-[#282C35] text-[#FF8C42] hover:text-white border border-[#FF8C42]/30 hover:border-[#FF8C42] shadow-md transition-all active:scale-95"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#FF8C42]/30 bg-[#111318]/90 px-4 py-1.5 text-xs font-semibold text-[#FF8C42] shadow-md transition-all hover:border-[#FF8C42] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 dark:bg-[#282C35]"
           >
             <svg
               viewBox="0 0 24 24"

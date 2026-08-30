@@ -382,7 +382,7 @@ export default function ContactsPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab('all')}
-                className={`px-3.5 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                className={`inline-flex min-h-11 items-center justify-center rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                   activeTab === 'all'
                     ? 'bg-[#FF8C42] text-[#111111] font-bold shadow-sm'
                     : 'text-[#A1A4AC] hover:text-white'
@@ -393,7 +393,7 @@ export default function ContactsPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab('favorites')}
-                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                   activeTab === 'favorites'
                     ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
                     : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
@@ -423,7 +423,7 @@ export default function ContactsPage() {
             <button
               type="button"
               onClick={() => vcardInputRef.current?.click()}
-              className="px-3 py-1.5 text-xs rounded-xl border border-[#282C35] bg-[#16181D] text-[#A1A4AC] hover:text-[#F5F5F5] hover:border-[#3A404D] transition-colors flex items-center gap-1.5"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#282C35] bg-[#16181D] px-3 py-1.5 text-xs text-[#A1A4AC] transition-colors hover:border-[#3A404D] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
               title="Import vCard .vcf"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -439,7 +439,7 @@ export default function ContactsPage() {
             <button
               type="button"
               onClick={handleExportVCard}
-              className="px-3 py-1.5 text-xs rounded-xl border border-[#282C35] bg-[#16181D] text-[#A1A4AC] hover:text-[#F5F5F5] hover:border-[#3A404D] transition-colors flex items-center gap-1.5"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#282C35] bg-[#16181D] px-3 py-1.5 text-xs text-[#A1A4AC] transition-colors hover:border-[#3A404D] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
               title="Export to vCard .vcf"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

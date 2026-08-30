@@ -587,7 +587,7 @@ export default function DrivePage() {
                 type="button"
                 onClick={() => setActiveFilter(filter.key)}
                 aria-pressed={activeFilter === filter.key}
-                className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                   activeFilter === filter.key
                     ? 'bg-[#2B1A11] text-[#FF8C42] shadow-[inset_0_0_0_1px_#5C3016]'
                     : 'bg-[#16181D] text-[#A1A4AC] shadow-[inset_0_0_0_1px_#282C35] hover:text-[#F5F5F5]'
@@ -613,7 +613,7 @@ export default function DrivePage() {
                   onClick={() => setViewMode(key)}
                   aria-label={label}
                   aria-pressed={viewMode === key}
-                  className={`grid size-8 place-items-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  className={`grid size-8 place-items-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] [@media(pointer:coarse)]:size-11 ${
                     viewMode === key
                       ? 'bg-[#FF8C42] text-[#111111]'
                       : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
@@ -627,7 +627,7 @@ export default function DrivePage() {
             <button
               type="button"
               onClick={() => setShowNewFolderModal(true)}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] shadow-[inset_0_0_0_1px_var(--quant-border)] transition-colors hover:text-[#F5F5F5] hover:shadow-[inset_0_0_0_1px_#5C3016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] shadow-[inset_0_0_0_1px_var(--quant-border)] transition-colors hover:text-[#F5F5F5] hover:shadow-[inset_0_0_0_1px_#5C3016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
               aria-label="New folder"
             >
               <IconFolderPlus size={14} />
@@ -772,11 +772,16 @@ export default function DrivePage() {
                 Drag and drop files anywhere on the screen, or click Upload to store files securely.
               </p>
               <div className="pt-2 flex items-center justify-center gap-2">
+                {/* Named for the moment rather than the action. The floating
+                 * button already reads "Upload files" and the toolbar already
+                 * reads "New folder", so repeating those verbatim put two
+                 * identically-named buttons on one screen — a screen reader
+                 * hears the same label twice with no way to tell them apart. */}
                 <Button variant="primary" onClick={handleUploadTrigger}>
-                  Upload files
+                  Upload your first file
                 </Button>
                 <Button variant="secondary" onClick={() => setShowNewFolderModal(true)}>
-                  New folder
+                  Create a folder
                 </Button>
               </div>
             </div>
