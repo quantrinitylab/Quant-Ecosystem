@@ -1499,7 +1499,8 @@ export function ConversationalThreadView({
                 ? 'Start the letter — Enter opens the composer…'
                 : 'Message (↵ to send)…'
             }
-            className="min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none px-1 sm:px-2 py-1.5"
+            aria-label={composeMode === 'mail' ? 'Start a letter reply' : 'Message'}
+            className="min-h-[44px] min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none px-1 sm:px-2 py-1.5 sm:min-h-0"
           />
 
           {/* Send Button — sends the line, or carries it into the full composer */}
