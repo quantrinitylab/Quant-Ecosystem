@@ -440,7 +440,7 @@ export function Interactive3DLogo({
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               title="All caught up (0 unread)"
-              className="flex items-center justify-center size-3.5 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+              className="flex items-center justify-center size-3.5 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 shadow-[0_0_0_2px_rgba(16,185,129,0.18)]"
             >
               <svg
                 className="size-2"

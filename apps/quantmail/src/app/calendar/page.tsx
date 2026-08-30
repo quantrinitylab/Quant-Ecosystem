@@ -1935,7 +1935,7 @@ export default function CalendarPage() {
               <div
                 className={`w-12 h-1.5 rounded-full transition-all ${
                   isDragging
-                    ? 'bg-[#FF8C42] scale-110 shadow-[0_0_10px_#FF8C42]'
+                    ? 'bg-[#FF8C42] scale-110 shadow-[0_0_0_3px_rgba(255,140,66,0.22)]'
                     : 'bg-[#3A404D] group-hover:bg-[#6B6E76]'
                 }`}
               />
@@ -2144,7 +2144,6 @@ export default function CalendarPage() {
                           let categoryLabel = 'Event';
                           let urgencyColor = '#fbbf24';
                           let urgencyLabel = 'Standard';
-                          let glowColor = 'rgba(255, 140, 66,0.25)';
 
                           if (isPeriod) {
                             categoryColor = '#f43f5e';
@@ -2160,7 +2159,6 @@ export default function CalendarPage() {
                             urgencyLabel = ev.flowIntensity
                               ? `${ev.flowIntensity.replace('_', ' ')}`
                               : 'Cycle Log';
-                            glowColor = 'rgba(244,63,94,0.4)';
                             cardBorder = 'border-rose-500/60';
                             // Distinct 3D Pink / Rose watercolor liquid blend
                             cardBackground =
@@ -2171,21 +2169,18 @@ export default function CalendarPage() {
                             if (ev.priority === 'urgent') {
                               urgencyColor = '#ef4444';
                               urgencyLabel = 'Urgent';
-                              glowColor = 'rgba(239,68,68,0.45)';
                               cardBorder = 'border-red-500/60';
                               cardBackground =
                                 'radial-gradient(circle at 15% 25%, rgba(239,68,68,0.45) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(255, 140, 66,0.35) 0%, transparent 55%), linear-gradient(135deg, rgba(36,14,14,0.94) 0%, rgba(20,10,10,0.98) 100%)';
                             } else if (ev.priority === 'low') {
                               urgencyColor = '#10b981';
                               urgencyLabel = 'Low';
-                              glowColor = 'rgba(16,185,129,0.3)';
                               cardBorder = 'border-[#FF8C42]/40';
                               cardBackground =
                                 'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(16,185,129,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(28,22,14,0.94) 0%, rgba(16,12,10,0.98) 100%)';
                             } else {
                               urgencyColor = '#fbbf24';
                               urgencyLabel = 'Medium';
-                              glowColor = 'rgba(245,158,11,0.35)';
                               cardBorder = 'border-[#FF8C42]/50';
                               cardBackground =
                                 'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.4) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(32,22,12,0.94) 0%, rgba(18,12,8,0.98) 100%)';
@@ -2195,7 +2190,6 @@ export default function CalendarPage() {
                             categoryLabel = 'Birthday';
                             urgencyColor = '#84cc16';
                             urgencyLabel = 'Annual';
-                            glowColor = 'rgba(16,185,129,0.35)';
                             cardBorder = 'border-emerald-500/50';
                             cardBackground =
                               'radial-gradient(circle at 15% 25%, rgba(16,185,129,0.4) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(132,204,22,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(14,30,20,0.94) 0%, rgba(10,18,14,0.98) 100%)';
@@ -2206,14 +2200,12 @@ export default function CalendarPage() {
                             if (ev.location?.includes('meet')) {
                               urgencyColor = '#a855f7';
                               urgencyLabel = 'Video Meet';
-                              glowColor = 'rgba(168,85,247,0.35)';
                               cardBorder = 'border-purple-500/50';
                               cardBackground =
                                 'radial-gradient(circle at 15% 25%, rgba(255, 140, 66,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(168,85,247,0.3) 0%, transparent 55%), linear-gradient(135deg, rgba(28,18,28,0.94) 0%, rgba(16,10,18,0.98) 100%)';
                             } else {
                               urgencyColor = '#fbbf24';
                               urgencyLabel = 'Standard';
-                              glowColor = 'rgba(255, 140, 66,0.3)';
                               cardBorder = 'border-[#FF8C42]/50';
                               cardBackground =
                                 'radial-gradient(circle at 15% 25%, rgba(255, 140, 66,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(30,20,12,0.94) 0%, rgba(16,10,8,0.98) 100%)';
@@ -2226,7 +2218,8 @@ export default function CalendarPage() {
                               onClick={() => setSelectedEvent(ev)}
                               style={{
                                 background: cardBackground,
-                                boxShadow: `0 12px 32px 0 rgba(0,0,0,0.6), 0 0 25px 0 ${glowColor}, inset 0 1px 1px 0 rgba(255,255,255,0.25)`,
+                                boxShadow:
+                                  '0 12px 32px 0 rgba(0,0,0,0.6), inset 0 1px 0 0 rgba(255,255,255,0.08)',
                               }}
                               className={`relative flex items-center justify-between p-3.5 rounded-3xl border ${cardBorder} backdrop-blur-2xl transition-all cursor-pointer overflow-hidden group hover:scale-[1.01] hover:brightness-105 active:scale-[0.99]`}
                             >
@@ -2244,7 +2237,7 @@ export default function CalendarPage() {
                                 <div
                                   style={{
                                     background: `radial-gradient(circle at 30% 30%, ${categoryColor}66 0%, ${urgencyColor}44 100%)`,
-                                    boxShadow: `0 0 12px ${categoryColor}66, inset 0 1px 2px rgba(255,255,255,0.4)`,
+                                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14)',
                                   }}
                                   className="size-9 rounded-2xl border border-white/25 flex items-center justify-center shrink-0 mt-0.5"
                                 >
@@ -2463,13 +2456,14 @@ export default function CalendarPage() {
             type="button"
             onClick={() => setIsFabOpen((prev) => !prev)}
             style={{
-              background: 'linear-gradient(135deg, #f97316 0%, #FF8C42 50%, #fde047 100%)',
-              boxShadow: '0 0 25px rgba(255, 140, 66,0.55), inset 0 2px 4px rgba(255,255,255,0.4)',
+              background: 'linear-gradient(135deg, #FF9B5A 0%, #FF8C42 55%, #E8752F 100%)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.18)',
             }}
-            className={`size-14 rounded-full font-black text-black flex items-center justify-center active:scale-95 transition-all focus:outline-none ${
+            className={`size-14 rounded-full font-black text-[#111111] flex items-center justify-center active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] ${
               isFabOpen ? 'rotate-45' : ''
             }`}
             aria-label="Toggle calendar speed dial"
+            aria-expanded={isFabOpen}
           >
             <svg
               className="size-6 transition-transform duration-200"
@@ -2519,7 +2513,7 @@ export default function CalendarPage() {
                   <div
                     className={`w-14 h-1.5 rounded-full mx-auto mb-2 transition-all ${
                       isSheetDragging
-                        ? 'bg-[#FF8C42] scale-110 shadow-[0_0_10px_#FF8C42]'
+                        ? 'bg-[#FF8C42] scale-110 shadow-[0_0_0_3px_rgba(255,140,66,0.22)]'
                         : 'bg-[#6B6E76] hover:bg-[#A1A4AC]'
                     }`}
                   />
@@ -2913,8 +2907,7 @@ export default function CalendarPage() {
                               {
                                 key: 'urgent',
                                 label: 'Urgent',
-                                color:
-                                  'text-rose-400 border-rose-500/50 bg-rose-950/50 shadow-[0_0_12px_rgba(244,63,94,0.3)]',
+                                color: 'text-rose-400 border-rose-500/50 bg-rose-950/50',
                               },
                             ] as const
                           ).map((p) => (
@@ -3551,7 +3544,7 @@ export default function CalendarPage() {
                       {/* Sub-tab 2: CYCLE DIAL */}
                       {periodSubTab === 'cycle' && (
                         <div className="space-y-6">
-                          <div className="flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-b from-[#111318] via-rose-950/40 to-[#111318] border border-rose-500/30 shadow-[0_0_30px_rgba(244,63,94,0.25)]">
+                          <div className="flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-b from-[#111318] via-rose-950/40 to-[#111318] border border-rose-500/30 shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
                             <div className="relative size-48 rounded-full border-4 border-[#282C35] flex items-center justify-center shadow-inner">
                               <div className="absolute inset-0 rounded-full border-4 border-rose-500 border-t-transparent border-r-transparent rotate-45 animate-pulse" />
 
@@ -3573,16 +3566,13 @@ export default function CalendarPage() {
 
                             <div className="flex items-center gap-3 mt-4 text-[10px] text-[#A1A4AC]">
                               <span className="flex items-center gap-1">
-                                <span className="size-2 rounded-full bg-rose-500 shadow-[0_0_6px_#f43f5e]" />{' '}
-                                Period
+                                <span className="size-2 rounded-full bg-rose-500" /> Period
                               </span>
                               <span className="flex items-center gap-1">
-                                <span className="size-2 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee]" />{' '}
-                                Fertile
+                                <span className="size-2 rounded-full bg-cyan-400" /> Fertile
                               </span>
                               <span className="flex items-center gap-1">
-                                <span className="size-2 rounded-full bg-[#FF8C42] shadow-[0_0_6px_#fbbf24]" />{' '}
-                                Ovulation
+                                <span className="size-2 rounded-full bg-[#FF8C42]" /> Ovulation
                               </span>
                             </div>
                           </div>
