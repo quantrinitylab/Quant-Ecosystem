@@ -126,7 +126,7 @@ export function PostcardPicker({
                       <div className="flex items-center justify-between text-xs font-mono text-[#FF8C42] mb-1.5">
                         <span className="uppercase">{template.category}</span>
                         {template.isCustom && (
-                          <span className="px-1.5 py-0.2 text-[9px] rounded bg-[#FF8C42]/20 text-[#FFB875] font-bold">
+                          <span className="px-1.5 py-0.2 text-[10px] rounded bg-[#FF8C42]/20 text-[#FFB875] font-bold">
                             CUSTOM
                           </span>
                         )}

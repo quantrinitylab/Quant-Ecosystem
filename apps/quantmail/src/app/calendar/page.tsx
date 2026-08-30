@@ -2292,7 +2292,7 @@ export default function CalendarPage() {
                                       style={{
                                         boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.2)',
                                       }}
-                                      className="inline-flex items-center rounded-full overflow-hidden text-[9px] font-black border border-white/20 bg-black/50 backdrop-blur-md shrink-0"
+                                      className="inline-flex items-center rounded-full overflow-hidden text-[10px] font-black border border-white/20 bg-black/50 backdrop-blur-md shrink-0"
                                     >
                                       <span
                                         className="px-2 py-0.5 uppercase tracking-wider"
@@ -3119,7 +3119,7 @@ export default function CalendarPage() {
                                       : 'bg-[#090A0C] text-[#A1A4AC] hover:bg-[#282C35]'
                                   }`}
                                 >
-                                  <span className="text-[9px]">{d.dayLetter}</span>
+                                  <span className="text-[10px]">{d.dayLetter}</span>
                                   <span className="text-xs">{d.dayNum}</span>
                                   {d.hasHoliday && (
                                     <span className="absolute top-1 right-1 size-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -3317,7 +3317,7 @@ export default function CalendarPage() {
                                   }`}
                                 >
                                   <intm.Icon className="size-4" />
-                                  <span className="text-[9px] mt-0.5 font-medium text-center leading-tight">
+                                  <span className="text-[10px] mt-0.5 font-medium text-center leading-tight">
                                     {intm.label}
                                   </span>
                                 </button>
@@ -3430,7 +3430,7 @@ export default function CalendarPage() {
                                   }`}
                                 >
                                   <sx.Icon className="size-4" />
-                                  <span className="text-[9px] mt-0.5 font-semibold text-center leading-tight">
+                                  <span className="text-[10px] mt-0.5 font-semibold text-center leading-tight">
                                     {sx.label}
                                   </span>
                                 </button>

@@ -370,7 +370,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                     );
                   })}
                 </div>
-                <p className="text-[9px] text-[#A1A4AC] text-center">
+                <p className="text-[10px] text-[#A1A4AC] text-center">
                   Swipe left/right to change month
                 </p>
               </motion.div>

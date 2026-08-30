@@ -430,7 +430,7 @@ export function Interactive3DLogo({
               <span className="absolute size-[18px] rounded-full bg-[#FF8C42] opacity-40 animate-ping" />
 
               {/* Clean Badge */}
-              <span className="relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[9.5px] font-bold text-[#111111] bg-[#FF8C42] rounded-full border border-[#090A0C] shadow-sm">
+              <span className="relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[10px] font-bold text-[#111111] bg-[#FF8C42] rounded-full border border-[#090A0C] shadow-sm">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             </motion.div>

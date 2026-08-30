@@ -125,14 +125,14 @@ export function EmailReaderHeader({
               {subject}
             </h1>
             {localImportant && (
-              <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/30 text-[9px] font-bold text-rose-400">
+              <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/30 text-[10px] font-bold text-rose-400">
                 <svg className="size-2.5 fill-current" viewBox="0 0 24 24">
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                 </svg>
                 <span>Urgent</span>
               </span>
             )}
-            <span className="shrink-0 hidden md:inline-block px-2 py-0.5 rounded-full bg-blue-600/15 border border-blue-500/30 text-[9px] font-semibold text-blue-400">
+            <span className="shrink-0 hidden md:inline-block px-2 py-0.5 rounded-full bg-blue-600/15 border border-blue-500/30 text-[10px] font-semibold text-blue-400">
               {category}
             </span>
           </div>
