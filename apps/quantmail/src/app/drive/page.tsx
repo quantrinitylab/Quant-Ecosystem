@@ -1249,7 +1249,7 @@ export default function DrivePage() {
                   if (e.key === 'Enter') handleCreateFolder();
                 }}
                 placeholder="e.g. Invoices, Project Assets, Designs…"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
                 autoFocus
               />
             </div>
@@ -1287,7 +1287,7 @@ export default function DrivePage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveRename();
                 }}
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
                 autoFocus
               />
             </div>
