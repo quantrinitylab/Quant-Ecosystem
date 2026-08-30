@@ -2491,6 +2491,13 @@ export default function CalendarPage() {
               />
 
               <motion.div
+                role="dialog"
+                aria-modal="true"
+                aria-label={
+                  activeSheetType === 'period'
+                    ? 'Cycle tracker'
+                    : `${editingEventId ? 'Edit' : 'New'} ${activeSheetType}`
+                }
                 initial={{ y: '100%' }}
                 animate={{ y: isSheetDragging ? Math.max(0, sheetDragY) : 0 }}
                 exit={{ y: '100%' }}
@@ -2566,7 +2573,7 @@ export default function CalendarPage() {
                       type="button"
                       disabled={isSaving}
                       onClick={() => void handleSaveEntry()}
-                      className="px-5 py-1.5 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] font-semibold text-xs shadow-sm transition-all active:scale-95 flex items-center gap-1.5"
+                      className="px-5 py-1.5 min-h-[44px] sm:min-h-0 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] font-semibold text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     >
                       {isSaving ? (
                         <>
@@ -2607,7 +2614,7 @@ export default function CalendarPage() {
                           key={tab.key}
                           type="button"
                           onClick={() => setPeriodSubTab(tab.key)}
-                          className={`pb-1 px-3 font-semibold transition-colors border-b-2 flex items-center gap-1.5 ${
+                          className={`flex min-h-11 items-center justify-center gap-1.5 border-b-2 px-3 pb-1 font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                             periodSubTab === tab.key
                               ? 'border-rose-400 text-rose-300 font-bold'
                               : 'border-transparent text-[#A1A4AC] hover:text-[#F5F5F5]'
@@ -2652,7 +2659,7 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add event title"
-                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
+                          className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
                           autoFocus
                         />
                       </div>
@@ -2664,8 +2671,11 @@ export default function CalendarPage() {
                         </div>
                         <button
                           type="button"
+                          role="switch"
+                          aria-checked={formState.allDay}
+                          aria-label="All-day"
                           onClick={() => setFormState({ ...formState, allDay: !formState.allDay })}
-                          className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
+                          className={`relative w-11 h-6 flex items-center rounded-full p-1 transition-colors after:absolute after:inset-x-0 after:-inset-y-[10px] after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                             formState.allDay ? 'bg-[#FF8C42]' : 'bg-[#3A404D]'
                           }`}
                         >
@@ -2681,20 +2691,22 @@ export default function CalendarPage() {
                         <div className="flex items-center justify-between">
                           <input
                             type="date"
+                            aria-label="Start date"
                             value={formState.startDate}
                             onChange={(e) =>
                               setFormState({ ...formState, startDate: e.target.value })
                             }
-                            className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                            className="min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                           />
                           {!formState.allDay && (
                             <input
                               type="time"
+                              aria-label="Start time"
                               value={formState.startTime}
                               onChange={(e) =>
                                 setFormState({ ...formState, startTime: e.target.value })
                               }
-                              className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                              className="min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                             />
                           )}
                         </div>
@@ -2702,20 +2714,22 @@ export default function CalendarPage() {
                         <div className="flex items-center justify-between">
                           <input
                             type="date"
+                            aria-label="End date"
                             value={formState.endDate}
                             onChange={(e) =>
                               setFormState({ ...formState, endDate: e.target.value })
                             }
-                            className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                            className="min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                           />
                           {!formState.allDay && (
                             <input
                               type="time"
+                              aria-label="End time"
                               value={formState.endTime}
                               onChange={(e) =>
                                 setFormState({ ...formState, endTime: e.target.value })
                               }
-                              className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                              className="min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                             />
                           )}
                         </div>
@@ -2724,7 +2738,7 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => setIsTimezoneModalOpen(true)}
-                        className="w-full flex items-center justify-between text-left text-[#A1A4AC] hover:text-white py-2 border-b border-[#282C35]/60"
+                        className="w-full min-h-[44px] sm:min-h-0 flex items-center justify-between text-left text-[#A1A4AC] hover:text-white py-2 border-b border-[#282C35]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       >
                         <div className="flex items-center gap-2.5">
                           <IconGlobe className="size-4 text-cyan-400" />
@@ -2739,7 +2753,7 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => setIsRecurrenceModalOpen(true)}
-                        className="w-full flex items-center justify-between text-left text-[#A1A4AC] hover:text-white py-2 border-b border-[#282C35]/60"
+                        className="w-full min-h-[44px] sm:min-h-0 flex items-center justify-between text-left text-[#A1A4AC] hover:text-white py-2 border-b border-[#282C35]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       >
                         <div className="flex items-center gap-2.5">
                           <IconRefresh className="size-4 text-[#FF8C42]" />
@@ -2759,7 +2773,7 @@ export default function CalendarPage() {
                               setFormState({ ...formState, attendeeInput: e.target.value })
                             }
                             onKeyDown={handleAddAttendee}
-                            className="flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
+                            className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
                           />
                         </div>
                         {formState.attendees.length > 0 && (
@@ -2794,7 +2808,7 @@ export default function CalendarPage() {
                             onChange={(e) =>
                               setFormState({ ...formState, location: e.target.value })
                             }
-                            className="flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
+                            className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
                           />
                         </div>
                         <div className="flex items-center gap-1.5 pl-7">
@@ -2803,7 +2817,7 @@ export default function CalendarPage() {
                               key={loc}
                               type="button"
                               onClick={() => setFormState({ ...formState, location: loc })}
-                              className="px-2 py-0.5 rounded-md bg-[#282C35] text-[10px] text-[#A1A4AC] hover:text-white"
+                              className="inline-flex min-h-11 items-center rounded-md bg-[#282C35] px-2 py-0.5 text-[10px] text-[#A1A4AC] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
                             >
                               {loc}
                             </button>
@@ -2820,7 +2834,7 @@ export default function CalendarPage() {
                           <button
                             type="button"
                             onClick={() => setIsNotificationSliderOpen(true)}
-                            className="px-2.5 py-1 rounded-xl bg-[#FF8C42]/20 text-[#FF8C42] text-[11px] font-bold border border-[#FF8C42]/30"
+                            className="inline-flex min-h-[44px] items-center rounded-xl border border-[#FF8C42]/30 bg-[#FF8C42]/20 px-2.5 py-1 text-[11px] font-bold text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
                           >
                             + Custom Time Slider
                           </button>
@@ -2854,7 +2868,7 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none resize-none"
+                          className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
                         />
                       </div>
 
@@ -2868,7 +2882,7 @@ export default function CalendarPage() {
                             onChange={(e) =>
                               setFormState({ ...formState, driveLink: e.target.value })
                             }
-                            className="flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
+                            className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
                           />
                         </div>
                       </div>
@@ -2884,7 +2898,7 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add task title"
-                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
+                          className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
                           autoFocus
                         />
                       </div>
@@ -2915,7 +2929,7 @@ export default function CalendarPage() {
                               key={p.key}
                               type="button"
                               onClick={() => setFormState({ ...formState, priority: p.key })}
-                              className={`px-3 py-1 rounded-xl text-[11px] font-black border transition-all ${
+                              className={`inline-flex min-h-11 items-center justify-center rounded-xl border px-3 py-1 text-[11px] font-black transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                                 formState.priority === p.key
                                   ? `${p.color} ring-1 ring-white/20 scale-105 shadow-md`
                                   : 'bg-[#111318] border-[#282C35] text-[#A1A4AC]'
@@ -2934,11 +2948,12 @@ export default function CalendarPage() {
                         </div>
                         <input
                           type="date"
+                          aria-label="Due date"
                           value={formState.startDate}
                           onChange={(e) =>
                             setFormState({ ...formState, startDate: e.target.value })
                           }
-                          className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                          className="min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                         />
                       </div>
 
@@ -2952,7 +2967,7 @@ export default function CalendarPage() {
                             setFormState({ ...formState, subtaskInput: e.target.value })
                           }
                           onKeyDown={handleAddSubtask}
-                          className="w-full bg-[#090A0C] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#A1A4AC]"
+                          className="w-full min-h-[44px] sm:min-h-0 bg-[#090A0C] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#A1A4AC]"
                         />
                         {formState.subtasks.map((st, idx) => (
                           <div
@@ -2995,7 +3010,7 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none resize-none"
+                          className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
                         />
                       </div>
                     </div>
@@ -3010,7 +3025,7 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add person's name (e.g. Rahul's Birthday)"
-                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-emerald-500"
+                          className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-emerald-500"
                           autoFocus
                         />
                       </div>
@@ -3022,11 +3037,12 @@ export default function CalendarPage() {
                         </div>
                         <input
                           type="date"
+                          aria-label="Birthday date"
                           value={formState.startDate}
                           onChange={(e) =>
                             setFormState({ ...formState, startDate: e.target.value })
                           }
-                          className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                          className="min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                         />
                       </div>
 
@@ -3037,12 +3053,13 @@ export default function CalendarPage() {
                         </div>
                         <input
                           type="number"
+                          aria-label="Birth year"
                           placeholder="e.g. 1998"
                           value={formState.birthYear}
                           onChange={(e) =>
                             setFormState({ ...formState, birthYear: e.target.value })
                           }
-                          className="w-24 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white text-center"
+                          className="w-24 min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white text-center"
                         />
                       </div>
 
@@ -3069,7 +3086,7 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none resize-none"
+                          className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
                         />
                       </div>
                     </div>
@@ -3108,7 +3125,7 @@ export default function CalendarPage() {
                                   }}
                                   className={`py-1.5 rounded-xl flex flex-col items-center justify-center transition-all relative ${
                                     formState.startDate === d.key
-                                      ? 'border-2 border-rose-400 bg-rose-950/80 text-white font-black scale-105 shadow-md shadow-rose-900/40'
+                                      ? 'border-2 border-rose-400 bg-rose-950/80 text-white font-black scale-105 shadow-[0_4px_16px_rgba(0,0,0,0.6)]'
                                       : 'bg-[#090A0C] text-[#A1A4AC] hover:bg-[#282C35]'
                                   }`}
                                 >
@@ -3215,7 +3232,7 @@ export default function CalendarPage() {
                                     setFormState({ ...formState, spottingColor: sp.key })
                                   }
                                   aria-pressed={formState.spottingColor === sp.key}
-                                  className={`flex items-center justify-center gap-2 p-3 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                                  className={`flex min-h-11 items-center justify-center gap-2 rounded-2xl border p-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                     formState.spottingColor === sp.key
                                       ? 'bg-rose-600/30 border-rose-500 text-white font-black shadow'
                                       : 'bg-[#1e1e24] border-[#282C35] text-[#A1A4AC] hover:text-[#F5F5F5]'
@@ -3466,12 +3483,13 @@ export default function CalendarPage() {
                               </span>
                               <input
                                 type="text"
+                                aria-label="Basal body temperature"
                                 placeholder="98.4 °F"
                                 value={formState.bbt}
                                 onChange={(e) =>
                                   setFormState({ ...formState, bbt: e.target.value })
                                 }
-                                className="w-full bg-[#090A0C] border border-[#282C35] rounded-xl px-2.5 py-1 text-xs text-white"
+                                className="w-full min-h-[44px] sm:min-h-0 bg-[#090A0C] border border-[#282C35] rounded-xl px-2.5 py-1 text-xs text-white"
                               />
                             </div>
                             <div>
@@ -3480,12 +3498,13 @@ export default function CalendarPage() {
                               </span>
                               <input
                                 type="text"
+                                aria-label="Weight"
                                 placeholder="58.5 kg"
                                 value={formState.weight}
                                 onChange={(e) =>
                                   setFormState({ ...formState, weight: e.target.value })
                                 }
-                                className="w-full bg-[#090A0C] border border-[#282C35] rounded-xl px-2.5 py-1 text-xs text-white"
+                                className="w-full min-h-[44px] sm:min-h-0 bg-[#090A0C] border border-[#282C35] rounded-xl px-2.5 py-1 text-xs text-white"
                               />
                             </div>
                           </div>
@@ -3501,7 +3520,7 @@ export default function CalendarPage() {
                                 setFormState({ ...formState, customTagInput: e.target.value })
                               }
                               onKeyDown={handleAddCustomTag}
-                              className="w-full bg-[#1e1e24] border border-[#282C35] rounded-2xl p-2.5 text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
+                              className="w-full min-h-[44px] sm:min-h-0 bg-[#1e1e24] border border-[#282C35] rounded-2xl p-2.5 text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
                             />
                             {formState.customTags.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 pt-1">
