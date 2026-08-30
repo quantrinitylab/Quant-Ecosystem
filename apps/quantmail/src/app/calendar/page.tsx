@@ -1268,6 +1268,50 @@ export default function CalendarPage() {
     setEditingEventId(null);
   }, [isSaving]);
 
+  // Escape dismisses the sheet, matching the backdrop tap, and collapses the
+  // speed dial when no sheet is up. Every overlay a sheet can open on top of
+  // itself -- customize, timezone, recurrence, notifications, the event card,
+  // Quanty -- is a <Modal>, which runs its own document-level Escape handler, so
+  // those have to win the key and close alone: without the guard one press would
+  // dismiss the nested modal and the sheet underneath it together.
+  //
+  // No `document.body.style.overflow` lock to match <Modal>'s. Measured on a
+  // Pixel 8 at 375x812: this shell's document does not scroll at all
+  // (scrollHeight === clientHeight === 812), and the region that does scroll
+  // behind a sheet is the shell's own `overflow-y-auto` pane, which is not a
+  // pointer-reachable ancestor of the backdrop. Locking the body would change
+  // nothing.
+  useEffect(() => {
+    if (!activeSheetType && !isFabOpen) return;
+    const nestedOverlayOpen =
+      isPeriodCustomizeOpen ||
+      isTimezoneModalOpen ||
+      isRecurrenceModalOpen ||
+      isNotificationSliderOpen ||
+      isQuantyDrawerOpen ||
+      Boolean(selectedEvent);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || nestedOverlayOpen) return;
+      if (activeSheetType) {
+        closeSheet();
+      } else {
+        setIsFabOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [
+    activeSheetType,
+    isFabOpen,
+    isPeriodCustomizeOpen,
+    isTimezoneModalOpen,
+    isRecurrenceModalOpen,
+    isNotificationSliderOpen,
+    isQuantyDrawerOpen,
+    selectedEvent,
+    closeSheet,
+  ]);
+
   // Prefill a new event when arriving from Contacts via /calendar?attendee=<email>
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -3111,6 +3155,12 @@ export default function CalendarPage() {
                                 Customize
                               </button>
                             </div>
+                            {/* Seven across in a 307px grid gives each day a 40px box, and 7 x 44
+                                needs 308 before a single gap -- so the box cannot carry the touch
+                                floor at any gap value. The `before` band widens the hit area by
+                                exactly the 4px gutter instead, 2px each side: 44px effective, edges
+                                meeting at the gutter's midline, no overlap onto the neighbouring
+                                day and not one pixel of layout moved. */}
                             <div className="grid grid-cols-7 text-center gap-1">
                               {currentWeekDays.map((d) => (
                                 <button
@@ -3123,7 +3173,7 @@ export default function CalendarPage() {
                                       endDate: toDateInput(d.date),
                                     }));
                                   }}
-                                  className={`py-1.5 rounded-xl flex flex-col items-center justify-center transition-all relative ${
+                                  className={`py-1.5 rounded-xl flex flex-col items-center justify-center transition-all relative before:absolute before:inset-y-0 before:-inset-x-[2px] before:content-[''] ${
                                     formState.startDate === d.key
                                       ? 'border-2 border-rose-400 bg-rose-950/80 text-white font-black scale-105 shadow-[0_4px_16px_rgba(0,0,0,0.6)]'
                                       : 'bg-[#090A0C] text-[#A1A4AC] hover:bg-[#282C35]'
@@ -3383,7 +3433,7 @@ export default function CalendarPage() {
                               onClick={() => setFormState({ ...formState, pms: !formState.pms })}
                               aria-pressed={formState.pms}
                               aria-label="Premenstrual syndrome"
-                              className={`px-3 py-1 min-h-[44px] sm:min-h-0 rounded-xl text-[11px] font-bold border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                              className={`px-3 py-1 min-h-touch min-w-touch sm:min-h-0 sm:min-w-0 rounded-xl text-[11px] font-bold border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                 formState.pms
                                   ? 'bg-[#FF8C42] text-white font-bold border-[#FF8C42]'
                                   : 'bg-[#282C35] text-[#A1A4AC] border-[#3A404D]'
