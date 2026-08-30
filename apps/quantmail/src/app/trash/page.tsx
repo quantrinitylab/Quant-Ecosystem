@@ -31,9 +31,17 @@ export default function TrashPage() {
     });
   }, []);
 
+  /**
+   * True only when there is something selected and nothing is left to select.
+   * Counting ids was not enough: a permanent delete removes a row while its id can
+   * still be sitting in the set, so `size === length` went true for two different
+   * sets and the button offered to deselect a selection that was not there.
+   */
+  const allSelected = Boolean(emails?.length) && (emails ?? []).every((e) => selectedIds.has(e.id));
+
   const handleSelectAll = useCallback(() => {
-    if (!emails) return;
-    if (selectedIds.size === emails.length) {
+    if (!emails || emails.length === 0) return;
+    if (emails.every((e) => selectedIds.has(e.id))) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(emails.map((e) => e.id)));
@@ -177,9 +185,13 @@ export default function TrashPage() {
                 Empty Trash
               </Button>
             )}
-            <Button variant="secondary" onClick={handleSelectAll}>
-              {selectedIds.size === emails?.length ? 'Deselect All' : 'Select All'}
-            </Button>
+            {/* An empty trash has nothing to select, so the control stays away
+             * rather than sitting there reading "Deselect All". */}
+            {emails && emails.length > 0 && (
+              <Button variant="secondary" onClick={handleSelectAll}>
+                {allSelected ? 'Deselect All' : 'Select All'}
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => void refetch()}>
               Refresh
             </Button>

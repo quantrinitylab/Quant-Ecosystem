@@ -166,29 +166,10 @@ export function Quanty({
       data-expression={expression}
     >
       <title>{title}</title>
-      <style>{`
-        .qty-root { overflow: visible; }
-        .qty-bob { animation: qty-bob 4.2s ease-in-out infinite; }
-        .qty-blink { transform-origin: 130px 118px; animation: qty-blink 5.2s infinite; }
-        .qty-look { animation: qty-look 2.4s ease-in-out infinite; }
-        .qty-tears { transform-origin: 130px 132px; animation: qty-tears 1.5s ease-in infinite; }
-        .qty-pop { transform-origin: 130px 120px; animation: qty-pop 1.6s ease-in-out infinite; }
-        .qty-earglow { animation: qty-earglow 2.8s ease-in-out infinite; }
-        .qty-shadow { transform-origin: 130px 212px; }
-        .qty-shadow-pulse { animation: qty-shadow-pulse 4.2s ease-in-out infinite; }
-        .qty-sheen { animation: qty-sheen 5.6s ease-in-out infinite; }
-        @keyframes qty-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-        @keyframes qty-blink { 0%, 91%, 100% { transform: scaleY(1); } 94% { transform: scaleY(0.06); } 97% { transform: scaleY(1); } }
-        @keyframes qty-look { 0%, 100% { transform: translateX(-7px); } 50% { transform: translateX(7px); } }
-        @keyframes qty-tears { 0% { transform: scaleY(0.15); opacity: 0; } 25% { opacity: 1; } 85% { transform: scaleY(1); opacity: 0.9; } 100% { transform: scaleY(1.05); opacity: 0; } }
-        @keyframes qty-pop { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
-        @keyframes qty-earglow { 0%, 100% { opacity: 0.95; } 50% { opacity: 0.55; } }
-        @keyframes qty-shadow-pulse { 0%, 100% { transform: scaleX(1); opacity: 0.6; } 50% { transform: scaleX(0.85); opacity: 0.35; } }
-        @keyframes qty-sheen { 0%, 100% { opacity: 0.10; } 50% { opacity: 0.17; } }
-        @media (prefers-reduced-motion: reduce) {
-          .qty-root, .qty-root * { animation: none !important; }
-        }
-      `}</style>
+      {/* The animation lives in globals.css, not in here. An SVG-namespaced
+       * <style> is not hidden the way an HTML one is, so the rules counted as this
+       * element's text: a button wrapping Quanty read out its whole stylesheet
+       * before its label, and every instance repeated the rules into the DOM. */}
       <defs>
         <radialGradient id="qtyShell" cx="0.34" cy="0.24" r="1.15">
           <stop offset="0" stopColor="#fffef9" />

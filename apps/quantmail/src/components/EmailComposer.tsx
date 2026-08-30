@@ -487,7 +487,7 @@ export function EmailComposer({
           <button
             type="button"
             onClick={handleBack}
-            className="p-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
+            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             title="Back (1 page)"
           >
             <svg
@@ -514,7 +514,7 @@ export function EmailComposer({
           <button
             type="button"
             onClick={() => setIsQuantyDrawerOpen(true)}
-            className="flex sm:hidden p-1.5 rounded-xl hover:bg-[#282C35] text-[#FF8C42] hover:text-[#FFB875] transition-all items-center gap-1.5"
+            className="flex sm:hidden min-h-[44px] min-w-[44px] p-1.5 rounded-xl hover:bg-[#282C35] text-[#FF8C42] hover:text-[#FFB875] transition-all items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             title="Open Quanty AI Copilot"
           >
             <Quanty size={24} expression="happy" bob={false} />
@@ -525,7 +525,7 @@ export function EmailComposer({
             <button
               type="button"
               onClick={() => setShowThreeDotsMenu((prev) => !prev)}
-              className="p-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               title="More options"
             >
               <svg
@@ -662,7 +662,7 @@ export function EmailComposer({
                   <button
                     type="button"
                     onClick={() => setShowCc(true)}
-                    className="text-[#A1A4AC] hover:text-[#FF8C42] font-medium px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors"
+                    className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[#A1A4AC] hover:text-[#FF8C42] font-medium px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   >
                     Cc
                   </button>
@@ -671,7 +671,7 @@ export function EmailComposer({
                   <button
                     type="button"
                     onClick={() => setShowBcc(true)}
-                    className="text-[#A1A4AC] hover:text-[#FF8C42] font-medium px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors"
+                    className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[#A1A4AC] hover:text-[#FF8C42] font-medium px-1.5 py-0.5 rounded hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   >
                     Bcc
                   </button>
@@ -754,7 +754,7 @@ export function EmailComposer({
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Subject of the email"
-            className="flex-1 min-w-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-[#A1A4AC] focus:outline-none"
+            className="flex-1 min-w-0 min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm font-semibold text-white placeholder-[#A1A4AC] focus:outline-none"
           />
         </div>
 
@@ -1278,7 +1278,7 @@ export function EmailComposer({
               type="button"
               onClick={() => handleSend()}
               disabled={busy || !to.trim()}
-              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 text-[#111111] text-xs sm:text-sm font-semibold hover:brightness-105 active:scale-95 disabled:opacity-40 transition-all"
+              className="flex items-center justify-center gap-2 px-3.5 sm:px-4 py-2 min-h-[44px] sm:min-h-0 text-[#111111] text-xs sm:text-sm font-semibold hover:brightness-105 active:scale-95 disabled:opacity-40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#111111]"
             >
               {isSending ? (
                 <span>Sending…</span>

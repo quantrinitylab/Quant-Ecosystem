@@ -270,6 +270,10 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       keys: 'r',
       icon: 'reply',
       hidden: true,
+      // The sheet already lists `inbox.reply` on `r`; printing this one too put two
+      // different Compose rows on the same key, which reads as a conflict rather
+      // than as the same key doing the contextual thing.
+      hiddenInHelp: true,
       // Only claims `r` when an inline reply box is actually on screen; the inbox
       // binds its own `r` in a deeper scope, which takes precedence there.
       enabled: () =>
