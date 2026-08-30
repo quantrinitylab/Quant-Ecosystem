@@ -227,6 +227,14 @@ const toTimeInput = (date: Date) =>
 
 type CalendarView = 'agenda' | 'week' | 'day' | 'month';
 
+/** One source for both toolbars, so the phone cannot drift from the desktop. */
+const CALENDAR_VIEWS: ReadonlyArray<{ key: CalendarView; label: string }> = [
+  { key: 'agenda', label: 'Agenda' },
+  { key: 'week', label: 'Week' },
+  { key: 'day', label: 'Day' },
+  { key: 'month', label: 'Month' },
+];
+
 /**
  * What a day cell is allowed to say about itself.
  *
@@ -816,8 +824,25 @@ export default function CalendarPage() {
     scrollToDate(now);
   }, [scrollToDate]);
 
-  const COLLAPSED_HEIGHT = 114;
-  const EXPANDED_HEIGHT = 336;
+  /**
+   * The picker's day spheres are the primary date control, and a phone measured
+   * them at 36px in the week strip and 32px in the month grid — the two smallest
+   * real targets left on this screen. They grow to 44 on a coarse pointer, which
+   * needs taller rows, which needs a taller picker; hence the two heights below
+   * rather than one constant. Starts `false` so the server and the first client
+   * render agree, then settles on the first effect.
+   */
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)');
+    const sync = () => setIsCoarsePointer(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  const COLLAPSED_HEIGHT = isCoarsePointer ? 128 : 114;
+  const EXPANDED_HEIGHT = isCoarsePointer ? 384 : 336;
 
   const [isDragging, setIsDragging] = useState(false);
   const [currentHeight, setCurrentHeight] = useState(COLLAPSED_HEIGHT);
@@ -959,51 +984,50 @@ export default function CalendarPage() {
     }
   }, []);
 
-  const continuousAgendaDays = useMemo(() => {
-    const list: Array<{
-      date: Date;
-      key: string;
-      dayNum: number;
-      weekdayName: string;
-      monthShort: string;
-      /** Set on the first row of each month, so the stream can band itself. */
-      monthBreak: string | null;
-      isToday: boolean;
-      isTomorrow: boolean;
-      events: CalendarEventLike[];
-      holidays: Holiday[];
-    }> = [];
+  /**
+   * Turn a run of dates into agenda rows.
+   *
+   * Extracted from `continuousAgendaDays` so the scoped views can build their own
+   * run of days from the same rules. `monthBreak` is assigned here rather than in
+   * a per-day helper because it depends on the row before it, and a week that
+   * straddles September has to band itself the same way the endless stream does.
+   */
+  const assembleAgendaDays = useCallback(
+    (dates: Date[]) => {
+      const list: Array<{
+        date: Date;
+        key: string;
+        dayNum: number;
+        weekdayName: string;
+        monthShort: string;
+        /** Set on the first row of each month, so the stream can band itself. */
+        monthBreak: string | null;
+        isToday: boolean;
+        isTomorrow: boolean;
+        events: CalendarEventLike[];
+        holidays: Holiday[];
+      }> = [];
 
-    const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const tomorrow = new Date(base);
-    tomorrow.setDate(base.getDate() + 1);
+      const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const tomorrow = new Date(base);
+      tomorrow.setDate(base.getDate() + 1);
+      const needle = searchFilter.trim().toLowerCase();
 
-    const startIdx = -agendaRangeDays.past;
-    const endIdx = agendaRangeDays.future;
+      for (const d of dates) {
+        const key = dayKey(d);
+        const dayEvents = eventsByDay[key] ?? [];
+        // `holidaysByDay` is already indexed; the old loop re-scanned all of
+        // HOLIDAYS for each of the ~75 rendered days.
+        const dayHolidays = holidaysByDay[key] ?? [];
 
-    for (let i = startIdx; i <= endIdx; i++) {
-      const d = new Date(base);
-      d.setDate(base.getDate() + i);
-      const key = dayKey(d);
-      const isDayToday = key === dayKey(today);
-      const isDayTomorrow = key === dayKey(tomorrow);
-
-      const dayEvents = eventsByDay[key] ?? [];
-
-      const dayHolidays = HOLIDAYS.filter((h) => {
-        const parts = h.date.split('-');
-        if (parts.length === 3) {
-          const hd = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-          return dayKey(hd) === key;
+        if (
+          needle &&
+          !dayEvents.some((e) => e.title.toLowerCase().includes(needle)) &&
+          !dayHolidays.some((h) => h.name.toLowerCase().includes(needle))
+        ) {
+          continue;
         }
-        return false;
-      });
 
-      if (
-        !searchFilter.trim() ||
-        dayEvents.some((e) => e.title.toLowerCase().includes(searchFilter.toLowerCase())) ||
-        dayHolidays.some((h) => h.name.toLowerCase().includes(searchFilter.toLowerCase()))
-      ) {
         const previous = list[list.length - 1];
         const monthChanged =
           !previous ||
@@ -1017,16 +1041,84 @@ export default function CalendarPage() {
           weekdayName: FULL_WEEKDAYS[d.getDay()],
           monthShort: MONTHS_SHORT[d.getMonth()],
           monthBreak: monthChanged ? `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}` : null,
-          isToday: isDayToday,
-          isTomorrow: isDayTomorrow,
+          isToday: key === dayKey(today),
+          isTomorrow: key === dayKey(tomorrow),
           events: dayEvents,
           holidays: dayHolidays,
         });
       }
+
+      return list;
+    },
+    [today, eventsByDay, holidaysByDay, searchFilter],
+  );
+
+  const continuousAgendaDays = useMemo(() => {
+    const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const dates: Date[] = [];
+    for (let i = -agendaRangeDays.past; i <= agendaRangeDays.future; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      dates.push(d);
+    }
+    return assembleAgendaDays(dates);
+  }, [today, agendaRangeDays, assembleAgendaDays]);
+
+  /**
+   * What the stream actually renders.
+   *
+   * `activeView` used to be write-only: `setActiveView` ran on every click, but
+   * the value was read in exactly two places — the highlight on its own button
+   * and a guard in the anchor effect — so Week, Day and Month lit up and changed
+   * nothing at all. Each scope now builds its own run of dates rather than
+   * filtering the endless stream, because a month three pages back sits outside
+   * the ±(14, 60) day window the stream has loaded.
+   */
+  const visibleAgendaDays = useMemo(() => {
+    if (activeView === 'agenda') return continuousAgendaDays;
+
+    if (activeView === 'day') {
+      const d = new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        selectedDate.getDate(),
+      );
+      return assembleAgendaDays([d]);
     }
 
-    return list;
-  }, [today, agendaRangeDays, eventsByDay, searchFilter]);
+    if (activeView === 'week') {
+      // The same Sunday-start week the strip above is showing.
+      return assembleAgendaDays(currentWeekDays.map((d) => d.date));
+    }
+
+    const total = new Date(year, month + 1, 0).getDate();
+    return assembleAgendaDays(
+      Array.from({ length: total }, (_, i) => new Date(year, month, i + 1)),
+    );
+  }, [
+    activeView,
+    continuousAgendaDays,
+    assembleAgendaDays,
+    currentWeekDays,
+    selectedDate,
+    year,
+    month,
+  ]);
+
+  /**
+   * Switch view and put the picker in the matching mode.
+   *
+   * Month view with a week strip above it gave no way to reach another month
+   * except scrolling a list that no longer scrolls, so the two controls have to
+   * move together: the grid is the navigation for Month, the strip for Week and
+   * Day. Re-anchoring is allowed again on the way back to Agenda, because the
+   * stream is remounted from scratch and would otherwise open on old history.
+   */
+  const selectView = useCallback((next: CalendarView) => {
+    setActiveView(next);
+    setIsMonthExpanded(next === 'month');
+    if (next === 'agenda') hasAnchoredTodayRef.current = false;
+  }, []);
 
   /**
    * Park the stream on today the first time it paints.
@@ -1428,6 +1520,13 @@ export default function CalendarPage() {
       const host = e.currentTarget;
       const { scrollTop, scrollHeight, clientHeight } = host;
 
+      // Only the endless agenda pages and self-selects. A scoped view holds a
+      // fixed run of days — 7 of them in Week view, which is shorter than the
+      // viewport, so the "near the bottom" test below is true the moment it
+      // paints and would otherwise widen the buffer by 30 days every 250ms
+      // behind a list that cannot scroll. Its own picker is the navigation.
+      if (activeView !== 'agenda') return;
+
       if (scrollHeight - scrollTop - clientHeight < 350 && !isLoadingFuture) {
         setIsLoadingFuture(true);
         setTimeout(() => {
@@ -1479,7 +1578,7 @@ export default function CalendarPage() {
         }
       }
     },
-    [continuousAgendaDays, selectedDate, currentDate, isLoadingPast, isLoadingFuture],
+    [activeView, continuousAgendaDays, selectedDate, currentDate, isLoadingPast, isLoadingFuture],
   );
 
   return (
@@ -1492,11 +1591,14 @@ export default function CalendarPage() {
       searchPlaceholder="Search events, meetings, tasks, birthdays…"
       mobileActions={
         <div className="flex items-center gap-1.5">
-          {/* Search Button (Mobile ONLY — on desktop, search is in top header) */}
+          {/* Search Button (Mobile ONLY — on desktop, search is in top header).
+           * Both of these are mobile-only, so there is no desktop density to
+           * protect: a phone measured them at 32x32 and 30x27, under the 44px
+           * touch floor. */}
           <button
             type="button"
             onClick={() => setIsSearchOpen((prev) => !prev)}
-            className="md:hidden size-8 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors"
+            className="md:hidden size-11 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             aria-label="Search calendar"
           >
             <svg
@@ -1515,8 +1617,9 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => setIsQuantyDrawerOpen(true)}
-            className="p-1 rounded-xl hover:bg-[#282C35] text-[#FF8C42] hover:text-[#FFB875] transition-all flex items-center justify-center"
+            className="size-11 rounded-xl hover:bg-[#282C35] text-[#FF8C42] hover:text-[#FFB875] transition-all inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             title="Open Quanty AI Copilot"
+            aria-label="Open Quanty AI Copilot"
           >
             <Quanty size={22} expression="happy" bob={false} />
           </button>
@@ -1532,7 +1635,7 @@ export default function CalendarPage() {
               placeholder="Search events, meetings, tasks, birthdays…"
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
+              className="w-full min-h-11 bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
               autoFocus
             />
             <button
@@ -1541,7 +1644,7 @@ export default function CalendarPage() {
                 setIsSearchOpen(false);
                 setSearchFilter('');
               }}
-              className="text-xs text-[#A1A4AC] hover:text-white px-2 py-1"
+              className="min-h-11 shrink-0 px-2 text-xs text-[#A1A4AC] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded-lg"
             >
               Cancel
             </button>
@@ -1584,19 +1687,13 @@ export default function CalendarPage() {
 
           <div className="flex items-center gap-2">
             <div className="flex items-center rounded-lg border border-[#282C35] bg-[#111318] p-0.5">
-              {(
-                [
-                  { key: 'agenda', label: 'Agenda' },
-                  { key: 'week', label: 'Week' },
-                  { key: 'day', label: 'Day' },
-                  { key: 'month', label: 'Month' },
-                ] as const
-              ).map((v) => (
+              {CALENDAR_VIEWS.map((v) => (
                 <button
                   key={v.key}
                   type="button"
-                  onClick={() => setActiveView(v.key)}
-                  className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
+                  onClick={() => selectView(v.key)}
+                  aria-pressed={activeView === v.key}
+                  className={`px-3 py-1 text-xs rounded-md font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     activeView === v.key
                       ? 'bg-[#FF8C42] text-[#111111] font-semibold shadow-sm'
                       : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
@@ -1617,6 +1714,72 @@ export default function CalendarPage() {
           </div>
         </div>
 
+        {/*
+         * Mobile toolbar.
+         *
+         * The toolbar above is `hidden md:flex`, and the picker only draws its own
+         * `‹ ›` once the month grid is expanded — so a phone had no month
+         * navigation, no "Today" and no view switcher at all. It could reach
+         * another month only by dragging the handle open first, and could not
+         * leave Agenda by any route. Two rows rather than one: 375px will not
+         * hold a month name, a stepper and four view chips side by side.
+         */}
+        <div className="md:hidden border-b border-[#282C35]/80 bg-[#0c0c0f] px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="flex min-w-0 items-baseline gap-1.5 truncate text-base font-bold tracking-tight text-[#F5F5F5]">
+              <span className="truncate">{activeMonthName}</span>
+              <span className="font-normal text-[#A1A4AC]">{activeYear}</span>
+            </h2>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => goMonth(-1)}
+                aria-label="Previous month"
+                className="grid size-11 place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] transition-colors hover:bg-[#282C35]/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={() => goMonth(1)}
+                aria-label="Next month"
+                className="grid size-11 place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] transition-colors hover:bg-[#282C35]/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              >
+                ›
+              </button>
+              <button
+                type="button"
+                onClick={goToday}
+                className="min-h-11 rounded-xl border border-[#282C35] bg-[#16181D] px-3 text-xs font-medium text-[#F5F5F5] transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              >
+                Today
+              </button>
+            </div>
+          </div>
+
+          <div
+            className="mt-2 flex items-center gap-1 overflow-x-auto no-scrollbar rounded-xl border border-[#282C35] bg-[#111318] p-0.5"
+            role="group"
+            aria-label="Calendar view"
+          >
+            {CALENDAR_VIEWS.map((v) => (
+              <button
+                key={v.key}
+                type="button"
+                onClick={() => selectView(v.key)}
+                aria-pressed={activeView === v.key}
+                className={`min-h-11 flex-1 rounded-lg px-3 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  activeView === v.key
+                    ? 'bg-[#FF8C42] font-semibold text-[#111111] shadow-sm'
+                    : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
+                }`}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Date picker: drag the handle at the bottom to swap the week strip for the month grid. */}
         <div
           className="border-b border-[#282C35]/80 bg-[#101014] select-none overflow-hidden relative"
@@ -1633,17 +1796,22 @@ export default function CalendarPage() {
                   {MONTH_NAMES[month]} {year}
                 </span>
                 <div className="flex items-center gap-1">
+                  {/* 28px on a mouse, 44 on a finger — the same coarse-pointer
+                   * escape the collapsed day rows below use, so the grid header
+                   * stays compact without putting a sub-floor target on a phone. */}
                   <button
                     type="button"
                     onClick={() => goMonth(-1)}
-                    className="size-7 text-sm text-[#A1A4AC] hover:text-white rounded-lg hover:bg-[#282C35]/80 flex items-center justify-center"
+                    aria-label="Previous month"
+                    className="size-7 [@media(pointer:coarse)]:size-11 text-sm text-[#A1A4AC] hover:text-white rounded-lg hover:bg-[#282C35]/80 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   >
                     ‹
                   </button>
                   <button
                     type="button"
                     onClick={() => goMonth(1)}
-                    className="size-7 text-sm text-[#A1A4AC] hover:text-white rounded-lg hover:bg-[#282C35]/80 flex items-center justify-center"
+                    aria-label="Next month"
+                    className="size-7 [@media(pointer:coarse)]:size-11 text-sm text-[#A1A4AC] hover:text-white rounded-lg hover:bg-[#282C35]/80 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   >
                     ›
                   </button>
@@ -1661,7 +1829,7 @@ export default function CalendarPage() {
 
             <div className="flex-1 overflow-hidden">
               {!isMonthExpanded ? (
-                <div className="grid grid-cols-7 text-center h-[46px] items-center">
+                <div className="grid grid-cols-7 text-center h-[46px] [@media(pointer:coarse)]:h-[52px] items-center">
                   {currentWeekDays.map((d) => {
                     let sphereClass = 'text-[#F5F5F5] hover:bg-[#16181D]';
 
@@ -1685,7 +1853,7 @@ export default function CalendarPage() {
                         <button
                           type="button"
                           onClick={() => selectDate(d.date)}
-                          className={`relative size-9 rounded-full flex flex-col items-center justify-center text-xs transition-all ${sphereClass}`}
+                          className={`relative size-9 [@media(pointer:coarse)]:size-11 rounded-full flex flex-col items-center justify-center text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101014] ${sphereClass}`}
                           aria-label={`${d.dayNum} ${MONTH_NAMES[d.date.getMonth()]}${d.holidayName ? `, ${d.holidayName}` : ''}${dayMarkLabel(d)}`}
                           title={d.holidayName}
                         >
@@ -1701,7 +1869,7 @@ export default function CalendarPage() {
                   {monthWeeks.map((week, weekIdx) => (
                     <div
                       key={`month-week-${weekIdx}`}
-                      className="grid grid-cols-7 text-center h-[38px] items-center"
+                      className="grid grid-cols-7 text-center h-[38px] [@media(pointer:coarse)]:h-11 items-center"
                     >
                       {week.map((d) => {
                         let sphereClass = d.isCurrentMonth
@@ -1739,7 +1907,7 @@ export default function CalendarPage() {
                             <button
                               type="button"
                               onClick={() => selectDate(d.date)}
-                              className={`relative size-8 rounded-full flex flex-col items-center justify-center text-xs transition-all ${sphereClass}`}
+                              className={`relative size-8 [@media(pointer:coarse)]:size-11 rounded-full flex flex-col items-center justify-center text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101014] ${sphereClass}`}
                               aria-label={`${d.dayNum} ${MONTH_NAMES[d.date.getMonth()]}${d.holidayName ? `, ${d.holidayName}` : ''}${dayMarkLabel(marks)}`}
                               title={d.holidayName}
                             >
@@ -1814,7 +1982,23 @@ export default function CalendarPage() {
 
           {!isInitialLoading && !error && (
             <div className="divide-y divide-[#282C35]/60">
-              {continuousAgendaDays.map((item) => {
+              {/* A scoped view is a fixed run of days, so a search that matches
+               * nothing inside it leaves the stream genuinely empty — the endless
+               * agenda never could, which is why nothing said so before. */}
+              {visibleAgendaDays.length === 0 && (
+                <div className="py-12 text-center">
+                  <p className="text-sm font-medium text-[#F5F5F5]">
+                    {searchFilter.trim() ? 'No matches in this range' : 'Nothing scheduled'}
+                  </p>
+                  <p className="mt-1 text-xs text-[#A1A4AC]">
+                    {searchFilter.trim()
+                      ? `Nothing here matches “${searchFilter.trim()}”.`
+                      : 'This range is clear.'}
+                  </p>
+                </div>
+              )}
+
+              {visibleAgendaDays.map((item) => {
                 const isSelected = dayKey(item.date) === dayKey(selectedDate);
                 const hasEvents = item.events.length > 0;
                 const hasHolidays = item.holidays.length > 0;
