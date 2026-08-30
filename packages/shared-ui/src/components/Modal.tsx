@@ -123,7 +123,7 @@ export const Modal: React.FC<ModalProps> = ({
             {showCloseButton && (
               <button
                 onClick={onClose}
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-colors"
+                className="grid size-8 shrink-0 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] [@media(pointer:coarse)]:size-11"
                 style={{ color: MUTED, border: `1px solid ${BORDER}` }}
                 aria-label="Close modal"
               >
