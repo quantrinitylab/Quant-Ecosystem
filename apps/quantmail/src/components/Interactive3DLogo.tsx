@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { appDisplayName } from './BrandWordmark';
 
 export type LogoAppType = 'mail' | 'calendar' | 'drive' | 'contacts' | 'code';
 
@@ -380,7 +381,7 @@ export function Interactive3DLogo({
       onMouseDown={() => setIsPressed(true)}
       onMouseUp={() => setIsPressed(false)}
       onClick={handleClick}
-      title={`Quant${app.charAt(0).toUpperCase() + app.slice(1)}`}
+      title={appDisplayName(app)}
     >
       {/* 3D Hardware Accelerated Canvas */}
       <motion.div

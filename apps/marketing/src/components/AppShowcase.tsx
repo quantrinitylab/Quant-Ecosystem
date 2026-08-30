@@ -56,7 +56,7 @@ export const QUANT_APPS: AppInfo[] = [
     category: 'Productivity',
   },
   {
-    name: 'Quant Code',
+    name: 'Quant Git',
     description: 'Cloud IDE with AI pair programming',
     icon: 'code',
     category: 'Development',

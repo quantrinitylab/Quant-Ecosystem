@@ -4,32 +4,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { showToast } from './InboxToast';
 import { IconChevronDown, IconDownload, IconPaperclip, MimeTypeIcon } from './icons';
+import { repairMojibake, useSafeEmailHtml } from '../lib/safe-html';
 import type { Email, EmailAttachment } from '../types';
-
-export function sanitizeEmailText(text?: string): string {
-  if (!text) return '';
-  let clean = text;
-  try {
-    clean = decodeURIComponent(escape(text));
-  } catch {
-    clean = text
-      .replace(/ðŸŽ‰/g, '🎉')
-      .replace(/ðŸ‘\s*[\x80-\xBF]?/g, '👍')
-      .replace(/ðŸ”¥/g, '🔥')
-      .replace(/ðŸš€/g, '🚀')
-      .replace(/âœ…/g, '✅')
-      .replace(/â ¤ï¸ ?/g, '❤️')
-      .replace(/ðŸ˜Š/g, '😊')
-      .replace(/ðŸ’¡/g, '💡')
-      .replace(/ðŸ’¬/g, '💬')
-      .replace(/âš\xa0ï¸ ?/g, '⚠️')
-      .replace(/â€™|â€˜/g, "'")
-      .replace(/â€œ|â€ /g, '"')
-      .replace(/â€“|â€”/g, '—')
-      .replace(/â€¦/g, '…');
-  }
-  return clean.replace(/Â[\u00A0\s]?/g, ' ').replace(/\u00A0/g, ' ');
-}
 
 export interface EmailLetterCardProps {
   email: Email;
@@ -39,7 +15,12 @@ export interface EmailLetterCardProps {
 export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps) {
   const [showQuoted, setShowQuoted] = useState(false);
 
-  const rawBody = sanitizeEmailText(email.bodyText || email.snippet || '');
+  // `bodyHtml` is attacker-controlled — it arrives over SMTP from third parties.
+  // DOMPurify runs last inside this hook and yields '' when nothing safe is left,
+  // in which case the plain-text body below is rendered instead.
+  const safeHtml = useSafeEmailHtml(email.bodyHtml);
+
+  const rawBody = repairMojibake(email.bodyText || email.snippet || '');
 
   // Parse quoted lines starting with '>'
   const lines = rawBody.split('\n');
@@ -68,10 +49,10 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
     <div className={`relative ${className}`}>
       {/* Email Body */}
       <div className="text-sm leading-7 text-[#F5F5F5] sm:text-[15px]">
-        {email.bodyHtml ? (
+        {safeHtml ? (
           <div
             className="email-html-content prose prose-invert max-w-none break-words font-sans font-normal leading-7 text-[#F5F5F5]"
-            dangerouslySetInnerHTML={{ __html: sanitizeEmailText(email.bodyHtml) }}
+            dangerouslySetInnerHTML={{ __html: safeHtml }}
           />
         ) : (
           <div className="space-y-3 whitespace-pre-wrap font-sans font-normal leading-7 text-[#F5F5F5]">
@@ -141,44 +122,46 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
               };
 
               return (
-                <div
+                <button
                   key={att.id}
+                  type="button"
                   onClick={handleDownload}
-                  className="group flex cursor-pointer items-center gap-3 rounded-xl bg-[#111318] p-3 shadow-[inset_0_0_0_1px_#282C35] transition-colors hover:bg-[#16181D] hover:shadow-[inset_0_0_0_1px_#5C3016]"
+                  aria-label={`Download ${att.filename}`}
+                  className="group flex w-full min-h-touch items-center gap-3 rounded-xl bg-[#111318] p-3 text-left shadow-[inset_0_0_0_1px_#282C35] transition-colors hover:bg-[#16181D] hover:shadow-[inset_0_0_0_1px_#5C3016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
-                  <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#090A0C] text-[#A1A4AC]">
+                  <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#090A0C] text-[#A1A4AC]">
                     {isImg && att.url ? (
                       <img
                         src={att.url}
-                        alt={att.filename}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
                         className="h-full w-full rounded-lg object-cover"
                       />
                     ) : (
                       <MimeTypeIcon mimeType={att.mimeType} size={20} />
                     )}
-                  </div>
+                  </span>
 
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className="truncate text-xs font-semibold text-[#F5F5F5]"
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className="block truncate text-xs font-semibold text-[#F5F5F5]"
                       title={att.filename}
                     >
                       {att.filename}
-                    </p>
-                    <p className="text-[10px] text-[#A1A4AC]">
+                    </span>
+                    <span className="block text-[10px] text-[#A1A4AC]">
                       {att.size > 0 ? `${(att.size / 1024).toFixed(1)} KB` : 'Attachment'}
-                    </p>
-                  </div>
+                    </span>
+                  </span>
 
-                  <button
-                    type="button"
-                    onClick={handleDownload}
-                    className="grid size-9 place-items-center rounded-lg text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                    aria-label={`Download ${att.filename}`}
+                  <span
+                    className="grid size-9 shrink-0 place-items-center rounded-lg text-[#A1A4AC] transition-colors group-hover:text-[#FF8C42]"
+                    aria-hidden="true"
                   >
                     <IconDownload size={16} />
-                  </button>
-                </div>
+                  </span>
+                </button>
               );
             })}
           </div>

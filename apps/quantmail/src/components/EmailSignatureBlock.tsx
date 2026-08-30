@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useSafeEmailHtml } from '../lib/safe-html';
 
 interface EmailSignatureBlockProps {
   signatureHtml: string;
@@ -14,6 +15,10 @@ interface EmailSignatureBlockProps {
  * keeping the email body clean and focused on content.
  */
 export function EmailSignatureBlock({ signatureHtml, senderName }: EmailSignatureBlockProps) {
+  // Signature markup comes from the sending client, so it gets the same
+  // DOMPurify pass as the message body it was split out of.
+  const safeHtml = useSafeEmailHtml(signatureHtml);
+
   const isSignature = useMemo(() => {
     if (!signatureHtml) return false;
     // Detect common signature patterns
@@ -30,7 +35,7 @@ export function EmailSignatureBlock({ signatureHtml, senderName }: EmailSignatur
     );
   }, [signatureHtml]);
 
-  if (!signatureHtml || !isSignature) return null;
+  if (!safeHtml || !isSignature) return null;
 
   return (
     <div className="email-signature-block">
@@ -39,10 +44,7 @@ export function EmailSignatureBlock({ signatureHtml, senderName }: EmailSignatur
         <span className="signature-label">Signature</span>
         <span />
       </div>
-      <div
-        className="signature-content"
-        dangerouslySetInnerHTML={{ __html: signatureHtml }}
-      />
+      <div className="signature-content" dangerouslySetInnerHTML={{ __html: safeHtml }} />
     </div>
   );
 }

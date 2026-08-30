@@ -75,7 +75,7 @@ const defaultAppHealth: AppHealth[] = [
   { name: 'QuantMeet', status: 'healthy', port: 3004, version: '1.3.2' },
   { name: 'QuantNotes', status: 'healthy', port: 3005, version: '1.7.0' },
   { name: 'QuantTasks', status: 'healthy', port: 3006, version: '1.4.1' },
-  { name: 'QuantCode', status: 'degraded', port: 3007, version: '1.2.0' },
+  { name: 'QuantGit', status: 'degraded', port: 3007, version: '1.2.0' },
   { name: 'QuantCI', status: 'healthy', port: 3008, version: '1.1.0' },
   { name: 'QuantSync', status: 'healthy', port: 3009, version: '1.6.2' },
   { name: 'QuantAI', status: 'healthy', port: 3010, version: '2.3.0' },

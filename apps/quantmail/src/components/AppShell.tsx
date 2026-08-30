@@ -9,8 +9,8 @@ import { QuantMailLogo } from './QuantMailLogo';
 import { QuantCalendarLogo } from './QuantCalendarLogo';
 import { QuantDriveLogo } from './QuantDriveLogo';
 import { QuantContactsLogo } from './QuantContactsLogo';
-import { QuantCodeLogo } from './QuantCodeLogo';
-import { BrandWordmark } from './BrandWordmark';
+import { QuantGitLogo } from './QuantGitLogo';
+import { BrandWordmark, appDisplayName } from './BrandWordmark';
 import { Interactive3DLogo, type LogoAppType } from './Interactive3DLogo';
 import { EcosystemWarpMatrix } from './EcosystemWarpMatrix';
 import { QuantumSplashIntro } from './QuantumSplashIntro';
@@ -117,7 +117,7 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
   },
   {
     id: 'code',
-    label: 'Code',
+    label: 'Git',
     path: '/codehub',
     icon: (
       <svg
@@ -527,7 +527,7 @@ export function AppShell({
                 <div
                   className="flex items-center gap-3 cursor-pointer select-none group"
                   onClick={handleLogoClick}
-                  title={`Quant${currentApp.charAt(0).toUpperCase() + currentApp.slice(1)} — Click to refresh`}
+                  title={`${appDisplayName(currentApp)} — Click to refresh`}
                 >
                   {currentApp === 'calendar' ? (
                     <QuantCalendarLogo size={36} />
@@ -536,7 +536,7 @@ export function AppShell({
                   ) : currentApp === 'contacts' ? (
                     <QuantContactsLogo size={36} />
                   ) : currentApp === 'code' ? (
-                    <QuantCodeLogo size={36} />
+                    <QuantGitLogo size={36} />
                   ) : (
                     <QuantMailLogo size={38} unreadCount={unreadCount} onClick={handleLogoClick} />
                   )}
@@ -581,13 +581,13 @@ export function AppShell({
                       aria-label="Search"
                       placeholder={
                         searchPlaceholder ||
-                        (currentApp === 'calendar'
-                          ? 'Search in QuantCalendar…'
-                          : currentApp === 'drive'
-                            ? 'Search in QuantDrive…'
-                            : currentApp === 'contacts'
-                              ? 'Search in QuantContacts…'
-                              : 'Search in QuantMail (sender, subject, keyword)…')
+                        // Every app name comes from `appDisplayName`, so a rename
+                        // lands here too. The chain this replaced had no `code`
+                        // case, so QuantGit's search bar read "Search in
+                        // QuantMail (sender, subject, keyword)…".
+                        (currentApp === 'mail'
+                          ? 'Search in QuantMail (sender, subject, keyword)…'
+                          : `Search in ${appDisplayName(currentApp)}…`)
                       }
                       className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none"
                     />
@@ -631,9 +631,7 @@ export function AppShell({
                       <circle cx="11" cy="11" r="7" />
                       <path d="m20 20-4-4" />
                     </svg>
-                    <span>
-                      Search in Quant{currentApp.charAt(0).toUpperCase() + currentApp.slice(1)}…
-                    </span>
+                    <span>Search in {appDisplayName(currentApp)}…</span>
                   </div>
                 )}
               </div>

@@ -1,55 +1,32 @@
 'use client';
 
-export type QuantLogoProps = {
-  size?: number;
-  className?: string;
-  title?: string;
-};
+import { AppMark, MARK_VOID, type QuantLogoProps } from './AppMark';
 
+/**
+ * QuantContacts' mark: a contact card, not a bare avatar. The two detail lines are
+ * what separate "a person" from "a person's record", and they are also what keeps
+ * this distinguishable from the sender avatars used throughout the inbox.
+ */
 export function QuantContactsLogo({
   size = 32,
   className = '',
   title = 'QuantContacts',
 }: QuantLogoProps) {
   return (
-    <span
-      className={`inline-flex items-center justify-center shrink-0 ${className}`}
-      style={{ width: size, height: size }}
-      role="img"
-      aria-label={title}
-      title={title}
-    >
-      <svg
-        viewBox="0 0 32 32"
-        width={size}
-        height={size}
-        className="w-full h-full"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <defs>
-          <linearGradient
-            id="qcnt-grad"
-            x1="4"
-            y1="4"
-            x2="28"
-            y2="28"
-            gradientUnits="userSpaceOnUse"
-          >
-            <stop stopColor="#FF8C42" />
-            <stop offset="1" stopColor="#FFA800" />
-          </linearGradient>
-        </defs>
-        <rect width="32" height="32" rx="8" fill="#111318" stroke="#283042" strokeWidth="1" />
-        <circle cx="16" cy="12.5" r="4" stroke="url(#qcnt-grad)" strokeWidth="1.8" />
-        <path
-          d="M8.5 24.5C8.5 20.5 11.5 18.5 16 18.5C20.5 18.5 23.5 20.5 23.5 24.5"
-          stroke="url(#qcnt-grad)"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-      </svg>
-    </span>
+    <AppMark size={size} className={className} title={title}>
+      {(brand) => (
+        <>
+          <rect x="6.6" y="8.6" width="18.8" height="14.8" rx="2.8" fill={MARK_VOID} />
+          <circle cx="12.6" cy="14.6" r="2.35" fill={brand} />
+          <path
+            d="M8.9 21.4C8.9 18.9 10.6 17.6 12.6 17.6C14.6 17.6 16.3 18.9 16.3 21.4Z"
+            fill={brand}
+          />
+          <rect x="18.2" y="13.6" width="5.4" height="1.5" rx="0.75" fill={brand} />
+          <rect x="18.2" y="17" width="4" height="1.5" rx="0.75" fill={brand} />
+        </>
+      )}
+    </AppMark>
   );
 }
 

@@ -1,16 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Quanty } from './Quanty';
-import { QuantyCopilotDrawer, type QuantyEmailAction } from './QuantyCopilotDrawer';
-import { QuantDrivePickerModal } from './QuantDrivePickerModal';
+import { type QuantyEmailAction } from './QuantyCopilotDrawer';
 import { InsertLinkModal } from './InsertLinkModal';
-import { ScheduleSendModal } from './ScheduleSendModal';
 import { showToast } from './InboxToast';
 import { formatBytes } from '../lib/format-bytes';
 import { useAuth } from '../providers/auth-provider';
+import { useDeferredMount } from '../hooks/useDeferredMount';
 import { RecipientChipInput, type RecipientOption } from './RecipientChipInput';
 import {
   IconArrowRight,
@@ -28,6 +28,28 @@ import {
   IconX,
 } from './icons';
 import { useContacts } from '../hooks/useContacts';
+
+/**
+ * The composer's three heavy overlays, split out of its chunk.
+ *
+ * Between them they are ~1,530 lines — the Quanty drawer (662), the schedule-send
+ * date/time picker (554) and the Drive file browser (315) — and each sits behind
+ * an explicit toolbar action. Writing a mail touches none of them, so none of them
+ * belongs in the code you download to start typing.
+ *
+ * `InsertLinkModal` is deliberately left as a static import: at 129 lines it is
+ * smaller than the round trip needed to fetch it would cost, and a link dialog
+ * that stutters on open is a worse trade than the bytes.
+ */
+const QuantyCopilotDrawer = dynamic(() => import('./QuantyCopilotDrawer'), { ssr: false });
+const ScheduleSendModal = dynamic(
+  () => import('./ScheduleSendModal').then((m) => m.ScheduleSendModal),
+  { ssr: false },
+);
+const QuantDrivePickerModal = dynamic(
+  () => import('./QuantDrivePickerModal').then((m) => m.QuantDrivePickerModal),
+  { ssr: false },
+);
 
 export interface Attachment {
   id: string;
@@ -232,6 +254,12 @@ export function EmailComposer({
   const [showThreeDotsMenu, setShowThreeDotsMenu] = useState(false);
   const [showSendOptionsDropdown, setShowSendOptionsDropdown] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+
+  // Latched so the lazy chunks above are fetched on first open, not on mount —
+  // and so each overlay keeps its state once it has been opened.
+  const showQuantyDrawer = useDeferredMount(isQuantyDrawerOpen);
+  const showDrivePicker = useDeferredMount(isDrivePickerOpen);
+  const showSchedule = useDeferredMount(showScheduleModal);
 
   // Template / Structured Mode Toggle (default: false for fluid modern email composer)
   const [isTemplateMode, setIsTemplateMode] = useState(false);
@@ -1507,20 +1535,24 @@ export function EmailComposer({
       </div>
 
       {/* Schedule Send Modal (Hidden during Print) */}
-      <ScheduleSendModal
-        isOpen={showScheduleModal}
-        onClose={() => setShowScheduleModal(false)}
-        onSchedule={(scheduledAt) => {
-          void handleSend(scheduledAt);
-        }}
-      />
+      {showSchedule && (
+        <ScheduleSendModal
+          isOpen={showScheduleModal}
+          onClose={() => setShowScheduleModal(false)}
+          onSchedule={(scheduledAt) => {
+            void handleSend(scheduledAt);
+          }}
+        />
+      )}
 
       {/* QuantDrive File Picker Modal (Hidden during Print) */}
-      <QuantDrivePickerModal
-        isOpen={isDrivePickerOpen}
-        onClose={() => setIsDrivePickerOpen(false)}
-        onSelectFiles={handleAttachFromDrive}
-      />
+      {showDrivePicker && (
+        <QuantDrivePickerModal
+          isOpen={isDrivePickerOpen}
+          onClose={() => setIsDrivePickerOpen(false)}
+          onSelectFiles={handleAttachFromDrive}
+        />
+      )}
 
       {/* Insert Link Modal (Hidden during Print) */}
       <InsertLinkModal
@@ -1530,12 +1562,14 @@ export function EmailComposer({
       />
 
       {/* Quanty Copilot Drawer (Hidden during Print) */}
-      <QuantyCopilotDrawer
-        isOpen={isQuantyDrawerOpen}
-        onClose={() => setIsQuantyDrawerOpen(false)}
-        isComposeContext={true}
-        onApplyAction={handleApplyQuantyAction}
-      />
+      {showQuantyDrawer && (
+        <QuantyCopilotDrawer
+          isOpen={isQuantyDrawerOpen}
+          onClose={() => setIsQuantyDrawerOpen(false)}
+          isComposeContext={true}
+          onApplyAction={handleApplyQuantyAction}
+        />
+      )}
     </div>
   );
 }
