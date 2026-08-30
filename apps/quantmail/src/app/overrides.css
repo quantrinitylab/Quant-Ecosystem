@@ -504,6 +504,37 @@
   }
 }
 
+/* Touch pointers get the 44px floor. This page is styled by hand here rather
+   than in Tailwind, so it never picked up the `[@media(pointer:coarse)]:`
+   utilities the rest of the app enforces. Measured on a Pixel 8 at 375x812
+   against a real label: the name field 41px, the ten colour swatches 22x22, the
+   row's rename and delete buttons 40x40, and the delete confirmation's Yes / No
+   43x28 and 38x28.
+
+   The swatches grow rather than gaining an invisible hit band: at a 30px pitch
+   (22 + 8 gap) a 44px band would overlap its neighbours, and a tap landing on
+   the wrong colour is worse than one landing on nothing. Ten 44px swatches wrap
+   to two rows, which is the whole cost -- the create card goes 161 -> 238px and
+   the rename editor's row 157 -> 234px, both far inside the viewport. */
+@media (pointer: coarse) {
+  .labels-card input[type='text'],
+  .labels-row-editor input[type='text'] {
+    min-height: 44px;
+  }
+  .labels-color-grid button {
+    width: 44px;
+    height: 44px;
+  }
+  .icon-action {
+    width: 44px;
+    height: 44px;
+  }
+  .labels-confirm button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 /* --- 8. Polish round: full sender names, Quanty trigger, contextual FAB -----
    (a) Mail rows: sender name + subject use the full row width; ellipsis only
        when genuinely out of space (kills the hard clipping Kumar reported).
