@@ -16,7 +16,7 @@ export default function SpamPage() {
         label: 'Not spam',
         pendingLabel: 'Rescuing…',
         successToast: 'Moved to inbox',
-        run: (email) => apiClient.markNotSpam(email.id),
+        run: (id) => apiClient.markNotSpam(id),
       }}
     />
   );

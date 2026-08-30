@@ -616,6 +616,26 @@ export function findConversation(
 }
 
 /**
+ * The stored rows a list of messages stands for, as ids.
+ *
+ * Not the same thing as the messages themselves: `collapseDuplicateSends` folds a
+ * send and its delivery copy into one bubble, so two visible messages can be four
+ * rows in the mailbox. An action given only the visible ids moves half of a
+ * conversation — the live inbox listed a thread the archive was listing at the same
+ * moment, and it survived a reload.
+ *
+ * De-duplicated, because a message and a folded copy can name the same row, and
+ * empty ids are dropped so an optimistic copy that has not been issued an id yet
+ * cannot become a request for `undefined`.
+ */
+export function messageRowIds(messages: readonly Email[] | null | undefined): string[] {
+  if (!Array.isArray(messages)) return [];
+  return Array.from(
+    new Set(messages.flatMap((m) => [m.id, ...(m.collapsedIds ?? [])]).filter(Boolean)),
+  );
+}
+
+/**
  * Every message a conversation is made of, as ids.
  *
  * What a mailbox action has to be given. `thread.id` is the *newest message's* id,
@@ -624,21 +644,10 @@ export function findConversation(
  * straight back one shorter. Read state was worse than wasteful — a row is unread
  * when *any* inbound message in it is, so marking one message read left the row
  * bold with no way to clear it.
- *
- * De-duplicated, because a message and a folded copy can name the same row, and
- * empty ids are dropped so an optimistic copy that has not been issued an id yet
- * cannot become a request for `undefined`.
- *
- * `collapsedIds` is read as well as `id`. A visible bubble can stand for two stored
- * rows — see `collapseDuplicateSends` — and an action given only the survivors
- * moves half of a conversation: the live inbox listed an archived self-sent thread
- * because two of its four rows were never asked to move.
  */
 export function threadMessageIds(thread: ConversationThread | null | undefined): string[] {
-  if (!thread || !Array.isArray(thread.messages)) return [];
-  return Array.from(
-    new Set(thread.messages.flatMap((m) => [m.id, ...(m.collapsedIds ?? [])]).filter(Boolean)),
-  );
+  if (!thread) return [];
+  return messageRowIds(thread.messages);
 }
 
 /**

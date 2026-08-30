@@ -65,9 +65,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   ) => {
     const inputId = id || `input-${name || Math.random().toString(36).substring(2, 8)}`;
 
+    /**
+     * Every size keeps a 44px floor until `sm`, then drops to its designed
+     * height. A phone measured `sm`/`md` fields at 32px and 36px, which is under
+     * the touch minimum for the whole suite at once — these classes are the only
+     * place the height of an `input-*` field is decided.
+     */
     const sizeStyles: Record<string, string> = {
-      sm: 'h-8 px-2.5 text-xs',
-      md: 'h-9 px-3 text-sm',
+      sm: 'h-11 sm:h-8 px-2.5 text-xs',
+      md: 'h-11 sm:h-9 px-3 text-sm',
       lg: 'h-11 px-4 text-base',
     };
 

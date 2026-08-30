@@ -1,65 +1,34 @@
 'use client';
 
-export type QuantLogoProps = {
-  size?: number;
-  className?: string;
-  title?: string;
-};
+import { AppMark, MARK_VOID, type QuantLogoProps } from './AppMark';
 
+/**
+ * QuantCalendar's mark. The page is knocked out of the brand plate and only the
+ * header rail and the current-day block are painted back in — a filled two-tone
+ * shape survives the 16px sidebar rail, which the 1.8-weight outline grid this
+ * replaced did not.
+ */
 export function QuantCalendarLogo({
   size = 32,
   className = '',
   title = 'QuantCalendar',
 }: QuantLogoProps) {
   return (
-    <span
-      className={`inline-flex items-center justify-center shrink-0 ${className}`}
-      style={{ width: size, height: size }}
-      role="img"
-      aria-label={title}
-      title={title}
-    >
-      <svg
-        viewBox="0 0 32 32"
-        width={size}
-        height={size}
-        className="w-full h-full"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <defs>
-          <linearGradient
-            id="qcal-grad"
-            x1="4"
-            y1="4"
-            x2="28"
-            y2="28"
-            gradientUnits="userSpaceOnUse"
-          >
-            <stop stopColor="#FF8C42" />
-            <stop offset="1" stopColor="#FFA800" />
-          </linearGradient>
-        </defs>
-        <rect width="32" height="32" rx="8" fill="#111318" stroke="#283042" strokeWidth="1" />
-        <rect
-          x="6.5"
-          y="7.5"
-          width="19"
-          height="18"
-          rx="3"
-          stroke="url(#qcal-grad)"
-          strokeWidth="1.8"
-        />
-        <path d="M6.5 13.5H25.5" stroke="url(#qcal-grad)" strokeWidth="1.8" />
-        <path
-          d="M11 5.5V8.5M21 5.5V8.5"
-          stroke="url(#qcal-grad)"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-        <circle cx="16" cy="19" r="2.2" fill="url(#qcal-grad)" />
-      </svg>
-    </span>
+    <AppMark size={size} className={className} title={title}>
+      {(brand) => (
+        <>
+          {/* Binding tabs first so the header rail crops them, as on a real pad. */}
+          <rect x="11.4" y="5.8" width="1.8" height="4.4" rx="0.9" fill={MARK_VOID} />
+          <rect x="18.8" y="5.8" width="1.8" height="4.4" rx="0.9" fill={MARK_VOID} />
+          <rect x="7.2" y="9" width="17.6" height="14.6" rx="2.6" fill={MARK_VOID} />
+          <path
+            d="M9.8 9H22.2A2.6 2.6 0 0 1 24.8 11.6V12.6H7.2V11.6A2.6 2.6 0 0 1 9.8 9Z"
+            fill={brand}
+          />
+          <rect x="13.9" y="15.8" width="4.2" height="4.2" rx="1.1" fill={brand} />
+        </>
+      )}
+    </AppMark>
   );
 }
 

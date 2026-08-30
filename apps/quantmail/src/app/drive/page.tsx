@@ -6,6 +6,7 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { AIMemoryPanel } from '../../components/AIMemoryPanel';
 import { PageTransition } from '../../components/PageTransition';
+import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useDrive } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
@@ -759,11 +760,7 @@ export default function DrivePage() {
           {!loading && !error && filteredItems.length === 0 && (
             <div className="text-center py-16 space-y-4">
               <div className="flex justify-center">
-                <img
-                  src="/quant-drive-logo.png"
-                  alt="Drive"
-                  className="size-28 object-contain transition-transform hover:scale-105"
-                />
+                <QuantDriveLogo size={104} title="Drive" />
               </div>
               <h3 className="text-xl font-extrabold text-[#F5F5F5]">
                 {searchQuery ? 'No matching files found' : 'This folder is empty'}

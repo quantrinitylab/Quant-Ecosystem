@@ -16,7 +16,7 @@ export default function ArchivePage() {
         label: 'Move to inbox',
         pendingLabel: 'Moving…',
         successToast: 'Moved back to inbox',
-        run: (email) => apiClient.unarchiveEmail(email.id),
+        run: (id) => apiClient.unarchiveEmail(id),
       }}
     />
   );

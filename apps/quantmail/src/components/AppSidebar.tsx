@@ -190,7 +190,7 @@ const NAV_GROUPS: Array<{
       { id: 'calendar', label: 'Calendar', icon: 'calendar', path: '/calendar', desktopOnly: true },
       { id: 'contacts', label: 'Contacts', icon: 'contacts', path: '/contacts', desktopOnly: true },
       { id: 'drive', label: 'Drive', icon: 'drive', path: '/drive', desktopOnly: true },
-      { id: 'code', label: 'Code', icon: 'code', path: '/codehub', desktopOnly: true },
+      { id: 'code', label: 'Git', icon: 'code', path: '/codehub', desktopOnly: true },
     ],
   },
   {

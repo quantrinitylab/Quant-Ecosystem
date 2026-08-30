@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,20 +11,28 @@ import { showToast } from './InboxToast';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
 import { MessageKindBadge } from './MessageKindBadge';
-import { QuantyCopilotDrawer } from './QuantyCopilotDrawer';
 import { Quanty } from './Quanty';
 import { IconChat, IconMail } from './icons';
 import {
   findConversation,
   groupEmailsIntoThreads,
   messageKindOf,
+  messageRowIds,
   summarizeParticipants,
   threadKindMix,
   threadParticipants,
 } from '../lib/threading';
 import { invalidateMailLists } from '../lib/offline/folders';
 import { useAuth } from '../providers/auth-provider';
+import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInbox } from '../hooks/useInbox';
+
+/**
+ * The thread reader is what a mail click lands on, so its chunk is on the
+ * critical path — and Quanty's drawer is not. Deferred until the assistant is
+ * first opened; latched from then on so the conversation survives a close.
+ */
+const QuantyCopilotDrawer = dynamic(() => import('./QuantyCopilotDrawer'), { ssr: false });
 
 function formatMessageDate(value?: string | Date): string {
   if (!value) return '';
@@ -99,6 +108,7 @@ export function ConversationalThreadView({
   const [quickReplyText, setQuickReplyText] = useState('');
   const [isSendingQuickReply, setIsSendingQuickReply] = useState(false);
   const [isQuantyOpen, setIsQuantyOpen] = useState(false);
+  const showQuanty = useDeferredMount(isQuantyOpen);
   const [replyError, setReplyError] = useState<string | null>(null);
 
   /**
@@ -192,12 +202,16 @@ export function ConversationalThreadView({
   /**
    * What the header's Archive and Trash buttons act on: the conversation, all of it.
    *
+   * `messageRowIds`, not `messages.map(m => m.id)`, because a bubble can stand for
+   * two stored rows — a send and its delivery copy — and moving only the visible
+   * half left the conversation in the inbox and the archive at once.
+   *
    * Falls back to the id in the URL when the messages have not arrived yet, so the
    * button is never wired to an empty list — a request for one id that turns out to
    * be a thread id is still better than a request for nothing.
    */
   const conversationMessageIds = useMemo(() => {
-    const ids = Array.from(new Set(messages.map((m) => m.id).filter(Boolean)));
+    const ids = messageRowIds(messages);
     return ids.length > 0 ? ids : [threadId].filter(Boolean);
   }, [messages, threadId]);
 
@@ -1529,18 +1543,20 @@ export function ConversationalThreadView({
       </div>
 
       {/* Quanty Assistant Copilot Drawer */}
-      <QuantyCopilotDrawer
-        isOpen={isQuantyOpen}
-        onClose={() => setIsQuantyOpen(false)}
-        contextEmail={primaryMessage}
-        contextThreadSubject={threadSubject}
-        onInsertReply={(text) => {
-          setQuickReplyText(text);
-          setTimeout(() => {
-            document.getElementById('chatbot-reply-input')?.focus();
-          }, 50);
-        }}
-      />
+      {showQuanty && (
+        <QuantyCopilotDrawer
+          isOpen={isQuantyOpen}
+          onClose={() => setIsQuantyOpen(false)}
+          contextEmail={primaryMessage}
+          contextThreadSubject={threadSubject}
+          onInsertReply={(text) => {
+            setQuickReplyText(text);
+            setTimeout(() => {
+              document.getElementById('chatbot-reply-input')?.focus();
+            }, 50);
+          }}
+        />
+      )}
     </div>
   );
 }

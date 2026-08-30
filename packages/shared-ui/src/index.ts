@@ -444,7 +444,7 @@ export { useOptimisticAction } from './hooks/useOptimisticAction';
 export type { UseOptimisticActionReturn } from './hooks/useOptimisticAction';
 
 // Sanitization utilities
-export { sanitizeHtmlContent, sanitizeCodeHighlight } from './utils/sanitize';
+export { sanitizeHtmlContent, sanitizeEmailHtml, sanitizeCodeHighlight } from './utils/sanitize';
 
 // QuantLive components
 export {

@@ -67,7 +67,7 @@ const CROSS_APP_COMMANDS: CommandPaletteItem[] = [
   },
   {
     id: 'nav-code',
-    label: 'Go to QuantCode (CodeHub)',
+    label: 'Go to QuantGit (CodeHub)',
     group: 'Workspace',
     shortcut: 'G K',
     action: () => {

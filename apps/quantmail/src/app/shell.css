@@ -154,7 +154,12 @@
 .folder-row-action {
   flex: 0 0 auto;
   align-self: center;
-  padding: 0.35rem 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 0.85rem;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
   font-size: 12px;
@@ -171,9 +176,27 @@
   background: #2B1A11;
   color: #FF8C42;
 }
+.folder-row-action:focus-visible {
+  outline: 2px solid #FF8C42;
+  outline-offset: 2px;
+  opacity: 1;
+}
 .folder-row-action:disabled {
   opacity: 0.5;
   pointer-events: none;
+}
+
+/* How many messages the conversation on this row is made of. Only rendered
+   past one, so a single-message row stays quiet. */
+.folder-row-count {
+  flex: 0 0 auto;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid #282C35;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #A1A4AC;
+  white-space: nowrap;
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
