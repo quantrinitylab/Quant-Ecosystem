@@ -98,7 +98,7 @@ function BrandLockup({ compact = false }: { compact?: boolean }) {
       className="auth-brand-lockup flex items-center gap-3"
       aria-label={quantMailAuthLockup.accessibleName}
     >
-      <QuantMailLogo size={compact ? 32 : 40} showBadge={false} />
+      <QuantMailLogo size={compact ? 32 : 40} showBadge={false} interactive={false} />
       <div className="flex flex-col" aria-hidden="true">
         <BrandWordmark app="mail" size={compact ? 'text-lg' : 'text-xl'} />
         <span className="auth-byline">{quantMailAuthLockup.byline}</span>

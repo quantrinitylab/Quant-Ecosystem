@@ -472,7 +472,7 @@ function ReadingPane({
       <section className="reading-pane reading-pane-empty" aria-label="Message preview">
         <div className="reading-ambient" aria-hidden="true" />
         <div className="reading-empty-content">
-          <QuantMailLogo />
+          <QuantMailLogo interactive={false} />
           <p className="reading-eyebrow mt-4">Zero-noise workspace</p>
           <h2>
             Choose the signal.

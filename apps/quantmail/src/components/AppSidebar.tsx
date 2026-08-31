@@ -217,7 +217,7 @@ export function AppSidebar() {
           onClick={() => router.push('/')}
           title="QuantMail — Go to Inbox"
         >
-          <QuantMailLogo size={36} showBadge={false} />
+          <QuantMailLogo size={36} showBadge={false} interactive={false} />
           <BrandWordmark app="mail" size="text-lg" />
         </div>
         <div className="flex items-center gap-2">

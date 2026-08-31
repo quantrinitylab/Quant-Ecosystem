@@ -149,7 +149,7 @@ export default function WorkspacesPage() {
           isOpen={showCreate}
           onClose={() => setShowCreate(false)}
           title="New workspace"
-          description="A shared space for one project — mail, drive, calendar and CodeHub together."
+          description="A shared space for one project — mail, drive, calendar and QuantGit together."
           footer={
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setShowCreate(false)}>

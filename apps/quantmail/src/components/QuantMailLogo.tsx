@@ -10,8 +10,14 @@ interface QuantMailLogoProps {
   showBadge?: boolean;
   className?: string;
   onClick?: () => void;
-  variant?: string;
+  /**
+   * `false` renders the mark as decoration: no click target, no pointer cursor,
+   * no tooltip, and `aria-hidden` so a screen reader reads the wordmark beside
+   * it instead of an unnamed graphic. Default `true` for the surfaces where
+   * tapping the mark really is the refresh gesture.
+   */
   interactive?: boolean;
+  /** Accessible name and tooltip when interactive. Defaults to the unread summary. */
   title?: string;
 }
 
@@ -29,6 +35,8 @@ export function QuantMailLogo({
   showBadge = true,
   className = '',
   onClick,
+  interactive = true,
+  title,
 }: QuantMailLogoProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const router = useRouter();
@@ -332,7 +340,7 @@ export function QuantMailLogo({
   }, []); // Run once on mount!
 
   // Pointer Interaction
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const nx = (e.clientX - rect.left) / rect.width - 0.5;
     const ny = (e.clientY - rect.top) / rect.height - 0.5;
@@ -363,29 +371,29 @@ export function QuantMailLogo({
     }, 650);
 
     // Dispatch global refresh event
+    if (onClick) {
+      // The caller owns the gesture. Dispatching `quant:refresh` here as well
+      // is how the shell header ended up firing it three times per click:
+      // once here, once inside the handler passed in, and once more when the
+      // click bubbled to the wrapper that carried the same handler.
+      onClick();
+      return;
+    }
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('quant:refresh'));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    if (onClick) {
-      onClick();
-    } else {
-      router.push('/');
-    }
+    router.push('/');
   }, [onClick, router]);
 
-  return (
-    <div
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={handleMouseLeave}
-      onClick={handleClick}
-      className={`relative inline-flex items-center justify-center cursor-pointer select-none group ${className}`}
-      style={{ width: size, height: size }}
-      title={unreadCount > 0 ? `QuantMail — ${unreadCount} unread` : 'QuantMail — Click to refresh'}
-    >
-      <motion.div
+  const accessibleName =
+    title ?? (unreadCount > 0 ? `QuantMail — ${unreadCount} unread` : 'QuantMail — refresh inbox');
+
+  const art = (
+    <>
+      <motion.span
         className="relative flex items-center justify-center w-full h-full"
         animate={{
           rotate: isSpinning ? 360 : 0,
@@ -409,19 +417,59 @@ export function QuantMailLogo({
            */
           className="w-full h-full drop-shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
         />
-      </motion.div>
+      </motion.span>
 
       {/* ------------------------------------------------------------- */}
       {/* 6. SMART HEAD HUD BADGE (ONLY rendered when unreadCount > 0)  */}
       {/* ------------------------------------------------------------- */}
       {showBadge && unreadCount > 0 && (
-        <div className="absolute -top-1 -right-1.5 z-20 pointer-events-none transition-transform duration-200 group-hover:scale-110">
+        <span className="absolute -top-1 -right-1.5 z-20 pointer-events-none transition-transform duration-200 group-hover:scale-110">
           <span className="relative inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-[#111111] bg-[#FF8C42] rounded-full border border-[#090A0C] shadow-sm">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
-        </div>
+        </span>
       )}
-    </div>
+    </>
+  );
+
+  /*
+   * Decorative mode is the reason this branch exists. `interactive` and `title`
+   * were declared in the props and then never read, so every caller that asked
+   * for a decorative mark got a live one: `BrandLoader`'s splash mark navigated
+   * to `/` mid-load, the auth panel's lockup bounced /login → / → /login, and
+   * `QuantrinityMark` showed "QuantMail — Click to refresh" on a Quantrinity
+   * mark. A `div` with `onClick` is also unreachable by keyboard, so the live
+   * branch is a real `button` with a name and a focus ring.
+   */
+  if (!interactive) {
+    return (
+      <span
+        aria-hidden="true"
+        className={`relative inline-flex items-center justify-center select-none group ${className}`}
+        style={{ width: size, height: size }}
+      >
+        {art}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={handleMouseLeave}
+      onClick={handleClick}
+      aria-label={accessibleName}
+      title={accessibleName}
+      className={`relative inline-flex items-center justify-center cursor-pointer select-none group outline-none rounded-xl focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${className}`}
+      // The mark is 36–42px on most surfaces, which is under the 44px floor, and
+      // the box is sized in px rather than by a class — so the floor has to be
+      // inline too. `max` keeps the 96px empty-state mark from shrinking.
+      style={{ minWidth: Math.max(size, 44), minHeight: Math.max(size, 44) }}
+    >
+      {art}
+    </button>
   );
 }
 

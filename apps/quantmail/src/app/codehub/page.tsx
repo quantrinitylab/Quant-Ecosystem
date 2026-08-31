@@ -25,7 +25,6 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { Quanty, type QuantyExpression } from '../../components/Quanty';
-import { QuantMailLogo } from '../../components/QuantMailLogo';
 import { useRepos, useCreateRepo } from '../../hooks/useRepos';
 import { useBuilds, useDeployments } from '../../hooks/usePipelines';
 import { browserAuthSession } from '../../services/browser-auth-session';
@@ -155,9 +154,12 @@ async function askQuanty(
     body: JSON.stringify({
       messages: history.slice(-10).map(({ role, content }) => ({ role, content })),
       context: {
-        app: 'QuantHub',
+        // `QuantHub` was a third name for this app, and the model repeats the
+        // name it is told back to the user — so it said "QuantHub" in a product
+        // whose header says QuantGit.
+        app: 'QuantGit',
         route: '/codehub',
-        view: `CodeHub home · ${mode === 'plan' ? 'Plan mode (explain, break down, estimate — no changes)' : 'Build mode (propose concrete repos, files, commits, deploy steps)'}`,
+        view: `QuantGit home · ${mode === 'plan' ? 'Plan mode (explain, break down, estimate — no changes)' : 'Build mode (propose concrete repos, files, commits, deploy steps)'}`,
         screenText: `Existing repositories: ${repoNames.join(', ') || 'none yet'}`,
       },
     }),
@@ -345,7 +347,7 @@ function AgentsStrip({
       status: latestDeploy?.status ?? 'idle',
       detail: latestDeploy
         ? `${latestDeploy.environment ?? 'environment'} · ${relativeTime(latestDeploy.createdAt)}`
-        : 'Nothing deployed from CodeHub yet.',
+        : 'Nothing deployed from QuantGit yet.',
     },
     {
       id: 'observer',
@@ -667,7 +669,7 @@ export default function CodeHubPage() {
                 title={query ? 'No repositories matched' : 'Start your first repository'}
                 description={
                   query
-                    ? `Nothing matched “${query}”. Clear the search to see everything in CodeHub.`
+                    ? `Nothing matched “${query}”. Clear the search to see everything in QuantGit.`
                     : 'Ask Quanty above to plan your first build, or create a repository directly.'
                 }
                 actionLabel={query ? 'Clear search' : 'Create your first repository'}
@@ -794,7 +796,7 @@ export default function CodeHubPage() {
               </h2>
               {deployments.length === 0 ? (
                 <p className="text-xs text-[var(--quant-muted-foreground)]">
-                  Nothing deployed yet from CodeHub.
+                  Nothing deployed yet from QuantGit.
                 </p>
               ) : (
                 <ul className="space-y-2">
