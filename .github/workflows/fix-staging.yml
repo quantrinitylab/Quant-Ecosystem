@@ -1,15 +1,12 @@
 name: Fix staging (migrations + rollout + ELB)
 
 # Auto-runs when this file is pushed to main; can also be run manually.
-# The DB password is resolved from four sources in order — see "Resolve DB
-# password" below for why the cluster's own secret is the authoritative one.
+#
+# MIGRATIONS RUN INSIDE THE CLUSTER, NOT FROM THE RUNNER. See "Run Prisma
+# migrations" below: the runner has no route to RDS, and the pod that already
+# talks to it every request does.
 on:
-  workflow_dispatch:
-    inputs:
-      db_password:
-        description: 'RDS master password (optional - resolved from the cluster secret otherwise)'
-        required: false
-        type: string
+  workflow_dispatch: {}
   push:
     branches: [main]
     paths:
@@ -35,9 +32,18 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       EKS_CLUSTER: ${{ vars.EKS_CLUSTER }}
       K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
-      RDS_ENDPOINT: quant-staging-postgres.cqzas6wik73y.us-east-1.rds.amazonaws.com
-      RDS_DB: quant_staging
-      RDS_USER: quant
+      # THE STAGING LABEL IS NOT THE PRODUCTION LABEL.
+      #
+      # `infra/k8s/quantmail-backend.yaml` is the *production* manifest and uses
+      # `app.kubernetes.io/name: quantmail-backend`. Staging's deployment is
+      # created inline by `bootstrap-aws.yml` with `app: quant-quantmail-backend`.
+      # This workflow used the production label, so `Diagnose current state`
+      # printed "Backend pod:" with nothing after it and the entire
+      # describe/logs/previous-logs dump was a silent no-op — in run
+      # 33433741846 that is the output we needed and did not get. Held here once
+      # so the two dumps below cannot drift apart again.
+      BACKEND_SELECTOR: app=quant-quantmail-backend
+      BACKEND_DEPLOY: quant-quantmail-backend
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -55,98 +61,13 @@ jobs:
         run: |
           aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
 
-      - name: Resolve DB password
-        env:
-          # The dispatch input is a string a human types, so it travels through the
-          # environment instead of being interpolated into the script: a single `"`
-          # in `${{ inputs.db_password }}` would otherwise close the assignment and
-          # everything after it would be read as shell.
-          INPUT_PASS: ${{ inputs.db_password }}
-        run: |
-          set -uo pipefail
-
-          # FOUR SOURCES, AND WHY THE CLUSTER'S OWN SECRET IS THE REAL ONE.
-          #
-          # This step used to read SSM `/quant/staging/db_password` and nothing
-          # else. On 2026-08-31 that parameter did not exist: ParameterNotFound,
-          # exit 254, and every step after it skipped — no migrations, no rollout,
-          # while the run still reported an ELB hostname and looked like it had
-          # done something. Nothing in this repo provisions that parameter.
-          #
-          # `bootstrap-aws.yml` does provision two things: the password in Secrets
-          # Manager `quant/postgres`, and a full `DATABASE_URL` in the cluster
-          # secret `quant-staging-secrets`. The cluster secret is the credential
-          # the running backend is holding, which makes it the one source that
-          # cannot be stale — if it were wrong, the backend would not be serving.
-          # So it is tried first, and SSM stays last as a legacy path.
-          PASS=""
-
-          if [ -n "${INPUT_PASS:-}" ]; then
-            echo "Source: dispatch input."
-            PASS="$INPUT_PASS"
-          fi
-
-          if [ -z "$PASS" ]; then
-            echo "Source: secret/quant-staging-secrets DATABASE_URL..."
-            URL="$(kubectl get secret quant-staging-secrets -n "$K8S_NAMESPACE" \
-              -o jsonpath='{.data.DATABASE_URL}' 2>/dev/null | base64 -d 2>/dev/null || true)"
-            if [ -n "$URL" ]; then
-              echo "::add-mask::$URL"
-              # postgresql://user:pass@host:port/db, split on the LAST `@` — the
-              # userinfo is percent-encoded so it contains none, and the host part
-              # cannot. Decoding is a builtin `printf`, not node or python: the
-              # password must never reach a process argument list where `ps` on
-              # the runner could read it.
-              userinfo="${URL#*://}"
-              userinfo="${userinfo%@*}"
-              enc="${userinfo#*:}"
-              # The `\x` has to arrive via a variable. Written inline as
-              # `${enc//%/\\x}` bash collapses the escape twice and the backslash
-              # is gone, so `%40` decodes to the literal `x40` — verified, not
-              # assumed. Held in `esc` it survives, and %25/%5C round-trip too.
-              esc='\x'
-              PASS="$(printf '%b' "${enc//%/$esc}")"
-            fi
-          fi
-
-          if [ -z "$PASS" ]; then
-            echo "Source: Secrets Manager quant/postgres..."
-            SECRET_JSON="$(aws secretsmanager get-secret-value --secret-id quant/postgres \
-              --query SecretString --output text --region "$AWS_REGION" 2>/dev/null || true)"
-            if [ -n "$SECRET_JSON" ]; then
-              echo "::add-mask::$SECRET_JSON"
-              # jq is preinstalled on ubuntu-latest, but a fallback that silently
-              # does nothing when a tool is missing is the same lie as a stub
-              # endpoint, so the shell path is real and tested too.
-              if command -v jq >/dev/null 2>&1; then
-                PASS="$(printf '%s' "$SECRET_JSON" | jq -r '.password // empty')"
-              elif [[ "$SECRET_JSON" =~ \"password\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
-                PASS="${BASH_REMATCH[1]}"
-              fi
-            fi
-          fi
-
-          if [ -z "$PASS" ]; then
-            echo "Source: SSM /quant/staging/db_password (legacy)..."
-            PASS="$(aws ssm get-parameter --name /quant/staging/db_password --with-decryption \
-              --query Parameter.Value --output text --region "$AWS_REGION" 2>/dev/null || true)"
-          fi
-
-          if [ -z "$PASS" ]; then
-            echo "::error::No RDS password from the dispatch input, the cluster secret, Secrets Manager or SSM. Re-run this workflow with db_password set."
-            exit 1
-          fi
-
-          echo "::add-mask::$PASS"
-          echo "DB_PASS=$PASS" >> "$GITHUB_ENV"
-
       - name: Diagnose current state
         run: |
-          echo "=== Pods ==="
-          kubectl get pods -n "$K8S_NAMESPACE" -o wide || true
+          echo "=== Pods (with labels, so the selector below is checkable) ==="
+          kubectl get pods -n "$K8S_NAMESPACE" -o wide --show-labels || true
           echo "=== Deployments ==="
           kubectl get deploy -n "$K8S_NAMESPACE" || true
-          POD=$(kubectl get pods -n "$K8S_NAMESPACE" -l app.kubernetes.io/name=quantmail-backend --sort-by=.metadata.creationTimestamp -o name | tail -1)
+          POD=$(kubectl get pods -n "$K8S_NAMESPACE" -l "$BACKEND_SELECTOR" --sort-by=.metadata.creationTimestamp -o name | tail -1)
           echo "Backend pod: $POD"
           if [ -n "$POD" ]; then
             echo "=== Backend pod describe (tail) ==="
@@ -155,70 +76,140 @@ jobs:
             kubectl logs "$POD" -n "$K8S_NAMESPACE" --tail=100 || true
             echo "=== Backend logs (previous crash) ==="
             kubectl logs "$POD" -n "$K8S_NAMESPACE" --previous --tail=100 || true
+          else
+            echo "::warning::No pod matched $BACKEND_SELECTOR — read the --show-labels listing above and correct BACKEND_SELECTOR."
           fi
           echo "=== Recent events ==="
           kubectl get events -n "$K8S_NAMESPACE" --sort-by=.lastTimestamp | tail -30 || true
           echo "=== Ingress controller service ==="
           kubectl get svc -n ingress-nginx || true
 
-      - name: Start DB proxy (socat via cluster)
-        run: |
-          kubectl delete pod pg-proxy -n "$K8S_NAMESPACE" --ignore-not-found
-          kubectl run pg-proxy -n "$K8S_NAMESPACE" --image=alpine/socat --restart=Never -- \
-            TCP-LISTEN:5432,fork,reuseaddr TCP:quant-staging-postgres.cqzas6wik73y.us-east-1.rds.amazonaws.com:5432
-          kubectl wait --for=condition=Ready pod/pg-proxy -n "$K8S_NAMESPACE" --timeout=120s
-          kubectl port-forward pod/pg-proxy -n "$K8S_NAMESPACE" 15432:5432 &
-          echo $! > /tmp/pf.pid
-          sleep 5
-          PGPASSWORD="$DB_PASS" psql -h 127.0.0.1 -p 15432 -U "$RDS_USER" -d "$RDS_DB" -c 'SELECT version();'
-
-      - name: Run Prisma migrations (through cluster proxy)
+      - name: Run Prisma migrations (in-cluster Job)
         id: migrate
         run: |
-          npm install -g pnpm
-          pnpm install --frozen-lockfile --filter "@quant/database..." || pnpm install --frozen-lockfile
+          set -uo pipefail
+          JOB="prisma-migrate-${{ github.run_id }}"
 
-          # DB_PASS is the raw password — `psql` above wants it raw, a URL does
-          # not. Interpolating it unescaped is how a password containing `@` or
-          # `/` yields a URL that parses to a different host entirely and fails
-          # with something that looks like a network problem. Encoded with
-          # builtins only, so it never reaches a process argument list.
-          enc=""
-          i=0
-          while [ "$i" -lt "${#DB_PASS}" ]; do
-            c="${DB_PASS:$i:1}"
-            case "$c" in
-              [A-Za-z0-9.~_-]) enc="$enc$c" ;;
-              *) enc="$enc$(printf '%%%02X' "'$c")" ;;
-            esac
-            i=$((i + 1))
+          # WHY THE MIGRATION RUNS IN THE CLUSTER.
+          #
+          # This step used to be three: a socat pod, `kubectl port-forward`, and
+          # `psql`/`prisma` on the runner against 127.0.0.1:15432. Run 33433741846
+          # got as far as "Forwarding from 127.0.0.1:15432 -> 5432" and "Handling
+          # connection for 15432", then sat for 2m18s and died with "server closed
+          # the connection unexpectedly". The forward was fine; socat's own
+          # outbound TCP to RDS:5432 was being dropped. Migrations and the rollout
+          # both skipped.
+          #
+          # The pod that serves every request already holds a working route to
+          # that database, so the migration is run on that route, in that image,
+          # with that credential. This also removes the runner from the secret
+          # path entirely: `envFrom` reads `quant-staging-secrets` inside the
+          # cluster, so no DATABASE_URL is fetched, decoded, masked, or passed as
+          # `--env=` on an argv that `ps` and `kubectl get pod -o yaml` can read.
+          IMAGE="$(kubectl get deployment/$BACKEND_DEPLOY -n "$K8S_NAMESPACE" \
+            -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)"
+          if [ -z "$IMAGE" ]; then
+            echo "::error::Could not read the backend image from deployment/$BACKEND_DEPLOY in $K8S_NAMESPACE. Nothing was migrated."
+            exit 1
+          fi
+          echo "Image: $IMAGE"
+
+          # NOTHING INSIDE THE HEREDOC MAY CONTAIN A BACKTICK OR A $( — the
+          # delimiter is unquoted so `$JOB` and `$IMAGE` expand, which means a
+          # backtick in a YAML *comment* is still command substitution to bash.
+          # A first draft wrote "built with `pnpm install --ignore-scripts`" in
+          # the env comment below; bash ran pnpm, spliced its progress output
+          # into the manifest, and `kubectl apply` got invalid YAML.
+          kubectl delete job "$JOB" -n "$K8S_NAMESPACE" --ignore-not-found
+          kubectl apply -n "$K8S_NAMESPACE" -f - <<JOBEOF
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: $JOB
+          spec:
+            backoffLimit: 0
+            ttlSecondsAfterFinished: 600
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: migrate
+                    image: $IMAGE
+                    envFrom:
+                      - secretRef:
+                          name: quant-staging-secrets
+                    env:
+                      # The image installs with --ignore-scripts, so prisma's
+                      # postinstall never downloaded the schema engine. If the
+                      # CLI cannot find it, it fetches it; if egress is blocked
+                      # the job fails loudly rather than reporting a migration
+                      # it did not run.
+                      - name: PRISMA_HIDE_UPDATE_MESSAGE
+                        value: '1'
+                    command: ['sh', '-c', 'set -e; for p in packages/database/node_modules/.bin/prisma node_modules/.bin/prisma; do if [ -x "\$p" ]; then echo "prisma: \$p"; exec "\$p" migrate deploy --schema=packages/database/prisma/schema.prisma; fi; done; echo "no prisma binary in the image, falling back to npx"; exec npx --yes prisma@6.19.3 migrate deploy --schema=packages/database/prisma/schema.prisma']
+          JOBEOF
+
+          # A JOB THAT CANNOT FAIL VISIBLY IS NOT A MIGRATION, IT IS A WISH.
+          #
+          # `bootstrap-aws.yml` has the same in-cluster pattern, but it polls for
+          # Succeeded-or-Failed, tails 10 lines, and then prints ">> Migrations
+          # done" either way — the same class of lie the summary step below was
+          # fixed for. So: poll both counters, dump the WHOLE log (a Prisma
+          # failure names the migration and the SQL, and 10 lines truncates it),
+          # and exit non-zero on failure or timeout.
+          RESULT=timeout
+          for _ in $(seq 1 120); do
+            SUCCEEDED="$(kubectl get job "$JOB" -n "$K8S_NAMESPACE" -o jsonpath='{.status.succeeded}' 2>/dev/null || true)"
+            FAILED="$(kubectl get job "$JOB" -n "$K8S_NAMESPACE" -o jsonpath='{.status.failed}' 2>/dev/null || true)"
+            if [ "${SUCCEEDED:-0}" != "0" ] && [ -n "${SUCCEEDED:-}" ]; then RESULT=success; break; fi
+            if [ "${FAILED:-0}" != "0" ] && [ -n "${FAILED:-}" ]; then RESULT=failed; break; fi
+            sleep 5
           done
-          echo "::add-mask::$enc"
 
-          DATABASE_URL="postgresql://${RDS_USER}:${enc}@127.0.0.1:15432/${RDS_DB}" \
-            pnpm --filter @quant/database exec prisma migrate deploy --schema=prisma/schema.prisma
-          echo "Migrations done"
+          echo "=== migrate job log ==="
+          kubectl logs "job/$JOB" -n "$K8S_NAMESPACE" --tail=-1 2>&1 || true
+          if [ "$RESULT" != success ]; then
+            echo "=== migrate job/pod state ($RESULT) ==="
+            kubectl describe "job/$JOB" -n "$K8S_NAMESPACE" 2>&1 | tail -30 || true
+            kubectl get pods -n "$K8S_NAMESPACE" -l "job-name=$JOB" -o wide 2>&1 || true
+          fi
+          kubectl delete job "$JOB" -n "$K8S_NAMESPACE" --ignore-not-found >/dev/null 2>&1 || true
 
-      - name: Stop DB proxy
-        if: always()
-        run: |
-          kill "$(cat /tmp/pf.pid)" 2>/dev/null || true
-          kubectl delete pod pg-proxy -n "$K8S_NAMESPACE" --ignore-not-found || true
+          if [ "$RESULT" != success ]; then
+            echo "::error::Prisma migrate deploy did not complete ($RESULT). The schema is unchanged; do not dispatch deploy-staging."
+            exit 1
+          fi
+          echo "Migrations applied."
 
       - name: Restart backend + wait
         id: rollout
         run: |
-          kubectl rollout restart deployment/quant-quantmail-backend -n "$K8S_NAMESPACE"
-          if ! kubectl rollout status deployment/quant-quantmail-backend -n "$K8S_NAMESPACE" --timeout=420s; then
+          kubectl rollout restart deployment/$BACKEND_DEPLOY -n "$K8S_NAMESPACE"
+          if ! kubectl rollout status deployment/$BACKEND_DEPLOY -n "$K8S_NAMESPACE" --timeout=420s; then
             echo "=== Rollout failed - dumping state ==="
-            kubectl get pods -n "$K8S_NAMESPACE" -l app.kubernetes.io/name=quantmail-backend -o wide || true
-            POD=$(kubectl get pods -n "$K8S_NAMESPACE" -l app.kubernetes.io/name=quantmail-backend --sort-by=.metadata.creationTimestamp -o name | tail -1)
+            kubectl get pods -n "$K8S_NAMESPACE" -l "$BACKEND_SELECTOR" -o wide || true
+            POD=$(kubectl get pods -n "$K8S_NAMESPACE" -l "$BACKEND_SELECTOR" --sort-by=.metadata.creationTimestamp -o name | tail -1)
             if [ -n "$POD" ]; then
               kubectl describe "$POD" -n "$K8S_NAMESPACE" | tail -40 || true
               kubectl logs "$POD" -n "$K8S_NAMESPACE" --tail=120 || true
               kubectl logs "$POD" -n "$K8S_NAMESPACE" --previous --tail=120 || true
             fi
             exit 1
+          fi
+
+          # THE ROLLOUT SAYS NOTHING ABOUT THE DATABASE.
+          #
+          # Staging's deployment is created inline by `bootstrap-aws.yml` with no
+          # readiness probe of any kind, so "1/1 Running" means one thing only:
+          # the container process started. That is exactly how a backend that
+          # cannot reach Postgres reports itself healthy while `/api/calendar/
+          # events` returns 502. So ask the pod itself, from inside the cluster.
+          POD=$(kubectl get pods -n "$K8S_NAMESPACE" -l "$BACKEND_SELECTOR" --field-selector=status.phase=Running -o name | tail -1)
+          if [ -n "$POD" ]; then
+            echo "=== /health from inside $POD ==="
+            kubectl exec "$POD" -n "$K8S_NAMESPACE" -- \
+              node -e "fetch('http://127.0.0.1:3011/health').then(async r=>{console.log(r.status, (await r.text()).slice(0,400))}).catch(e=>{console.log('FETCH_FAILED', e.message); process.exitCode=1})" 2>&1 || \
+              echo "::warning::/health did not answer from inside the pod — the container is up but not serving."
           fi
 
       - name: Get ELB hostname
@@ -263,7 +254,7 @@ jobs:
             echo "${ELB_HOSTNAME:-NOT_ASSIGNED}"
             echo ""
             echo "## backend logs (tail)"
-            kubectl logs deployment/quant-quantmail-backend -n "$K8S_NAMESPACE" --tail=40 2>/dev/null || true
+            kubectl logs deployment/$BACKEND_DEPLOY -n "$K8S_NAMESPACE" --tail=40 2>/dev/null || true
           } > infra/status/fix-staging-result.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
