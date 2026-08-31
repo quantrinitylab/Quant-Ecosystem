@@ -1061,6 +1061,11 @@ export default function ContactsPage() {
                 placeholder="e.g. Sundar Pichai"
                 className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
                 autoFocus
+                /* `Modal` traps focus, and React applies `autoFocus` imperatively
+                   without rendering an attribute the trap could find — so the
+                   trap's own pass moved the caret to "Close modal". This marker is
+                   what it reads. */
+                data-autofocus
               />
             </div>
 

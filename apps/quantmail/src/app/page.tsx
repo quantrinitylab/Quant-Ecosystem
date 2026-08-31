@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ErrorState, Skeleton, Button } from '@quant/shared-ui';
+import { ErrorState, Skeleton, Button, useFocusTrap } from '@quant/shared-ui';
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
@@ -540,6 +540,19 @@ function CreateGroupModal({
   const [members, setMembers] = useState<string[]>([]);
   const [error, setError] = useState('');
 
+  const baseId = useId();
+  const titleId = `${baseId}-title`;
+  const nameId = `${baseId}-name`;
+  const memberId = `${baseId}-member`;
+
+  /**
+   * This dialog claimed `aria-modal="true"` and then had none of what that
+   * promises: Tab walked out into the inbox behind it, Escape did nothing, and it
+   * had no accessible name at all. `onEscape` is safe to own here — nothing else
+   * binds Escape for this surface.
+   */
+  const panelRef = useFocusTrap<HTMLDivElement>({ active: isOpen, onEscape: onClose });
+
   if (!isOpen) return null;
 
   const handleAddMember = () => {
@@ -597,9 +610,11 @@ function CreateGroupModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
       <div
+        ref={panelRef}
         className="w-full max-w-md bg-[#121622] border border-[#3A404D]/80 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4"
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
       >
         <div className="flex items-center justify-between border-b border-[#282C35] pb-3">
           <div className="flex items-center gap-2.5">
@@ -618,14 +633,20 @@ function CreateGroupModal({
               </svg>
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Create New Group</h2>
+              <h2 id={titleId} className="text-base font-bold text-white">
+                Create New Group
+              </h2>
               <p className="text-xs text-[#A1A4AC]">Group mailing list & shared conversation</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="size-8 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] flex items-center justify-center transition-colors"
+            aria-label="Close create group dialog"
+            /* An icon-only button with no `aria-label` reads as "button" and
+               nothing else. The coarse-pointer bump matches the shared Modal's
+               close control: 32px keeps desktop density, 44px on touch. */
+            className="size-8 [@media(pointer:coarse)]:size-11 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] flex items-center justify-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
           >
             <MailIcon name="close" className="size-4" />
           </button>
@@ -633,10 +654,11 @@ function CreateGroupModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
+            <label htmlFor={nameId} className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
               Group Name <span className="text-[#FF8C42]">*</span>
             </label>
             <input
+              id={nameId}
               type="text"
               placeholder="e.g. Founders, Core Team, Project Alpha"
               value={groupName}
@@ -646,15 +668,21 @@ function CreateGroupModal({
               }}
               className="w-full bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
               autoFocus
+              /* React applies `autoFocus` imperatively and never renders the
+                 attribute, so the focus trap above cannot see it and would take
+                 the close button instead — the marker is what makes the two
+                 agree on where the caret goes. */
+              data-autofocus
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
+            <label htmlFor={memberId} className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
               Add Members (Emails) <span className="text-[#FF8C42]">*</span>
             </label>
             <div className="flex items-center gap-2">
               <input
+                id={memberId}
                 type="email"
                 placeholder="colleague@domain.com"
                 value={memberInput}

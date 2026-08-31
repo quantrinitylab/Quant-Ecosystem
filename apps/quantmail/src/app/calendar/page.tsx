@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button, Modal, Skeleton, ErrorState } from '@quant/shared-ui';
+import { Button, Modal, Skeleton, ErrorState, useFocusTrap } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
@@ -1267,6 +1267,19 @@ export default function CalendarPage() {
     setActiveSheetType(null);
     setEditingEventId(null);
   }, [isSaving]);
+
+  /**
+   * The sheet declares `aria-modal="true"`, which tells assistive tech the rest
+   * of the document is not there — and then Tab walked straight out of it into
+   * the month grid behind. This is the longest form in the app, so it was also
+   * the surface where it mattered most.
+   *
+   * `onEscape` is deliberately omitted: dismissal already lives in the effect
+   * below, which has a nested-overlay guard the hook cannot know about (a <Modal>
+   * opened on top of the sheet has to win the key and close alone). Two owners
+   * for one key is how a single press closes both.
+   */
+  const sheetRef = useFocusTrap<HTMLDivElement>({ active: Boolean(activeSheetType) });
 
   // Escape dismisses the sheet, matching the backdrop tap, and collapses the
   // speed dial when no sheet is up. Every overlay a sheet can open on top of
@@ -2535,6 +2548,7 @@ export default function CalendarPage() {
               />
 
               <motion.div
+                ref={sheetRef}
                 role="dialog"
                 aria-modal="true"
                 aria-label={
@@ -2705,6 +2719,13 @@ export default function CalendarPage() {
                           placeholder="Add event title"
                           className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
                           autoFocus
+                          /* `autoFocus` alone is not enough now that the sheet is
+                             focus-trapped: React applies it imperatively without
+                             rendering an attribute, so the trap cannot see it and
+                             its own initial-focus pass sent the caret to "Close"
+                             instead. `data-autofocus` is what the trap reads.
+                             Measured: focus landed on Close until this was added. */
+                          data-autofocus
                         />
                       </div>
 
@@ -2944,6 +2965,7 @@ export default function CalendarPage() {
                           placeholder="Add task title"
                           className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
                           autoFocus
+                          data-autofocus
                         />
                       </div>
 
@@ -3071,6 +3093,7 @@ export default function CalendarPage() {
                           placeholder="Add person's name (e.g. Rahul's Birthday)"
                           className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-emerald-500"
                           autoFocus
+                          data-autofocus
                         />
                       </div>
 

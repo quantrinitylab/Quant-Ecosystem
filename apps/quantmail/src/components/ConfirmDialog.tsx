@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useId, useRef } from 'react';
+import { useId } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { useFocusTrap } from '@quant/shared-ui';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -13,9 +14,6 @@ interface ConfirmDialogProps {
   onConfirm: () => void;
   onCancel: () => void;
 }
-
-const FOCUSABLE =
-  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Branded confirm dialog — the app's replacement for window.confirm(), which on
@@ -40,71 +38,24 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const confirmRef = useRef<HTMLButtonElement>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  const restoreRef = useRef<HTMLElement | null>(null);
-  const cancelHandlerRef = useRef(onCancel);
   const reduceMotion = useReducedMotion();
   const baseId = useId();
   const titleId = `${baseId}-title`;
   const messageId = `${baseId}-message`;
 
-  // The keydown effect reads the cancel handler through this ref so it can depend
-  // on `isOpen` alone. Depending on the callback itself would re-run the effect —
-  // and so re-take and re-restore focus — on every render of a parent that passes
-  // an inline arrow function, which is most of them.
-  cancelHandlerRef.current = onCancel;
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    // Remember what opened the dialog. A dialog that drops focus to <body> on
-    // close leaves a keyboard user at the top of the page, having lost the row
-    // they were working in.
-    restoreRef.current = document.activeElement as HTMLElement | null;
-
-    // Cancel takes focus on a destructive dialog. Confirm used to, which meant an
-    // Enter keypress arriving a fraction after the dialog opened — plausible when
-    // the dialog was itself opened with Enter — permanently deleted mail before
-    // anyone had read the question.
-    const initial = variant === 'destructive' ? cancelRef.current : confirmRef.current;
-    initial?.focus();
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        cancelHandlerRef.current();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-
-      // A real trap. The old doc comment promised one; nothing implemented it, so
-      // Tab walked straight out of the dialog and into the page behind it.
-      const nodes = panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE);
-      if (!nodes || nodes.length === 0) return;
-      const first = nodes[0];
-      const last = nodes[nodes.length - 1];
-      const active = document.activeElement;
-      const inside = panelRef.current?.contains(active) ?? false;
-
-      if (event.shiftKey && (active === first || !inside)) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (active === last || !inside)) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown, true);
-      const restore = restoreRef.current;
-      restoreRef.current = null;
-      if (restore && document.contains(restore)) restore.focus();
-    };
-  }, [isOpen, variant]);
+  /**
+   * The trap, the Escape handler and the focus restore were all hand-rolled here
+   * — the third such copy in the repo, each with a slightly different focusable
+   * selector. This one's missed `input[type=hidden]` and never filtered on
+   * visibility, so a hidden control could become the wrap target.
+   *
+   * Initial focus is now declared rather than imperative: `data-autofocus` on the
+   * right button below. The rule it encodes is deliberate and stays — Confirm
+   * used to take focus, which meant an Enter keypress arriving a fraction after
+   * the dialog opened, plausible when the dialog was itself opened with Enter,
+   * permanently deleted mail before anyone had read the question.
+   */
+  const panelRef = useFocusTrap<HTMLDivElement>({ active: isOpen, onEscape: onCancel });
 
   return (
     <AnimatePresence>
@@ -145,14 +96,19 @@ export function ConfirmDialog({
               {message}
             </p>
             <div className="confirm-actions">
-              <button ref={cancelRef} type="button" className="confirm-cancel" onClick={onCancel}>
+              <button
+                type="button"
+                className="confirm-cancel"
+                onClick={onCancel}
+                data-autofocus={variant === 'destructive' ? '' : undefined}
+              >
                 {cancelLabel}
               </button>
               <button
-                ref={confirmRef}
                 type="button"
                 className={`confirm-confirm ${variant === 'destructive' ? 'is-destructive' : ''}`}
                 onClick={onConfirm}
+                data-autofocus={variant === 'destructive' ? undefined : ''}
               >
                 {confirmLabel}
               </button>

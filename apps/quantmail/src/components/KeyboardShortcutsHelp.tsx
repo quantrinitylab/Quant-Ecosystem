@@ -26,7 +26,8 @@
  */
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
+import { useFocusTrap } from '@quant/shared-ui';
 import { chordToLabelParts, parseSequence } from '../lib/keyboard/chords';
 import {
   COMMAND_GROUPS,
@@ -56,6 +57,17 @@ export function KeyboardShortcutsHelp() {
 
   useKeyboardScope(SCOPE, { active: isHelpOpen, exclusive: true });
   useShortcut(['escape', '?'], closeHelp, { scope: SCOPE, disabled: !isHelpOpen });
+
+  const titleId = useId();
+
+  /**
+   * A keyboard-shortcuts reference that could not be reached by keyboard: focus
+   * stayed on whatever was behind it, so Tab walked the inbox underneath an
+   * `aria-modal="true"` surface and the panel's own close button was never a
+   * stop. `onEscape` is omitted because the keyboard engine already owns Escape
+   * for this scope, one line above.
+   */
+  const panelRef = useFocusTrap<HTMLDivElement>({ active: isHelpOpen });
 
   const groups = useMemo(() => {
     const byGroup = new Map<CommandGroup, HelpEntry[]>();
@@ -132,12 +144,21 @@ export function KeyboardShortcutsHelp() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
           onClick={closeHelp}
-          role="dialog"
-          aria-label="Keyboard shortcuts"
-          aria-modal="true"
         >
           <motion.div
+            ref={panelRef}
             className="shortcuts-panel"
+            /*
+             * `role`, `aria-modal` and the accessible name were on the overlay,
+             * which made the click-to-dismiss scrim the dialog itself: the
+             * announced region stretched across the whole viewport and the name
+             * hung on an element whose entire job is to be ignored. They belong
+             * on the panel, and the name now comes from the heading that is
+             * already on screen rather than a duplicate string.
+             */
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
             initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 12 }}
@@ -145,7 +166,7 @@ export function KeyboardShortcutsHelp() {
             onClick={(event) => event.stopPropagation()}
           >
             <header className="shortcuts-header">
-              <h2>Keyboard shortcuts</h2>
+              <h2 id={titleId}>Keyboard shortcuts</h2>
               <button
                 type="button"
                 onClick={closeHelp}
