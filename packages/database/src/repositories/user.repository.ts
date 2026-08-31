@@ -2,8 +2,12 @@ import { Prisma, User } from '@prisma/client';
 import { BaseRepository, PaginatedResult, PaginationOptions } from './base.repository';
 
 /**
- * Fields safe to return in public/API contexts.
- * Excludes passwordHash, twoFactorSecret, lastLoginIp, failedLoginAttempts.
+ * The single source of truth for what "public user" means. `UserPublic` below
+ * is `Pick`ed off this object, so a column is public only if it is listed here.
+ *
+ * Deliberately absent: `passwordHash`, every `twoFactor*` field except the
+ * `twoFactorEnabled` flag, `lastLoginIp`, `failedLoginAttempts`,
+ * `lockoutUntil`, and `ghostMode`.
  */
 export const userPublicSelect = {
   id: true,
@@ -37,20 +41,25 @@ export const userPublicSelect = {
 } satisfies Prisma.UserSelect;
 
 /**
- * Public user shape. Excludes sensitive auth fields and the `ghostMode`
- * privacy/location setting, which must never be exposed in public/API
- * contexts. `xpPoints` and `level` are public gamification stats and are
- * therefore retained. Keep this in sync with `userPublicSelect`.
+ * Public user shape — derived from `userPublicSelect` rather than restated.
+ *
+ * This used to be `Omit<User, …6 sensitive fields>`, which meant every column
+ * added to `User` became part of the public shape unless someone remembered to
+ * extend the exclusion list. That default is backwards for a type whose whole
+ * job is to keep secrets out, and it broke the moment the 2FA columns landed:
+ * `Omit` claimed `twoFactorPendingSecret` while `userPublicSelect` never
+ * fetched it, so the type and the query disagreed.
+ *
+ * `Pick` off the select makes the select the single source of truth. A new
+ * column is now private by default and must be listed above to become public,
+ * and the two can no longer drift.
+ *
+ * Still excluded, and deliberately: `passwordHash`, `twoFactorSecret`,
+ * `twoFactorPendingSecret`, `twoFactorLastUsedStep` (leaking the last accepted
+ * TOTP step narrows a replay window), `twoFactorConfirmedAt`, `lastLoginIp`,
+ * `failedLoginAttempts`, `lockoutUntil`, and the `ghostMode` privacy setting.
  */
-export type UserPublic = Omit<
-  User,
-  | 'passwordHash'
-  | 'twoFactorSecret'
-  | 'lastLoginIp'
-  | 'failedLoginAttempts'
-  | 'lockoutUntil'
-  | 'ghostMode'
->;
+export type UserPublic = Pick<User, keyof typeof userPublicSelect>;
 
 export class UserRepository extends BaseRepository {
   /**

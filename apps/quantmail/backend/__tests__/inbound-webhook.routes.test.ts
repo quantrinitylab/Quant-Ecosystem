@@ -512,6 +512,10 @@ describe('POST /webhook/inbound — spam, virus and DMARC decide the folder', ()
 });
 
 describe('POST /webhook/inbound — the subscription handshake', () => {
+  // A genuine callback carries the topic as well as the token; the route rebuilds
+  // the URL from exactly these three parameters and refuses anything else.
+  const CONFIRM_URL = `https://sns.us-east-1.amazonaws.com/?Action=ConfirmSubscription&TopicArn=${encodeURIComponent(TOPIC)}&Token=tok`;
+
   function confirmation(subscribeUrl: string): Record<string, unknown> {
     return {
       Type: 'SubscriptionConfirmation',
@@ -528,9 +532,7 @@ describe('POST /webhook/inbound — the subscription handshake', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/webhook/inbound',
-      payload: confirmation(
-        'https://sns.us-east-1.amazonaws.com/?Action=ConfirmSubscription&Token=tok',
-      ),
+      payload: confirmation(CONFIRM_URL),
     });
 
     expect(response.json()).toEqual({ ok: true, confirmed: true });
@@ -543,11 +545,41 @@ describe('POST /webhook/inbound — the subscription handshake', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/webhook/inbound',
-      payload: confirmation('https://sns.attacker.example/?Action=ConfirmSubscription'),
+      payload: confirmation(
+        CONFIRM_URL.replace('sns.us-east-1.amazonaws.com', 'sns.attacker.example'),
+      ),
     });
 
     expect(response.statusCode).toBe(403);
     expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('refuses a confirm URL for a topic other than the one in the envelope', async () => {
+    // The host is genuinely AWS, so a host allowlist alone would confirm this.
+    const response = await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: confirmation(
+        CONFIRM_URL.replace(
+          encodeURIComponent(TOPIC),
+          encodeURIComponent('arn:aws:sns:us-east-1:999:elsewhere'),
+        ),
+      ),
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  it('confirms the rebuilt URL, not the one it was handed', async () => {
+    await app.inject({
+      method: 'POST',
+      url: '/webhook/inbound',
+      payload: confirmation(`${CONFIRM_URL}&NextUrl=http%3A%2F%2Fevil.example%2F`),
+    });
+
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    expect(String(fetchStub.mock.calls[0]?.[0])).not.toContain('evil.example');
   });
 
   it('answers 502 when the confirmation GET fails, rather than claiming success', async () => {
@@ -556,7 +588,7 @@ describe('POST /webhook/inbound — the subscription handshake', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/webhook/inbound',
-      payload: confirmation('https://sns.us-east-1.amazonaws.com/?Action=ConfirmSubscription'),
+      payload: confirmation(CONFIRM_URL),
     });
 
     expect(response.statusCode).toBe(502);

@@ -116,10 +116,22 @@ const SIGNATURE_ALGORITHMS: Record<string, string> = {
 };
 
 /**
- * An SNS-owned hostname. Anchored at both ends so `sns.us-east-1.amazonaws.com.evil.com`
- * cannot match, and `.cn` is allowed for the China partitions.
+ * An SNS-owned hostname, captured region-first. Anchored at both ends so
+ * `sns.us-east-1.amazonaws.com.evil.com` cannot match, and `.cn` is allowed for
+ * the China partitions. The region class is deliberately narrow: AWS regions are
+ * lowercase alphanumerics and dashes, nothing else.
  */
-const SNS_HOSTNAME = /^sns\.[a-z0-9-]+\.amazonaws\.com(\.cn)?$/;
+const SNS_HOSTNAME = /^sns\.([a-z0-9-]{1,32})\.amazonaws\.com(\.cn)?$/;
+
+/**
+ * The only path shape an SNS signing certificate is ever published at. AWS names
+ * these `SimpleNotificationService-<32 hex>.pem`; older messages carry a longer
+ * hex, so the length is a range rather than exactly 32.
+ */
+const SNS_CERT_PATH = /^\/(SimpleNotificationService-[a-f0-9]{16,64}\.pem)$/;
+
+/** The path shape of a subscription-confirmation callback: `/?Action=ConfirmSubscription&…`. */
+const SNS_CONFIRM_PATH = /^\/?$/;
 
 const DEFAULT_MAX_AGE_MS = 60 * 60 * 1000;
 
@@ -132,22 +144,87 @@ export function isSnsMessageType(value: unknown): value is SnsMessageType {
 }
 
 /**
- * True only for an `https://sns.<region>.amazonaws.com[.cn]/...` URL.
+ * Rebuild an SNS signing-certificate URL from the parts that passed validation,
+ * or return null.
  *
- * Used for both `SigningCertURL` and `SubscribeURL`. The previous check here was
- * `startsWith('https://sns.')`, which `https://sns.attacker.example/` satisfies.
+ * Returning a rebuilt string rather than a boolean is the point. A predicate
+ * leaves the caller still holding the attacker's original string and merely
+ * *trusting itself* to have checked it — and leaves a reader (or a static
+ * analyser; CodeQL flagged both fetch sites as `js/request-forgery` while this
+ * was a boolean) unable to see that the check happened at all. Nothing here is
+ * carried over verbatim: the scheme is a literal, the region comes from a
+ * `[a-z0-9-]` capture, and the filename from a hex capture.
+ *
+ * The previous check was `startsWith('https://sns.')`, which
+ * `https://sns.attacker.example/` satisfies.
  */
-export function isTrustedSnsUrl(raw: string | undefined): boolean {
+export function trustedSnsCertUrl(raw: string | undefined): string | null {
   if (!raw) {
-    return false;
+    return null;
   }
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    return false;
+    return null;
   }
-  return url.protocol === 'https:' && SNS_HOSTNAME.test(url.hostname);
+  if (url.protocol !== 'https:' || url.search !== '' || url.username || url.password) {
+    return null;
+  }
+  const host = SNS_HOSTNAME.exec(url.hostname);
+  const file = SNS_CERT_PATH.exec(url.pathname);
+  if (!host || !file) {
+    return null;
+  }
+  return `https://sns.${host[1]}.amazonaws.com${host[2] ?? ''}/${file[1]}`;
+}
+
+/**
+ * Rebuild an SNS `SubscribeURL` from validated parts, or return null.
+ *
+ * The confirmation callback needs its query string, so this cannot simply drop
+ * it. Instead every parameter is rebuilt: `Action` must be the one action this
+ * endpoint is willing to perform, `TopicArn` must equal the topic the envelope
+ * already declared (which the route has separately allowlisted), and `Token` is
+ * constrained to the character class AWS actually uses. A URL that reaches
+ * `fetch` from here cannot point anywhere but an SNS confirm endpoint for a
+ * topic we accept.
+ */
+export function trustedSnsSubscribeUrl(
+  raw: string | undefined,
+  expectedTopicArn: string | undefined,
+): string | null {
+  if (!raw || !expectedTopicArn) {
+    return null;
+  }
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'https:' || url.username || url.password) {
+    return null;
+  }
+  const host = SNS_HOSTNAME.exec(url.hostname);
+  if (!host || !SNS_CONFIRM_PATH.test(url.pathname)) {
+    return null;
+  }
+  const token = url.searchParams.get('Token');
+  if (
+    url.searchParams.get('Action') !== 'ConfirmSubscription' ||
+    url.searchParams.get('TopicArn') !== expectedTopicArn ||
+    !token ||
+    !/^[A-Za-z0-9]{1,1024}$/.test(token)
+  ) {
+    return null;
+  }
+  const query = new URLSearchParams({
+    Action: 'ConfirmSubscription',
+    TopicArn: expectedTopicArn,
+    Token: token,
+  });
+  return `https://sns.${host[1]}.amazonaws.com${host[2] ?? ''}/?${query.toString()}`;
 }
 
 /** The `SigningCertURL` under either casing, or undefined. */
@@ -197,9 +274,11 @@ export function clearSnsCertCache(): void {
 }
 
 /**
- * Default fetcher: plain HTTPS GET of a URL already validated by
- * {@link isTrustedSnsUrl}, with a short timeout so a slow AWS endpoint cannot
- * pin a request handler open.
+ * Default fetcher. The URL it receives was assembled by
+ * {@link trustedSnsCertUrl} out of a literal scheme, a validated region and a
+ * validated filename — no part of the caller's string survives — so this is a
+ * plain HTTPS GET, with a short timeout so a slow AWS endpoint cannot pin a
+ * request handler open.
  */
 async function fetchCertificateOverHttps(url: string): Promise<string> {
   const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
@@ -247,9 +326,12 @@ export async function verifySnsMessage(
     return { ok: false, reason: 'missing-signature' };
   }
 
-  const certUrl = signingCertUrlOf(message);
-  if (!isTrustedSnsUrl(certUrl)) {
-    return { ok: false, reason: 'untrusted-cert-url', detail: certUrl ?? '(absent)' };
+  const claimedCertUrl = signingCertUrlOf(message);
+  // From here on only `certUrl` is used. The claimed string is kept solely to
+  // name the offending value in the rejection detail.
+  const certUrl = trustedSnsCertUrl(claimedCertUrl);
+  if (certUrl === null) {
+    return { ok: false, reason: 'untrusted-cert-url', detail: claimedCertUrl ?? '(absent)' };
   }
 
   const canonical = snsCanonicalString(message);
@@ -266,10 +348,7 @@ export async function verifySnsMessage(
 
   let pem: string;
   try {
-    pem = await loadCertificate(
-      certUrl as string,
-      options.fetchCertificate ?? fetchCertificateOverHttps,
-    );
+    pem = await loadCertificate(certUrl, options.fetchCertificate ?? fetchCertificateOverHttps);
   } catch (error) {
     return { ok: false, reason: 'cert-fetch-failed', detail: String(error) };
   }

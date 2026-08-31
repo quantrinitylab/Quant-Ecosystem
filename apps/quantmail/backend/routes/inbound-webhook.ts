@@ -38,7 +38,7 @@ import type { FastifyInstance } from 'fastify';
 import { GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { prisma } from '@quant/database';
 import { parseRawEmail, type ParsedEmail } from '../lib/mime-parser';
-import { isTrustedSnsUrl, verifySnsMessage, type SnsEnvelope } from '../lib/sns-verifier';
+import { trustedSnsSubscribeUrl, verifySnsMessage, type SnsEnvelope } from '../lib/sns-verifier';
 import {
   DeliverabilityAuthService,
   type AuthResult,
@@ -428,17 +428,21 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
 
     // 3) Subscription handshake.
     if (sns.Type === 'SubscriptionConfirmation') {
-      // `isTrustedSnsUrl` and not `startsWith('https://sns.')`, which
-      // `https://sns.attacker.example/` also satisfies.
-      if (!isTrustedSnsUrl(sns.SubscribeURL)) {
+      // `trustedSnsSubscribeUrl` rebuilds the callback from validated parts and
+      // not `startsWith('https://sns.')`, which `https://sns.attacker.example/`
+      // also satisfies. Binding it to the envelope's own `TopicArn` — already
+      // allowlisted in step 2 — means a signed message cannot make us confirm a
+      // subscription to somebody else's topic either.
+      const subscribeUrl = trustedSnsSubscribeUrl(sns.SubscribeURL, sns.TopicArn);
+      if (subscribeUrl === null) {
         app.log.warn(
           { subscribeUrl: sns.SubscribeURL },
-          '[inbound] rejected: SubscribeURL is not an AWS SNS URL',
+          '[inbound] rejected: SubscribeURL is not an AWS SNS confirm URL for this topic',
         );
         return reply.status(403).send({ ok: false, error: 'FORBIDDEN' });
       }
       try {
-        const response = await fetch(sns.SubscribeURL as string, {
+        const response = await fetch(subscribeUrl, {
           signal: AbortSignal.timeout(10_000),
         });
         app.log.info({ status: response.status }, '[inbound] SNS subscription confirmed');

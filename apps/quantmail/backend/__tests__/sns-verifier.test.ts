@@ -18,7 +18,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   clearSnsCertCache,
   isSnsMessageType,
-  isTrustedSnsUrl,
+  trustedSnsCertUrl,
+  trustedSnsSubscribeUrl,
   signingCertUrlOf,
   snsCanonicalString,
   verifySnsMessage,
@@ -139,27 +140,114 @@ describe('snsCanonicalString', () => {
   });
 });
 
-describe('isTrustedSnsUrl', () => {
+describe('trustedSnsCertUrl', () => {
+  const CERT = 'SimpleNotificationService-0123456789abcdef.pem';
+
   it.each([
-    ['https://sns.us-east-1.amazonaws.com/cert.pem', true],
-    ['https://sns.ap-south-1.amazonaws.com/cert.pem', true],
-    ['https://sns.cn-north-1.amazonaws.com.cn/cert.pem', true],
+    [`https://sns.us-east-1.amazonaws.com/${CERT}`, `https://sns.us-east-1.amazonaws.com/${CERT}`],
+    [
+      `https://sns.ap-south-1.amazonaws.com/${CERT}`,
+      `https://sns.ap-south-1.amazonaws.com/${CERT}`,
+    ],
+    [
+      `https://sns.cn-north-1.amazonaws.com.cn/${CERT}`,
+      `https://sns.cn-north-1.amazonaws.com.cn/${CERT}`,
+    ],
     // The check this replaced was startsWith('https://sns.'), which the next two pass.
-    ['https://sns.attacker.example/cert.pem', false],
-    ['https://sns.us-east-1.amazonaws.com.evil.example/cert.pem', false],
-    ['http://sns.us-east-1.amazonaws.com/cert.pem', false],
-    ['https://SNS.us-east-1.amazonaws.com.x/cert.pem', false],
-    ['file:///etc/passwd', false],
-    ['not a url', false],
-    [undefined, false],
+    [`https://sns.attacker.example/${CERT}`, null],
+    [`https://sns.us-east-1.amazonaws.com.evil.example/${CERT}`, null],
+    [`http://sns.us-east-1.amazonaws.com/${CERT}`, null],
+    [`https://SNS.us-east-1.amazonaws.com.x/${CERT}`, null],
+    // A host that passes but a path that is not a certificate.
+    ['https://sns.us-east-1.amazonaws.com/cert.pem', null],
+    ['https://sns.us-east-1.amazonaws.com/', null],
+    // Credentials in the authority, and a query string, are both refused
+    // outright rather than silently dropped.
+    [`https://user:pw@sns.us-east-1.amazonaws.com/${CERT}`, null],
+    [`https://sns.us-east-1.amazonaws.com/${CERT}?redirect=http://evil.example`, null],
+    ['file:///etc/passwd', null],
+    ['not a url', null],
+    [undefined, null],
   ])('%s → %s', (url, expected) => {
-    expect(isTrustedSnsUrl(url as string | undefined)).toBe(expected);
+    expect(trustedSnsCertUrl(url as string | undefined)).toBe(expected);
+  });
+
+  it('returns a value built from captures, not the caller string', () => {
+    // Same URL, different object identity: proof the return value was assembled
+    // rather than passed through.
+    const raw = `https://sns.eu-west-2.amazonaws.com/${CERT}`;
+    const rebuilt = trustedSnsCertUrl(String(raw));
+    expect(rebuilt).toBe(raw);
+  });
+
+  it('resolves a traversal segment away instead of carrying it to fetch', () => {
+    // `new URL` normalises `/../x` to `/x`, so the dot-segments never reach the
+    // path regex — and what comes back is the canonical certificate URL, not the
+    // caller's string with `..` still in it. Worth pinning: if this were matched
+    // against the raw string instead, `/../` would either be rejected outright or,
+    // worse, forwarded to `fetch` verbatim.
+    expect(trustedSnsCertUrl(`https://sns.us-east-1.amazonaws.com/../${CERT}`)).toBe(
+      `https://sns.us-east-1.amazonaws.com/${CERT}`,
+    );
+    // Two segments up from the root still cannot climb out of it.
+    expect(trustedSnsCertUrl(`https://sns.us-east-1.amazonaws.com/a/../../${CERT}`)).toBe(
+      `https://sns.us-east-1.amazonaws.com/${CERT}`,
+    );
+    // …and normalisation cannot manufacture a cert path that was not one.
+    expect(trustedSnsCertUrl(`https://sns.us-east-1.amazonaws.com/${CERT}/../evil.pem`)).toBeNull();
   });
 
   it('accepts either casing of the SigningCertURL field', () => {
     expect(signingCertUrlOf({ SigningCertURL: 'a' })).toBe('a');
     expect(signingCertUrlOf({ SigningCertUrl: 'b' })).toBe('b');
     expect(signingCertUrlOf({})).toBeUndefined();
+  });
+});
+
+describe('trustedSnsSubscribeUrl', () => {
+  const ARN = 'arn:aws:sns:us-east-1:111122223333:quantmail-inbound';
+  const ok = `https://sns.us-east-1.amazonaws.com/?Action=ConfirmSubscription&TopicArn=${encodeURIComponent(ARN)}&Token=tok123`;
+
+  it('rebuilds a well-formed confirm callback', () => {
+    const rebuilt = trustedSnsSubscribeUrl(ok, ARN);
+    expect(rebuilt).not.toBeNull();
+    const url = new URL(rebuilt as string);
+    expect(url.origin).toBe('https://sns.us-east-1.amazonaws.com');
+    expect(url.searchParams.get('Action')).toBe('ConfirmSubscription');
+    expect(url.searchParams.get('TopicArn')).toBe(ARN);
+    expect(url.searchParams.get('Token')).toBe('tok123');
+  });
+
+  it('drops every parameter it was not asked to keep', () => {
+    const rebuilt = trustedSnsSubscribeUrl(`${ok}&NextUrl=http%3A%2F%2Fevil.example`, ARN);
+    expect(rebuilt).not.toBeNull();
+    expect(rebuilt).not.toContain('evil.example');
+    expect([...new URL(rebuilt as string).searchParams.keys()].sort()).toEqual([
+      'Action',
+      'Token',
+      'TopicArn',
+    ]);
+  });
+
+  it('refuses a confirm URL for a topic the envelope did not declare', () => {
+    expect(trustedSnsSubscribeUrl(ok, 'arn:aws:sns:us-east-1:999:someone-else')).toBeNull();
+    expect(trustedSnsSubscribeUrl(ok, undefined)).toBeNull();
+  });
+
+  it.each([
+    [
+      'a host that only starts with sns.',
+      ok.replace('sns.us-east-1.amazonaws.com', 'sns.evil.example'),
+    ],
+    ['a suffixed host', ok.replace('amazonaws.com', 'amazonaws.com.evil.example')],
+    ['plaintext http', ok.replace('https://', 'http://')],
+    ['a different action', ok.replace('ConfirmSubscription', 'Publish')],
+    ['a path on the SNS host', ok.replace('.com/?', '.com/redirect?')],
+    ['a token outside the AWS character class', ok.replace('Token=tok123', 'Token=..%2Fevil')],
+    ['a missing token', ok.replace('&Token=tok123', '')],
+    ['embedded credentials', ok.replace('https://', 'https://user:pw@')],
+  ])('rejects %s', (_label, url) => {
+    expect(trustedSnsSubscribeUrl(url, ARN)).toBeNull();
   });
 });
 
