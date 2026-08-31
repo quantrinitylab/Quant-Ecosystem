@@ -1,12 +1,13 @@
 name: Fix staging (migrations + rollout + ELB)
 
 # Auto-runs when this file is pushed to main; can also be run manually.
-# DB password comes from workflow input (manual) or SSM /quant/staging/db_password (auto).
+# The DB password is resolved from four sources in order — see "Resolve DB
+# password" below for why the cluster's own secret is the authoritative one.
 on:
   workflow_dispatch:
     inputs:
       db_password:
-        description: 'RDS master password (optional - falls back to SSM)'
+        description: 'RDS master password (optional - resolved from the cluster secret otherwise)'
         required: false
         type: string
   push:
@@ -55,12 +56,87 @@ jobs:
           aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
 
       - name: Resolve DB password
+        env:
+          # The dispatch input is a string a human types, so it travels through the
+          # environment instead of being interpolated into the script: a single `"`
+          # in `${{ inputs.db_password }}` would otherwise close the assignment and
+          # everything after it would be read as shell.
+          INPUT_PASS: ${{ inputs.db_password }}
         run: |
-          PASS="${{ inputs.db_password }}"
-          if [ -z "$PASS" ]; then
-            echo "No input password - fetching from SSM..."
-            PASS=$(aws ssm get-parameter --name /quant/staging/db_password --with-decryption --query Parameter.Value --output text --region us-east-1)
+          set -uo pipefail
+
+          # FOUR SOURCES, AND WHY THE CLUSTER'S OWN SECRET IS THE REAL ONE.
+          #
+          # This step used to read SSM `/quant/staging/db_password` and nothing
+          # else. On 2026-08-31 that parameter did not exist: ParameterNotFound,
+          # exit 254, and every step after it skipped — no migrations, no rollout,
+          # while the run still reported an ELB hostname and looked like it had
+          # done something. Nothing in this repo provisions that parameter.
+          #
+          # `bootstrap-aws.yml` does provision two things: the password in Secrets
+          # Manager `quant/postgres`, and a full `DATABASE_URL` in the cluster
+          # secret `quant-staging-secrets`. The cluster secret is the credential
+          # the running backend is holding, which makes it the one source that
+          # cannot be stale — if it were wrong, the backend would not be serving.
+          # So it is tried first, and SSM stays last as a legacy path.
+          PASS=""
+
+          if [ -n "${INPUT_PASS:-}" ]; then
+            echo "Source: dispatch input."
+            PASS="$INPUT_PASS"
           fi
+
+          if [ -z "$PASS" ]; then
+            echo "Source: secret/quant-staging-secrets DATABASE_URL..."
+            URL="$(kubectl get secret quant-staging-secrets -n "$K8S_NAMESPACE" \
+              -o jsonpath='{.data.DATABASE_URL}' 2>/dev/null | base64 -d 2>/dev/null || true)"
+            if [ -n "$URL" ]; then
+              echo "::add-mask::$URL"
+              # postgresql://user:pass@host:port/db, split on the LAST `@` — the
+              # userinfo is percent-encoded so it contains none, and the host part
+              # cannot. Decoding is a builtin `printf`, not node or python: the
+              # password must never reach a process argument list where `ps` on
+              # the runner could read it.
+              userinfo="${URL#*://}"
+              userinfo="${userinfo%@*}"
+              enc="${userinfo#*:}"
+              # The `\x` has to arrive via a variable. Written inline as
+              # `${enc//%/\\x}` bash collapses the escape twice and the backslash
+              # is gone, so `%40` decodes to the literal `x40` — verified, not
+              # assumed. Held in `esc` it survives, and %25/%5C round-trip too.
+              esc='\x'
+              PASS="$(printf '%b' "${enc//%/$esc}")"
+            fi
+          fi
+
+          if [ -z "$PASS" ]; then
+            echo "Source: Secrets Manager quant/postgres..."
+            SECRET_JSON="$(aws secretsmanager get-secret-value --secret-id quant/postgres \
+              --query SecretString --output text --region "$AWS_REGION" 2>/dev/null || true)"
+            if [ -n "$SECRET_JSON" ]; then
+              echo "::add-mask::$SECRET_JSON"
+              # jq is preinstalled on ubuntu-latest, but a fallback that silently
+              # does nothing when a tool is missing is the same lie as a stub
+              # endpoint, so the shell path is real and tested too.
+              if command -v jq >/dev/null 2>&1; then
+                PASS="$(printf '%s' "$SECRET_JSON" | jq -r '.password // empty')"
+              elif [[ "$SECRET_JSON" =~ \"password\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
+                PASS="${BASH_REMATCH[1]}"
+              fi
+            fi
+          fi
+
+          if [ -z "$PASS" ]; then
+            echo "Source: SSM /quant/staging/db_password (legacy)..."
+            PASS="$(aws ssm get-parameter --name /quant/staging/db_password --with-decryption \
+              --query Parameter.Value --output text --region "$AWS_REGION" 2>/dev/null || true)"
+          fi
+
+          if [ -z "$PASS" ]; then
+            echo "::error::No RDS password from the dispatch input, the cluster secret, Secrets Manager or SSM. Re-run this workflow with db_password set."
+            exit 1
+          fi
+
           echo "::add-mask::$PASS"
           echo "DB_PASS=$PASS" >> "$GITHUB_ENV"
 
@@ -97,10 +173,29 @@ jobs:
           PGPASSWORD="$DB_PASS" psql -h 127.0.0.1 -p 15432 -U "$RDS_USER" -d "$RDS_DB" -c 'SELECT version();'
 
       - name: Run Prisma migrations (through cluster proxy)
+        id: migrate
         run: |
           npm install -g pnpm
           pnpm install --frozen-lockfile --filter "@quant/database..." || pnpm install --frozen-lockfile
-          DATABASE_URL="postgresql://${RDS_USER}:${DB_PASS}@127.0.0.1:15432/${RDS_DB}" \
+
+          # DB_PASS is the raw password — `psql` above wants it raw, a URL does
+          # not. Interpolating it unescaped is how a password containing `@` or
+          # `/` yields a URL that parses to a different host entirely and fails
+          # with something that looks like a network problem. Encoded with
+          # builtins only, so it never reaches a process argument list.
+          enc=""
+          i=0
+          while [ "$i" -lt "${#DB_PASS}" ]; do
+            c="${DB_PASS:$i:1}"
+            case "$c" in
+              [A-Za-z0-9.~_-]) enc="$enc$c" ;;
+              *) enc="$enc$(printf '%%%02X' "'$c")" ;;
+            esac
+            i=$((i + 1))
+          done
+          echo "::add-mask::$enc"
+
+          DATABASE_URL="postgresql://${RDS_USER}:${enc}@127.0.0.1:15432/${RDS_DB}" \
             pnpm --filter @quant/database exec prisma migrate deploy --schema=prisma/schema.prisma
           echo "Migrations done"
 
@@ -111,6 +206,7 @@ jobs:
           kubectl delete pod pg-proxy -n "$K8S_NAMESPACE" --ignore-not-found || true
 
       - name: Restart backend + wait
+        id: rollout
         run: |
           kubectl rollout restart deployment/quant-quantmail-backend -n "$K8S_NAMESPACE"
           if ! kubectl rollout status deployment/quant-quantmail-backend -n "$K8S_NAMESPACE" --timeout=420s; then
@@ -147,11 +243,15 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
+          MIGRATE: ${{ steps.migrate.outcome || 'skipped' }}
+          ROLLOUT: ${{ steps.rollout.outcome || 'skipped' }}
         run: |
           mkdir -p infra/status
           {
             echo "# fix-staging result (run ${{ github.run_id }})"
             echo "time: $(date -u +%FT%TZ)"
+            echo "migrations: $MIGRATE"
+            echo "rollout: $ROLLOUT"
             echo ""
             echo "## deployments"
             kubectl get deploy -n "$K8S_NAMESPACE" 2>/dev/null || echo "kubectl unavailable"
@@ -176,14 +276,37 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          MIGRATE: ${{ steps.migrate.outcome || 'skipped' }}
+          ROLLOUT: ${{ steps.rollout.outcome || 'skipped' }}
         run: |
+          # THE SUMMARY HAS TO SAY WHAT ACTUALLY HAPPENED.
+          #
+          # Every step from here down is `if: always()`, which is right — an ELB
+          # hostname is worth having even after a failure. But the table used to
+          # print only that hostname, so run 33432169698 — where the password step
+          # died and migrations and the rollout were both skipped — published a
+          # "Staging fix result" with a hostname and a next action, and read as a
+          # completed fix. A deploy tool that cannot fail visibly is worse than no
+          # deploy tool.
+          verdict='applied'
+          if [ "$MIGRATE" != 'success' ] || [ "$ROLLOUT" != 'success' ]; then
+            verdict='**NOT APPLIED** — see the rows below'
+          fi
           {
             echo "## Staging fix result"
             echo ""
             echo "| Item | Value |"
             echo "|---|---|"
+            echo "| Outcome | $verdict |"
+            echo "| Prisma migrations | $MIGRATE |"
+            echo "| Backend rollout | $ROLLOUT |"
             echo "| ELB hostname | ${ELB_HOSTNAME:-NOT ASSIGNED} |"
             echo ""
-            echo "Point Cloudflare CNAMEs (quantmail + staging) to the ELB hostname."
+            if [ "$verdict" = 'applied' ]; then
+              echo "Point Cloudflare CNAMEs (quantmail + staging) to the ELB hostname."
+            else
+              echo "The cluster was NOT changed as intended. Fix the failing step and re-run before dispatching deploy-staging."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "Done."
+          echo "migrations=$MIGRATE rollout=$ROLLOUT"
