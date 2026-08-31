@@ -4,6 +4,7 @@ import { createAppError } from '@quant/server-core';
 import { CrossAppDispatcher } from '@quant/notifications';
 import { EmailService, toMessageKind } from '../services/email.service';
 import { ThreadService } from '../services/thread.service';
+import { ContactService } from '../services/contact.service';
 import { OutboundDeliveryPipeline } from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
 import { formatEmailRecord } from '../lib/format-email';
@@ -116,6 +117,32 @@ const searchSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
 });
 
+/**
+ * Record that the sender wrote to these addresses.
+ *
+ * `ContactService.recordInteraction` has existed, tested, for months with zero
+ * production callers — which is why `frequency` was always 0, "frequently
+ * contacted" was ordered by nothing, and the composer's suggestions never
+ * learned anybody. The three send paths call this; drafts do not, because
+ * writing half a message to somebody is not contacting them.
+ *
+ * The collection, de-duplication and never-throwing live in
+ * {@link ContactService.recordRecipients}; this only decides what to log.
+ */
+async function recordRecipientInteractions(params: {
+  prisma: unknown;
+  userId: string;
+  addressGroups: Array<readonly (string | undefined)[] | undefined>;
+  logger?: { warn: (obj: unknown, msg: string) => void };
+}): Promise<void> {
+  const contacts = new ContactService(params.prisma as never);
+  const { failed, total } = await contacts.recordRecipients(params.userId, params.addressGroups);
+
+  if (failed > 0) {
+    params.logger?.warn({ failed, total }, 'some contact interactions were not recorded');
+  }
+}
+
 export default async function emailsRoutes(fastify: FastifyInstance) {
   let outboundQueue: ReturnType<typeof OutboundDeliveryPipeline.createQueue> | undefined;
   const createSendService = (prisma: any) => {
@@ -186,6 +213,17 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       } catch {
         /* internal delivery failure must not block the send response */
       }
+
+      await recordRecipientInteractions({
+        prisma,
+        userId,
+        addressGroups: [
+          parseResult.data.toAddresses,
+          parseResult.data.ccAddresses,
+          parseResult.data.bccAddresses,
+        ],
+        logger: request.log,
+      });
 
       // Notify recipients about the new email
       try {
@@ -327,6 +365,17 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
 
     const asArray = (value: unknown): string[] =>
       Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+
+    await recordRecipientInteractions({
+      prisma,
+      userId,
+      addressGroups: [
+        asArray(email.toAddresses),
+        asArray(email.ccAddresses),
+        asArray(email.bccAddresses),
+      ],
+      logger: request.log,
+    });
 
     let targetThreadId = email.threadId;
     try {
@@ -509,6 +558,13 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       create: { userId, name: 'Sent', type: 'SENT' },
     });
     const sent = await sendService.send(userId, draft.id, sentFolder.id);
+
+    await recordRecipientInteractions({
+      prisma,
+      userId,
+      addressGroups: [to, cc],
+      logger: request.log,
+    });
 
     try {
       await sendService.deliverInternally({
