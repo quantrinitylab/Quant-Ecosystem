@@ -32,7 +32,6 @@ import type {
   CalendarEvent,
   Calendar,
   Contact,
-  ContactGroup,
   AIComposeRequest,
   MeetingExtraction,
 } from '../types';
@@ -600,16 +599,10 @@ export class QuantMailApiClient {
     return this.delete(`/contacts/${id}`);
   }
 
-  async getContactGroups(): Promise<ApiResponse<ContactGroup[]>> {
-    return this.get('/contacts/groups');
-  }
-
-  async syncContacts(
-    app: string,
-    action: string,
-  ): Promise<ApiResponse<{ syncedCount: number; message: string }>> {
-    return this.post('/contacts/sync', { app, action });
-  }
+  // `getContactGroups()` and `syncContacts()` used to live here. Neither route
+  // existed on the server, so both returned a 404 envelope; nothing in the app
+  // called them, so nothing noticed. Removed rather than stubbed — an API client
+  // method is a promise that an endpoint exists.
 
   // --------------------------------------------------------------------------
   // AI API
