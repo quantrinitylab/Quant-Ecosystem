@@ -138,6 +138,46 @@ interface FolderLookupPrisma {
   };
 }
 
+/**
+ * Per-call overrides for {@link InboundIngestAdapter.ingest}.
+ *
+ * Both exist for the SES/SNS webhook, which knows things the SMTP bridge does
+ * not. It has already resolved which local mailbox this copy is for (one message
+ * addressed to two QuantMail users becomes two ingests), and SES has already run
+ * SPF/DKIM/DMARC at SMTP time — re-running SPF here would evaluate it without
+ * the connecting IP, which the raw message stored in S3 does not carry, and
+ * would report a false `fail` for mail that genuinely passed.
+ */
+export interface IngestOptions {
+  /** Deliver to this user instead of resolving one from the recipient list. */
+  userId?: string;
+  /** Use this verdict instead of authenticating the message here. */
+  verdict?: AuthVerdict;
+  /**
+   * Force the spam routing decision.
+   *
+   * The adapter's own rule is DMARC alignment and nothing else. A caller that
+   * knows more — the SES path has the spam and virus scanner verdicts from SMTP
+   * time — can quarantine on that evidence without having to misreport DMARC as
+   * failing in order to get the message into the spam folder.
+   */
+  quarantine?: boolean;
+}
+
+/**
+ * Structural view of the duplicate lookup. Optional because the adapter's unit
+ * tests supply only the delegates they exercise, and because the real guarantee
+ * is the `(userId, messageId)` unique index — this pre-check only keeps a
+ * redelivered notification from raising a constraint violation.
+ */
+interface DuplicateLookupPrisma {
+  email?: {
+    findFirst?(args: {
+      where: { userId: string; messageId: string };
+    }): Promise<{ id: string } | null>;
+  };
+}
+
 /** Parse the display name from a `From:` header value, if present. */
 function displayNameOf(headerFrom: string): string | null {
   const angle = headerFrom.indexOf('<');
@@ -195,13 +235,15 @@ export class InboundIngestAdapter {
 
   /**
    * Ingest one raw inbound message: authenticate, persist, thread, route, index.
-   * Returns the persisted `Email` (with its AuthVerdict recorded).
+   * Returns the persisted `Email` (with its AuthVerdict recorded), or the copy
+   * already stored when the same Message-ID has been delivered to this mailbox
+   * before — SNS redelivery must not duplicate mail.
    *
    * Every inbound delivery operation emits a `delivery.ingest_inbound` span
    * (Req 23.2): the span records the routing decision (quarantine vs. inbox) and
    * the auth verdict, and ends `error` if ingest throws (e.g. no local recipient).
    */
-  async ingest(rawMessage: InboundRawMessage): Promise<Email> {
+  async ingest(rawMessage: InboundRawMessage, options: IngestOptions = {}): Promise<Email> {
     return withSpan(
       this.tracer,
       'delivery.ingest_inbound',
@@ -210,11 +252,13 @@ export class InboundIngestAdapter {
         'delivery.recipient_count': rawMessage.to.length,
       },
       async (span) => {
-        // 1) Authenticate (SPF/DKIM/DMARC).
-        const verdict = await this.auth.verifyInbound(this.toAuthMessage(rawMessage));
+        // 1) Authenticate (SPF/DKIM/DMARC), unless the caller already holds a
+        //    verdict from the transport that actually saw the SMTP connection.
+        const verdict =
+          options.verdict ?? (await this.auth.verifyInbound(this.toAuthMessage(rawMessage)));
 
         // 2) Resolve the local recipient mailbox -> user.
-        const userId = await this.resolveRecipientUser(rawMessage.to);
+        const userId = options.userId ?? (await this.resolveRecipientUser(rawMessage.to));
         if (!userId) {
           throw createAppError(
             'No local recipient found for inbound message',
@@ -223,8 +267,20 @@ export class InboundIngestAdapter {
           );
         }
 
+        // 2b) SNS delivers at least once, and a replay of the same notification
+        //     must not produce a second copy in the mailbox. Keyed on the
+        //     originating Message-ID, which is the only identifier that is stable
+        //     across redeliveries.
+        if (rawMessage.messageId) {
+          const duplicate = await this.findByMessageId(userId, rawMessage.messageId);
+          if (duplicate) {
+            span.setAttributes({ 'delivery.duplicate': true, 'delivery.user_id': userId });
+            return duplicate;
+          }
+        }
+
         // 3) Routing decision.
-        const quarantine = InboundIngestAdapter.shouldQuarantine(verdict);
+        const quarantine = options.quarantine ?? InboundIngestAdapter.shouldQuarantine(verdict);
         const folderId = await this.resolveFolder(userId, quarantine ? 'SPAM' : 'INBOX');
 
         // 4) Thread stitching (Requirement 5.2).
@@ -351,6 +407,25 @@ export class InboundIngestAdapter {
       ...(rawMessage.clientIp !== undefined ? { clientIp: rawMessage.clientIp } : {}),
       ...(rawMessage.heloDomain !== undefined ? { heloDomain: rawMessage.heloDomain } : {}),
     };
+  }
+
+  /**
+   * A message already delivered to this mailbox under the same Message-ID, if
+   * any. Absent `email.findFirst` (unit-test doubles) means "not a duplicate":
+   * the unique index is the real guard, this is only noise suppression.
+   */
+  private async findByMessageId(userId: string, messageId: string): Promise<Email | null> {
+    const db = this.prisma as unknown as DuplicateLookupPrisma;
+    const finder = db.email?.findFirst;
+    if (typeof finder !== 'function') {
+      return null;
+    }
+    try {
+      const found = await finder.call(db.email, { where: { userId, messageId } });
+      return (found as Email | null) ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /** Resolve the first recipient address that maps to a known local user. */

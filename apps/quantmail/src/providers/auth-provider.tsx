@@ -1,11 +1,15 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { clearMailCache } from '../lib/offline/mail-cache';
 import { clearOutbox } from '../lib/offline/outbox';
 import { apiClient } from '../services/api-client';
-import { browserAuthSession, cleanupLegacyBrowserTokens } from '../services/browser-auth-session';
+import {
+  browserAuthSession,
+  cleanupLegacyBrowserTokens,
+  isTwoFactorChallenge,
+} from '../services/browser-auth-session';
 
 export interface AuthUser {
   id: string;
@@ -15,12 +19,25 @@ export interface AuthUser {
   role: string;
 }
 
+/**
+ * `login` no longer implies a session. An account with a second factor stops
+ * here and the caller has to decide what to render, so the outcome is returned
+ * rather than signalled by a thrown error.
+ */
+export type LoginOutcome =
+  | { status: 'signed-in' }
+  | { status: 'two-factor-required'; expiresIn: number };
+
 interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  /** True between a password accepted and its second factor answered. */
+  isTwoFactorPending: boolean;
+  login: (email: string, password: string) => Promise<LoginOutcome>;
+  completeTwoFactor: (code: string) => Promise<void>;
+  cancelTwoFactor: () => void;
   logout: () => Promise<void>;
 }
 
@@ -31,9 +48,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isTwoFactorPending, setIsTwoFactorPending] = useState(false);
+  // A ref, not state, and never localStorage: the challenge is a credential in
+  // its own right, and the only thing that should outlive this tab's memory is
+  // the HttpOnly cookie the server sets once the second factor is answered.
+  const challengeRef = useRef<string | null>(null);
 
   const clearMemorySession = useCallback(() => {
     browserAuthSession.clearAccessToken();
+    challengeRef.current = null;
+    setIsTwoFactorPending(false);
     setUser(null);
   }, []);
 
@@ -84,26 +108,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // remains inside the HttpOnly cookie and never enters this provider.
   useEffect(() => {
     if (!user) return;
-    const timer = window.setInterval(async () => {
-      const session = await browserAuthSession.refresh();
-      if (!session.success || !session.data?.accessToken) {
-        clearMemorySession();
-      }
-    }, 12 * 60 * 1000);
+    const timer = window.setInterval(
+      async () => {
+        const session = await browserAuthSession.refresh();
+        if (!session.success || !session.data?.accessToken) {
+          clearMemorySession();
+        }
+      },
+      12 * 60 * 1000,
+    );
     return () => window.clearInterval(timer);
   }, [user, clearMemorySession]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string): Promise<LoginOutcome> => {
       setError(null);
       setIsLoading(true);
       cleanupLegacyBrowserTokens();
       try {
         const session = await browserAuthSession.login(email, password);
-        if (!session.success || !session.data?.accessToken) {
+        if (!session.success || !session.data) {
           throw new Error(session.error?.message || 'Login failed');
         }
+
+        if (isTwoFactorChallenge(session.data)) {
+          challengeRef.current = session.data.challenge;
+          setIsTwoFactorPending(true);
+          return { status: 'two-factor-required', expiresIn: session.data.expiresIn };
+        }
+
+        if (!session.data.accessToken) {
+          throw new Error('Login failed');
+        }
         await loadProfile();
+        return { status: 'signed-in' };
       } catch (caught) {
         clearMemorySession();
         const message = caught instanceof Error ? caught.message : 'Login failed';
@@ -115,6 +153,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     [clearMemorySession, loadProfile],
   );
+
+  const completeTwoFactor = useCallback(
+    async (code: string) => {
+      const challenge = challengeRef.current;
+      if (!challenge) {
+        const message = 'This sign-in attempt is no longer valid. Enter your password again.';
+        setError(message);
+        throw new Error(message);
+      }
+
+      setError(null);
+      setIsLoading(true);
+      try {
+        const session = await browserAuthSession.completeTwoFactor(challenge, code);
+        if (!session.success || !session.data?.accessToken) {
+          throw new Error(session.error?.message || 'That code was not accepted.');
+        }
+        // Spent: the server will not honour it twice, and holding it invites a
+        // retry that can only fail confusingly.
+        challengeRef.current = null;
+        setIsTwoFactorPending(false);
+        await loadProfile();
+      } catch (caught) {
+        const message = caught instanceof Error ? caught.message : 'That code was not accepted.';
+        setError(message);
+        throw caught;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [loadProfile],
+  );
+
+  const cancelTwoFactor = useCallback(() => {
+    challengeRef.current = null;
+    setIsTwoFactorPending(false);
+    setError(null);
+  }, []);
 
   const logout = useCallback(async () => {
     try {
@@ -149,7 +225,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     isAuthenticated: Boolean(user),
     error,
+    isTwoFactorPending,
     login,
+    completeTwoFactor,
+    cancelTwoFactor,
     logout,
   };
 

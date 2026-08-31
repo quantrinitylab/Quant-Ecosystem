@@ -2,66 +2,19 @@ import { createHash } from 'node:crypto';
 import { FastifyInstance } from 'fastify';
 import prisma from '@quant/auth/lib/prisma';
 import * as argon2 from 'argon2';
-import { TokenService } from '@quant/auth/services/token-service';
-import { getJwtSecret, getJwtRefreshSecret } from '@quant/auth/lib/secrets';
-
-const REFRESH_COOKIE_NAME = 'quantmail_refresh';
-const REFRESH_COOKIE_PATH = '/auth';
-const REFRESH_TOKEN_TTL_SECONDS = 2_592_000;
-
-const refreshCookieOptions = () => ({
-  httpOnly: true,
-  secure: process.env['NODE_ENV'] === 'production',
-  sameSite: 'strict' as const,
-  path: REFRESH_COOKIE_PATH,
-  maxAge: REFRESH_TOKEN_TTL_SECONDS,
-});
-
-const configuredOrigins = (): Set<string> =>
-  new Set(
-    (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000')
-      .split(',')
-      .map((origin) => origin.trim().replace(/\/$/, ''))
-      .filter(Boolean),
-  );
-
-const hasTrustedOrigin = (request: { headers: Record<string, unknown> }): boolean => {
-  const origin = request.headers['origin'];
-  return typeof origin === 'string' && configuredOrigins().has(origin.replace(/\/$/, ''));
-};
+import {
+  REFRESH_COOKIE_NAME,
+  clearRefreshCookie,
+  createTokenService,
+  fail,
+  issueBrowserSession,
+  requireTrustedOrigin,
+  setRefreshCookie,
+} from '../lib/auth-session';
+import { signTwoFactorChallenge } from '../lib/two-factor';
 
 export async function authRoutes(fastify: FastifyInstance) {
-  const tokenService = new TokenService({
-    jwtSecret: getJwtSecret(),
-    jwtRefreshSecret: getJwtRefreshSecret(),
-    accessTokenExpiresIn: 900,
-    refreshTokenExpiresIn: REFRESH_TOKEN_TTL_SECONDS,
-    issuer: process.env['JWT_ISSUER'] ?? 'quantmail',
-    audience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
-    bcryptRounds: 12,
-    maxLoginAttempts: 5,
-    lockoutDuration: 900,
-  });
-
-  const fail = (reply: any, statusCode: number, code: string, message: string) =>
-    reply.code(statusCode).send({ success: false, error: { code, message, statusCode } });
-
-  const setRefreshCookie = (reply: any, token: string) =>
-    reply.setCookie(REFRESH_COOKIE_NAME, token, refreshCookieOptions());
-
-  const clearRefreshCookie = (reply: any) =>
-    reply.clearCookie(REFRESH_COOKIE_NAME, {
-      path: REFRESH_COOKIE_PATH,
-      httpOnly: true,
-      secure: process.env['NODE_ENV'] === 'production',
-      sameSite: 'strict',
-    });
-
-  const requireTrustedOrigin = (request: any, reply: any): boolean => {
-    if (hasTrustedOrigin(request)) return true;
-    fail(reply, 403, 'UNTRUSTED_ORIGIN', 'The request origin is not allowed.');
-    return false;
-  };
+  const tokenService = createTokenService();
 
   // Browser login: the access token remains memory-scoped in JavaScript while
   // the refresh credential is delivered only as an HttpOnly host-only cookie.
@@ -86,29 +39,25 @@ export async function authRoutes(fastify: FastifyInstance) {
         return fail(reply, 401, 'INVALID_CREDENTIALS', 'Invalid email or password.');
       }
 
-      const tokens = await tokenService.generateTokenPair(
-        user.id,
-        { email: user.email, username: user.username, role: user.role },
-        ['openid', 'profile', 'email'],
-        'quantmail' as any,
-      );
+      // A password alone is not a session for an account with a second factor.
+      // Both halves are required: the flag on its own is the state the old
+      // format-only /auth/2fa/enable left accounts in, and honouring it would
+      // demand a code that nothing can verify.
+      const protectedUser = user as unknown as {
+        twoFactorEnabled?: boolean | null;
+        twoFactorSecret?: string | null;
+      };
+      if (protectedUser.twoFactorEnabled && protectedUser.twoFactorSecret) {
+        const { challenge, expiresIn } = await signTwoFactorChallenge(user.id);
+        // No tokens and no refresh cookie yet. The challenge names the user and
+        // nothing else, so replaying it still costs an authenticator code.
+        return reply.send({
+          success: true,
+          data: { twoFactorRequired: true, challenge, expiresIn },
+        });
+      }
 
-      setRefreshCookie(reply, tokens.refreshToken);
-      return reply.send({
-        success: true,
-        data: {
-          userId: user.id,
-          accessToken: tokens.accessToken,
-          expiresIn: tokens.expiresIn,
-          tokenType: tokens.tokenType,
-          user: {
-            id: user.id,
-            email: user.email,
-            username: user.username,
-            displayName: user.displayName,
-          },
-        },
-      });
+      return reply.send(await issueBrowserSession(tokenService, reply, user));
     },
   );
 
@@ -146,28 +95,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const tokens = await tokenService.generateTokenPair(
-      user.id,
-      { email: user.email, username: user.username, role: user.role },
-      ['openid', 'profile', 'email'],
-      'quantmail' as any,
-    );
-
-    setRefreshCookie(reply, tokens.refreshToken);
-    return reply.send({
-      success: true,
-      data: {
-        userId: user.id,
-        accessToken: tokens.accessToken,
-        expiresIn: tokens.expiresIn,
-        tokenType: tokens.tokenType,
-        user: {
-          id: user.id,
-          email: user.email,
-          username: user.username,
-        },
-      },
-    });
+    return reply.send(await issueBrowserSession(tokenService, reply, user));
   });
 
   // Cookie-only browser rotation endpoint. Requiring an allowlisted Origin in
@@ -265,82 +193,8 @@ export async function authRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // ─── 2FA Routes (TOTP setup + verification) ──────────────────────────────
-  fastify.post('/auth/2fa/setup', async (request, reply) => {
-    const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
-    if (!userId) return fail(reply, 401, 'UNAUTHORIZED', 'Authentication required.');
-
-    // Generate a standards-compliant Base32 TOTP secret with the shared auth service.
-    const { totpService } = await import('@quant/auth');
-    const base32Secret = totpService.generateSecret();
-
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-    const issuer = 'QuantMail';
-    const account = user?.email || 'user@quantmail.in';
-    const otpauthUrl = totpService.generateQRCodeUri(base32Secret, account, issuer);
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauthUrl)}`;
-
-    const backupCodes = totpService.generateBackupCodes().map((code) => code.toUpperCase());
-
-    return reply.send({
-      success: true,
-      data: { secret: base32Secret, qrCodeUrl, backupCodes },
-    });
-  });
-
-  fastify.post('/auth/2fa/enable', async (request, reply) => {
-    const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
-    if (!userId) return fail(reply, 401, 'UNAUTHORIZED', 'Authentication required.');
-
-    const { secret, code, backupCodes } = request.body as {
-      secret?: string;
-      code?: string;
-      backupCodes?: string[];
-    };
-
-    if (!secret || !code) {
-      return fail(reply, 400, 'VALIDATION_ERROR', 'Secret and verification code are required.');
-    }
-
-    // Basic TOTP verification (time-based, 6 digits, 30s window)
-    // For production, use a proper TOTP library — this validates format only
-    if (!/^\d{6}$/.test(code)) {
-      return fail(
-        reply,
-        400,
-        'INVALID_CODE',
-        'Enter a valid 6-digit code from your authenticator app.',
-      );
-    }
-
-    // Store 2FA status (in a real impl, store secret + backup codes hashed)
-    try {
-      await prisma.user.update({
-        where: { id: userId },
-        data: { twoFactorEnabled: true } as any,
-      });
-    } catch {
-      // Field may not exist in schema yet — that's OK for now
-    }
-
-    return reply.send({
-      success: true,
-      data: { message: 'Two-factor authentication enabled successfully.' },
-    });
-  });
-
-  // ─── Password Reset (stub — needs email delivery) ────────────────────────
-  fastify.post('/auth/password-reset', async (_request, reply) => {
-    // Always return success to avoid leaking whether an email exists
-    return reply.send({
-      success: true,
-      data: {
-        message: 'If an account exists with that address, reset instructions have been sent.',
-      },
-    });
-  });
-
-  fastify.post('/auth/password-reset/confirm', async (_request, reply) => {
-    return fail(reply, 501, 'NOT_IMPLEMENTED', 'Password reset via email is not yet available.');
-  });
+  // 2FA lives in `routes/two-factor.ts`. It used to live here as a pair of
+  // handlers that generated a secret nobody stored and accepted any six digits.
+  // Password reset lives in `routes/password-reset.ts`. It used to live here as
+  // a hard-coded "instructions have been sent" that sent nothing, plus a 501.
 }

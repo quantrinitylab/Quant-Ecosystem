@@ -1,7 +1,26 @@
 /**
- * Lightweight MIME email parser � zero external dependencies.
+ * Lightweight MIME email parser — zero external dependencies.
  * Handles multipart/mixed, multipart/alternative, text/plain, text/html.
  */
+
+/**
+ * One non-text MIME part, described rather than carried.
+ *
+ * The bytes are deliberately not held here: an inbound message can be tens of
+ * megabytes and the parser runs inside a webhook request. `partIndex` is this
+ * part's position among the attachment parts, in depth-first order, so a later
+ * download endpoint can re-parse the same raw message and reach exactly this one.
+ */
+export interface ParsedAttachment {
+  partIndex: number;
+  filename: string;
+  mimeType: string;
+  /** Decoded byte length, not the encoded length on the wire. */
+  size: number;
+  contentId?: string;
+  /** True for a part referenced from the HTML body (`cid:`), not a download. */
+  isInline: boolean;
+}
 
 export interface ParsedEmail {
   messageId?: string;
@@ -15,6 +34,14 @@ export interface ParsedEmail {
   bodyHtml: string;
   bodyPlain: string;
   date?: Date;
+  /**
+   * Every attachment part found in the tree. Previously the parser discarded
+   * these silently, so inbound mail arrived with its attachments missing and no
+   * indication that anything had been dropped.
+   */
+  attachments: ParsedAttachment[];
+  /** Lowercased header name -> raw value, for authentication and threading. */
+  headers: Record<string, string>;
 }
 
 function decodeQP(text: string): string {
@@ -90,11 +117,44 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Read a `name="value"` parameter out of a structured header value. */
+function paramOf(headerValue: string, name: string): string | undefined {
+  const match = headerValue.match(
+    new RegExp(`${name}\\s*=\\s*"([^"]*)"|${name}\\s*=\\s*([^;\\s]+)`, 'i'),
+  );
+  const raw = match?.[1] ?? match?.[2];
+  return raw ? decodeEncodedWord(raw).trim() : undefined;
+}
+
+/**
+ * Decoded size of a part, without keeping the decoded bytes around. base64 is
+ * measured exactly; anything else is already its own byte length.
+ */
+function decodedByteLength(body: string, cte: string): number {
+  const enc = (cte || '').toLowerCase().trim();
+  if (enc === 'base64') {
+    const clean = body.replace(/\s/g, '');
+    const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
+    return Math.max(0, Math.floor((clean.length * 3) / 4) - padding);
+  }
+  if (enc === 'quoted-printable') {
+    return Buffer.byteLength(decodeQP(body), 'utf-8');
+  }
+  return Buffer.byteLength(body, 'utf-8');
+}
+
+/** Accumulator threaded through the MIME walk so nested parts share one list. */
+interface WalkContext {
+  attachments: ParsedAttachment[];
+}
+
 function extractContent(
   raw: string,
   contentType: string,
   cte: string,
+  ctx: WalkContext,
   boundary?: string,
+  partHeaders?: Record<string, string>,
 ): { plain: string; html: string } {
   const ct = (contentType || '').toLowerCase();
   if (ct.startsWith('multipart/')) {
@@ -111,12 +171,36 @@ function extractContent(
       const pCt = hdr['content-type'] ?? 'text/plain';
       const pCte = hdr['content-transfer-encoding'] ?? '7bit';
       const pBnd = pCt.match(/boundary="?([^";]+)"?/)?.[1];
-      const sub = extractContent(bRaw, pCt, pCte, pBnd);
+      const sub = extractContent(bRaw, pCt, pCte, ctx, pBnd, hdr);
       if (!plain && sub.plain) plain = sub.plain;
       if (!html && sub.html) html = sub.html;
     }
     return { plain, html };
   }
+
+  // Leaf part. Decide whether it is body text or an attachment before decoding:
+  // a `text/plain` part with `Content-Disposition: attachment` is a .txt file
+  // someone sent, not the message body, and letting it become the body loses
+  // both the real body and the file.
+  const disposition = partHeaders?.['content-disposition'] ?? '';
+  const dispo = disposition.toLowerCase();
+  const filename = paramOf(disposition, 'filename') ?? paramOf(contentType, 'name');
+  const isTextBody = ct.startsWith('text/html') || ct.startsWith('text/plain');
+  const isAttachment = dispo.includes('attachment') || !isTextBody;
+
+  if (isAttachment || (filename && !isTextBody)) {
+    const contentId = partHeaders?.['content-id']?.replace(/[<>]/g, '').trim();
+    ctx.attachments.push({
+      partIndex: ctx.attachments.length,
+      filename: filename ?? `attachment-${ctx.attachments.length + 1}`,
+      mimeType: ct.split(';')[0]?.trim() || 'application/octet-stream',
+      size: decodedByteLength(raw, cte),
+      ...(contentId ? { contentId } : {}),
+      isInline: dispo.includes('inline') || Boolean(contentId),
+    });
+    return { plain: '', html: '' };
+  }
+
   const decoded = decodePart(raw, cte);
   if (ct.startsWith('text/html')) return { plain: '', html: decoded };
   if (ct.startsWith('text/plain')) return { plain: decoded, html: '' };
@@ -137,12 +221,15 @@ export function parseRawEmail(raw: string): ParsedEmail {
   const contentType = headers['content-type'] ?? 'text/plain';
   const cte = headers['content-transfer-encoding'] ?? '7bit';
   const boundary = contentType.match(/boundary="?([^";]+)"?/)?.[1];
-  const { plain, html } = extractContent(body, contentType, cte, boundary);
+  const ctx: WalkContext = { attachments: [] };
+  const { plain, html } = extractContent(body, contentType, cte, ctx, boundary, headers);
   let date: Date | undefined;
-  try {
-    if (headers['date']) date = new Date(headers['date']);
-  } catch {
-    /* ignore */
+  if (headers['date']) {
+    // `new Date(...)` does not throw on an unparseable string, it returns an
+    // Invalid Date — which reaches the database as a value Prisma rejects. Check
+    // the time value rather than relying on the try/catch that used to be here.
+    const parsed = new Date(headers['date']);
+    if (!Number.isNaN(parsed.getTime())) date = parsed;
   }
   return {
     messageId,
@@ -156,5 +243,7 @@ export function parseRawEmail(raw: string): ParsedEmail {
     bodyPlain: plain,
     bodyHtml: html,
     date,
+    attachments: ctx.attachments,
+    headers,
   };
 }

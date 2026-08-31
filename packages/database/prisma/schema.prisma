@@ -27,6 +27,15 @@ model User {
   isVerified          Boolean    @default(false)
   twoFactorEnabled    Boolean    @default(false)
   twoFactorSecret     String?
+  // Held between /auth/2fa/setup and /auth/2fa/enable. The secret the client is
+  // shown must be the one the server later verifies against, or "enable" is just
+  // a 6-digit format check on a secret nobody stored.
+  twoFactorPendingSecret String?
+  twoFactorConfirmedAt   DateTime?
+  // The 30-second TOTP step of the last accepted code, plus one. A code is valid
+  // across three steps, so refusing anything at or below this number is what
+  // stops a captured code from being replayed inside its own window.
+  twoFactorLastUsedStep  Int?
   bio                 String?
   website             String?
   location            String?
@@ -49,6 +58,8 @@ model User {
   oauthAccounts      OAuthAccount[]
   sessions           Session[]
   refreshTokens      RefreshToken[]
+  twoFactorBackupCodes TwoFactorBackupCode[]
+  passwordResetTokens  PasswordResetToken[]
   oauthClients       OAuthClient[]        @relation("UserOwnedClients")
   oauthConsents      OAuthConsent[]
   authorizationCodes AuthorizationCode[]
@@ -210,6 +221,56 @@ model RefreshToken {
   @@index([token])
   @@index([family])
   @@map("refresh_tokens")
+}
+
+/// One-time recovery codes for TOTP two-factor auth.
+///
+/// Stored as SHA-256 digests, never in the clear: a recovery code is a password
+/// equivalent, and the whole point of it is to work when the authenticator is
+/// gone — so a leaked table would otherwise hand over every second factor. The
+/// user sees the plaintext exactly once, at generation.
+///
+/// `usedAt` rather than a delete, so "you have 3 codes left" is answerable and a
+/// replayed code is distinguishable from an unknown one in the audit trail.
+model TwoFactorBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeHash])
+  @@index([userId])
+  @@map("two_factor_backup_codes")
+}
+
+/// A single password-reset link, stored as the digest of the token that was
+/// mailed out.
+///
+/// Only the digest is here for the same reason as a password: this row grants
+/// the right to take over the account, so a leaked table must not be a set of
+/// working reset links. `usedAt` rather than a delete keeps a spent link
+/// distinguishable from a forged one, and makes the single-use claim provable —
+/// the update that spends it is scoped to `usedAt: null`, so two simultaneous
+/// confirms cannot both win.
+///
+/// `requestedIp` is kept for abuse triage only; nothing in the flow reads it.
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  requestedIp String?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 model OAuthClient {
@@ -463,6 +524,13 @@ model Email {
   // window deterministic when two messages share a timestamp — without it, a row
   // can appear on two pages or on none.
   @@index([receivedAt(sort: Desc), createdAt(sort: Desc)])
+  // One copy of a message per mailbox. SNS delivers at least once, so a retry, a
+  // DLQ redrive or an operator replay all re-present the same message to the
+  // ingest pipeline; `Message-ID` is assigned by the originating server and so
+  // identifies the message rather than describing it. Postgres allows multiple
+  // NULLs in a unique index, which is what lets mail that arrives without the
+  // header — and every row written before this column was populated — coexist.
+  @@unique([userId, messageId])
   @@map("emails")
 }
 

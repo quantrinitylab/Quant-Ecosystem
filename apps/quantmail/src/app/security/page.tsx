@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Button, Input, FormField, Skeleton } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { IconCheck } from '../../components/icons';
+import { TwoFactorQrCode } from '../../components/security/TwoFactorQrCode';
 import { apiClient } from '../../services/api-client';
 
 // ---------------------------------------------------------------------------
@@ -19,18 +20,90 @@ const TABS: { key: SecurityTab; label: string }[] = [
   { key: 'connected-apps', label: 'Connected Apps & Integrations' },
 ];
 
+// ---------------------------------------------------------------------------
+// Two-factor authentication
+//
+// This section used to lie. `Enable 2FA` was offered unconditionally because
+// nothing ever asked the server what was already true, the QR came from
+// `api.qrserver.com` — handed the URI that carries the shared secret — and the
+// recovery codes were printed before any code had been verified, for a factor
+// that might never be switched on. All three are gone.
+// ---------------------------------------------------------------------------
+
+interface TwoFactorStatus {
+  enabled: boolean;
+  pendingSetup: boolean;
+  confirmedAt: string | null;
+  backupCodesRemaining: number;
+}
+
+/** Below this, the card says so — running out silently is how people lock up. */
+const RECOVERY_CODES_LOW = 3;
+
+/** Base32 in groups of four: the difference between typing it and giving up. */
+const groupSecret = (secret: string): string => secret.replace(/(.{4})/g, '$1 ').trim();
+
+const formatConfirmedAt = (iso: string): string =>
+  new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+
+const statusSummary = (status: TwoFactorStatus): string => {
+  const since = status.confirmedAt ? `On since ${formatConfirmedAt(status.confirmedAt)}. ` : '';
+  const left = status.backupCodesRemaining;
+  return `${since}${left} recovery ${left === 1 ? 'code' : 'codes'} left.`;
+};
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Insecure context, or permission refused. The codes are on screen and
+    // selectable either way, so this is a convenience failing, not a dead end.
+    return false;
+  }
+}
+
+function downloadRecoveryCodes(codes: string[]): void {
+  const body = [
+    'QuantMail recovery codes',
+    `Generated: ${new Date().toISOString()}`,
+    '',
+    'Each code signs you in once if you lose your authenticator.',
+    '',
+    ...codes,
+    '',
+    // CRLF, because the likeliest place this file gets opened is Notepad.
+  ].join('\r\n');
+
+  const url = URL.createObjectURL(new Blob([body], { type: 'text/plain;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'quantmail-recovery-codes.txt';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function SecurityPage() {
   const [activeTab, setActiveTab] = useState<SecurityTab>('password-auth');
 
   // ─── 2FA State ──────────────────────────────────────────────────────────────
-  const [twoFactorStep, setTwoFactorStep] = useState<
-    'idle' | 'loading' | 'setup' | 'verify' | 'done'
-  >('idle');
-  const [qrCodeUrl, setQrCodeUrl] = useState('');
-  const [secret, setSecret] = useState('');
-  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [status, setStatus] = useState<TwoFactorStatus | null>(null);
+  const [statusError, setStatusError] = useState('');
+  const [enrolment, setEnrolment] = useState<{ secret: string; otpauthUri: string } | null>(null);
   const [verifyCode, setVerifyCode] = useState('');
+  const [twoFactorBusy, setTwoFactorBusy] = useState(false);
   const [twoFactorError, setTwoFactorError] = useState('');
+  const [twoFactorNotice, setTwoFactorNotice] = useState('');
+  const [secretCopied, setSecretCopied] = useState(false);
+  /**
+   * Shown once, and only after the server has proved the authenticator works.
+   * `null` is not "no codes" — it is "there is nothing new to show you".
+   */
+  const [freshCodes, setFreshCodes] = useState<string[] | null>(null);
+  const [codesCopied, setCodesCopied] = useState(false);
+  /** Disable and regenerate both cost the password; neither costs a code. */
+  const [passwordPrompt, setPasswordPrompt] = useState<'disable' | 'regenerate' | null>(null);
+  const [actionPassword, setActionPassword] = useState('');
 
   // ─── Password State ─────────────────────────────────────────────────────────
   const [passwordForm, setPasswordForm] = useState({ current: '', newPassword: '', confirm: '' });
@@ -40,31 +113,112 @@ export default function SecurityPage() {
   const [passwordError, setPasswordError] = useState('');
 
   // ─── 2FA Handlers ───────────────────────────────────────────────────────────
-  const handleSetup2FA = useCallback(async () => {
-    setTwoFactorStep('loading');
-    setTwoFactorError('');
-    const response = await apiClient.setupTwoFactor();
-    if (!response.success) {
-      setTwoFactorError(response.error?.message || 'Failed to setup 2FA');
-      setTwoFactorStep('idle');
+  const loadStatus = useCallback(async () => {
+    setStatusError('');
+    const response = await apiClient.getTwoFactorStatus();
+    if (!response.success || !response.data) {
+      setStatusError(response.error?.message || 'Could not read your two-factor settings.');
       return;
     }
-    setQrCodeUrl(response.data!.qrCodeUrl);
-    setSecret(response.data!.secret);
-    setBackupCodes(response.data!.backupCodes);
-    setTwoFactorStep('setup');
+    setStatus(response.data);
   }, []);
 
-  const handleEnable2FA = useCallback(async () => {
-    setTwoFactorStep('verify');
-    const response = await apiClient.enableTwoFactor(secret, verifyCode, backupCodes);
-    if (!response.success) {
-      setTwoFactorError(response.error?.message || 'Invalid code');
-      setTwoFactorStep('setup');
+  useEffect(() => {
+    void loadStatus();
+  }, [loadStatus]);
+
+  const handleStartSetup = useCallback(async () => {
+    setTwoFactorBusy(true);
+    setTwoFactorError('');
+    setTwoFactorNotice('');
+    setSecretCopied(false);
+    const response = await apiClient.setupTwoFactor();
+    setTwoFactorBusy(false);
+    if (!response.success || !response.data) {
+      setTwoFactorError(response.error?.message || 'Could not start setup.');
+      // A 409 means another tab finished the job. Re-read rather than argue.
+      void loadStatus();
       return;
     }
-    setTwoFactorStep('done');
-  }, [secret, verifyCode, backupCodes]);
+    setVerifyCode('');
+    setEnrolment({ secret: response.data.secret, otpauthUri: response.data.otpauthUri });
+  }, [loadStatus]);
+
+  const handleConfirmEnable = useCallback(async () => {
+    setTwoFactorError('');
+    if (!/^\d{6}$/.test(verifyCode)) {
+      setTwoFactorError('Enter the 6-digit code shown in your authenticator app.');
+      return;
+    }
+    setTwoFactorBusy(true);
+    const response = await apiClient.enableTwoFactor(verifyCode);
+    setTwoFactorBusy(false);
+    if (!response.success || !response.data) {
+      setTwoFactorError(response.error?.message || 'That code did not match.');
+      setVerifyCode('');
+      return;
+    }
+    setEnrolment(null);
+    setVerifyCode('');
+    setCodesCopied(false);
+    setFreshCodes(response.data.backupCodes);
+    setTwoFactorNotice('Two-factor authentication is on.');
+    await loadStatus();
+  }, [verifyCode, loadStatus]);
+
+  const cancelSetup = useCallback(() => {
+    setEnrolment(null);
+    setVerifyCode('');
+    setTwoFactorError('');
+    setSecretCopied(false);
+  }, []);
+
+  const openPasswordPrompt = useCallback((intent: 'disable' | 'regenerate') => {
+    setPasswordPrompt(intent);
+    setActionPassword('');
+    setTwoFactorError('');
+    setTwoFactorNotice('');
+  }, []);
+
+  const closePasswordPrompt = useCallback(() => {
+    setPasswordPrompt(null);
+    setActionPassword('');
+    setTwoFactorError('');
+  }, []);
+
+  const handlePasswordGatedAction = useCallback(async () => {
+    if (!passwordPrompt) return;
+    if (!actionPassword) {
+      setTwoFactorError('Enter your password to confirm.');
+      return;
+    }
+    setTwoFactorBusy(true);
+    setTwoFactorError('');
+
+    if (passwordPrompt === 'disable') {
+      const response = await apiClient.disableTwoFactor(actionPassword);
+      setTwoFactorBusy(false);
+      if (!response.success) {
+        setTwoFactorError(response.error?.message || 'Could not turn two-factor off.');
+        return;
+      }
+      setFreshCodes(null);
+      setTwoFactorNotice('Two-factor authentication is off. Your recovery codes were deleted.');
+    } else {
+      const response = await apiClient.regenerateBackupCodes(actionPassword);
+      setTwoFactorBusy(false);
+      if (!response.success || !response.data) {
+        setTwoFactorError(response.error?.message || 'Could not generate new recovery codes.');
+        return;
+      }
+      setCodesCopied(false);
+      setFreshCodes(response.data.backupCodes);
+      setTwoFactorNotice('New recovery codes. The previous set no longer works.');
+    }
+
+    closePasswordPrompt();
+    await loadStatus();
+  }, [passwordPrompt, actionPassword, closePasswordPrompt, loadStatus]);
 
   // ─── Password Handler ───────────────────────────────────────────────────────
   const handlePasswordChange = useCallback(async () => {
@@ -133,127 +287,286 @@ export default function SecurityPage() {
                   Two-Factor Authentication
                 </h2>
                 <p className="text-sm text-[var(--quant-muted-foreground)] mb-4">
-                  Add an extra layer of security to your account using an authenticator app.
+                  A rotating code from your phone, on top of your password. Recovery codes cover you
+                  if the phone goes missing.
                 </p>
                 <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5 space-y-4">
-                  {twoFactorStep === 'idle' && (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-[var(--quant-muted)] flex items-center justify-center text-[#FF8C42]">
-                          <svg
-                            className="size-5"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-[var(--quant-foreground)]">
-                            Authenticator app
-                          </p>
-                          <p className="text-xs text-[var(--quant-muted-foreground)]">
-                            Use an app like Google Authenticator or Authy
-                          </p>
-                        </div>
-                      </div>
-                      <Button variant="primary" onClick={handleSetup2FA}>
-                        Enable 2FA
+                  {twoFactorNotice ? (
+                    <p
+                      role="status"
+                      aria-live="polite"
+                      className="rounded-md border border-[var(--quant-success)]/25 bg-[var(--quant-success)]/10 px-3 py-2 text-sm text-[var(--quant-success)]"
+                    >
+                      {twoFactorNotice}
+                    </p>
+                  ) : null}
+
+                  {statusError ? (
+                    <div role="alert" className="flex flex-wrap items-center gap-3">
+                      <p className="text-sm text-[var(--quant-destructive)]">{statusError}</p>
+                      <Button variant="secondary" size="sm" onClick={() => void loadStatus()}>
+                        Try again
                       </Button>
                     </div>
-                  )}
+                  ) : null}
 
-                  {twoFactorStep === 'loading' && (
+                  {!status && !statusError ? (
                     <div className="space-y-3">
                       <Skeleton variant="rect" width="100%" height="40px" />
                       <Skeleton variant="rect" width="60%" height="20px" />
                     </div>
-                  )}
-
-                  {twoFactorError && (
-                    <p className="text-sm text-[var(--quant-destructive)]">{twoFactorError}</p>
-                  )}
-
-                  {twoFactorStep === 'setup' && (
-                    <div className="space-y-5">
-                      <div>
-                        <p className="text-sm text-[var(--quant-foreground)] mb-3">
-                          Scan this QR code with your authenticator app:
-                        </p>
-                        <div className="p-5 bg-[var(--quant-muted)] rounded-lg text-center border border-[var(--quant-border)]">
-                          <img
-                            src={qrCodeUrl}
-                            alt="QR Code for 2FA setup"
-                            className="mx-auto max-w-[180px] rounded"
-                          />
+                  ) : null}
+                  {status && !enrolment ? (
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`flex size-10 shrink-0 items-center justify-center rounded-full ${
+                            status.enabled
+                              ? 'bg-[var(--quant-success)]/10 text-[var(--quant-success)]'
+                              : 'bg-[var(--quant-muted)] text-[#FF8C42]'
+                          }`}
+                        >
+                          {status.enabled ? (
+                            <IconCheck size={20} strokeWidth={2.4} />
+                          ) : (
+                            <svg
+                              className="size-5"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              aria-hidden="true"
+                              focusable="false"
+                            >
+                              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            </svg>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-[var(--quant-foreground)]">
+                            {status.enabled ? 'Authenticator app is on' : 'Authenticator app'}
+                          </p>
+                          <p className="text-xs text-[var(--quant-muted-foreground)]">
+                            {status.enabled
+                              ? statusSummary(status)
+                              : status.pendingSetup
+                                ? 'You started setting this up but never confirmed a code, so it is not protecting anything yet.'
+                                : 'Sign in with a rotating code from Google Authenticator, 1Password, Authy — any TOTP app.'}
+                          </p>
                         </div>
                       </div>
-
-                      <div className="rounded-md bg-[var(--quant-muted)] px-4 py-3 border border-[var(--quant-border)]">
-                        <p className="text-xs text-[var(--quant-muted-foreground)] mb-1">
-                          Manual entry code
-                        </p>
-                        <code className="text-sm font-mono text-[var(--quant-foreground)] select-all">
-                          {secret}
-                        </code>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {status.enabled ? (
+                          <>
+                            <Button
+                              variant="secondary"
+                              onClick={() => openPasswordPrompt('regenerate')}
+                            >
+                              New recovery codes
+                            </Button>
+                            <Button variant="danger" onClick={() => openPasswordPrompt('disable')}>
+                              Turn off
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            variant="primary"
+                            loading={twoFactorBusy}
+                            onClick={() => void handleStartSetup()}
+                          >
+                            {status.pendingSetup ? 'Continue setup' : 'Enable 2FA'}
+                          </Button>
+                        )}
                       </div>
-
+                    </div>
+                  ) : null}
+                  {status?.enabled &&
+                  !passwordPrompt &&
+                  status.backupCodesRemaining <= RECOVERY_CODES_LOW ? (
+                    <p className="rounded-md border border-[#5C3016] bg-[#2B1A11] px-3 py-2 text-xs leading-5 text-[var(--quant-foreground)]">
+                      {status.backupCodesRemaining === 0
+                        ? 'No recovery codes left. Generate a new set now — without one, losing your authenticator means losing the account.'
+                        : 'Nearly out of recovery codes. Generate a new set while you still have a way in.'}
+                    </p>
+                  ) : null}
+                  {passwordPrompt ? (
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        void handlePasswordGatedAction();
+                      }}
+                      className="space-y-3 rounded-md border border-[var(--quant-border)] bg-[var(--quant-muted)] px-4 py-4"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-[var(--quant-foreground)]">
+                          {passwordPrompt === 'disable'
+                            ? 'Turn off two-factor authentication'
+                            : 'Replace your recovery codes'}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-[var(--quant-muted-foreground)]">
+                          {passwordPrompt === 'disable'
+                            ? 'Your password becomes the only thing protecting this account, and your recovery codes are deleted.'
+                            : 'The codes you hold now stop working the moment the new set is issued.'}
+                        </p>
+                      </div>
                       <div className="max-w-xs">
-                        <FormField label="Verification Code" required>
+                        <FormField label="Password" required>
                           <Input
-                            value={verifyCode}
-                            onChange={(e) => setVerifyCode(e.target.value)}
-                            placeholder="Enter 6-digit code"
-                            maxLength={6}
+                            type="password"
+                            value={actionPassword}
+                            onChange={(event) => setActionPassword(event.target.value)}
+                            placeholder="Enter your password"
+                            autoComplete="current-password"
                           />
                         </FormField>
                       </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="submit"
+                          variant={passwordPrompt === 'disable' ? 'danger' : 'primary'}
+                          loading={twoFactorBusy}
+                        >
+                          {passwordPrompt === 'disable' ? 'Turn off' : 'Generate new codes'}
+                        </Button>
+                        <Button variant="ghost" onClick={closePasswordPrompt}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </form>
+                  ) : null}
+                  {enrolment ? (
+                    <div className="space-y-5">
+                      <ol className="space-y-1 text-sm leading-6 text-[var(--quant-foreground)]">
+                        <li>1. Open your authenticator app.</li>
+                        <li>2. Scan the code below, or type the setup key in by hand.</li>
+                        <li>3. Enter the 6-digit code it shows to finish.</li>
+                      </ol>
 
-                      <Button variant="primary" onClick={handleEnable2FA}>
-                        Verify and Enable
-                      </Button>
-
-                      <div className="pt-4 border-t border-[var(--quant-border)]">
-                        <h3 className="text-sm font-medium text-[var(--quant-foreground)] mb-2">
-                          Backup Codes
-                        </h3>
-                        <p className="text-xs text-[var(--quant-muted-foreground)] mb-3">
-                          Save these codes in a secure location. Each can be used once if you lose
-                          access to your authenticator.
-                        </p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {backupCodes.map((code) => (
-                            <span
-                              key={code}
-                              className="font-mono text-xs bg-[var(--quant-muted)] text-[var(--quant-foreground)] px-3 py-1.5 rounded border border-[var(--quant-border)] text-center select-all"
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                        <div className="mx-auto shrink-0 rounded-lg border border-[var(--quant-border)] bg-white p-3 sm:mx-0">
+                          <TwoFactorQrCode value={enrolment.otpauthUri} size={176} />
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <div className="rounded-md border border-[var(--quant-border)] bg-[var(--quant-muted)] px-4 py-3">
+                            <p className="mb-1 text-xs text-[var(--quant-muted-foreground)]">
+                              Setup key — for typing in by hand
+                            </p>
+                            <code className="block select-all break-all font-mono text-sm tracking-wide text-[var(--quant-foreground)]">
+                              {groupSecret(enrolment.secret)}
+                            </code>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                void copyToClipboard(enrolment.secret).then(setSecretCopied);
+                              }}
                             >
-                              {code}
-                            </span>
-                          ))}
+                              {secretCopied ? 'Copied' : 'Copy key'}
+                            </Button>
+                            {/*
+                              Hands the secret straight to the app on the device you are
+                              holding. Desktop browsers have nothing registered for
+                              `otpauth://` and will do nothing at all, which is exactly
+                              why the QR and the typed key are both on this card.
+                            */}
+                            <a
+                              href={enrolment.otpauthUri}
+                              className="inline-flex min-h-[44px] items-center rounded-md px-2 text-xs font-medium text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 sm:py-2"
+                            >
+                              Open in your authenticator app
+                            </a>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-
-                  {twoFactorStep === 'done' && (
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                        <span className="text-green-400">
-                          <IconCheck size={20} strokeWidth={2.4} />
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-green-400">
-                          Two-factor authentication enabled
-                        </p>
+                      <form
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          void handleConfirmEnable();
+                        }}
+                        className="space-y-3 border-t border-[var(--quant-border)] pt-4"
+                      >
+                        <div className="max-w-[200px]">
+                          <FormField label="Code from your app" required>
+                            <Input
+                              value={verifyCode}
+                              onChange={(event) =>
+                                setVerifyCode(event.target.value.replace(/\D/g, '').slice(0, 6))
+                              }
+                              placeholder="123456"
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              maxLength={6}
+                            />
+                          </FormField>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button type="submit" variant="primary" loading={twoFactorBusy}>
+                            Verify and turn on
+                          </Button>
+                          <Button variant="ghost" onClick={cancelSetup}>
+                            Cancel
+                          </Button>
+                        </div>
                         <p className="text-xs text-[var(--quant-muted-foreground)]">
-                          Your account is now protected with 2FA
+                          Recovery codes are issued once this code checks out — not before. A code
+                          for a factor that never got switched on is a code nobody can use.
+                        </p>
+                      </form>
+                    </div>
+                  ) : null}
+                  {twoFactorError ? (
+                    <p role="alert" className="text-sm text-[var(--quant-destructive)]">
+                      {twoFactorError}
+                    </p>
+                  ) : null}
+
+                  {freshCodes ? (
+                    <div className="space-y-3 rounded-md border border-[#5C3016] bg-[#2B1A11] px-4 py-4">
+                      <div>
+                        <h3 className="text-sm font-medium text-[var(--quant-foreground)]">
+                          Save your recovery codes
+                        </h3>
+                        <p className="mt-1 text-xs leading-5 text-[var(--quant-muted-foreground)]">
+                          Each one signs you in once if you lose your authenticator. This is the
+                          only time they are shown — the server stores hashes, so it cannot show
+                          them again even if you ask.
                         </p>
                       </div>
+                      <ul className="grid grid-cols-2 gap-2">
+                        {freshCodes.map((code) => (
+                          <li
+                            key={code}
+                            className="select-all rounded border border-[var(--quant-border)] bg-[var(--quant-surface)] px-3 py-1.5 text-center font-mono text-xs tracking-wider text-[var(--quant-foreground)]"
+                          >
+                            {code}
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            void copyToClipboard(freshCodes.join('\n')).then(setCodesCopied);
+                          }}
+                        >
+                          {codesCopied ? 'Copied' : 'Copy all'}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => downloadRecoveryCodes(freshCodes)}
+                        >
+                          Download
+                        </Button>
+                        <Button variant="primary" size="sm" onClick={() => setFreshCodes(null)}>
+                          I have saved them
+                        </Button>
+                      </div>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               </section>
 

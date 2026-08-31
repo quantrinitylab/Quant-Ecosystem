@@ -33,6 +33,25 @@ export interface BrowserAccessSession {
   tokenType?: string;
 }
 
+/**
+ * What `/auth/login` answers when the password was right but the account has a
+ * second factor: no tokens, no refresh cookie, just a short-lived challenge
+ * naming the account. Held in memory only — writing it to storage would put a
+ * half-authentication on disk for every tab to find.
+ */
+export interface BrowserTwoFactorChallenge {
+  twoFactorRequired: true;
+  challenge: string;
+  expiresIn: number;
+}
+
+export type BrowserLoginResult = BrowserAccessSession | BrowserTwoFactorChallenge;
+
+export const isTwoFactorChallenge = (
+  data: BrowserLoginResult | undefined,
+): data is BrowserTwoFactorChallenge =>
+  Boolean(data && (data as BrowserTwoFactorChallenge).twoFactorRequired);
+
 export interface BrowserRegistration {
   email: string;
   username: string;
@@ -94,8 +113,11 @@ const post = async <T>(path: string, body?: unknown): Promise<AuthResponse<T>> =
   }
 };
 
-const rememberAccess = (response: AuthResponse<BrowserAccessSession>) => {
-  accessToken = response.success && response.data?.accessToken ? response.data.accessToken : null;
+// A login can now answer without an access token (2FA outstanding), so this
+// reads the field defensively rather than assuming the success shape.
+const rememberAccess = <T>(response: AuthResponse<T>): AuthResponse<T> => {
+  const data = response.data as { accessToken?: string } | undefined;
+  accessToken = response.success && data?.accessToken ? data.accessToken : null;
   return response;
 };
 
@@ -119,8 +141,22 @@ const refreshOnce = async (): Promise<AuthResponse<BrowserAccessSession>> => {
 };
 
 export const browserAuthSession = {
-  async login(email: string, password: string): Promise<AuthResponse<BrowserAccessSession>> {
-    return rememberAccess(await post<BrowserAccessSession>('/auth/login', { email, password }));
+  async login(email: string, password: string): Promise<AuthResponse<BrowserLoginResult>> {
+    return rememberAccess(await post<BrowserLoginResult>('/auth/login', { email, password }));
+  },
+
+  /**
+   * Second leg of a two-factor login. `code` is either the 6-digit
+   * authenticator code or one of the printed recovery codes — the backend
+   * decides which by shape, so the UI needs one field, not two.
+   */
+  async completeTwoFactor(
+    challenge: string,
+    code: string,
+  ): Promise<AuthResponse<BrowserAccessSession>> {
+    return rememberAccess(
+      await post<BrowserAccessSession>('/auth/2fa/verify', { challenge, code }),
+    );
   },
 
   async register(data: BrowserRegistration): Promise<AuthResponse<BrowserAccessSession>> {

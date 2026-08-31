@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
 import { AuthShell } from '../../components/auth/AuthShell';
+import { PasswordStrengthMeter } from '../../components/auth/PasswordStrengthMeter';
 import { PageTransition } from '../../components/PageTransition';
 import {
   QUANT_MAIL_DOMAIN,
@@ -34,17 +35,6 @@ export default function RegisterPage() {
 
   const normalized = useMemo(() => normalizeUsername(username), [username]);
   const address = normalized ? toQuantAddress(normalized) : '';
-  const strength = useMemo(() => {
-    let score = 0;
-    if (password.length >= 8) score += 1;
-    if (password.length >= 12) score += 1;
-    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score += 1;
-    if (/\d/.test(password) && /[^A-Za-z0-9]/.test(password)) score += 1;
-    return score;
-  }, [password]);
-
-  const strengthLabels = ['Too weak', 'Weak', 'Fair', 'Good', 'Strong'];
-  const strengthColors = ['#ef4444', '#f59e0b', '#f59e0b', '#3b82f6', '#22c55e'];
 
   function validate(): boolean {
     const errors: RegistrationErrors = {};
@@ -184,38 +174,12 @@ export default function RegisterPage() {
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
-              <div id="reg-password-help" className="mt-1.5">
-                {fieldErrors.password ? (
-                  <p className="text-xs text-[var(--quant-destructive)]">{fieldErrors.password}</p>
-                ) : password ? (
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--quant-muted)]"
-                      role="progressbar"
-                      aria-label="Password strength"
-                      aria-valuemin={0}
-                      aria-valuemax={4}
-                      aria-valuenow={strength}
-                      aria-valuetext={strengthLabels[strength]}
-                    >
-                      <div
-                        className="h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none"
-                        style={{
-                          width: `${(strength / 4) * 100}%`,
-                          backgroundColor: strengthColors[strength],
-                        }}
-                      />
-                    </div>
-                    <span className="text-[11px]" style={{ color: strengthColors[strength] }}>
-                      {strengthLabels[strength]}
-                    </span>
-                  </div>
-                ) : (
-                  <p className="text-xs text-[var(--quant-muted-foreground)]">
-                    Use 8 or more characters.
-                  </p>
-                )}
-              </div>
+              <PasswordStrengthMeter
+                password={password}
+                id="reg-password-help"
+                error={fieldErrors.password}
+                hint="Use 8 or more characters."
+              />
             </div>
 
             <div>
