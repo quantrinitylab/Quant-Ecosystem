@@ -26,6 +26,6 @@
       "@quant/credits/*": ["../../packages/credits/src/*"]
     }
   },
-  "include": ["backend/**/*.ts", "src/**/*.ts"],
+  "include": ["backend/**/*.ts"],
   "exclude": ["node_modules", "app"]
 }
