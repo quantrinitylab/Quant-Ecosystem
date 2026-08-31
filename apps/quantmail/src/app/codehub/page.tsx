@@ -828,6 +828,11 @@ export default function CodeHubPage() {
                   setDraft((prev) => ({ ...prev, sourceUrl: event.target.value }))
                 }
                 placeholder="https://github.com/owner/repo or git@host:owner/repo.git"
+                /* The trap opens on the close button unless something is marked, so
+                   the first *content* control gets it — not "Repository name" below.
+                   Initial focus that skips a field is a field a screen-reader user
+                   has to Shift+Tab backwards to discover. */
+                autoFocus
               />
             </FormField>
             {draft.sourceUrl.trim() && (

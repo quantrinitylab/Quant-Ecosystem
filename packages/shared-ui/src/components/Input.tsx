@@ -2,7 +2,7 @@
 // Shared UI - Input Component
 // ============================================================================
 
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useId } from 'react';
 
 export interface InputProps {
   type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search';
@@ -29,6 +29,13 @@ export interface InputProps {
   onFocus?: (event: React.FocusEvent<HTMLInputElement>) => void;
   onBlur?: (event: React.FocusEvent<HTMLInputElement>) => void;
   onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+  /**
+   * Focus this field when it mounts, and mark it so a surrounding focus trap
+   * targets it too. `useFocusTrap` honours `data-autofocus` over DOM order,
+   * which is what keeps a dialog from opening with the close button focused
+   * instead of the field the user came to fill in.
+   */
+  autoFocus?: boolean;
   'aria-label'?: string;
 }
 
@@ -59,11 +66,17 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       onFocus,
       onBlur,
       onKeyDown,
+      autoFocus = false,
       'aria-label': ariaLabel,
     },
     ref,
   ) => {
-    const inputId = id || `input-${name || Math.random().toString(36).substring(2, 8)}`;
+    // `Math.random()` used to stand in for a generated id, which meant the id
+    // changed on every render and differed between the server and client pass —
+    // so `htmlFor` and `aria-describedby` could point at a stale target and
+    // hydration had a mismatch to complain about. `useId` is stable across both.
+    const generatedId = useId();
+    const inputId = id || (name ? `input-${name}` : generatedId);
 
     /**
      * Every size keeps a 44px floor until `sm`, then drops to its designed
@@ -130,6 +143,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             onFocus={onFocus}
             onBlur={onBlur}
             onKeyDown={onKeyDown}
+            autoFocus={autoFocus}
+            /* React DOM focuses imperatively and never renders an `autofocus`
+               attribute, so a focus trap querying the DOM has nothing to find.
+               This marker is what `useFocusTrap` looks for — and it has to be
+               set here rather than passed in, because this component enumerates
+               its props instead of spreading, so a consumer cannot reach the
+               `<input>` with a `data-*` attribute of its own. */
+            data-autofocus={autoFocus ? '' : undefined}
             aria-label={ariaLabel}
             aria-invalid={!!error}
             aria-describedby={

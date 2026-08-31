@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useFocusTrap } from '@quant/shared-ui';
 import { formatBinding } from '../lib/keyboard/chords';
 import { COMMAND_GROUPS, type Command } from '../lib/keyboard/command-registry';
 import { CommandIcon } from '../lib/keyboard/command-icons';
@@ -58,6 +59,22 @@ export function CommandPalette() {
     allowInInput: true,
     disabled: !isPaletteOpen,
   });
+
+  /**
+   * `autoFocus` is off because the effect below already focuses the query input on
+   * the next frame, once the panel has animated in — two owners for initial focus
+   * land the caret somewhere neither intended.
+   *
+   * `restoreFocus` stays on, which is new: dismissing the palette used to drop
+   * focus to `<body>`, leaving a keyboard user at the top of the document having
+   * lost the row they were working in. It does not fight `execute`, which closes
+   * before it runs the command: React runs an unmounting subtree's effect cleanups
+   * before the setup effects of anything mounting in the same commit, so a command
+   * that opens another dialog still gets the last word on focus.
+   *
+   * Escape is omitted — the keyboard engine owns it for this scope, above.
+   */
+  const trapRef = useFocusTrap<HTMLDivElement>({ active: isPaletteOpen, autoFocus: false });
 
   const results = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
@@ -160,6 +177,7 @@ export function CommandPalette() {
               `transform: none`, i.e. 288px right of centre, and its right edge
               was clipped off-screen below ~1150px of viewport width. */}
           <motion.div
+            ref={trapRef}
             className="command-palette fixed left-1/2 top-[12%] z-[120] flex max-h-[72vh] w-[calc(100%-1.5rem)] max-w-xl flex-col overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-[0_20px_60px_rgba(0,0,0,0.7)]"
             role="dialog"
             aria-modal="true"
@@ -252,6 +270,14 @@ export function CommandPalette() {
                         role="option"
                         aria-selected={isActive}
                         data-active={isActive}
+                        /* Every row was a Tab stop, so Tab walked forty commands
+                           one at a time and then out of the dialog. It also
+                           contradicted the pattern this list already declares:
+                           the input keeps DOM focus and announces the active row
+                           through `aria-activedescendant`, so the options must
+                           not be tab stops. Arrow keys and clicks are unchanged;
+                           Tab now has nowhere to go but the query field. */
+                        tabIndex={-1}
                         className={`flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                           isActive
                             ? 'border border-[#5C3016] bg-[#2B1A11]'

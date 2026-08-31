@@ -3,6 +3,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { useFocusTrap } from '@quant/shared-ui';
 import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
 import { Interactive3DLogo, type LogoAppType } from './Interactive3DLogo';
 import { BrandWordmark } from './BrandWordmark';
@@ -33,6 +34,15 @@ export function EcosystemWarpMatrix({
   useKeyboardScope('warp-matrix', { active: isOpen, exclusive: true });
 
   useShortcut('escape', onClose, { scope: 'warp-matrix', label: 'Close app switcher' });
+
+  /**
+   * Making the rows real buttons gave this overlay Tab stops for the first time;
+   * without a trap, Tab walked past the fifth row into the inbox behind an
+   * `aria-modal="true"` surface. `restoreFocus` is off because `AppShell` already
+   * returns focus to the switcher trigger on Escape and on route change — two
+   * owners for one focus target land the user somewhere neither intended.
+   */
+  const trapRef = useFocusTrap<HTMLDivElement>({ active: isOpen, restoreFocus: false });
 
   // `id` is annotated rather than left to inference so a typo is a type error
   // here instead of a silently blank mark at the render site. There is no
@@ -118,6 +128,7 @@ export function EcosystemWarpMatrix({
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 15 }}
             transition={{ type: 'spring', stiffness: 450, damping: 30 }}
+            ref={trapRef}
             // A dismissing backdrop and an exclusive keyboard scope already make
             // this a modal dialog; saying so lets a screen reader announce the
             // boundary instead of reading it as more page content.

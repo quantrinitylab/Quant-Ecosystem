@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
-import { PageTransition } from '@quant/shared-ui';
+import { PageTransition, useFocusTrap } from '@quant/shared-ui';
 import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
 import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
 import { QuantMailLogo } from './QuantMailLogo';
@@ -220,7 +220,6 @@ export function AppShell({
   'aria-label': ariaLabel = 'Application shell',
 }: AppShellProps) {
   const drawerId = useId();
-  const drawerRef = useRef<HTMLElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const switcherTriggerRef = useRef<HTMLButtonElement>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -391,10 +390,28 @@ export function AppShell({
   /**
    * Focus containment for the drawer.
    *
-   * Tab stays a raw listener: the engine resolves *commands*, and a focus trap is
-   * not a command — it has no label, belongs in no palette, and needs to inspect
-   * `document.activeElement` against a live DOM query on every press.
+   * The trap itself is the shared `useFocusTrap` — this file used to carry its own
+   * copy, one of four in the repo, and its selector took `button`/`input` without
+   * filtering on visibility, so a control hidden inside the collapsed drawer could
+   * become the wrap target. Two options are deliberately off:
+   *
+   * - `autoFocus`, because the drawer animates in and the effect below waits a
+   *   frame before focusing; taking focus on the same tick lands it on an element
+   *   that is still off-screen.
+   * - `restoreFocus`, because `closeSidebar(restoreFocus?)` already owns the
+   *   return target and distinguishes the two cases the hook cannot: Escape goes
+   *   back to the menu trigger, a route change does not.
+   *
+   * Escape is the keyboard engine's, registered above.
    */
+  const drawerRef = useFocusTrap<HTMLElement>({
+    active: isDrawerPresented,
+    autoFocus: false,
+    restoreFocus: false,
+  });
+
+  // Body scroll lock and initial focus. Not the trap's job: the lock is this
+  // shell's, and the frame's delay exists because the drawer slides in.
   useEffect(() => {
     if (!isDrawerPresented) return;
 
@@ -404,32 +421,11 @@ export function AppShell({
       drawerRef.current?.querySelector<HTMLElement>(focusableSelector)?.focus();
     });
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab' || !drawerRef.current) return;
-
-      const focusableElements = Array.from(
-        drawerRef.current.querySelectorAll<HTMLElement>(focusableSelector),
-      );
-      const firstElement = focusableElements[0];
-      const lastElement = focusableElements[focusableElements.length - 1];
-      if (!firstElement || !lastElement) return;
-
-      if (event.shiftKey && document.activeElement === firstElement) {
-        event.preventDefault();
-        lastElement.focus();
-      } else if (!event.shiftKey && document.activeElement === lastElement) {
-        event.preventDefault();
-        firstElement.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
     return () => {
       window.cancelAnimationFrame(focusFrame);
       document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isDrawerPresented]);
+  }, [isDrawerPresented, drawerRef]);
 
   // Contextual FAB Action Handler
   const handleFabClick = () => {

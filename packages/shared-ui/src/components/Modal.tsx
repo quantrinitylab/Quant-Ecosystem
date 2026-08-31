@@ -5,8 +5,9 @@
 // responsive: centered dialog on desktop, bottom sheet on small screens.
 // ============================================================================
 
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -44,6 +45,30 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   const [mounted, setMounted] = useState(false);
 
+  // `id="modal-title"` was hardcoded, which is a duplicate-id collision waiting
+  // to happen in a shared primitive — and the confirmation dialogs in QuantMail
+  // do open over an already-open Modal. `useId` also gives the `description`
+  // prop somewhere to point: it was rendered but wired to nothing, so a screen
+  // reader announced the title and then went straight to the body.
+  const labelId = useId();
+  const descriptionId = useId();
+
+  /**
+   * Tab used to walk straight out of the dialog into the page behind it — on an
+   * `aria-modal="true"` surface, which tells assistive tech the rest of the
+   * document does not exist. The trap also returns focus to whatever opened the
+   * modal, which nothing here did before.
+   *
+   * Gated on `mounted` as well as `isOpen`: the portal does not render on the
+   * first pass, so a modal that starts open would otherwise activate the trap
+   * on a frame where the container ref is still null.
+   *
+   * Escape stays on this component's own listener rather than moving into the
+   * hook — `closeOnEscape` is part of Modal's contract, and leaving dismissal
+   * here keeps one owner for it.
+   */
+  const trapRef = useFocusTrap<HTMLDivElement>({ active: isOpen && mounted });
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -58,12 +83,14 @@ export const Modal: React.FC<ModalProps> = ({
   );
 
   useEffect(() => {
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = 'hidden';
-    }
+    if (!isOpen) return;
+    document.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      // Only the instance that took the lock releases it. This used to run on
+      // every closed Modal's cleanup too, so a closed one unlocked body scroll
+      // that another open surface was still holding.
       document.body.style.overflow = '';
     };
   }, [isOpen, handleKeyDown]);
@@ -81,9 +108,11 @@ export const Modal: React.FC<ModalProps> = ({
   const modalContent = (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
+      ref={trapRef}
       role="dialog"
       aria-modal="true"
-      aria-labelledby={title ? 'modal-title' : undefined}
+      aria-labelledby={title ? labelId : undefined}
+      aria-describedby={description ? descriptionId : undefined}
     >
       <style>{`@keyframes quantModalIn{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:none}}
 .quant-modal-panel{animation:quantModalIn .16s cubic-bezier(.16,1,.3,1) both}
@@ -110,12 +139,16 @@ export const Modal: React.FC<ModalProps> = ({
           >
             <div className="min-w-0">
               {title && (
-                <h2 id="modal-title" className="truncate text-base font-semibold tracking-tight">
+                <h2 id={labelId} className="truncate text-base font-semibold tracking-tight">
                   {title}
                 </h2>
               )}
               {description && (
-                <p className="mt-1 text-xs leading-relaxed" style={{ color: MUTED }}>
+                <p
+                  id={descriptionId}
+                  className="mt-1 text-xs leading-relaxed"
+                  style={{ color: MUTED }}
+                >
                   {description}
                 </p>
               )}

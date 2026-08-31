@@ -68,7 +68,9 @@ export default function ReposPage() {
             </div>
           )}
           {error && <ErrorState message={error.message} onRetry={() => void refetch()} />}
-          {!isLoading && !error && filteredRepos.length === 0 &&
+          {!isLoading &&
+            !error &&
+            filteredRepos.length === 0 &&
             (hasSearchQuery ? (
               <EmptyState
                 title="No matching repositories"
@@ -129,6 +131,10 @@ export default function ReposPage() {
                 value={newRepo.name}
                 onChange={(e) => setNewRepo((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="my-project"
+                /* `Modal` traps focus and otherwise opens on its close button.
+                   `Input` turns this into the `data-autofocus` marker the trap
+                   reads, so the caret starts in the field this dialog exists for. */
+                autoFocus
               />
             </FormField>
             <FormField label="Description">

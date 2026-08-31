@@ -4,7 +4,8 @@
 // Shared UI - Dialog Component
 // ============================================================================
 
-import React, { useCallback, useEffect, useId, useRef } from 'react';
+import React, { useId } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 export interface DialogProps {
   open: boolean;
@@ -25,9 +26,29 @@ export const Dialog: React.FC<DialogProps> = ({
   className = '',
   'aria-label': ariaLabel,
 }) => {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
+
+  /**
+   * This used to be forty lines of hand-rolled trap, and three things were wrong
+   * with it that the shared hook does not get wrong:
+   *
+   * - Its focusable query took `button, input, …` unfiltered, so a disabled or
+   *   hidden control could be the wrap target — Tab then landed on something
+   *   that cannot hold focus and fell out of the dialog entirely.
+   * - It re-captured `previousFocusRef` on every effect run, and the effect
+   *   depended on `handleKeyDown`, which changes identity whenever the caller
+   *   re-renders. So while the dialog was open the "return here" target got
+   *   overwritten with an element *inside* the dialog, and closing dropped focus
+   *   to `<body>`.
+   * - Focus parked outside the dialog (a portalled child, a stray click on the
+   *   backdrop) could never get back in: neither wrap branch matched, so Tab
+   *   walked the page behind an `aria-modal="true"` surface.
+   *
+   * Escape moves to the hook too — Dialog has no `closeOnEscape` opt-out to
+   * honour, and the hook's handler stops propagation, which is what keeps a
+   * confirmation dialog from also dismissing the dialog underneath it.
+   */
+  const dialogRef = useFocusTrap<HTMLDivElement>({ active: open, onEscape: onClose });
 
   const sizeStyles: Record<string, string> = {
     sm: 'max-w-sm',
@@ -35,56 +56,6 @@ export const Dialog: React.FC<DialogProps> = ({
     lg: 'max-w-lg',
     xl: 'max-w-xl',
   };
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-        return;
-      }
-
-      if (e.key === 'Tab' && dialogRef.current) {
-        const focusableElements = dialogRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        );
-        const firstFocusable = focusableElements[0];
-        const lastFocusable = focusableElements[focusableElements.length - 1];
-
-        if (!firstFocusable) return;
-
-        if (e.shiftKey) {
-          if (document.activeElement === firstFocusable) {
-            e.preventDefault();
-            lastFocusable?.focus();
-          }
-        } else {
-          if (document.activeElement === lastFocusable) {
-            e.preventDefault();
-            firstFocusable.focus();
-          }
-        }
-      }
-    },
-    [onClose],
-  );
-
-  useEffect(() => {
-    if (open) {
-      previousFocusRef.current = document.activeElement as HTMLElement;
-      document.addEventListener('keydown', handleKeyDown);
-      const focusable = dialogRef.current?.querySelector<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      focusable?.focus();
-    } else {
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocusRef.current?.focus();
-    }
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [open, handleKeyDown]);
 
   if (!open) return null;
 
