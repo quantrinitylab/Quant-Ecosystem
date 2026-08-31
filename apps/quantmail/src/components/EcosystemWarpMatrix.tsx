@@ -83,7 +83,7 @@ export function EcosystemWarpMatrix({
     },
     {
       id: 'code',
-      name: 'QuantCode',
+      name: 'QuantGit',
       wordmark: 'code' as const,
       path: '/codehub',
       description: 'Autonomous Git pipelines with Quanty at helm',

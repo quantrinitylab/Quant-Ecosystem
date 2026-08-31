@@ -1,35 +1,15 @@
-'use client';
+import { RouteSkeleton } from '../components/RouteSkeleton';
 
-import { useEffect, useState } from 'react';
-import { BrandLoader } from '../components/BrandLoader';
-
+/**
+ * Root fallback — and, because `app/page.tsx` shares this segment, the inbox's
+ * own loading state.
+ *
+ * It used to be a full-screen `BrandLoader variant="splash"`, which every route
+ * in the app inherited. That splash now lives in `components/RouteSplash.tsx` and
+ * is mounted only by the auth routes, where "the app is starting" is actually
+ * true. Everywhere else — here included — the honest answer is a silhouette of
+ * the list that is arriving.
+ */
 export default function Loading() {
-  const [showSlowMessage, setShowSlowMessage] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setShowSlowMessage(true), 5000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  return (
-    <BrandLoader
-      variant="splash"
-      message="Loading QuantMail…"
-      hint={
-        showSlowMessage ? (
-          <>
-            <p className="text-sm text-[var(--quant-muted-foreground)]">
-              Taking longer than expected…
-            </p>
-            <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">
-              Check your connection or{' '}
-              <a href="/" className="text-[var(--brand-primary)] hover:underline">
-                reload the page
-              </a>
-            </p>
-          </>
-        ) : null
-      }
-    />
-  );
+  return <RouteSkeleton variant="list" label="inbox" />;
 }

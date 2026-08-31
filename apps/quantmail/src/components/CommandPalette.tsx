@@ -152,14 +152,21 @@ export function CommandPalette() {
             onClick={closePalette}
             aria-hidden="true"
           />
+          {/* `x: '-50%'` lives in the motion props, NOT as `-translate-x-1/2`.
+              framer-motion writes the element's `transform` itself, and once the
+              enter animation settles on identity values it emits
+              `transform: none` — which silently wipes a Tailwind translate on
+              the same element. Measured: the panel sat at `left: 50%` with
+              `transform: none`, i.e. 288px right of centre, and its right edge
+              was clipped off-screen below ~1150px of viewport width. */}
           <motion.div
-            className="command-palette fixed left-1/2 top-[12%] z-[120] flex max-h-[72vh] w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-[0_20px_60px_rgba(0,0,0,0.7)]"
+            className="command-palette fixed left-1/2 top-[12%] z-[120] flex max-h-[72vh] w-[calc(100%-1.5rem)] max-w-xl flex-col overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-[0_20px_60px_rgba(0,0,0,0.7)]"
             role="dialog"
             aria-modal="true"
             aria-label="Command palette"
-            initial={{ opacity: 0, scale: 0.98, y: -6 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98, y: -6 }}
+            initial={{ opacity: 0, scale: 0.98, x: '-50%', y: -6 }}
+            animate={{ opacity: 1, scale: 1, x: '-50%', y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, x: '-50%', y: -6 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="flex items-center gap-3 border-b border-[#282C35] bg-[#111318] px-4 py-3.5">

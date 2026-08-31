@@ -1,55 +1,35 @@
 'use client';
 
-export type QuantLogoProps = {
-  size?: number;
-  className?: string;
-  title?: string;
-};
+import { AppMark, MARK_VOID, type QuantLogoProps } from './AppMark';
 
+/**
+ * QuantDrive's mark: a tabbed folder cut out of the brand plate with the upload
+ * arrow painted back in, so the glyph says what the product does rather than just
+ * naming its container.
+ */
 export function QuantDriveLogo({
   size = 32,
   className = '',
   title = 'QuantDrive',
 }: QuantLogoProps) {
   return (
-    <span
-      className={`inline-flex items-center justify-center shrink-0 ${className}`}
-      style={{ width: size, height: size }}
-      role="img"
-      aria-label={title}
-      title={title}
-    >
-      <svg
-        viewBox="0 0 32 32"
-        width={size}
-        height={size}
-        className="w-full h-full"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <defs>
-          <linearGradient
-            id="qdrv-grad"
-            x1="4"
-            y1="4"
-            x2="28"
-            y2="28"
-            gradientUnits="userSpaceOnUse"
-          >
-            <stop stopColor="#FF8C42" />
-            <stop offset="1" stopColor="#FFA800" />
-          </linearGradient>
-        </defs>
-        <rect width="32" height="32" rx="8" fill="#111318" stroke="#283042" strokeWidth="1" />
-        <path
-          d="M6.5 23.5H25.5C26.6 23.5 27.5 22.6 27.5 21.5V11.5C27.5 10.4 26.6 9.5 25.5 9.5H16.5L14 7.5H6.5C5.4 7.5 4.5 8.4 4.5 9.5V21.5C4.5 22.6 5.4 23.5 6.5 23.5Z"
-          stroke="url(#qdrv-grad)"
-          strokeWidth="1.8"
-          strokeLinejoin="round"
-        />
-        <path d="M11 16.5H21" stroke="url(#qdrv-grad)" strokeWidth="1.8" strokeLinecap="round" />
-      </svg>
-    </span>
+    <AppMark size={size} className={className} title={title}>
+      {(brand) => (
+        <>
+          <path
+            d="M6.6 12.2A2.2 2.2 0 0 1 8.8 10H13.2L15.6 12.4H23.2A2.2 2.2 0 0 1 25.4 14.6V21.8A2.2 2.2 0 0 1 23.2 24H8.8A2.2 2.2 0 0 1 6.6 21.8Z"
+            fill={MARK_VOID}
+          />
+          <path
+            d="M16 21.4V15.3M13.1 18.2 16 15.2 18.9 18.2"
+            stroke={brand}
+            strokeWidth="1.9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </>
+      )}
+    </AppMark>
   );
 }
 

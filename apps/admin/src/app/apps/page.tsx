@@ -79,7 +79,7 @@ const defaultAppsData: EcosystemApp[] = [
   },
   {
     id: 'quantcode',
-    name: 'QuantCode',
+    name: 'QuantGit',
     enabled: true,
     version: '1.0.0',
     port: 3007,

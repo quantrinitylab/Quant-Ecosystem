@@ -69,7 +69,7 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
               <span>Mail</span>
               <span>Calendar</span>
               <span>Drive</span>
-              <span>Code</span>
+              <span>Git</span>
               <span>AI</span>
             </div>
           </div>

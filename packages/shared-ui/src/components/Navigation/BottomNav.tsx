@@ -61,13 +61,18 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               <span className="text-[10px] mt-0.5 font-medium">{item.label}</span>
               {isActive &&
                 (shouldAnimate ? (
+                  // Centred with a negative margin, not `-translate-x-1/2`: a
+                  // `layoutId` element has its `transform` written by framer's
+                  // layout projection every frame, so a Tailwind translate on the
+                  // same node is overwritten and the pill lands half its width
+                  // (16px) right of the icon it belongs to.
                   <motion.div
                     layoutId="bottomNavIndicator"
-                    className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-blue-600 rounded-full"
+                    className="absolute bottom-0 left-1/2 -ml-4 w-8 h-1 bg-blue-600 rounded-full"
                     transition={{ type: 'spring', ...spring.snappy }}
                   />
                 ) : (
-                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-1 bg-blue-600 rounded-full" />
+                  <div className="absolute bottom-0 left-1/2 -ml-4 w-8 h-1 bg-blue-600 rounded-full" />
                 ))}
             </button>
           );

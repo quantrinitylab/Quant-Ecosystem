@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Modal, Skeleton, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { Quanty } from '../../components/Quanty';
-import { QuantyCopilotDrawer } from '../../components/QuantyCopilotDrawer';
 import {
   useCalendarEvents,
   useCreateEvent,
@@ -16,6 +16,7 @@ import {
 } from '../../hooks/useCalendar';
 import { useAuth } from '../../providers/auth-provider';
 import { useConfirm } from '../../hooks/useConfirm';
+import { useDeferredMount } from '../../hooks/useDeferredMount';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
 import {
@@ -27,6 +28,7 @@ import {
   IconBolt,
   IconBrain,
   IconCake,
+  IconCalendar,
   IconCheck,
   IconCheckCircle,
   IconCircle,
@@ -62,6 +64,17 @@ import {
   IconWave,
   IconX,
 } from '../../components/icons';
+
+/**
+ * Split out of the calendar's route chunk. `calendar/page.tsx` is the heaviest
+ * page in the app, and Quanty's drawer is a 663-line feature behind a single
+ * toolbar button — most calendar sessions never touch it. `useDeferredMount`
+ * keeps it mounted once opened, so an in-progress conversation is not discarded
+ * when the drawer closes.
+ */
+const QuantyCopilotDrawer = dynamic(() => import('../../components/QuantyCopilotDrawer'), {
+  ssr: false,
+});
 
 const WEEKDAYS_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const FULL_WEEKDAYS = [
@@ -325,20 +338,6 @@ const RECURRENCE_OPTIONS = [
   'Custom interval…',
 ];
 
-// The calendar's own mark is a raster logo, not a glyph, so it stays local —
-// every other icon on this page now comes from `components/icons` at the shared
-// 1.6 stroke weight instead of the eleven hand-rolled copies that used to live
-// here at weight 2 and drifted a shade bolder than the rest of the app.
-function IconCalendar({ className = 'size-4' }: { className?: string }) {
-  return (
-    <img
-      src="/quant-calendar-logo.png"
-      alt="Calendar"
-      className={`${className} object-contain rounded drop-shadow-sm`}
-    />
-  );
-}
-
 // Clue Reference Categories & Card Options.
 //
 // Each option carries a shared `components/icons` glyph rather than an emoji.
@@ -456,6 +455,7 @@ export default function CalendarPage() {
   const [searchFilter, setSearchFilter] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isQuantyDrawerOpen, setIsQuantyDrawerOpen] = useState(false);
+  const showQuantyDrawer = useDeferredMount(isQuantyDrawerOpen);
 
   // Selector sheets / modals
   const [isTimezoneModalOpen, setIsTimezoneModalOpen] = useState(false);
@@ -4019,10 +4019,12 @@ export default function CalendarPage() {
         )}
 
         {/* Quanty AI Copilot Drawer */}
-        <QuantyCopilotDrawer
-          isOpen={isQuantyDrawerOpen}
-          onClose={() => setIsQuantyDrawerOpen(false)}
-        />
+        {showQuantyDrawer && (
+          <QuantyCopilotDrawer
+            isOpen={isQuantyDrawerOpen}
+            onClose={() => setIsQuantyDrawerOpen(false)}
+          />
+        )}
         {dialog}
       </PageTransition>
     </AppShell>

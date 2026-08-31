@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ErrorState, Skeleton, Button } from '@quant/shared-ui';
@@ -19,9 +20,9 @@ import { QuantMailLogo } from '../components/QuantMailLogo';
 import { Quanty } from '../components/Quanty';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { EmailSenderHeader } from '../components/EmailSenderHeader';
-import { QuantyCopilotDrawer } from '../components/QuantyCopilotDrawer';
 import { ConversationalThreadView } from '../components/ConversationalThreadView';
 import { ThreadKindBadge } from '../components/MessageKindBadge';
+import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
@@ -39,6 +40,17 @@ import { IconCheck, IconFilter, IconX } from '../components/icons';
 import type { Email } from '../types';
 
 export type { ConversationThread };
+
+/**
+ * Quanty's drawer is 663 lines plus its own chat history layer, and the inbox is
+ * the app's landing route — so it must not be in the first chunk. Paired with
+ * `useDeferredMount` below, the code is fetched the first time the user actually
+ * asks for Quanty and then stays mounted, so the conversation survives closing
+ * the drawer exactly as it did when the import was static.
+ */
+const QuantyCopilotDrawer = dynamic(() => import('../components/QuantyCopilotDrawer'), {
+  ssr: false,
+});
 
 /**
  * Starting height guess for a conversation row: `.mail-row`'s `min-height` of
@@ -1108,6 +1120,7 @@ export default function InboxPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isGlobalQuantyOpen, setIsGlobalQuantyOpen] = useState(false);
+  const showGlobalQuanty = useDeferredMount(isGlobalQuantyOpen);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isPulling = useRef(false);
@@ -2136,11 +2149,13 @@ export default function InboxPage() {
 
       <Quanty />
 
-      <QuantyCopilotDrawer
-        isOpen={isGlobalQuantyOpen}
-        onClose={() => setIsGlobalQuantyOpen(false)}
-        isInboxContext={true}
-      />
+      {showGlobalQuanty && (
+        <QuantyCopilotDrawer
+          isOpen={isGlobalQuantyOpen}
+          onClose={() => setIsGlobalQuantyOpen(false)}
+          isInboxContext={true}
+        />
+      )}
 
       <CreateGroupModal
         isOpen={isCreateGroupModalOpen}
