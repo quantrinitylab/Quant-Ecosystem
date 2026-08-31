@@ -51,6 +51,13 @@ export function getConfig(): AppConfig {
     // Pre-authentication endpoints that must bypass the global auth hook so
     // users can sign in / sign up / run OAuth without a token. `/oauth/authorize`
     // stays protected (it needs a logged-in user for the consent screen).
+    //
+    // These are matched by PREFIX (`packages/server-core/src/app.ts`), so an entry
+    // here exempts every path beneath it. Nothing may be mounted under one of
+    // these unless it is meant to be public: `/webhook/inbound/sync-all` used to
+    // exist and inherited this exemption, which is how replaying the entire
+    // inbound S3 bucket into every user's mailbox became an unauthenticated POST.
+    // It now lives at `/admin/inbound/sync-all`, outside the prefix.
     publicPaths: [
       '/auth/login',
       '/auth/register',
@@ -64,6 +71,8 @@ export function getConfig(): AppConfig {
       // have an account yet. Accepting an invite stays authenticated.
       '/public/invites',
       '/.well-known',
+      // Authenticated by the AWS SNS message signature, not by a JWT — SNS
+      // cannot present a bearer token. See routes/inbound-webhook.ts.
       '/webhook/inbound',
     ],
     env,
@@ -170,7 +179,10 @@ export async function buildApp(config?: AppConfig) {
   app.decorate('federation', createFederationService());
   await app.register(federationRoutes, { prefix: '/federation' });
 
-  // SES inbound email webhook — called by AWS SNS, no JWT required.
+  // SES inbound email webhook (POST /webhook/inbound) — called by AWS SNS and
+  // authenticated by the SNS message signature rather than a JWT. The same module
+  // registers POST /admin/inbound/sync-all, which is deliberately *outside* the
+  // public prefix and checks for an ADMIN role.
   await app.register(inboundWebhookRoutes);
 
   return app;
