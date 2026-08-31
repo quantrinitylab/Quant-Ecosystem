@@ -22,7 +22,9 @@ export function InboxZeroState({ query }: { query?: string }) {
         animate={{ y: [0, -6, 0] }}
         transition={{ duration: 4.2, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <QuantMailLogo size={96} title="QuantMail" />
+        {/* Decoration, not a control: it floats on a 4.2s loop, and the only
+            thing a click did was re-navigate to the inbox you are already on. */}
+        <QuantMailLogo size={96} interactive={false} />
       </motion.div>
       {query ? (
         <>

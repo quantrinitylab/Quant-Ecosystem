@@ -4,7 +4,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
-import { Interactive3DLogo } from './Interactive3DLogo';
+import { Interactive3DLogo, type LogoAppType } from './Interactive3DLogo';
 import { BrandWordmark } from './BrandWordmark';
 
 interface EcosystemWarpMatrixProps {
@@ -34,11 +34,22 @@ export function EcosystemWarpMatrix({
 
   useShortcut('escape', onClose, { scope: 'warp-matrix', label: 'Close app switcher' });
 
-  const apps = [
+  // `id` is annotated rather than left to inference so a typo is a type error
+  // here instead of a silently blank mark at the render site. There is no
+  // separate `wordmark` field: it held the same five strings as `id` in every
+  // row, so it was one more thing to keep in sync for nothing.
+  const apps: Array<{
+    id: LogoAppType;
+    name: string;
+    path: string;
+    description: string;
+    stat: string;
+    badge: string;
+    badgeAccent: boolean;
+  }> = [
     {
       id: 'mail',
       name: 'QuantMail',
-      wordmark: 'mail' as const,
       path: '/',
       description: 'Zero-Noise E2EE Neural Inbox',
       stat:
@@ -46,50 +57,45 @@ export function EcosystemWarpMatrix({
           ? `${unreadCount} unread message${unreadCount === 1 ? '' : 's'}`
           : 'All caught up · Zero noise',
       badge: unreadCount > 0 ? `${unreadCount} Unread` : 'Zen',
-      badgeColor:
-        unreadCount > 0
-          ? 'bg-[#2B1A11] text-[#FF8C42] border-[#5C3016]'
-          : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+      // The only row that means "something is waiting for you". Everything else
+      // is a steady-state label, so it gets the quiet treatment below.
+      badgeAccent: unreadCount > 0,
     },
     {
       id: 'calendar',
       name: 'QuantCalendar',
-      wordmark: 'calendar' as const,
       path: '/calendar',
       description: 'Quantum timeline & scheduled meetings',
       stat: 'Synced with Google & CalDAV',
       badge: 'Active',
-      badgeColor: 'bg-[#FF8C42]/15 text-[#FFB875] border-[#FF8C42]/30',
+      badgeAccent: false,
     },
     {
       id: 'drive',
       name: 'QuantDrive',
-      wordmark: 'drive' as const,
       path: '/drive',
       description: 'High-speed cloud memory & encrypted vault',
       stat: '15 GB free tier · AES-256 GCM',
       badge: 'E2EE Vault',
-      badgeColor: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
+      badgeAccent: false,
     },
     {
       id: 'contacts',
       name: 'QuantContacts',
-      wordmark: 'contacts' as const,
       path: '/contacts',
       description: 'Unified verified identities & directory',
       stat: 'vCard 4.0 & SPF/DKIM synced',
       badge: 'Directory',
-      badgeColor: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+      badgeAccent: false,
     },
     {
       id: 'code',
       name: 'QuantGit',
-      wordmark: 'code' as const,
       path: '/codehub',
       description: 'Autonomous Git pipelines with Quanty at helm',
       stat: 'Built-in CI/CD & preview runners',
       badge: 'Pipelines',
-      badgeColor: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+      badgeAccent: false,
     },
   ];
 
@@ -183,12 +189,28 @@ export function EcosystemWarpMatrix({
                   className="flex w-full min-h-touch items-center justify-between gap-3 p-3.5 rounded-2xl bg-[#16181D] hover:bg-[#1E2128] text-left transition-colors cursor-pointer group outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <Interactive3DLogo app={app.id as any} size={34} showBadge={false} />
+                    {/* `app={app.id}` — this was `as any`, which would have let a
+                        typo in an `id` above ship a blank mark. The array's own
+                        annotation carries the union now, so no cast is needed. */}
+                    <Interactive3DLogo app={app.id} size={34} showBadge={false} />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <BrandWordmark app={app.wordmark} size="text-sm" />
+                        <BrandWordmark app={app.id} size="text-sm" />
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${app.badgeColor}`}
+                          /*
+                           * One badge, two variants — not five hues. This row of
+                           * five badges was emerald-400, #FFB875, cyan-300,
+                           * purple-300 and emerald-300: four of them Tailwind
+                           * defaults that are in no part of the design system,
+                           * on the one surface whose whole job is to make five
+                           * apps read as one product. Accent is now reserved for
+                           * the row that actually wants attention.
+                           */
+                          className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                            app.badgeAccent
+                              ? 'border-[#5C3016] bg-[#2B1A11] text-[#FF8C42]'
+                              : 'border-[#282C35] bg-[#111318] text-[#A1A4AC]'
+                          }`}
                         >
                           {app.badge}
                         </span>
@@ -248,7 +270,14 @@ export function EcosystemWarpMatrix({
                       onMarkAllRead();
                       onClose();
                     }}
-                    className="inline-flex min-h-touch items-center gap-1.5 px-3.5 text-xs font-bold rounded-xl border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 transition-colors active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    /*
+                     * The primary action in this footer whenever it renders, so
+                     * it is the filled accent and "Refresh Signal" beside it
+                     * stays the quiet one. It was emerald-300 on emerald-500/15,
+                     * which is off-palette and gave the secondary control the
+                     * louder colour.
+                     */
+                    className="inline-flex min-h-touch items-center gap-1.5 rounded-xl bg-[#FF8C42] px-3.5 text-xs font-bold text-[#111111] outline-none transition-colors hover:bg-[#FF9B5A] active:scale-95 active:bg-[#E8752F] focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#16181D]"
                   >
                     <svg
                       className="size-3.5 flex-none"

@@ -89,26 +89,36 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
   useEffect(() => startOutbox(), []);
 
   /**
-   * Both overlays render above the navigation drawer, so opening one while the
-   * drawer is out would stack two modals and leave the drawer's focus trap
-   * fighting the palette's. Closing it first is what a user pressing ⌘K from an
-   * open drawer means anyway: they are done with the drawer.
+   * Both overlays render above the shell's own two — the navigation drawer and
+   * the app switcher — so opening one while either of those is out would stack
+   * two `aria-modal` dialogs and leave their focus traps and Escape handlers
+   * fighting. Measured before this existed: pressing ⌘K with the switcher open
+   * left "Switch app" and "Command palette" both visible and both modal.
+   *
+   * Closing them first is what a user pressing ⌘K from an open drawer or
+   * switcher means anyway: they are done with it. The palette is `unmaskable`,
+   * so it punches through the switcher's exclusive scope and this is the only
+   * place that can decide the switcher has to go.
+   *
+   * Events rather than callbacks because both open states live in `AppShell`,
+   * which this provider renders inside.
    */
-  const dismissDrawer = useCallback(() => {
+  const dismissShellOverlays = useCallback(() => {
     window.dispatchEvent(new CustomEvent('quant:sidebar:close'));
+    window.dispatchEvent(new CustomEvent('quant:switcher:close'));
   }, []);
 
   const openPalette = useCallback(() => {
-    dismissDrawer();
+    dismissShellOverlays();
     setHelpOpen(false);
     setPaletteOpen(true);
-  }, [dismissDrawer]);
+  }, [dismissShellOverlays]);
   const closePalette = useCallback(() => setPaletteOpen(false), []);
   const openHelp = useCallback(() => {
-    dismissDrawer();
+    dismissShellOverlays();
     setPaletteOpen(false);
     setHelpOpen(true);
-  }, [dismissDrawer]);
+  }, [dismissShellOverlays]);
   const closeHelp = useCallback(() => setHelpOpen(false), []);
 
   const surfaces = useMemo<KeyboardSurfaces>(
@@ -244,12 +254,29 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
     },
     {
       id: 'nav.codehub',
-      label: 'Go to CodeHub',
+      label: 'Go to QuantGit',
       group: 'Apps',
       keys: ['g k', 'g p'],
       icon: 'code',
-      keywords: ['git', 'repositories', 'branches', 'pull requests'],
+      keywords: ['git', 'repositories', 'branches', 'pull requests', 'codehub'],
       run: go('/codehub'),
+    },
+    {
+      id: 'nav.appSwitcher',
+      label: 'Switch app',
+      group: 'Apps',
+      keys: 'g g',
+      icon: 'grid',
+      description: 'Open the ecosystem switcher',
+      keywords: ['apps', 'switcher', 'ecosystem', 'grid', 'jump'],
+      // The overlay's open state lives in `AppShell`, which this provider sits
+      // inside — same reason `quant:sidebar:close` is an event rather than a
+      // callback drilled through the tree.
+      run: () => {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('quant:switcher:open'));
+        }
+      },
     },
 
     // ── Compose ───────────────────────────────────────────────────────────────

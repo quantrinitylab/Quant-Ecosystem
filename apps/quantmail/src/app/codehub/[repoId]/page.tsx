@@ -11,6 +11,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { Badge, Button, Skeleton, ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
+// The route stays `/codehub`; the name the user reads comes from the one place
+// that owns app names, so the next rename does not have to find this crumb.
+import { appDisplayName } from '../../../components/BrandWordmark';
 import { PageTransition } from '../../../components/PageTransition';
 import {
   useRepo,
@@ -366,7 +369,7 @@ export default function CodeHubRepoPage() {
             className="inline-flex min-h-11 items-center gap-1 -ml-1 pr-2 pl-1 text-xs text-[var(--quant-muted-foreground)] transition-colors hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded-lg"
           >
             <IconChevronLeft size={14} />
-            CodeHub
+            {appDisplayName('code')}
           </button>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <h1 className="text-base font-semibold">
@@ -891,7 +894,7 @@ export default function CodeHubRepoPage() {
                     title={tab === 'pulls' ? 'No pull requests' : 'No issues'}
                     description={
                       tab === 'pulls'
-                        ? 'Open a pull request to get review, checks and merge history in CodeHub.'
+                        ? 'Open a pull request to get review, checks and merge history in QuantGit.'
                         : 'Track bugs and work items right next to the code and pipelines.'
                     }
                   />
@@ -1200,7 +1203,7 @@ export default function CodeHubRepoPage() {
               <div className="px-4 py-4 space-y-3 text-xs">
                 <p className="text-[var(--quant-muted-foreground)]">
                   Hand a task to QuantAI: review an open pull request, triage an issue, or explain a
-                  failing pipeline run — right inside CodeHub.
+                  failing pipeline run — right inside QuantGit.
                 </p>
                 <PreviewNotice>
                   Not wired to the agent runner yet. Quanty in the mail workspace is the one that

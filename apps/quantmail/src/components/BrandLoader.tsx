@@ -63,7 +63,7 @@ export function BrandLoader({
 
           {/* Center Mascot Logo */}
           <div className="relative z-10 flex items-center justify-center size-14 sm:size-16 rounded-2xl bg-[#090A0C]/80 border border-[#282C35]/90 shadow-2xl">
-            <QuantMailLogo size={42} variant="full" interactive={false} />
+            <QuantMailLogo size={42} interactive={false} />
           </div>
         </div>
 

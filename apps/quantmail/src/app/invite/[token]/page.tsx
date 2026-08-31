@@ -67,7 +67,7 @@ export default function InviteAcceptPage() {
             </h1>
             <p className="mt-2 text-xs text-[var(--quant-muted-foreground)]">
               {invite.workspace.description ||
-                'Join the workspace to collaborate on mail, drive, calendar and CodeHub together.'}
+                'Join the workspace to collaborate on mail, drive, calendar and QuantGit together.'}
             </p>
 
             <div className="mt-4 flex items-center justify-center gap-2">

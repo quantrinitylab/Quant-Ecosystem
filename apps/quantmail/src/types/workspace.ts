@@ -110,6 +110,6 @@ export function can(
 export const ROLE_COPY: Record<WorkspaceRole, { label: string; blurb: string }> = {
   OWNER: { label: 'Owner', blurb: 'Full control — billing, deletion, ownership transfer.' },
   ADMIN: { label: 'Admin', blurb: 'Invite people, manage roles and workspace settings.' },
-  MEMBER: { label: 'Member', blurb: 'Work on the project: mail, drive, calendar, CodeHub.' },
+  MEMBER: { label: 'Member', blurb: 'Work on the project: mail, drive, calendar, QuantGit.' },
   VIEWER: { label: 'Viewer', blurb: 'Read-only access — can look, cannot change.' },
 };
