@@ -158,6 +158,12 @@ describe('trustedSnsCertUrl', () => {
     [`https://sns.us-east-1.amazonaws.com.evil.example/${CERT}`, null],
     [`http://sns.us-east-1.amazonaws.com/${CERT}`, null],
     [`https://SNS.us-east-1.amazonaws.com.x/${CERT}`, null],
+    // A region AWS does not operate. The predecessor accepted any `[a-z0-9-]{1,32}`
+    // here and interpolated it back into the authority; the host is now an element
+    // of a literal list, so an unknown region has nowhere to land.
+    [`https://sns.us-fake-9.amazonaws.com/${CERT}`, null],
+    // …and the `.cn` suffix belongs to the China partitions only, not to any region.
+    [`https://sns.us-east-1.amazonaws.com.cn/${CERT}`, null],
     // A host that passes but a path that is not a certificate.
     ['https://sns.us-east-1.amazonaws.com/cert.pem', null],
     ['https://sns.us-east-1.amazonaws.com/', null],
@@ -178,6 +184,18 @@ describe('trustedSnsCertUrl', () => {
     const raw = `https://sns.eu-west-2.amazonaws.com/${CERT}`;
     const rebuilt = trustedSnsCertUrl(String(raw));
     expect(rebuilt).toBe(raw);
+  });
+
+  it('normalises the authority to the allowlisted spelling', () => {
+    // `new URL` lowercases the host before the allowlist is consulted, so what
+    // comes back is the canonical literal from the list rather than the caller's
+    // spelling of it.
+    expect(trustedSnsCertUrl(`https://SNS.US-EAST-1.AMAZONAWS.COM/${CERT}`)).toBe(
+      `https://sns.us-east-1.amazonaws.com/${CERT}`,
+    );
+    // A trailing dot is the same host to a resolver but not the same string, and
+    // `new URL` keeps it — so it is refused rather than quietly folded.
+    expect(trustedSnsCertUrl(`https://sns.us-east-1.amazonaws.com./${CERT}`)).toBeNull();
   });
 
   it('resolves a traversal segment away instead of carrying it to fetch', () => {
@@ -240,6 +258,7 @@ describe('trustedSnsSubscribeUrl', () => {
       ok.replace('sns.us-east-1.amazonaws.com', 'sns.evil.example'),
     ],
     ['a suffixed host', ok.replace('amazonaws.com', 'amazonaws.com.evil.example')],
+    ['a region AWS does not operate', ok.replace('us-east-1', 'us-fake-9')],
     ['plaintext http', ok.replace('https://', 'http://')],
     ['a different action', ok.replace('ConfirmSubscription', 'Publish')],
     ['a path on the SNS host', ok.replace('.com/?', '.com/redirect?')],

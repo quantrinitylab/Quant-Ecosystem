@@ -116,12 +116,77 @@ const SIGNATURE_ALGORITHMS: Record<string, string> = {
 };
 
 /**
- * An SNS-owned hostname, captured region-first. Anchored at both ends so
- * `sns.us-east-1.amazonaws.com.evil.com` cannot match, and `.cn` is allowed for
- * the China partitions. The region class is deliberately narrow: AWS regions are
- * lowercase alphanumerics and dashes, nothing else.
+ * Every hostname AWS publishes SNS signing certificates and confirmation
+ * callbacks on, written out in full.
+ *
+ * This was a regex — `^sns\.([a-z0-9-]{1,32})\.amazonaws\.com(\.cn)?$` — and the
+ * validated region was interpolated back into the URL. That is safe, and it still
+ * reads as unsafe: the authority of the URL handed to `fetch` contained a
+ * substring of the request body, so `js/request-forgery` flagged both call sites
+ * and a reviewer had to reason about a capture group to disprove it. A literal
+ * list makes the authority entirely program text. It also happens to be tighter:
+ * a region is now a name AWS actually operates, not any 32 characters of
+ * lowercase and dashes.
+ *
+ * A new AWS region needs a line here. The failure mode is loud — inbound mail is
+ * refused with `untrusted-cert-url` and the offending URL is logged — rather than
+ * silent, which is the right way round for a list that gates authentication.
  */
-const SNS_HOSTNAME = /^sns\.([a-z0-9-]{1,32})\.amazonaws\.com(\.cn)?$/;
+const SNS_HOSTS: readonly string[] = [
+  'sns.af-south-1.amazonaws.com',
+  'sns.ap-east-1.amazonaws.com',
+  'sns.ap-northeast-1.amazonaws.com',
+  'sns.ap-northeast-2.amazonaws.com',
+  'sns.ap-northeast-3.amazonaws.com',
+  'sns.ap-south-1.amazonaws.com',
+  'sns.ap-south-2.amazonaws.com',
+  'sns.ap-southeast-1.amazonaws.com',
+  'sns.ap-southeast-2.amazonaws.com',
+  'sns.ap-southeast-3.amazonaws.com',
+  'sns.ap-southeast-4.amazonaws.com',
+  'sns.ap-southeast-5.amazonaws.com',
+  'sns.ap-southeast-7.amazonaws.com',
+  'sns.ca-central-1.amazonaws.com',
+  'sns.ca-west-1.amazonaws.com',
+  'sns.cn-north-1.amazonaws.com.cn',
+  'sns.cn-northwest-1.amazonaws.com.cn',
+  'sns.eu-central-1.amazonaws.com',
+  'sns.eu-central-2.amazonaws.com',
+  'sns.eu-north-1.amazonaws.com',
+  'sns.eu-south-1.amazonaws.com',
+  'sns.eu-south-2.amazonaws.com',
+  'sns.eu-west-1.amazonaws.com',
+  'sns.eu-west-2.amazonaws.com',
+  'sns.eu-west-3.amazonaws.com',
+  'sns.il-central-1.amazonaws.com',
+  'sns.me-central-1.amazonaws.com',
+  'sns.me-south-1.amazonaws.com',
+  'sns.mx-central-1.amazonaws.com',
+  'sns.sa-east-1.amazonaws.com',
+  'sns.us-east-1.amazonaws.com',
+  'sns.us-east-2.amazonaws.com',
+  'sns.us-gov-east-1.amazonaws.com',
+  'sns.us-gov-west-1.amazonaws.com',
+  'sns.us-west-1.amazonaws.com',
+  'sns.us-west-2.amazonaws.com',
+];
+
+/**
+ * The entry of {@link SNS_HOSTS} equal to `hostname`, or null.
+ *
+ * The return value is the element from the list, never the argument, so what the
+ * callers go on to build a URL out of is a string literal from this file. `URL`
+ * has already lowercased and punycoded the hostname by the time it gets here, so
+ * a plain equality test is the whole comparison.
+ */
+function trustedSnsHost(hostname: string): string | null {
+  for (const host of SNS_HOSTS) {
+    if (host === hostname) {
+      return host;
+    }
+  }
+  return null;
+}
 
 /**
  * The only path shape an SNS signing certificate is ever published at. AWS names
@@ -152,8 +217,10 @@ export function isSnsMessageType(value: unknown): value is SnsMessageType {
  * *trusting itself* to have checked it — and leaves a reader (or a static
  * analyser; CodeQL flagged both fetch sites as `js/request-forgery` while this
  * was a boolean) unable to see that the check happened at all. Nothing here is
- * carried over verbatim: the scheme is a literal, the region comes from a
- * `[a-z0-9-]` capture, and the filename from a hex capture.
+ * carried over verbatim: the scheme and the whole authority are literals — the
+ * host is the matching element of {@link SNS_HOSTS}, not the caller's hostname —
+ * and only the certificate filename comes from the argument, as a hex capture,
+ * below a host the caller cannot influence.
  *
  * The previous check was `startsWith('https://sns.')`, which
  * `https://sns.attacker.example/` satisfies.
@@ -171,12 +238,12 @@ export function trustedSnsCertUrl(raw: string | undefined): string | null {
   if (url.protocol !== 'https:' || url.search !== '' || url.username || url.password) {
     return null;
   }
-  const host = SNS_HOSTNAME.exec(url.hostname);
+  const host = trustedSnsHost(url.hostname);
   const file = SNS_CERT_PATH.exec(url.pathname);
   if (!host || !file) {
     return null;
   }
-  return `https://sns.${host[1]}.amazonaws.com${host[2] ?? ''}/${file[1]}`;
+  return `https://${host}/${file[1]}`;
 }
 
 /**
@@ -186,9 +253,10 @@ export function trustedSnsCertUrl(raw: string | undefined): string | null {
  * it. Instead every parameter is rebuilt: `Action` must be the one action this
  * endpoint is willing to perform, `TopicArn` must equal the topic the envelope
  * already declared (which the route has separately allowlisted), and `Token` is
- * constrained to the character class AWS actually uses. A URL that reaches
- * `fetch` from here cannot point anywhere but an SNS confirm endpoint for a
- * topic we accept.
+ * constrained to the character class AWS actually uses. The host, as with the
+ * certificate URL, is the matching literal from {@link SNS_HOSTS}. A URL that
+ * reaches `fetch` from here cannot point anywhere but an SNS confirm endpoint for
+ * a topic we accept.
  */
 export function trustedSnsSubscribeUrl(
   raw: string | undefined,
@@ -206,7 +274,7 @@ export function trustedSnsSubscribeUrl(
   if (url.protocol !== 'https:' || url.username || url.password) {
     return null;
   }
-  const host = SNS_HOSTNAME.exec(url.hostname);
+  const host = trustedSnsHost(url.hostname);
   if (!host || !SNS_CONFIRM_PATH.test(url.pathname)) {
     return null;
   }
@@ -224,7 +292,7 @@ export function trustedSnsSubscribeUrl(
     TopicArn: expectedTopicArn,
     Token: token,
   });
-  return `https://sns.${host[1]}.amazonaws.com${host[2] ?? ''}/?${query.toString()}`;
+  return `https://${host}/?${query.toString()}`;
 }
 
 /** The `SigningCertURL` under either casing, or undefined. */
@@ -275,9 +343,9 @@ export function clearSnsCertCache(): void {
 
 /**
  * Default fetcher. The URL it receives was assembled by
- * {@link trustedSnsCertUrl} out of a literal scheme, a validated region and a
- * validated filename — no part of the caller's string survives — so this is a
- * plain HTTPS GET, with a short timeout so a slow AWS endpoint cannot pin a
+ * {@link trustedSnsCertUrl} out of a literal scheme, a literal host and a
+ * validated filename — the authority contains nothing from the caller — so this
+ * is a plain HTTPS GET, with a short timeout so a slow AWS endpoint cannot pin a
  * request handler open.
  */
 async function fetchCertificateOverHttps(url: string): Promise<string> {
