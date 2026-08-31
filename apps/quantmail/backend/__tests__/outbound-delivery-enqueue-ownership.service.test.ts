@@ -96,12 +96,12 @@ describe('OutboundDeliveryPipeline.enqueueSend — ownership rejection (Req 4.2 
 
   it('positive control: the owner enqueues a valid draft — adds exactly one job and sets deliveryStatus=queued', async () => {
     prisma.email.findUnique.mockResolvedValue(makeEmail({ userId: 'user-A' }));
-    queue.add.mockResolvedValue('outbound-delivery:email-1');
+    queue.add.mockResolvedValue('outbound-delivery-email-1');
     prisma.email.update.mockResolvedValue(makeEmail({ deliveryStatus: 'queued' }));
 
     const jobId = await pipeline.enqueueSend('user-A', 'email-1');
 
-    expect(jobId).toBe('outbound-delivery:email-1');
+    expect(jobId).toBe('outbound-delivery-email-1');
 
     // Exactly one durable job, on the outbound send job name.
     expect(queue.add).toHaveBeenCalledTimes(1);
@@ -113,7 +113,7 @@ describe('OutboundDeliveryPipeline.enqueueSend — ownership rejection (Req 4.2 
         to: 'bob@example.com',
         subject: 'Quarterly report',
       }),
-      expect.objectContaining({ jobId: 'outbound-delivery:email-1' }),
+      expect.objectContaining({ jobId: 'outbound-delivery-email-1' }),
     );
 
     // Delivery state advanced to queued exactly once.
