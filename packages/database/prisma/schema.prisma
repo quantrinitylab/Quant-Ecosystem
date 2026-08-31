@@ -59,6 +59,7 @@ model User {
   sessions           Session[]
   refreshTokens      RefreshToken[]
   twoFactorBackupCodes TwoFactorBackupCode[]
+  passwordResetTokens  PasswordResetToken[]
   oauthClients       OAuthClient[]        @relation("UserOwnedClients")
   oauthConsents      OAuthConsent[]
   authorizationCodes AuthorizationCode[]
@@ -243,6 +244,33 @@ model TwoFactorBackupCode {
   @@unique([userId, codeHash])
   @@index([userId])
   @@map("two_factor_backup_codes")
+}
+
+/// A single password-reset link, stored as the digest of the token that was
+/// mailed out.
+///
+/// Only the digest is here for the same reason as a password: this row grants
+/// the right to take over the account, so a leaked table must not be a set of
+/// working reset links. `usedAt` rather than a delete keeps a spent link
+/// distinguishable from a forged one, and makes the single-use claim provable —
+/// the update that spends it is scoped to `usedAt: null`, so two simultaneous
+/// confirms cannot both win.
+///
+/// `requestedIp` is kept for abuse triage only; nothing in the flow reads it.
+model PasswordResetToken {
+  id          String    @id @default(cuid())
+  userId      String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  requestedIp String?
+  createdAt   DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 model OAuthClient {

@@ -195,19 +195,6 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // 2FA lives in `routes/two-factor.ts`. It used to live here as a pair of
   // handlers that generated a secret nobody stored and accepted any six digits.
-
-  // ─── Password Reset (stub — needs email delivery) ────────────────────────
-  fastify.post('/auth/password-reset', async (_request, reply) => {
-    // Always return success to avoid leaking whether an email exists
-    return reply.send({
-      success: true,
-      data: {
-        message: 'If an account exists with that address, reset instructions have been sent.',
-      },
-    });
-  });
-
-  fastify.post('/auth/password-reset/confirm', async (_request, reply) => {
-    return fail(reply, 501, 'NOT_IMPLEMENTED', 'Password reset via email is not yet available.');
-  });
+  // Password reset lives in `routes/password-reset.ts`. It used to live here as
+  // a hard-coded "instructions have been sent" that sent nothing, plus a 501.
 }

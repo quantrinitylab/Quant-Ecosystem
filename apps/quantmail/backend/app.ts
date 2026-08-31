@@ -21,6 +21,7 @@ import { oauthRoutes } from './routes/oauth';
 import phoneRoutes from './routes/phone';
 import { authRoutes } from './routes/auth';
 import { twoFactorRoutes } from './routes/two-factor';
+import { passwordResetRoutes } from './routes/password-reset';
 import reposRoutes from './routes/repos';
 import workspaceRoutes from './routes/workspaces';
 import ciRoutes from './routes/ci';
@@ -69,6 +70,11 @@ export function getConfig(): AppConfig {
       // hook. Listed as the exact path — NEVER as `/auth/2fa`, which would
       // expose setup, enable, disable and backup-code regeneration to anyone.
       '/auth/2fa/verify',
+      // Forgot-password is for people who cannot sign in. Behind the auth hook
+      // it was reachable only by users who did not need it. The prefix also
+      // covers `/auth/password-reset/confirm`, which is intended — the person
+      // clicking the emailed link has a single-use token, not a session.
+      '/auth/password-reset',
       '/oauth/token',
       '/oauth/revoke',
       '/oauth/register',
@@ -114,6 +120,8 @@ export async function buildApp(config?: AppConfig) {
   // TOTP second factor. `/auth/2fa/verify` is public (it completes a login);
   // every other route in here requires the JWT the global hook enforces.
   await app.register(twoFactorRoutes);
+  // Both routes are public: whoever needs them cannot sign in by definition.
+  await app.register(passwordResetRoutes);
   await app.register(oauthRoutes);
   await app.register(phoneRoutes);
 
