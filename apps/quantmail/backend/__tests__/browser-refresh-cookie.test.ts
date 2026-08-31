@@ -41,6 +41,7 @@ vi.mock('@quant/auth/lib/secrets', () => ({
 }));
 
 import { authRoutes } from '../routes/auth';
+import { verifyTwoFactorChallenge } from '../lib/two-factor';
 
 type RouteHandler = (request: any, reply: any) => Promise<unknown>;
 
@@ -244,5 +245,98 @@ describe('QuantMail browser refresh-token boundary', () => {
       name: 'quantmail_refresh',
       options: expect.objectContaining({ path: '/auth', httpOnly: true, secure: true }),
     });
+  });
+});
+
+/**
+ * The gate `/auth/login` did not have. Both 2FA columns were on the row and the
+ * login handler read neither, so an account with a second factor signed in on a
+ * password exactly like one without.
+ */
+describe('QuantMail login two-factor gate', () => {
+  const protectedRow = {
+    id: 'user-2fa',
+    email: 'protected@quantmail.in',
+    username: 'protected',
+    displayName: 'Protected',
+    passwordHash: 'hashed_password',
+    role: 'USER',
+    twoFactorEnabled: true,
+    twoFactorSecret: 'LIVESECRETBASE32BBBBBB',
+  };
+
+  const login = async (row: Record<string, unknown>) => {
+    mocks.prisma.user.findUnique.mockResolvedValue(row);
+    const handlers = await loadHandlers();
+    const reply = makeReply();
+    await handlers.get('/auth/login')!(
+      { headers: trustedHeaders, body: { email: row['email'], password: 'password' } },
+      reply,
+    );
+    return reply;
+  };
+
+  it('hands back a challenge instead of a session', async () => {
+    const reply = await login(protectedRow);
+
+    expect(reply.statusCode).toBe(200);
+    expect(reply.body.data.twoFactorRequired).toBe(true);
+    expect(typeof reply.body.data.challenge).toBe('string');
+    expect(reply.body.data.expiresIn).toBe(300);
+  });
+
+  it('issues no token and sets no refresh cookie until the second factor is answered', async () => {
+    const reply = await login(protectedRow);
+
+    expect(reply.body.data).not.toHaveProperty('accessToken');
+    expect(reply.body.data).not.toHaveProperty('refreshToken');
+    expect(reply.cookie).toBeUndefined();
+    expect(mocks.generateTokenPair).not.toHaveBeenCalled();
+  });
+
+  /** The challenge names the user and nothing else — no role, no scopes. */
+  it('signs a challenge that verifies back to exactly that account', async () => {
+    const reply = await login(protectedRow);
+    const claims = await verifyTwoFactorChallenge(reply.body.data.challenge);
+
+    expect(claims?.userId).toBe('user-2fa');
+    expect(reply.body.data.challenge).not.toContain(protectedRow.twoFactorSecret);
+  });
+
+  /**
+   * A flag with no secret is the state the old format-only `/auth/2fa/enable`
+   * left accounts in. Honouring it would demand a code nothing can verify, which
+   * is a lockout, so login proceeds normally instead.
+   */
+  it('ignores a half-enabled row rather than locking the account out', async () => {
+    for (const half of [
+      { ...protectedRow, twoFactorSecret: null },
+      { ...protectedRow, twoFactorEnabled: false },
+      { ...protectedRow, twoFactorEnabled: null, twoFactorSecret: null },
+    ]) {
+      vi.clearAllMocks();
+      mocks.generateTokenPair.mockResolvedValue({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        expiresIn: 900,
+        tokenType: 'Bearer',
+      });
+
+      const reply = await login(half);
+      expect(reply.body.data.accessToken).toBe('access-token');
+      expect(reply.body.data).not.toHaveProperty('twoFactorRequired');
+      expect(reply.cookie.value).toBe('refresh-token');
+    }
+  });
+
+  it('still rejects a wrong password before any challenge is minted', async () => {
+    const argon2 = await import('argon2');
+    vi.mocked(argon2.verify).mockResolvedValueOnce(false as never);
+
+    const reply = await login(protectedRow);
+
+    expect(reply.statusCode).toBe(401);
+    expect(reply.body.error.code).toBe('INVALID_CREDENTIALS');
+    expect(reply.body.data).toBeUndefined();
   });
 });

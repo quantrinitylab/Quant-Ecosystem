@@ -27,6 +27,15 @@ model User {
   isVerified          Boolean    @default(false)
   twoFactorEnabled    Boolean    @default(false)
   twoFactorSecret     String?
+  // Held between /auth/2fa/setup and /auth/2fa/enable. The secret the client is
+  // shown must be the one the server later verifies against, or "enable" is just
+  // a 6-digit format check on a secret nobody stored.
+  twoFactorPendingSecret String?
+  twoFactorConfirmedAt   DateTime?
+  // The 30-second TOTP step of the last accepted code, plus one. A code is valid
+  // across three steps, so refusing anything at or below this number is what
+  // stops a captured code from being replayed inside its own window.
+  twoFactorLastUsedStep  Int?
   bio                 String?
   website             String?
   location            String?
@@ -49,6 +58,7 @@ model User {
   oauthAccounts      OAuthAccount[]
   sessions           Session[]
   refreshTokens      RefreshToken[]
+  twoFactorBackupCodes TwoFactorBackupCode[]
   oauthClients       OAuthClient[]        @relation("UserOwnedClients")
   oauthConsents      OAuthConsent[]
   authorizationCodes AuthorizationCode[]
@@ -210,6 +220,29 @@ model RefreshToken {
   @@index([token])
   @@index([family])
   @@map("refresh_tokens")
+}
+
+/// One-time recovery codes for TOTP two-factor auth.
+///
+/// Stored as SHA-256 digests, never in the clear: a recovery code is a password
+/// equivalent, and the whole point of it is to work when the authenticator is
+/// gone — so a leaked table would otherwise hand over every second factor. The
+/// user sees the plaintext exactly once, at generation.
+///
+/// `usedAt` rather than a delete, so "you have 3 codes left" is answerable and a
+/// replayed code is distinguishable from an unknown one in the audit trail.
+model TwoFactorBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, codeHash])
+  @@index([userId])
+  @@map("two_factor_backup_codes")
 }
 
 model OAuthClient {

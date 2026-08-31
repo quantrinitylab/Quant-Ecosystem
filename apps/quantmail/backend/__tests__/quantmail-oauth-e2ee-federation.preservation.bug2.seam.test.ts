@@ -888,16 +888,24 @@ describe('Bug 2 preservation baseline — deep @quant/auth specifier dependency 
     }
   });
 
-  it('auth.ts depends on prisma (default), token-service, and secrets', () => {
+  /**
+   * The contract is on the browser-auth seam, not on one file. `routes/auth.ts`
+   * used to construct the TokenService and read the JWT secrets inline; that
+   * moved to `lib/auth-session.ts` when `/auth/2fa/verify` needed to issue the
+   * identical session. The deep specifiers are still what the seam depends on,
+   * which is what the exports map has to keep valid — so both files are read.
+   */
+  it('the browser-auth seam depends on prisma (default), token-service, and secrets', () => {
     const src = read('../routes/auth.ts');
+    const seam = src + read('../lib/auth-session.ts');
     for (const spec of [
       '@quant/auth/lib/prisma',
       '@quant/auth/services/token-service',
       '@quant/auth/lib/secrets',
     ]) {
-      expect(src, `auth.ts must import ${spec}`).toContain(spec);
+      expect(seam, `the auth seam must import ${spec}`).toContain(spec);
     }
-    expect(src).not.toContain('@quant/auth/crypto/secure-random');
+    expect(seam).not.toContain('@quant/auth/crypto/secure-random');
   });
 
   it('oauth.ts and auth.ts import prisma as a DEFAULT import', () => {
