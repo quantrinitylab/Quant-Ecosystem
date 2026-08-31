@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Quanty } from './Quanty';
 import { showToast } from './InboxToast';
+import { IconX } from './icons';
 import type { Email } from '../types';
 
 export interface QuantyEmailAction {
@@ -183,7 +184,7 @@ export function QuantyCopilotDrawer({
           if (isComposeContext && onApplyAction) {
             const action = parseEmailActionFromText(responseText);
             onApplyAction(action);
-            showToast({ text: 'Quanty updated your email draft ✨', type: 'success' });
+            showToast({ text: 'Quanty updated your email draft', type: 'success' });
           }
           return;
         }
@@ -206,7 +207,7 @@ export function QuantyCopilotDrawer({
         if (isComposeContext && onApplyAction) {
           const action = parseEmailActionFromText(simulated);
           onApplyAction(action);
-          showToast({ text: 'Quanty updated your email draft ✨', type: 'success' });
+          showToast({ text: 'Quanty updated your email draft', type: 'success' });
         }
       }, 500);
     } catch {
@@ -294,7 +295,7 @@ export function QuantyCopilotDrawer({
                   title="Chat History"
                 >
                   <svg
-                    className="size-4.5"
+                    className="size-[18px]"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -313,7 +314,7 @@ export function QuantyCopilotDrawer({
                   aria-label="Close"
                 >
                   <svg
-                    className="size-4.5"
+                    className="size-[18px]"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -346,7 +347,7 @@ export function QuantyCopilotDrawer({
                     </div>
 
                     {historyList.length === 0 ? (
-                      <p className="text-[11px] text-[#6B6E76] py-2 text-center">
+                      <p className="text-[11px] text-[#A1A4AC] py-2 text-center">
                         No previous chats recorded
                       </p>
                     ) : (
@@ -359,15 +360,16 @@ export function QuantyCopilotDrawer({
                           >
                             <div className="min-w-0 flex-1 pr-2">
                               <p className="text-xs text-[#F5F5F5] truncate">{item.preview}</p>
-                              <p className="text-[10px] text-[#6B6E76]">{item.date}</p>
+                              <p className="text-[10px] text-[#A1A4AC]">{item.date}</p>
                             </div>
                             <button
                               type="button"
                               onClick={(e) => deleteChat(item.id, e)}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-[#6B6E76] hover:text-rose-400"
+                              className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] shrink-0 rounded-lg text-[#6B6E76] hover:text-rose-400 transition-opacity sm:min-h-0 sm:min-w-0 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                               title="Delete chat"
+                              aria-label="Delete chat"
                             >
-                              ✕
+                              <IconX size={13} />
                             </button>
                           </div>
                         ))}
@@ -645,7 +647,7 @@ export function QuantyCopilotDrawer({
               </form>
 
               <div className="pt-2 text-center">
-                <span className="text-[10px] text-[#6B6E76] font-sans tracking-wide">
+                <span className="text-[10px] text-[#A1A4AC] font-sans tracking-wide">
                   Quanty can make mistakes.
                 </span>
               </div>

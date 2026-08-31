@@ -19,6 +19,7 @@ import type {
   EmailLabel,
   EmailFilter,
   ComposeEmailRequest,
+  MessageKind,
   SearchEmailRequest,
   Repository,
   Branch,
@@ -139,18 +140,49 @@ export class QuantMailApiClient {
     return this.get('/oauth/userinfo');
   }
 
+  /**
+   * Two-factor authentication.
+   *
+   * `setupTwoFactor` no longer returns backup codes: codes handed out before an
+   * authenticator has proved it holds the secret are codes for a factor that may
+   * never be turned on. They come back from `enableTwoFactor` instead, once.
+   *
+   * The `otpauthUri` carries the shared secret, so it is rendered locally and
+   * never sent anywhere — the previous version passed it to a third-party QR
+   * image service, which put the second factor in someone else's access log.
+   */
   async setupTwoFactor(): Promise<
-    ApiResponse<{ secret: string; qrCodeUrl: string; backupCodes: string[] }>
+    ApiResponse<{ secret: string; otpauthUri: string; issuer: string; account: string }>
   > {
     return this.post('/auth/2fa/setup', {});
   }
 
   async enableTwoFactor(
-    secret: string,
     code: string,
-    backupCodes: string[],
-  ): Promise<ApiResponse<{ message: string }>> {
-    return this.post('/auth/2fa/enable', { secret, code, backupCodes });
+  ): Promise<ApiResponse<{ message: string; confirmedAt: string; backupCodes: string[] }>> {
+    return this.post('/auth/2fa/enable', { code });
+  }
+
+  async getTwoFactorStatus(): Promise<
+    ApiResponse<{
+      enabled: boolean;
+      pendingSetup: boolean;
+      confirmedAt: string | null;
+      backupCodesRemaining: number;
+    }>
+  > {
+    return this.get('/auth/2fa/status');
+  }
+
+  /** Password-gated, not code-gated: whoever is here has probably lost the app. */
+  async disableTwoFactor(password: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post('/auth/2fa/disable', { password });
+  }
+
+  async regenerateBackupCodes(
+    password: string,
+  ): Promise<ApiResponse<{ backupCodes: string[]; count: number }>> {
+    return this.post('/auth/2fa/backup-codes', { password });
   }
 
   // --------------------------------------------------------------------------
@@ -173,9 +205,20 @@ export class QuantMailApiClient {
     return this.get(`/emails/${id}`);
   }
 
+  /**
+   * The backend's search schema requires `q`; the app has always called the parameter
+   * `query`. The Next proxy renames it, so the two only agreed as long as every call
+   * went through the proxy — point `NEXT_PUBLIC_API_URL` at the backend and every
+   * search is a 400. Sending both costs one query parameter and removes the hop.
+   */
   async searchEmails(params: Partial<SearchEmailRequest>): Promise<PaginatedResponse<Email>> {
+    const query = (params as { query?: string; q?: string }).query;
+    const q = (params as { q?: string }).q ?? query;
     return this.get('/emails/search', {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: { ...params, ...(q ? { q } : {}) } as Record<
+        string,
+        string | number | boolean | undefined
+      >,
     }) as Promise<PaginatedResponse<Email>>;
   }
 
@@ -193,8 +236,21 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/send`, {});
   }
 
-  async replyToEmail(id: string, body: string, replyAll?: boolean): Promise<ApiResponse<Email>> {
-    return this.post(`/emails/${id}/reply`, { body, replyAll });
+  /**
+   * Reply in place, without going through the composer.
+   *
+   * `messageKind` is what the quick input in a thread uses to say the line it just
+   * sent is chat, not a letter. Optional because the route defaults to `chat` for
+   * exactly this call — the only sender of a letter is the full composer, which
+   * posts to `/emails/compose` instead.
+   */
+  async replyToEmail(
+    id: string,
+    body: string,
+    replyAll?: boolean,
+    messageKind?: MessageKind,
+  ): Promise<ApiResponse<Email>> {
+    return this.post(`/emails/${id}/reply`, { body, replyAll, messageKind });
   }
 
   async forwardEmail(

@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { safeFetch } from '../../../_lib/safe-fetch';
-
-const BACKEND_URL =
-  process.env.QUANTDRIVE_BACKEND_URL ||
-  process.env.QUANTMAIL_BACKEND_URL ||
-  'http://localhost:3011';
+import { DRIVE_BACKEND_URL } from '../../../_lib/backend-url';
 
 export async function POST(
   request: NextRequest,
@@ -12,7 +8,7 @@ export async function POST(
 ) {
   const { fileId } = await params;
   const body = await request.json();
-  const res = await safeFetch(`${BACKEND_URL}/drive/files/${fileId}/share`, {
+  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${fileId}/share`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -30,7 +26,7 @@ export async function DELETE(
 ) {
   const { fileId } = await params;
   const body = await request.json();
-  const res = await safeFetch(`${BACKEND_URL}/drive/files/${fileId}/share`, {
+  const res = await safeFetch(`${DRIVE_BACKEND_URL}/drive/files/${fileId}/share`, {
     method: 'DELETE',
     headers: {
       'Content-Type': 'application/json',

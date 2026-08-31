@@ -40,6 +40,26 @@ export async function POST(
     return errorResponse(404, 'AUTH_ACTION_NOT_FOUND', 'Authentication action not found.');
   }
 
+  // Unauthenticated page load: a missing refresh cookie is an expected state,
+  // not an error. Return a clean NO_SESSION response so the browser console
+  // stays error-free on /login and unauthenticated visits.
+  if (action === 'refresh') {
+    const cookie = request.headers.get('cookie') ?? '';
+    if (!cookie.includes('quantmail_refresh=')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'NO_SESSION',
+            message: 'No active session.',
+            statusCode: 200,
+          },
+        },
+        { status: 200, headers: { 'cache-control': 'no-store' } },
+      );
+    }
+  }
+
   try {
     const headers = new Headers();
     headers.set('content-type', request.headers.get('content-type') ?? 'application/json');

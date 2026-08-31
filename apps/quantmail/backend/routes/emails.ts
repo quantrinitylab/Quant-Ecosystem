@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { CrossAppDispatcher } from '@quant/notifications';
-import { EmailService } from '../services/email.service';
+import { EmailService, toMessageKind } from '../services/email.service';
 import { ThreadService } from '../services/thread.service';
 import { OutboundDeliveryPipeline } from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
@@ -79,6 +79,12 @@ const addressArray = (min: number) =>
     min > 0 ? z.array(z.string().email()).min(min) : z.array(z.string().email()),
   );
 
+// Mail or chat, as the client spells it. Both are real messages on the same
+// delivery path and in the same thread; the kind decides which composer wrote it
+// and which mark the conversation shows. Absent means a letter, so every existing
+// caller keeps working unchanged.
+const messageKindSchema = z.enum(['mail', 'chat']).optional();
+
 const composeSchema = z.object({
   toAddresses: addressArray(1),
   ccAddresses: addressArray(0).optional(),
@@ -91,6 +97,7 @@ const composeSchema = z.object({
   attachments: z.array(z.any()).optional(),
   send: z.boolean().optional(),
   sentFolderId: z.string().optional(),
+  messageKind: messageKindSchema,
 });
 
 const moveSchema = z.object({
@@ -149,6 +156,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       ...parseResult.data,
       bodyHtml: sanitizedHtml,
       attachments: parseResult.data.attachments ?? [],
+      messageKind: toMessageKind(parseResult.data.messageKind),
     });
 
     if (parseResult.data.send && parseResult.data.sentFolderId) {
@@ -173,6 +181,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
           threadId: parseResult.data.threadId,
           inReplyTo: parseResult.data.inReplyTo,
           attachments: parseResult.data.attachments ?? [],
+          messageKind: toMessageKind(parseResult.data.messageKind),
         });
       } catch {
         /* internal delivery failure must not block the send response */
@@ -219,6 +228,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     inReplyTo: z.string().optional(),
     threadId: z.string().optional(),
     attachments: z.array(z.any()).optional(),
+    messageKind: messageKindSchema,
   });
 
   fastify.post('/compose', async (request, reply) => {
@@ -243,6 +253,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       inReplyTo: d.inReplyTo,
       threadId: d.threadId,
       attachments: d.attachments ?? [],
+      messageKind: toMessageKind(d.messageKind),
     });
     return reply.status(201).send({ success: true, data: formatEmailRecord(email) });
   });
@@ -275,6 +286,9 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         priority: d.priority?.toUpperCase(),
         inReplyTo: d.inReplyTo ?? null,
         threadId: d.threadId ?? null,
+        // Only rewrite the kind when the caller states one, so saving a draft from
+        // a composer that does not know about kinds cannot silently reclassify it.
+        ...(d.messageKind ? { messageKind: toMessageKind(d.messageKind) } : {}),
         ...(d.attachments
           ? {
               attachments: d.attachments,
@@ -351,6 +365,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         threadId: targetThreadId ?? undefined,
         inReplyTo: email.inReplyTo ?? undefined,
         attachments: (email.attachments as any[]) ?? [],
+        messageKind: toMessageKind(email.messageKind),
       });
     } catch (error) {
       request.log.warn({ err: error, emailId: email.id }, 'internal mailbox delivery failed');
@@ -393,9 +408,18 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
   // 404ed and never left the composer.
   fastify.post<{ Params: { id: string } }>('/:id/reply', async (request, reply) => {
     const parsed = z
-      .object({ body: z.string().min(1).max(100_000), replyAll: z.boolean().optional() })
+      .object({
+        body: z.string().min(1).max(100_000),
+        replyAll: z.boolean().optional(),
+        // A reply typed into the conversation's own input is a chat message; the
+        // full composer posts `mail`. Defaulted rather than required so older
+        // clients keep working — they only ever used the quick input.
+        messageKind: messageKindSchema,
+      })
       .safeParse(request.body);
     if (!parsed.success) throw parsed.error;
+
+    const messageKind = toMessageKind(parsed.data.messageKind ?? 'chat');
 
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
@@ -476,6 +500,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       bodyPlain: parsed.data.body,
       threadId: targetThreadId ?? undefined,
       inReplyTo: original.id,
+      messageKind,
     });
 
     const sentFolder = await prisma.emailFolder.upsert({
@@ -494,6 +519,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         ccAddresses: cc,
         threadId: targetThreadId ?? undefined,
         inReplyTo: original.id,
+        messageKind,
       });
     } catch (error) {
       request.log.warn({ err: error, emailId: sent.id }, 'internal reply delivery failed');
@@ -512,7 +538,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       request.log.warn({ err }, 'direct SES send attempt in /:id/reply failed');
     }
 
-    return reply.status(201).send({ success: true, data: sent });
+    return reply.status(201).send({ success: true, data: formatEmailRecord(sent) });
   });
 
   // POST /emails/:id/archive - move to the owner's archive folder without trashing it.
@@ -771,6 +797,25 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         {
           OR: [{ folderId: null }, { folder: { is: { type: 'INBOX' } } }, { isSent: true }],
         },
+        /*
+         * Archive has to outrank the `isSent` arm above, or it cannot remove a sent
+         * message from the inbox at all.
+         *
+         * That arm is what puts your own replies in the same thread as the mail they
+         * answer, and it is unconditional: `POST /:id/archive` moves the row into the
+         * ARCHIVE folder, and the row matched `isSent: true` on the way back out. A
+         * conversation that is entirely outbound therefore could not be archived —
+         * eleven messages moved folder, eleven came back, and the only visible effect
+         * was the list flickering. Received mail hid the bug, because it leaves the
+         * inbox through the `folder.type` arm.
+         *
+         * Written as "no folder, or a folder that is not the archive" rather than as a
+         * `NOT`, because the relation is nullable and a `NOT` over it reads as though
+         * it might drop the unfiled mail that makes up most of the inbox.
+         */
+        {
+          OR: [{ folderId: null }, { folder: { is: { type: { not: 'ARCHIVE' } } } }],
+        },
         {
           OR: [
             { threadId: null },
@@ -792,8 +837,17 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       where.AND = Array.isArray(where.AND) ? [...where.AND, primaryOnly] : [primaryOnly];
     }
 
+    /*
+     * `createdAt` is the tiebreaker, not decoration. Two messages can share a
+     * `receivedAt` to the millisecond — a send and its internal delivery copy
+     * routinely do — and ordering by one column alone leaves their relative
+     * position up to the planner, so the same row can land on two pages of the
+     * same list or on none. The composite index added in migration 0052 matches
+     * this ordering.
+     */
+    const timelineOrder = [{ receivedAt: 'desc' }, { createdAt: 'desc' }];
     const [data, total, unreadCount] = await Promise.all([
-      prisma.email.findMany({ where, skip, take: pageSize, orderBy: { receivedAt: 'desc' } }),
+      prisma.email.findMany({ where, skip, take: pageSize, orderBy: timelineOrder }),
       prisma.email.count({ where }),
       prisma.email.count({ where: { ...where, isRead: false } }),
     ]);
@@ -835,11 +889,23 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       pageSize: queryResult.data.pageSize,
     });
 
-    const formattedData = {
-      ...result,
-      data: (result.data || []).map(formatEmailRecord),
-    };
-    return reply.send({ success: true, data: formattedData });
+    // One API, one shape for a list of emails. This route used to nest the array a
+    // second level down (`data.data`) while `GET /emails` above returns it flat in
+    // `data`, and the client — which types both as `Email[]` — handed the pagination
+    // object to the thread grouper and threw. Same envelope as the folder listing now,
+    // pagination fields alongside the array rather than wrapped around it.
+    const items = (result.data || []).map(formatEmailRecord);
+    return reply.send({
+      success: true,
+      data: items,
+      emails: items,
+      page: result.page,
+      pageSize: result.pageSize,
+      totalPages: result.totalPages,
+      totalCount: result.total,
+      hasNext: result.hasNext,
+      hasPrev: result.hasPrev,
+    });
   });
 
   // GET /emails/:id

@@ -9,6 +9,7 @@ import {
   type PostcardPayload,
 } from '../../types/postcard';
 import type { Email } from '../../types';
+import { useSafeEmailHtml } from '../../lib/safe-html';
 import { IconMailHeart } from '../icons';
 
 interface PostcardReaderProps {
@@ -62,6 +63,9 @@ export function PostcardReader({ email, className = '' }: PostcardReaderProps) {
   const [isUnsealed, setIsUnsealed] = useState(true);
   const [viewMode, setViewMode] = useState<'postcard' | 'standard'>('postcard');
   const payload = extractPostcardPayload(email);
+  // Standard view renders the real message body, so it needs the same DOMPurify
+  // pass as the thread reader rather than the raw inbound markup.
+  const safeHtml = useSafeEmailHtml(email.bodyHtml);
 
   return (
     <div className={`relative flex flex-col items-center w-full ${className}`}>
@@ -74,7 +78,7 @@ export function PostcardReader({ email, className = '' }: PostcardReaderProps) {
           <span className="text-xs font-serif font-bold text-[#FF8C42] uppercase tracking-widest">
             {payload.template.name}
           </span>
-          <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-[#FF8C42]/15 text-[#FFB875] border border-[#FF8C42]/30">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#FF8C42]/15 text-[#FFB875] border border-[#FF8C42]/30">
             AUTHENTIC POSTCARD
           </span>
         </div>
@@ -125,8 +129,8 @@ export function PostcardReader({ email, className = '' }: PostcardReaderProps) {
         </div>
       ) : (
         <div className="w-full text-sm text-[#A1A4AC] leading-relaxed whitespace-pre-wrap font-sans">
-          {email.bodyHtml ? (
-            <div dangerouslySetInnerHTML={{ __html: email.bodyHtml }} />
+          {safeHtml ? (
+            <div dangerouslySetInnerHTML={{ __html: safeHtml }} />
           ) : (
             email.bodyText || email.snippet || 'No message content.'
           )}

@@ -152,4 +152,27 @@ describe('QuantMail same-origin browser auth proxy', () => {
     expect(payload.error.code).toBe('AUTH_BACKEND_UNAVAILABLE');
     expect(JSON.stringify(payload)).not.toContain('ECONNREFUSED');
   });
+
+  it('returns clean 200 NO_SESSION without hitting backend when refresh cookie is missing', async () => {
+    const request = new NextRequest('http://localhost:3000/auth/refresh', {
+      method: 'POST',
+      headers: {
+        origin: 'http://localhost:3000',
+        'content-type': 'application/json',
+      },
+    });
+
+    const response = await POST(request, contextFor('refresh'));
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await response.json()).toEqual({
+      success: false,
+      error: {
+        code: 'NO_SESSION',
+        message: 'No active session.',
+        statusCode: 200,
+      },
+    });
+  });
 });

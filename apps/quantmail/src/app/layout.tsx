@@ -5,10 +5,9 @@ import './shell.css';
 import './overrides.css';
 import { quantMailBrandMetadata } from '../brand/identity';
 import { AuthGuard } from '../components/AuthGuard';
-import { CommandPalette } from '../components/CommandPalette';
 import { InboxToastContainer } from '../components/InboxToast';
 import { KeyboardProvider } from '../components/KeyboardProvider';
-import { KeyboardShortcutsHelp } from '../components/KeyboardShortcutsHelp';
+import { KeyboardSurfaces } from '../components/KeyboardSurfaces';
 import { OfflineBar } from '../components/OfflineBar';
 import { AppProviders } from '../providers/app-providers';
 import { AuthProvider } from '../providers/auth-provider';
@@ -83,11 +82,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       the layout root rather than inside `AppShell`: `mod+k` is
                       registered globally, and the palette used to render only on
                       routes that happened to mount a shell — so on the others the
-                      shortcut set state nothing was listening to. */}
+                      shortcut set state nothing was listening to.
+
+                      `KeyboardSurfaces` is a client host that code-splits both of
+                      them out of the root chunk; it cannot be inlined here because
+                      this layout is a Server Component. */}
                   <KeyboardProvider>
                     <main id="main-content">{children}</main>
-                    <CommandPalette />
-                    <KeyboardShortcutsHelp />
+                    <KeyboardSurfaces />
                   </KeyboardProvider>
                   <InboxToastContainer />
                 </AuthGuard>

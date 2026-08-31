@@ -13,6 +13,7 @@ import {
   useDeleteContact,
 } from '../../hooks/useContacts';
 import { useInbox } from '../../hooks/useInbox';
+import { useConfirm } from '../../hooks/useConfirm';
 import { IconChevronRight, IconStar, IconStarFilled } from '../../components/icons';
 import type { Contact } from '../../types';
 import { showToast } from '../../components/InboxToast';
@@ -55,6 +56,7 @@ export default function ContactsPage() {
   const createContact = useCreateContact();
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
+  const { confirm, dialog } = useConfirm();
 
   const handleOpenCreate = useCallback(() => {
     setFormData({ name: '', email: '', phone: '', company: '', tags: '' });
@@ -114,7 +116,14 @@ export default function ContactsPage() {
   const handleDelete = useCallback(
     async (id: string, name?: string, e?: React.MouseEvent) => {
       e?.stopPropagation();
-      if (confirm(`Are you sure you want to delete ${name ? `"${name}"` : 'this contact'}?`)) {
+      const ok = await confirm({
+        title: `Delete ${name ? `"${name}"` : 'this contact'}?`,
+        message:
+          'The contact and its details are removed from your address book. Mail already sent or received is not affected.',
+        confirmLabel: 'Delete contact',
+        variant: 'destructive',
+      });
+      if (ok) {
         try {
           await deleteContact.mutateAsync(id);
           setInspectContact(null);
@@ -124,7 +133,7 @@ export default function ContactsPage() {
         }
       }
     },
-    [deleteContact],
+    [confirm, deleteContact],
   );
 
   const handleToggleFavorite = useCallback(
@@ -373,7 +382,7 @@ export default function ContactsPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab('all')}
-                className={`px-3.5 py-1.5 text-xs rounded-lg font-medium transition-colors ${
+                className={`inline-flex min-h-11 items-center justify-center rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                   activeTab === 'all'
                     ? 'bg-[#FF8C42] text-[#111111] font-bold shadow-sm'
                     : 'text-[#A1A4AC] hover:text-white'
@@ -384,7 +393,7 @@ export default function ContactsPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab('favorites')}
-                className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 ${
+                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                   activeTab === 'favorites'
                     ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
                     : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
@@ -414,7 +423,7 @@ export default function ContactsPage() {
             <button
               type="button"
               onClick={() => vcardInputRef.current?.click()}
-              className="px-3 py-1.5 text-xs rounded-xl border border-[#282C35] bg-[#16181D] text-[#A1A4AC] hover:text-[#F5F5F5] hover:border-[#3A404D] transition-colors flex items-center gap-1.5"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#282C35] bg-[#16181D] px-3 py-1.5 text-xs text-[#A1A4AC] transition-colors hover:border-[#3A404D] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
               title="Import vCard .vcf"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -430,7 +439,7 @@ export default function ContactsPage() {
             <button
               type="button"
               onClick={handleExportVCard}
-              className="px-3 py-1.5 text-xs rounded-xl border border-[#282C35] bg-[#16181D] text-[#A1A4AC] hover:text-[#F5F5F5] hover:border-[#3A404D] transition-colors flex items-center gap-1.5"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#282C35] bg-[#16181D] px-3 py-1.5 text-xs text-[#A1A4AC] transition-colors hover:border-[#3A404D] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
               title="Export to vCard .vcf"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -563,7 +572,7 @@ export default function ContactsPage() {
                                 </h4>
                                 <p className="text-xs text-[#A1A4AC] truncate">{contact.email}</p>
                                 {contact.company && (
-                                  <p className="text-[11px] text-[#6B6E76] mt-0.5 truncate flex items-center gap-1">
+                                  <p className="text-[11px] text-[#A1A4AC] mt-0.5 truncate flex items-center gap-1">
                                     <svg
                                       className="w-3 h-3 text-[#6B6E76]"
                                       fill="none"
@@ -581,7 +590,7 @@ export default function ContactsPage() {
                                   </p>
                                 )}
                                 {contact.phone && (
-                                  <p className="text-[11px] text-[#6B6E76] truncate flex items-center gap-1">
+                                  <p className="text-[11px] text-[#A1A4AC] truncate flex items-center gap-1">
                                     <svg
                                       className="w-3 h-3 text-[#6B6E76]"
                                       fill="none"
@@ -609,7 +618,7 @@ export default function ContactsPage() {
                                       </span>
                                     ))}
                                     {contact.tags.length > 3 && (
-                                      <span className="px-1.5 py-0.5 rounded-md bg-[#111318] border border-[#282C35] text-[10px] text-[#6B6E76]">
+                                      <span className="px-1.5 py-0.5 rounded-md bg-[#111318] border border-[#282C35] text-[10px] text-[#A1A4AC]">
                                         +{contact.tags.length - 3}
                                       </span>
                                     )}
@@ -630,7 +639,7 @@ export default function ContactsPage() {
                                   title={`${threads} recent thread${threads === 1 ? '' : 's'} with ${contact.email}`}
                                 >
                                   {threads}
-                                  <span className="ml-0.5 font-medium text-[#6B6E76]">
+                                  <span className="ml-0.5 font-medium text-[#A1A4AC]">
                                     {threads === 1 ? 'thread' : 'threads'}
                                   </span>
                                 </span>
@@ -824,6 +833,15 @@ export default function ContactsPage() {
               className="absolute bottom-24 right-0.5 top-2 z-20 flex w-8 select-none flex-col items-stretch [touch-action:none] sm:right-1.5 md:bottom-3"
             >
               {ALPHABET.map((letter) => {
+                /*
+                 * A letter with no contacts is still a live jump target —
+                 * `resolveLetter` falls through to the nearest section — so it
+                 * is not disabled and owes the full 4.5:1. It was #3A404D
+                 * (1.91:1), invisible. Both ends move up rather than the quiet
+                 * end alone: #A1A4AC is the floor for text, so flattening onto
+                 * it would erase the "has contacts" signal the rail exists to
+                 * give.
+                 */
                 const exists = availableLetters.has(letter);
                 return (
                   <button
@@ -834,8 +852,8 @@ export default function ContactsPage() {
                       if (target) jumpToLetter(target, true);
                     }}
                     aria-label={`Jump to ${letter === '#' ? 'other' : letter}`}
-                    className={`flex flex-1 items-center justify-center rounded text-[9px] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                      exists ? 'text-[#A1A4AC] hover:text-[#FF8C42]' : 'text-[#3A404D]'
+                    className={`flex flex-1 items-center justify-center rounded text-[10px] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                      exists ? 'text-[#F5F5F5] hover:text-[#FF8C42]' : 'text-[#A1A4AC]'
                     }`}
                   >
                     {letter}
@@ -1041,8 +1059,13 @@ export default function ContactsPage() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g. Sundar Pichai"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
                 autoFocus
+                /* `Modal` traps focus, and React applies `autoFocus` imperatively
+                   without rendering an attribute the trap could find — so the
+                   trap's own pass moved the caret to "Close modal". This marker is
+                   what it reads. */
+                data-autofocus
               />
             </div>
 
@@ -1060,7 +1083,7 @@ export default function ContactsPage() {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="e.g. sundar@quantmail.in"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
               />
             </div>
 
@@ -1079,7 +1102,7 @@ export default function ContactsPage() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+91 98765 43210"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
                 />
               </div>
               <div>
@@ -1096,7 +1119,7 @@ export default function ContactsPage() {
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   placeholder="e.g. Quantrinity"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
                 />
               </div>
             </div>
@@ -1115,7 +1138,7 @@ export default function ContactsPage() {
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                 placeholder="Team, VIP, Client…"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
               />
             </div>
 
@@ -1135,6 +1158,7 @@ export default function ContactsPage() {
             </div>
           </div>
         </Modal>
+        {dialog}
       </PageTransition>
     </AppShell>
   );

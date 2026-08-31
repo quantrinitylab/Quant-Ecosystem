@@ -2,16 +2,19 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { EmailComposer } from '../../components/EmailComposer';
 import type { ComposerMessageData } from '../../components/EmailComposer';
 import { showToast } from '../../components/InboxToast';
+import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
 
 export default function ComposePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const replyTo = searchParams?.get('replyTo') ?? null;
   const forwardId = searchParams?.get('forward') ?? null;
@@ -112,6 +115,10 @@ export default function ComposePage() {
         inReplyTo: replyTo || undefined,
         attachments: (data.attachments as any) || [],
         isDraft: true,
+        // This composer writes letters. Stated rather than left to the server's
+        // default so the thread's mark comes from what the sender actually chose,
+        // and so a future composer that writes chat has an obvious place to differ.
+        messageKind: 'mail' as const,
       };
       const response = currentDraftId
         ? await apiClient.updateDraft(currentDraftId, payload)
@@ -139,10 +146,14 @@ export default function ComposePage() {
         throw new Error(response.error?.message || 'Message could not be sent.');
       }
 
+      // Before the redirect, not after: `/` renders from the React Query cache, so
+      // a list left marked fresh would paint without the message that was just sent.
+      invalidateMailLists(queryClient);
+
       showToast({ text: 'Message sent', type: 'success' });
       router.push('/');
     },
-    [composeDraft, router],
+    [composeDraft, queryClient, router],
   );
 
   const handleSaveDraft = useCallback(

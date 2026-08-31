@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { showToast } from './InboxToast';
+import { IconBell } from './icons';
 
 interface EmailFollowUpReminderProps {
   emailId: string;
@@ -24,7 +25,12 @@ const FOLLOW_UP_OPTIONS = [
  * Gmail has no built-in follow-up tracker. We detect unanswered sent emails
  * and offer to set a reminder to follow up.
  */
-export function EmailFollowUpReminder({ emailId, subject, sentAt, hasReply }: EmailFollowUpReminderProps) {
+export function EmailFollowUpReminder({
+  emailId,
+  subject,
+  sentAt,
+  hasReply,
+}: EmailFollowUpReminderProps) {
   const [showOptions, setShowOptions] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [reminderSet, setReminderSet] = useState(false);
@@ -57,7 +63,9 @@ export function EmailFollowUpReminder({ emailId, subject, sentAt, hasReply }: Em
       exit={{ opacity: 0, height: 0 }}
     >
       <div className="followup-content">
-        <span className="followup-icon">🔔</span>
+        <span className="followup-icon inline-flex">
+          <IconBell size={13} />
+        </span>
         <span className="followup-text">No reply yet — want to follow up?</span>
       </div>
       <div className="followup-actions">

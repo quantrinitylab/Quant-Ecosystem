@@ -69,7 +69,7 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
               <span>Mail</span>
               <span>Calendar</span>
               <span>Drive</span>
-              <span>Code</span>
+              <span>Git</span>
               <span>AI</span>
             </div>
           </div>
@@ -87,10 +87,18 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
 function BrandLockup({ compact = false }: { compact?: boolean }) {
   return (
     <div
+      /*
+       * `role="img"` because `aria-label` on a bare div is dropped — the generic
+       * role does not take an author name. With the wordmark already
+       * `aria-hidden` and the logo an unlabelled canvas, the brand on the
+       * signed-out screen had no accessible name at all. As an image, the
+       * lockup announces once and its decorative parts stay silent.
+       */
+      role="img"
       className="auth-brand-lockup flex items-center gap-3"
       aria-label={quantMailAuthLockup.accessibleName}
     >
-      <QuantMailLogo size={compact ? 32 : 40} showBadge={false} />
+      <QuantMailLogo size={compact ? 32 : 40} showBadge={false} interactive={false} />
       <div className="flex flex-col" aria-hidden="true">
         <BrandWordmark app="mail" size={compact ? 'text-lg' : 'text-xl'} />
         <span className="auth-byline">{quantMailAuthLockup.byline}</span>

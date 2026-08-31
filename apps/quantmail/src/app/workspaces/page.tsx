@@ -149,7 +149,7 @@ export default function WorkspacesPage() {
           isOpen={showCreate}
           onClose={() => setShowCreate(false)}
           title="New workspace"
-          description="A shared space for one project — mail, drive, calendar and CodeHub together."
+          description="A shared space for one project — mail, drive, calendar and QuantGit together."
           footer={
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setShowCreate(false)}>
@@ -172,6 +172,12 @@ export default function WorkspacesPage() {
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Quant Ecosystem"
                 fullWidth
+                /* The dialog's focus trap picks the first focusable child by DOM
+                   order, which is the close button — so opening this to create a
+                   workspace put the caret nowhere and the first keystroke went to
+                   a button. Marking the field the user came here to fill moves
+                   initial focus onto it. */
+                autoFocus
               />
             </FormField>
             <FormField label="Description" hint="Optional — what is this workspace for?">

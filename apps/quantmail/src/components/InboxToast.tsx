@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  MAX_VISIBLE_TOASTS,
   forgetUndo,
+  reduceToasts,
   subscribeToDismissals,
   subscribeToToasts,
   type ToastMessage,
@@ -92,21 +94,38 @@ function ToastIcon({ type }: { type: ToastMessage['type'] }) {
 export function InboxToastContainer() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const dismiss = useCallback((id: string) => {
-    forgetUndo(id);
-    setToasts((prev) => prev.filter((t) => t.id !== id));
+  /**
+   * Mirror of `toasts` so the subscriber can read the live stack without being
+   * re-created on every change.
+   *
+   * The alternative is a `setToasts` updater that also calls `forgetUndo`, but a
+   * state updater has to be pure — React 19 invokes it twice in development, and
+   * an undo cleared on the discarded pass would take the real one with it.
+   * Deciding the next stack (`reduceToasts`, pure) and acting on what it evicted
+   * are now two separate steps.
+   */
+  const toastsRef = useRef<ToastMessage[]>([]);
+
+  const commit = useCallback((next: ToastMessage[]) => {
+    toastsRef.current = next;
+    setToasts(next);
   }, []);
+
+  const dismiss = useCallback(
+    (id: string) => {
+      forgetUndo(id);
+      commit(toastsRef.current.filter((t) => t.id !== id));
+    },
+    [commit],
+  );
 
   useEffect(() => {
     const handler = (msg: ToastMessage) => {
-      // Replace any toast with the same text rather than stacking duplicates —
-      // holding `e` down the list should read as one message, not forty.
-      setToasts((prev) => [...prev.filter((t) => t.text !== msg.text), msg]);
+      const { next, evicted } = reduceToasts(toastsRef.current, msg, MAX_VISIBLE_TOASTS);
+      evicted.forEach(forgetUndo);
+      commit(next);
 
-      setTimeout(() => {
-        forgetUndo(msg.id);
-        setToasts((prev) => prev.filter((t) => t.id !== msg.id));
-      }, msg.duration ?? 3200);
+      setTimeout(() => dismiss(msg.id), msg.duration ?? 3200);
     };
     const unsubscribeToasts = subscribeToToasts(handler);
     const unsubscribeDismissals = subscribeToDismissals(dismiss);
@@ -114,7 +133,7 @@ export function InboxToastContainer() {
       unsubscribeToasts();
       unsubscribeDismissals();
     };
-  }, [dismiss]);
+  }, [commit, dismiss]);
 
   return (
     <div className="inbox-toast-container" aria-live="polite" aria-atomic="false">

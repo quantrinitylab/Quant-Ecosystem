@@ -5,9 +5,17 @@ export const dynamic = 'force-dynamic';
 
 const ALLOWED_BACKEND_ROUTES: Array<{ pattern: RegExp; methods: readonly string[] }> = [
   {
-    pattern: /^auth\/(?:password-reset(?:\/confirm)?|change-password|2fa\/(?:setup|enable))$/,
+    pattern: /^auth\/(?:password-reset(?:\/confirm)?|change-password)$/,
     methods: ['POST'],
   },
+  // Second factor. `verify` completes a login and is reached without a token;
+  // the rest carry the caller's access token through to the backend, which is
+  // what actually authorises them.
+  {
+    pattern: /^auth\/2fa\/(?:setup|enable|verify|disable|backup-codes)$/,
+    methods: ['POST'],
+  },
+  { pattern: /^auth\/2fa\/status$/, methods: ['GET'] },
   { pattern: /^auth\/phone$/, methods: ['GET', 'DELETE'] },
   { pattern: /^auth\/phone\/(?:send-otp|verify)$/, methods: ['POST'] },
   { pattern: /^email-signatures$/, methods: ['GET', 'POST'] },

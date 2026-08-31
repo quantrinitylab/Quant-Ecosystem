@@ -17,73 +17,58 @@ type Density = 'comfortable' | 'compact';
 interface AIModelOption {
   id: string;
   name: string;
-  provider: string;
   description: string;
   bestFor: string;
-  latency: string;
   badge: string;
 }
 
-const AVAILABLE_AI_MODELS: AIModelOption[] = [
+/**
+ * The user-facing AI choices.
+ *
+ * These used to be six entries naming the vendor, the parameter count and a
+ * latency figure — `'Meta Llama 3.3 (70B Instruct)'`, `'~380ms'`. Both were a
+ * problem. The latencies were hardcoded literals that nothing measured, so the
+ * page was quoting numbers it had invented. And exposing the vendor contradicts
+ * the routing model itself: which model answers a prompt is the router's call,
+ * it changes with load and health, and a user who has pinned "Llama 3.3" has
+ * pinned something we may not be serving.
+ *
+ * What a user can actually reason about is how much thinking they want spent on
+ * a request, so that is what the setting offers. `id` is the value persisted to
+ * `quant-ai-model-mode` and handed to the router as an intent, not a model name.
+ */
+const AI_ENGINE_MODES: AIModelOption[] = [
   {
     id: 'auto-router',
-    name: 'Quant Smart Model Router (Auto)',
-    provider: 'Cloudflare Workers AI + Edge Router',
+    name: 'Automatic',
     description:
-      'Dynamically routes each prompt to the optimal model based on task complexity, speed, and automatic health failover.',
-    bestFor: 'All Tasks (Autonomous Task Matching & Instant Fallback)',
-    latency: 'Sub-150ms dynamic',
+      'Reads each request and spends as much reasoning on it as it needs — a one-line reply stays instant, a long thread gets the slower pass. Falls back on its own if a route is unhealthy.',
+    bestFor: 'Everything, unless you have a reason to override it',
     badge: 'Recommended',
   },
   {
-    id: '@cf/meta/llama-3.3-70b-instruct',
-    name: 'Meta Llama 3.3 (70B Instruct)',
-    provider: 'Cloudflare Workers AI',
+    id: 'fast',
+    name: 'Fast',
     description:
-      'High-capability flagship model for detailed executive summaries, complex negotiations, and in-depth email reasoning.',
-    bestFor: 'Deep Reasoning & Long Email Summaries',
-    latency: '~380ms',
-    badge: 'Heavy Reasoning',
+      'Answers immediately and keeps it short. Good for smart replies, autocomplete and one-line summaries where waiting is worse than a slightly plainer answer.',
+    bestFor: 'Quick replies, autocomplete, categorising',
+    badge: 'Lowest wait',
   },
   {
-    id: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
-    name: 'DeepSeek R1 Distill (Qwen 32B)',
-    provider: 'Cloudflare Workers AI',
+    id: 'balanced',
+    name: 'Balanced',
     description:
-      'Chain-of-thought mathematical and analytical reasoning for contracts, financial schedules, and multi-step tasks.',
-    bestFor: 'Complex Logic & Math Verification',
-    latency: '~450ms',
-    badge: 'Deep Reasoning',
+      'The middle setting: enough reasoning for a full draft or a thread summary, without the pause the deep setting takes.',
+    bestFor: 'Drafting mail, summarising a thread',
+    badge: 'Default',
   },
   {
-    id: '@cf/qwen/qwen2.5-72b-instruct',
-    name: 'Qwen 2.5 (72B Instruct)',
-    provider: 'Cloudflare Workers AI',
+    id: 'deep',
+    name: 'Deep',
     description:
-      'State-of-the-art multilingual and technical coding model for CodeHub, technical diffs, and cross-language translation.',
-    bestFor: 'Multilingual & Technical Mails',
-    latency: '~410ms',
-    badge: 'Multilingual',
-  },
-  {
-    id: '@cf/meta/llama-3.1-8b-instruct',
-    name: 'Meta Llama 3.1 (8B Instruct Fast)',
-    provider: 'Cloudflare Workers AI',
-    description:
-      'Ultra-lightweight and lightning-fast edge model for autocomplete, quick 1-sentence replies, and instant categorization.',
-    bestFor: 'Smart Reply & Quick Autocomplete',
-    latency: '~85ms',
-    badge: 'Ultra Fast',
-  },
-  {
-    id: '@cf/mistral/mistral-7b-instruct-v0.2',
-    name: 'Mistral 7B (Instruct v0.2)',
-    provider: 'Cloudflare Workers AI',
-    description:
-      'Concise European-grade precision model specialized in clean formatting, bullet point extraction, and quick drafts.',
-    bestFor: 'Bullet Summaries & Concise Drafts',
-    latency: '~110ms',
-    badge: 'Balanced',
+      'Takes noticeably longer and thinks harder. Worth it for contracts, long documents, multi-step logic and code review, where a shallow answer costs more than the wait.',
+    bestFor: 'Contracts, code, analysis, long documents',
+    badge: 'Most thorough',
   },
 ];
 
@@ -161,7 +146,12 @@ export default function SettingsPage() {
       setAccentColor(localStorage.getItem('quant-accent') || '#FF8C42');
       setUndoSendDelay(localStorage.getItem('quant-undo-delay') || '5');
       const savedModel = localStorage.getItem('quant-ai-model-mode');
-      if (savedModel) setSelectedAIModel(savedModel);
+      // Browsers that used the app before the vendor-named models were replaced
+      // by intent tiers still hold an id like `@cf/meta/llama-3.3-70b-instruct`,
+      // which now matches nothing and would render the list with no row selected.
+      if (savedModel && AI_ENGINE_MODES.some((m) => m.id === savedModel)) {
+        setSelectedAIModel(savedModel);
+      }
       const savedFailover = localStorage.getItem('quant-ai-failover');
       if (savedFailover !== null) setEnableAutoFailover(savedFailover === '1');
       const savedCreativity = localStorage.getItem('quant-ai-creativity');
@@ -239,9 +229,9 @@ export default function SettingsPage() {
     } catch {
       /* ignore */
     }
-    const found = AVAILABLE_AI_MODELS.find((m) => m.id === modelId);
+    const found = AI_ENGINE_MODES.find((m) => m.id === modelId);
     showToast({
-      text: `AI Model set to ${found?.name || modelId}`,
+      text: `Assistant set to ${found?.name || modelId}`,
       type: 'success',
     });
   };
@@ -418,7 +408,7 @@ export default function SettingsPage() {
                 </FormField>
                 {signature.trim() && (
                   <div className="p-3 rounded-xl bg-[#090A0C] border border-[#282C35] text-xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B6E76] block mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] block mb-1">
                       Live Preview
                     </span>
                     <div className="text-[#A1A4AC] whitespace-pre-wrap">{signature}</div>
@@ -457,7 +447,7 @@ export default function SettingsPage() {
                           type: 'info',
                         });
                       }}
-                      className="h-9 w-full rounded-xl border border-[#3A404D]/80 bg-[#111318] px-3 text-xs text-white focus:outline-none focus:border-[#FF8C42]"
+                      className="h-11 sm:h-9 w-full rounded-xl border border-[#3A404D]/80 bg-[#111318] px-3 text-xs text-white focus:outline-none focus:border-[#FF8C42]"
                     >
                       <option value="5">5 seconds</option>
                       <option value="10">10 seconds</option>
@@ -475,7 +465,7 @@ export default function SettingsPage() {
                         setDefaultReplyAll(e.target.value === 'all');
                         showToast({ text: 'Updated default reply behavior', type: 'info' });
                       }}
-                      className="h-9 w-full rounded-xl border border-[#3A404D]/80 bg-[#111318] px-3 text-xs text-white focus:outline-none focus:border-[#FF8C42]"
+                      className="h-11 sm:h-9 w-full rounded-xl border border-[#3A404D]/80 bg-[#111318] px-3 text-xs text-white focus:outline-none focus:border-[#FF8C42]"
                     >
                       <option value="single">Reply (Direct Sender)</option>
                       <option value="all">Reply All (All Recipients)</option>
@@ -483,7 +473,10 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="space-y-2 pt-2 border-t border-[#282C35]">
-                  <label className="flex items-center justify-between py-1 cursor-pointer">
+                  {/* The label is the hit area — a tap anywhere on the row toggles
+                   * the box — so the 44px floor belongs here, not on the 13px
+                   * native checkbox that a phone was measuring. */}
+                  <label className="flex min-h-11 items-center justify-between py-1 cursor-pointer">
                     <span className="text-xs text-[#A1A4AC] font-medium">
                       Conversation Threading
                     </span>
@@ -491,10 +484,10 @@ export default function SettingsPage() {
                       type="checkbox"
                       checked={conversationView}
                       onChange={(e) => setConversationView(e.target.checked)}
-                      className="accent-[#FF8C42] rounded cursor-pointer"
+                      className="size-4 shrink-0 accent-[#FF8C42] rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     />
                   </label>
-                  <label className="flex items-center justify-between py-1 cursor-pointer">
+                  <label className="flex min-h-11 items-center justify-between py-1 cursor-pointer">
                     <span className="text-xs text-[#A1A4AC] font-medium">
                       Automatic Read Receipts
                     </span>
@@ -502,7 +495,7 @@ export default function SettingsPage() {
                       type="checkbox"
                       checked={readReceipts}
                       onChange={(e) => setReadReceipts(e.target.checked)}
-                      className="accent-[#FF8C42] rounded cursor-pointer"
+                      className="size-4 shrink-0 accent-[#FF8C42] rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     />
                   </label>
                 </div>
@@ -517,64 +510,45 @@ export default function SettingsPage() {
             <div className="space-y-6 animate-in fade-in duration-150">
               {/* Dynamic Model Router Banner */}
               <section className="rounded-xl border border-[#282C35] bg-[#111318] p-5 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5">
-                    <span className="size-2.5 rounded-full bg-[#FF8C42] animate-pulse" />
+                    <span className="size-2.5 rounded-full bg-[#FF8C42]" />
                     <h2 className="text-sm font-semibold text-[#F5F5F5]">
-                      Autonomous Multi-Model Router Active
+                      Quanty routes every request for you
                     </h2>
                   </div>
-                  <span className="text-[10px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]">
-                    6 Edge Models Available
+                  <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]">
+                    Automatic
                   </span>
                 </div>
                 <p className="text-xs text-[#A1A4AC] leading-relaxed">
-                  Quant Ecosystem uses a dynamic Task-Based Model Router. Instead of relying on a
-                  single static LLM, each email draft, thread summary, or code query is matched with
-                  the best model in real-time, with automatic failover and circuit breaker
-                  protection.
+                  You pick how much thinking a request deserves; Quanty picks what answers it. That
+                  choice shifts with load and health, so it is deliberately not something you pin to
+                  a named engine. Everything below is an intent, not a machine.
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
-                  <div className="p-3 rounded-lg bg-[#16181D] border border-[#282C35] text-xs">
-                    <span className="text-[#6B6E76] block text-[10px] uppercase font-semibold">
-                      Fast Replies
-                    </span>
-                    <strong className="text-[#F5F5F5] font-medium">Llama 3.1 8B (~85ms)</strong>
-                  </div>
-                  <div className="p-3 rounded-lg bg-[#16181D] border border-[#282C35] text-xs">
-                    <span className="text-[#6B6E76] block text-[10px] uppercase font-semibold">
-                      Deep Summaries
-                    </span>
-                    <strong className="text-[#F5F5F5] font-medium">Llama 3.3 70B & R1</strong>
-                  </div>
-                  <div className="p-3 rounded-lg bg-[#16181D] border border-[#282C35] text-xs">
-                    <span className="text-[#6B6E76] block text-[10px] uppercase font-semibold">
-                      Code & Logic
-                    </span>
-                    <strong className="text-[#F5F5F5] font-medium">Qwen 2.5 72B & R1</strong>
-                  </div>
-                </div>
               </section>
 
               {/* Model Selection List */}
               <section className="rounded-xl border border-[#282C35] bg-[#111318] p-5 shadow-sm space-y-4">
                 <div className="border-b border-[#282C35] pb-3">
-                  <h2 className="text-sm font-semibold text-[#F5F5F5]">
-                    Select AI Engine / Routing Mode
-                  </h2>
+                  <h2 className="text-sm font-semibold text-[#F5F5F5]">How much thinking</h2>
                   <p className="text-xs text-[#A1A4AC]">
-                    Choose Auto-Router (recommended) or lock to a specific preferred model.
+                    Leave this on Automatic unless a particular kind of work needs a particular
+                    trade-off.
                   </p>
                 </div>
 
-                <div className="space-y-3">
-                  {AVAILABLE_AI_MODELS.map((model) => {
+                <div className="space-y-3" role="radiogroup" aria-label="How much thinking">
+                  {AI_ENGINE_MODES.map((model) => {
                     const isSelected = selectedAIModel === model.id;
                     return (
-                      <div
+                      <button
                         key={model.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
                         onClick={() => handleSelectAIModel(model.id)}
-                        className={`p-4 rounded-xl border transition-all cursor-pointer select-none flex items-start justify-between gap-4 ${
+                        className={`w-full min-h-11 p-4 rounded-xl border transition-all cursor-pointer select-none flex items-start justify-between gap-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                           isSelected
                             ? 'bg-[#2B1A11] border-[#5C3016] shadow-sm'
                             : 'bg-[#16181D] border-[#282C35] hover:border-[#3A404D] hover:bg-[#1C1F26]'
@@ -588,14 +562,11 @@ export default function SettingsPage() {
                             <span
                               className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                 isSelected
-                                  ? 'bg-[#FF8C42] text-white'
+                                  ? 'bg-[#FF8C42] text-[#111111]'
                                   : 'bg-[#282C35] text-[#A1A4AC] border border-[#3A404D]'
                               }`}
                             >
                               {model.badge}
-                            </span>
-                            <span className="text-[10px] font-mono text-[#6B6E76]">
-                              {model.latency}
                             </span>
                           </div>
                           <p className="text-xs text-[#A1A4AC]">{model.description}</p>
@@ -614,10 +585,10 @@ export default function SettingsPage() {
                                 : 'border-[#6B6E76] bg-transparent'
                             }`}
                           >
-                            {isSelected && <div className="size-2 rounded-full bg-white" />}
+                            {isSelected && <div className="size-2 rounded-full bg-[#111111]" />}
                           </div>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -625,16 +596,16 @@ export default function SettingsPage() {
 
               {/* Failover & Advanced AI Options */}
               <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <h2 className="text-sm font-bold text-white">Resilience & Routing Strategy</h2>
+                <h2 className="text-sm font-bold text-white">When something is slow or down</h2>
                 <div className="space-y-3">
-                  <label className="flex items-center justify-between py-2 border-b border-[#282C35] cursor-pointer">
+                  <label className="flex min-h-11 items-center justify-between gap-3 py-2 border-b border-[#282C35] cursor-pointer">
                     <div>
                       <strong className="block text-xs text-white font-bold">
-                        Automatic Health & Latency Failover
+                        Reroute automatically
                       </strong>
                       <span className="text-[11px] text-[#A1A4AC]">
-                        If the primary model latency exceeds 1.5s or fails, automatically switch to
-                        backup model.
+                        If a request stalls or errors, try a different route instead of returning
+                        nothing. Turn this off to see failures as they are.
                       </span>
                     </div>
                     <input
@@ -643,9 +614,9 @@ export default function SettingsPage() {
                       onChange={(e) => {
                         setEnableAutoFailover(e.target.checked);
                         localStorage.setItem('quant-ai-failover', e.target.checked ? '1' : '0');
-                        showToast({ text: 'Updated auto-failover policy', type: 'info' });
+                        showToast({ text: 'Updated rerouting preference', type: 'info' });
                       }}
-                      className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
+                      className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     />
                   </label>
 
@@ -678,7 +649,7 @@ export default function SettingsPage() {
                           }`}
                         >
                           <span className="text-xs font-bold block">{item.label}</span>
-                          <span className="text-[10px] text-[#6B6E76] block">{item.desc}</span>
+                          <span className="text-[10px] text-[#A1A4AC] block">{item.desc}</span>
                         </button>
                       ))}
                     </div>
@@ -691,19 +662,38 @@ export default function SettingsPage() {
           {/* 3. SECURITY & ENCRYPTION TAB */}
           {activeTab === 'security' && (
             <div className="space-y-6 animate-in fade-in duration-150">
-              <section className="rounded-2xl border border-emerald-500/30 bg-emerald-950/15 p-5 shadow-xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-300 flex items-center gap-2">
-                    <span className="size-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Zero-Knowledge E2EE Vault Active
+              {/*
+                This card used to read "Zero-Knowledge E2EE Vault Active / AES-256-GCM + Ed25519"
+                over an emerald background, and claimed payloads were encrypted on the device before
+                transmission. None of that was true for mail: QuantMail sends through AWS SES, which
+                by construction sees plaintext. The end-to-end relay under `backend/routes/e2ee.ts`
+                is real but is a QuantMail-to-QuantMail seam that the composer does not use yet, and
+                nothing on this screen generates a device key.
+
+                A false green badge is worse than an amber honest one, so the card now states the
+                two protections separately and says plainly where the boundary is.
+              */}
+              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-[0_4px_16px_rgba(0,0,0,0.6)] space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-[#F5F5F5] inline-flex items-center gap-2">
+                    <span className="size-2.5 rounded-full bg-emerald-400" />
+                    Encrypted in transit and at rest
                   </span>
-                  <span className="text-[10px] font-mono px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    AES-256-GCM + Ed25519
+                  <span className="text-[10px] px-2.5 py-0.5 rounded bg-[#16181D] text-[#A1A4AC] border border-[#282C35]">
+                    TLS 1.2+ · AES-256 at rest
                   </span>
                 </div>
                 <p className="text-xs text-[#A1A4AC] leading-relaxed">
-                  Your email payloads, attachments, and private thread contents are encrypted on
-                  your device before transmission. No plaintext is accessible by intermediaries.
+                  Mail is encrypted on the wire to and from our servers and encrypted on disk once
+                  it arrives. Your session can read it, and so can the delivery pipeline that has to
+                  hand it to the recipient&apos;s provider.
+                </p>
+                <p className="text-xs text-[#A1A4AC] leading-relaxed border-t border-[#282C35] pt-3">
+                  It is <strong className="text-[#F5F5F5] font-semibold">not</strong> end-to-end
+                  encrypted. Ordinary email cannot be — SMTP requires a readable message at the
+                  boundary. Anyone telling you otherwise about a normal mailbox is selling you
+                  something. End-to-end encrypted QuantMail-to-QuantMail threads are in progress and
+                  will say so explicitly on the thread itself when they land.
                 </p>
               </section>
 
@@ -715,26 +705,15 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#111318] border border-[#282C35]">
-                    <div>
-                      <p className="text-xs font-bold text-white">Browser Local Keychain</p>
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#111318] border border-[#282C35]">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white">Device signing key</p>
                       <p className="text-[11px] text-[#A1A4AC]">
-                        Ed25519 Mail signing key registered
+                        Not generated on this browser yet
                       </p>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-xs font-mono font-bold text-emerald-400">
-                      <svg
-                        className="size-3.5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                      Active
+                    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#A1A4AC]">
+                      Not set up
                     </span>
                   </div>
                   <div className="flex items-center justify-between p-3 rounded-xl bg-[#111318] border border-[#282C35]">
@@ -776,7 +755,7 @@ export default function SettingsPage() {
                     Manage how and when you receive incoming email and calendar alerts.
                   </p>
                 </div>
-                <label className="flex items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
+                <label className="flex min-h-11 items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
                   <div>
                     <strong className="block text-xs text-white font-bold">
                       Email Notifications
@@ -789,11 +768,11 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={notifications.email}
                     onChange={(e) => updateNotif('email', e.target.checked)}
-                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
+                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </label>
 
-                <label className="flex items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
+                <label className="flex min-h-11 items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
                   <div>
                     <strong className="block text-xs text-white font-bold">
                       Desktop Browser Notifications
@@ -806,11 +785,11 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={notifications.desktop}
                     onChange={(e) => updateNotif('desktop', e.target.checked)}
-                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
+                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </label>
 
-                <label className="flex items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
+                <label className="flex min-h-11 items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
                   <div>
                     <strong className="block text-xs text-white font-bold">Sound Alerts</strong>
                     <span className="text-[11px] text-[#A1A4AC]">
@@ -821,11 +800,11 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={notifications.sound}
                     onChange={(e) => updateNotif('sound', e.target.checked)}
-                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
+                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </label>
 
-                <label className="flex items-center justify-between py-2.5 cursor-pointer">
+                <label className="flex min-h-11 items-center justify-between py-2.5 cursor-pointer">
                   <div>
                     <strong className="block text-xs text-white font-bold">
                       Direct Mentions Only
@@ -838,7 +817,7 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={notifications.mentionsOnly}
                     onChange={(e) => updateNotif('mentionsOnly', e.target.checked)}
-                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer"
+                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   />
                 </label>
               </section>

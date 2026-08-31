@@ -21,8 +21,16 @@ export function QuantrinityMark({
   label = 'QuantMail',
 }: QuantrinityMarkProps) {
   return (
-    <span className={'quantrinity-mark is-quantmail ' + (compact ? 'is-compact ' : '') + className}>
-      <QuantMailLogo size={compact ? 28 : 56} title={label} />
+    // The mark is decoration with a brand name, not a control: it sits on the
+    // invite landing page beside its own heading, and as a live logo a click
+    // pushed `/` — which for a signed-out invitee bounces straight to /login.
+    // `role="img"` gives the name without inventing a button.
+    <span
+      role="img"
+      aria-label={label}
+      className={'quantrinity-mark is-quantmail ' + (compact ? 'is-compact ' : '') + className}
+    >
+      <QuantMailLogo size={compact ? 28 : 56} interactive={false} />
     </span>
   );
 }

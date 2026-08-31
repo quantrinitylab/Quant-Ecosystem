@@ -2,6 +2,19 @@
 
 import { useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
+import type { ComponentType } from 'react';
+import { useConfirm } from '../hooks/useConfirm';
+import {
+  IconArrowRight,
+  IconArrowUp,
+  IconCheck,
+  IconCheckCircle,
+  IconDot,
+  IconMinus,
+  IconPlus,
+  IconUndo,
+  type IconProps,
+} from './icons';
 
 interface ChangedFile {
   path: string;
@@ -17,11 +30,21 @@ interface GitCommitPanelProps {
   onDiscard: (file: string) => void;
 }
 
-const STATUS_CONFIG = {
-  added: { icon: '+', color: '#4ade80', label: 'Added' },
-  modified: { icon: '●', color: '#fbbf24', label: 'Modified' },
-  deleted: { icon: '-', color: '#f87171', label: 'Deleted' },
-  renamed: { icon: '→', color: '#60a5fa', label: 'Renamed' },
+/**
+ * Status glyphs are components, and `label` is now rendered as each glyph's
+ * accessible name rather than sitting unused: the four states were previously
+ * told apart by colour and a bare character, which leaves a screen reader
+ * announcing a bullet and a colour-blind reader guessing between modified and
+ * renamed.
+ */
+const STATUS_CONFIG: Record<
+  ChangedFile['status'],
+  { Icon: ComponentType<IconProps>; color: string; label: string }
+> = {
+  added: { Icon: IconPlus, color: '#4ade80', label: 'Added' },
+  modified: { Icon: IconDot, color: '#fbbf24', label: 'Modified' },
+  deleted: { Icon: IconMinus, color: '#f87171', label: 'Deleted' },
+  renamed: { Icon: IconArrowRight, color: '#60a5fa', label: 'Renamed' },
 };
 
 /**
@@ -31,10 +54,13 @@ const STATUS_CONFIG = {
  */
 export function GitCommitPanel({ changedFiles, onCommit, onPush, onDiscard }: GitCommitPanelProps) {
   const [message, setMessage] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set(changedFiles.map((f) => f.path)));
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(
+    new Set(changedFiles.map((f) => f.path)),
+  );
   const [isCommitting, setIsCommitting] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [lastCommit, setLastCommit] = useState<string | null>(null);
+  const { confirm, dialog } = useConfirm();
 
   const toggleFile = useCallback((path: string) => {
     setSelectedFiles((prev) => {
@@ -44,6 +70,28 @@ export function GitCommitPanel({ changedFiles, onCommit, onPush, onDiscard }: Gi
       return next;
     });
   }, []);
+
+  /*
+   * Discarding is `git checkout --` on one file: the edits are gone, and unlike
+   * every other destructive action in the app there is no undo and no trash to
+   * fish them out of. The control was a 13px icon button one row below the
+   * checkbox someone taps to stage, firing on the first click. So it asks first,
+   * and the file it is about to throw away is named in the question rather than
+   * left for the reader to infer from which row they think they hit.
+   */
+  const handleDiscard = useCallback(
+    async (path: string) => {
+      const confirmed = await confirm({
+        title: 'Discard changes?',
+        message: `All uncommitted changes in ${path} will be lost. This cannot be undone.`,
+        confirmLabel: 'Discard changes',
+        cancelLabel: 'Keep changes',
+        variant: 'destructive',
+      });
+      if (confirmed) onDiscard(path);
+    },
+    [confirm, onDiscard],
+  );
 
   const handleCommit = useCallback(async () => {
     if (!message.trim() || selectedFiles.size === 0) return;
@@ -69,8 +117,11 @@ export function GitCommitPanel({ changedFiles, onCommit, onPush, onDiscard }: Gi
   if (changedFiles.length === 0 && !lastCommit) {
     return (
       <div className="git-panel-empty">
-        <span>✓</span>
+        <IconCheckCircle size={18} />
         <p>Working tree clean</p>
+        {/* Discarding the last file empties the tree, so the dialog has to exist
+            on this branch too or it would unmount mid-question. */}
+        {dialog}
       </div>
     );
   }
@@ -88,16 +139,42 @@ export function GitCommitPanel({ changedFiles, onCommit, onPush, onDiscard }: Gi
           placeholder="Commit message (Ctrl+Enter to commit)"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') void handleCommit(); }}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') void handleCommit();
+          }}
           rows={2}
         />
         <div className="git-commit-actions">
-          <button type="button" className="git-commit-btn" onClick={handleCommit} disabled={isCommitting || !message.trim() || selectedFiles.size === 0}>
-            {isCommitting ? 'Committing...' : '✓ Commit'}
+          <button
+            type="button"
+            className="git-commit-btn"
+            onClick={handleCommit}
+            disabled={isCommitting || !message.trim() || selectedFiles.size === 0}
+          >
+            {isCommitting ? (
+              'Committing...'
+            ) : (
+              <>
+                <IconCheck size={12} />
+                Commit
+              </>
+            )}
           </button>
           {lastCommit && (
-            <button type="button" className="git-push-btn" onClick={handlePush} disabled={isPushing}>
-              {isPushing ? 'Pushing...' : '↑ Push'}
+            <button
+              type="button"
+              className="git-push-btn"
+              onClick={handlePush}
+              disabled={isPushing}
+            >
+              {isPushing ? (
+                'Pushing...'
+              ) : (
+                <>
+                  <IconArrowUp size={12} />
+                  Push
+                </>
+              )}
             </button>
           )}
         </div>
@@ -110,25 +187,40 @@ export function GitCommitPanel({ changedFiles, onCommit, onPush, onDiscard }: Gi
           const isSelected = selectedFiles.has(file.path);
           return (
             <div key={file.path} className={`git-file-item ${isSelected ? 'is-staged' : ''}`}>
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={() => toggleFile(file.path)}
-                className="git-file-check"
-              />
-              <span className="git-file-status" style={{ color: config.color }}>{config.icon}</span>
+              {/* The 44px target lives on the label, not the box: a native
+                  checkbox keeps its own look and the whole pad still toggles it,
+                  and the label finally gives the input an accessible name. */}
+              <label className="git-file-check-hit">
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleFile(file.path)}
+                  className="git-file-check"
+                />
+                <span className="sr-only">{`Stage ${file.path}`}</span>
+              </label>
+              <span className="git-file-status" style={{ color: config.color }}>
+                <config.Icon size={12} role="img" aria-hidden={false} aria-label={config.label} />
+              </span>
               <span className="git-file-path">{file.path}</span>
               <span className="git-file-diff">
                 {file.additions > 0 && <span className="git-diff-add">+{file.additions}</span>}
                 {file.deletions > 0 && <span className="git-diff-del">-{file.deletions}</span>}
               </span>
-              <button type="button" className="git-file-discard" onClick={() => onDiscard(file.path)} title="Discard changes">
-                ↺
+              <button
+                type="button"
+                className="git-file-discard"
+                onClick={() => void handleDiscard(file.path)}
+                title="Discard changes"
+                aria-label={`Discard changes in ${file.path}`}
+              >
+                <IconUndo size={13} />
               </button>
             </div>
           );
         })}
       </div>
+      {dialog}
     </div>
   );
 }

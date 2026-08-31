@@ -51,7 +51,9 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
       {onRetry && (
         <button
           onClick={onRetry}
-          className="px-4 py-2 text-sm font-medium text-white bg-[var(--quant-destructive)] rounded-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--quant-destructive)] focus:ring-offset-2"
+          // 36px before. Retry is the only way out of an error state, so it gets a
+          // finger-sized target below `sm`.
+          className="inline-flex items-center justify-center min-h-[44px] sm:min-h-0 px-4 py-2 text-sm font-medium text-white bg-[var(--quant-destructive)] rounded-lg hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-destructive)] focus-visible:ring-offset-2"
         >
           {retryLabel}
         </button>

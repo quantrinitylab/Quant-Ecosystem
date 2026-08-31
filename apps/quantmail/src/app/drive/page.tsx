@@ -4,8 +4,12 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Button, Skeleton, Modal, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
+import { AIMemoryPanel } from '../../components/AIMemoryPanel';
 import { PageTransition } from '../../components/PageTransition';
+import { QuantDriveLogo } from '../../components/QuantDriveLogo';
+import { useConfirm } from '../../hooks/useConfirm';
 import { useDrive } from '../../hooks/useDrive';
+import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
 import {
   IconDownload,
@@ -32,13 +36,8 @@ type DriveItem = {
 
 type DriveFilter = 'all' | 'folders' | 'documents' | 'images' | 'starred';
 
-function formatFileSize(bytes: number): string {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
+/** Shared dedupe key so an upload's progress line is replaced by its outcome. */
+const UPLOAD_TOAST = 'drive-upload';
 
 function getFileIcon(mimeType: string, type: string, className = 'w-5 h-5'): React.ReactNode {
   if (type === 'folder') {
@@ -246,8 +245,9 @@ export default function DrivePage() {
     navigateToFolder,
     navigateToBreadcrumb,
     searchFiles,
-    quota,
   } = useDrive();
+
+  const { confirm, dialog } = useConfirm();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -314,20 +314,22 @@ export default function DrivePage() {
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = e.target.files;
-    if (fileList && fileList.length > 0) {
-      const arr = Array.from(fileList);
-      showToast({
-        text: `Uploading ${arr.length} file${arr.length > 1 ? 's' : ''}…`,
-        type: 'info',
-      });
+  /**
+   * One upload path for the file picker and for drag-and-drop.
+   *
+   * These were two copies of the same twenty lines. Both also fired a
+   * `Uploading N files…` toast whose text differs from the outcome toast, so the
+   * progress line and the result sat on screen together for the rest of its 3.2s
+   * life. Every toast here now shares `subject: 'drive-upload'`, so the outcome
+   * replaces the progress line instead of queueing behind it.
+   */
+  const runUpload = useCallback(
+    async (arr: File[], verb: string) => {
+      const count = `${arr.length} file${arr.length > 1 ? 's' : ''}`;
+      showToast({ text: `${verb} ${count}…`, type: 'info', subject: UPLOAD_TOAST });
       try {
         await uploadFiles(arr);
-        showToast({
-          text: `Uploaded ${arr.length} file${arr.length > 1 ? 's' : ''} successfully`,
-          type: 'success',
-        });
+        showToast({ text: `Uploaded ${count}`, type: 'success', subject: UPLOAD_TOAST });
       } catch (err) {
         showToast({
           text:
@@ -335,7 +337,18 @@ export default function DrivePage() {
               ? `Upload failed: ${err.message}`
               : 'Upload failed — please try again (max 50 MB per file)',
           type: 'error',
+          subject: UPLOAD_TOAST,
         });
+      }
+    },
+    [uploadFiles],
+  );
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (fileList && fileList.length > 0) {
+      try {
+        await runUpload(Array.from(fileList), 'Uploading');
       } finally {
         e.target.value = '';
       }
@@ -352,26 +365,7 @@ export default function DrivePage() {
     e.preventDefault();
     setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const arr = Array.from(e.dataTransfer.files);
-      showToast({
-        text: `Uploading ${arr.length} dropped file${arr.length > 1 ? 's' : ''}…`,
-        type: 'info',
-      });
-      try {
-        await uploadFiles(arr);
-        showToast({
-          text: `Uploaded ${arr.length} file${arr.length > 1 ? 's' : ''} successfully`,
-          type: 'success',
-        });
-      } catch (err) {
-        showToast({
-          text:
-            err instanceof Error && err.message
-              ? `Upload failed: ${err.message}`
-              : 'Upload failed — please try again (max 50 MB per file)',
-          type: 'error',
-        });
-      }
+      await runUpload(Array.from(e.dataTransfer.files), 'Uploading dropped');
     }
   };
 
@@ -382,40 +376,53 @@ export default function DrivePage() {
       await createFolder(name, currentFolderId);
       setShowNewFolderModal(false);
       setNewFolderName('');
-      showToast({ text: `Created folder "${name}"`, type: 'success' });
+      showToast({ text: `Created folder "${name}"`, type: 'success', subject: 'drive-folder' });
     } catch {
-      showToast({ text: 'Failed to create folder', type: 'error' });
+      showToast({ text: 'Failed to create folder', type: 'error', subject: 'drive-folder' });
     }
   };
 
   const handleToggleStar = async (item: DriveItem, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    // Keyed on the file, and both messages name it. Previously the unstar toast
+    // read a bare `Removed from starred` while the star toast named the file, so
+    // starring and unstarring the same item left two contradictory toasts up with
+    // no way to tell which one described the current state.
+    const subject = `drive-star-${item.id}`;
     try {
       if (item.isStarred) {
         await unstarFile(item.id);
-        showToast({ text: `Removed from starred`, type: 'info' });
+        showToast({ text: `Unstarred "${item.name}"`, type: 'info', subject });
       } else {
         await starFile(item.id);
-        showToast({ text: `Starred "${item.name}"`, type: 'success' });
+        showToast({ text: `Starred "${item.name}"`, type: 'success', subject });
       }
     } catch {
-      showToast({ text: 'Could not update star status', type: 'error' });
+      showToast({ text: `Could not update star on "${item.name}"`, type: 'error', subject });
     }
   };
 
   const handleDeleteItem = async (id: string, name: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (confirm(`Permanently delete "${name}"? This cannot be undone.`)) {
+    const ok = await confirm({
+      title: `Delete "${name}" permanently?`,
+      message:
+        'The file leaves your Drive for good. There is no undo and no trash to recover it from.',
+      confirmLabel: 'Delete permanently',
+      variant: 'destructive',
+    });
+    if (ok) {
+      const subject = `drive-delete-${id}`;
       try {
         await deleteFiles([id]);
-        showToast({ text: `Deleted "${name}"`, type: 'info' });
+        showToast({ text: `Deleted "${name}"`, type: 'info', subject });
         setSelectedIds((prev) => {
           const next = new Set(prev);
           next.delete(id);
           return next;
         });
       } catch {
-        showToast({ text: 'Failed to delete item', type: 'error' });
+        showToast({ text: `Failed to delete "${name}"`, type: 'error', subject });
       }
     }
   };
@@ -423,19 +430,52 @@ export default function DrivePage() {
   const handleBatchDelete = async () => {
     const count = selectedIds.size;
     if (count === 0) return;
-    if (
-      confirm(
-        `Permanently delete ${count} selected item${count > 1 ? 's' : ''}? This cannot be undone.`,
-      )
-    ) {
+    const label = `${count} item${count > 1 ? 's' : ''}`;
+    const ok = await confirm({
+      title: `Delete ${label} permanently?`,
+      message:
+        'They leave your Drive for good. There is no undo and no trash to recover them from.',
+      confirmLabel: 'Delete permanently',
+      variant: 'destructive',
+    });
+    if (ok) {
       try {
         await deleteFiles(Array.from(selectedIds));
-        showToast({ text: `Deleted ${count} items`, type: 'info' });
+        // Was `Deleted ${count} items`, which said "Deleted 1 items".
+        showToast({ text: `Deleted ${label}`, type: 'info', subject: 'drive-delete-batch' });
         setSelectedIds(new Set());
       } catch {
-        showToast({ text: 'Failed to delete items', type: 'error' });
+        showToast({
+          text: `Failed to delete ${label}`,
+          type: 'error',
+          subject: 'drive-delete-batch',
+        });
       }
     }
+  };
+
+  /**
+   * Download every selected file, and say what actually happened.
+   *
+   * The old inline handler always announced `Downloading selected files…`, even
+   * when the selection was folders only and the loop downloaded nothing — a
+   * folder has no download endpoint. The count now comes from the same filter the
+   * loop uses.
+   */
+  const handleDownloadSelected = () => {
+    const targets = Array.from(selectedIds)
+      .map((id) => items.find((i) => i.id === id))
+      .filter((item): item is DriveItem => !!item && item.type !== 'folder');
+
+    targets.forEach((item) => downloadFile(item.id, item.name));
+
+    showToast({
+      text: targets.length
+        ? `Downloading ${targets.length} file${targets.length > 1 ? 's' : ''}…`
+        : 'Nothing to download — folders cannot be downloaded.',
+      type: targets.length ? 'info' : 'warning',
+      subject: 'drive-download',
+    });
   };
 
   const handleOpenRename = (item: DriveItem, e?: React.MouseEvent) => {
@@ -446,12 +486,15 @@ export default function DrivePage() {
 
   const handleSaveRename = async () => {
     if (!renameTarget || !renameValue.trim()) return;
+    const subject = `drive-rename-${renameTarget.id}`;
+    const from = renameTarget.name;
+    const to = renameValue.trim();
     try {
-      await renameFile(renameTarget.id, renameValue.trim());
-      showToast({ text: `Renamed to "${renameValue.trim()}"`, type: 'success' });
+      await renameFile(renameTarget.id, to);
+      showToast({ text: `Renamed "${from}" to "${to}"`, type: 'success', subject });
       setRenameTarget(null);
     } catch {
-      showToast({ text: 'Failed to rename', type: 'error' });
+      showToast({ text: `Failed to rename "${from}"`, type: 'error', subject });
     }
   };
 
@@ -464,12 +507,6 @@ export default function DrivePage() {
       return next;
     });
   };
-
-  // Only show storage numbers we actually know — never fabricate them
-  const quotaKnown = Boolean(quota && typeof quota.total === 'number' && quota.total > 0);
-  const usedBytes = quota?.used ?? 0;
-  const totalBytes = quota?.total ?? 0;
-  const usedPct = quotaKnown ? Math.min(100, Math.round((usedBytes / totalBytes) * 100)) : 0;
 
   return (
     <AppShell
@@ -551,7 +588,7 @@ export default function DrivePage() {
                 type="button"
                 onClick={() => setActiveFilter(filter.key)}
                 aria-pressed={activeFilter === filter.key}
-                className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                   activeFilter === filter.key
                     ? 'bg-[#2B1A11] text-[#FF8C42] shadow-[inset_0_0_0_1px_#5C3016]'
                     : 'bg-[#16181D] text-[#A1A4AC] shadow-[inset_0_0_0_1px_#282C35] hover:text-[#F5F5F5]'
@@ -577,7 +614,7 @@ export default function DrivePage() {
                   onClick={() => setViewMode(key)}
                   aria-label={label}
                   aria-pressed={viewMode === key}
-                  className={`grid size-8 place-items-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  className={`grid size-8 place-items-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] [@media(pointer:coarse)]:size-11 ${
                     viewMode === key
                       ? 'bg-[#FF8C42] text-[#111111]'
                       : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
@@ -591,7 +628,7 @@ export default function DrivePage() {
             <button
               type="button"
               onClick={() => setShowNewFolderModal(true)}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] shadow-[inset_0_0_0_1px_var(--quant-border)] transition-colors hover:text-[#F5F5F5] hover:shadow-[inset_0_0_0_1px_#5C3016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] shadow-[inset_0_0_0_1px_var(--quant-border)] transition-colors hover:text-[#F5F5F5] hover:shadow-[inset_0_0_0_1px_#5C3016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
               aria-label="New folder"
             >
               <IconFolderPlus size={14} />
@@ -619,14 +656,8 @@ export default function DrivePage() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  for (const id of selectedIds) {
-                    const item = items.find((i) => i.id === id);
-                    if (item && item.type !== 'folder') downloadFile(item.id, item.name);
-                  }
-                  showToast({ text: `Downloading selected files…`, type: 'info' });
-                }}
-                className="px-2.5 py-1 rounded-md bg-[#16181D] border border-[#282C35] text-[#F5F5F5] hover:bg-[#1C1F26] font-medium flex items-center gap-1.5"
+                onClick={handleDownloadSelected}
+                className="min-h-touch px-2.5 rounded-md bg-[#16181D] border border-[#282C35] text-[#F5F5F5] hover:bg-[#1C1F26] font-medium flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -641,7 +672,7 @@ export default function DrivePage() {
               <button
                 type="button"
                 onClick={handleBatchDelete}
-                className="px-2.5 py-1 rounded-md bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 font-medium flex items-center gap-1.5"
+                className="min-h-touch px-2.5 rounded-md bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 font-medium flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -656,7 +687,7 @@ export default function DrivePage() {
               <button
                 type="button"
                 onClick={() => setSelectedIds(new Set())}
-                className="px-2.5 py-1 rounded-md text-[#6B6E76] hover:text-[#F5F5F5] flex items-center gap-1.5"
+                className="min-h-touch px-2.5 rounded-md text-[#A1A4AC] hover:text-[#F5F5F5] flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
                 <svg
                   className="size-3.5"
@@ -709,51 +740,12 @@ export default function DrivePage() {
             </div>
           )}
 
-          {/* Storage Meter & Security Banner */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border border-[#282C35] bg-[#111318] shadow-sm gap-4">
-            <div className="flex items-center gap-3">
-              <div className="size-9 rounded-lg bg-[#2B1A11] border border-[#5C3016] flex items-center justify-center text-[#FF8C42] shrink-0">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <strong className="text-sm font-semibold text-[#F5F5F5]">
-                    Quant Memory & Cloud Vault
-                  </strong>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    Encrypted at rest
-                  </span>
-                </div>
-                <p className="text-xs text-[#A1A4AC] mt-0.5">
-                  High-speed cloud drive integrated with Mail attachments and AI workspace context.
-                </p>
-              </div>
-            </div>
-
-            <div className="w-full sm:w-64 flex flex-col gap-1.5 shrink-0">
-              <div className="flex items-center justify-between text-[11px] font-mono">
-                <span className="text-[#6B6E76]">Storage Used</span>
-                <span className="text-[#F5F5F5] font-medium">
-                  {quotaKnown
-                    ? `${formatFileSize(usedBytes)} / ${formatFileSize(totalBytes)} (${usedPct}%)`
-                    : 'Calculating…'}
-                </span>
-              </div>
-              <div className="w-full h-1.5 rounded-full bg-[#16181D] overflow-hidden border border-[#282C35]">
-                <div
-                  className="h-full bg-[#FF8C42] rounded-full transition-all duration-500"
-                  style={{ width: `${usedPct}%` }}
-                />
-              </div>
-            </div>
-          </div>
+          {/*
+            What the assistant has learned, alongside what the user has stored — the
+            two halves of "my things live here". Collapsed by default so the files
+            stay the point of the page.
+          */}
+          <AIMemoryPanel query={searchQuery} />
 
           {loading && (
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4">
@@ -768,11 +760,7 @@ export default function DrivePage() {
           {!loading && !error && filteredItems.length === 0 && (
             <div className="text-center py-16 space-y-4">
               <div className="flex justify-center">
-                <img
-                  src="/quant-drive-logo.png"
-                  alt="Drive"
-                  className="size-28 object-contain transition-transform hover:scale-105"
-                />
+                <QuantDriveLogo size={104} title="Drive" />
               </div>
               <h3 className="text-xl font-extrabold text-[#F5F5F5]">
                 {searchQuery ? 'No matching files found' : 'This folder is empty'}
@@ -781,11 +769,16 @@ export default function DrivePage() {
                 Drag and drop files anywhere on the screen, or click Upload to store files securely.
               </p>
               <div className="pt-2 flex items-center justify-center gap-2">
+                {/* Named for the moment rather than the action. The floating
+                 * button already reads "Upload files" and the toolbar already
+                 * reads "New folder", so repeating those verbatim put two
+                 * identically-named buttons on one screen — a screen reader
+                 * hears the same label twice with no way to tell them apart. */}
                 <Button variant="primary" onClick={handleUploadTrigger}>
-                  Upload files
+                  Upload your first file
                 </Button>
                 <Button variant="secondary" onClick={() => setShowNewFolderModal(true)}>
-                  New folder
+                  Create a folder
                 </Button>
               </div>
             </div>
@@ -1045,7 +1038,7 @@ export default function DrivePage() {
                               <div className="mb-2 grid size-12 place-items-center text-[#A1A4AC] transition-transform group-hover:scale-105">
                                 {getFileIcon(file.mimeType, file.type, 'w-6 h-6')}
                               </div>
-                              <span className="font-mono text-[10px] uppercase tracking-wider text-[#6B6E76]">
+                              <span className="font-mono text-[10px] uppercase tracking-wider text-[#A1A4AC]">
                                 {file.mimeType.split('/')[1] || 'FILE'}
                               </span>
                             </div>
@@ -1059,7 +1052,7 @@ export default function DrivePage() {
                                 {file.name}
                               </h4>
                               <div className="flex items-center justify-between text-[11px] text-[#A1A4AC] mt-1">
-                                <span>{formatFileSize(file.size)}</span>
+                                <span>{formatBytes(file.size)}</span>
                                 <button
                                   type="button"
                                   onClick={() => downloadFile(file.id, file.name)}
@@ -1140,7 +1133,7 @@ export default function DrivePage() {
                                   {file.mimeType}
                                 </td>
                                 <td className="py-3 px-4 text-[#A1A4AC]">
-                                  {formatFileSize(file.size)}
+                                  {formatBytes(file.size)}
                                 </td>
                                 <td className="py-3 px-4 text-right">
                                   <div className="flex items-center justify-end gap-2">
@@ -1171,7 +1164,7 @@ export default function DrivePage() {
                                     <button
                                       type="button"
                                       onClick={(e) => handleDeleteItem(file.id, file.name, e)}
-                                      className="text-xs text-[#6B6E76] hover:text-rose-400 font-semibold"
+                                      className="text-xs text-[#A1A4AC] hover:text-rose-400 font-semibold"
                                     >
                                       Delete
                                     </button>
@@ -1207,7 +1200,7 @@ export default function DrivePage() {
               </span>
               <h4 className="text-sm font-bold text-[#F5F5F5]">{previewItem?.name}</h4>
               <p className="text-xs text-[#A1A4AC] mt-1">
-                {previewItem?.mimeType} · {formatFileSize(previewItem?.size ?? 0)}
+                {previewItem?.mimeType} · {formatBytes(previewItem?.size ?? 0)}
               </p>
             </div>
             <div className="flex items-center justify-end gap-2">
@@ -1253,8 +1246,13 @@ export default function DrivePage() {
                   if (e.key === 'Enter') handleCreateFolder();
                 }}
                 placeholder="e.g. Invoices, Project Assets, Designs…"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
                 autoFocus
+                /* `Modal` traps focus and picks the first focusable child unless a
+                   descendant is marked. React's `autoFocus` renders no attribute
+                   for it to find, so without this the caret lands on "Close
+                   modal" — one Tab away from the only field in the dialog. */
+                data-autofocus
               />
             </div>
             <div className="flex items-center justify-end gap-2">
@@ -1291,8 +1289,9 @@ export default function DrivePage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveRename();
                 }}
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
                 autoFocus
+                data-autofocus
               />
             </div>
             <div className="flex items-center justify-end gap-2">
@@ -1305,6 +1304,7 @@ export default function DrivePage() {
             </div>
           </div>
         </Modal>
+        {dialog}
       </PageTransition>
     </AppShell>
   );

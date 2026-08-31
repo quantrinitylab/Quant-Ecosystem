@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { IconChevronLeft, IconChevronRight, IconX } from './icons';
 
 interface ScheduleSendModalProps {
   isOpen: boolean;
@@ -256,9 +257,10 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35]"
+                aria-label="Close schedule send dialog"
+                className="inline-flex items-center justify-center size-8 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 -mr-1.5 sm:mr-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
-                ✕
+                <IconX size={15} />
               </button>
             </div>
 
@@ -303,24 +305,26 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                     <button
                       type="button"
                       onClick={handlePrevMonth}
-                      className="p-1 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] text-xs"
+                      className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       title="Previous month (or swipe right)"
+                      aria-label="Previous month"
                     >
-                      ◀
+                      <IconChevronLeft size={14} />
                     </button>
                     <button
                       type="button"
                       onClick={handleNextMonth}
-                      className="p-1 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] text-xs"
+                      className="inline-flex items-center justify-center size-7 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       title="Next month (or swipe left)"
+                      aria-label="Next month"
                     >
-                      ▶
+                      <IconChevronRight size={14} />
                     </button>
                   </div>
                 </div>
 
                 {/* Weekday headers */}
-                <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-[#6B6E76]">
+                <div className="grid grid-cols-7 text-center text-[10px] font-semibold text-[#A1A4AC]">
                   {WEEKDAYS.map((w, idx) => (
                     <span key={idx}>{w}</span>
                   ))}
@@ -351,10 +355,14 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                             : isToday
                               ? 'border border-[#FF8C42]/50 text-[#FF8C42]'
                               : item.isPast
-                                ? 'text-[#3A404D] cursor-not-allowed'
+                                ? // Genuinely `disabled`, so 1.4.3 does not
+                                  // apply — but #3A404D is 1.91:1 and the past
+                                  // half of the grid read as empty holes rather
+                                  // than as dates you cannot pick.
+                                  'text-[#6B6E76] cursor-not-allowed'
                                 : item.currentMonth
                                   ? 'text-[#F5F5F5] hover:bg-[#282C35]'
-                                  : 'text-[#6B6E76]'
+                                  : 'text-[#A1A4AC]'
                         }`}
                       >
                         {item.day}
@@ -362,7 +370,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                     );
                   })}
                 </div>
-                <p className="text-[9px] text-[#6B6E76] text-center">
+                <p className="text-[10px] text-[#A1A4AC] text-center">
                   Swipe left/right to change month
                 </p>
               </motion.div>

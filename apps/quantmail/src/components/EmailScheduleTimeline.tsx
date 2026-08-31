@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
+import { IconArrowRight, IconClock } from './icons';
 
 interface ScheduledEmail {
   id: string;
@@ -30,7 +31,11 @@ export function EmailScheduleTimeline({
     const groups: Record<string, ScheduledEmail[]> = {};
     for (const email of scheduledEmails) {
       const date = new Date(email.scheduledAt);
-      const key = date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      const key = date.toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      });
       if (!groups[key]) groups[key] = [];
       groups[key].push(email);
     }
@@ -44,7 +49,9 @@ export function EmailScheduleTimeline({
   return (
     <div className="schedule-timeline">
       <header className="schedule-timeline-header">
-        <span className="schedule-timeline-icon">⏰</span>
+        <span className="schedule-timeline-icon">
+          <IconClock size={13} />
+        </span>
         <strong>Scheduled</strong>
         <span className="schedule-timeline-count">{scheduledEmails.length}</span>
       </header>
@@ -69,12 +76,19 @@ export function EmailScheduleTimeline({
                         minute: '2-digit',
                       })}
                     </span>
-                    <span className="schedule-timeline-to">→ {email.to}</span>
+                    <span className="schedule-timeline-to">
+                      <IconArrowRight size={11} />
+                      {email.to}
+                    </span>
                   </div>
                   <p className="schedule-timeline-subject">{email.subject}</p>
                   <div className="schedule-timeline-actions">
-                    <button type="button" onClick={() => onEdit(email.id)}>Edit</button>
-                    <button type="button" onClick={() => onCancel(email.id)}>Cancel</button>
+                    <button type="button" onClick={() => onEdit(email.id)}>
+                      Edit
+                    </button>
+                    <button type="button" onClick={() => onCancel(email.id)}>
+                      Cancel
+                    </button>
                   </div>
                 </div>
               </motion.div>

@@ -5,10 +5,12 @@ import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
 import { PageTransition } from '../../../components/PageTransition';
 import { ConversationalThreadView } from '../../../components/ConversationalThreadView';
+import { useMailMutations } from '../../../hooks/useMailMutations';
 
 export default function ThreadPage() {
   const params = useParams();
   const router = useRouter();
+  const mutations = useMailMutations();
   const rawThreadId = (params?.id as string) || '';
   const threadId = rawThreadId === 'null' || rawThreadId === 'undefined' ? '' : rawThreadId;
 
@@ -30,8 +32,22 @@ export default function ThreadPage() {
         <ConversationalThreadView
           threadId={threadId}
           onClose={() => router.push('/')}
-          onArchive={() => router.push('/')}
-          onDelete={() => router.push('/')}
+          /*
+           * These two used to only `router.push('/')`. On a phone every conversation
+           * is opened on this route, so Archive was the button that looked like it
+           * worked and did nothing at all: back to the inbox, mail still in it.
+           *
+           * The mutation is optimistic and queued through the outbox, so it survives
+           * the navigation that follows it — no need to await before leaving.
+           */
+          onArchive={(ids) => {
+            void mutations.archive(ids);
+            router.push('/');
+          }}
+          onDelete={(ids) => {
+            void mutations.trash(ids);
+            router.push('/');
+          }}
           variant="full"
           className="h-full flex-1"
         />

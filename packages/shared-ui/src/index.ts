@@ -398,6 +398,10 @@ export type { BreakpointName } from './hooks/useBreakpoint';
 export { useOrientation } from './hooks/useOrientation';
 export type { Orientation } from './hooks/useOrientation';
 
+// Focus trap for `aria-modal` surfaces
+export { useFocusTrap } from './hooks/useFocusTrap';
+export type { UseFocusTrapOptions } from './hooks/useFocusTrap';
+
 // Keyboard Shortcuts hook
 export { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 export type {
@@ -444,7 +448,7 @@ export { useOptimisticAction } from './hooks/useOptimisticAction';
 export type { UseOptimisticActionReturn } from './hooks/useOptimisticAction';
 
 // Sanitization utilities
-export { sanitizeHtmlContent, sanitizeCodeHighlight } from './utils/sanitize';
+export { sanitizeHtmlContent, sanitizeEmailHtml, sanitizeCodeHighlight } from './utils/sanitize';
 
 // QuantLive components
 export {

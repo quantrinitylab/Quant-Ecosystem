@@ -38,6 +38,16 @@ export function formatEmailRecord<T extends Record<string, any>>(email: T): T {
   const bodyPlain: string = email.bodyPlain ?? email.bodyText ?? '';
   const bodyHtml: string = email.bodyHtml ?? '';
 
+  /*
+   * The stored kind is the Prisma enum (`MAIL` / `CHAT`); the client contract is
+   * lowercase, matching how `priority` and `category` already read on the wire.
+   * A row written before migration 0052 comes back without the column at all, and
+   * everything sent before the chat composer existed was a letter, so the fallback
+   * is `mail`.
+   */
+  const messageKind: 'mail' | 'chat' =
+    String(email.messageKind ?? '').toUpperCase() === 'CHAT' ? 'chat' : 'mail';
+
   const rawAttachments = Array.isArray(email.attachments) ? email.attachments : [];
   const attachments = rawAttachments.map((att: any, idx: number) => {
     if (typeof att === 'string') {
@@ -88,6 +98,7 @@ export function formatEmailRecord<T extends Record<string, any>>(email: T): T {
     bodyHtml,
     hasAttachments: attachments.length > 0,
     attachments,
+    messageKind,
     category: email.aiCategory || email.category || 'primary',
   };
 }

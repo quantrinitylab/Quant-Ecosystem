@@ -148,7 +148,7 @@ export function PostcardStudio() {
             <button
               type="button"
               onClick={handleSaveCard}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] transition-all"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#FF8C42] px-4 py-2 text-xs font-semibold text-[#111111] transition-all hover:bg-[#FF9B5A] active:bg-[#E8752F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111318] sm:min-h-0"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -172,7 +172,7 @@ export function PostcardStudio() {
                 );
                 router.push('/compose');
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-[#16181D] hover:bg-[#1C1F26] text-[#F5F5F5] border border-[#282C35] active:scale-95 transition-all"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#282C35] bg-[#16181D] px-4 py-2 text-xs font-semibold text-[#F5F5F5] transition-all hover:bg-[#1C1F26] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -247,7 +247,7 @@ export function PostcardStudio() {
                 className="w-full"
               />
 
-              <p className="text-[11px] text-[#6B6E76] font-mono mt-4 text-center">
+              <p className="text-[11px] text-[#A1A4AC] font-mono mt-4 text-center">
                 Tip: Type directly onto the card above to test your message flow and letterpress
                 layout.
               </p>
@@ -270,7 +270,7 @@ export function PostcardStudio() {
                   onChange={(e) =>
                     setCurrentTemplate((prev) => ({ ...prev, name: e.target.value }))
                   }
-                  className="w-full bg-[#16181D] border border-[#282C35] rounded-lg px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#FF8C42]"
+                  className="min-h-11 w-full rounded-lg border border-[#282C35] bg-[#16181D] px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#FF8C42] focus:outline-none sm:min-h-0"
                 />
               </div>
 
@@ -296,7 +296,7 @@ export function PostcardStudio() {
                           paperTexture: tex.key as PostcardPaperTexture,
                         }))
                       }
-                      className={`px-3 py-2 rounded-lg border text-left font-medium transition-all ${
+                      className={`min-h-11 rounded-lg border px-3 py-2 text-left font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                         currentTemplate.paperTexture === tex.key
                           ? 'bg-[#2B1A11] border-[#5C3016] text-[#FF8C42]'
                           : 'bg-[#16181D] border-[#282C35] text-[#A1A4AC] hover:border-[#3E434D]'
@@ -309,12 +309,15 @@ export function PostcardStudio() {
               </div>
 
               {/* Filigree Corners Toggle */}
-              <div className="flex items-center justify-between border-t border-[#282C35] pt-4">
+              {/* The label owns the hit area: the native box is 16px, so a tap
+               * anywhere on this row is the only version of this control a
+               * finger can actually use. */}
+              <label className="flex min-h-11 cursor-pointer items-center justify-between border-t border-[#282C35] pt-4">
                 <div>
                   <div className="text-xs font-semibold text-[#F5F5F5]">
                     Victorian Filigree Corners
                   </div>
-                  <div className="text-[11px] text-[#6B6E76]">
+                  <div className="text-[11px] text-[#A1A4AC]">
                     Ornate hand-drawn corner flourishes
                   </div>
                 </div>
@@ -324,9 +327,9 @@ export function PostcardStudio() {
                   onChange={(e) =>
                     setCurrentTemplate((prev) => ({ ...prev, hasFiligree: e.target.checked }))
                   }
-                  className="size-4 accent-[#FF8C42] rounded cursor-pointer"
+                  className="size-4 shrink-0 cursor-pointer rounded accent-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 />
-              </div>
+              </label>
 
               {/* Font Style */}
               <div className="border-t border-[#282C35] pt-4">
@@ -349,7 +352,7 @@ export function PostcardStudio() {
                           fontFamily: font.key as PostcardFont,
                         }))
                       }
-                      className={`px-3 py-2 rounded-lg border text-left font-medium transition-all ${
+                      className={`min-h-11 rounded-lg border px-3 py-2 text-left font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                         currentTemplate.fontFamily === font.key
                           ? 'bg-[#2B1A11] border-[#5C3016] text-[#FF8C42]'
                           : 'bg-[#16181D] border-[#282C35] text-[#A1A4AC] hover:border-[#3E434D]'
@@ -381,7 +384,7 @@ export function PostcardStudio() {
                           stamp: { ...prev.stamp, postmarkCity: e.target.value },
                         }))
                       }
-                      className="w-full bg-[#16181D] border border-[#282C35] rounded-lg px-2.5 py-1.5 text-xs text-[#F5F5F5] focus:border-[#FF8C42] focus:outline-none"
+                      className="min-h-11 w-full rounded-lg border border-[#282C35] bg-[#16181D] px-2.5 py-1.5 text-xs text-[#F5F5F5] focus:border-[#FF8C42] focus:outline-none sm:min-h-0"
                       placeholder="e.g. TOKYO"
                     />
                   </div>
@@ -399,7 +402,7 @@ export function PostcardStudio() {
                           stamp: { ...prev.stamp, value: e.target.value },
                         }))
                       }
-                      className="w-full bg-[#16181D] border border-[#282C35] rounded-lg px-2.5 py-1.5 text-xs text-[#F5F5F5] focus:border-[#FF8C42] focus:outline-none"
+                      className="min-h-11 w-full rounded-lg border border-[#282C35] bg-[#16181D] px-2.5 py-1.5 text-xs text-[#F5F5F5] focus:border-[#FF8C42] focus:outline-none sm:min-h-0"
                       placeholder="e.g. 50¢ or ₹5"
                     />
                   </div>
@@ -410,11 +413,15 @@ export function PostcardStudio() {
                   <label className="block text-[11px] font-medium text-[#A1A4AC] mb-1">
                     Upload Custom Photo for Stamp (PNG / JPG)
                   </label>
+                  {/* `min-h-11` grows the control, but on a file input the only
+                   * part you can actually tap is the `file:` button, and that
+                   * sizes itself from its own padding — hence the coarse-pointer
+                   * `file:py-3` as well. */}
                   <input
                     type="file"
                     accept="image/*"
                     onChange={handleUploadStampPhoto}
-                    className="w-full text-xs text-[#A1A4AC] file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#2B1A11] file:text-[#FF8C42] hover:file:bg-[#3D2214]"
+                    className="min-h-11 w-full text-xs text-[#A1A4AC] file:mr-3 file:rounded-md file:border-0 file:bg-[#2B1A11] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#FF8C42] hover:file:bg-[#3D2214] sm:min-h-0 [@media(pointer:coarse)]:file:py-3"
                   />
                 </div>
               </div>
@@ -425,7 +432,7 @@ export function PostcardStudio() {
                   <div className="text-xs font-bold uppercase tracking-wider text-[#FF8C42] font-mono">
                     Add Custom PNG Stickers
                   </div>
-                  <span className="text-[11px] text-[#6B6E76]">
+                  <span className="text-[11px] text-[#A1A4AC]">
                     {currentTemplate.stickers.length} active
                   </span>
                 </div>
@@ -434,7 +441,7 @@ export function PostcardStudio() {
                   type="file"
                   accept="image/png,image/webp,image/*"
                   onChange={handleUploadSticker}
-                  className="w-full text-xs text-[#A1A4AC] file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#2B1A11] file:text-[#FF8C42] hover:file:bg-[#3D2214]"
+                  className="min-h-11 w-full text-xs text-[#A1A4AC] file:mr-3 file:rounded-md file:border-0 file:bg-[#2B1A11] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#FF8C42] hover:file:bg-[#3D2214] sm:min-h-0 [@media(pointer:coarse)]:file:py-3"
                 />
 
                 {currentTemplate.stickers.length > 0 && (

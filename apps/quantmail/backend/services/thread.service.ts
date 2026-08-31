@@ -303,10 +303,17 @@ export class ThreadService {
   }
 }
 
-/** Strip common reply/forward prefixes and trim for subject-based threading. */
+/**
+ * Strip reply/forward prefixes and trim for subject-based threading.
+ *
+ * `Re[2]:` is Outlook's counter form and has to go too, or a reply from an
+ * Outlook client lands in a new thread. Kept in step with the client-side twin in
+ * `src/lib/threading.ts`, which has the tests: if the two disagree, the inbox
+ * regroups messages the server had already stitched together.
+ */
 function normalizeSubject(subject: string): string {
   return subject
-    .replace(/^(\s*(re|fwd|fw)\s*:\s*)+/i, '')
+    .replace(/^(\s*(re|fwd|fw)(\[\d+\])?\s*:\s*)+/i, '')
     .trim()
     .toLowerCase();
 }

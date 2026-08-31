@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { appDisplayName } from './BrandWordmark';
 
 export type LogoAppType = 'mail' | 'calendar' | 'drive' | 'contacts' | 'code';
 
@@ -380,7 +381,7 @@ export function Interactive3DLogo({
       onMouseDown={() => setIsPressed(true)}
       onMouseUp={() => setIsPressed(false)}
       onClick={handleClick}
-      title={`Quant${app.charAt(0).toUpperCase() + app.slice(1)}`}
+      title={appDisplayName(app)}
     >
       {/* 3D Hardware Accelerated Canvas */}
       <motion.div
@@ -427,10 +428,10 @@ export function Interactive3DLogo({
               className="relative flex items-center justify-center"
             >
               {/* Outer Energy Pulse Ring */}
-              <span className="absolute size-4.5 rounded-full bg-[#FF8C42] opacity-40 animate-ping" />
+              <span className="absolute size-[18px] rounded-full bg-[#FF8C42] opacity-40 animate-ping" />
 
               {/* Clean Badge */}
-              <span className="relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[9.5px] font-bold text-[#111111] bg-[#FF8C42] rounded-full border border-[#090A0C] shadow-sm">
+              <span className="relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[10px] font-bold text-[#111111] bg-[#FF8C42] rounded-full border border-[#090A0C] shadow-sm">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             </motion.div>
@@ -440,7 +441,7 @@ export function Interactive3DLogo({
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               title="All caught up (0 unread)"
-              className="flex items-center justify-center size-3.5 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+              className="flex items-center justify-center size-3.5 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 shadow-[0_0_0_2px_rgba(16,185,129,0.18)]"
             >
               <svg
                 className="size-2"

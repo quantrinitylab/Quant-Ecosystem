@@ -34,7 +34,8 @@ export const SuccessState: React.FC<SuccessStateProps> = ({
       {actionLabel && onAction && (
         <button
           onClick={onAction}
-          className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+          // 36px before; a finger-sized target below `sm` like the other states.
+          className="inline-flex items-center justify-center min-h-[44px] sm:min-h-0 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
         >
           {actionLabel}
         </button>

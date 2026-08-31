@@ -25,7 +25,6 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { Quanty, type QuantyExpression } from '../../components/Quanty';
-import { QuantMailLogo } from '../../components/QuantMailLogo';
 import { useRepos, useCreateRepo } from '../../hooks/useRepos';
 import { useBuilds, useDeployments } from '../../hooks/usePipelines';
 import { browserAuthSession } from '../../services/browser-auth-session';
@@ -155,9 +154,12 @@ async function askQuanty(
     body: JSON.stringify({
       messages: history.slice(-10).map(({ role, content }) => ({ role, content })),
       context: {
-        app: 'QuantHub',
+        // `QuantHub` was a third name for this app, and the model repeats the
+        // name it is told back to the user — so it said "QuantHub" in a product
+        // whose header says QuantGit.
+        app: 'QuantGit',
         route: '/codehub',
-        view: `CodeHub home · ${mode === 'plan' ? 'Plan mode (explain, break down, estimate — no changes)' : 'Build mode (propose concrete repos, files, commits, deploy steps)'}`,
+        view: `QuantGit home · ${mode === 'plan' ? 'Plan mode (explain, break down, estimate — no changes)' : 'Build mode (propose concrete repos, files, commits, deploy steps)'}`,
         screenText: `Existing repositories: ${repoNames.join(', ') || 'none yet'}`,
       },
     }),
@@ -298,8 +300,12 @@ function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewR
       </form>
 
       <div className="ch-quanty-quick">
+        {/* Four affordances opened the same dialog on this one screen — the
+         * header button, this one, the empty state's action and the floating
+         * button — and three of them said "New repository" verbatim. Each keeps
+         * the action; only the wording is made specific to where it sits. */}
         <button type="button" onClick={onNewRepo}>
-          + New repository
+          Start a fresh repo
         </button>
         <span>Quanty can scaffold into a fresh repo once you approve a plan.</span>
       </div>
@@ -341,7 +347,7 @@ function AgentsStrip({
       status: latestDeploy?.status ?? 'idle',
       detail: latestDeploy
         ? `${latestDeploy.environment ?? 'environment'} · ${relativeTime(latestDeploy.createdAt)}`
-        : 'Nothing deployed from CodeHub yet.',
+        : 'Nothing deployed from QuantGit yet.',
     },
     {
       id: 'observer',
@@ -432,7 +438,14 @@ function ConnectorsRow() {
             </div>
             <button
               type="button"
-              className={`w-full py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
+              // Five of these render at once and all read "Connect", so the
+              // accessible name carries the connector too. It still *starts*
+              // with the visible word, which is what WCAG 2.5.3 asks for.
+              aria-label={
+                enabled[connector.id] ? `Requested ${connector.name}` : `Connect ${connector.name}`
+              }
+              aria-pressed={Boolean(enabled[connector.id])}
+              className={`inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                 enabled[connector.id]
                   ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/60'
                   : 'bg-[#16181D] hover:bg-[#1C1F26] text-[#F5F5F5] border border-[#282C35]'
@@ -614,7 +627,7 @@ export default function CodeHubPage() {
                       key={option}
                       type="button"
                       onClick={() => setVisibility(option)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-medium border transition-colors ${
+                      className={`inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                         active
                           ? 'border-[var(--quant-primary)] bg-[color-mix(in_srgb,var(--quant-primary)_18%,transparent)] text-[var(--quant-foreground)] font-bold'
                           : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
@@ -656,10 +669,10 @@ export default function CodeHubPage() {
                 title={query ? 'No repositories matched' : 'Start your first repository'}
                 description={
                   query
-                    ? `Nothing matched “${query}”. Clear the search to see everything in CodeHub.`
+                    ? `Nothing matched “${query}”. Clear the search to see everything in QuantGit.`
                     : 'Ask Quanty above to plan your first build, or create a repository directly.'
                 }
-                actionLabel={query ? 'Clear search' : 'New repository'}
+                actionLabel={query ? 'Clear search' : 'Create your first repository'}
                 onAction={() => (query ? setQuery('') : setShowCreate(true))}
               />
             )}
@@ -783,7 +796,7 @@ export default function CodeHubPage() {
               </h2>
               {deployments.length === 0 ? (
                 <p className="text-xs text-[var(--quant-muted-foreground)]">
-                  Nothing deployed yet from CodeHub.
+                  Nothing deployed yet from QuantGit.
                 </p>
               ) : (
                 <ul className="space-y-2">
@@ -815,6 +828,11 @@ export default function CodeHubPage() {
                   setDraft((prev) => ({ ...prev, sourceUrl: event.target.value }))
                 }
                 placeholder="https://github.com/owner/repo or git@host:owner/repo.git"
+                /* The trap opens on the close button unless something is marked, so
+                   the first *content* control gets it — not "Repository name" below.
+                   Initial focus that skips a field is a field a screen-reader user
+                   has to Shift+Tab backwards to discover. */
+                autoFocus
               />
             </FormField>
             {draft.sourceUrl.trim() && (

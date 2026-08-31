@@ -13,8 +13,23 @@ const APP_TITLES: Record<string, { brand: string; name: string }> = {
   calendar: { brand: 'Quant', name: 'Calendar' },
   drive: { brand: 'Quant', name: 'Drive' },
   contacts: { brand: 'Quant', name: 'Contacts' },
-  code: { brand: 'Quant', name: 'Code' },
+  // The app *id* stays `code` (it owns the `/codehub` route); only the
+  // user-visible name is QuantGit.
+  code: { brand: 'Quant', name: 'Git' },
 };
+
+/**
+ * The one place an app's user-visible name is spelled out.
+ *
+ * The header tooltip in `AppShell` used to build this itself, by upper-casing the
+ * app id (`Quant${app.charAt(0).toUpperCase() + app.slice(1)}`). That silently
+ * produced "QuantCode" for the `code` app while the wordmark rendered directly
+ * beside it read "QuantGit" — a name can't live in two places.
+ */
+export function appDisplayName(app: string): string {
+  const item = APP_TITLES[app] || APP_TITLES.mail;
+  return `${item.brand}${item.name}`;
+}
 
 /**
  * World-Class Instagram-Style Signature Wordmark

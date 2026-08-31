@@ -171,7 +171,7 @@ export function VacationResponderSettings() {
 
   return (
     <div className="space-y-4 border-t border-[var(--quant-border)] pt-4">
-      <label className="flex items-start justify-between gap-4">
+      <label className="flex min-h-11 items-start justify-between gap-4">
         <div>
           <span className="text-sm font-medium text-[var(--quant-foreground)]">
             Vacation auto-reply
@@ -186,7 +186,7 @@ export function VacationResponderSettings() {
           disabled={busy || (status === 'error' && !responder)}
           onChange={(event) => void toggle(event.target.checked)}
           aria-label="Enable vacation auto-reply"
-          className="mt-1 h-4 w-4 rounded accent-[var(--brand-primary)]"
+          className="mt-1 h-4 w-4 shrink-0 rounded accent-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
         />
       </label>
 
@@ -201,9 +201,7 @@ export function VacationResponderSettings() {
               value={draft.subject}
               disabled={status === 'saving'}
               maxLength={500}
-              onChange={(event) =>
-                setDraft((value) => ({ ...value, subject: event.target.value }))
-              }
+              onChange={(event) => setDraft((value) => ({ ...value, subject: event.target.value }))}
               placeholder="Out of office"
             />
           </FormField>
@@ -213,9 +211,7 @@ export function VacationResponderSettings() {
               disabled={status === 'saving'}
               maxLength={20000}
               rows={4}
-              onChange={(event) =>
-                setDraft((value) => ({ ...value, message: event.target.value }))
-              }
+              onChange={(event) => setDraft((value) => ({ ...value, message: event.target.value }))}
               placeholder="Share when you will return and who to contact meanwhile."
             />
           </FormField>
@@ -223,7 +219,7 @@ export function VacationResponderSettings() {
             <FormField label="Starts (optional)">
               <input
                 type="datetime-local"
-                className="h-9 w-full rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm text-[var(--quant-foreground)]"
+                className="h-11 sm:h-9 w-full rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm text-[var(--quant-foreground)]"
                 value={draft.startAt}
                 disabled={status === 'saving'}
                 onChange={(event) =>
@@ -234,17 +230,15 @@ export function VacationResponderSettings() {
             <FormField label="Ends (optional)">
               <input
                 type="datetime-local"
-                className="h-9 w-full rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm text-[var(--quant-foreground)]"
+                className="h-11 sm:h-9 w-full rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm text-[var(--quant-foreground)]"
                 value={draft.endAt}
                 disabled={status === 'saving'}
-                onChange={(event) =>
-                  setDraft((value) => ({ ...value, endAt: event.target.value }))
-                }
+                onChange={(event) => setDraft((value) => ({ ...value, endAt: event.target.value }))}
               />
             </FormField>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="flex items-center gap-3 text-sm text-[var(--quant-foreground)]">
+            <label className="flex min-h-11 items-center gap-3 text-sm text-[var(--quant-foreground)]">
               <input
                 type="checkbox"
                 checked={draft.onlyContacts}
@@ -252,7 +246,7 @@ export function VacationResponderSettings() {
                 onChange={(event) =>
                   setDraft((value) => ({ ...value, onlyContacts: event.target.checked }))
                 }
-                className="h-4 w-4 rounded accent-[var(--brand-primary)]"
+                className="h-4 w-4 shrink-0 rounded accent-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               />
               Reply only to known contacts
             </label>
@@ -266,7 +260,7 @@ export function VacationResponderSettings() {
                 onChange={(event) =>
                   setDraft((value) => ({ ...value, intervalDays: Number(event.target.value) }))
                 }
-                className="h-9 w-full rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm text-[var(--quant-foreground)]"
+                className="h-11 sm:h-9 w-full rounded-md border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm text-[var(--quant-foreground)]"
               />
             </FormField>
           </div>

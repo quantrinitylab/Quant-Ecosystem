@@ -8,7 +8,13 @@ export interface WidgetDefinition {
   sizes: WidgetSize[];
   refreshInterval: RefreshInterval;
   configurable: boolean;
-  previewImageUrl: string;
+  /**
+   * Optional because the five definitions below used to hard-code
+   * `/widgets/*_preview.png` paths for raster files that were never shipped —
+   * every one of them 404'd. A widget picker should render the live widget,
+   * not a screenshot of it.
+   */
+  previewImageUrl?: string;
 }
 
 export type WidgetSize = 'small' | 'medium' | 'large' | 'extra_large';
@@ -69,13 +75,48 @@ export class WidgetService {
 
   private registerDefaultWidgets(): void {
     const defaults: WidgetDefinition[] = [
-      { id: 'unread_count', name: 'Unread_count', description: 'Shows unread email count', sizes: ['small', 'medium'], refreshInterval: '15min', configurable: true, previewImageUrl: '/widgets/unread_count_preview.png' },
-      { id: 'recent_emails', name: 'Recent_emails', description: 'Shows recent email subjects', sizes: ['medium', 'large'], refreshInterval: '30min', configurable: true, previewImageUrl: '/widgets/recent_emails_preview.png' },
-      { id: 'quick_actions', name: 'Quick Actions', description: 'Quick access to common actions', sizes: ['small', 'medium'], refreshInterval: 'manual', configurable: true, previewImageUrl: '/widgets/quick_actions_preview.png' },
-      { id: 'activity_feed', name: 'Activity Feed', description: 'Recent activity updates', sizes: ['medium', 'large', 'extra_large'], refreshInterval: '5min', configurable: true, previewImageUrl: '/widgets/activity_preview.png' },
-      { id: 'stats_overview', name: 'Stats Overview', description: 'Key metrics at a glance', sizes: ['small', 'medium', 'large'], refreshInterval: '15min', configurable: false, previewImageUrl: '/widgets/stats_preview.png' },
+      {
+        id: 'unread_count',
+        name: 'Unread Count',
+        description: 'Shows unread email count',
+        sizes: ['small', 'medium'],
+        refreshInterval: '15min',
+        configurable: true,
+      },
+      {
+        id: 'recent_emails',
+        name: 'Recent Emails',
+        description: 'Shows recent email subjects',
+        sizes: ['medium', 'large'],
+        refreshInterval: '30min',
+        configurable: true,
+      },
+      {
+        id: 'quick_actions',
+        name: 'Quick Actions',
+        description: 'Quick access to common actions',
+        sizes: ['small', 'medium'],
+        refreshInterval: 'manual',
+        configurable: true,
+      },
+      {
+        id: 'activity_feed',
+        name: 'Activity Feed',
+        description: 'Recent activity updates',
+        sizes: ['medium', 'large', 'extra_large'],
+        refreshInterval: '5min',
+        configurable: true,
+      },
+      {
+        id: 'stats_overview',
+        name: 'Stats Overview',
+        description: 'Key metrics at a glance',
+        sizes: ['small', 'medium', 'large'],
+        refreshInterval: '15min',
+        configurable: false,
+      },
     ];
-    defaults.forEach(w => this.widgets.set(w.id, w));
+    defaults.forEach((w) => this.widgets.set(w.id, w));
   }
 
   public registerWidget(definition: WidgetDefinition): void {
@@ -112,8 +153,17 @@ export class WidgetService {
     };
   }
 
-  public configureWidget(widgetId: string, configuration: Partial<WidgetConfiguration>): WidgetConfiguration {
-    const existing = this.configurations.get(widgetId) || { widgetId, size: 'medium', settings: {}, theme: 'system' as const, position: 0 };
+  public configureWidget(
+    widgetId: string,
+    configuration: Partial<WidgetConfiguration>,
+  ): WidgetConfiguration {
+    const existing = this.configurations.get(widgetId) || {
+      widgetId,
+      size: 'medium',
+      settings: {},
+      theme: 'system' as const,
+      position: 0,
+    };
     const updated = { ...existing, ...configuration, widgetId };
     this.configurations.set(widgetId, updated);
     return updated;
@@ -132,7 +182,10 @@ export class WidgetService {
     if (handler) handler(interaction);
   }
 
-  public onWidgetInteraction(widgetId: string, handler: (interaction: WidgetInteraction) => void): () => void {
+  public onWidgetInteraction(
+    widgetId: string,
+    handler: (interaction: WidgetInteraction) => void,
+  ): () => void {
     this.interactionHandlers.set(widgetId, handler);
     return () => this.interactionHandlers.delete(widgetId);
   }
@@ -160,7 +213,7 @@ export class WidgetService {
       '1hr': 3600000,
       '4hr': 14400000,
       '12hr': 43200000,
-      'manual': Infinity,
+      manual: Infinity,
     };
     return map[interval];
   }
@@ -176,18 +229,26 @@ export class WidgetService {
     return Array.from(this.widgets.values());
   }
 
-  public getActiveWidgets(): Array<{ definition: WidgetDefinition; configuration: WidgetConfiguration }> {
+  public getActiveWidgets(): Array<{
+    definition: WidgetDefinition;
+    configuration: WidgetConfiguration;
+  }> {
     return Array.from(this.configurations.entries())
       .map(([id, config]) => ({ definition: this.widgets.get(id)!, configuration: config }))
-      .filter(entry => entry.definition);
+      .filter((entry) => entry.definition);
   }
 
-  public compressDataForWidget(data: Record<string, unknown>, maxSizeBytes: number): Record<string, unknown> {
+  public compressDataForWidget(
+    data: Record<string, unknown>,
+    maxSizeBytes: number,
+  ): Record<string, unknown> {
     const serialized = JSON.stringify(data);
     if (serialized.length <= maxSizeBytes) return data;
     const keys = Object.keys(data).slice(0, Math.floor(maxSizeBytes / 100));
     const compressed: Record<string, unknown> = {};
-    keys.forEach(key => { compressed[key] = data[key]; });
+    keys.forEach((key) => {
+      compressed[key] = data[key];
+    });
     return compressed;
   }
 }

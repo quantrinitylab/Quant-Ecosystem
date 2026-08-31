@@ -1,16 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import {
-  AnimatePresence,
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useTransform,
-  type PanInfo,
-} from 'framer-motion';
-import { ErrorState, Skeleton, Button } from '@quant/shared-ui';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ErrorState, Skeleton, Button, useFocusTrap } from '@quant/shared-ui';
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
@@ -26,14 +20,37 @@ import { QuantMailLogo } from '../components/QuantMailLogo';
 import { Quanty } from '../components/Quanty';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { EmailSenderHeader } from '../components/EmailSenderHeader';
-import { EmailLetterCard } from '../components/EmailLetterCard';
-import { QuantyCopilotDrawer } from '../components/QuantyCopilotDrawer';
 import { ConversationalThreadView } from '../components/ConversationalThreadView';
+import { ThreadKindBadge } from '../components/MessageKindBadge';
+import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
+import {
+  filterThreadsByQuery,
+  findConversation,
+  groupEmailsIntoThreads,
+  sanitizeSnippetText,
+  threadFocus,
+  threadMessageIds,
+  type ConversationThread,
+} from '../lib/threading';
 import { useAuth } from '../providers/auth-provider';
-import type { Email, EmailCategory } from '../types';
+import { IconCheck, IconFilter, IconX } from '../components/icons';
+import type { Email } from '../types';
+
+export type { ConversationThread };
+
+/**
+ * Quanty's drawer is 663 lines plus its own chat history layer, and the inbox is
+ * the app's landing route — so it must not be in the first chunk. Paired with
+ * `useDeferredMount` below, the code is fetched the first time the user actually
+ * asks for Quanty and then stays mounted, so the conversation survives closing
+ * the drawer exactly as it did when the import was static.
+ */
+const QuantyCopilotDrawer = dynamic(() => import('../components/QuantyCopilotDrawer'), {
+  ssr: false,
+});
 
 /**
  * Starting height guess for a conversation row: `.mail-row`'s `min-height` of
@@ -42,14 +59,54 @@ import type { Email, EmailCategory } from '../types';
  */
 const ESTIMATED_ROW_HEIGHT = 80;
 
-const TELEGRAM_CATEGORIES: Array<{ key: string; label: string }> = [
-  { key: 'all', label: 'All' },
+/**
+ * The two halves of the inbox's Focus Bar.
+ *
+ * `InboxFocus` partitions the list by who spoke last, which is the one thing
+ * about a conversation this client can always answer from the messages already in
+ * hand. The seven category chips it replaces could not: `Updates` and `Offers`
+ * read `ConversationThread.category`, which resolves from the server's
+ * `aiCategory` column — declared in `packages/database/prisma/schema.prisma`,
+ * read in five places, and written in none. Every message ever stored therefore
+ * arrives as `'primary'`, so both chips were permanently empty, and `Contacts`
+ * (`!automated && (count <= 2 || category === 'primary')`) collapsed to "not
+ * automated" and returned nearly everything. Three of seven tabs described a
+ * classifier that was never built.
+ *
+ * `InboxFilter` keeps the narrowings that were always honest and makes them
+ * *compose* with the partition — which the chip strip could not do, since
+ * choosing `Unread` there discarded the category and vice versa. Each filter
+ * reads a field the row itself renders, so it can never disagree with what is on
+ * screen.
+ */
+type InboxFocus = 'needs_you' | 'waiting' | 'all';
+type InboxFilter = 'unread' | 'starred' | 'attachment' | 'group';
+
+const INBOX_FOCUSES: Array<{ key: InboxFocus; label: string; hint: string }> = [
+  /*
+   * `All` leads because it is the default and the widest: a reader lands on the
+   * full list and narrows from there, so the first tab should be the one already
+   * selected rather than a partition they have to opt out of.
+   *
+   * The two partitions are named as a pair — `Your turn` / `Their turn` — so the
+   * axis reads off the labels. `Needs you` / `Waiting` named the same split from
+   * two unrelated angles: one an instruction, one a state, with nothing to say
+   * they were opposite halves of one whole.
+   */
+  { key: 'all', label: 'All', hint: 'Every conversation, automated mail included' },
+  {
+    key: 'needs_you',
+    label: 'Your turn',
+    hint: 'A person wrote last, so the next reply is yours',
+  },
+  { key: 'waiting', label: 'Their turn', hint: 'You wrote last, so you are waiting on them' },
+];
+
+const INBOX_FILTERS: Array<{ key: InboxFilter; label: string }> = [
   { key: 'unread', label: 'Unread' },
-  { key: 'contacts', label: 'Contacts' },
-  { key: 'groups', label: 'Groups' },
-  { key: 'updates', label: 'Updates' },
-  { key: 'promotions', label: 'Offers' },
-  { key: 'pinned', label: 'Pinned' },
+  { key: 'starred', label: 'Starred' },
+  { key: 'attachment', label: 'Has attachment' },
+  { key: 'group', label: 'Group thread' },
 ];
 
 type MailIconName =
@@ -149,141 +206,28 @@ function formatReceivedAt(value?: string | Date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export interface ConversationThread {
-  id: string;
-  threadId: string;
-  subject: string;
-  normalizedSubject: string;
-  latestEmail: Email;
-  messages: Email[];
-  count: number;
-  sendersSummary: string;
-  isRead: boolean;
-  isStarred: boolean;
-  receivedAt: string | Date;
-  category: EmailCategory;
-  priority?: string;
-  labels: string[];
-}
-
-function sanitizeSnippetText(text?: string): string {
-  if (!text) return '';
-  let clean = text;
-  try {
-    clean = decodeURIComponent(escape(text));
-  } catch {
-    clean = text
-      .replace(/ðŸŽ‰/g, '🎉')
-      .replace(/ðŸ‘\s*[\x80-\xBF]?/g, '👍')
-      .replace(/ðŸ”¥/g, '🔥')
-      .replace(/ðŸš€/g, '🚀')
-      .replace(/âœ…/g, '✅')
-      .replace(/â ¤ï¸ ?/g, '❤️')
-      .replace(/ðŸ˜Š/g, '😊')
-      .replace(/ðŸ’¡/g, '💡')
-      .replace(/ðŸ’¬/g, '💬')
-      .replace(/âš\xa0ï¸ ?/g, '⚠️')
-      .replace(/â€[™']/g, "'")
-      .replace(/â€œ|â€ /g, '"')
-      .replace(/â€“|â€”/g, '—')
-      .replace(/â€¦/g, '…');
-  }
-  return clean
-    .replace(/Â[\u00A0\s]?/g, ' ')
-    .replace(/\u00A0/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function normalizeSubject(subject: string = ''): string {
-  return sanitizeSnippetText(subject)
-    .replace(/^(re|fwd|fw):\s*/i, '')
-    .replace(/^(re|fwd|fw)\[\d+\]:\s*/i, '')
-    .trim()
-    .toLowerCase();
-}
-
-function groupEmailsIntoThreads(emails: Email[] = [], currentEmail?: string): ConversationThread[] {
-  if (!emails || emails.length === 0) return [];
-
-  const normMyEmail = (currentEmail || '').trim().toLowerCase();
-  const myHandle = normMyEmail.split('@')[0];
-
-  const threadMap = new Map<string, Email[]>();
-
-  for (const email of emails) {
-    const key =
-      email.threadId ||
-      (email.subject ? `subj:${normalizeSubject(email.subject)}` : `email:${email.id}`);
-    const existing = threadMap.get(key) || [];
-    existing.push(email);
-    threadMap.set(key, existing);
-  }
-
-  const threads: ConversationThread[] = [];
-
-  for (const [key, msgList] of threadMap.entries()) {
-    msgList.sort(
-      (a, b) =>
-        new Date(a.receivedAt || a.createdAt || 0).getTime() -
-        new Date(b.receivedAt || b.createdAt || 0).getTime(),
-    );
-
-    const latest = msgList[msgList.length - 1];
-    const isRead = msgList.every((m) => m.isRead);
-    const isStarred = msgList.some((m) => m.isStarred);
-
-    const senderNames: string[] = [];
-    let hasOther = false;
-    for (const m of msgList) {
-      const fromAddr = (m.from?.email || (m as any).fromAddress || '').toLowerCase();
-      const isMe = Boolean(
-        (normMyEmail &&
-          (fromAddr === normMyEmail || (myHandle && fromAddr.startsWith(`${myHandle}@`)))) ||
-        (m as any).isSent ||
-        m.status === 'sent',
-      );
-      if (isMe) {
-        if (!senderNames.includes('You')) senderNames.push('You');
-      } else {
-        hasOther = true;
-        const name =
-          m.from?.name ||
-          (m as any).fromName ||
-          m.from?.email?.split('@')[0] ||
-          (m as any).fromAddress?.split('@')[0] ||
-          'Sender';
-        if (!senderNames.includes(name)) senderNames.push(name);
-      }
-    }
-    let sendersSummary = senderNames.join(', ');
-    if (senderNames.length === 0) sendersSummary = 'Conversation';
-    else if (senderNames.length === 1 && senderNames[0] === 'You' && !hasOther)
-      sendersSummary = 'You';
-
-    threads.push({
-      id: latest.id,
-      threadId: latest.threadId || (key.startsWith('subj:') ? latest.id : key),
-      subject: latest.subject || '(no subject)',
-      normalizedSubject: normalizeSubject(latest.subject),
-      latestEmail: latest,
-      messages: msgList,
-      count: msgList.length,
-      sendersSummary,
-      isRead,
-      isStarred,
-      receivedAt: latest.receivedAt || latest.createdAt || new Date(),
-      category: latest.category || 'primary',
-      priority: latest.priority,
-      labels: Array.from(new Set(msgList.flatMap((m) => m.labels || []))),
-    });
-  }
-
-  threads.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
-
-  return threads;
-}
-
+/*
+ * The row used to be a two-sided drag target: pull left past 96px to archive,
+ * right past 96px to pin, with a green and an orange panel revealed underneath.
+ * All of it is gone, for three reasons the gesture could not be tuned out of.
+ *
+ * A horizontal drag on a vertically-scrolling list has no honest resting state.
+ * framer's `drag="x"` claims the pointer on the first horizontal pixel, so a
+ * thumb travelling up the list at any angle off vertical would slide a row a
+ * few pixels, and a slightly generous flick would archive a message the reader
+ * only meant to scroll past. Second, the two directions were not peers: archive
+ * is destructive and reversible only through a toast, pin is a decoration, and
+ * putting them on opposite ends of one motion made the expensive one as easy to
+ * trigger as the cheap one. Third, the affordance was invisible — nothing on the
+ * row said a swipe existed, so the only people who found it found it by
+ * accident.
+ *
+ * What replaces it is the boring thing: buttons. Archive and Pin sit on the row
+ * at 44px, always visible on a phone, always in the same place, and a mis-tap
+ * costs one undo rather than a message. Pointers keep `HoverActions` for the
+ * fuller set. The row itself no longer transforms at all, so vertical scrolling
+ * is the only gesture the list interprets.
+ */
 type EmailRowProps = {
   thread: ConversationThread;
   isChecked: boolean;
@@ -322,11 +266,6 @@ function EmailRow({
   onMarkUnread,
   onSnooze,
 }: EmailRowProps) {
-  const x = useMotionValue(0);
-  const archiveOpacity = useTransform(x, [-108, -44], [1, 0]);
-  const pinOpacity = useTransform(x, [44, 108], [0, 1]);
-  const prefersReducedMotion = useReducedMotion();
-  const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -357,47 +296,11 @@ function EmailRow({
     }
   };
 
-  const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    setIsDragging(false);
-    if (info.offset.x < -96) {
-      void onArchive();
-    } else if (info.offset.x > 96) {
-      onToggleStar(null);
-    }
-  };
-
   const email = thread.latestEmail;
-  const priorityLower = thread.priority?.toLowerCase();
-  const isHighPriority =
-    priorityLower === 'high' || priorityLower === 'urgent' || priorityLower === 'critical';
-  const priorityColor =
-    priorityLower === 'critical'
-      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-      : 'bg-[#FF8C42]/15 text-[#FFB875] border-[#FF8C42]/30';
 
   return (
     <div className={`mail-row-shell relative ${showSnoozeMenu ? 'z-50' : ''}`}>
-      <motion.div
-        className="mail-archive-reveal"
-        style={{ opacity: archiveOpacity }}
-        aria-hidden="true"
-      >
-        <MailIcon name="archive" /> <span>Archive</span>
-      </motion.div>
-      <motion.div
-        className="mail-pin-reveal absolute inset-y-0 left-0 flex items-center gap-2 pl-4 text-[#FF8C42] bg-[#FF8C42]/20 border-r border-[#FF8C42]/30 font-semibold text-xs"
-        style={{ opacity: pinOpacity }}
-        aria-hidden="true"
-      >
-        <MailIcon name="pin" className="size-4 text-[#FF8C42]" /> <span>Pin</span>
-      </motion.div>
-      <motion.article
-        style={{ x }}
-        drag={prefersReducedMotion ? false : 'x'}
-        dragConstraints={{ left: -128, right: 128 }}
-        dragElastic={0.08}
-        onDragStart={() => setIsDragging(true)}
-        onDragEnd={handleDragEnd}
+      <article
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onTouchStart={handleTouchStart}
@@ -405,7 +308,7 @@ function EmailRow({
         onTouchEnd={handleTouchEnd}
         className={`mail-row ${thread.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''}`}
         onClick={() => {
-          if (!isDragging && !isLongPressRef.current) onOpen();
+          if (!isLongPressRef.current) onOpen();
         }}
       >
         <input
@@ -420,7 +323,7 @@ function EmailRow({
             event.stopPropagation();
             onToggleSelect(event);
           }}
-          aria-label={`Select conversation with ${thread.sendersSummary}`}
+          aria-label={`Select conversation with ${thread.participantsSummary}`}
         />
         <button
           type="button"
@@ -428,17 +331,22 @@ function EmailRow({
             event.stopPropagation();
             onToggleSelect(event);
           }}
-          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          className="flex shrink-0 items-center justify-center rounded-full min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
           title="Select conversation"
-          aria-label={`Select ${thread.sendersSummary}`}
+          aria-label={`Select ${thread.participantsSummary}`}
         >
-          <IdentityAvatar name={thread.sendersSummary || '?'} size="sm" />
+          {/*
+            Seeded on the first participant rather than the whole summary so one
+            person keeps one colour across every row they appear in — the summary
+            changes as a thread grows, the person does not.
+          */}
+          <IdentityAvatar name={thread.participants[0] || 'You'} size="sm" />
         </button>
         <div className="mail-row-copy">
           <div className="mail-row-meta">
             <div className="flex items-center gap-1.5 min-w-0">
               <strong className="truncate text-[#F5F5F5] font-semibold">
-                {thread.sendersSummary}
+                {thread.participantsSummary}
               </strong>
               {thread.count > 1 && (
                 <span className="px-1.5 py-0.2 rounded-full bg-[#282C35] text-[10px] font-mono text-[#A1A4AC] shrink-0">
@@ -447,13 +355,20 @@ function EmailRow({
               )}
             </div>
             {!thread.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
-            {isHighPriority && (
-              <span
-                className={`text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded border ${priorityColor}`}
-              >
-                {priorityLower}
-              </span>
-            )}
+            {/*
+              The kind mark is here only when it says something. A conversation of
+              letters is what an inbox holds by default, so a `Mail` pill on every
+              row was 100% coverage carrying 0 bits — and it was the loudest thing
+              on the line, since a letter takes the brand-soft fill. `chat` and
+              `mixed` are the cases worth a mark, and `mixed` is the one that makes
+              a unified thread worth having.
+
+              The glyph alone: the meta line already carries a name, a count, a dot
+              and a time, and `.mail-row-meta time` takes `margin-left: auto`, so
+              every word added to its left eats into the subject beneath it. The
+              word stays in the accessibility tree via the badge's `sr-only` text.
+            */}
+            {thread.kindMix !== 'mail' && <ThreadKindBadge mix={thread.kindMix} />}
             <time>{formatReceivedAt(thread.receivedAt)}</time>
           </div>
           <h3 className="text-xs sm:text-sm font-medium text-[#A1A4AC] truncate">
@@ -465,7 +380,7 @@ function EmailRow({
         </div>
         {/* Hover actions bar — quick actions on hover (Desktop) */}
         <AnimatePresence>
-          {(isHovered || showSnoozeMenu) && !isDragging && (
+          {(isHovered || showSnoozeMenu) && (
             <HoverActions
               emailId={thread.id}
               isRead={thread.isRead}
@@ -485,11 +400,32 @@ function EmailRow({
           onOpenChange={setShowSnoozeMenu}
           triggerHidden={true}
         />
+        {/*
+          Archive and Pin, the two row-level actions, as buttons rather than as
+          the two ends of a drag. `sm:hidden` on Archive because a pointer already
+          has it in `HoverActions` and a permanent button there would sit under the
+          hover bar; a finger has no hover, so on a phone this is the only way to
+          archive without opening the thread.
+        */}
+        {!isHovered && !showSnoozeMenu && (
+          <button
+            type="button"
+            className="sm:hidden flex items-center justify-center shrink-0 p-1.5 rounded-xl min-h-[44px] min-w-[44px] text-[#A1A4AC] transition-colors hover:text-[#F5F5F5] hover:bg-[#282C35]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            onClick={(event) => {
+              event.stopPropagation();
+              void onArchive();
+            }}
+            aria-label={`Archive conversation with ${thread.participantsSummary}`}
+            title="Archive"
+          >
+            <MailIcon name="archive" className="size-4" />
+          </button>
+        )}
         {/* Pin button */}
         {!isHovered && !showSnoozeMenu && (
           <button
             type="button"
-            className={`p-1.5 rounded-xl transition-all ${
+            className={`flex items-center justify-center shrink-0 p-1.5 rounded-xl transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
               email.isStarred
                 ? 'text-[#FF8C42] fill-[#FF8C42] bg-[#FF8C42]/15'
                 : 'text-[#6B6E76] hover:text-[#A1A4AC] hover:bg-[#282C35]/60'
@@ -511,7 +447,7 @@ function EmailRow({
             </svg>
           </button>
         )}
-      </motion.article>
+      </article>
     </div>
   );
 }
@@ -536,7 +472,7 @@ function ReadingPane({
       <section className="reading-pane reading-pane-empty" aria-label="Message preview">
         <div className="reading-ambient" aria-hidden="true" />
         <div className="reading-empty-content">
-          <QuantMailLogo />
+          <QuantMailLogo interactive={false} />
           <p className="reading-eyebrow mt-4">Zero-noise workspace</p>
           <h2>
             Choose the signal.
@@ -604,6 +540,19 @@ function CreateGroupModal({
   const [members, setMembers] = useState<string[]>([]);
   const [error, setError] = useState('');
 
+  const baseId = useId();
+  const titleId = `${baseId}-title`;
+  const nameId = `${baseId}-name`;
+  const memberId = `${baseId}-member`;
+
+  /**
+   * This dialog claimed `aria-modal="true"` and then had none of what that
+   * promises: Tab walked out into the inbox behind it, Escape did nothing, and it
+   * had no accessible name at all. `onEscape` is safe to own here — nothing else
+   * binds Escape for this surface.
+   */
+  const panelRef = useFocusTrap<HTMLDivElement>({ active: isOpen, onEscape: onClose });
+
   if (!isOpen) return null;
 
   const handleAddMember = () => {
@@ -661,9 +610,11 @@ function CreateGroupModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
       <div
+        ref={panelRef}
         className="w-full max-w-md bg-[#121622] border border-[#3A404D]/80 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4"
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
       >
         <div className="flex items-center justify-between border-b border-[#282C35] pb-3">
           <div className="flex items-center gap-2.5">
@@ -682,14 +633,20 @@ function CreateGroupModal({
               </svg>
             </div>
             <div>
-              <h2 className="text-base font-bold text-white">Create New Group</h2>
+              <h2 id={titleId} className="text-base font-bold text-white">
+                Create New Group
+              </h2>
               <p className="text-xs text-[#A1A4AC]">Group mailing list & shared conversation</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="size-8 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] flex items-center justify-center transition-colors"
+            aria-label="Close create group dialog"
+            /* An icon-only button with no `aria-label` reads as "button" and
+               nothing else. The coarse-pointer bump matches the shared Modal's
+               close control: 32px keeps desktop density, 44px on touch. */
+            className="size-8 [@media(pointer:coarse)]:size-11 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] flex items-center justify-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
           >
             <MailIcon name="close" className="size-4" />
           </button>
@@ -697,10 +654,11 @@ function CreateGroupModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
+            <label htmlFor={nameId} className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
               Group Name <span className="text-[#FF8C42]">*</span>
             </label>
             <input
+              id={nameId}
               type="text"
               placeholder="e.g. Founders, Core Team, Project Alpha"
               value={groupName}
@@ -708,17 +666,23 @@ function CreateGroupModal({
                 setGroupName(e.target.value);
                 if (error) setError('');
               }}
-              className="w-full bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+              className="w-full bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
               autoFocus
+              /* React applies `autoFocus` imperatively and never renders the
+                 attribute, so the focus trap above cannot see it and would take
+                 the close button instead — the marker is what makes the two
+                 agree on where the caret goes. */
+              data-autofocus
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
+            <label htmlFor={memberId} className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
               Add Members (Emails) <span className="text-[#FF8C42]">*</span>
             </label>
             <div className="flex items-center gap-2">
               <input
+                id={memberId}
                 type="email"
                 placeholder="colleague@domain.com"
                 value={memberInput}
@@ -727,7 +691,7 @@ function CreateGroupModal({
                   if (error) setError('');
                 }}
                 onKeyDown={handleKeyDown}
-                className="flex-1 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+                className="flex-1 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
               />
               <button
                 type="button"
@@ -815,7 +779,13 @@ function ArchivedFolderRow({
           <span className="text-sm font-semibold text-[#F5F5F5] truncate">
             {isViewing ? 'Back to inbox' : 'Archived'}
           </span>
-          <span className="text-[11px] text-[#6B6E76] truncate">
+          {/*
+            The secondary tier, not the tertiary one: `#6B6E76` at 11px measures
+            3.64:1 on this surface, under the 4.5:1 small text needs. It still
+            reads as the quieter of the two lines because the line above it is
+            larger and semibold.
+          */}
+          <span className="text-[11px] text-[#A1A4AC] truncate">
             {isViewing
               ? `Viewing archived ${categoryLabel}`
               : `${count} archived conversation${count === 1 ? '' : 's'}`}
@@ -831,7 +801,10 @@ function ArchivedFolderRow({
 
 export default function InboxPage() {
   const router = useRouter();
-  const [activeCategoryTab, setActiveCategoryTab] = useState<string>('all');
+  const [activeFocus, setActiveFocus] = useState<InboxFocus>('all');
+  const [activeFilters, setActiveFilters] = useState<Set<InboxFilter>>(() => new Set());
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -864,32 +837,66 @@ export default function InboxPage() {
   const { user: currentUser } = useAuth();
   const currentEmail = currentUser?.email || '';
 
-  const emails = debouncedQuery ? searchResults : allEmails;
-  const allThreads = useMemo(
-    () => groupEmailsIntoThreads(allEmails ?? [], currentEmail),
-    [allEmails, currentEmail],
+  /**
+   * The ids the server matched.
+   *
+   * The server searches the whole mailbox and reads full message bodies; the client
+   * holds two folders and mostly snippets. So a server hit is authoritative even when
+   * the local match fails, and it is passed to `filterThreadsByQuery` to be kept.
+   */
+  const serverHitIds = useMemo(() => {
+    if (!debouncedQuery) return undefined;
+    return new Set((searchResults ?? []).map((m) => m.id).filter(Boolean));
+  }, [debouncedQuery, searchResults]);
+
+  /**
+   * What a query is answered from.
+   *
+   * Searching used to *replace* the corpus with the server's answer, which threw away
+   * everything the client already had: the response is one page of loose messages, so
+   * conversations lost the rest of their messages and the participants, counts and
+   * focus computed from them. Now it widens instead — the mailbox already loaded, plus
+   * the server hits it did not contain — and one grouping pass rebuilds whole
+   * conversations from the union, exactly as the unsearched inbox does.
+   *
+   * Hits that are archived are left out on purpose: they belong to the archived shelf's
+   * pool below, and adding them here would put an archived conversation in the inbox.
+   */
+  const searchedEmails = useMemo(() => {
+    const local = allEmails ?? [];
+    if (!debouncedQuery) return local;
+
+    const archivedIds = new Set((archivedEmails ?? []).map((m) => m.id));
+    const seen = new Set(local.map((m) => m.id));
+    const corpus = [...local];
+
+    for (const hit of searchResults ?? []) {
+      if (!hit?.id || seen.has(hit.id) || archivedIds.has(hit.id)) continue;
+      seen.add(hit.id);
+      corpus.push(hit);
+    }
+
+    return corpus;
+  }, [debouncedQuery, allEmails, archivedEmails, searchResults]);
+
+  const groupedThreads = useMemo(
+    () => groupEmailsIntoThreads(searchedEmails, currentEmail),
+    [searchedEmails, currentEmail],
   );
   const threads = useMemo(
-    () => groupEmailsIntoThreads(emails ?? [], currentEmail),
-    [emails, currentEmail],
+    () => filterThreadsByQuery(groupedThreads, debouncedQuery, currentEmail, serverHitIds),
+    [groupedThreads, debouncedQuery, currentEmail, serverHitIds],
   );
-  const allArchivedThreads = useMemo(
+  const groupedArchivedThreads = useMemo(
     () => groupEmailsIntoThreads(archivedEmails ?? [], currentEmail),
     [archivedEmails, currentEmail],
   );
-
-  const isContactThread = useCallback((t: ConversationThread) => {
-    const fromAddr = (
-      t.latestEmail.from?.email ||
-      (t.latestEmail as any).fromAddress ||
-      ''
-    ).toLowerCase();
-    const isAutomated =
-      /no-?reply|notification|alert|newsletter|marketing|updates?@|promo|mailer|support@|digest|bot@/i.test(
-        fromAddr,
-      );
-    return !isAutomated && (t.count <= 2 || t.category === 'primary');
-  }, []);
+  // The archived shelf gets the same filter, so its count keeps describing the list
+  // under it while a search is running.
+  const allArchivedThreads = useMemo(
+    () => filterThreadsByQuery(groupedArchivedThreads, debouncedQuery, currentEmail, serverHitIds),
+    [groupedArchivedThreads, debouncedQuery, currentEmail, serverHitIds],
+  );
 
   const isGroupThread = useCallback((t: ConversationThread) => {
     if (t.category === 'forums') return true;
@@ -899,40 +906,165 @@ export default function InboxPage() {
     return toCount + ccCount > 1 || (msg as any).isGroup === true;
   }, []);
 
-  const filterThreads = useCallback(
-    (list: ConversationThread[], tab: string) => {
-      if (tab === 'unread') return list.filter((t) => !t.isRead);
-      if (tab === 'pinned') return list.filter((t) => t.isStarred);
-      if (tab === 'contacts') return list.filter((t) => isContactThread(t));
-      if (tab === 'groups') return list.filter((t) => isGroupThread(t));
-      if (tab === 'updates') return list.filter((t) => t.category === 'updates');
-      if (tab === 'promotions') return list.filter((t) => t.category === 'promotions');
-      return list; // 'all'
-    },
-    [isContactThread, isGroupThread],
+  /**
+   * A conversation carries an attachment when any message in it does — not just
+   * the latest, since the file you are hunting for is usually the one someone sent
+   * three replies ago.
+   */
+  const threadHasAttachment = useCallback(
+    (t: ConversationThread) =>
+      t.messages.some((m) => Array.isArray(m.attachments) && m.attachments.length > 0),
+    [],
   );
 
-  const tabCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      all: allThreads.length,
-      unread: allThreads.filter((t) => !t.isRead).length,
-      contacts: allThreads.filter((t) => isContactThread(t)).length,
-      groups: allThreads.filter((t) => isGroupThread(t)).length,
-      updates: allThreads.filter((t) => t.category === 'updates').length,
-      promotions: allThreads.filter((t) => t.category === 'promotions').length,
-      pinned: allThreads.filter((t) => t.isStarred).length,
+  const matchesFilter = useCallback(
+    (t: ConversationThread, filter: InboxFilter) => {
+      if (filter === 'unread') return !t.isRead;
+      if (filter === 'starred') return t.isStarred;
+      if (filter === 'attachment') return threadHasAttachment(t);
+      return isGroupThread(t);
+    },
+    [isGroupThread, threadHasAttachment],
+  );
+
+  /**
+   * Narrow a list to one focus and every active filter.
+   *
+   * Filters are ANDed with each other and with the partition, so `Needs you` +
+   * `Unread` + `Has attachment` means all three at once. The default view narrows
+   * nothing and returns the array untouched.
+   */
+  const narrowThreads = useCallback(
+    (list: ConversationThread[], focus: InboxFocus, filters: Set<InboxFilter>) => {
+      const active = Array.from(filters);
+      if (focus === 'all' && active.length === 0) return list;
+      return list.filter(
+        (t) =>
+          (focus === 'all' || threadFocus(t, currentEmail) === focus) &&
+          active.every((f) => matchesFilter(t, f)),
+      );
+    },
+    [currentEmail, matchesFilter],
+  );
+
+  const resetInboxView = useCallback(() => {
+    setActiveFocus('all');
+    setActiveFilters(new Set());
+  }, []);
+
+  const toggleFilter = useCallback((filter: InboxFilter) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(filter)) next.delete(filter);
+      else next.add(filter);
+      return next;
+    });
+    setShowArchivedView(false);
+  }, []);
+
+  /** Dismiss the filter popover on an outside click or Escape. */
+  useEffect(() => {
+    if (!isFilterMenuOpen) return;
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!filterMenuRef.current?.contains(event.target as Node)) setIsFilterMenuOpen(false);
     };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsFilterMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('touchstart', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('touchstart', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isFilterMenuOpen]);
+
+  /**
+   * The population the visible list is drawn from, before the category tab
+   * narrows it.
+   *
+   * Everything that counts conversations for the user now counts *this* array,
+   * because three counters used to read three different sources: the chip counts
+   * and the hero's unread total were both computed from the unsearched inbox
+   * while the rows came from the search-aware list or from the archive. So a
+   * search for one word left `All 431` above four rows, and opening the
+   * archived view left the chips describing the inbox you had just navigated away
+   * from. A count that does not describe the list under it is worse than no count.
+   */
+  const activeThreadPool = useMemo(
+    () => (showArchivedView ? allArchivedThreads : (threads ?? [])),
+    [showArchivedView, allArchivedThreads, threads],
+  );
+
+  /**
+   * Focus counts, measured on the pool the active filters have already narrowed.
+   *
+   * Cross-tabulating is the whole reason the two controls can compose. A count
+   * that ignored the other control would promise rows the list will not show: with
+   * `Unread` on, `Your turn 12` has to mean twelve unread conversations waiting on
+   * a reply, not twelve conversations of which some are already read.
+   *
+   * `needs_you + waiting` deliberately falls short of `all` — a receipt from
+   * `no-reply@` is neither a reply you owe nor one you are owed. `heldBackCount`
+   * says so out loud rather than leaving the gap to look like a bug.
+   */
+  const focusCounts = useMemo(() => {
+    const pool = narrowThreads(activeThreadPool, 'all', activeFilters);
+    const counts: Record<InboxFocus, number> = { needs_you: 0, waiting: 0, all: pool.length };
+    for (const t of pool) {
+      const focus = threadFocus(t, currentEmail);
+      if (focus === 'needs_you') counts.needs_you += 1;
+      else if (focus === 'waiting') counts.waiting += 1;
+    }
     return counts;
-  }, [allThreads, isContactThread, isGroupThread]);
+  }, [activeThreadPool, activeFilters, narrowThreads, currentEmail]);
+
+  /**
+   * Each filter's count is "how many rows you would get by turning this on",
+   * measured against the active focus and the *other* active filters. For a filter
+   * already on, that is exactly the length of the list under it.
+   */
+  const filterCounts = useMemo(() => {
+    const counts = { unread: 0, starred: 0, attachment: 0, group: 0 } as Record<
+      InboxFilter,
+      number
+    >;
+    for (const { key } of INBOX_FILTERS) {
+      const others = new Set(activeFilters);
+      others.delete(key);
+      counts[key] = narrowThreads(activeThreadPool, activeFocus, others).filter((t) =>
+        matchesFilter(t, key),
+      ).length;
+    }
+    return counts;
+  }, [activeThreadPool, activeFocus, activeFilters, narrowThreads, matchesFilter]);
+
+  const heldBackCount =
+    activeFocus === 'all' ? 0 : focusCounts.all - focusCounts.needs_you - focusCounts.waiting;
+
+  /** What the archived shelf calls the population it is counting. */
+  const viewLabel = useMemo(() => {
+    // Named off the tabs. These read `conversations needing you` / `conversations
+    // you are waiting on` when the tabs still said `Needs you` / `Waiting`, and kept
+    // saying it after the relabel — so the shelf described a partition by a name
+    // that appeared nowhere on screen.
+    const base =
+      activeFocus === 'needs_you'
+        ? 'conversations on your turn'
+        : activeFocus === 'waiting'
+          ? 'conversations on their turn'
+          : 'conversations';
+    return activeFilters.size > 0 ? `filtered ${base}` : base;
+  }, [activeFocus, activeFilters]);
 
   const currentArchivedThreads = useMemo(() => {
-    return filterThreads(allArchivedThreads, activeCategoryTab);
-  }, [allArchivedThreads, activeCategoryTab, filterThreads]);
+    return narrowThreads(allArchivedThreads, activeFocus, activeFilters);
+  }, [allArchivedThreads, activeFocus, activeFilters, narrowThreads]);
 
   const displayThreads = useMemo(() => {
-    const sourceThreads = showArchivedView
-      ? currentArchivedThreads
-      : filterThreads(threads ?? [], activeCategoryTab);
+    const sourceThreads = narrowThreads(activeThreadPool, activeFocus, activeFilters);
 
     return [...sourceThreads].sort((a, b) => {
       if (a.isStarred !== b.isStarred) {
@@ -940,7 +1072,24 @@ export default function InboxPage() {
       }
       return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
     });
-  }, [showArchivedView, currentArchivedThreads, threads, activeCategoryTab, filterThreads]);
+  }, [activeThreadPool, activeFocus, activeFilters, narrowThreads]);
+
+  /**
+   * Whether to say out loud that starred conversations are held at the top.
+   *
+   * The sort above is two-level — starred first, then newest — and nothing on
+   * screen said so, so a list whose first three rows were from last week read as
+   * a broken date sort rather than as a pin the user had asked for themselves.
+   * The caption appears only when the pin actually moved something: not under the
+   * `Starred` filter, where every row is starred, and not when nothing is starred
+   * or everything is.
+   */
+  const pinnedCount = useMemo(
+    () => displayThreads.filter((t) => t.isStarred).length,
+    [displayThreads],
+  );
+  const showPinnedNotice =
+    !activeFilters.has('starred') && pinnedCount > 0 && pinnedCount < displayThreads.length;
 
   /**
    * The archived toggle scrolls with the list, so the virtualizer has to know how
@@ -994,11 +1143,12 @@ export default function InboxPage() {
     virtualizer.scrollToTop();
     // `scrollToTop` is stable for a given scroll container; re-running on every
     // virtualizer commit would fight the user's own scrolling.
-  }, [activeCategoryTab, showArchivedView, debouncedQuery]);
+  }, [activeFocus, activeFilters, showArchivedView, debouncedQuery]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isGlobalQuantyOpen, setIsGlobalQuantyOpen] = useState(false);
+  const showGlobalQuanty = useDeferredMount(isGlobalQuantyOpen);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isPulling = useRef(false);
@@ -1083,14 +1233,43 @@ export default function InboxPage() {
     }
   };
 
-  const unreadCount = useMemo(() => allThreads.filter((t) => !t.isRead).length, [allThreads]);
-  const categoryCounts = useMemo(() => {
-    const counts: Partial<Record<EmailCategory, number>> = {};
-    allThreads.forEach((t) => {
-      if (!t.isRead) counts[t.category] = (counts[t.category] ?? 0) + 1;
-    });
-    return counts;
-  }, [allThreads]);
+  /**
+   * Title and one-line summary for the hero, describing the list actually below
+   * it.
+   *
+   * The hero used to read "Your Inbox" and "N unread messages waiting for
+   * review" in every state, including the archived view and mid-search — so the
+   * two lines that frame the screen named a mailbox the user had navigated away
+   * from. `unreadCount` is drawn from the same pool as the rows and the chips, so
+   * all three agree by construction.
+   */
+  const unreadCount = useMemo(
+    () => activeThreadPool.filter((t) => !t.isRead).length,
+    [activeThreadPool],
+  );
+
+  const heroTitle = showArchivedView
+    ? 'Archived'
+    : debouncedQuery
+      ? 'Search results'
+      : 'Your Inbox';
+
+  const heroSummary = useMemo(() => {
+    const total = activeThreadPool.length;
+    const conversations = `${total} conversation${total === 1 ? '' : 's'}`;
+    const unread = `${unreadCount} unread message${unreadCount === 1 ? '' : 's'}`;
+
+    if (debouncedQuery) {
+      if (total === 0) return `Nothing matched "${debouncedQuery}".`;
+      return unreadCount > 0
+        ? `${conversations} matching "${debouncedQuery}", ${unread}.`
+        : `${conversations} matching "${debouncedQuery}".`;
+    }
+    if (showArchivedView) {
+      return total === 0 ? 'Nothing archived yet.' : `${conversations} out of the way.`;
+    }
+    return unreadCount > 0 ? `${unread} waiting for review.` : 'You are completely caught up.';
+  }, [activeThreadPool, debouncedQuery, showArchivedView, unreadCount]);
 
   const toggleSelect = useCallback(
     (id: string, event?: React.MouseEvent | null) => {
@@ -1146,60 +1325,106 @@ export default function InboxPage() {
     },
   });
 
+  /**
+   * Every message id the conversation an action was aimed at is made of.
+   *
+   * The handlers below used to be handed `thread.id`, which is the *newest
+   * message's* id. So archiving a row that counted eleven moved one message and
+   * left ten in the inbox: the row came straight back, one shorter. Marking read
+   * was worse — a row is unread while any inbound message in it is, so opening a
+   * conversation cleared the newest and left the row bold with nothing to press.
+   *
+   * Resolved against both pools, because the same handlers serve the archived
+   * shelf. Falls back to the id itself so an action can never become a no-op just
+   * because the pools have not settled yet.
+   */
+  const conversationIds = useCallback(
+    (id: string): string[] => {
+      const thread = findConversation(threads, id) ?? findConversation(allArchivedThreads, id);
+      const ids = threadMessageIds(thread);
+      return ids.length > 0 ? ids : [id];
+    },
+    [threads, allArchivedThreads],
+  );
+
   const batchAction = useCallback(
     async (action: 'archive' | 'delete') => {
       const ids = Array.from(selectedIds);
       setSelectedIds(new Set());
-      await mutations.batch(action === 'archive' ? 'archive' : 'trash', ids);
+      // `ids.length` is the number of conversations, which is what the toast counts;
+      // the request list is every message inside them.
+      await mutations.batch(
+        action === 'archive' ? 'archive' : 'trash',
+        ids.flatMap(conversationIds),
+        ids.length,
+      );
     },
-    [mutations, selectedIds],
+    [mutations, selectedIds, conversationIds],
   );
 
   const batchToggleStar = useCallback(
     async (ids: string[], allPinned: boolean) => {
       setSelectedIds(new Set());
-      await Promise.all(ids.map((id) => mutations.toggleStar(id)));
+      await Promise.all(ids.map((id) => mutations.toggleStar(conversationIds(id))));
       showToast({
-        text: allPinned ? 'Unpinned selected messages' : 'Pinned selected messages to top',
+        text: allPinned
+          ? 'Unpinned selected conversations'
+          : 'Pinned selected conversations to top',
         type: 'success',
       });
     },
-    [mutations],
+    [mutations, conversationIds],
   );
 
   const batchMarkRead = useCallback(
     async (ids: string[], read: boolean) => {
       setSelectedIds(new Set());
       await Promise.all(
-        ids.map((id) => (read ? mutations.markRead(id) : mutations.markUnread(id))),
+        ids.map((id) =>
+          read
+            ? mutations.markRead(conversationIds(id))
+            : mutations.markUnread(conversationIds(id)),
+        ),
       );
       showToast({
         text: `${ids.length} marked as ${read ? 'read' : 'unread'}`,
         type: 'info',
       });
     },
-    [mutations],
+    [mutations, conversationIds],
   );
 
   const toggleStar = useCallback(
     async (event: React.MouseEvent | null, id: string) => {
       event?.stopPropagation();
-      await mutations.toggleStar(id);
+      await mutations.toggleStar(conversationIds(id));
     },
-    [mutations],
+    [mutations, conversationIds],
   );
 
-  const archiveEmail = useCallback((id: string) => mutations.archive(id), [mutations]);
+  const archiveEmail = useCallback(
+    (id: string) => mutations.archive(conversationIds(id)),
+    [mutations, conversationIds],
+  );
 
-  const deleteEmail = useCallback((id: string) => mutations.trash(id), [mutations]);
+  const deleteEmail = useCallback(
+    (id: string) => mutations.trash(conversationIds(id)),
+    [mutations, conversationIds],
+  );
 
-  const markRead = useCallback((id: string) => mutations.markRead(id), [mutations]);
+  const markRead = useCallback(
+    (id: string) => mutations.markRead(conversationIds(id)),
+    [mutations, conversationIds],
+  );
 
-  const markUnread = useCallback((id: string) => mutations.markUnread(id), [mutations]);
+  const markUnread = useCallback(
+    (id: string) => mutations.markUnread(conversationIds(id)),
+    [mutations, conversationIds],
+  );
 
   const snoozeEmail = useCallback(
-    (emailId: string, snoozeUntil: Date) => mutations.snooze(emailId, snoozeUntil),
-    [mutations],
+    (emailId: string, snoozeUntil: Date) => mutations.snooze(conversationIds(emailId), snoozeUntil),
+    [mutations, conversationIds],
   );
 
   const openEmail = useCallback(
@@ -1221,13 +1446,16 @@ export default function InboxPage() {
         );
         setSelectedThread(matching || null);
       }
-      void mutations.markRead(email.id);
+      // The whole conversation, not the message that was tapped. `isRead` on a row
+      // is an `every`, so clearing only the newest left the row bold after the user
+      // had plainly just read it.
+      void mutations.markRead(conversationIds(email.id));
       const targetId = email.threadId || email.id;
       if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 900px)').matches) {
         router.push(`/thread/${targetId}`);
       }
     },
-    [mutations, router, threads],
+    [mutations, router, threads, conversationIds],
   );
 
   /**
@@ -1247,6 +1475,8 @@ export default function InboxPage() {
     },
     onToggleSelect: (id) => toggleSelect(id),
     mutations,
+    // `e` and `#` act on the conversation the cursor is on, all of it.
+    expandIds: threadMessageIds,
     scrollToIndex: virtualizer.scrollToIndex,
   });
 
@@ -1391,13 +1621,13 @@ export default function InboxPage() {
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search in QuantMail (sender, subject, keyword)…"
       onFabClick={() =>
-        activeCategoryTab === 'groups' ? setIsCreateGroupModalOpen(true) : router.push('/compose')
+        activeFilters.has('group') ? setIsCreateGroupModalOpen(true) : router.push('/compose')
       }
       mobileActions={
         <div className="flex items-center gap-1.5">
           <button
             type="button"
-            className={`md:hidden inline-flex size-9 items-center justify-center rounded-lg transition-colors ${
+            className={`md:hidden inline-flex size-11 sm:size-9 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
               isSearchOpen
                 ? 'bg-[#282C35] text-[#FF8C42]'
                 : 'text-[#A1A4AC] hover:text-white hover:bg-[#282C35]'
@@ -1410,7 +1640,7 @@ export default function InboxPage() {
           <button
             type="button"
             onClick={() => setIsGlobalQuantyOpen(true)}
-            className="inline-flex size-9 items-center justify-center rounded-lg text-[#FF8C42] hover:bg-[#282C35] transition-colors"
+            className="inline-flex size-11 sm:size-9 items-center justify-center rounded-lg text-[#FF8C42] hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             aria-label="Ask Quanty AI"
           >
             <Quanty size={24} expression="happy" bob={false} />
@@ -1426,28 +1656,34 @@ export default function InboxPage() {
               <p className="inbox-kicker">
                 <span /> QuantMail Intelligence
               </p>
-              <h1>Your Inbox</h1>
-              <p>
-                {unreadCount > 0
-                  ? `${unreadCount} unread message${unreadCount === 1 ? '' : 's'} waiting for review.`
-                  : 'You are completely caught up.'}
-              </p>
+              <h1>{heroTitle}</h1>
+              <p>{heroSummary}</p>
             </div>
             <button
               type="button"
               className="hero-compose"
               onClick={() =>
-                activeCategoryTab === 'groups'
+                activeFilters.has('group')
                   ? setIsCreateGroupModalOpen(true)
                   : router.push('/compose')
               }
             >
-              <MailIcon name="compose" />{' '}
-              {activeCategoryTab === 'groups' ? 'Create Group' : 'Compose'}
+              <MailIcon name="compose" /> {activeFilters.has('group') ? 'Create Group' : 'Compose'}
             </button>
           </header>
 
-          {/* Unified Expandable Search Dropdown Tab (Mobile ONLY) */}
+          {/*
+            Unified Expandable Search Dropdown Tab (Mobile ONLY).
+
+            Sizes are the reason this reads as a comment. The field was the 16px text
+            line and nothing else — `py-1.5` sat on the wrapper, so the padding around
+            the input was not part of the input, and the only thing a thumb could hit
+            was the glyph height. The wrapper carries the 44px now and the input fills
+            it; Clear grows its hit area with a pseudo-element so a 14px × in a 44px
+            target costs no layout, and Cancel is a real 44px button rather than a
+            26px line of text. The same mistake, and the same fix, as the desktop bar
+            in `AppShell`.
+          */}
           <AnimatePresence>
             {isSearchOpen && (
               <motion.div
@@ -1457,7 +1693,7 @@ export default function InboxPage() {
                 transition={{ duration: 0.18 }}
                 className="md:hidden overflow-hidden border-b border-[#282C35]/80 bg-[#090A0C] px-3 sm:px-4 py-2.5 flex items-center gap-2"
               >
-                <div className="flex-1 flex items-center gap-2 bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 py-1.5 shadow-inner">
+                <div className="flex-1 flex items-center gap-2 bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 min-h-[44px] shadow-inner">
                   <MailIcon name="search" className="size-4 text-[#A1A4AC] shrink-0" />
                   <input
                     id="mobile-search-input"
@@ -1466,15 +1702,16 @@ export default function InboxPage() {
                     placeholder="Search messages, contacts, keywords…"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    className="w-full bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
+                    className="w-full h-11 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
                     autoFocus
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
-                      className="text-[#A1A4AC] hover:text-white"
+                      className="relative shrink-0 text-[#A1A4AC] hover:text-white before:absolute before:-inset-[15px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
                       title="Clear search"
+                      aria-label="Clear search"
                     >
                       <MailIcon name="close" className="size-3.5" />
                     </button>
@@ -1486,7 +1723,7 @@ export default function InboxPage() {
                     setIsSearchOpen(false);
                     setSearchQuery('');
                   }}
-                  className="text-xs text-[#A1A4AC] hover:text-white font-medium px-2 py-1.5 rounded-lg hover:bg-[#282C35] transition-colors"
+                  className="inline-flex items-center justify-center min-h-[44px] text-xs text-[#A1A4AC] hover:text-white font-medium px-3 rounded-lg hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   Cancel
                 </button>
@@ -1494,40 +1731,154 @@ export default function InboxPage() {
             )}
           </AnimatePresence>
 
-          {/* Telegram-Style Sleek Horizontal Category Pill Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto py-3 px-3 sm:px-4 no-scrollbar select-none border-b border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md">
-            {TELEGRAM_CATEGORIES.map((cat) => {
-              const isActive = activeCategoryTab === cat.key;
-              const count = tabCounts[cat.key] || 0;
-              return (
-                <button
-                  key={cat.key}
-                  type="button"
-                  onClick={() => {
-                    setActiveCategoryTab(cat.key);
-                    setShowArchivedView(false);
-                  }}
-                  className={`relative px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 ${
-                    isActive
-                      ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] font-semibold'
-                      : 'bg-[#16181D] hover:bg-[#1C1F26] text-[#A1A4AC] hover:text-[#F5F5F5] border border-[#282C35]'
-                  }`}
-                >
-                  <span>{cat.label}</span>
-                  {count > 0 && (
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold leading-tight ${
-                        isActive
-                          ? 'bg-[#FF8C42]/20 text-[#FF9B5A]'
-                          : 'bg-[#111318] text-[#6B6E76] border border-[#282C35]'
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+          {/*
+            Focus Bar. Left: which side of the conversation the ball is on, a
+            partition derived from the messages in hand. Right: the filters that
+            compose with it. See `InboxFocus` for why the category chips went.
+          */}
+          {/*
+           * `relative z-30` is load-bearing, not decoration. `backdrop-blur-md`
+           * makes this row a stacking context, and a *static* stacking context
+           * paints with the in-flow blocks — below every stacking context that
+           * follows it in the DOM. The virtualiser below carries
+           * `will-change: transform`, so the mail rows are one such context, and
+           * the filter popover's own `z-30` was being resolved inside a box that
+           * had already lost the paint order: the panel rendered *behind* the
+           * rows and could not be tapped. Positioning this row lifts its whole
+           * subtree into the positioned layer, where the z-indexes mean what
+           * they say. Any popover added to this row inherits the fix.
+           */}
+          <div className="relative z-30 flex items-center gap-2 py-2 px-3 sm:px-4 border-b border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md">
+            <div
+              role="tablist"
+              aria-label="Conversation focus"
+              className="flex-1 min-w-0 flex items-center gap-1 p-1 rounded-full bg-[#111318] border border-[#282C35] overflow-x-auto no-scrollbar select-none"
+            >
+              {INBOX_FOCUSES.map((focus) => {
+                const isActive = activeFocus === focus.key;
+                const count = focusCounts[focus.key];
+                return (
+                  <button
+                    key={focus.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    title={focus.hint}
+                    onClick={() => {
+                      setActiveFocus(focus.key);
+                      setShowArchivedView(false);
+                    }}
+                    className={`px-3.5 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                      isActive
+                        ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] font-semibold'
+                        : 'border border-transparent text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#1C1F26]'
+                    }`}
+                  >
+                    <span>{focus.label}</span>
+                    {count > 0 && (
+                      <span
+                        /*
+                          The unselected count was `#6B6E76` on `#090A0C` — 3.88:1,
+                          under the floor, on the one glyph in the pill that carries
+                          information rather than a label.
+                        */
+                        className={`text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight ${
+                          isActive
+                            ? 'bg-[#FF8C42]/20 text-[#FF9B5A]'
+                            : 'bg-[#090A0C] text-[#A1A4AC] border border-[#282C35]'
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="relative shrink-0" ref={filterMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsFilterMenuOpen((prev) => !prev)}
+                aria-expanded={isFilterMenuOpen}
+                aria-label={
+                  activeFilters.size > 0
+                    ? `Filter conversations, ${activeFilters.size} active`
+                    : 'Filter conversations'
+                }
+                className={`inline-flex items-center justify-center gap-1.5 px-3 min-h-[44px] min-w-[44px] sm:min-h-[34px] sm:min-w-0 rounded-full text-xs font-medium border whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  activeFilters.size > 0 || isFilterMenuOpen
+                    ? 'bg-[#2B1A11] text-[#FF8C42] border-[#5C3016] font-semibold'
+                    : 'bg-[#111318] text-[#A1A4AC] border-[#282C35] hover:text-[#F5F5F5] hover:bg-[#1C1F26]'
+                }`}
+              >
+                <IconFilter size={14} />
+                <span className="hidden sm:inline">Filter</span>
+                {activeFilters.size > 0 && (
+                  <span className="text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight bg-[#FF8C42]/20 text-[#FF9B5A]">
+                    {activeFilters.size}
+                  </span>
+                )}
+              </button>
+              <AnimatePresence>
+                {isFilterMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.14 }}
+                    className="absolute right-0 top-full mt-2 z-30 w-64 rounded-2xl bg-[#16181D] border border-[#282C35] shadow-[0_4px_16px_rgba(0,0,0,0.6)] overflow-hidden"
+                  >
+                    <p className="px-3 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]">
+                      Narrow this view
+                    </p>
+                    {INBOX_FILTERS.map((filter) => {
+                      const isOn = activeFilters.has(filter.key);
+                      return (
+                        <button
+                          key={filter.key}
+                          type="button"
+                          aria-pressed={isOn}
+                          onClick={() => toggleFilter(filter.key)}
+                          className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`size-[18px] shrink-0 rounded-md border inline-flex items-center justify-center transition-colors ${
+                              isOn
+                                ? 'bg-[#FF8C42] border-[#FF8C42] text-[#090A0C]'
+                                : 'border-[#3A404D] text-transparent'
+                            }`}
+                          >
+                            <IconCheck size={12} strokeWidth={2.4} />
+                          </span>
+                          <span
+                            className={`flex-1 truncate ${isOn ? 'text-[#F5F5F5] font-semibold' : 'text-[#A1A4AC]'}`}
+                          >
+                            {filter.label}
+                          </span>
+                          <span className="shrink-0 text-[10px] font-semibold text-[#A1A4AC]">
+                            {filterCounts[filter.key]}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {activeFilters.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveFilters(new Set());
+                          setIsFilterMenuOpen(false);
+                        }}
+                        className="w-full min-h-[44px] px-3 flex items-center gap-2 text-left text-xs font-semibold text-[#A1A4AC] border-t border-[#282C35] transition-colors hover:bg-[#1C1F26] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+                      >
+                        <IconX size={13} />
+                        Clear {activeFilters.size} filter{activeFilters.size === 1 ? '' : 's'}
+                      </button>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* Pull to Refresh Indicator Bar */}
@@ -1576,7 +1927,7 @@ export default function InboxPage() {
               <ArchivedFolderRow
                 count={currentArchivedThreads.length}
                 isViewing={showArchivedView}
-                categoryLabel={activeCategoryTab === 'all' ? 'conversations' : activeCategoryTab}
+                categoryLabel={viewLabel}
                 onToggle={() => setShowArchivedView((prev) => !prev)}
               />
             )}
@@ -1623,7 +1974,7 @@ export default function InboxPage() {
                     </Button>
                   </div>
                 </div>
-              ) : activeCategoryTab === 'groups' ? (
+              ) : activeFilters.has('group') ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-3">
                   <div className="size-12 rounded-full bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto mb-1">
                     <svg
@@ -1649,7 +2000,7 @@ export default function InboxPage() {
                     </Button>
                   </div>
                 </div>
-              ) : activeCategoryTab === 'unread' ? (
+              ) : activeFilters.has('unread') ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-2">
                   <div className="size-12 rounded-full bg-emerald-950/40 border border-emerald-800/60 text-emerald-400 flex items-center justify-center mx-auto mb-1">
                     <svg
@@ -1665,26 +2016,28 @@ export default function InboxPage() {
                   <h3 className="text-base font-bold text-white">All caught up!</h3>
                   <p className="text-xs text-[#A1A4AC]">Zero unread messages in your inbox.</p>
                 </div>
-              ) : activeCategoryTab !== 'all' ? (
+              ) : activeFocus !== 'all' || activeFilters.size > 0 ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-2">
                   <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
-                    <svg
-                      className="size-6"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <rect x="2" y="4" width="20" height="16" rx="2" />
-                      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                    </svg>
+                    <IconFilter size={22} />
                   </div>
-                  <h3 className="text-base font-bold text-white">
-                    No {activeCategoryTab} messages
-                  </h3>
-                  <p className="text-xs text-[#A1A4AC]">
-                    Emails categorized as {activeCategoryTab} will appear here.
+                  <h3 className="text-base font-bold text-white">Nothing in this view</h3>
+                  <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
+                    {activeFocus === 'needs_you'
+                      ? 'Nothing is on your turn — no one is waiting on a reply from you.'
+                      : activeFocus === 'waiting'
+                        ? 'Nothing is on their turn — you are not waiting on a reply from anyone.'
+                        : 'No conversation matches the filters you have on.'}
+                    {heldBackCount > 0 &&
+                      ` ${heldBackCount} automated ${
+                        heldBackCount === 1 ? 'conversation is' : 'conversations are'
+                      } held out of this view.`}
                   </p>
+                  <div className="pt-2 flex justify-center">
+                    <Button variant="secondary" onClick={resetInboxView}>
+                      Show all conversations
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <InboxZeroState />
@@ -1714,11 +2067,40 @@ export default function InboxPage() {
                     <ArchivedFolderRow
                       count={currentArchivedThreads.length}
                       isViewing={showArchivedView}
-                      categoryLabel={
-                        activeCategoryTab === 'all' ? 'conversations' : activeCategoryTab
-                      }
+                      categoryLabel={viewLabel}
                       onToggle={() => setShowArchivedView((prev) => !prev)}
                     />
+                  )}
+                  {showPinnedNotice && (
+                    <p className="mail-pinned-notice">
+                      <MailIcon name="star" className="size-3.5 shrink-0" />
+                      <span>
+                        {pinnedCount} starred {pinnedCount === 1 ? 'conversation is' : 'are'} held
+                        at the top. The rest are newest first.
+                      </span>
+                    </p>
+                  )}
+                  {/*
+                    `Your turn` and `Their turn` do not sum to `All`, and an
+                    unexplained gap between two counts reads as a bug. Say where
+                    the difference went, and offer the one click that shows it.
+                  */}
+                  {heldBackCount > 0 && (
+                    <p className="mail-pinned-notice">
+                      <IconFilter size={13} className="shrink-0" />
+                      <span>
+                        {heldBackCount} automated{' '}
+                        {heldBackCount === 1 ? 'conversation is' : 'conversations are'} held out of
+                        this view — no one is waiting on a reply to them.{' '}
+                        <button
+                          type="button"
+                          onClick={() => setActiveFocus('all')}
+                          className="relative font-semibold text-[#FF8C42] underline decoration-dotted underline-offset-2 hover:text-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded after:absolute after:-inset-y-[13px] after:-inset-x-[10px] after:content-['']"
+                        >
+                          Show all
+                        </button>
+                      </span>
+                    </p>
                   )}
                 </div>
 
@@ -1795,11 +2177,13 @@ export default function InboxPage() {
 
       <Quanty />
 
-      <QuantyCopilotDrawer
-        isOpen={isGlobalQuantyOpen}
-        onClose={() => setIsGlobalQuantyOpen(false)}
-        isInboxContext={true}
-      />
+      {showGlobalQuanty && (
+        <QuantyCopilotDrawer
+          isOpen={isGlobalQuantyOpen}
+          onClose={() => setIsGlobalQuantyOpen(false)}
+          isInboxContext={true}
+        />
+      )}
 
       <CreateGroupModal
         isOpen={isCreateGroupModalOpen}

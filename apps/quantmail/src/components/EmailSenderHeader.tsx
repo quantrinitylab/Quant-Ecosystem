@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { IdentityAvatar } from './IdentityAvatar';
 import { showToast } from './InboxToast';
+import { IconBan, IconCheck, IconFileText, IconLock } from './icons';
 import type { Email } from '../types';
 
 export interface EmailSenderHeaderProps {
@@ -56,6 +57,9 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
     return () => document.removeEventListener('mousedown', handleOutside);
   }, []);
 
+  // Reaction emoji stay emoji: they are the payload the recipient sees attached
+  // to the message, not chrome, so an SVG here would send something no other
+  // client could render.
   const emojis = ['👍', '❤️', '🔥', '⚡', '🙏', '🎉', '👏', '🚀'];
 
   const handleEmojiSelect = (emoji: string) => {
@@ -195,9 +199,9 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
                     setIsSenderMenuOpen(false);
                     showToast({ text: `Blocked ${senderEmail}`, type: 'info' });
                   }}
-                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl hover:bg-[#282C35] text-left transition-colors"
+                  className="flex items-center gap-2.5 w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-[#282C35] text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
-                  <span>🚫</span>
+                  <IconBan size={14} className="shrink-0" />
                   <span>Block "{senderName}"</span>
                 </button>
                 <button
@@ -206,9 +210,9 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
                     setIsSenderMenuOpen(false);
                     showToast({ text: 'Raw headers copied', type: 'success' });
                   }}
-                  className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl hover:bg-[#282C35] text-left transition-colors"
+                  className="flex items-center gap-2.5 w-full min-h-[44px] px-3 py-2 rounded-xl hover:bg-[#282C35] text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
-                  <span>📜</span>
+                  <IconFileText size={14} className="shrink-0" />
                   <span>View Original Headers</span>
                 </button>
               </div>
@@ -221,18 +225,19 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
       {isDetailsOpen && (
         <div className="mt-2 p-3.5 rounded-2xl border border-[#282C35] bg-[#090A0C]/80 text-xs space-y-2 text-[#A1A4AC] font-mono">
           <div className="grid grid-cols-12 gap-2">
-            <span className="col-span-3 text-[#6B6E76] font-medium">From:</span>
+            <span className="col-span-3 text-[#A1A4AC] font-medium">From:</span>
             <div className="col-span-9 flex items-center gap-1.5 flex-wrap">
               <span className="text-white font-semibold">{senderName}</span>
               <span className="text-[#A1A4AC]">&lt;{senderEmail}&gt;</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-sans">
-                ✓ SPF/DKIM Pass
+              <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-sans">
+                <IconCheck size={11} />
+                SPF/DKIM Pass
               </span>
             </div>
           </div>
 
           <div className="grid grid-cols-12 gap-2">
-            <span className="col-span-3 text-[#6B6E76] font-medium">To:</span>
+            <span className="col-span-3 text-[#A1A4AC] font-medium">To:</span>
             <div className="col-span-9 text-[#A1A4AC]">
               {email.to?.map((r) => (r.name ? `${r.name} <${r.email}>` : r.email)).join(', ') ||
                 'me'}
@@ -240,21 +245,21 @@ export function EmailSenderHeader({ email, onQuickReply, onReactEmoji }: EmailSe
           </div>
 
           <div className="grid grid-cols-12 gap-2">
-            <span className="col-span-3 text-[#6B6E76] font-medium">Date:</span>
+            <span className="col-span-3 text-[#A1A4AC] font-medium">Date:</span>
             <div className="col-span-9 text-[#A1A4AC]">{dateFormatted}</div>
           </div>
 
           <div className="grid grid-cols-12 gap-2">
-            <span className="col-span-3 text-[#6B6E76] font-medium">Subject:</span>
+            <span className="col-span-3 text-[#A1A4AC] font-medium">Subject:</span>
             <div className="col-span-9 text-[#F5F5F5] font-sans font-semibold">
               {email.subject || '(No Subject)'}
             </div>
           </div>
 
           <div className="grid grid-cols-12 gap-2 pt-1 border-t border-[#282C35]/80">
-            <span className="col-span-3 text-[#6B6E76] font-medium">Security:</span>
+            <span className="col-span-3 text-[#A1A4AC] font-medium">Security:</span>
             <div className="col-span-9 flex items-center gap-1.5 text-cyan-400 text-[11px] font-sans">
-              <span>🔐</span>
+              <IconLock size={13} className="shrink-0" />
               <span>QuantMail Quantum-Resistant E2EE (TLS 1.3 · 256-bit AES)</span>
             </div>
           </div>

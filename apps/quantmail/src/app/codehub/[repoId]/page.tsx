@@ -11,6 +11,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { Badge, Button, Skeleton, ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
+// The route stays `/codehub`; the name the user reads comes from the one place
+// that owns app names, so the next rename does not have to find this crumb.
+import { appDisplayName } from '../../../components/BrandWordmark';
 import { PageTransition } from '../../../components/PageTransition';
 import {
   useRepo,
@@ -22,6 +25,14 @@ import {
   useFileContent,
 } from '../../../hooks/useRepos';
 import { useWorkflows, useBuilds, useTriggerWorkflow } from '../../../hooks/usePipelines';
+import {
+  IconChat,
+  IconCheck,
+  IconChevronLeft,
+  IconCircle,
+  IconGitBranch,
+  IconGitCommit,
+} from '../../../components/icons';
 
 const TABS = [
   'code',
@@ -145,6 +156,87 @@ function StatCard({
   );
 }
 
+/**
+ * `plural(2, 'Branch', 'Branches')` → `'2 Branches'`.
+ *
+ * Several counters on this page used to read `{n || 1} Branches`, which asserted
+ * that at least one branch existed even when the API had returned none, and
+ * pluralised unconditionally so a single branch read "1 Branches". The count is
+ * cheap to state correctly, so state it correctly.
+ */
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * A tab-level note that the controls below are a layout preview, not a wired
+ * surface.
+ *
+ * The Settings, Security and Agents tabs render GitHub-shaped panels whose
+ * buttons have no handler and whose inputs have no submit path — pressing
+ * "Save changes" or "Delete" does nothing at all. A control that looks live and
+ * silently does nothing is the worst of the three states, so those buttons are
+ * now `disabled` and each tab says once, at the top, what is actually true.
+ */
+function PreviewNotice({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="rounded-xl border border-[#5C3016] bg-[#2B1A11] px-3.5 py-2.5 text-[11px] leading-relaxed text-[#E9C9A9]">
+      {children}
+    </p>
+  );
+}
+
+/** The author of an issue or PR, which the API returns as a string or an object. */
+function authorLabel(item: Named): string {
+  const raw = (item as unknown as { author?: unknown }).author;
+  if (typeof raw === 'string') return raw;
+  if (raw && typeof raw === 'object') {
+    const person = raw as { name?: string; username?: string };
+    return person.name || person.username || '';
+  }
+  return item.authorName ?? '';
+}
+
+/**
+ * Applies the issue/PR filter box to one item.
+ *
+ * That box shipped pre-filled with `is:issue state:open` and wired to nothing —
+ * you could type `state:closed` and the list below would not move. It supports
+ * the four qualifiers the placeholder text implies, and treats anything else as
+ * a free-text match on the title or `#number`:
+ *
+ *   state:open|closed   author:<name>   label:<name>   is:issue|pr (ignored —
+ *   the active tab already decides which collection is on screen)
+ */
+function matchesQuery(item: Named, query: string): boolean {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!tokens.length) return true;
+
+  const state = String(item.state ?? item.status ?? 'open').toLowerCase();
+  const author = authorLabel(item).toLowerCase();
+  const labels = (item.labels ?? []).map((l) => String(l).toLowerCase());
+  const title = String(item.title ?? '').toLowerCase();
+  const number = String(item.number ?? '');
+
+  return tokens.every((token) => {
+    if (token.startsWith('is:')) return true;
+    if (token.startsWith('state:')) {
+      const wanted = token.slice(6);
+      // `closed` covers every terminal state the API reports, `merged` included.
+      if (wanted === 'closed') return state !== 'open';
+      if (wanted === 'open') return state === 'open';
+      return state === wanted;
+    }
+    if (token.startsWith('author:')) return author.includes(token.slice(7));
+    if (token.startsWith('label:')) {
+      const wanted = token.slice(6);
+      return labels.some((l) => l.includes(wanted));
+    }
+    const bare = token.replace(/^#/, '');
+    return title.includes(bare) || number === bare;
+  });
+}
+
 export default function CodeHubRepoPage() {
   const params = useParams<{ repoId: string }>();
   const router = useRouter();
@@ -155,11 +247,18 @@ export default function CodeHubRepoPage() {
   const [issueQuery, setIssueQuery] = useState('is:issue state:open');
   const [pullQuery, setPullQuery] = useState('is:pr state:open');
   const [cloneCopied, setCloneCopied] = useState(false);
-  const [insightsPeriod, setInsightsPeriod] = useState<'7' | '30' | '90'>('30');
+  // The branch `<select>` used to be uncontrolled with its own `defaultValue`,
+  // so picking a branch changed the visible label and nothing else. It now
+  // drives the commits query key. `null` means "whatever the repo calls default",
+  // which is only known once `repo` has loaded.
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
 
   const { data: repo, isLoading: loadingRepo, error: repoError, refetch } = useRepo(repoId);
-  const { data: branchesData } = useBranches(repoId);
-  const { data: commitsData } = useCommits(repoId);
+  const { data: branchesData, isLoading: loadingBranches } = useBranches(repoId);
+  const { data: commitsData, isLoading: loadingCommits } = useCommits(
+    repoId,
+    selectedBranch ?? undefined,
+  );
   const { data: pullsData } = usePullRequests(repoId);
   const { data: issuesData } = useIssues(repoId);
   const { data: treeData, isLoading: loadingTree } = useFileTree(repoId);
@@ -203,6 +302,13 @@ export default function CodeHubRepoPage() {
 
   const latestCommit = commits[0];
   const defaultBranch = repoInfo?.defaultBranch ?? 'main';
+  const branchNames = branches.map((b) => b.name).filter((name): name is string => !!name);
+  // A repo row can exist with no branch rows — a freshly created repo has none
+  // until the first push. Offering the default branch as a choice is honest
+  // (that is where a push would land); claiming it already exists is not, so the
+  // count below is the real one and the switcher is disabled while empty.
+  const branchOptions = branchNames.length ? branchNames : [defaultBranch];
+  const currentBranch = selectedBranch ?? defaultBranch;
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://quantmail.in';
   const cloneUrl =
     repoInfo?.cloneUrl ?? `${baseUrl}/git/${repoInfo?.fullName ?? repoInfo?.name ?? repoId}.git`;
@@ -234,6 +340,15 @@ export default function CodeHubRepoPage() {
     (b) => (b.status ?? '') === 'failure' || b.status === 'failed',
   );
 
+  const visibleIssues = useMemo(
+    () => issues.filter((item) => matchesQuery(item, issueQuery)),
+    [issues, issueQuery],
+  );
+  const visiblePulls = useMemo(
+    () => pulls.filter((item) => matchesQuery(item, pullQuery)),
+    [pulls, pullQuery],
+  );
+
   const copyClone = async () => {
     try {
       await navigator.clipboard.writeText(cloneUrl);
@@ -251,9 +366,10 @@ export default function CodeHubRepoPage() {
           <button
             type="button"
             onClick={() => router.push('/codehub')}
-            className="text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+            className="inline-flex min-h-11 items-center gap-1 -ml-1 pr-2 pl-1 text-xs text-[var(--quant-muted-foreground)] transition-colors hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded-lg"
           >
-            ← CodeHub
+            <IconChevronLeft size={14} />
+            {appDisplayName('code')}
           </button>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <h1 className="text-base font-semibold">
@@ -278,44 +394,67 @@ export default function CodeHubRepoPage() {
                 </svg>
                 Settings
               </Button>
-              <Button variant="secondary">
-                <svg
-                  className="size-3.5 mr-1"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                Watch {repoInfo?.watchers ?? 0}
-              </Button>
-              <Button variant="secondary">
-                <svg
-                  className="size-3.5 mr-1"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <line x1="6" y1="3" x2="6" y2="15" />
-                  <circle cx="18" cy="6" r="3" />
-                  <circle cx="6" cy="18" r="3" />
-                  <path d="M18 9a9 9 0 0 1-9 9" />
-                </svg>
-                Fork {repoInfo?.forks ?? 0}
-              </Button>
-              <Button variant="secondary">
-                <svg
-                  className="size-3.5 mr-1 text-[#FF8C42]"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
-                Star {repoInfo?.stars ?? 0}
-              </Button>
+              {/*
+                Watch / Fork / Star used to be three `<Button variant="secondary">`
+                with no `onClick` — full hover states, cursor pointer, and nothing
+                behind them. There is no watch or star endpoint at all, and
+                `apiClient.forkRepo` posts to `/repos/:id/fork`, which the backend
+                does not register. The numbers themselves are real, so they stay;
+                only the false affordance goes. These become buttons again on the
+                day the routes land.
+              */}
+              <div
+                className="flex items-center gap-1.5 rounded-lg border border-[var(--quant-border)] px-2.5 py-1.5 text-[var(--quant-muted-foreground)]"
+                aria-label={`${repoInfo?.watchers ?? 0} watching, ${repoInfo?.forks ?? 0} forks, ${repoInfo?.stars ?? 0} stars`}
+              >
+                <span className="flex items-center gap-1">
+                  <svg
+                    className="size-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  {repoInfo?.watchers ?? 0}
+                </span>
+                <span aria-hidden="true" className="text-[var(--quant-border)]">
+                  ·
+                </span>
+                <span className="flex items-center gap-1">
+                  <svg
+                    className="size-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <line x1="6" y1="3" x2="6" y2="15" />
+                    <circle cx="18" cy="6" r="3" />
+                    <circle cx="6" cy="18" r="3" />
+                    <path d="M18 9a9 9 0 0 1-9 9" />
+                  </svg>
+                  {repoInfo?.forks ?? 0}
+                </span>
+                <span aria-hidden="true" className="text-[var(--quant-border)]">
+                  ·
+                </span>
+                <span className="flex items-center gap-1">
+                  <svg
+                    className="size-3.5 text-[#FF8C42]"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  </svg>
+                  {repoInfo?.stars ?? 0}
+                </span>
+              </div>
               <Button variant="secondary" onClick={() => router.push(`/repos/${repoId}/editor`)}>
                 Open editor
               </Button>
@@ -326,7 +465,7 @@ export default function CodeHubRepoPage() {
               {repoInfo.description}
             </p>
           )}
-          <nav className="mt-4 flex gap-1 overflow-x-auto">
+          <nav className="mt-4 flex gap-1 overflow-x-auto no-scrollbar">
             {TABS.map((item) => {
               const active = tab === item;
               const badge =
@@ -342,7 +481,8 @@ export default function CodeHubRepoPage() {
                   key={item}
                   type="button"
                   onClick={() => setTab(item)}
-                  className={`relative whitespace-nowrap rounded-t-lg px-3 py-2 text-sm transition-colors ${
+                  aria-current={active ? 'page' : undefined}
+                  className={`relative min-h-11 whitespace-nowrap rounded-t-lg px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     active
                       ? 'text-[var(--quant-foreground)] font-medium'
                       : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
@@ -372,24 +512,29 @@ export default function CodeHubRepoPage() {
                 {/* Branch bar — branch switcher, counts, find file, clone */}
                 <div className="flex flex-wrap items-center gap-2">
                   <select
-                    className="rounded-lg border border-[var(--quant-border)] bg-transparent px-2.5 py-1.5 text-xs"
-                    defaultValue={defaultBranch}
+                    className="min-h-11 rounded-lg border border-[var(--quant-border)] bg-transparent px-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] disabled:opacity-60"
+                    value={currentBranch}
+                    onChange={(event) => setSelectedBranch(event.target.value)}
+                    disabled={branchNames.length <= 1}
                     aria-label="Switch branch"
                   >
-                    {(branches.length ? branches : [{ name: defaultBranch }]).map((branch) => (
-                      <option key={branch.name} value={branch.name}>
-                        {branch.name}
+                    {branchOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
                       </option>
                     ))}
                   </select>
-                  <span className="text-xs text-[var(--quant-muted-foreground)]">
-                    ⑂ {branches.length || 1} Branches
+                  <span className="flex items-center gap-1.5 text-xs text-[var(--quant-muted-foreground)]">
+                    <IconGitBranch size={13} />
+                    {loadingBranches
+                      ? 'Loading branches…'
+                      : plural(branches.length, 'Branch', 'Branches')}
                   </span>
                   <input
                     value={fileFilter}
                     onChange={(event) => setFileFilter(event.target.value)}
                     placeholder="Go to file"
-                    className="ml-auto w-48 rounded-lg border border-[var(--quant-border)] bg-transparent px-2.5 py-1.5 text-xs"
+                    className="ml-auto min-h-11 w-48 rounded-lg border border-[var(--quant-border)] bg-transparent px-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     aria-label="Go to file"
                   />
                   <Button
@@ -436,25 +581,46 @@ export default function CodeHubRepoPage() {
 
                 {/* Latest commit strip */}
                 <Panel>
-                  <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs">
-                    <span className="font-medium">
-                      {
-                        (latestCommit?.authorName ??
-                          latestCommit?.author ??
-                          'quantrinitylab') as string
-                      }
-                    </span>
-                    <span className="truncate text-[var(--quant-muted-foreground)]">
-                      {latestCommit?.message ?? 'No commits yet'}
-                    </span>
-                    <span className="ml-auto text-[var(--quant-muted-foreground)]">
-                      {(latestCommit?.sha ?? '').slice(0, 7)} ·{' '}
-                      {relativeTime(latestCommit?.createdAt)}
-                    </span>
-                    <span className="text-[var(--quant-muted-foreground)]">
-                      ⏱ {commits.length} Commits
-                    </span>
-                  </div>
+                  {/*
+                    This strip used to render unconditionally, with
+                    `latestCommit?.authorName ?? 'quantrinitylab'` as the author and
+                    `'No commits yet'` as the message — so an empty repo showed a
+                    named person next to a blank sha and the words "No commits yet",
+                    all in one line. `GET /repos/:id/commits` currently returns an
+                    empty list for every repo, which means that fabricated row was
+                    the *only* thing this strip ever showed. Now the empty case says
+                    what is true and names nobody.
+                  */}
+                  {latestCommit ? (
+                    <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-xs">
+                      <span className="font-medium">
+                        {
+                          (latestCommit.authorName ??
+                            latestCommit.author ??
+                            'Unknown author') as string
+                        }
+                      </span>
+                      <span className="truncate text-[var(--quant-muted-foreground)]">
+                        {latestCommit.message ?? ''}
+                      </span>
+                      <span className="ml-auto flex items-center gap-1.5 font-mono text-[var(--quant-muted-foreground)]">
+                        {(latestCommit.sha ?? '').slice(0, 7)}
+                        <span aria-hidden="true">·</span>
+                        {relativeTime(latestCommit.createdAt)}
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[var(--quant-muted-foreground)]">
+                        <IconGitCommit size={13} />
+                        {plural(commits.length, 'commit', 'commits')}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-3 text-xs text-[var(--quant-muted-foreground)]">
+                      <IconGitCommit size={13} />
+                      {loadingCommits
+                        ? 'Loading commit history…'
+                        : `No commits on ${currentBranch} yet.`}
+                    </div>
+                  )}
 
                   {loadingTree && (
                     <div className="p-4 space-y-2">
@@ -505,12 +671,15 @@ export default function CodeHubRepoPage() {
                             )}
                           </span>
                           <span className="truncate">{node.name ?? node.path}</span>
-                          <span className="ml-auto truncate text-[var(--quant-muted-foreground)] hidden sm:inline">
-                            {latestCommit?.message ?? ''}
-                          </span>
-                          <span className="text-[var(--quant-muted-foreground)] whitespace-nowrap">
-                            {relativeTime(latestCommit?.createdAt)}
-                          </span>
+                          {/*
+                            Each row used to end with `latestCommit?.message` and
+                            `relativeTime(latestCommit?.createdAt)` — the repo's newest
+                            commit, repeated verbatim on every file. GitHub's version of
+                            that column is per-file history, which the tree endpoint does
+                            not return, so every row was claiming a commit touched it
+                            when most had not. Removed until `/tree` carries per-node
+                            commit data; it also buys back the width mobile needs.
+                          */}
                         </button>
                       </li>
                     ))}
@@ -685,58 +854,79 @@ export default function CodeHubRepoPage() {
                       ? setIssueQuery(event.target.value)
                       : setPullQuery(event.target.value)
                   }
-                  className="flex-1 min-w-[220px] rounded-lg border border-[var(--quant-border)] bg-transparent px-3 py-1.5 text-xs font-mono"
+                  placeholder="state:open author:name label:bug free text"
+                  className="min-h-11 flex-1 min-w-[220px] rounded-lg border border-[var(--quant-border)] bg-transparent px-3 text-xs font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   aria-label="Filter query"
                 />
-                {['Author', 'Labels', 'Projects', 'Milestones', 'Assignees', 'Sort'].map(
-                  (filter) => (
-                    <button
-                      key={filter}
-                      type="button"
-                      className="rounded-lg border border-[var(--quant-border)] px-2.5 py-1.5 text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
-                    >
-                      {filter} ▾
-                    </button>
-                  ),
-                )}
-                <Button variant="primary">
+                {/*
+                  Six dropdown buttons stood here — Author, Labels, Projects,
+                  Milestones, Assignees, Sort — each with a `▾`, no handler and no
+                  menu, and they wrapped onto four rows at 375px. The box to their
+                  left now actually filters (see `matchesQuery`), which is what
+                  they were imitating.
+                */}
+                <Button variant="primary" disabled>
                   {tab === 'issues' ? 'New issue' : 'New pull request'}
                 </Button>
               </div>
 
               <Panel>
                 <div className="flex items-center gap-4 px-4 py-2.5 border-b border-[var(--quant-border)] text-xs">
-                  <span className="font-medium">
-                    ◉ {(tab === 'issues' ? openIssues : openPulls).length} Open
+                  <span className="flex items-center gap-1.5 font-medium">
+                    <IconCircle size={12} />
+                    {(tab === 'issues' ? openIssues : openPulls).length} Open
                   </span>
-                  <span className="text-[var(--quant-muted-foreground)]">
-                    ✓{' '}
+                  <span className="flex items-center gap-1.5 text-[var(--quant-muted-foreground)]">
+                    <IconCheck size={12} />
                     {(tab === 'issues' ? issues : pulls).length -
                       (tab === 'issues' ? openIssues : openPulls).length}{' '}
                     Closed
                   </span>
+                  {(tab === 'issues' ? issueQuery : pullQuery).trim() && (
+                    <span className="ml-auto text-[var(--quant-muted-foreground)]">
+                      {(tab === 'issues' ? visibleIssues : visiblePulls).length} match
+                      {(tab === 'issues' ? visibleIssues : visiblePulls).length === 1 ? '' : 'es'}
+                    </span>
+                  )}
                 </div>
                 {(tab === 'issues' ? issues : pulls).length === 0 && (
                   <EmptyState
                     title={tab === 'pulls' ? 'No pull requests' : 'No issues'}
                     description={
                       tab === 'pulls'
-                        ? 'Open a pull request to get review, checks and merge history in CodeHub.'
+                        ? 'Open a pull request to get review, checks and merge history in QuantGit.'
                         : 'Track bugs and work items right next to the code and pipelines.'
                     }
                   />
                 )}
+                {(tab === 'issues' ? issues : pulls).length > 0 &&
+                  (tab === 'issues' ? visibleIssues : visiblePulls).length === 0 && (
+                    <p className="px-4 py-4 text-xs text-[var(--quant-muted-foreground)]">
+                      Nothing matches that filter.
+                    </p>
+                  )}
                 <Rows>
-                  {(tab === 'issues' ? issues : pulls).map((item) => (
+                  {(tab === 'issues' ? visibleIssues : visiblePulls).map((item) => (
                     <li
                       key={item.id ?? item.number}
                       className="flex items-start justify-between gap-3 px-4 py-3"
                     >
                       <div className="min-w-0">
                         <p className="text-sm truncate">{item.title ?? 'Untitled'}</p>
-                        <p className="mt-1 text-[11px] text-[var(--quant-muted-foreground)]">
-                          #{item.number ?? '—'} · opened {relativeTime(item.createdAt)}
-                          {item.comments ? ` · 💬 ${item.comments}` : ''}
+                        <p className="mt-1 flex items-center gap-1.5 text-[11px] text-[var(--quant-muted-foreground)]">
+                          <span>
+                            #{item.number ?? '—'}
+                            {relativeTime(item.createdAt)
+                              ? ` · opened ${relativeTime(item.createdAt)}`
+                              : ''}
+                          </span>
+                          {item.comments ? (
+                            <span className="flex items-center gap-1">
+                              <span aria-hidden="true">·</span>
+                              <IconChat size={11} />
+                              {item.comments}
+                            </span>
+                          ) : null}
                         </p>
                       </div>
                       <Badge variant={statusVariant(item.state ?? item.status)}>
@@ -767,10 +957,11 @@ export default function CodeHubRepoPage() {
                           triggerWorkflow.mutate({
                             repoId,
                             workflowId: String(workflow.id ?? ''),
-                            ref: defaultBranch,
+                            ref: currentBranch,
                           } as never)
                         }
-                        className="text-[10px] text-[var(--quant-primary)]"
+                        aria-label={`Run ${workflow.name ?? workflow.filename} on ${currentBranch}`}
+                        className="min-h-11 flex-none rounded-lg px-2 text-[11px] font-medium text-[var(--quant-primary)] transition-colors hover:bg-[color-mix(in_srgb,var(--quant-primary)_12%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       >
                         Run
                       </button>
@@ -800,7 +991,9 @@ export default function CodeHubRepoPage() {
                       <div className="min-w-0">
                         <p className="truncate">{build.message ?? build.name ?? 'workflow run'}</p>
                         <p className="text-[11px] text-[var(--quant-muted-foreground)]">
-                          {build.branch ?? defaultBranch} · {relativeTime(build.createdAt)}
+                          {[build.branch, relativeTime(build.createdAt)]
+                            .filter(Boolean)
+                            .join(' · ')}
                         </p>
                       </div>
                     </li>
@@ -812,27 +1005,27 @@ export default function CodeHubRepoPage() {
 
           {tab === 'insights' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                {(['7', '30', '90'] as const).map((period) => (
-                  <button
-                    key={period}
-                    type="button"
-                    onClick={() => setInsightsPeriod(period)}
-                    className={`rounded-lg border px-2.5 py-1.5 text-xs ${
-                      insightsPeriod === period
-                        ? 'border-[var(--quant-primary)] text-[var(--quant-foreground)]'
-                        : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)]'
-                    }`}
-                  >
-                    Last {period} days
-                  </button>
-                ))}
-              </div>
+              {/*
+                A `Last 7 / 30 / 90 days` selector sat here. Its state was read in
+                exactly one place — its own active border — so all three buttons
+                showed the same four numbers. None of the four are time-scoped in
+                the first place ("open right now", "need triage", "in this
+                repository"), so there is nothing for a window to narrow. It comes
+                back the day these become series rather than totals.
+              */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <StatCard label="Active PRs" value={openPulls.length} hint="open right now" />
                 <StatCard label="Open issues" value={openIssues.length} hint="need triage" />
-                <StatCard label="Commits" value={commits.length} hint="in this repository" />
-                <StatCard label="Branches" value={branches.length || 1} />
+                <StatCard
+                  label="Commits"
+                  value={loadingCommits ? '—' : commits.length}
+                  hint={`on ${currentBranch}`}
+                />
+                <StatCard
+                  label="Branches"
+                  value={loadingBranches ? '—' : branches.length}
+                  hint={branches.length === 0 ? 'nothing pushed yet' : undefined}
+                />
               </div>
               <Panel>
                 <SectionTitle>Top committers</SectionTitle>
@@ -868,60 +1061,98 @@ export default function CodeHubRepoPage() {
           )}
 
           {tab === 'security' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {[
-                {
-                  title: 'Security policy',
-                  body: 'Publish a SECURITY.md so reporters know where to send findings.',
-                  action: 'Set up policy',
-                },
-                {
-                  title: 'Security advisories',
-                  body: 'Draft private advisories and coordinate a fix before disclosure.',
-                  action: 'View advisories',
-                },
-                {
-                  title: 'Dependency alerts',
-                  body: 'Get alerted when a dependency has a known vulnerability.',
-                  action: 'Enable alerts',
-                },
-                {
-                  title: 'Code scanning',
-                  body: `${failedBuilds.length} failing run(s) in the latest pipelines.`,
-                  action: 'Review runs',
-                },
-              ].map((card) => (
-                <Panel key={card.title}>
-                  <SectionTitle>{card.title}</SectionTitle>
-                  <div className="px-4 py-3 space-y-3 text-xs">
-                    <p className="text-[var(--quant-muted-foreground)]">{card.body}</p>
-                    <Button variant="secondary">{card.action}</Button>
-                  </div>
-                </Panel>
-              ))}
+            <div className="space-y-3">
+              <PreviewNotice>
+                Code scanning below is live — it reads your real pipeline runs. Policy, advisories
+                and dependency alerts are not built yet, so those three buttons are disabled rather
+                than silently doing nothing.
+              </PreviewNotice>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {[
+                  {
+                    title: 'Security policy',
+                    body: 'Publish a SECURITY.md so reporters know where to send findings.',
+                    action: 'Set up policy',
+                    onClick: undefined as (() => void) | undefined,
+                  },
+                  {
+                    title: 'Security advisories',
+                    body: 'Draft private advisories and coordinate a fix before disclosure.',
+                    action: 'View advisories',
+                    onClick: undefined,
+                  },
+                  {
+                    title: 'Dependency alerts',
+                    body: 'Get alerted when a dependency has a known vulnerability.',
+                    action: 'Enable alerts',
+                    onClick: undefined,
+                  },
+                  {
+                    title: 'Code scanning',
+                    body:
+                      failedBuilds.length === 0
+                        ? 'No failing runs in the latest pipelines.'
+                        : `${plural(failedBuilds.length, 'failing run', 'failing runs')} in the latest pipelines.`,
+                    action: 'Review runs',
+                    onClick: () => setTab('actions'),
+                  },
+                ].map((card) => (
+                  <Panel key={card.title}>
+                    <SectionTitle>{card.title}</SectionTitle>
+                    <div className="px-4 py-3 space-y-3 text-xs">
+                      <p className="text-[var(--quant-muted-foreground)]">{card.body}</p>
+                      <Button variant="secondary" disabled={!card.onClick} onClick={card.onClick}>
+                        {card.action}
+                      </Button>
+                    </div>
+                  </Panel>
+                ))}
+              </div>
             </div>
           )}
 
           {tab === 'settings' && (
             <div className="space-y-4 max-w-3xl">
+              {/*
+                Everything on this tab was fully interactive and connected to
+                nothing: two inputs you could type into, a primary "Save changes",
+                five pre-checked feature toggles, and a Danger zone whose Delete
+                button had no handler at all. There is no repository-update route
+                on the backend — `api-client` has `createRepo` and `deleteRepo` and
+                nothing in between — so none of it could have worked.
+
+                The fields are now read-only mirrors of the real values, the
+                actions are disabled, and the notice says so once. Delete stays
+                disabled deliberately even though `DELETE /repos/:id` exists: a
+                destructive action needs a confirmation step before it gets a
+                handler, not just a route.
+              */}
+              <PreviewNotice>
+                These settings are read-only for now — there is no repository-update endpoint behind
+                them yet, so nothing here saves. The values shown are the live ones.
+              </PreviewNotice>
               <Panel>
                 <SectionTitle>General</SectionTitle>
                 <div className="px-4 py-4 space-y-3 text-xs">
                   <label className="block">
                     <span className="text-[var(--quant-muted-foreground)]">Repository name</span>
                     <input
-                      defaultValue={repoInfo?.name ?? ''}
-                      className="mt-1 w-full rounded-lg border border-[var(--quant-border)] bg-transparent px-2.5 py-1.5"
+                      value={repoInfo?.name ?? ''}
+                      readOnly
+                      className="mt-1 min-h-11 w-full rounded-lg border border-[var(--quant-border)] bg-transparent px-2.5 text-[var(--quant-muted-foreground)]"
                     />
                   </label>
                   <label className="block">
                     <span className="text-[var(--quant-muted-foreground)]">Default branch</span>
                     <input
-                      defaultValue={defaultBranch}
-                      className="mt-1 w-full rounded-lg border border-[var(--quant-border)] bg-transparent px-2.5 py-1.5"
+                      value={defaultBranch}
+                      readOnly
+                      className="mt-1 min-h-11 w-full rounded-lg border border-[var(--quant-border)] bg-transparent px-2.5 text-[var(--quant-muted-foreground)]"
                     />
                   </label>
-                  <Button variant="primary">Save changes</Button>
+                  <Button variant="primary" disabled>
+                    Save changes
+                  </Button>
                 </div>
               </Panel>
               <Panel>
@@ -929,8 +1160,11 @@ export default function CodeHubRepoPage() {
                 <div className="px-4 py-4 space-y-2 text-xs">
                   {['Issues', 'Pull requests', 'Discussions', 'Projects', 'Actions'].map(
                     (feature) => (
-                      <label key={feature} className="flex items-center gap-2">
-                        <input type="checkbox" defaultChecked />
+                      <label
+                        key={feature}
+                        className="flex min-h-11 items-center gap-2 text-[var(--quant-muted-foreground)]"
+                      >
+                        <input type="checkbox" checked disabled readOnly />
                         <span>{feature}</span>
                       </label>
                     ),
@@ -953,7 +1187,9 @@ export default function CodeHubRepoPage() {
                         <p className="font-medium">{title}</p>
                         <p className="text-[var(--quant-muted-foreground)]">{body}</p>
                       </div>
-                      <Button variant="secondary">{title.split(' ')[0]}</Button>
+                      <Button variant="secondary" disabled>
+                        {title.split(' ')[0]}
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -967,12 +1203,22 @@ export default function CodeHubRepoPage() {
               <div className="px-4 py-4 space-y-3 text-xs">
                 <p className="text-[var(--quant-muted-foreground)]">
                   Hand a task to QuantAI: review an open pull request, triage an issue, or explain a
-                  failing pipeline run — right inside CodeHub.
+                  failing pipeline run — right inside QuantGit.
                 </p>
+                <PreviewNotice>
+                  Not wired to the agent runner yet. Quanty in the mail workspace is the one that
+                  works today.
+                </PreviewNotice>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary">Review latest PR</Button>
-                  <Button variant="secondary">Triage open issues</Button>
-                  <Button variant="secondary">Explain failing run</Button>
+                  <Button variant="secondary" disabled>
+                    Review latest PR
+                  </Button>
+                  <Button variant="secondary" disabled>
+                    Triage open issues
+                  </Button>
+                  <Button variant="secondary" disabled>
+                    Explain failing run
+                  </Button>
                 </div>
               </div>
             </Panel>

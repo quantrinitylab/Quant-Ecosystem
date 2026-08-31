@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useFocusTrap } from '@quant/shared-ui';
 import { formatBinding } from '../lib/keyboard/chords';
 import { COMMAND_GROUPS, type Command } from '../lib/keyboard/command-registry';
 import { CommandIcon } from '../lib/keyboard/command-icons';
@@ -58,6 +59,22 @@ export function CommandPalette() {
     allowInInput: true,
     disabled: !isPaletteOpen,
   });
+
+  /**
+   * `autoFocus` is off because the effect below already focuses the query input on
+   * the next frame, once the panel has animated in — two owners for initial focus
+   * land the caret somewhere neither intended.
+   *
+   * `restoreFocus` stays on, which is new: dismissing the palette used to drop
+   * focus to `<body>`, leaving a keyboard user at the top of the document having
+   * lost the row they were working in. It does not fight `execute`, which closes
+   * before it runs the command: React runs an unmounting subtree's effect cleanups
+   * before the setup effects of anything mounting in the same commit, so a command
+   * that opens another dialog still gets the last word on focus.
+   *
+   * Escape is omitted — the keyboard engine owns it for this scope, above.
+   */
+  const trapRef = useFocusTrap<HTMLDivElement>({ active: isPaletteOpen, autoFocus: false });
 
   const results = useMemo(() => {
     const trimmed = query.trim().toLowerCase();
@@ -152,14 +169,22 @@ export function CommandPalette() {
             onClick={closePalette}
             aria-hidden="true"
           />
+          {/* `x: '-50%'` lives in the motion props, NOT as `-translate-x-1/2`.
+              framer-motion writes the element's `transform` itself, and once the
+              enter animation settles on identity values it emits
+              `transform: none` — which silently wipes a Tailwind translate on
+              the same element. Measured: the panel sat at `left: 50%` with
+              `transform: none`, i.e. 288px right of centre, and its right edge
+              was clipped off-screen below ~1150px of viewport width. */}
           <motion.div
-            className="command-palette fixed left-1/2 top-[12%] z-[120] flex max-h-[72vh] w-[calc(100%-1.5rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-[0_20px_60px_rgba(0,0,0,0.7)]"
+            ref={trapRef}
+            className="command-palette fixed left-1/2 top-[12%] z-[120] flex max-h-[72vh] w-[calc(100%-1.5rem)] max-w-xl flex-col overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-[0_20px_60px_rgba(0,0,0,0.7)]"
             role="dialog"
             aria-modal="true"
             aria-label="Command palette"
-            initial={{ opacity: 0, scale: 0.98, y: -6 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98, y: -6 }}
+            initial={{ opacity: 0, scale: 0.98, x: '-50%', y: -6 }}
+            animate={{ opacity: 1, scale: 1, x: '-50%', y: 0 }}
+            exit={{ opacity: 0, scale: 0.98, x: '-50%', y: -6 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
           >
             <div className="flex items-center gap-3 border-b border-[#282C35] bg-[#111318] px-4 py-3.5">
@@ -180,7 +205,7 @@ export function CommandPalette() {
                 id="command-palette-input"
                 name="commandQuery"
                 ref={inputRef}
-                className="min-w-0 flex-1 bg-transparent text-sm text-[#F5F5F5] placeholder-[#6B6E76] focus:outline-none"
+                className="min-w-0 flex-1 bg-transparent text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
                 type="text"
                 placeholder="Type a command, or jump to a workspace…"
                 value={query}
@@ -207,23 +232,34 @@ export function CommandPalette() {
               aria-label="Commands"
             >
               {flatOrder.length === 0 && (
-                <p className="py-10 text-center text-xs text-[#6B6E76]">
+                <p className="py-10 text-center text-xs text-[#A1A4AC]">
                   No commands match &ldquo;{query}&rdquo;
                 </p>
               )}
 
+              {/* A listbox may only contain options and groups, so the section
+               * wrapper carries `role="group"` and borrows the label above it —
+               * otherwise the eight "NAVIGATION"-style headings read as stray
+               * children and the group names never reach a screen reader. */}
               {groups.map(({ group, items }) => (
-                <div key={group} className="space-y-1">
-                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#6B6E76]">
+                <div
+                  key={group}
+                  className="space-y-1"
+                  role="group"
+                  aria-labelledby={`command-palette-group-${group.replace(/\s+/g, '-').toLowerCase()}`}
+                >
+                  <div
+                    id={`command-palette-group-${group.replace(/\s+/g, '-').toLowerCase()}`}
+                    role="presentation"
+                    className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]"
+                  >
                     {group}
                   </div>
                   {items.map((command) => {
                     const index = cursor++;
                     const isActive = index === activeIndex;
                     const binding = command.keys
-                      ? formatBinding(
-                          Array.isArray(command.keys) ? command.keys[0] : command.keys,
-                        )
+                      ? formatBinding(Array.isArray(command.keys) ? command.keys[0] : command.keys)
                       : null;
 
                     return (
@@ -234,6 +270,14 @@ export function CommandPalette() {
                         role="option"
                         aria-selected={isActive}
                         data-active={isActive}
+                        /* Every row was a Tab stop, so Tab walked forty commands
+                           one at a time and then out of the dialog. It also
+                           contradicted the pattern this list already declares:
+                           the input keeps DOM focus and announces the active row
+                           through `aria-activedescendant`, so the options must
+                           not be tab stops. Arrow keys and clicks are unchanged;
+                           Tab now has nowhere to go but the query field. */
+                        tabIndex={-1}
                         className={`flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                           isActive
                             ? 'border border-[#5C3016] bg-[#2B1A11]'
@@ -275,7 +319,7 @@ export function CommandPalette() {
                             className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] ${
                               isActive
                                 ? 'border-[#5C3016] bg-[#1D1410] text-[#FF8C42]'
-                                : 'border-[#282C35] bg-[#111318] text-[#6B6E76]'
+                                : 'border-[#282C35] bg-[#111318] text-[#A1A4AC]'
                             }`}
                           >
                             {binding}
@@ -288,7 +332,7 @@ export function CommandPalette() {
               ))}
             </div>
 
-            <footer className="flex items-center justify-between border-t border-[#282C35] bg-[#111318] px-4 py-2 text-[11px] text-[#6B6E76]">
+            <footer className="flex items-center justify-between border-t border-[#282C35] bg-[#111318] px-4 py-2 text-[11px] text-[#A1A4AC]">
               <span className="flex items-center gap-3">
                 <span>
                   <kbd className="font-mono text-[#A1A4AC]">↑↓</kbd> navigate

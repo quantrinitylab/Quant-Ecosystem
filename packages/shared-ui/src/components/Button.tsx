@@ -39,7 +39,7 @@ export const Button: React.FC<ButtonProps> = ({
   const prefersReducedMotion = useReducedMotion();
 
   const baseStyles =
-    'inline-flex items-center justify-center font-medium rounded-lg transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#FF8C42]/50 focus:ring-offset-1 focus:ring-offset-[#090A0C] active:scale-[0.98] select-none';
+    'inline-flex items-center justify-center font-medium rounded-lg transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[#090A0C] active:scale-[0.98] select-none';
 
   const variantStyles: Record<string, string> = {
     primary:
@@ -54,10 +54,23 @@ export const Button: React.FC<ButtonProps> = ({
       'bg-[#0E2A1A] text-[#4ADE80] border border-[#1B4D2E] hover:bg-[#133823] active:bg-[#081B10]',
   };
 
+  /*
+   * The heights are pointer heights: 28, 36 and 40px all fall under the 44px a
+   * finger needs, and this is the button every app in the workspace reaches for.
+   * `min-h`/`min-w` beat `h` in the box calculation, so the touch floor applies
+   * below `sm` and the compact height comes back at 640px and up where a mouse is
+   * the likely input. `xl` is already 48px.
+   *
+   * Arbitrary values rather than the `min-h-touch` token: only three of the
+   * fourteen app Tailwind configs define that theme key, and this component is
+   * compiled by all of them.
+   */
+  const TOUCH_FLOOR = 'min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0';
+
   const sizeStyles: Record<string, string> = {
-    sm: 'h-7 px-2.5 text-xs gap-1.5',
-    md: 'h-9 px-3.5 text-sm gap-2',
-    lg: 'h-10 px-4 text-sm font-semibold gap-2.5',
+    sm: `h-7 px-2.5 text-xs gap-1.5 ${TOUCH_FLOOR}`,
+    md: `h-9 px-3.5 text-sm gap-2 ${TOUCH_FLOOR}`,
+    lg: `h-10 px-4 text-sm font-semibold gap-2.5 ${TOUCH_FLOOR}`,
     xl: 'h-12 px-6 text-base font-semibold gap-3',
   };
 

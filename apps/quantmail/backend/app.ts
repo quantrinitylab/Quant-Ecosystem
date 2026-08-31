@@ -20,6 +20,8 @@ import federationRoutes, { createFederationService } from './routes/federation';
 import { oauthRoutes } from './routes/oauth';
 import phoneRoutes from './routes/phone';
 import { authRoutes } from './routes/auth';
+import { twoFactorRoutes } from './routes/two-factor';
+import { passwordResetRoutes } from './routes/password-reset';
 import reposRoutes from './routes/repos';
 import workspaceRoutes from './routes/workspaces';
 import ciRoutes from './routes/ci';
@@ -51,11 +53,28 @@ export function getConfig(): AppConfig {
     // Pre-authentication endpoints that must bypass the global auth hook so
     // users can sign in / sign up / run OAuth without a token. `/oauth/authorize`
     // stays protected (it needs a logged-in user for the consent screen).
+    //
+    // These are matched by PREFIX (`packages/server-core/src/app.ts`), so an entry
+    // here exempts every path beneath it. Nothing may be mounted under one of
+    // these unless it is meant to be public: `/webhook/inbound/sync-all` used to
+    // exist and inherited this exemption, which is how replaying the entire
+    // inbound S3 bucket into every user's mailbox became an unauthenticated POST.
+    // It now lives at `/admin/inbound/sync-all`, outside the prefix.
     publicPaths: [
       '/auth/login',
       '/auth/register',
       '/auth/refresh',
       '/auth/logout',
+      // Completes a login that stopped at the second factor: the caller holds a
+      // signed challenge and no access token yet, so it cannot pass the JWT
+      // hook. Listed as the exact path — NEVER as `/auth/2fa`, which would
+      // expose setup, enable, disable and backup-code regeneration to anyone.
+      '/auth/2fa/verify',
+      // Forgot-password is for people who cannot sign in. Behind the auth hook
+      // it was reachable only by users who did not need it. The prefix also
+      // covers `/auth/password-reset/confirm`, which is intended — the person
+      // clicking the emailed link has a single-use token, not a session.
+      '/auth/password-reset',
       '/oauth/token',
       '/oauth/revoke',
       '/oauth/register',
@@ -64,6 +83,8 @@ export function getConfig(): AppConfig {
       // have an account yet. Accepting an invite stays authenticated.
       '/public/invites',
       '/.well-known',
+      // Authenticated by the AWS SNS message signature, not by a JWT — SNS
+      // cannot present a bearer token. See routes/inbound-webhook.ts.
       '/webhook/inbound',
     ],
     env,
@@ -96,6 +117,11 @@ export async function buildApp(config?: AppConfig) {
 
   // Auth routes (Login, Register, OAuth2)
   await app.register(authRoutes);
+  // TOTP second factor. `/auth/2fa/verify` is public (it completes a login);
+  // every other route in here requires the JWT the global hook enforces.
+  await app.register(twoFactorRoutes);
+  // Both routes are public: whoever needs them cannot sign in by definition.
+  await app.register(passwordResetRoutes);
   await app.register(oauthRoutes);
   await app.register(phoneRoutes);
 
@@ -170,7 +196,10 @@ export async function buildApp(config?: AppConfig) {
   app.decorate('federation', createFederationService());
   await app.register(federationRoutes, { prefix: '/federation' });
 
-  // SES inbound email webhook — called by AWS SNS, no JWT required.
+  // SES inbound email webhook (POST /webhook/inbound) — called by AWS SNS and
+  // authenticated by the SNS message signature rather than a JWT. The same module
+  // registers POST /admin/inbound/sync-all, which is deliberately *outside* the
+  // public prefix and checks for an ADMIN role.
   await app.register(inboundWebhookRoutes);
 
   return app;

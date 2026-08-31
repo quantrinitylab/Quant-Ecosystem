@@ -2,6 +2,15 @@
 
 import { useCallback, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import {
+  IconArrowDown,
+  IconArrowUp,
+  IconCheck,
+  IconChevronDown,
+  IconChevronUp,
+  IconGitBranch,
+  IconLock,
+} from './icons';
 
 interface Branch {
   name: string;
@@ -46,21 +55,18 @@ export function GitBranchSelector({
 
   return (
     <div className="git-branch-selector">
-      <button type="button" className="branch-current" onClick={() => setIsOpen((v) => !v)}>
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className="w-3.5 h-3.5"
-        >
-          <line x1="6" y1="3" x2="6" y2="15" />
-          <circle cx="18" cy="6" r="3" />
-          <circle cx="6" cy="18" r="3" />
-          <path d="M18 9a9 9 0 0 1-9 9" />
-        </svg>
+      <button
+        type="button"
+        className="branch-current"
+        onClick={() => setIsOpen((v) => !v)}
+        aria-expanded={isOpen}
+        aria-label={`Current branch ${currentBranch}. Switch branch`}
+      >
+        <IconGitBranch size={14} />
         <span>{currentBranch}</span>
-        <span className="branch-chevron">{isOpen ? '▲' : '▼'}</span>
+        <span className="branch-chevron">
+          {isOpen ? <IconChevronUp size={11} /> : <IconChevronDown size={11} />}
+        </span>
       </button>
 
       <AnimatePresence>
@@ -96,44 +102,35 @@ export function GitBranchSelector({
                   {branch.isDefault && <span className="branch-badge">default</span>}
                   {branch.isProtected && (
                     <span className="branch-badge branch-badge--protected" title="Protected branch">
-                      <svg
-                        className="size-3 text-[#FF8C42]"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                      </svg>
+                      <IconLock size={11} className="text-[#FF8C42]" />
                     </span>
                   )}
                   {branch.aheadBehind &&
                     (branch.aheadBehind.ahead > 0 || branch.aheadBehind.behind > 0) && (
                       <span className="branch-ahead-behind">
                         {branch.aheadBehind.ahead > 0 && (
-                          <span className="branch-ahead">↑{branch.aheadBehind.ahead}</span>
+                          <span
+                            className="branch-ahead"
+                            title={`${branch.aheadBehind.ahead} commits ahead`}
+                          >
+                            <IconArrowUp size={10} />
+                            {branch.aheadBehind.ahead}
+                          </span>
                         )}
                         {branch.aheadBehind.behind > 0 && (
-                          <span className="branch-behind">↓{branch.aheadBehind.behind}</span>
+                          <span
+                            className="branch-behind"
+                            title={`${branch.aheadBehind.behind} commits behind`}
+                          >
+                            <IconArrowDown size={10} />
+                            {branch.aheadBehind.behind}
+                          </span>
                         )}
                       </span>
                     )}
                   {branch.name === currentBranch && (
                     <span className="branch-check">
-                      <svg
-                        className="size-3.5 text-[#FF8C42]"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
+                      <IconCheck size={13} className="text-[#FF8C42]" />
                     </span>
                   )}
                 </button>

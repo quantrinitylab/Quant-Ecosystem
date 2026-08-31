@@ -1,20 +1,30 @@
 'use client';
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
-import { PageTransition } from '@quant/shared-ui';
+import { PageTransition, useFocusTrap } from '@quant/shared-ui';
 import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
 import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
 import { QuantMailLogo } from './QuantMailLogo';
 import { QuantCalendarLogo } from './QuantCalendarLogo';
 import { QuantDriveLogo } from './QuantDriveLogo';
 import { QuantContactsLogo } from './QuantContactsLogo';
-import { QuantCodeLogo } from './QuantCodeLogo';
-import { BrandWordmark } from './BrandWordmark';
-import { Interactive3DLogo, type LogoAppType } from './Interactive3DLogo';
-import { EcosystemWarpMatrix } from './EcosystemWarpMatrix';
+import { QuantGitLogo } from './QuantGitLogo';
+import { BrandWordmark, appDisplayName } from './BrandWordmark';
+// Type only: the shell renders per-app SVG marks itself. The value import of
+// `Interactive3DLogo` alongside it was unused — the switcher is its only caller.
+import { type LogoAppType } from './Interactive3DLogo';
 import { QuantumSplashIntro } from './QuantumSplashIntro';
+import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInbox } from '../hooks/useInbox';
+
+// The switcher pulls in `Interactive3DLogo` for five app marks, so it stays out
+// of the shell's own chunk until the user first opens it.
+const EcosystemWarpMatrix = dynamic(
+  () => import('./EcosystemWarpMatrix').then((m) => m.EcosystemWarpMatrix),
+  { ssr: false },
+);
 
 export interface AppShellProps {
   children: ReactNode;
@@ -117,7 +127,7 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
   },
   {
     id: 'code',
-    label: 'Code',
+    label: 'Git',
     path: '/codehub',
     icon: (
       <svg
@@ -210,9 +220,10 @@ export function AppShell({
   'aria-label': ariaLabel = 'Application shell',
 }: AppShellProps) {
   const drawerId = useId();
-  const drawerRef = useRef<HTMLElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const switcherTriggerRef = useRef<HTMLButtonElement>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
   const router = useRouter();
   const pathname = usePathname() ?? '/';
@@ -263,10 +274,34 @@ export function AppShell({
     return () => window.removeEventListener('quant:sidebar:close', handleClose);
   }, []);
 
+  useEffect(() => {
+    const handleOpen = () => setIsSwitcherOpen(true);
+    // `close` is what the palette and shortcuts sheet fire before they open, so
+    // two `aria-modal` dialogs are never on screen at once. It deliberately does
+    // *not* restore focus the way Escape does: the surface that asked for this is
+    // about to take focus itself.
+    const handleClose = () => setIsSwitcherOpen(false);
+    window.addEventListener('quant:switcher:open', handleOpen);
+    window.addEventListener('quant:switcher:close', handleClose);
+    return () => {
+      window.removeEventListener('quant:switcher:open', handleOpen);
+      window.removeEventListener('quant:switcher:close', handleClose);
+    };
+  }, []);
+
   const closeSidebar = useCallback((restoreFocus = true) => {
     setIsSidebarOpen(false);
     if (restoreFocus) menuTriggerRef.current?.focus();
   }, []);
+
+  // Same contract as the drawer: closing hands focus back to the control that
+  // opened it, so Escape does not drop the caret at the top of the document.
+  const closeSwitcher = useCallback(() => {
+    setIsSwitcherOpen(false);
+    switcherTriggerRef.current?.focus();
+  }, []);
+
+  const showSwitcher = useDeferredMount(isSwitcherOpen);
 
   const togglePinned = useCallback(() => {
     setIsPinned((previous) => {
@@ -355,10 +390,28 @@ export function AppShell({
   /**
    * Focus containment for the drawer.
    *
-   * Tab stays a raw listener: the engine resolves *commands*, and a focus trap is
-   * not a command — it has no label, belongs in no palette, and needs to inspect
-   * `document.activeElement` against a live DOM query on every press.
+   * The trap itself is the shared `useFocusTrap` — this file used to carry its own
+   * copy, one of four in the repo, and its selector took `button`/`input` without
+   * filtering on visibility, so a control hidden inside the collapsed drawer could
+   * become the wrap target. Two options are deliberately off:
+   *
+   * - `autoFocus`, because the drawer animates in and the effect below waits a
+   *   frame before focusing; taking focus on the same tick lands it on an element
+   *   that is still off-screen.
+   * - `restoreFocus`, because `closeSidebar(restoreFocus?)` already owns the
+   *   return target and distinguishes the two cases the hook cannot: Escape goes
+   *   back to the menu trigger, a route change does not.
+   *
+   * Escape is the keyboard engine's, registered above.
    */
+  const drawerRef = useFocusTrap<HTMLElement>({
+    active: isDrawerPresented,
+    autoFocus: false,
+    restoreFocus: false,
+  });
+
+  // Body scroll lock and initial focus. Not the trap's job: the lock is this
+  // shell's, and the frame's delay exists because the drawer slides in.
   useEffect(() => {
     if (!isDrawerPresented) return;
 
@@ -368,32 +421,11 @@ export function AppShell({
       drawerRef.current?.querySelector<HTMLElement>(focusableSelector)?.focus();
     });
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab' || !drawerRef.current) return;
-
-      const focusableElements = Array.from(
-        drawerRef.current.querySelectorAll<HTMLElement>(focusableSelector),
-      );
-      const firstElement = focusableElements[0];
-      const lastElement = focusableElements[focusableElements.length - 1];
-      if (!firstElement || !lastElement) return;
-
-      if (event.shiftKey && document.activeElement === firstElement) {
-        event.preventDefault();
-        lastElement.focus();
-      } else if (!event.shiftKey && document.activeElement === lastElement) {
-        event.preventDefault();
-        firstElement.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
     return () => {
       window.cancelAnimationFrame(focusFrame);
       document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isDrawerPresented]);
+  }, [isDrawerPresented, drawerRef]);
 
   // Contextual FAB Action Handler
   const handleFabClick = () => {
@@ -401,9 +433,7 @@ export function AppShell({
       onFabClick();
       return;
     }
-    if (pathname.startsWith('/calendar')) {
-      window.dispatchEvent(new CustomEvent('quant:calendar:create'));
-    } else if (pathname.startsWith('/drive')) {
+    if (pathname.startsWith('/drive')) {
       window.dispatchEvent(new CustomEvent('quant:drive:upload'));
     } else if (pathname.startsWith('/contacts')) {
       window.dispatchEvent(new CustomEvent('quant:contacts:create'));
@@ -509,7 +539,7 @@ export function AppShell({
                   type="button"
                   // Hidden once the rail is pinned on a wide screen: the drawer it
                   // opens is `md:hidden` there, so the control had nothing to show.
-                  className={`inline-flex size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors ${isPinned ? 'md:hidden' : ''}`}
+                  className={`inline-flex size-11 sm:size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${isPinned ? 'md:hidden' : ''}`}
                   aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
                   aria-expanded={isDrawerPresented}
                   aria-controls={drawerId}
@@ -526,10 +556,22 @@ export function AppShell({
                   </svg>
                 </button>
 
-                <div
-                  className="flex items-center gap-3 cursor-pointer select-none group"
+                {/*
+                  A real `button`, not a clickable `div`. As a div it was
+                  unreachable by keyboard and had no focus ring, and because
+                  `QuantMailLogo` also took `onClick={handleLogoClick}` while
+                  itself dispatching `quant:refresh`, one click on the mail mark
+                  fired the global refresh three times and `refetchInbox()`
+                  twice. The mark is decoration inside the button now, so the
+                  handler runs exactly once — and the wordmark is part of the
+                  same target instead of a dead strip beside it.
+                */}
+                <button
+                  type="button"
+                  className="flex min-h-touch items-center gap-3 select-none group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   onClick={handleLogoClick}
-                  title={`Quant${currentApp.charAt(0).toUpperCase() + currentApp.slice(1)} — Click to refresh`}
+                  title={`${appDisplayName(currentApp)} — Click to refresh`}
+                  aria-label={`${appDisplayName(currentApp)} — refresh`}
                 >
                   {currentApp === 'calendar' ? (
                     <QuantCalendarLogo size={36} />
@@ -538,25 +580,62 @@ export function AppShell({
                   ) : currentApp === 'contacts' ? (
                     <QuantContactsLogo size={36} />
                   ) : currentApp === 'code' ? (
-                    <QuantCodeLogo size={36} />
+                    <QuantGitLogo size={36} />
                   ) : (
-                    <QuantMailLogo size={38} unreadCount={unreadCount} onClick={handleLogoClick} />
+                    <QuantMailLogo size={38} unreadCount={unreadCount} interactive={false} />
                   )}
 
                   <BrandWordmark app={currentApp} size="text-xl" />
-                </div>
+                </button>
+
+                {/*
+                  The app switcher. `EcosystemWarpMatrix` has been finished and
+                  design-system compliant for a while but had no trigger at all
+                  — imported and never rendered, which webpack simply tree-shook
+                  away, so the whole overlay shipped as nothing.
+                */}
+                <button
+                  ref={switcherTriggerRef}
+                  type="button"
+                  className="inline-flex size-11 sm:size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  aria-label="Switch app"
+                  aria-haspopup="dialog"
+                  aria-expanded={isSwitcherOpen}
+                  onClick={() => setIsSwitcherOpen((open) => !open)}
+                >
+                  <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
+                    <path
+                      d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeLinejoin="round"
+                      strokeWidth="1.8"
+                    />
+                  </svg>
+                </button>
               </div>
 
               {/* Center: Real Contextual Live Search Bar (Desktop) */}
               <div className="hidden md:flex flex-1 max-w-xl mx-4">
                 {onSearchChange ? (
-                  <div className="w-full flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-[#111318]/90 border border-[#282C35] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner">
+                  /*
+                   * The vertical padding is on the input, not on this wrapper. With
+                   * `py-1.5` here the box looked 34px tall but the field that
+                   * actually took the click was the 16px line of text inside it, so
+                   * a click aimed at the top or bottom of the search bar did
+                   * nothing. `min-h` keeps the box the same size it looked before.
+                   */
+                  <div className="w-full flex min-h-[38px] items-center gap-2.5 px-3.5 rounded-xl bg-[#111318]/90 border border-[#282C35] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner">
                     <svg
                       className="size-4 text-[#A1A4AC] shrink-0"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
-                      strokeWidth="2"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                      focusable="false"
                     >
                       <circle cx="11" cy="11" r="7" />
                       <path d="m20 20-4-4" />
@@ -567,31 +646,39 @@ export function AppShell({
                       type="search"
                       value={searchValue ?? ''}
                       onChange={(e) => onSearchChange(e.target.value)}
+                      // The placeholder says what is searchable, which is context,
+                      // not a name — and it is gone the moment anyone types.
+                      aria-label="Search"
                       placeholder={
                         searchPlaceholder ||
-                        (currentApp === 'calendar'
-                          ? 'Search in QuantCalendar…'
-                          : currentApp === 'drive'
-                            ? 'Search in QuantDrive…'
-                            : currentApp === 'contacts'
-                              ? 'Search in QuantContacts…'
-                              : 'Search in QuantMail (sender, subject, keyword)…')
+                        // Every app name comes from `appDisplayName`, so a rename
+                        // lands here too. The chain this replaced had no `code`
+                        // case, so QuantGit's search bar read "Search in
+                        // QuantMail (sender, subject, keyword)…".
+                        (currentApp === 'mail'
+                          ? 'Search in QuantMail (sender, subject, keyword)…'
+                          : `Search in ${appDisplayName(currentApp)}…`)
                       }
-                      className="w-full bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
+                      className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none"
                     />
                     {searchValue && (
                       <button
                         type="button"
                         onClick={() => onSearchChange('')}
-                        className="text-[#A1A4AC] hover:text-white shrink-0 p-0.5"
+                        className="shrink-0 rounded p-0.5 text-[#A1A4AC] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                         title="Clear search"
+                        aria-label="Clear search"
                       >
                         <svg
                           className="size-3.5"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
-                          strokeWidth="2"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                          focusable="false"
                         >
                           <line x1="18" y1="6" x2="6" y2="18" />
                           <line x1="6" y1="6" x2="18" y2="18" />
@@ -614,9 +701,7 @@ export function AppShell({
                       <circle cx="11" cy="11" r="7" />
                       <path d="m20 20-4-4" />
                     </svg>
-                    <span>
-                      Search in Quant{currentApp.charAt(0).toUpperCase() + currentApp.slice(1)}…
-                    </span>
+                    <span>Search in {appDisplayName(currentApp)}…</span>
                   </div>
                 )}
               </div>
@@ -636,8 +721,18 @@ export function AppShell({
         </main>
       </div>
 
-      {/* Floating Action Button (FAB) — Contextual & Clean */}
+      {/*
+        Floating action button.
+
+        Not on the calendar: that page ships its own speed dial at the same
+        `bottom-20 right-4`, and the two were stacking — a 48px circle sitting on top of
+        a 56px one, both orange, one of them opening the plain Event sheet directly and
+        the other offering Event / Task / Birthday / Cycle. Whichever the thumb landed
+        on was luck. The speed dial is the one that can reach all four, so it stays and
+        this one stands down there.
+      */}
       {!isSidebarOpen &&
+        !pathname.startsWith('/calendar') &&
         !pathname.startsWith('/compose') &&
         !pathname.startsWith('/thread') &&
         !pathname.includes('/settings') && (
@@ -646,35 +741,16 @@ export function AppShell({
             onClick={handleFabClick}
             className="fixed bottom-20 right-4 md:hidden z-40 size-12 rounded-full bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.6)] border border-[#FF9B5A]/30 flex items-center justify-center active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#FF8C42]/50"
             aria-label={
-              pathname.startsWith('/calendar')
-                ? 'Create event'
-                : pathname.startsWith('/drive')
-                  ? 'Upload files'
-                  : pathname.startsWith('/contacts')
-                    ? 'New contact'
-                    : pathname.startsWith('/codehub')
-                      ? 'New repository'
-                      : 'Compose email'
+              pathname.startsWith('/drive')
+                ? 'Upload files'
+                : pathname.startsWith('/contacts')
+                  ? 'New contact'
+                  : pathname.startsWith('/codehub')
+                    ? 'New repository'
+                    : 'Compose email'
             }
           >
-            {pathname.startsWith('/calendar') ? (
-              <svg
-                className="size-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-                <line x1="12" y1="14" x2="12" y2="18" />
-                <line x1="10" y1="16" x2="14" y2="16" />
-              </svg>
-            ) : pathname.startsWith('/drive') ? (
+            {pathname.startsWith('/drive') ? (
               <svg
                 className="size-5"
                 viewBox="0 0 24 24"
@@ -735,6 +811,17 @@ export function AppShell({
 
       {/* Mobile Bottom Navigation — strictly md:hidden */}
       <MobileBottomNav />
+
+      {/* One-tap gateway across the suite. Latched so the chunk is fetched on the
+          first open and the overlay then stays mounted like every other one. */}
+      {showSwitcher && (
+        <EcosystemWarpMatrix
+          isOpen={isSwitcherOpen}
+          onClose={closeSwitcher}
+          unreadCount={unreadCount}
+          onRefresh={handleLogoClick}
+        />
+      )}
 
       {/* Cinematic Quantum Ignition Startup Intro */}
       <QuantumSplashIntro />

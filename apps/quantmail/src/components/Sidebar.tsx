@@ -1,12 +1,37 @@
 // ============================================================================
 // QuantMail - Sidebar Component
 // Navigation sidebar with folders/labels
+//
+// SUPERSEDED AND UNMOUNTED. Nothing imports this file — `AppShell` renders
+// `components/AppSidebar.tsx`, which is the sidebar the app actually ships.
+// This one is an early prototype: `renderNavItem` prints `item.icon` as text,
+// so every row would read the literal word "inbox" or "star" instead of showing
+// a glyph. It is kept because `.agents/tasks/.../FEAT-002.json` still points at
+// it, not because it works.
+//
+// Its footer used to render `3.5 GB of 15 GB used` over a 35%-wide bar, both
+// hardcoded, contradicting the `1.2 / 15 GB` that AppSidebar hardcoded and the
+// real figure the Drive page reads. Both are now sourced from
+// `hooks/useStorageQuota.ts`; this file simply no longer claims a number.
 // ============================================================================
 
 import React, { useState } from 'react';
 import type { EmailLabel } from '../types';
+import { IconChevronDown, IconChevronRight } from './icons';
 
-export type SidebarSection = 'inbox' | 'sent' | 'drafts' | 'starred' | 'archive' | 'trash' | 'spam' | 'repos' | 'pipelines' | 'calendar' | 'contacts' | 'settings';
+export type SidebarSection =
+  | 'inbox'
+  | 'sent'
+  | 'drafts'
+  | 'starred'
+  | 'archive'
+  | 'trash'
+  | 'spam'
+  | 'repos'
+  | 'pipelines'
+  | 'calendar'
+  | 'contacts'
+  | 'settings';
 
 export interface SidebarProps {
   activeSection: SidebarSection;
@@ -50,7 +75,18 @@ const otherItems: NavItem[] = [
 ];
 
 export function Sidebar(props: SidebarProps): React.ReactElement {
-  const { activeSection, labels, unreadCounts, onNavigate, onLabelClick, onCreateLabel, onCompose, userName, userEmail, userAvatar } = props;
+  const {
+    activeSection,
+    labels,
+    unreadCounts,
+    onNavigate,
+    onLabelClick,
+    onCreateLabel,
+    onCompose,
+    userName,
+    userEmail,
+    userAvatar,
+  } = props;
 
   const [showNewLabel, setShowNewLabel] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
@@ -110,49 +146,55 @@ export function Sidebar(props: SidebarProps): React.ReactElement {
       <nav className="sidebar-nav">
         <div className="nav-section">
           <h4 className="nav-section-title">Mail</h4>
-          <ul className="nav-list">
-            {mailItems.map(renderNavItem)}
-          </ul>
+          <ul className="nav-list">{mailItems.map(renderNavItem)}</ul>
         </div>
 
         {/* Code Navigation */}
         <div className="nav-section">
           <h4 className="nav-section-title">Code</h4>
-          <ul className="nav-list">
-            {codeItems.map(renderNavItem)}
-          </ul>
+          <ul className="nav-list">{codeItems.map(renderNavItem)}</ul>
         </div>
 
         {/* Other Navigation */}
         <div className="nav-section">
           <h4 className="nav-section-title">More</h4>
-          <ul className="nav-list">
-            {otherItems.map(renderNavItem)}
-          </ul>
+          <ul className="nav-list">{otherItems.map(renderNavItem)}</ul>
         </div>
 
         {/* Labels */}
         <div className="nav-section">
           <div className="nav-section-header">
             <h4 className="nav-section-title" onClick={() => setLabelsExpanded(!labelsExpanded)}>
-              Labels {labelsExpanded ? '▾' : '▸'}
+              Labels{' '}
+              {labelsExpanded ? <IconChevronDown size={11} /> : <IconChevronRight size={11} />}
             </h4>
-            <button className="btn-icon btn-sm" onClick={() => setShowNewLabel(!showNewLabel)} title="Create label">+</button>
+            <button
+              className="btn-icon btn-sm"
+              onClick={() => setShowNewLabel(!showNewLabel)}
+              title="Create label"
+            >
+              +
+            </button>
           </div>
 
           {labelsExpanded && (
             <ul className="nav-list labels-list">
-              {labels.filter((l) => !l.isSystem).map((label) => (
-                <li key={label.id}>
-                  <button className="sidebar-item label-item" onClick={() => onLabelClick(label.name)}>
-                    <span className="label-dot" style={{ backgroundColor: label.color }} />
-                    <span className="sidebar-label">{label.name}</span>
-                    {label.unreadCount > 0 && (
-                      <span className="sidebar-count">{label.unreadCount}</span>
-                    )}
-                  </button>
-                </li>
-              ))}
+              {labels
+                .filter((l) => !l.isSystem)
+                .map((label) => (
+                  <li key={label.id}>
+                    <button
+                      className="sidebar-item label-item"
+                      onClick={() => onLabelClick(label.name)}
+                    >
+                      <span className="label-dot" style={{ backgroundColor: label.color }} />
+                      <span className="sidebar-label">{label.name}</span>
+                      {label.unreadCount > 0 && (
+                        <span className="sidebar-count">{label.unreadCount}</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
             </ul>
           )}
 
@@ -170,20 +212,16 @@ export function Sidebar(props: SidebarProps): React.ReactElement {
                 value={newLabelColor}
                 onChange={(e) => setNewLabelColor(e.target.value)}
               />
-              <button className="btn btn-sm btn-primary" onClick={handleCreateLabel}>Add</button>
-              <button className="btn btn-sm btn-outline" onClick={() => setShowNewLabel(false)}>Cancel</button>
+              <button className="btn btn-sm btn-primary" onClick={handleCreateLabel}>
+                Add
+              </button>
+              <button className="btn btn-sm btn-outline" onClick={() => setShowNewLabel(false)}>
+                Cancel
+              </button>
             </div>
           )}
         </div>
       </nav>
-
-      {/* Storage indicator */}
-      <div className="sidebar-footer">
-        <div className="storage-bar">
-          <div className="storage-fill" style={{ width: '35%' }} />
-        </div>
-        <span className="storage-text">3.5 GB of 15 GB used</span>
-      </div>
     </aside>
   );
 }

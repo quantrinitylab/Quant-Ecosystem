@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { IconLightbulb } from './icons';
 
 interface AICodeExplainerProps {
   code: string;
@@ -33,11 +34,16 @@ export function AICodeExplainer({ code, language, startLine, endLine }: AICodeEx
 
     let result = '';
     if (detail === 'brief') {
-      if (hasClass) result = `This defines a class with ${lines.filter((l) => l.includes('(')).length} methods. It encapsulates related logic into a single reusable unit.`;
-      else if (hasFunction && hasAsync) result = `This is an async function (${lineCount} lines) that performs asynchronous operations. It uses await to pause execution until promises resolve.`;
-      else if (hasFunction) result = `This function (${lineCount} lines) processes data and returns a result. ${hasImport ? 'It imports dependencies from external modules.' : ''}`;
-      else if (hasImport) result = `This section imports ${lines.filter((l) => l.trim().startsWith('import')).length} modules needed by this file.`;
-      else result = `This ${language} code block (${lineCount} lines) contains logic that ${lineCount > 20 ? 'implements a complex feature' : 'performs a specific operation'}.`;
+      if (hasClass)
+        result = `This defines a class with ${lines.filter((l) => l.includes('(')).length} methods. It encapsulates related logic into a single reusable unit.`;
+      else if (hasFunction && hasAsync)
+        result = `This is an async function (${lineCount} lines) that performs asynchronous operations. It uses await to pause execution until promises resolve.`;
+      else if (hasFunction)
+        result = `This function (${lineCount} lines) processes data and returns a result. ${hasImport ? 'It imports dependencies from external modules.' : ''}`;
+      else if (hasImport)
+        result = `This section imports ${lines.filter((l) => l.trim().startsWith('import')).length} modules needed by this file.`;
+      else
+        result = `This ${language} code block (${lineCount} lines) contains logic that ${lineCount > 20 ? 'implements a complex feature' : 'performs a specific operation'}.`;
     } else {
       result = `## Detailed Explanation\n\n`;
       result += `**Language:** ${language}\n`;
@@ -50,7 +56,10 @@ export function AICodeExplainer({ code, language, startLine, endLine }: AICodeEx
       result += hasImport ? '- Imports external dependencies\n' : '';
       result += `\n### Key patterns:\n`;
       result += code.includes('try') ? '- Error handling with try/catch\n' : '';
-      result += code.includes('map') || code.includes('filter') ? '- Functional programming (map/filter/reduce)\n' : '';
+      result +=
+        code.includes('map') || code.includes('filter')
+          ? '- Functional programming (map/filter/reduce)\n'
+          : '';
       result += code.includes('useState') ? '- React state management\n' : '';
       result += code.includes('useEffect') ? '- React side effects\n' : '';
     }
@@ -70,8 +79,20 @@ export function AICodeExplainer({ code, language, startLine, endLine }: AICodeEx
           <option value="brief">Brief</option>
           <option value="detailed">Detailed</option>
         </select>
-        <button type="button" className="ai-explainer-btn" onClick={explain} disabled={isLoading}>
-          {isLoading ? '...' : '💡 Explain'}
+        <button
+          type="button"
+          className="ai-explainer-btn inline-flex items-center gap-1"
+          onClick={explain}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            '...'
+          ) : (
+            <>
+              <IconLightbulb size={12} />
+              Explain
+            </>
+          )}
         </button>
       </div>
       <AnimatePresence>
@@ -83,7 +104,13 @@ export function AICodeExplainer({ code, language, startLine, endLine }: AICodeEx
             exit={{ opacity: 0, height: 0 }}
           >
             <pre className="ai-explainer-text">{explanation}</pre>
-            <button type="button" className="ai-explainer-dismiss" onClick={() => setExplanation(null)}>×</button>
+            <button
+              type="button"
+              className="ai-explainer-dismiss"
+              onClick={() => setExplanation(null)}
+            >
+              ×
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

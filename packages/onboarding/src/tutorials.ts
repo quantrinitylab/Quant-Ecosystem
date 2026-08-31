@@ -157,7 +157,7 @@ const APP_TUTORIALS: Record<AppId, TutorialStep[]> = {
   'quant-code': [
     {
       id: 'code-welcome',
-      title: 'Welcome to QuantCode',
+      title: 'Welcome to QuantGit',
       content: 'Code with AI-powered assistance.',
       position: 'center',
       allowDismiss: true,

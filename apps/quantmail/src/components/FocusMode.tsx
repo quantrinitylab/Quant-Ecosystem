@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { IconCircle, IconDot, IconTarget } from './icons';
 
 interface FocusModeProps {
   isActive: boolean;
@@ -14,7 +15,7 @@ interface FocusModeProps {
  * Focus Mode indicator and toggle.
  * When active, only shows emails from known contacts and important senders.
  * Everything else gets batched for later review.
- * 
+ *
  * This is Superhuman's #1 differentiator — we include it natively.
  */
 export function FocusMode({ isActive, onToggle, unreadCount, focusCount }: FocusModeProps) {
@@ -28,14 +29,10 @@ export function FocusMode({ isActive, onToggle, unreadCount, focusCount }: Focus
         title={isActive ? 'Exit Focus Mode' : 'Enter Focus Mode'}
       >
         <span className="focus-mode-icon" aria-hidden="true">
-          {isActive ? '◉' : '○'}
+          {isActive ? <IconDot size={9} /> : <IconCircle size={12} />}
         </span>
-        <span className="focus-mode-label">
-          {isActive ? 'Focus' : 'All mail'}
-        </span>
-        {isActive && focusCount > 0 && (
-          <span className="focus-mode-count">{focusCount}</span>
-        )}
+        <span className="focus-mode-label">{isActive ? 'Focus' : 'All mail'}</span>
+        {isActive && focusCount > 0 && <span className="focus-mode-count">{focusCount}</span>}
       </button>
       <AnimatePresence>
         {isActive && (
@@ -58,11 +55,11 @@ export function FocusMode({ isActive, onToggle, unreadCount, focusCount }: Focus
 /**
  * Focus Mode Banner shown at the top of the inbox when focus mode filters are active.
  */
-export function FocusModeBanner({ 
-  batchedCount, 
-  onReview 
-}: { 
-  batchedCount: number; 
+export function FocusModeBanner({
+  batchedCount,
+  onReview,
+}: {
+  batchedCount: number;
   onReview: () => void;
 }) {
   const [dismissed, setDismissed] = useState(false);
@@ -77,7 +74,9 @@ export function FocusModeBanner({
       exit={{ opacity: 0, height: 0 }}
     >
       <div className="focus-banner-content">
-        <span className="focus-banner-icon">🎯</span>
+        <span className="focus-banner-icon inline-flex">
+          <IconTarget size={13} />
+        </span>
         <span>
           <strong>Focus Mode active.</strong> {batchedCount} less-important{' '}
           {batchedCount === 1 ? 'email' : 'emails'} batched.

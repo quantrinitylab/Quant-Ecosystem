@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Button, Skeleton } from '@quant/shared-ui';
+import { Skeleton } from '@quant/shared-ui';
 import { AppShell } from '../../../../components/AppShell';
 import { AppSidebar } from '../../../../components/AppSidebar';
 import { FileTree } from '../../../../components/FileTree';
 import { AICodingChat } from '../../../../components/AICodingChat';
+import { IconChevronLeft, IconSparkle, IconTerminal, IconX } from '../../../../components/icons';
 import { useRepo, useFileTree, useFileContent } from '../../../../hooks/useRepos';
 
 export default function RepoEditorPage() {
@@ -17,9 +18,8 @@ export default function RepoEditorPage() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [editorContent, setEditorContent] = useState('');
   const [showAIChat, setShowAIChat] = useState(true);
-  const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
-  const [showTerminal, setShowTerminal] = useState(false);
-  const [terminalInput, setTerminalInput] = useState('');
+  const [outputLines, setOutputLines] = useState<string[]>([]);
+  const [showOutput, setShowOutput] = useState(false);
 
   const { data: repo } = useRepo(repoId);
   const { data: fileTree, isLoading: loadingTree } = useFileTree(repoId);
@@ -36,25 +36,20 @@ export default function RepoEditorPage() {
     setSelectedFile(path);
   }, []);
 
-  const handleSave = useCallback(() => {
-    setTerminalOutput((prev) => [
-      ...prev,
-      'Save unavailable: durable repository storage is not connected.',
-    ]);
+  // There is no Save control any more. `PATCH /repos/:id/file` does not exist and
+  // `GET /repos/:id/file` returns `content: ''` unconditionally, so a Save button
+  // could only ever have logged its own failure — which is what it did. The
+  // read-only state is now stated once, as a pill, instead of being offered as an
+  // action that declines itself.
+  //
+  // The panel below is an output log, not a terminal: it never had command
+  // execution behind it, so the `$` prompt that used to sit there could only
+  // print "Terminal unavailable" for anything typed into it. It is now write-only
+  // from the app's side.
+  const appendOutput = useCallback((line: string) => {
+    setOutputLines((prev) => [...prev, line]);
+    setShowOutput(true);
   }, []);
-
-  const handleTerminalSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!terminalInput.trim()) return;
-      setTerminalOutput((prev) => [
-        ...prev,
-        'Terminal unavailable: command execution is not connected.',
-      ]);
-      setTerminalInput('');
-    },
-    [terminalInput],
-  );
 
   const getLanguage = (filename: string | null): string => {
     if (!filename) return 'plaintext';
@@ -86,9 +81,14 @@ export default function RepoEditorPage() {
         {/* Top bar */}
         <header className="ide-topbar">
           <div className="ide-topbar-left">
-            <Button variant="secondary" onClick={() => router.push(`/repos/${repoId}`)}>
-              ← Back
-            </Button>
+            <button
+              type="button"
+              onClick={() => router.push(`/repos/${repoId}`)}
+              className="ide-back-btn"
+            >
+              <IconChevronLeft size={14} />
+              <span>Back</span>
+            </button>
             <span className="ide-repo-name">{repo?.name || 'Repository'}</span>
             {selectedFile && <span className="ide-file-path">/ {selectedFile}</span>}
           </div>
@@ -97,21 +97,25 @@ export default function RepoEditorPage() {
               type="button"
               className={`ide-toggle-btn ${showAIChat ? 'is-active' : ''}`}
               onClick={() => setShowAIChat((v) => !v)}
-              title="Toggle AI Assistant"
+              aria-pressed={showAIChat}
+              title="Toggle AI assistant"
             >
-              ✦ AI
+              <IconSparkle size={14} />
+              <span>AI</span>
             </button>
             <button
               type="button"
-              className={`ide-toggle-btn ${showTerminal ? 'is-active' : ''}`}
-              onClick={() => setShowTerminal((v) => !v)}
-              title="Toggle Terminal"
+              className={`ide-toggle-btn ${showOutput ? 'is-active' : ''}`}
+              onClick={() => setShowOutput((v) => !v)}
+              aria-pressed={showOutput}
+              title="Toggle output log"
             >
-              ⌨ Terminal
+              <IconTerminal size={14} />
+              <span>Output</span>
             </button>
-            <Button variant="primary" onClick={handleSave} disabled>
+            <span className="ide-readonly-pill" title="This repository is served read-only">
               Read only
-            </Button>
+            </span>
           </div>
         </header>
 
@@ -144,8 +148,13 @@ export default function RepoEditorPage() {
                   execution are unavailable.
                 </p>
                 <div className="ide-welcome-shortcuts">
-                  <kbd>Read only</kbd> No durable writes
-                  <kbd>✦ AI</kbd> Suggestions only
+                  <span className="ide-welcome-fact">
+                    <span>Read only</span> No durable writes
+                  </span>
+                  <span className="ide-welcome-fact">
+                    <IconSparkle size={13} />
+                    <span>AI</span> Suggestions only
+                  </span>
                 </div>
               </div>
             ) : (
@@ -180,9 +189,9 @@ export default function RepoEditorPage() {
               </div>
             )}
 
-            {/* Terminal */}
+            {/* Output log — write-only; nothing here executes commands */}
             <AnimatePresence>
-              {showTerminal && (
+              {showOutput && (
                 <motion.div
                   className="ide-terminal"
                   initial={{ height: 0 }}
@@ -191,26 +200,25 @@ export default function RepoEditorPage() {
                   transition={{ duration: 0.2 }}
                 >
                   <div className="ide-terminal-header">
-                    <span>Terminal</span>
-                    <button type="button" onClick={() => setShowTerminal(false)}>
-                      ×
+                    <span>Output</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowOutput(false)}
+                      aria-label="Close output log"
+                    >
+                      <IconX size={14} />
                     </button>
                   </div>
-                  <div className="ide-terminal-output">
-                    {terminalOutput.map((line, i) => (
-                      <pre key={i}>{line}</pre>
-                    ))}
+                  <div className="ide-terminal-output" role="log" aria-live="polite">
+                    {outputLines.length === 0 ? (
+                      <pre className="ide-terminal-hint">
+                        Nothing to report yet. Command execution is not connected, so this panel
+                        only shows what the editor itself has to say.
+                      </pre>
+                    ) : (
+                      outputLines.map((line, i) => <pre key={i}>{line}</pre>)
+                    )}
                   </div>
-                  <form className="ide-terminal-input" onSubmit={handleTerminalSubmit}>
-                    <span className="ide-prompt">$</span>
-                    <input
-                      type="text"
-                      value={terminalInput}
-                      onChange={(e) => setTerminalInput(e.target.value)}
-                      placeholder="Type a command..."
-                      autoFocus
-                    />
-                  </form>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -231,10 +239,9 @@ export default function RepoEditorPage() {
                   currentContent={editorContent}
                   language={getLanguage(selectedFile)}
                   onApplyCode={() => {
-                    setTerminalOutput((prev) => [
-                      ...prev,
+                    appendOutput(
                       'AI apply unavailable: durable repository storage is not connected.',
-                    ]);
+                    );
                   }}
                   onClose={() => setShowAIChat(false)}
                 />

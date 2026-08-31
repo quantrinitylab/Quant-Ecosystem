@@ -20,6 +20,11 @@
  * derived from that by `lib/offline/folders`. One code path therefore covers
  * archive, unarchive, trash, restore and snooze, and a message can never end up
  * visible in both the inbox and the archive.
+ *
+ * Every handler takes one id or many, because the unit a person acts on is a
+ * *conversation*: the row says `11` and its archive button has to move all eleven.
+ * Callers pass `threadMessageIds(thread)`; see the note there for what went wrong
+ * when they passed `thread.id`.
  */
 
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
@@ -59,17 +64,33 @@ function findCachedEmail(queryClient: QueryClient, id: string): Email | undefine
   return undefined;
 }
 
+/**
+ * One id or many, as a de-duplicated array.
+ *
+ * Every handler here takes either, because the thing a user acts on is a
+ * *conversation* — the row counts eleven messages and the archive button on it has
+ * to move all eleven. See `threadMessageIds`.
+ */
+function idList(ids: string | string[]): string[] {
+  const raw = Array.isArray(ids) ? ids : [ids];
+  return Array.from(new Set(raw.filter(Boolean)));
+}
+
 export interface MailMutations {
-  archive: (id: string) => Promise<void>;
-  unarchive: (id: string) => Promise<void>;
-  trash: (id: string) => Promise<void>;
-  restore: (id: string) => Promise<void>;
-  toggleStar: (id: string) => Promise<void>;
-  markRead: (id: string) => Promise<void>;
-  markUnread: (id: string) => Promise<void>;
-  snooze: (id: string, until: Date) => Promise<void>;
-  /** Batch archive or trash: one optimistic update, one request per id, one toast. */
-  batch: (kind: 'archive' | 'trash', ids: string[]) => Promise<void>;
+  archive: (ids: string | string[]) => Promise<void>;
+  unarchive: (ids: string | string[]) => Promise<void>;
+  trash: (ids: string | string[]) => Promise<void>;
+  restore: (ids: string | string[]) => Promise<void>;
+  toggleStar: (ids: string | string[]) => Promise<void>;
+  markRead: (ids: string | string[]) => Promise<void>;
+  markUnread: (ids: string | string[]) => Promise<void>;
+  snooze: (ids: string | string[], until: Date) => Promise<void>;
+  /**
+   * Batch archive or trash: one optimistic update, one request per id, one toast.
+   * `unitCount` is what the toast counts — the number of *conversations* selected,
+   * which is not `ids.length` once each one expands to its messages.
+   */
+  batch: (kind: 'archive' | 'trash', ids: string[], unitCount?: number) => Promise<void>;
 }
 
 export interface UseMailMutationsOptions {
@@ -200,10 +221,10 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
   );
 
   const archive = useCallback(
-    (id: string) =>
+    (ids: string | string[]) =>
       run({
         kind: 'archive',
-        ids: [id],
+        ids: idList(ids),
         patch: { isArchived: true },
         toast: 'Conversation archived',
         undo: { kind: 'unarchive', patch: { isArchived: false } },
@@ -213,10 +234,10 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
   );
 
   const unarchive = useCallback(
-    (id: string) =>
+    (ids: string | string[]) =>
       run({
         kind: 'unarchive',
-        ids: [id],
+        ids: idList(ids),
         patch: { isArchived: false },
         toast: 'Moved back to inbox',
         undo: { kind: 'archive', patch: { isArchived: true } },
@@ -226,10 +247,10 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
   );
 
   const trash = useCallback(
-    (id: string) =>
+    (ids: string | string[]) =>
       run({
         kind: 'trash',
-        ids: [id],
+        ids: idList(ids),
         patch: { trashedAt: new Date() },
         toast: 'Conversation moved to trash',
         undo: { kind: 'restore', patch: { trashedAt: undefined } },
@@ -239,10 +260,10 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
   );
 
   const restore = useCallback(
-    (id: string) =>
+    (ids: string | string[]) =>
       run({
         kind: 'restore',
-        ids: [id],
+        ids: idList(ids),
         patch: { trashedAt: undefined },
         toast: 'Conversation restored',
         removesFromView: true,
@@ -251,33 +272,60 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
   );
 
   const toggleStar = useCallback(
-    (id: string) => {
-      const current = findCachedEmail(queryClient, id);
-      return run({
-        kind: 'toggleStar',
-        ids: [id],
-        patch: { isStarred: !(current?.isStarred ?? false) },
-      });
+    (ids: string | string[]) => {
+      const list = idList(ids);
+      /*
+       * A conversation is starred when *any* message in it is — that is the `some`
+       * the row renders — so the target is the opposite of that, written to the
+       * whole conversation.
+       *
+       * Only the messages on the wrong side of the target are sent, because
+       * `toggleStar` is a per-message flip on the server (`apiClient.toggleStar`
+       * takes no value). Sending it to all eleven would un-star the one that was
+       * already starred and star the ten that were not, so the row would come back
+       * starred no matter which way the user pressed it.
+       */
+      const target = !list.some((id) => findCachedEmail(queryClient, id)?.isStarred);
+      const wrongSide = list.filter(
+        (id) => Boolean(findCachedEmail(queryClient, id)?.isStarred) !== target,
+      );
+      return run({ kind: 'toggleStar', ids: wrongSide, patch: { isStarred: target } });
     },
     [queryClient, run],
   );
 
+  /*
+   * Read state is filtered to the messages that actually disagree. `markRead` and
+   * `markUnread` are idempotent on the server, so this is only about not firing
+   * eleven requests to change three things — but it also keeps the Undo toast
+   * honest, since `run` stays silent when nothing needed changing.
+   */
   const markRead = useCallback(
-    (id: string) => run({ kind: 'markRead', ids: [id], patch: { isRead: true } }),
-    [run],
+    (ids: string | string[]) =>
+      run({
+        kind: 'markRead',
+        ids: idList(ids).filter((id) => findCachedEmail(queryClient, id)?.isRead !== true),
+        patch: { isRead: true },
+      }),
+    [queryClient, run],
   );
 
   const markUnread = useCallback(
-    (id: string) =>
-      run({ kind: 'markUnread', ids: [id], patch: { isRead: false }, toast: 'Marked as unread' }),
-    [run],
+    (ids: string | string[]) =>
+      run({
+        kind: 'markUnread',
+        ids: idList(ids).filter((id) => findCachedEmail(queryClient, id)?.isRead !== false),
+        patch: { isRead: false },
+        toast: 'Marked as unread',
+      }),
+    [queryClient, run],
   );
 
   const snooze = useCallback(
-    (id: string, until: Date) =>
+    (ids: string | string[], until: Date) =>
       run({
         kind: 'snooze',
-        ids: [id],
+        ids: idList(ids),
         patch: { snoozedUntil: until },
         snoozeUntil: until,
         toast: `Snoozed until ${formatSnoozeTarget(until)}`,
@@ -287,12 +335,14 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
   );
 
   const batch = useCallback(
-    (kind: 'archive' | 'trash', ids: string[]) => {
-      const noun = `${ids.length} conversation${ids.length === 1 ? '' : 's'}`;
+    (kind: 'archive' | 'trash', ids: string[], unitCount?: number) => {
+      const list = idList(ids);
+      const units = unitCount ?? list.length;
+      const noun = `${units} conversation${units === 1 ? '' : 's'}`;
       return kind === 'archive'
         ? run({
             kind: 'archive',
-            ids,
+            ids: list,
             patch: { isArchived: true },
             toast: `${noun} archived`,
             undo: { kind: 'unarchive', patch: { isArchived: false } },
@@ -300,7 +350,7 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
           })
         : run({
             kind: 'trash',
-            ids,
+            ids: list,
             patch: { trashedAt: new Date() },
             toast: `${noun} moved to trash`,
             undo: { kind: 'restore', patch: { trashedAt: undefined } },

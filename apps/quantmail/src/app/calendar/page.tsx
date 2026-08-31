@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button, Modal, Skeleton, ErrorState } from '@quant/shared-ui';
+import { Button, Modal, Skeleton, ErrorState, useFocusTrap } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { PageTransition } from '../../components/PageTransition';
 import { Quanty } from '../../components/Quanty';
-import { QuantyCopilotDrawer } from '../../components/QuantyCopilotDrawer';
 import {
   useCalendarEvents,
   useCreateEvent,
@@ -15,8 +15,66 @@ import {
   useDeleteEvent,
 } from '../../hooks/useCalendar';
 import { useAuth } from '../../providers/auth-provider';
+import { useConfirm } from '../../hooks/useConfirm';
+import { useDeferredMount } from '../../hooks/useDeferredMount';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
+import {
+  IconActivity,
+  IconAlertCircle,
+  IconBan,
+  IconBed,
+  IconBell,
+  IconBolt,
+  IconBrain,
+  IconCake,
+  IconCalendar,
+  IconCheck,
+  IconCheckCircle,
+  IconCircle,
+  IconClock,
+  IconCloud,
+  IconDot,
+  IconDroplet,
+  IconEyeOff,
+  IconFlag,
+  IconFlame,
+  IconFlask,
+  IconFlower,
+  IconGlobe,
+  IconHeart,
+  IconLayers,
+  IconMapPin,
+  IconMinus,
+  IconPaperclip,
+  IconRefresh,
+  IconScale,
+  IconSettings,
+  IconShield,
+  IconSparkle,
+  IconStar,
+  IconSun,
+  IconTarget,
+  IconThermometer,
+  IconTrendDown,
+  IconTrendUp,
+  IconUndo,
+  IconUsers,
+  IconVideoCall,
+  IconWave,
+  IconX,
+} from '../../components/icons';
+
+/**
+ * Split out of the calendar's route chunk. `calendar/page.tsx` is the heaviest
+ * page in the app, and Quanty's drawer is a 663-line feature behind a single
+ * toolbar button — most calendar sessions never touch it. `useDeferredMount`
+ * keeps it mounted once opened, so an in-progress conversation is not discarded
+ * when the drawer closes.
+ */
+const QuantyCopilotDrawer = dynamic(() => import('../../components/QuantyCopilotDrawer'), {
+  ssr: false,
+});
 
 const WEEKDAYS_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const FULL_WEEKDAYS = [
@@ -182,6 +240,80 @@ const toTimeInput = (date: Date) =>
 
 type CalendarView = 'agenda' | 'week' | 'day' | 'month';
 
+/** One source for both toolbars, so the phone cannot drift from the desktop. */
+const CALENDAR_VIEWS: ReadonlyArray<{ key: CalendarView; label: string }> = [
+  { key: 'agenda', label: 'Agenda' },
+  { key: 'week', label: 'Week' },
+  { key: 'day', label: 'Day' },
+  { key: 'month', label: 'Month' },
+];
+
+/**
+ * What a day cell is allowed to say about itself.
+ *
+ * Both grids already work this out for every date they draw — and then drew none of
+ * it, which is why 28 August looked exactly like 27 August with Raksha Bandhan on it.
+ * The `sphereClass` branches tint the circle, but they are mutually exclusive and only
+ * three of the five kinds get a branch at all, so a day holding a holiday or an
+ * ordinary meeting came out blank.
+ */
+type DayMarkFlags = {
+  hasHoliday?: boolean;
+  hasPeriod?: boolean;
+  hasBirthday?: boolean;
+  hasTask?: boolean;
+  hasPlainEvent?: boolean;
+};
+
+/**
+ * Priority order, and the colour each kind already wears everywhere else in this page
+ * — the speed dial, the sheets and the agenda cards all use these five.
+ */
+const DAY_MARKS: Array<{ key: keyof DayMarkFlags; color: string; label: string }> = [
+  { key: 'hasHoliday', color: '#FF8C42', label: 'holiday' },
+  { key: 'hasPeriod', color: '#FB7185', label: 'cycle entry' },
+  { key: 'hasBirthday', color: '#34D399', label: 'birthday' },
+  { key: 'hasTask', color: '#FFB875', label: 'task' },
+  { key: 'hasPlainEvent', color: '#A1A4AC', label: 'event' },
+];
+
+/**
+ * The dots under a date.
+ *
+ * Dots rather than another tint, because a day can hold four kinds at once and a
+ * background can only say one thing. Capped at three: past that the row stops reading
+ * as marks and starts reading as texture.
+ *
+ * `onBrand` covers the selected cell, whose background is the same `#FF8C42` a holiday
+ * dot would be drawn in — there the dots switch to the dark ink the day number already
+ * uses, so a selected day does not silently lose its marks.
+ */
+function DayMarks({ flags, onBrand }: { flags: DayMarkFlags; onBrand: boolean }) {
+  const marks = DAY_MARKS.filter((mark) => flags[mark.key]).slice(0, 3);
+  if (marks.length === 0) return null;
+
+  return (
+    <span
+      className="pointer-events-none absolute inset-x-0 bottom-[3px] flex items-center justify-center gap-[3px]"
+      aria-hidden="true"
+    >
+      {marks.map((mark) => (
+        <span
+          key={mark.key}
+          className="size-[3px] rounded-full"
+          style={{ backgroundColor: onBrand ? '#111111' : mark.color }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** The marks a day carries, as words, for the button's accessible name. */
+function dayMarkLabel(flags: DayMarkFlags): string {
+  const labels = DAY_MARKS.filter((mark) => flags[mark.key]).map((mark) => mark.label);
+  return labels.length === 0 ? '' : `, has ${labels.join(', ')}`;
+}
+
 const TIMEZONES = [
   { label: 'India Standard Time (IST, UTC+5:30)', value: 'Asia/Kolkata' },
   { label: 'Greenwich Mean Time (UTC / GMT+0)', value: 'UTC' },
@@ -206,295 +338,84 @@ const RECURRENCE_OPTIONS = [
   'Custom interval…',
 ];
 
-// Clean 3D Calendar Logo Component
-function IconCalendar({ className = 'size-4' }: { className?: string }) {
-  return (
-    <img
-      src="/quant-calendar-logo.png"
-      alt="Calendar"
-      className={`${className} object-contain rounded drop-shadow-sm`}
-    />
-  );
-}
-
-function IconClock({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <polyline points="12 6 12 12 16 14" />
-    </svg>
-  );
-}
-
-function IconGlobe({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <line x1="2" y1="12" x2="22" y2="12" />
-      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-    </svg>
-  );
-}
-
-function IconRepeat({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polyline points="17 1 21 5 17 9" />
-      <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-      <polyline points="7 23 3 19 7 15" />
-      <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-    </svg>
-  );
-}
-
-function IconUsers({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  );
-}
-
-function IconVideo({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <polygon points="23 7 16 12 23 17 23 7" />
-      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-    </svg>
-  );
-}
-
-function IconMapPin({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
-  );
-}
-
-function IconBell({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
-  );
-}
-
-function IconPaperclip({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-    </svg>
-  );
-}
-
-function IconCake({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" />
-      <path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1" />
-      <path d="M2 21h20" />
-      <line x1="7" y1="8" x2="7" y2="11" />
-      <line x1="12" y1="8" x2="12" y2="11" />
-      <line x1="17" y1="8" x2="17" y2="11" />
-      <line x1="7" y1="4" x2="7.01" y2="4" />
-      <line x1="12" y1="4" x2="12.01" y2="4" />
-      <line x1="17" y1="4" x2="17.01" y2="4" />
-    </svg>
-  );
-}
-
-function IconTarget({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="6" />
-      <circle cx="12" cy="12" r="2" />
-    </svg>
-  );
-}
-
-function IconFlower({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 16.5A4.5 4.5 0 1 1 7.5 12 4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 1 1 4.5 4.5 4.5 4.5 0 1 1-4.5 4.5" />
-      <path d="M12 7.5V3" />
-      <path d="M12 21v-4.5" />
-      <path d="M16.5 12H21" />
-      <path d="M3 12h4.5" />
-    </svg>
-  );
-}
-
-function IconDrop({ className = 'size-4' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
-    </svg>
-  );
-}
-
-// Clue Reference Categories & Card Options
+// Clue Reference Categories & Card Options.
+//
+// Each option carries a shared `components/icons` glyph rather than an emoji.
+// The emoji set these replaced had two problems beyond house style: it drew at a
+// different size and weight on every OS, and it repeated itself — ⚡ stood for
+// "angry", "cramps" and "itchy"; 💧 for "withdrawal" and "dryness"; 🚀 for both
+// "mild" and "moderate" hot flashes. A glyph that appears twice in one picker
+// tells the reader nothing, so within every group below the mark is distinct,
+// and the severity ladders (energy, hot flashes) now move in one direction.
 const CLUE_FEELINGS = [
-  { id: 'mood_swings', label: 'Mood swings', symbol: '⛅' },
-  { id: 'not_in_control', label: 'Not in control', symbol: '🌀' },
-  { id: 'fine', label: 'Fine', symbol: '☁️' },
-  { id: 'happy', label: 'Happy', symbol: '☀️' },
-  { id: 'sad', label: 'Sad', symbol: '🌧️' },
-  { id: 'sensitive', label: 'Sensitive', symbol: '💨' },
-  { id: 'angry', label: 'Angry', symbol: '⚡' },
-  { id: 'confident', label: 'Confident', symbol: '🌞' },
-  { id: 'excited', label: 'Excited', symbol: '✨' },
-  { id: 'irritable', label: 'Irritable', symbol: '🌩️' },
-  { id: 'anxious', label: 'Anxious', symbol: '🌪️' },
-  { id: 'insecure', label: 'Insecure', symbol: '🌧️' },
-  { id: 'grateful', label: 'Grateful', symbol: '🌅' },
-  { id: 'indifferent', label: 'Indifferent', symbol: '🌙' },
+  { id: 'mood_swings', label: 'Mood swings', Icon: IconWave },
+  { id: 'not_in_control', label: 'Not in control', Icon: IconRefresh },
+  { id: 'fine', label: 'Fine', Icon: IconCloud },
+  { id: 'happy', label: 'Happy', Icon: IconSun },
+  { id: 'sad', label: 'Sad', Icon: IconDroplet },
+  { id: 'sensitive', label: 'Sensitive', Icon: IconFlower },
+  { id: 'angry', label: 'Angry', Icon: IconFlame },
+  { id: 'confident', label: 'Confident', Icon: IconStar },
+  { id: 'excited', label: 'Excited', Icon: IconSparkle },
+  { id: 'irritable', label: 'Irritable', Icon: IconBolt },
+  { id: 'anxious', label: 'Anxious', Icon: IconActivity },
+  { id: 'insecure', label: 'Insecure', Icon: IconEyeOff },
+  { id: 'grateful', label: 'Grateful', Icon: IconHeart },
+  { id: 'indifferent', label: 'Indifferent', Icon: IconMinus },
 ];
 
 const CLUE_COLLECTION_METHODS = [
-  { id: 'pad', label: 'Pad', icon: '🩸' },
-  { id: 'tampon', label: 'Tampon', icon: '🧵' },
-  { id: 'panty_liner', label: 'Panty liner', icon: '🩲' },
-  { id: 'cup', label: 'Menstrual cup', icon: '🍷' },
+  { id: 'pad', label: 'Pad', Icon: IconLayers },
+  { id: 'tampon', label: 'Tampon', Icon: IconDroplet },
+  { id: 'panty_liner', label: 'Panty liner', Icon: IconMinus },
+  { id: 'cup', label: 'Menstrual cup', Icon: IconFlask },
 ];
 
 const CLUE_PAIN = [
-  { id: 'pain_free', label: 'Pain free', symbol: '😊' },
-  { id: 'cramps', label: 'Cramps', symbol: '⚡' },
-  { id: 'ovulation', label: 'Ovulation', symbol: '🥚' },
-  { id: 'breast_tenderness', label: 'Breast tenderness', symbol: '🍈' },
-  { id: 'headache', label: 'Headache', symbol: '🤕' },
-  { id: 'backache', label: 'Backache', symbol: '💆' },
+  { id: 'pain_free', label: 'Pain free', Icon: IconCheckCircle },
+  { id: 'cramps', label: 'Cramps', Icon: IconBolt },
+  { id: 'ovulation', label: 'Ovulation', Icon: IconCircle },
+  { id: 'breast_tenderness', label: 'Breast tenderness', Icon: IconHeart },
+  { id: 'headache', label: 'Headache', Icon: IconBrain },
+  { id: 'backache', label: 'Backache', Icon: IconLayers },
 ];
 
 const CLUE_SLEEP = [
-  { id: 'trouble_sleeping', label: 'Trouble falling asleep', symbol: '😴' },
-  { id: 'refreshed', label: 'Woke up refreshed', symbol: '😄' },
-  { id: 'tired', label: 'Woke up tired', symbol: '🥱' },
-  { id: 'restless', label: 'Restless sleep', symbol: '🔄' },
+  { id: 'trouble_sleeping', label: 'Trouble falling asleep', Icon: IconClock },
+  { id: 'refreshed', label: 'Woke up refreshed', Icon: IconSun },
+  { id: 'tired', label: 'Woke up tired', Icon: IconTrendDown },
+  { id: 'restless', label: 'Restless sleep', Icon: IconRefresh },
 ];
 
 const CLUE_SEX_LIFE = [
-  { id: 'protected', label: 'Protected', symbol: '☂️' },
-  { id: 'unprotected', label: 'Unprotected', symbol: '⛱️' },
-  { id: 'withdrawal', label: 'Withdrawal', symbol: '💧' },
-  { id: 'no_sex', label: 'No sex', symbol: '🚫' },
+  { id: 'protected', label: 'Protected', Icon: IconShield },
+  { id: 'unprotected', label: 'Unprotected', Icon: IconAlertCircle },
+  { id: 'withdrawal', label: 'Withdrawal', Icon: IconUndo },
+  { id: 'no_sex', label: 'No sex', Icon: IconBan },
 ];
 
+// Ordinal: flat-out → down → level → up. Reads as a ladder even before the label.
 const CLUE_ENERGY = [
-  { id: 'exhausted', label: 'Exhausted', symbol: '🏊' },
-  { id: 'tired', label: 'Tired', symbol: '🧍' },
-  { id: 'ok', label: 'OK', symbol: '🚶' },
-  { id: 'energetic', label: 'Energetic', symbol: '🏃' },
+  { id: 'exhausted', label: 'Exhausted', Icon: IconBed },
+  { id: 'tired', label: 'Tired', Icon: IconTrendDown },
+  { id: 'ok', label: 'OK', Icon: IconMinus },
+  { id: 'energetic', label: 'Energetic', Icon: IconTrendUp },
 ];
 
 const CLUE_INTIMATE = [
-  { id: 'normal', label: 'Normal / Good', symbol: '🌸' },
-  { id: 'dryness', label: 'Vaginal dryness', symbol: '💧' },
-  { id: 'itchy', label: 'Itchy', symbol: '⚡' },
-  { id: 'sore', label: 'Sore', symbol: '😣' },
+  { id: 'normal', label: 'Normal / Good', Icon: IconCheckCircle },
+  { id: 'dryness', label: 'Vaginal dryness', Icon: IconSun },
+  { id: 'itchy', label: 'Itchy', Icon: IconActivity },
+  { id: 'sore', label: 'Sore', Icon: IconFlame },
 ];
 
+// `flames` is the severity, the same trick the flow-intensity picker uses: one
+// mark per step instead of four glyphs that had no order between them.
 const CLUE_HOT_FLASHES = [
-  { id: 'none', label: 'None today', symbol: '🚫' },
-  { id: 'mild', label: 'Mild', symbol: '🚀' },
-  { id: 'moderate', label: 'Moderate', symbol: '🚀' },
-  { id: 'severe', label: 'Severe', symbol: '🔥' },
+  { id: 'none', label: 'None today', flames: 0 },
+  { id: 'mild', label: 'Mild', flames: 1 },
+  { id: 'moderate', label: 'Moderate', flames: 2 },
+  { id: 'severe', label: 'Severe', flames: 3 },
 ];
 
 const NOTIFICATION_SLIDER_VALUES = [
@@ -534,6 +455,7 @@ export default function CalendarPage() {
   const [searchFilter, setSearchFilter] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isQuantyDrawerOpen, setIsQuantyDrawerOpen] = useState(false);
+  const showQuantyDrawer = useDeferredMount(isQuantyDrawerOpen);
 
   // Selector sheets / modals
   const [isTimezoneModalOpen, setIsTimezoneModalOpen] = useState(false);
@@ -680,6 +602,7 @@ export default function CalendarPage() {
   const createEvent = useCreateEvent();
   const updateEvent = useUpdateEvent();
   const deleteEvent = useDeleteEvent();
+  const { confirm, dialog } = useConfirm();
 
   const dayKey = (date: Date) =>
     `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
@@ -741,6 +664,9 @@ export default function CalendarPage() {
       const hasUrgentTask = dayEvts.some((e) => e.type === 'task' && e.priority === 'urgent');
       const hasBirthday = dayEvts.some((e) => e.type === 'birthday');
       const hasEvent = dayEvts.length > 0;
+      // A day can hold a birthday *and* a meeting, so "plain event" has to exclude the
+      // kinds that already have a mark of their own rather than just meaning "not empty".
+      const hasPlainEvent = dayEvts.some((e) => (e.type ?? 'event') === 'event');
 
       return {
         date: d,
@@ -755,6 +681,7 @@ export default function CalendarPage() {
         hasUrgentTask,
         hasBirthday,
         hasEvent,
+        hasPlainEvent,
         holidayName: (holidaysByDay[k] ?? [])[0]?.name,
         key: k,
       };
@@ -775,6 +702,7 @@ export default function CalendarPage() {
       hasTask: boolean;
       hasUrgentTask: boolean;
       hasBirthday: boolean;
+      hasPlainEvent: boolean;
       holidayName?: string;
     }> = [];
 
@@ -796,6 +724,7 @@ export default function CalendarPage() {
         hasTask: dayEvts.some((e) => e.type === 'task'),
         hasUrgentTask: dayEvts.some((e) => e.type === 'task' && e.priority === 'urgent'),
         hasBirthday: dayEvts.some((e) => e.type === 'birthday'),
+        hasPlainEvent: dayEvts.some((e) => (e.type ?? 'event') === 'event'),
         holidayName: hols[0]?.name,
       });
     }
@@ -818,6 +747,7 @@ export default function CalendarPage() {
         hasTask: dayEvts.some((e) => e.type === 'task'),
         hasUrgentTask: dayEvts.some((e) => e.type === 'task' && e.priority === 'urgent'),
         hasBirthday: dayEvts.some((e) => e.type === 'birthday'),
+        hasPlainEvent: dayEvts.some((e) => (e.type ?? 'event') === 'event'),
         holidayName: hols[0]?.name,
       });
     }
@@ -840,6 +770,7 @@ export default function CalendarPage() {
         hasTask: dayEvts.some((e) => e.type === 'task'),
         hasUrgentTask: dayEvts.some((e) => e.type === 'task' && e.priority === 'urgent'),
         hasBirthday: dayEvts.some((e) => e.type === 'birthday'),
+        hasPlainEvent: dayEvts.some((e) => (e.type ?? 'event') === 'event'),
         holidayName: hols[0]?.name,
       });
     }
@@ -893,8 +824,25 @@ export default function CalendarPage() {
     scrollToDate(now);
   }, [scrollToDate]);
 
-  const COLLAPSED_HEIGHT = 114;
-  const EXPANDED_HEIGHT = 336;
+  /**
+   * The picker's day spheres are the primary date control, and a phone measured
+   * them at 36px in the week strip and 32px in the month grid — the two smallest
+   * real targets left on this screen. They grow to 44 on a coarse pointer, which
+   * needs taller rows, which needs a taller picker; hence the two heights below
+   * rather than one constant. Starts `false` so the server and the first client
+   * render agree, then settles on the first effect.
+   */
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)');
+    const sync = () => setIsCoarsePointer(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  const COLLAPSED_HEIGHT = isCoarsePointer ? 128 : 114;
+  const EXPANDED_HEIGHT = isCoarsePointer ? 384 : 336;
 
   const [isDragging, setIsDragging] = useState(false);
   const [currentHeight, setCurrentHeight] = useState(COLLAPSED_HEIGHT);
@@ -1036,51 +984,50 @@ export default function CalendarPage() {
     }
   }, []);
 
-  const continuousAgendaDays = useMemo(() => {
-    const list: Array<{
-      date: Date;
-      key: string;
-      dayNum: number;
-      weekdayName: string;
-      monthShort: string;
-      /** Set on the first row of each month, so the stream can band itself. */
-      monthBreak: string | null;
-      isToday: boolean;
-      isTomorrow: boolean;
-      events: CalendarEventLike[];
-      holidays: Holiday[];
-    }> = [];
+  /**
+   * Turn a run of dates into agenda rows.
+   *
+   * Extracted from `continuousAgendaDays` so the scoped views can build their own
+   * run of days from the same rules. `monthBreak` is assigned here rather than in
+   * a per-day helper because it depends on the row before it, and a week that
+   * straddles September has to band itself the same way the endless stream does.
+   */
+  const assembleAgendaDays = useCallback(
+    (dates: Date[]) => {
+      const list: Array<{
+        date: Date;
+        key: string;
+        dayNum: number;
+        weekdayName: string;
+        monthShort: string;
+        /** Set on the first row of each month, so the stream can band itself. */
+        monthBreak: string | null;
+        isToday: boolean;
+        isTomorrow: boolean;
+        events: CalendarEventLike[];
+        holidays: Holiday[];
+      }> = [];
 
-    const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const tomorrow = new Date(base);
-    tomorrow.setDate(base.getDate() + 1);
+      const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const tomorrow = new Date(base);
+      tomorrow.setDate(base.getDate() + 1);
+      const needle = searchFilter.trim().toLowerCase();
 
-    const startIdx = -agendaRangeDays.past;
-    const endIdx = agendaRangeDays.future;
+      for (const d of dates) {
+        const key = dayKey(d);
+        const dayEvents = eventsByDay[key] ?? [];
+        // `holidaysByDay` is already indexed; the old loop re-scanned all of
+        // HOLIDAYS for each of the ~75 rendered days.
+        const dayHolidays = holidaysByDay[key] ?? [];
 
-    for (let i = startIdx; i <= endIdx; i++) {
-      const d = new Date(base);
-      d.setDate(base.getDate() + i);
-      const key = dayKey(d);
-      const isDayToday = key === dayKey(today);
-      const isDayTomorrow = key === dayKey(tomorrow);
-
-      const dayEvents = eventsByDay[key] ?? [];
-
-      const dayHolidays = HOLIDAYS.filter((h) => {
-        const parts = h.date.split('-');
-        if (parts.length === 3) {
-          const hd = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-          return dayKey(hd) === key;
+        if (
+          needle &&
+          !dayEvents.some((e) => e.title.toLowerCase().includes(needle)) &&
+          !dayHolidays.some((h) => h.name.toLowerCase().includes(needle))
+        ) {
+          continue;
         }
-        return false;
-      });
 
-      if (
-        !searchFilter.trim() ||
-        dayEvents.some((e) => e.title.toLowerCase().includes(searchFilter.toLowerCase())) ||
-        dayHolidays.some((h) => h.name.toLowerCase().includes(searchFilter.toLowerCase()))
-      ) {
         const previous = list[list.length - 1];
         const monthChanged =
           !previous ||
@@ -1094,16 +1041,84 @@ export default function CalendarPage() {
           weekdayName: FULL_WEEKDAYS[d.getDay()],
           monthShort: MONTHS_SHORT[d.getMonth()],
           monthBreak: monthChanged ? `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}` : null,
-          isToday: isDayToday,
-          isTomorrow: isDayTomorrow,
+          isToday: key === dayKey(today),
+          isTomorrow: key === dayKey(tomorrow),
           events: dayEvents,
           holidays: dayHolidays,
         });
       }
+
+      return list;
+    },
+    [today, eventsByDay, holidaysByDay, searchFilter],
+  );
+
+  const continuousAgendaDays = useMemo(() => {
+    const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const dates: Date[] = [];
+    for (let i = -agendaRangeDays.past; i <= agendaRangeDays.future; i++) {
+      const d = new Date(base);
+      d.setDate(base.getDate() + i);
+      dates.push(d);
+    }
+    return assembleAgendaDays(dates);
+  }, [today, agendaRangeDays, assembleAgendaDays]);
+
+  /**
+   * What the stream actually renders.
+   *
+   * `activeView` used to be write-only: `setActiveView` ran on every click, but
+   * the value was read in exactly two places — the highlight on its own button
+   * and a guard in the anchor effect — so Week, Day and Month lit up and changed
+   * nothing at all. Each scope now builds its own run of dates rather than
+   * filtering the endless stream, because a month three pages back sits outside
+   * the ±(14, 60) day window the stream has loaded.
+   */
+  const visibleAgendaDays = useMemo(() => {
+    if (activeView === 'agenda') return continuousAgendaDays;
+
+    if (activeView === 'day') {
+      const d = new Date(
+        selectedDate.getFullYear(),
+        selectedDate.getMonth(),
+        selectedDate.getDate(),
+      );
+      return assembleAgendaDays([d]);
     }
 
-    return list;
-  }, [today, agendaRangeDays, eventsByDay, searchFilter]);
+    if (activeView === 'week') {
+      // The same Sunday-start week the strip above is showing.
+      return assembleAgendaDays(currentWeekDays.map((d) => d.date));
+    }
+
+    const total = new Date(year, month + 1, 0).getDate();
+    return assembleAgendaDays(
+      Array.from({ length: total }, (_, i) => new Date(year, month, i + 1)),
+    );
+  }, [
+    activeView,
+    continuousAgendaDays,
+    assembleAgendaDays,
+    currentWeekDays,
+    selectedDate,
+    year,
+    month,
+  ]);
+
+  /**
+   * Switch view and put the picker in the matching mode.
+   *
+   * Month view with a week strip above it gave no way to reach another month
+   * except scrolling a list that no longer scrolls, so the two controls have to
+   * move together: the grid is the navigation for Month, the strip for Week and
+   * Day. Re-anchoring is allowed again on the way back to Agenda, because the
+   * stream is remounted from scratch and would otherwise open on old history.
+   */
+  const selectView = useCallback((next: CalendarView) => {
+    setActiveView(next);
+    setIsMonthExpanded(next === 'month');
+    if (next === 'agenda') hasAnchoredTodayRef.current = false;
+  }, []);
 
   /**
    * Park the stream on today the first time it paints.
@@ -1202,12 +1217,6 @@ export default function CalendarPage() {
     [selectedDate, currentUserEmail],
   );
 
-  useEffect(() => {
-    const handler = () => openDedicatedSheet('event');
-    window.addEventListener('quant:calendar:create', handler);
-    return () => window.removeEventListener('quant:calendar:create', handler);
-  }, [openDedicatedSheet]);
-
   const openEditSheet = useCallback((ev: CalendarEventLike) => {
     const type: EntryType =
       ev.type === 'task' || ev.type === 'birthday' || ev.type === 'period'
@@ -1259,6 +1268,63 @@ export default function CalendarPage() {
     setEditingEventId(null);
   }, [isSaving]);
 
+  /**
+   * The sheet declares `aria-modal="true"`, which tells assistive tech the rest
+   * of the document is not there — and then Tab walked straight out of it into
+   * the month grid behind. This is the longest form in the app, so it was also
+   * the surface where it mattered most.
+   *
+   * `onEscape` is deliberately omitted: dismissal already lives in the effect
+   * below, which has a nested-overlay guard the hook cannot know about (a <Modal>
+   * opened on top of the sheet has to win the key and close alone). Two owners
+   * for one key is how a single press closes both.
+   */
+  const sheetRef = useFocusTrap<HTMLDivElement>({ active: Boolean(activeSheetType) });
+
+  // Escape dismisses the sheet, matching the backdrop tap, and collapses the
+  // speed dial when no sheet is up. Every overlay a sheet can open on top of
+  // itself -- customize, timezone, recurrence, notifications, the event card,
+  // Quanty -- is a <Modal>, which runs its own document-level Escape handler, so
+  // those have to win the key and close alone: without the guard one press would
+  // dismiss the nested modal and the sheet underneath it together.
+  //
+  // No `document.body.style.overflow` lock to match <Modal>'s. Measured on a
+  // Pixel 8 at 375x812: this shell's document does not scroll at all
+  // (scrollHeight === clientHeight === 812), and the region that does scroll
+  // behind a sheet is the shell's own `overflow-y-auto` pane, which is not a
+  // pointer-reachable ancestor of the backdrop. Locking the body would change
+  // nothing.
+  useEffect(() => {
+    if (!activeSheetType && !isFabOpen) return;
+    const nestedOverlayOpen =
+      isPeriodCustomizeOpen ||
+      isTimezoneModalOpen ||
+      isRecurrenceModalOpen ||
+      isNotificationSliderOpen ||
+      isQuantyDrawerOpen ||
+      Boolean(selectedEvent);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || nestedOverlayOpen) return;
+      if (activeSheetType) {
+        closeSheet();
+      } else {
+        setIsFabOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [
+    activeSheetType,
+    isFabOpen,
+    isPeriodCustomizeOpen,
+    isTimezoneModalOpen,
+    isRecurrenceModalOpen,
+    isNotificationSliderOpen,
+    isQuantyDrawerOpen,
+    selectedEvent,
+    closeSheet,
+  ]);
+
   // Prefill a new event when arriving from Contacts via /calendar?attendee=<email>
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1282,9 +1348,13 @@ export default function CalendarPage() {
 
     let finalTitle = formState.title.trim();
     if (activeSheetType === 'period') {
+      // No 🌸 prefix any more: the type travels in __QUANT_META__ below, and if
+      // that is ever missing the heuristic still matches on the word "Period".
+      // Titles saved by older builds keep their emoji and keep being recognised
+      // by the `title.includes('🌸')` fallback in the parser.
       finalTitle =
         finalTitle ||
-        `🌸 Period Log (Day ${formState.currentCycleDay}, ${formState.flowIntensity} flow)`;
+        `Period Log (Day ${formState.currentCycleDay}, ${formState.flowIntensity} flow)`;
     }
 
     let startIso: string;
@@ -1385,7 +1455,14 @@ export default function CalendarPage() {
   const handleDeleteEvent = useCallback(
     async (id: string, e?: React.MouseEvent) => {
       e?.stopPropagation();
-      if (confirm('Delete this entry?')) {
+      const ok = await confirm({
+        title: 'Delete this entry?',
+        message:
+          'It is removed from your calendar. Anyone you invited keeps their own copy unless you cancel it with them.',
+        confirmLabel: 'Delete entry',
+        variant: 'destructive',
+      });
+      if (ok) {
         try {
           await deleteEvent.mutateAsync(id);
           setSelectedEvent(null);
@@ -1396,7 +1473,7 @@ export default function CalendarPage() {
         }
       }
     },
-    [deleteEvent, refetch],
+    [confirm, deleteEvent, refetch],
   );
 
   const handleAddAttendee = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1500,6 +1577,13 @@ export default function CalendarPage() {
       const host = e.currentTarget;
       const { scrollTop, scrollHeight, clientHeight } = host;
 
+      // Only the endless agenda pages and self-selects. A scoped view holds a
+      // fixed run of days — 7 of them in Week view, which is shorter than the
+      // viewport, so the "near the bottom" test below is true the moment it
+      // paints and would otherwise widen the buffer by 30 days every 250ms
+      // behind a list that cannot scroll. Its own picker is the navigation.
+      if (activeView !== 'agenda') return;
+
       if (scrollHeight - scrollTop - clientHeight < 350 && !isLoadingFuture) {
         setIsLoadingFuture(true);
         setTimeout(() => {
@@ -1551,7 +1635,7 @@ export default function CalendarPage() {
         }
       }
     },
-    [continuousAgendaDays, selectedDate, currentDate, isLoadingPast, isLoadingFuture],
+    [activeView, continuousAgendaDays, selectedDate, currentDate, isLoadingPast, isLoadingFuture],
   );
 
   return (
@@ -1564,11 +1648,14 @@ export default function CalendarPage() {
       searchPlaceholder="Search events, meetings, tasks, birthdays…"
       mobileActions={
         <div className="flex items-center gap-1.5">
-          {/* Search Button (Mobile ONLY — on desktop, search is in top header) */}
+          {/* Search Button (Mobile ONLY — on desktop, search is in top header).
+           * Both of these are mobile-only, so there is no desktop density to
+           * protect: a phone measured them at 32x32 and 30x27, under the 44px
+           * touch floor. */}
           <button
             type="button"
             onClick={() => setIsSearchOpen((prev) => !prev)}
-            className="md:hidden size-8 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors"
+            className="md:hidden size-11 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             aria-label="Search calendar"
           >
             <svg
@@ -1587,8 +1674,9 @@ export default function CalendarPage() {
           <button
             type="button"
             onClick={() => setIsQuantyDrawerOpen(true)}
-            className="p-1 rounded-xl hover:bg-[#282C35] text-[#FF8C42] hover:text-[#FFB875] transition-all flex items-center justify-center"
+            className="size-11 rounded-xl hover:bg-[#282C35] text-[#FF8C42] hover:text-[#FFB875] transition-all inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             title="Open Quanty AI Copilot"
+            aria-label="Open Quanty AI Copilot"
           >
             <Quanty size={22} expression="happy" bob={false} />
           </button>
@@ -1604,7 +1692,7 @@ export default function CalendarPage() {
               placeholder="Search events, meetings, tasks, birthdays…"
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-[#FF8C42]"
+              className="w-full min-h-11 bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
               autoFocus
             />
             <button
@@ -1613,7 +1701,7 @@ export default function CalendarPage() {
                 setIsSearchOpen(false);
                 setSearchFilter('');
               }}
-              className="text-xs text-[#A1A4AC] hover:text-white px-2 py-1"
+              className="min-h-11 shrink-0 px-2 text-xs text-[#A1A4AC] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded-lg"
             >
               Cancel
             </button>
@@ -1642,7 +1730,7 @@ export default function CalendarPage() {
 
             <h2 className="text-xl font-bold tracking-tight text-[#F5F5F5] flex items-center gap-2">
               <span>{activeMonthName}</span>
-              <span className="text-[#6B6E76] font-normal">{activeYear}</span>
+              <span className="text-[#A1A4AC] font-normal">{activeYear}</span>
             </h2>
 
             <button
@@ -1656,19 +1744,13 @@ export default function CalendarPage() {
 
           <div className="flex items-center gap-2">
             <div className="flex items-center rounded-lg border border-[#282C35] bg-[#111318] p-0.5">
-              {(
-                [
-                  { key: 'agenda', label: 'Agenda' },
-                  { key: 'week', label: 'Week' },
-                  { key: 'day', label: 'Day' },
-                  { key: 'month', label: 'Month' },
-                ] as const
-              ).map((v) => (
+              {CALENDAR_VIEWS.map((v) => (
                 <button
                   key={v.key}
                   type="button"
-                  onClick={() => setActiveView(v.key)}
-                  className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
+                  onClick={() => selectView(v.key)}
+                  aria-pressed={activeView === v.key}
+                  className={`px-3 py-1 text-xs rounded-md font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     activeView === v.key
                       ? 'bg-[#FF8C42] text-[#111111] font-semibold shadow-sm'
                       : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
@@ -1689,7 +1771,73 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Quant Brand 3D Glassmorphic Calendar Date Picker with Permanent Glowing Holiday Dots */}
+        {/*
+         * Mobile toolbar.
+         *
+         * The toolbar above is `hidden md:flex`, and the picker only draws its own
+         * `‹ ›` once the month grid is expanded — so a phone had no month
+         * navigation, no "Today" and no view switcher at all. It could reach
+         * another month only by dragging the handle open first, and could not
+         * leave Agenda by any route. Two rows rather than one: 375px will not
+         * hold a month name, a stepper and four view chips side by side.
+         */}
+        <div className="md:hidden border-b border-[#282C35]/80 bg-[#0c0c0f] px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="flex min-w-0 items-baseline gap-1.5 truncate text-base font-bold tracking-tight text-[#F5F5F5]">
+              <span className="truncate">{activeMonthName}</span>
+              <span className="font-normal text-[#A1A4AC]">{activeYear}</span>
+            </h2>
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => goMonth(-1)}
+                aria-label="Previous month"
+                className="grid size-11 place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] transition-colors hover:bg-[#282C35]/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                onClick={() => goMonth(1)}
+                aria-label="Next month"
+                className="grid size-11 place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] transition-colors hover:bg-[#282C35]/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              >
+                ›
+              </button>
+              <button
+                type="button"
+                onClick={goToday}
+                className="min-h-11 rounded-xl border border-[#282C35] bg-[#16181D] px-3 text-xs font-medium text-[#F5F5F5] transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              >
+                Today
+              </button>
+            </div>
+          </div>
+
+          <div
+            className="mt-2 flex items-center gap-1 overflow-x-auto no-scrollbar rounded-xl border border-[#282C35] bg-[#111318] p-0.5"
+            role="group"
+            aria-label="Calendar view"
+          >
+            {CALENDAR_VIEWS.map((v) => (
+              <button
+                key={v.key}
+                type="button"
+                onClick={() => selectView(v.key)}
+                aria-pressed={activeView === v.key}
+                className={`min-h-11 flex-1 rounded-lg px-3 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  activeView === v.key
+                    ? 'bg-[#FF8C42] font-semibold text-[#111111] shadow-sm'
+                    : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
+                }`}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Date picker: drag the handle at the bottom to swap the week strip for the month grid. */}
         <div
           className="border-b border-[#282C35]/80 bg-[#101014] select-none overflow-hidden relative"
           style={{
@@ -1705,17 +1853,22 @@ export default function CalendarPage() {
                   {MONTH_NAMES[month]} {year}
                 </span>
                 <div className="flex items-center gap-1">
+                  {/* 28px on a mouse, 44 on a finger — the same coarse-pointer
+                   * escape the collapsed day rows below use, so the grid header
+                   * stays compact without putting a sub-floor target on a phone. */}
                   <button
                     type="button"
                     onClick={() => goMonth(-1)}
-                    className="size-7 text-sm text-[#A1A4AC] hover:text-white rounded-lg hover:bg-[#282C35]/80 flex items-center justify-center"
+                    aria-label="Previous month"
+                    className="size-7 [@media(pointer:coarse)]:size-11 text-sm text-[#A1A4AC] hover:text-white rounded-lg hover:bg-[#282C35]/80 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   >
                     ‹
                   </button>
                   <button
                     type="button"
                     onClick={() => goMonth(1)}
-                    className="size-7 text-sm text-[#A1A4AC] hover:text-white rounded-lg hover:bg-[#282C35]/80 flex items-center justify-center"
+                    aria-label="Next month"
+                    className="size-7 [@media(pointer:coarse)]:size-11 text-sm text-[#A1A4AC] hover:text-white rounded-lg hover:bg-[#282C35]/80 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   >
                     ›
                   </button>
@@ -1733,7 +1886,7 @@ export default function CalendarPage() {
 
             <div className="flex-1 overflow-hidden">
               {!isMonthExpanded ? (
-                <div className="grid grid-cols-7 text-center h-[46px] items-center">
+                <div className="grid grid-cols-7 text-center h-[46px] [@media(pointer:coarse)]:h-[52px] items-center">
                   {currentWeekDays.map((d) => {
                     let sphereClass = 'text-[#F5F5F5] hover:bg-[#16181D]';
 
@@ -1757,9 +1910,12 @@ export default function CalendarPage() {
                         <button
                           type="button"
                           onClick={() => selectDate(d.date)}
-                          className={`relative size-9 rounded-full flex flex-col items-center justify-center text-xs transition-all ${sphereClass}`}
+                          className={`relative size-9 [@media(pointer:coarse)]:size-11 rounded-full flex flex-col items-center justify-center text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101014] ${sphereClass}`}
+                          aria-label={`${d.dayNum} ${MONTH_NAMES[d.date.getMonth()]}${d.holidayName ? `, ${d.holidayName}` : ''}${dayMarkLabel(d)}`}
+                          title={d.holidayName}
                         >
                           <span>{d.dayNum}</span>
+                          <DayMarks flags={d} onBrand={d.isSelected} />
                         </button>
                       </div>
                     );
@@ -1770,12 +1926,12 @@ export default function CalendarPage() {
                   {monthWeeks.map((week, weekIdx) => (
                     <div
                       key={`month-week-${weekIdx}`}
-                      className="grid grid-cols-7 text-center h-[38px] items-center"
+                      className="grid grid-cols-7 text-center h-[38px] [@media(pointer:coarse)]:h-11 items-center"
                     >
                       {week.map((d) => {
                         let sphereClass = d.isCurrentMonth
                           ? 'text-[#A1A4AC] hover:bg-[#16181D]'
-                          : 'text-[#6B6E76]/50';
+                          : 'text-[#A1A4AC]/50';
 
                         if (d.isSelected) {
                           sphereClass = 'bg-[#FF8C42] text-[#111111] font-bold shadow-sm';
@@ -1792,14 +1948,28 @@ export default function CalendarPage() {
                           sphereClass = 'border border-[#FF8C42] text-[#FF8C42] font-semibold';
                         }
 
+                        // The month grid names these `hasHolidays`/`hasEvents`; the week
+                        // strip names them in the singular. Normalised here rather than
+                        // renamed across four builders that three other views read.
+                        const marks: DayMarkFlags = {
+                          hasHoliday: d.hasHolidays,
+                          hasPeriod: d.hasPeriod,
+                          hasBirthday: d.hasBirthday,
+                          hasTask: d.hasTask,
+                          hasPlainEvent: d.hasPlainEvent,
+                        };
+
                         return (
                           <div key={d.key} className="flex justify-center">
                             <button
                               type="button"
                               onClick={() => selectDate(d.date)}
-                              className={`relative size-8 rounded-full flex flex-col items-center justify-center text-xs transition-all ${sphereClass}`}
+                              className={`relative size-8 [@media(pointer:coarse)]:size-11 rounded-full flex flex-col items-center justify-center text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101014] ${sphereClass}`}
+                              aria-label={`${d.dayNum} ${MONTH_NAMES[d.date.getMonth()]}${d.holidayName ? `, ${d.holidayName}` : ''}${dayMarkLabel(marks)}`}
+                              title={d.holidayName}
                             >
                               <span>{d.dayNum}</span>
+                              <DayMarks flags={marks} onBrand={d.isSelected} />
                             </button>
                           </div>
                         );
@@ -1822,7 +1992,7 @@ export default function CalendarPage() {
               <div
                 className={`w-12 h-1.5 rounded-full transition-all ${
                   isDragging
-                    ? 'bg-[#FF8C42] scale-110 shadow-[0_0_10px_#FF8C42]'
+                    ? 'bg-[#FF8C42] scale-110 shadow-[0_0_0_3px_rgba(255,140,66,0.22)]'
                     : 'bg-[#3A404D] group-hover:bg-[#6B6E76]'
                 }`}
               />
@@ -1869,7 +2039,23 @@ export default function CalendarPage() {
 
           {!isInitialLoading && !error && (
             <div className="divide-y divide-[#282C35]/60">
-              {continuousAgendaDays.map((item) => {
+              {/* A scoped view is a fixed run of days, so a search that matches
+               * nothing inside it leaves the stream genuinely empty — the endless
+               * agenda never could, which is why nothing said so before. */}
+              {visibleAgendaDays.length === 0 && (
+                <div className="py-12 text-center">
+                  <p className="text-sm font-medium text-[#F5F5F5]">
+                    {searchFilter.trim() ? 'No matches in this range' : 'Nothing scheduled'}
+                  </p>
+                  <p className="mt-1 text-xs text-[#A1A4AC]">
+                    {searchFilter.trim()
+                      ? `Nothing here matches “${searchFilter.trim()}”.`
+                      : 'This range is clear.'}
+                  </p>
+                </div>
+              )}
+
+              {visibleAgendaDays.map((item) => {
                 const isSelected = dayKey(item.date) === dayKey(selectedDate);
                 const hasEvents = item.events.length > 0;
                 const hasHolidays = item.holidays.length > 0;
@@ -1880,7 +2066,7 @@ export default function CalendarPage() {
                 // than a persistent header.
                 const monthBand = item.monthBreak && (
                   <div className="flex items-center gap-3 pb-1.5 pt-3 first:pt-0">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#6B6E76]">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#A1A4AC]">
                       {item.monthBreak}
                     </span>
                     <span className="h-px flex-1 bg-[#282C35]/60" />
@@ -1919,8 +2105,12 @@ export default function CalendarPage() {
                         >
                           {item.dayNum} {item.monthShort}
                         </span>
-                        <span className="text-[#3A404D]">·</span>
-                        <span className="flex-1 truncate text-[11px] text-[#6B6E76]">
+                        {/* Decorative separator only, so 3:1 is the bar (WCAG
+                            1.4.11) — but #3A404D was 1.91:1 and did not render
+                            at all. #6B6E76 matches `.wm-divider`, the same
+                            glyph doing the same job elsewhere. */}
+                        <span className="text-[#6B6E76]">·</span>
+                        <span className="flex-1 truncate text-[11px] text-[#A1A4AC]">
                           {item.isToday ? 'Nothing left today' : 'No events'}
                         </span>
                         <span className="shrink-0 pr-1 text-[11px] font-medium text-[#FF8C42] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100">
@@ -1953,7 +2143,7 @@ export default function CalendarPage() {
                         >
                           {item.dayNum} {item.monthShort}
                         </span>
-                        <span className="text-[11px] text-[#6B6E76]">{item.weekdayName}</span>
+                        <span className="text-[11px] text-[#A1A4AC]">{item.weekdayName}</span>
 
                         {item.isToday && (
                           <span className="rounded-full border border-[#5C3016] bg-[#2B1A11] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#FFB875]">
@@ -1961,7 +2151,7 @@ export default function CalendarPage() {
                           </span>
                         )}
                         {item.isTomorrow && (
-                          <span className="text-[10px] font-medium uppercase tracking-wider text-[#6B6E76]">
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-[#A1A4AC]">
                             Tomorrow
                           </span>
                         )}
@@ -1972,22 +2162,18 @@ export default function CalendarPage() {
                         {item.holidays.map((h, hi) => (
                           <div
                             key={hi}
-                            style={{
-                              background:
-                                'radial-gradient(circle at 10% 20%, rgba(16,185,129,0.3) 0%, transparent 60%), radial-gradient(circle at 90% 80%, rgba(5,150,105,0.25) 0%, transparent 60%), linear-gradient(135deg, rgba(12,28,20,0.92) 0%, rgba(8,18,14,0.98) 100%)',
-                            }}
-                            className="relative flex items-center justify-between px-4 py-3 rounded-2xl border border-emerald-500/50 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.4),0_0_15px_rgba(16,185,129,0.25),inset_0_1px_1px_rgba(255,255,255,0.2)] text-xs overflow-hidden"
+                            className="relative flex items-center justify-between px-4 py-3 rounded-2xl border border-emerald-500/40 bg-[#0C1C14] shadow-[0_4px_16px_rgba(0,0,0,0.6)] text-xs overflow-hidden"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="size-8 rounded-full bg-emerald-500/25 border border-emerald-400/50 flex items-center justify-center text-base shadow-[0_0_10px_rgba(16,185,129,0.4)] shrink-0">
-                                🇮🇳
+                              <div className="size-8 rounded-full bg-emerald-500/15 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
+                                <IconFlag size={15} />
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">
                                   <span className="font-extrabold text-sm text-emerald-200 tracking-wide">
                                     {h.name}
                                   </span>
-                                  <span className="size-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+                                  <span className="size-2.5 rounded-full bg-emerald-400" />
                                 </div>
                                 {h.description && (
                                   <p className="text-[11px] text-[#A1A4AC] mt-0.5">
@@ -2015,7 +2201,6 @@ export default function CalendarPage() {
                           let categoryLabel = 'Event';
                           let urgencyColor = '#fbbf24';
                           let urgencyLabel = 'Standard';
-                          let glowColor = 'rgba(255, 140, 66,0.25)';
 
                           if (isPeriod) {
                             categoryColor = '#f43f5e';
@@ -2031,7 +2216,6 @@ export default function CalendarPage() {
                             urgencyLabel = ev.flowIntensity
                               ? `${ev.flowIntensity.replace('_', ' ')}`
                               : 'Cycle Log';
-                            glowColor = 'rgba(244,63,94,0.4)';
                             cardBorder = 'border-rose-500/60';
                             // Distinct 3D Pink / Rose watercolor liquid blend
                             cardBackground =
@@ -2042,21 +2226,18 @@ export default function CalendarPage() {
                             if (ev.priority === 'urgent') {
                               urgencyColor = '#ef4444';
                               urgencyLabel = 'Urgent';
-                              glowColor = 'rgba(239,68,68,0.45)';
                               cardBorder = 'border-red-500/60';
                               cardBackground =
                                 'radial-gradient(circle at 15% 25%, rgba(239,68,68,0.45) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(255, 140, 66,0.35) 0%, transparent 55%), linear-gradient(135deg, rgba(36,14,14,0.94) 0%, rgba(20,10,10,0.98) 100%)';
                             } else if (ev.priority === 'low') {
                               urgencyColor = '#10b981';
                               urgencyLabel = 'Low';
-                              glowColor = 'rgba(16,185,129,0.3)';
                               cardBorder = 'border-[#FF8C42]/40';
                               cardBackground =
                                 'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(16,185,129,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(28,22,14,0.94) 0%, rgba(16,12,10,0.98) 100%)';
                             } else {
                               urgencyColor = '#fbbf24';
                               urgencyLabel = 'Medium';
-                              glowColor = 'rgba(245,158,11,0.35)';
                               cardBorder = 'border-[#FF8C42]/50';
                               cardBackground =
                                 'radial-gradient(circle at 15% 25%, rgba(245,158,11,0.4) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(32,22,12,0.94) 0%, rgba(18,12,8,0.98) 100%)';
@@ -2066,7 +2247,6 @@ export default function CalendarPage() {
                             categoryLabel = 'Birthday';
                             urgencyColor = '#84cc16';
                             urgencyLabel = 'Annual';
-                            glowColor = 'rgba(16,185,129,0.35)';
                             cardBorder = 'border-emerald-500/50';
                             cardBackground =
                               'radial-gradient(circle at 15% 25%, rgba(16,185,129,0.4) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(132,204,22,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(14,30,20,0.94) 0%, rgba(10,18,14,0.98) 100%)';
@@ -2077,14 +2257,12 @@ export default function CalendarPage() {
                             if (ev.location?.includes('meet')) {
                               urgencyColor = '#a855f7';
                               urgencyLabel = 'Video Meet';
-                              glowColor = 'rgba(168,85,247,0.35)';
                               cardBorder = 'border-purple-500/50';
                               cardBackground =
                                 'radial-gradient(circle at 15% 25%, rgba(255, 140, 66,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(168,85,247,0.3) 0%, transparent 55%), linear-gradient(135deg, rgba(28,18,28,0.94) 0%, rgba(16,10,18,0.98) 100%)';
                             } else {
                               urgencyColor = '#fbbf24';
                               urgencyLabel = 'Standard';
-                              glowColor = 'rgba(255, 140, 66,0.3)';
                               cardBorder = 'border-[#FF8C42]/50';
                               cardBackground =
                                 'radial-gradient(circle at 15% 25%, rgba(255, 140, 66,0.35) 0%, transparent 55%), radial-gradient(circle at 85% 75%, rgba(251,191,36,0.25) 0%, transparent 55%), linear-gradient(135deg, rgba(30,20,12,0.94) 0%, rgba(16,10,8,0.98) 100%)';
@@ -2097,7 +2275,8 @@ export default function CalendarPage() {
                               onClick={() => setSelectedEvent(ev)}
                               style={{
                                 background: cardBackground,
-                                boxShadow: `0 12px 32px 0 rgba(0,0,0,0.6), 0 0 25px 0 ${glowColor}, inset 0 1px 1px 0 rgba(255,255,255,0.25)`,
+                                boxShadow:
+                                  '0 12px 32px 0 rgba(0,0,0,0.6), inset 0 1px 0 0 rgba(255,255,255,0.08)',
                               }}
                               className={`relative flex items-center justify-between p-3.5 rounded-3xl border ${cardBorder} backdrop-blur-2xl transition-all cursor-pointer overflow-hidden group hover:scale-[1.01] hover:brightness-105 active:scale-[0.99]`}
                             >
@@ -2115,7 +2294,7 @@ export default function CalendarPage() {
                                 <div
                                   style={{
                                     background: `radial-gradient(circle at 30% 30%, ${categoryColor}66 0%, ${urgencyColor}44 100%)`,
-                                    boxShadow: `0 0 12px ${categoryColor}66, inset 0 1px 2px rgba(255,255,255,0.4)`,
+                                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14)',
                                   }}
                                   className="size-9 rounded-2xl border border-white/25 flex items-center justify-center shrink-0 mt-0.5"
                                 >
@@ -2163,7 +2342,7 @@ export default function CalendarPage() {
                                       style={{
                                         boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.2)',
                                       }}
-                                      className="inline-flex items-center rounded-full overflow-hidden text-[9px] font-black border border-white/20 bg-black/50 backdrop-blur-md shrink-0"
+                                      className="inline-flex items-center rounded-full overflow-hidden text-[10px] font-black border border-white/20 bg-black/50 backdrop-blur-md shrink-0"
                                     >
                                       <span
                                         className="px-2 py-0.5 uppercase tracking-wider"
@@ -2294,7 +2473,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('birthday')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 text-xs font-extrabold shadow-xl border border-emerald-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(16,185,129,0.3)]"
+                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 text-xs font-extrabold border border-emerald-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   <IconCake className="size-4 text-emerald-400" />
                   <span>Birthday</span>
@@ -2303,7 +2482,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('task')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#2B1A11]/90 hover:bg-[#2B1A11] text-[#FFB875] text-xs font-extrabold shadow-xl border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(245,158,11,0.3)]"
+                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-[#2B1A11]/90 hover:bg-[#2B1A11] text-[#FFB875] text-xs font-extrabold border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   <IconTarget className="size-4 text-[#FF8C42]" />
                   <span>Task</span>
@@ -2312,7 +2491,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('period')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-rose-950/90 hover:bg-rose-900 text-rose-200 text-xs font-extrabold shadow-xl border border-rose-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(244,63,94,0.35)]"
+                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-rose-950/90 hover:bg-rose-900 text-rose-200 text-xs font-extrabold border border-rose-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   <IconFlower className="size-4 text-rose-400" />
                   <span>Period Tracker</span>
@@ -2321,7 +2500,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => openDedicatedSheet('event')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-[#2a1b10]/95 hover:bg-[#3d2716] text-[#FF8C42] text-xs font-extrabold shadow-xl border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_20px_rgba(255,140,66,0.35)]"
+                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-[#2a1b10]/95 hover:bg-[#3d2716] text-[#FF8C42] text-xs font-extrabold border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   <IconCalendar className="size-4 text-[#FF8C42]" />
                   <span>Event</span>
@@ -2334,13 +2513,14 @@ export default function CalendarPage() {
             type="button"
             onClick={() => setIsFabOpen((prev) => !prev)}
             style={{
-              background: 'linear-gradient(135deg, #f97316 0%, #FF8C42 50%, #fde047 100%)',
-              boxShadow: '0 0 25px rgba(255, 140, 66,0.55), inset 0 2px 4px rgba(255,255,255,0.4)',
+              background: 'linear-gradient(135deg, #FF9B5A 0%, #FF8C42 55%, #E8752F 100%)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.18)',
             }}
-            className={`size-14 rounded-full font-black text-black flex items-center justify-center active:scale-95 transition-all focus:outline-none ${
+            className={`size-14 rounded-full font-black text-[#111111] flex items-center justify-center active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] ${
               isFabOpen ? 'rotate-45' : ''
             }`}
             aria-label="Toggle calendar speed dial"
+            aria-expanded={isFabOpen}
           >
             <svg
               className="size-6 transition-transform duration-200"
@@ -2368,6 +2548,14 @@ export default function CalendarPage() {
               />
 
               <motion.div
+                ref={sheetRef}
+                role="dialog"
+                aria-modal="true"
+                aria-label={
+                  activeSheetType === 'period'
+                    ? 'Cycle tracker'
+                    : `${editingEventId ? 'Edit' : 'New'} ${activeSheetType}`
+                }
                 initial={{ y: '100%' }}
                 animate={{ y: isSheetDragging ? Math.max(0, sheetDragY) : 0 }}
                 exit={{ y: '100%' }}
@@ -2390,32 +2578,21 @@ export default function CalendarPage() {
                   <div
                     className={`w-14 h-1.5 rounded-full mx-auto mb-2 transition-all ${
                       isSheetDragging
-                        ? 'bg-[#FF8C42] scale-110 shadow-[0_0_10px_#FF8C42]'
+                        ? 'bg-[#FF8C42] scale-110 shadow-[0_0_0_3px_rgba(255,140,66,0.22)]'
                         : 'bg-[#6B6E76] hover:bg-[#A1A4AC]'
                     }`}
                   />
 
-                  {/* Header Bar: ✕ on Left, Title in Center, 3D Animated Save on Right */}
+                  {/* Header Bar: close on the left, title centred, save on the right */}
                   <div className="flex items-center justify-between pb-1">
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={closeSheet}
-                        className="size-9 rounded-full hover:bg-[#282C35] text-[#A1A4AC] hover:text-white flex items-center justify-center transition-colors"
+                        className="size-9 min-h-[44px] min-w-[44px] rounded-full hover:bg-[#282C35] text-[#A1A4AC] hover:text-white flex items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                         aria-label="Close"
                       >
-                        <svg
-                          className="size-4"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <line x1="18" y1="6" x2="6" y2="18" />
-                          <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
+                        <IconX className="size-4" />
                       </button>
                       <span className="text-sm font-black text-white flex items-center gap-1.5">
                         {activeSheetType === 'event' && (
@@ -2454,7 +2631,7 @@ export default function CalendarPage() {
                       type="button"
                       disabled={isSaving}
                       onClick={() => void handleSaveEntry()}
-                      className="px-5 py-1.5 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] font-semibold text-xs shadow-sm transition-all active:scale-95 flex items-center gap-1.5"
+                      className="px-5 py-1.5 min-h-[44px] sm:min-h-0 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] font-semibold text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     >
                       {isSaving ? (
                         <>
@@ -2495,10 +2672,10 @@ export default function CalendarPage() {
                           key={tab.key}
                           type="button"
                           onClick={() => setPeriodSubTab(tab.key)}
-                          className={`pb-1 px-3 font-semibold transition-colors border-b-2 flex items-center gap-1.5 ${
+                          className={`flex min-h-11 items-center justify-center gap-1.5 border-b-2 px-3 pb-1 font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                             periodSubTab === tab.key
                               ? 'border-rose-400 text-rose-300 font-bold'
-                              : 'border-transparent text-[#6B6E76] hover:text-[#F5F5F5]'
+                              : 'border-transparent text-[#A1A4AC] hover:text-[#F5F5F5]'
                           }`}
                         >
                           <span>{tab.label}</span>
@@ -2512,7 +2689,7 @@ export default function CalendarPage() {
                 <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4 text-xs text-white pb-24">
                   {/* Account Row */}
                   <div className="flex items-center justify-between py-1 border-b border-[#282C35] text-[#A1A4AC]">
-                    <span className="text-xs text-[#6B6E76]">Account</span>
+                    <span className="text-xs text-[#A1A4AC]">Account</span>
                     <span className="text-[11px] font-semibold text-[#FF8C42] bg-[#2B1A11] px-2.5 py-0.5 rounded-full border border-[#5C3016] flex items-center gap-1.5">
                       <svg
                         className="w-3 h-3 text-[#FF8C42]"
@@ -2540,8 +2717,15 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add event title"
-                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#6B6E76] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
+                          className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
                           autoFocus
+                          /* `autoFocus` alone is not enough now that the sheet is
+                             focus-trapped: React applies it imperatively without
+                             rendering an attribute, so the trap cannot see it and
+                             its own initial-focus pass sent the caret to "Close"
+                             instead. `data-autofocus` is what the trap reads.
+                             Measured: focus landed on Close until this was added. */
+                          data-autofocus
                         />
                       </div>
 
@@ -2552,8 +2736,11 @@ export default function CalendarPage() {
                         </div>
                         <button
                           type="button"
+                          role="switch"
+                          aria-checked={formState.allDay}
+                          aria-label="All-day"
                           onClick={() => setFormState({ ...formState, allDay: !formState.allDay })}
-                          className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
+                          className={`relative w-11 h-6 flex items-center rounded-full p-1 transition-colors after:absolute after:inset-x-0 after:-inset-y-[10px] after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                             formState.allDay ? 'bg-[#FF8C42]' : 'bg-[#3A404D]'
                           }`}
                         >
@@ -2569,20 +2756,22 @@ export default function CalendarPage() {
                         <div className="flex items-center justify-between">
                           <input
                             type="date"
+                            aria-label="Start date"
                             value={formState.startDate}
                             onChange={(e) =>
                               setFormState({ ...formState, startDate: e.target.value })
                             }
-                            className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                            className="min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                           />
                           {!formState.allDay && (
                             <input
                               type="time"
+                              aria-label="Start time"
                               value={formState.startTime}
                               onChange={(e) =>
                                 setFormState({ ...formState, startTime: e.target.value })
                               }
-                              className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                              className="min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                             />
                           )}
                         </div>
@@ -2590,20 +2779,22 @@ export default function CalendarPage() {
                         <div className="flex items-center justify-between">
                           <input
                             type="date"
+                            aria-label="End date"
                             value={formState.endDate}
                             onChange={(e) =>
                               setFormState({ ...formState, endDate: e.target.value })
                             }
-                            className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                            className="min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                           />
                           {!formState.allDay && (
                             <input
                               type="time"
+                              aria-label="End time"
                               value={formState.endTime}
                               onChange={(e) =>
                                 setFormState({ ...formState, endTime: e.target.value })
                               }
-                              className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                              className="min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                             />
                           )}
                         </div>
@@ -2612,7 +2803,7 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => setIsTimezoneModalOpen(true)}
-                        className="w-full flex items-center justify-between text-left text-[#A1A4AC] hover:text-white py-2 border-b border-[#282C35]/60"
+                        className="w-full min-h-[44px] sm:min-h-0 flex items-center justify-between text-left text-[#A1A4AC] hover:text-white py-2 border-b border-[#282C35]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       >
                         <div className="flex items-center gap-2.5">
                           <IconGlobe className="size-4 text-cyan-400" />
@@ -2627,10 +2818,10 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => setIsRecurrenceModalOpen(true)}
-                        className="w-full flex items-center justify-between text-left text-[#A1A4AC] hover:text-white py-2 border-b border-[#282C35]/60"
+                        className="w-full min-h-[44px] sm:min-h-0 flex items-center justify-between text-left text-[#A1A4AC] hover:text-white py-2 border-b border-[#282C35]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       >
                         <div className="flex items-center gap-2.5">
-                          <IconRepeat className="size-4 text-[#FF8C42]" />
+                          <IconRefresh className="size-4 text-[#FF8C42]" />
                           <span>{formState.recurrence}</span>
                         </div>
                         <span className="text-[#6B6E76] text-xs">›</span>
@@ -2647,7 +2838,7 @@ export default function CalendarPage() {
                               setFormState({ ...formState, attendeeInput: e.target.value })
                             }
                             onKeyDown={handleAddAttendee}
-                            className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
+                            className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
                           />
                         </div>
                         {formState.attendees.length > 0 && (
@@ -2661,9 +2852,10 @@ export default function CalendarPage() {
                                 <button
                                   type="button"
                                   onClick={() => removeAttendee(email)}
-                                  className="text-[#A1A4AC] hover:text-rose-400"
+                                  className="relative inline-flex items-center justify-center size-4 rounded text-[#A1A4AC] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] after:absolute after:-inset-y-[14px] after:-inset-x-[10px] after:content-['']"
+                                  aria-label={`Remove attendee ${email}`}
                                 >
-                                  ✕
+                                  <IconX size={11} />
                                 </button>
                               </span>
                             ))}
@@ -2681,7 +2873,7 @@ export default function CalendarPage() {
                             onChange={(e) =>
                               setFormState({ ...formState, location: e.target.value })
                             }
-                            className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
+                            className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
                           />
                         </div>
                         <div className="flex items-center gap-1.5 pl-7">
@@ -2690,7 +2882,7 @@ export default function CalendarPage() {
                               key={loc}
                               type="button"
                               onClick={() => setFormState({ ...formState, location: loc })}
-                              className="px-2 py-0.5 rounded-md bg-[#282C35] text-[10px] text-[#A1A4AC] hover:text-white"
+                              className="inline-flex min-h-11 items-center rounded-md bg-[#282C35] px-2 py-0.5 text-[10px] text-[#A1A4AC] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
                             >
                               {loc}
                             </button>
@@ -2707,7 +2899,7 @@ export default function CalendarPage() {
                           <button
                             type="button"
                             onClick={() => setIsNotificationSliderOpen(true)}
-                            className="px-2.5 py-1 rounded-xl bg-[#FF8C42]/20 text-[#FF8C42] text-[11px] font-bold border border-[#FF8C42]/30"
+                            className="inline-flex min-h-[44px] items-center rounded-xl border border-[#FF8C42]/30 bg-[#FF8C42]/20 px-2.5 py-1 text-[11px] font-bold text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
                           >
                             + Custom Time Slider
                           </button>
@@ -2722,9 +2914,10 @@ export default function CalendarPage() {
                               <button
                                 type="button"
                                 onClick={() => removeNotificationReminder(idx)}
-                                className="text-[#6B6E76] hover:text-rose-400"
+                                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] -my-3 rounded text-[#6B6E76] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                                aria-label={`Remove reminder ${notif}`}
                               >
-                                ✕
+                                <IconX size={12} />
                               </button>
                             </div>
                           ))}
@@ -2740,7 +2933,7 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none resize-none"
+                          className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
                         />
                       </div>
 
@@ -2754,7 +2947,7 @@ export default function CalendarPage() {
                             onChange={(e) =>
                               setFormState({ ...formState, driveLink: e.target.value })
                             }
-                            className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none"
+                            className="min-h-[44px] flex-1 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
                           />
                         </div>
                       </div>
@@ -2770,8 +2963,9 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add task title"
-                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#6B6E76] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
+                          className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-[#FF8C42]"
                           autoFocus
+                          data-autofocus
                         />
                       </div>
 
@@ -2793,8 +2987,7 @@ export default function CalendarPage() {
                               {
                                 key: 'urgent',
                                 label: 'Urgent',
-                                color:
-                                  'text-rose-400 border-rose-500/50 bg-rose-950/50 shadow-[0_0_12px_rgba(244,63,94,0.3)]',
+                                color: 'text-rose-400 border-rose-500/50 bg-rose-950/50',
                               },
                             ] as const
                           ).map((p) => (
@@ -2802,7 +2995,7 @@ export default function CalendarPage() {
                               key={p.key}
                               type="button"
                               onClick={() => setFormState({ ...formState, priority: p.key })}
-                              className={`px-3 py-1 rounded-xl text-[11px] font-black border transition-all ${
+                              className={`inline-flex min-h-11 items-center justify-center rounded-xl border px-3 py-1 text-[11px] font-black transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                                 formState.priority === p.key
                                   ? `${p.color} ring-1 ring-white/20 scale-105 shadow-md`
                                   : 'bg-[#111318] border-[#282C35] text-[#A1A4AC]'
@@ -2821,11 +3014,12 @@ export default function CalendarPage() {
                         </div>
                         <input
                           type="date"
+                          aria-label="Due date"
                           value={formState.startDate}
                           onChange={(e) =>
                             setFormState({ ...formState, startDate: e.target.value })
                           }
-                          className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                          className="min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                         />
                       </div>
 
@@ -2839,7 +3033,7 @@ export default function CalendarPage() {
                             setFormState({ ...formState, subtaskInput: e.target.value })
                           }
                           onKeyDown={handleAddSubtask}
-                          className="w-full bg-[#090A0C] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#6B6E76]"
+                          className="w-full min-h-[44px] sm:min-h-0 bg-[#090A0C] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#A1A4AC]"
                         />
                         {formState.subtasks.map((st, idx) => (
                           <div
@@ -2865,7 +3059,7 @@ export default function CalendarPage() {
                               )}
                             </span>
                             <span
-                              className={st.done ? 'line-through text-[#6B6E76]' : 'text-[#F5F5F5]'}
+                              className={st.done ? 'line-through text-[#A1A4AC]' : 'text-[#F5F5F5]'}
                             >
                               {st.text}
                             </span>
@@ -2882,7 +3076,7 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none resize-none"
+                          className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
                         />
                       </div>
                     </div>
@@ -2897,8 +3091,9 @@ export default function CalendarPage() {
                           value={formState.title}
                           onChange={(e) => setFormState({ ...formState, title: e.target.value })}
                           placeholder="Add person's name (e.g. Rahul's Birthday)"
-                          className="w-full bg-transparent text-xl font-bold text-white placeholder-[#6B6E76] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-emerald-500"
+                          className="w-full min-h-[44px] sm:min-h-0 bg-transparent text-xl font-bold text-white placeholder-[#A1A4AC] border-b border-[#3A404D]/80 pb-2 focus:outline-none focus:border-emerald-500"
                           autoFocus
+                          data-autofocus
                         />
                       </div>
 
@@ -2909,11 +3104,12 @@ export default function CalendarPage() {
                         </div>
                         <input
                           type="date"
+                          aria-label="Birthday date"
                           value={formState.startDate}
                           onChange={(e) =>
                             setFormState({ ...formState, startDate: e.target.value })
                           }
-                          className="bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
+                          className="min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white"
                         />
                       </div>
 
@@ -2924,12 +3120,13 @@ export default function CalendarPage() {
                         </div>
                         <input
                           type="number"
+                          aria-label="Birth year"
                           placeholder="e.g. 1998"
                           value={formState.birthYear}
                           onChange={(e) =>
                             setFormState({ ...formState, birthYear: e.target.value })
                           }
-                          className="w-24 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white text-center"
+                          className="w-24 min-h-[44px] sm:min-h-0 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white text-center"
                         />
                       </div>
 
@@ -2956,7 +3153,7 @@ export default function CalendarPage() {
                           onChange={(e) =>
                             setFormState({ ...formState, description: e.target.value })
                           }
-                          className="flex-1 bg-transparent text-xs text-white placeholder-[#6B6E76] focus:outline-none resize-none"
+                          className="min-h-[44px] flex-1 resize-none bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none sm:min-h-0"
                         />
                       </div>
                     </div>
@@ -2975,11 +3172,18 @@ export default function CalendarPage() {
                               <button
                                 type="button"
                                 onClick={() => setIsPeriodCustomizeOpen(true)}
-                                className="px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-black border border-rose-500/30 hover:bg-rose-500/30 transition-colors shadow-sm"
+                                className="inline-flex items-center gap-1 px-3 py-1 min-h-[44px] sm:min-h-0 rounded-full bg-rose-500/20 text-rose-300 text-[10px] font-black border border-rose-500/30 hover:bg-rose-500/30 transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                               >
-                                Customize ⇋
+                                <IconSettings size={11} />
+                                Customize
                               </button>
                             </div>
+                            {/* Seven across in a 307px grid gives each day a 40px box, and 7 x 44
+                                needs 308 before a single gap -- so the box cannot carry the touch
+                                floor at any gap value. The `before` band widens the hit area by
+                                exactly the 4px gutter instead, 2px each side: 44px effective, edges
+                                meeting at the gutter's midline, no overlap onto the neighbouring
+                                day and not one pixel of layout moved. */}
                             <div className="grid grid-cols-7 text-center gap-1">
                               {currentWeekDays.map((d) => (
                                 <button
@@ -2992,13 +3196,13 @@ export default function CalendarPage() {
                                       endDate: toDateInput(d.date),
                                     }));
                                   }}
-                                  className={`py-1.5 rounded-xl flex flex-col items-center justify-center transition-all relative ${
+                                  className={`py-1.5 rounded-xl flex flex-col items-center justify-center transition-all relative before:absolute before:inset-y-0 before:-inset-x-[2px] before:content-[''] ${
                                     formState.startDate === d.key
-                                      ? 'border-2 border-rose-400 bg-rose-950/80 text-white font-black scale-105 shadow-md shadow-rose-900/40'
+                                      ? 'border-2 border-rose-400 bg-rose-950/80 text-white font-black scale-105 shadow-[0_4px_16px_rgba(0,0,0,0.6)]'
                                       : 'bg-[#090A0C] text-[#A1A4AC] hover:bg-[#282C35]'
                                   }`}
                                 >
-                                  <span className="text-[9px]">{d.dayLetter}</span>
+                                  <span className="text-[10px]">{d.dayLetter}</span>
                                   <span className="text-xs">{d.dayNum}</span>
                                   {d.hasHoliday && (
                                     <span className="absolute top-1 right-1 size-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -3011,15 +3215,18 @@ export default function CalendarPage() {
                           {/* 1. PERIOD FLOW */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <IconDrop className="size-3.5 text-rose-500" /> Period Flow
+                              <IconDroplet className="size-3.5 text-rose-500" /> Period Flow
                             </span>
                             <div className="grid grid-cols-4 gap-2">
                               {(
                                 [
-                                  { key: 'light', label: 'Light', icon: '💧' },
-                                  { key: 'medium', label: 'Medium', icon: '💧' },
-                                  { key: 'heavy', label: 'Heavy', icon: '💧' },
-                                  { key: 'super_heavy', label: 'Super', icon: '🩸' },
+                                  // Light/medium/heavy used to be three identical
+                                  // droplet emoji, so the glyph said nothing the
+                                  // label did not. The count is the signal now.
+                                  { key: 'light', label: 'Light', drops: 1 },
+                                  { key: 'medium', label: 'Medium', drops: 2 },
+                                  { key: 'heavy', label: 'Heavy', drops: 3 },
+                                  { key: 'super_heavy', label: 'Super', drops: 4 },
                                 ] as const
                               ).map((flow) => (
                                 <button
@@ -3028,13 +3235,18 @@ export default function CalendarPage() {
                                   onClick={() =>
                                     setFormState({ ...formState, flowIntensity: flow.key })
                                   }
-                                  className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${
+                                  aria-pressed={formState.flowIntensity === flow.key}
+                                  className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                     formState.flowIntensity === flow.key
-                                      ? 'bg-rose-600 border-rose-400 text-white font-black scale-105 shadow-lg shadow-rose-900/50'
+                                      ? 'bg-rose-600 border-rose-400 text-white font-black'
                                       : 'bg-[#1e1e24] border-rose-500/20 text-rose-300 hover:bg-[#25252e]'
                                   }`}
                                 >
-                                  <span className="text-base">{flow.icon}</span>
+                                  <span className="flex items-center gap-px" aria-hidden="true">
+                                    {Array.from({ length: flow.drops }).map((_, i) => (
+                                      <IconDroplet key={i} size={12} />
+                                    ))}
+                                  </span>
                                   <span className="text-[11px] mt-1 font-bold">{flow.label}</span>
                                 </button>
                               ))}
@@ -3044,10 +3256,7 @@ export default function CalendarPage() {
                           {/* 2. COLLECTION METHOD */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <span className="size-3.5 rounded-full bg-rose-500/30 flex items-center justify-center text-[10px]">
-                                🛡️
-                              </span>{' '}
-                              Collection Method
+                              <IconShield className="size-3.5 text-rose-400" /> Collection Method
                             </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_COLLECTION_METHODS.map((cm) => (
@@ -3057,13 +3266,14 @@ export default function CalendarPage() {
                                   onClick={() =>
                                     setFormState({ ...formState, collectionMethod: cm.label })
                                   }
-                                  className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all ${
+                                  aria-pressed={formState.collectionMethod === cm.label}
+                                  className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                     formState.collectionMethod === cm.label
                                       ? 'bg-rose-600/40 border-rose-400 text-white font-black shadow'
                                       : 'bg-[#1e1e24] border-[#282C35] text-[#A1A4AC] hover:text-[#F5F5F5]'
                                   }`}
                                 >
-                                  <span className="text-base">{cm.icon}</span>
+                                  <cm.Icon className="size-4" />
                                   <span className="text-[10px] mt-0.5 font-semibold text-center leading-tight">
                                     {cm.label}
                                   </span>
@@ -3080,8 +3290,12 @@ export default function CalendarPage() {
                             <div className="grid grid-cols-2 gap-2.5">
                               {(
                                 [
-                                  { key: 'red', label: 'Red Spotting', icon: '🔴' },
-                                  { key: 'brown', label: 'Brown Spotting', icon: '🟤' },
+                                  // These two only ever meant "this colour", which
+                                  // is what `IconDot`'s tone prop is for — the red
+                                  // and brown circle emoji rendered at a different
+                                  // size on every platform.
+                                  { key: 'red', label: 'Red Spotting', tone: '#ef4444' },
+                                  { key: 'brown', label: 'Brown Spotting', tone: '#92400e' },
                                 ] as const
                               ).map((sp) => (
                                 <button
@@ -3090,13 +3304,14 @@ export default function CalendarPage() {
                                   onClick={() =>
                                     setFormState({ ...formState, spottingColor: sp.key })
                                   }
-                                  className={`flex items-center justify-center gap-2 p-3 rounded-2xl border transition-all ${
+                                  aria-pressed={formState.spottingColor === sp.key}
+                                  className={`flex min-h-11 items-center justify-center gap-2 rounded-2xl border p-3 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                     formState.spottingColor === sp.key
                                       ? 'bg-rose-600/30 border-rose-500 text-white font-black shadow'
                                       : 'bg-[#1e1e24] border-[#282C35] text-[#A1A4AC] hover:text-[#F5F5F5]'
                                   }`}
                                 >
-                                  <span>{sp.icon}</span>
+                                  <IconDot size={11} tone={sp.tone} />
                                   <span className="text-[11px] font-bold">{sp.label}</span>
                                 </button>
                               ))}
@@ -3106,10 +3321,7 @@ export default function CalendarPage() {
                           {/* 4. FEELINGS / MOOD */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <span className="size-3.5 rounded-full bg-[#FF8C42]/30 flex items-center justify-center text-[10px]">
-                                🧡
-                              </span>{' '}
-                              Feelings & Mood
+                              <IconBrain className="size-3.5 text-[#FF8C42]" /> Feelings &amp; Mood
                             </span>
                             <div className="grid grid-cols-3 gap-2">
                               {CLUE_FEELINGS.map((f) => {
@@ -3119,13 +3331,14 @@ export default function CalendarPage() {
                                     key={f.id}
                                     type="button"
                                     onClick={() => toggleFeeling(f.label)}
-                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${
+                                    aria-pressed={isSelected}
+                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                       isSelected
                                         ? 'bg-[#E8752F]/30 border-[#FF8C42] text-[#FFD1A3] font-black shadow'
                                         : 'bg-[#1e1e24] border-[#FF8C42]/20 text-[#FFB875] hover:bg-[#25252e]'
                                     }`}
                                   >
-                                    <span className="text-lg">{f.symbol}</span>
+                                    <f.Icon className="size-[18px]" />
                                     <span className="text-[10px] mt-1 text-center font-semibold leading-tight">
                                       {f.label}
                                     </span>
@@ -3138,10 +3351,8 @@ export default function CalendarPage() {
                           {/* 5. PAIN & SYMPTOMS */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <span className="size-3.5 rounded-full bg-blue-500/30 flex items-center justify-center text-[10px]">
-                                💙
-                              </span>{' '}
-                              Pain & Physical Symptoms
+                              <IconActivity className="size-3.5 text-blue-400" /> Pain &amp;
+                              Physical Symptoms
                             </span>
                             <div className="grid grid-cols-3 gap-2">
                               {CLUE_PAIN.map((p) => {
@@ -3151,13 +3362,14 @@ export default function CalendarPage() {
                                     key={p.id}
                                     type="button"
                                     onClick={() => togglePain(p.label)}
-                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${
+                                    aria-pressed={isSelected}
+                                    className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                       isSelected
                                         ? 'bg-blue-600/30 border-blue-400 text-blue-100 font-black shadow'
                                         : 'bg-[#1e1e24] border-blue-500/20 text-blue-300 hover:bg-[#25252e]'
                                     }`}
                                   >
-                                    <span className="text-lg">{p.symbol}</span>
+                                    <p.Icon className="size-[18px]" />
                                     <span className="text-[10px] mt-1 text-center font-semibold leading-tight">
                                       {p.label}
                                     </span>
@@ -3170,10 +3382,7 @@ export default function CalendarPage() {
                           {/* 6. VULVA & INTIMATE HEALTH */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <span className="size-3.5 rounded-full bg-blue-500/30 flex items-center justify-center text-[10px]">
-                                💧
-                              </span>{' '}
-                              Vulva & Vagina
+                              <IconDroplet className="size-3.5 text-blue-400" /> Vulva &amp; Vagina
                             </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_INTIMATE.map((intm) => (
@@ -3183,14 +3392,15 @@ export default function CalendarPage() {
                                   onClick={() =>
                                     setFormState({ ...formState, intimateHealth: intm.label })
                                   }
-                                  className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all ${
+                                  aria-pressed={formState.intimateHealth === intm.label}
+                                  className={`flex flex-col items-center justify-center p-2.5 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                     formState.intimateHealth === intm.label
                                       ? 'bg-blue-600/30 border-blue-400 text-white font-black shadow'
                                       : 'bg-[#1e1e24] border-[#282C35] text-[#A1A4AC] hover:text-[#F5F5F5]'
                                   }`}
                                 >
-                                  <span className="text-base">{intm.symbol}</span>
-                                  <span className="text-[9px] mt-0.5 font-medium text-center leading-tight">
+                                  <intm.Icon className="size-4" />
+                                  <span className="text-[10px] mt-0.5 font-medium text-center leading-tight">
                                     {intm.label}
                                   </span>
                                 </button>
@@ -3201,10 +3411,7 @@ export default function CalendarPage() {
                           {/* 7. HOT FLASHES */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <span className="size-3.5 rounded-full bg-[#FF8C42]/30 flex items-center justify-center text-[10px]">
-                                🔥
-                              </span>{' '}
-                              Hot Flashes
+                              <IconFlame className="size-3.5 text-[#FF8C42]" /> Hot Flashes
                             </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_HOT_FLASHES.map((hf) => (
@@ -3214,13 +3421,22 @@ export default function CalendarPage() {
                                   onClick={() =>
                                     setFormState({ ...formState, hotFlashes: hf.label })
                                   }
-                                  className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
+                                  aria-pressed={formState.hotFlashes === hf.label}
+                                  className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                     formState.hotFlashes === hf.label
                                       ? 'bg-[#E8752F]/30 border-[#FF8C42] text-white font-black shadow'
                                       : 'bg-[#1e1e24] border-[#282C35] text-[#A1A4AC] hover:text-[#F5F5F5]'
                                   }`}
                                 >
-                                  <span className="text-base">{hf.symbol}</span>
+                                  <span className="flex items-center gap-px h-4" aria-hidden="true">
+                                    {hf.flames === 0 ? (
+                                      <IconBan size={14} />
+                                    ) : (
+                                      Array.from({ length: hf.flames }).map((_, i) => (
+                                        <IconFlame key={i} size={13} />
+                                      ))
+                                    )}
+                                  </span>
                                   <span className="text-[10px] mt-0.5 font-medium">{hf.label}</span>
                                 </button>
                               ))}
@@ -3230,7 +3446,7 @@ export default function CalendarPage() {
                           {/* 8. PMS TOGGLE */}
                           <div className="flex items-center justify-between p-3 rounded-2xl bg-[#1e1e24] border border-[#FF8C42]/20">
                             <div className="flex items-center gap-2">
-                              <span className="text-lg">☁️</span>
+                              <IconCloud className="size-4 text-[#FFB875]" />
                               <span className="text-xs font-bold text-[#FFB875]">
                                 Premenstrual Syndrome (PMS)
                               </span>
@@ -3238,7 +3454,9 @@ export default function CalendarPage() {
                             <button
                               type="button"
                               onClick={() => setFormState({ ...formState, pms: !formState.pms })}
-                              className={`px-3 py-1 rounded-xl text-[11px] font-bold border transition-all ${
+                              aria-pressed={formState.pms}
+                              aria-label="Premenstrual syndrome"
+                              className={`px-3 py-1 min-h-touch min-w-touch sm:min-h-0 sm:min-w-0 rounded-xl text-[11px] font-bold border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                 formState.pms
                                   ? 'bg-[#FF8C42] text-white font-bold border-[#FF8C42]'
                                   : 'bg-[#282C35] text-[#A1A4AC] border-[#3A404D]'
@@ -3251,10 +3469,7 @@ export default function CalendarPage() {
                           {/* 9. SLEEP QUALITY */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <span className="size-3.5 rounded-full bg-[#FF8C42]/30 flex items-center justify-center text-[10px]">
-                                😴
-                              </span>{' '}
-                              Sleep Quality
+                              <IconBed className="size-3.5 text-[#FF8C42]" /> Sleep Quality
                             </span>
                             <div className="grid grid-cols-2 gap-2">
                               {CLUE_SLEEP.map((sl) => (
@@ -3262,14 +3477,15 @@ export default function CalendarPage() {
                                   key={sl.id}
                                   type="button"
                                   onClick={() => setFormState({ ...formState, sleep: sl.label })}
-                                  className={`flex items-center gap-2 p-2.5 rounded-2xl border transition-all ${
+                                  aria-pressed={formState.sleep === sl.label}
+                                  className={`flex items-center gap-2 p-2.5 min-h-[44px] rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                     formState.sleep === sl.label
                                       ? 'bg-[#E8752F]/30 border-[#FF8C42] text-white font-black shadow'
                                       : 'bg-[#1e1e24] border-[#282C35] text-[#A1A4AC] hover:text-[#F5F5F5]'
                                   }`}
                                 >
-                                  <span>{sl.symbol}</span>
-                                  <span className="text-[10px] font-medium leading-tight">
+                                  <sl.Icon className="size-3.5 shrink-0" />
+                                  <span className="text-[10px] font-medium leading-tight text-left">
                                     {sl.label}
                                   </span>
                                 </button>
@@ -3280,10 +3496,8 @@ export default function CalendarPage() {
                           {/* 10. SEX LIFE */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <span className="size-3.5 rounded-full bg-emerald-500/30 flex items-center justify-center text-[10px]">
-                                💚
-                              </span>{' '}
-                              Sex Life & Protection
+                              <IconHeart className="size-3.5 text-emerald-400" /> Sex Life &amp;
+                              Protection
                             </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_SEX_LIFE.map((sx) => (
@@ -3291,14 +3505,15 @@ export default function CalendarPage() {
                                   key={sx.id}
                                   type="button"
                                   onClick={() => setFormState({ ...formState, sexLife: sx.label })}
-                                  className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
+                                  aria-pressed={formState.sexLife === sx.label}
+                                  className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                     formState.sexLife === sx.label
                                       ? 'bg-emerald-600/30 border-emerald-400 text-emerald-200 font-black shadow'
                                       : 'bg-[#1e1e24] border-emerald-500/20 text-emerald-300 hover:bg-[#25252e]'
                                   }`}
                                 >
-                                  <span className="text-base">{sx.symbol}</span>
-                                  <span className="text-[9px] mt-0.5 font-semibold text-center leading-tight">
+                                  <sx.Icon className="size-4" />
+                                  <span className="text-[10px] mt-0.5 font-semibold text-center leading-tight">
                                     {sx.label}
                                   </span>
                                 </button>
@@ -3309,10 +3524,7 @@ export default function CalendarPage() {
                           {/* 11. ENERGY LEVEL */}
                           <div className="space-y-2">
                             <span className="text-xs font-black text-white flex items-center gap-1.5">
-                              <span className="size-3.5 rounded-full bg-[#FF8C42]/30 flex items-center justify-center text-[10px]">
-                                🏃
-                              </span>{' '}
-                              Energy Level
+                              <IconBolt className="size-3.5 text-[#FF8C42]" /> Energy Level
                             </span>
                             <div className="grid grid-cols-4 gap-1.5">
                               {CLUE_ENERGY.map((en) => (
@@ -3320,13 +3532,14 @@ export default function CalendarPage() {
                                   key={en.id}
                                   type="button"
                                   onClick={() => setFormState({ ...formState, energy: en.label })}
-                                  className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all ${
+                                  aria-pressed={formState.energy === en.label}
+                                  className={`flex flex-col items-center justify-center p-2 rounded-2xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                                     formState.energy === en.label
                                       ? 'bg-[#E8752F]/30 border-[#FF8C42] text-[#FFB875] font-black shadow'
                                       : 'bg-[#1e1e24] border-[#FF8C42]/20 text-[#FFB875] hover:bg-[#25252e]'
                                   }`}
                                 >
-                                  <span className="text-base">{en.symbol}</span>
+                                  <en.Icon className="size-4" />
                                   <span className="text-[10px] mt-0.5 font-semibold text-center">
                                     {en.label}
                                   </span>
@@ -3338,31 +3551,33 @@ export default function CalendarPage() {
                           {/* 12. BODY METRICS */}
                           <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-[#1e1e24] border border-[#282C35]">
                             <div>
-                              <span className="block text-[10px] text-[#A1A4AC] mb-1">
-                                🌡️ Basal Body Temp
+                              <span className="flex items-center gap-1 text-[10px] text-[#A1A4AC] mb-1">
+                                <IconThermometer size={11} /> Basal Body Temp
                               </span>
                               <input
                                 type="text"
+                                aria-label="Basal body temperature"
                                 placeholder="98.4 °F"
                                 value={formState.bbt}
                                 onChange={(e) =>
                                   setFormState({ ...formState, bbt: e.target.value })
                                 }
-                                className="w-full bg-[#090A0C] border border-[#282C35] rounded-xl px-2.5 py-1 text-xs text-white"
+                                className="w-full min-h-[44px] sm:min-h-0 bg-[#090A0C] border border-[#282C35] rounded-xl px-2.5 py-1 text-xs text-white"
                               />
                             </div>
                             <div>
-                              <span className="block text-[10px] text-[#A1A4AC] mb-1">
-                                ⚖️ Weight
+                              <span className="flex items-center gap-1 text-[10px] text-[#A1A4AC] mb-1">
+                                <IconScale size={11} /> Weight
                               </span>
                               <input
                                 type="text"
+                                aria-label="Weight"
                                 placeholder="58.5 kg"
                                 value={formState.weight}
                                 onChange={(e) =>
                                   setFormState({ ...formState, weight: e.target.value })
                                 }
-                                className="w-full bg-[#090A0C] border border-[#282C35] rounded-xl px-2.5 py-1 text-xs text-white"
+                                className="w-full min-h-[44px] sm:min-h-0 bg-[#090A0C] border border-[#282C35] rounded-xl px-2.5 py-1 text-xs text-white"
                               />
                             </div>
                           </div>
@@ -3378,7 +3593,7 @@ export default function CalendarPage() {
                                 setFormState({ ...formState, customTagInput: e.target.value })
                               }
                               onKeyDown={handleAddCustomTag}
-                              className="w-full bg-[#1e1e24] border border-[#282C35] rounded-2xl p-2.5 text-xs text-white placeholder-[#6B6E76] focus:outline-none"
+                              className="w-full min-h-[44px] sm:min-h-0 bg-[#1e1e24] border border-[#282C35] rounded-2xl p-2.5 text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
                             />
                             {formState.customTags.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 pt-1">
@@ -3391,9 +3606,10 @@ export default function CalendarPage() {
                                     <button
                                       type="button"
                                       onClick={() => removeCustomTag(tag)}
-                                      className="text-[#A1A4AC] hover:text-rose-400"
+                                      className="relative inline-flex items-center justify-center size-4 rounded text-[#A1A4AC] hover:text-rose-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] after:absolute after:-inset-y-[14px] after:-inset-x-[10px] after:content-['']"
+                                      aria-label={`Remove tag ${tag}`}
                                     >
-                                      ✕
+                                      <IconX size={11} />
                                     </button>
                                   </span>
                                 ))}
@@ -3411,7 +3627,7 @@ export default function CalendarPage() {
                               onChange={(e) =>
                                 setFormState({ ...formState, description: e.target.value })
                               }
-                              className="w-full bg-[#1e1e24] border border-[#282C35] rounded-2xl p-3 text-xs text-white placeholder-[#6B6E76] focus:outline-none focus:border-rose-500 resize-none"
+                              className="w-full bg-[#1e1e24] border border-[#282C35] rounded-2xl p-3 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-rose-500 resize-none"
                             />
                           </div>
                         </div>
@@ -3420,7 +3636,7 @@ export default function CalendarPage() {
                       {/* Sub-tab 2: CYCLE DIAL */}
                       {periodSubTab === 'cycle' && (
                         <div className="space-y-6">
-                          <div className="flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-b from-[#111318] via-rose-950/40 to-[#111318] border border-rose-500/30 shadow-[0_0_30px_rgba(244,63,94,0.25)]">
+                          <div className="flex flex-col items-center justify-center p-6 rounded-3xl bg-gradient-to-b from-[#111318] via-rose-950/40 to-[#111318] border border-rose-500/30 shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
                             <div className="relative size-48 rounded-full border-4 border-[#282C35] flex items-center justify-center shadow-inner">
                               <div className="absolute inset-0 rounded-full border-4 border-rose-500 border-t-transparent border-r-transparent rotate-45 animate-pulse" />
 
@@ -3442,16 +3658,13 @@ export default function CalendarPage() {
 
                             <div className="flex items-center gap-3 mt-4 text-[10px] text-[#A1A4AC]">
                               <span className="flex items-center gap-1">
-                                <span className="size-2 rounded-full bg-rose-500 shadow-[0_0_6px_#f43f5e]" />{' '}
-                                Period
+                                <span className="size-2 rounded-full bg-rose-500" /> Period
                               </span>
                               <span className="flex items-center gap-1">
-                                <span className="size-2 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee]" />{' '}
-                                Fertile
+                                <span className="size-2 rounded-full bg-cyan-400" /> Fertile
                               </span>
                               <span className="flex items-center gap-1">
-                                <span className="size-2 rounded-full bg-[#FF8C42] shadow-[0_0_6px_#fbbf24]" />{' '}
-                                Ovulation
+                                <span className="size-2 rounded-full bg-[#FF8C42]" /> Ovulation
                               </span>
                             </div>
                           </div>
@@ -3514,7 +3727,7 @@ export default function CalendarPage() {
                                     {formState.cycleLength} days
                                   </h4>
                                 </div>
-                                <span className="text-base">⭕</span>
+                                <IconCircle className="size-4 text-rose-400" />
                               </div>
 
                               <div className="p-3 rounded-2xl bg-[#1e1e24] border border-[#282C35] flex items-center justify-between">
@@ -3526,7 +3739,7 @@ export default function CalendarPage() {
                                     ±1 day
                                   </h4>
                                 </div>
-                                <span className="text-base">🔄</span>
+                                <IconRefresh className="size-4 text-[#A1A4AC]" />
                               </div>
                             </div>
                           </div>
@@ -3543,8 +3756,11 @@ export default function CalendarPage() {
                               <div className="w-[45%] bg-rose-900/60 border-r border-rose-500/40 flex items-center justify-center text-[10px] text-rose-200 font-bold">
                                 Follicular
                               </div>
-                              <div className="w-[10%] bg-cyan-900/60 border-r border-cyan-400 flex items-center justify-center text-[10px] text-cyan-300 font-extrabold">
-                                🔵
+                              <div
+                                className="w-[10%] bg-cyan-900/60 border-r border-cyan-400 flex items-center justify-center text-cyan-300"
+                                title="Ovulation window"
+                              >
+                                <IconDot size={8} />
                               </div>
                               <div className="w-[45%] bg-emerald-900/60 flex items-center justify-center text-[10px] text-emerald-200 font-bold">
                                 Luteal
@@ -3645,14 +3861,15 @@ export default function CalendarPage() {
                   setFormState({ ...formState, timezone: tz.value });
                   setIsTimezoneModalOpen(false);
                 }}
-                className={`w-full text-left p-2.5 rounded-xl transition-colors flex items-center justify-between ${
+                className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42] ${
                   formState.timezone === tz.value
                     ? 'bg-[#FF8C42] text-black font-black'
                     : 'text-[#A1A4AC] hover:bg-[#282C35]'
                 }`}
+                aria-pressed={formState.timezone === tz.value}
               >
                 <span>{tz.label}</span>
-                {formState.timezone === tz.value && <span>✓</span>}
+                {formState.timezone === tz.value && <IconCheck size={13} />}
               </button>
             ))}
           </div>
@@ -3673,14 +3890,15 @@ export default function CalendarPage() {
                   setFormState({ ...formState, recurrence: rec });
                   setIsRecurrenceModalOpen(false);
                 }}
-                className={`w-full text-left p-2.5 rounded-xl transition-colors flex items-center justify-between ${
+                className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42] ${
                   formState.recurrence === rec
                     ? 'bg-[#FF8C42] text-black font-black'
                     : 'text-[#A1A4AC] hover:bg-[#282C35]'
                 }`}
+                aria-pressed={formState.recurrence === rec}
               >
                 <span>{rec}</span>
-                {formState.recurrence === rec && <span>✓</span>}
+                {formState.recurrence === rec && <IconCheck size={13} />}
               </button>
             ))}
           </div>
@@ -3708,7 +3926,7 @@ export default function CalendarPage() {
               className="w-full accent-[#FF8C42]"
             />
 
-            <div className="flex items-center justify-between text-[10px] text-[#6B6E76]">
+            <div className="flex items-center justify-between text-[10px] text-[#A1A4AC]">
               <span>5m</span>
               <span>1h</span>
               <span>1d</span>
@@ -3780,9 +3998,11 @@ export default function CalendarPage() {
                       href={selectedEvent.location}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[#FF8C42] hover:underline font-bold"
+                      className="inline-flex items-center gap-1.5 text-[#FF8C42] hover:underline font-bold"
                     >
-                      {selectedEvent.location} (🎥 Join Meeting)
+                      <IconVideoCall size={13} />
+                      {selectedEvent.location}
+                      <span className="text-[10px] font-semibold">(Join Meeting)</span>
                     </a>
                   ) : (
                     <span>{selectedEvent.location}</span>
@@ -3822,10 +4042,13 @@ export default function CalendarPage() {
         )}
 
         {/* Quanty AI Copilot Drawer */}
-        <QuantyCopilotDrawer
-          isOpen={isQuantyDrawerOpen}
-          onClose={() => setIsQuantyDrawerOpen(false)}
-        />
+        {showQuantyDrawer && (
+          <QuantyCopilotDrawer
+            isOpen={isQuantyDrawerOpen}
+            onClose={() => setIsQuantyDrawerOpen(false)}
+          />
+        )}
+        {dialog}
       </PageTransition>
     </AppShell>
   );

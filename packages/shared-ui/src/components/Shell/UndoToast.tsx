@@ -63,7 +63,7 @@ export const UndoToast: React.FC<UndoToastProps> = ({
 
   return (
     <motion.div
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg min-w-[280px]"
+      className="fixed bottom-6 left-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg min-w-[280px]"
       style={{
         background: 'var(--quant-surface, #1f2937)',
         border: '1px solid var(--quant-border, #374151)',
@@ -72,9 +72,13 @@ export const UndoToast: React.FC<UndoToastProps> = ({
       role="alert"
       aria-live="assertive"
       aria-atomic="true"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
+      // The horizontal centring is `x: '-50%'` rather than `-translate-x-1/2`:
+      // framer-motion owns this element's `transform` and collapses it to
+      // `transform: none` once the spring settles, which would drop a Tailwind
+      // translate and leave the toast half its own width right of centre.
+      initial={{ opacity: 0, x: '-50%', y: 20 }}
+      animate={{ opacity: 1, x: '-50%', y: 0 }}
+      exit={{ opacity: 0, x: '-50%', y: 20 }}
       transition={{ type: 'spring', damping: 25, stiffness: 300 }}
     >
       <span className="flex-1 text-sm">{message}</span>

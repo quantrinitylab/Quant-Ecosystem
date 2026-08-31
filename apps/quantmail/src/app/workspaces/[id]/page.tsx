@@ -426,6 +426,9 @@ export default function WorkspaceDetailPage() {
                 onChange={(event) => setInviteEmails(event.target.value)}
                 placeholder="kundan@quantmail.in, dev@quantrinity.in"
                 fullWidth
+                /* Marks the first content control for the focus trap, which would
+                   otherwise open this dialog on its close button. */
+                autoFocus
               />
             </FormField>
             <FormField label="Role">
@@ -509,6 +512,10 @@ export default function WorkspaceDetailPage() {
               onChange={(event) => setDeleteConfirm(event.target.value)}
               placeholder={workspace.name}
               fullWidth
+              /* Safe to focus even on a destructive dialog: the only thing a stray
+                 keypress can reach here is a text field, and "Delete permanently"
+                 stays disabled until the typed name matches exactly. */
+              autoFocus
             />
           </FormField>
         </Modal>
