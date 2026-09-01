@@ -33,13 +33,27 @@ spec:
           env:
             - name: PORT
               value: '3011'
+          # AN OPEN SOCKET IS NOT READINESS.
+          #
+          # `tcpSocket: 3011` passes the instant Fastify binds the port, which is
+          # before Prisma has ever connected — so a backend that cannot reach RDS
+          # is put straight into the Service's endpoints and answers `/api/*` with
+          # 502s while reporting 1/1 Ready. `/readyz` runs `SELECT 1` through the
+          # `fastify.prisma` decorator and returns 503 when that fails, so the pod
+          # leaves the load balancer instead of serving errors from it.
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /readyz
               port: 3011
             initialDelaySeconds: 10
             periodSeconds: 5
+          # Liveness stays deliberately dumber than readiness: `/livez` reports
+          # only that the process is alive and ignores dependency health, so a
+          # brief Postgres outage drains the pod (readiness) without also
+          # restarting it (liveness).
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /livez
               port: 3011
             initialDelaySeconds: 20
             periodSeconds: 10

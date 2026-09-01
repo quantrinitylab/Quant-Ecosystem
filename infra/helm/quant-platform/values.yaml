@@ -115,6 +115,15 @@ services:
         - quant-system
     env: []
     secrets: []
+    # `/health` IS CORRECT HERE, AND ONLY HERE. Do not "fix" it to /healthz.
+    #
+    # ws-gateway is not a server-core app. Its WebSocket server attaches a plain
+    # `createServer` handler that answers `/health` and `/api/health` with a 200
+    # on the same port it upgrades connections on, which is the port these probes
+    # target. `@quant/health-server` also gives it `/healthz` and `/readyz`, but
+    # those listen on a separate HEALTH_PORT (3040) that this chart does not
+    # expose as a container port — so pointing a probe at `/healthz` here would
+    # break a service that is currently probed correctly.
     probes:
       liveness:
         path: /health
@@ -208,13 +217,28 @@ services:
         - quant-system
     env: []
     secrets: []
+    # `/api/health`, not `/health`. THIS PROBE COULD NEVER HAVE PASSED.
+    #
+    # quantmail is the Next.js app — `apps/quantmail/Dockerfile` runs
+    # `next start -p 3010`, the port above — and Next mounts app-router handlers
+    # under `/api`, so nothing was ever served at the bare path. `/health`
+    # returned Next's 404 page, readiness never went green, and any rollout of
+    # this chart's quantmail deployment would have hung at 0 available while
+    # liveness restarted the container every 30 seconds.
+    #
+    # `apps/quantmail/src/app/api/health/route.ts` now serves it — the same path
+    # this app's own Dockerfile HEALTHCHECK has always polled. Next resolves that
+    # static segment ahead of the `api/[...path]` proxy, so the probe does not go
+    # through the backend allowlist. Both probes use the same path on purpose: a
+    # frontend container has no database, so there is nothing to be ready for
+    # beyond having booted.
     probes:
       liveness:
-        path: /health
+        path: /api/health
         initialDelaySeconds: 15
         periodSeconds: 10
       readiness:
-        path: /health
+        path: /api/health
         initialDelaySeconds: 5
         periodSeconds: 5
 
@@ -248,13 +272,28 @@ services:
         - quant-system
     env: []
     secrets: []
+    # `/api/health`, not `/health`. THIS PROBE COULD NEVER HAVE PASSED.
+    #
+    # This chart entry deploys the *frontend* image: `apps/quantchat/Dockerfile`
+    # runs `next start -p 3015`, which is the port above. Next serves app-router
+    # handlers under `/api`, so nothing was ever mounted at the bare path and
+    # `/health` returned Next's 404 page — readiness never went green and
+    # liveness restarted the container every 30 seconds.
+    #
+    # NOT `/livez` / `/readyz`. Those are `@quant/server-core` routes and belong
+    # to the Fastify backend on 3002, deployed separately by
+    # `infra/k8s/quantchat-backend.yaml`. Pointing this probe at them would
+    # target a route the container on 3015 does not have.
+    #
+    # `apps/quantchat/src/app/api/health/route.ts` now serves it, matching the
+    # path this app's own Dockerfile HEALTHCHECK has always polled.
     probes:
       liveness:
-        path: /health
+        path: /api/health
         initialDelaySeconds: 15
         periodSeconds: 10
       readiness:
-        path: /health
+        path: /api/health
         initialDelaySeconds: 5
         periodSeconds: 5
 
@@ -288,13 +327,24 @@ services:
         - quant-system
     env: []
     secrets: []
+    # Same as quantchat above: this entry deploys the frontend image, since
+    # `apps/quantai/Dockerfile` runs `next start -p 3020` — the port above — and
+    # its own HEALTHCHECK polls `/api/health`. `apps/quantai/src/app/api/health/
+    # route.ts` now serves that path.
+    #
+    # The Fastify backend is a separate deployment on 3004
+    # (`infra/k8s/quantai-backend.yaml`). Worth recording why `/health` is wrong
+    # there too: `apps/quantai/backend/app.ts` registers its health routes under
+    # `prefix: '/health'` while `routes/health.ts` declares `/health` and
+    # `/ready` inside that prefix, so the reachable paths are `/health/health`
+    # and `/health/ready`. Bare `/health` was nobody's route on either image.
     probes:
       liveness:
-        path: /health
+        path: /api/health
         initialDelaySeconds: 20
         periodSeconds: 10
       readiness:
-        path: /health
+        path: /api/health
         initialDelaySeconds: 10
         periodSeconds: 5
 
@@ -328,13 +378,24 @@ services:
         - quant-system
     env: []
     secrets: []
+    # `/api/healthz`, not `/health` and deliberately not `/api/health`.
+    #
+    # admin is a Next.js app, so the bare path was never served — Next mounts
+    # app-router handlers under `/api`. But `apps/admin/src/app/api/health/
+    # route.ts` is not a container probe either: it is the dashboard's fan-out,
+    # issuing 22 `fetch('http://localhost:<port>/health')` calls with a 2s
+    # timeout each and returning 200 regardless. Probing it every 5s would be a
+    # request storm that reports only that Next is routing.
+    #
+    # `apps/admin/src/app/api/healthz/route.ts` answers exactly that question and
+    # nothing else, and this app's Dockerfile HEALTHCHECK now polls the same path.
     probes:
       liveness:
-        path: /health
+        path: /api/healthz
         initialDelaySeconds: 15
         periodSeconds: 10
       readiness:
-        path: /health
+        path: /api/healthz
         initialDelaySeconds: 5
         periodSeconds: 5
 

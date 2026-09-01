@@ -197,20 +197,51 @@ jobs:
             exit 1
           fi
 
-          # THE ROLLOUT SAYS NOTHING ABOUT THE DATABASE.
-          #
-          # Staging's deployment is created inline by `bootstrap-aws.yml` with no
-          # readiness probe of any kind, so "1/1 Running" means one thing only:
-          # the container process started. That is exactly how a backend that
-          # cannot reach Postgres reports itself healthy while `/api/calendar/
-          # events` returns 502. So ask the pod itself, from inside the cluster.
+      # THE ROLLOUT SAYS NOTHING ABOUT THE DATABASE, AND THIS CHECK IS ITS OWN
+      # STEP SO THAT IT CAN FAIL.
+      #
+      # Staging's deployment is created inline by `bootstrap-aws.yml` with no
+      # readiness probe of any kind, so "1/1 Running" means one thing only: the
+      # container process started. That is exactly how a backend that cannot
+      # reach Postgres reports itself healthy while `/api/calendar/events`
+      # returns 502. So ask the pod itself, from inside the cluster.
+      #
+      # This probe used to be the tail of the step above and it polled `/health`.
+      # No server-core app has ever served that route: `packages/server-core/src/
+      # plugins/health.ts` registers `/healthz`, `/livez` and `/readyz`, and
+      # `/health` survives only in that file's prefix-matched `publicPaths`
+      # allowlist. Run 33436032539 printed
+      #
+      #   404 {"message":"Route GET:/health not found","statusCode":404}
+      #
+      # and the step still reported success, because the node one-liner logged
+      # the status and exited 0. That is the same "cannot fail visibly" defect
+      # the migration and summary steps were rewritten to remove, reintroduced
+      # one commit later by the probe meant to catch it.
+      #
+      # `/readyz` and not `/healthz`: `/healthz` folds a degraded dependency into
+      # a 200 on purpose, so it cannot answer the only question worth asking
+      # after a rollout — can this pod reach Postgres? `/readyz` runs `SELECT 1`
+      # through the `fastify.prisma` decorator and returns 503 when it cannot.
+      - name: Verify backend readiness (/readyz)
+        id: readyz
+        run: |
+          set -uo pipefail
           POD=$(kubectl get pods -n "$K8S_NAMESPACE" -l "$BACKEND_SELECTOR" --field-selector=status.phase=Running -o name | tail -1)
-          if [ -n "$POD" ]; then
-            echo "=== /health from inside $POD ==="
-            kubectl exec "$POD" -n "$K8S_NAMESPACE" -- \
-              node -e "fetch('http://127.0.0.1:3011/health').then(async r=>{console.log(r.status, (await r.text()).slice(0,400))}).catch(e=>{console.log('FETCH_FAILED', e.message); process.exitCode=1})" 2>&1 || \
-              echo "::warning::/health did not answer from inside the pod — the container is up but not serving."
+          if [ -z "$POD" ]; then
+            echo "::error::Rollout reported success but no Running pod matches $BACKEND_SELECTOR, so nothing was verified."
+            exit 1
           fi
+          echo "=== /readyz from inside $POD ==="
+          # The body is printed either way before the exit code is judged: a 503
+          # names the dependency that failed ("database":"fail"), which is the
+          # whole reason to read it rather than just count the status.
+          if ! kubectl exec "$POD" -n "$K8S_NAMESPACE" -- \
+            node -e "fetch('http://127.0.0.1:3011/readyz').then(async r=>{console.log('HTTP', r.status, (await r.text()).slice(0,400)); if (r.status !== 200) process.exit(1)}).catch(e=>{console.log('FETCH_FAILED', e.message); process.exit(1)})" 2>&1; then
+            echo "::error::Backend /readyz did not return 200 from inside $POD. The process is up but not ready to serve; do not dispatch deploy-staging."
+            exit 1
+          fi
+          echo "Backend is ready (database reachable)."
 
       - name: Get ELB hostname
         if: always()
@@ -236,6 +267,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           MIGRATE: ${{ steps.migrate.outcome || 'skipped' }}
           ROLLOUT: ${{ steps.rollout.outcome || 'skipped' }}
+          READYZ: ${{ steps.readyz.outcome || 'skipped' }}
         run: |
           mkdir -p infra/status
           {
@@ -243,6 +275,7 @@ jobs:
             echo "time: $(date -u +%FT%TZ)"
             echo "migrations: $MIGRATE"
             echo "rollout: $ROLLOUT"
+            echo "readiness: $READYZ"
             echo ""
             echo "## deployments"
             kubectl get deploy -n "$K8S_NAMESPACE" 2>/dev/null || echo "kubectl unavailable"
@@ -256,13 +289,31 @@ jobs:
             echo "## backend logs (tail)"
             kubectl logs deployment/$BACKEND_DEPLOY -n "$K8S_NAMESPACE" --tail=40 2>/dev/null || true
           } > infra/status/fix-staging-result.txt
+          # `status-report`, NOT main. This step used to commit and
+          # `git push origin HEAD:main`, which cannot ever succeed: main is
+          # protected with a required `gate` status check, and a direct push
+          # carries no check-run, so every run ended in
+          #
+          #   remote: error: GH006: Protected branch update failed for refs/heads/main.
+          #   remote: - Required status check "gate" is expected.
+          #
+          # swallowed by `|| echo "push failed (non-fatal)"`. Nine sibling
+          # workflows (verify-live, ui-probe, staging-status, deploy-redis, …)
+          # already publish their status files to the unprotected `status-report`
+          # branch; this one was the only outlier, and the only one that never
+          # published anything. The authoritative record is the run summary
+          # below — this file is a convenience, so a push failure warns rather
+          # than failing the job, but it no longer fails silently.
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add infra/status/fix-staging-result.txt
+          git add -f infra/status/fix-staging-result.txt
           if git commit -m "chore(status): fix-staging run ${{ github.run_id }} result [skip ci]"; then
             git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
-            git pull --rebase origin main || true
-            git push origin HEAD:main || echo "push failed (non-fatal)"
+            if git push -f origin HEAD:refs/heads/status-report; then
+              echo "PUSH_OK — infra/status/fix-staging-result.txt on branch status-report"
+            else
+              echo "::warning::Could not publish infra/status/fix-staging-result.txt to the status-report branch. The run summary below is unaffected."
+            fi
           fi
 
       - name: Summary
@@ -270,6 +321,7 @@ jobs:
         env:
           MIGRATE: ${{ steps.migrate.outcome || 'skipped' }}
           ROLLOUT: ${{ steps.rollout.outcome || 'skipped' }}
+          READYZ: ${{ steps.readyz.outcome || 'skipped' }}
         run: |
           # THE SUMMARY HAS TO SAY WHAT ACTUALLY HAPPENED.
           #
@@ -280,8 +332,13 @@ jobs:
           # "Staging fix result" with a hostname and a next action, and read as a
           # completed fix. A deploy tool that cannot fail visibly is worse than no
           # deploy tool.
+          #
+          # Readiness is in the verdict, not merely in the table: a rollout that
+          # finished while `/readyz` returns 503 has put a pod that cannot reach
+          # Postgres into the load balancer, which is a worse outcome than a
+          # rollout that failed and left the previous pod serving.
           verdict='applied'
-          if [ "$MIGRATE" != 'success' ] || [ "$ROLLOUT" != 'success' ]; then
+          if [ "$MIGRATE" != 'success' ] || [ "$ROLLOUT" != 'success' ] || [ "$READYZ" != 'success' ]; then
             verdict='**NOT APPLIED** — see the rows below'
           fi
           {
@@ -292,6 +349,7 @@ jobs:
             echo "| Outcome | $verdict |"
             echo "| Prisma migrations | $MIGRATE |"
             echo "| Backend rollout | $ROLLOUT |"
+            echo "| Readiness (/readyz) | $READYZ |"
             echo "| ELB hostname | ${ELB_HOSTNAME:-NOT ASSIGNED} |"
             echo ""
             if [ "$verdict" = 'applied' ]; then
@@ -300,4 +358,4 @@ jobs:
               echo "The cluster was NOT changed as intended. Fix the failing step and re-run before dispatching deploy-staging."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "migrations=$MIGRATE rollout=$ROLLOUT"
+          echo "migrations=$MIGRATE rollout=$ROLLOUT readiness=$READYZ"

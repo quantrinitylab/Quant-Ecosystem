@@ -30,8 +30,13 @@ COPY --from=builder --chown=quantapp:nodejs /app/pnpm-workspace.yaml ./pnpm-work
 USER quantapp
 EXPOSE 3100
 
+# `/api/healthz`, not `/api/health`. The latter exists, but it is the admin
+# dashboard's fan-out: 22 outbound `fetch`es with a 2s timeout each, returning
+# 200 whatever they answer. Polling it every 30s made the container's own
+# liveness check depend on 22 unrelated ports while proving nothing about this
+# process. `src/app/api/healthz/route.ts` answers only "is Next routing".
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://localhost:3100/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" || exit 1
+  CMD node -e "fetch('http://localhost:3100/api/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" || exit 1
 
 # Use the workspace-pinned Next (v15) via pnpm — never `npx next`, which fetches
 # the latest Next (16.x) at runtime and runs the v15-built app on v16 (crash).
