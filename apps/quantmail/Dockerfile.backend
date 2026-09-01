@@ -43,7 +43,23 @@ COPY --from=builder --chown=quantapp:nodejs /app/pnpm-workspace.yaml ./pnpm-work
 USER quantapp
 EXPOSE 3011
 
+# `/livez`, not `/health` — THE ROUTE THIS USED TO POLL DOES NOT EXIST.
+#
+# `packages/server-core/src/plugins/health.ts` registers `/healthz`, `/livez` and
+# `/readyz`. `/health` appears only in that file's `publicPaths` list, so it was
+# never a route, and this HEALTHCHECK has reported the container unhealthy since
+# it was written. Proof, from inside the running staging pod:
+#
+#   404 {"message":"Route GET:/health not found","statusCode":404}
+#
+# Kubernetes ignores a Dockerfile HEALTHCHECK, which is the only reason this went
+# unnoticed — anyone running the image under plain Docker or Compose saw an
+# `(unhealthy)` container that was serving every request correctly.
+#
+# `/livez` and not `/readyz`: liveness must answer "is this process alive", and
+# `/readyz` returns 503 when Postgres is briefly unreachable. Restarting a
+# healthy container because its database blinked turns one outage into two.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://localhost:3011/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" || exit 1
+  CMD node -e "fetch('http://localhost:3011/livez').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" || exit 1
 
 CMD ["node", "apps/quantmail/backend/dist/server.mjs"]

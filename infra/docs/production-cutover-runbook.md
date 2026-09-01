@@ -187,8 +187,25 @@ aws cloudwatch get-metric-data \
 
 ### 5.2 Health Checks
 
+`health-check.sh` polls `BASE_URL:PORT` per service, so it validates a
+docker-compose host or a `kubectl port-forward` — **not** the ingress, where
+every app answers on 443 under its own hostname and 3010/3011/3015/3020/3100 are
+closed. Passing `--base-url https://<domain>` reports a false platform-wide
+outage; that is what this step used to do.
+
 ```bash
-./infra/scripts/health-check.sh --base-url https://quant.app
+# A: local / port-forwarded topology (BASE_URL defaults to http://localhost)
+./infra/scripts/health-check.sh
+```
+
+```bash
+# B: the public edge, one hostname at a time. `/api/*` is rewritten onto the
+# Fastify backend, so `/api/readyz` is the check that proves the pod can reach
+# Postgres — it returns 503, not 200, when it cannot.
+DOMAIN=quantmail.in
+curl -fsS "https://$DOMAIN/api/readyz"                   # {"status":"ok","checks":{"database":"ok",...}}
+curl -fsS "https://$DOMAIN/api/healthz"                  # backend process liveness
+curl -fsS -o /dev/null -w '%{http_code}\n' "https://$DOMAIN/"   # frontend container: 200
 ```
 
 ### 5.3 Route53 Failover Test
