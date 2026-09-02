@@ -215,6 +215,11 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       icon: 'search',
       description: 'Full-text search across subjects, bodies and people',
       keywords: ['find', 'query', 'filter'],
+      // `/` is layered, not exclusive. `AppShell` registers the same chord at a
+      // higher priority on the four routes that filter in place, so there `/`
+      // puts the caret in the header field and this jump never runs; on every
+      // other route the shell's binding declines and the press arrives here.
+      // Both readings of `/` are "search" — one at the nearest scope, one global.
       run: go('/search'),
     },
     // ── Apps ──────────────────────────────────────────────────────────────────

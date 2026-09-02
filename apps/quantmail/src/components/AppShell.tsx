@@ -220,9 +220,23 @@ export function AppShell({
   'aria-label': ariaLabel = 'Application shell',
 }: AppShellProps) {
   const drawerId = useId();
+  const mobileSearchId = useId();
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
+  /*
+   * The mobile search row, which the shell owns rather than each route.
+   *
+   * The desktop bar below is `hidden md:flex`, so until now a phone had no
+   * search in any app: Drive, Contacts and Calendar all passed
+   * `onSearchChange` and all three rendered a field nobody could reach under
+   * 768px. The inbox had hand-rolled its own sheet, which is the pattern this
+   * lifts — one row here serves every route that can search, and the inbox
+   * drops its copy.
+   */
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const mobileSearchRef = useRef<HTMLInputElement>(null);
+  const desktopSearchRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const pathname = usePathname() ?? '/';
   const { data: inboxEmails, refetch: refetchInbox } = useInbox({ folderType: 'INBOX' });
@@ -360,6 +374,78 @@ export function AppShell({
     // exactly where a user who opened the wrong panel is likely to be.
     allowInInput: true,
   });
+
+  /*
+   * `/` focuses the search field on a route that has one.
+   *
+   * The chord was NOT unbound — `KeyboardProvider`'s command registry has always
+   * claimed it for `nav.search`, which navigates to `/search`. So the `<kbd>/</kbd>`
+   * pill in the bar below was telling the truth about the key and lying about
+   * where it goes: on the four routes that filter in place (inbox, calendar,
+   * contacts, drive) pressing `/` left the list you were reading and loaded a
+   * different page, with the pill for it sitting inside the field it skipped.
+   *
+   * Two bindings, layered rather than fought over. This one is tried first and
+   * declines by returning `false` when there is nothing to focus, which is the
+   * engine's documented hand-off (`engine.ts:391-400`) — so `/` still reaches
+   * `/search` on the eighteen routes with no field, and stops short at the
+   * nearest one on the four that have it. That is how `/` behaves in vim, Gmail,
+   * GitHub and Linear: search here, not search somewhere else.
+   *
+   * `priority` is load-bearing. Ranking is scope depth, then priority, then
+   * registration recency — and `KeyboardProvider` is this component's *parent*,
+   * so React runs its effect last and it would otherwise always be the more
+   * recent binding.
+   *
+   * `preventDefault` matters twice over: Chrome and Firefox both take `/` for
+   * find-in-page, and without it the slash lands in the field it just focused.
+   * Not `allowInInput`, so `/` stays typeable inside the search box and every
+   * other field.
+   */
+  const focusSearch = useCallback(() => {
+    // `false` is not "nothing happened" — it hands the key press to the next
+    // binding in the ranking, which is the command registry's `/search` jump.
+    if (!onSearchChange) return false;
+    const desktop = desktopSearchRef.current;
+    // `offsetParent` is null exactly when an ancestor is `display: none` — which
+    // is how the desktop bar hides below `md`. Cheaper and more honest than
+    // re-deriving the breakpoint with `matchMedia`.
+    if (desktop && desktop.offsetParent !== null) {
+      desktop.focus();
+      desktop.select();
+      return true;
+    }
+    setIsMobileSearchOpen(true);
+    return true;
+  }, [onSearchChange]);
+
+  useShortcut('/', focusSearch, {
+    label: 'Search this view',
+    preventDefault: true,
+    priority: 10,
+    enabled: () => Boolean(onSearchChange),
+  });
+
+  /*
+   * The row stays mounted so it can animate, so opening it has to move focus
+   * explicitly — `autoFocus` fires once at mount and never again. One frame of
+   * delay lets the row have a height before the caret lands in it; focusing into
+   * a zero-height box scrolls the header out of view on iOS.
+   */
+  useEffect(() => {
+    if (!isMobileSearchOpen) return;
+    const frame = requestAnimationFrame(() => mobileSearchRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [isMobileSearchOpen]);
+
+  /*
+   * A route change closes the row. Its query belongs to the route that owns
+   * `searchValue`, so leaving it open across a navigation would show a filter
+   * bar acting on a list that is no longer there.
+   */
+  useEffect(() => {
+    setIsMobileSearchOpen(false);
+  }, [pathname]);
 
   /**
    * Focus containment for the drawer.
@@ -595,8 +681,21 @@ export function AppShell({
                 </button>
               </div>
 
-              {/* Center: Real Contextual Live Search Bar (Desktop) */}
-              <div className="hidden md:flex flex-1 max-w-xl mx-4">
+              {/*
+                Center: the live search bar, on a pointer.
+
+                A route that cannot search collapses this to `display: none` — the
+                slot takes no width, so the brand and the actions sit at the
+                header's two edges. What used to fill the `else` was a `div`
+                styled exactly like the field: same surface, same border, same
+                magnifier, the text "Search in QuantGit…". It took no focus and no
+                input. `/codehub`, `/settings` and `/workspaces` all shipped it,
+                so three of QuantMail's surfaces offered a search box that was a
+                picture of one.
+              */}
+              <div
+                className={`flex-1 max-w-xl mx-4 ${onSearchChange ? 'hidden md:flex' : 'hidden'}`}
+              >
                 {onSearchChange ? (
                   /*
                    * The vertical padding is on the input, not on this wrapper. With
@@ -621,6 +720,7 @@ export function AppShell({
                       <path d="m20 20-4-4" />
                     </svg>
                     <input
+                      ref={desktopSearchRef}
                       id="app-shell-search-input"
                       name="searchQuery"
                       type="search"
@@ -642,34 +742,153 @@ export function AppShell({
                       className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none"
                     />
                     {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
+                    {/*
+                      The pill now describes the field it sits in. `/` was always
+                      bound — to `nav.search`, which navigated to `/search` — so on
+                      this route the hint pointed at a key that left the page. The
+                      shadowing binding above puts the caret here instead; see the
+                      comment on `focusSearch`.
+                    */}
                     <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#282C35] text-[10px] font-mono text-[#6B6E76] border border-[#3A404D]/60 shrink-0">
                       /
                     </kbd>
                   </div>
-                ) : (
-                  <div className="w-full flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-[#111318]/90 border border-[#282C35] text-xs text-[#A1A4AC]">
-                    <svg
-                      className="size-4 text-[#A1A4AC] shrink-0"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <circle cx="11" cy="11" r="7" />
-                      <path d="m20 20-4-4" />
-                    </svg>
-                    <span>Search in {appDisplayName(currentApp)}…</span>
-                  </div>
-                )}
+                ) : null}
               </div>
 
               {/* Right: Mobile Title / Actions */}
               <div className="flex items-center gap-2">
                 {mobileTitle && <div className="md:hidden">{mobileTitle}</div>}
+                {/*
+                  The phone's way into search. Before the header, so it reads
+                  left-to-right as the same control the desktop bar is — and
+                  before `mobileActions`, which is where the inbox used to keep
+                  its own copy of this button, so the order on that route is
+                  unchanged now that it no longer has one.
+                */}
+                {onSearchChange && (
+                  <button
+                    type="button"
+                    className={`md:hidden inline-flex size-11 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                      isMobileSearchOpen
+                        ? 'bg-[#282C35] text-[#FF8C42]'
+                        : 'text-[#A1A4AC] hover:bg-[#282C35] hover:text-white'
+                    }`}
+                    onClick={() => {
+                      // Closing discards the query. A collapsed row that is still
+                      // filtering the list behind it is a filter with no visible
+                      // cause, and the only way back to everything would be to
+                      // reopen the row to clear it.
+                      if (isMobileSearchOpen) onSearchChange('');
+                      setIsMobileSearchOpen((open) => !open);
+                    }}
+                    aria-expanded={isMobileSearchOpen}
+                    aria-controls={mobileSearchId}
+                    aria-label={isMobileSearchOpen ? 'Close search' : 'Search'}
+                  >
+                    <svg
+                      className="size-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <circle cx="11" cy="11" r="7" />
+                      <path d="m20 20-4-4" />
+                    </svg>
+                  </button>
+                )}
                 {mobileActions}
               </div>
             </header>
           ))}
+
+        {/*
+          The mobile search row.
+
+          Below the header rather than inside it, because at 375px a 44px field
+          and a Cancel button cannot share a 56px bar with the brand and the
+          actions — every phone mail client that tries ends up with a 28px field.
+          Animated with `grid-template-rows` instead of framer-motion: the shell
+          is on every route, and one collapsing row is not worth putting an
+          animation library in the first chunk. The row stays mounted so it can
+          animate both ways, and `inert` keeps a collapsed field out of the tab
+          order and out of the accessibility tree while it is closed.
+        */}
+        {sidebar && !customHeader && onSearchChange && (
+          <div
+            id={mobileSearchId}
+            inert={!isMobileSearchOpen}
+            className={`md:hidden grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${
+              isMobileSearchOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+            }`}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <div className="flex items-center gap-2 border-b border-[#282C35]/80 bg-[#090A0C] px-3 py-2.5 sm:px-4">
+                <div className="flex min-h-touch flex-1 items-center gap-2 rounded-xl border border-[#3A404D]/80 bg-[#111318]/90 px-3 shadow-inner focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30">
+                  <svg
+                    className="size-4 shrink-0 text-[#A1A4AC]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-4-4" />
+                  </svg>
+                  <input
+                    ref={mobileSearchRef}
+                    id="app-shell-mobile-search-input"
+                    name="searchQuery"
+                    type="search"
+                    value={searchValue ?? ''}
+                    onChange={(e) => onSearchChange(e.target.value)}
+                    onKeyDown={(event) => {
+                      // Escape closes the row from inside the field, which is
+                      // where the user is. The engine's Escape binding is scoped
+                      // to the drawer, so it never sees this.
+                      if (event.key === 'Escape') {
+                        event.stopPropagation();
+                        onSearchChange('');
+                        setIsMobileSearchOpen(false);
+                      }
+                    }}
+                    aria-label="Search"
+                    placeholder={
+                      searchPlaceholder ||
+                      (currentApp === 'mail'
+                        ? 'Search messages, contacts, keywords…'
+                        : `Search in ${appDisplayName(currentApp)}…`)
+                    }
+                    className="h-11 w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
+                  />
+                  {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
+                </div>
+                {/*
+                  A real 44px button, not a 26px line of text. Clear empties the
+                  field and keeps it; Cancel puts the row away — two different
+                  intentions, so two controls.
+                */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSearchChange('');
+                    setIsMobileSearchOpen(false);
+                  }}
+                  className="inline-flex min-h-touch items-center justify-center rounded-lg px-3 text-xs font-medium text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {topBar}
 

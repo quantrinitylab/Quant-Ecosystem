@@ -19,7 +19,6 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { useDeferredMount } from '../../hooks/useDeferredMount';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
-import { SearchClearButton } from '../../components/SearchClearButton';
 import { QuantFab } from '../../components/QuantFab';
 import {
   IconActivity,
@@ -51,7 +50,6 @@ import {
   IconPaperclip,
   IconRefresh,
   IconScale,
-  IconSearch,
   IconSettings,
   IconShield,
   IconSparkle,
@@ -453,7 +451,6 @@ export default function CalendarPage() {
 
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventLike | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isQuantyDrawerOpen, setIsQuantyDrawerOpen] = useState(false);
   const showQuantyDrawer = useDeferredMount(isQuantyDrawerOpen);
 
@@ -1641,27 +1638,13 @@ export default function CalendarPage() {
       searchPlaceholder="Search events, meetings, tasks, birthdays…"
       mobileActions={
         <div className="flex items-center gap-1.5">
-          {/* Search Button (Mobile ONLY — on desktop, search is in top header).
-           * Both of these are mobile-only, so there is no desktop density to
-           * protect: a phone measured them at 32x32 and 30x27, under the 44px
-           * touch floor. */}
-          <button
-            type="button"
-            onClick={() => setIsSearchOpen((prev) => !prev)}
-            className="md:hidden size-11 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-            aria-label="Search calendar"
-          >
-            <svg
-              className="size-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </button>
+          {/*
+           * The magnifier that used to lead this row is gone, not moved: `AppShell`
+           * renders its own search toggle immediately before `mobileActions`, so
+           * this route was showing two — "Search" and "Search calendar", side by
+           * side, opening two different fields onto the same `searchFilter`.
+           * The shell's is the one that survives.
+           */}
 
           {/* Quanty Copilot Robot Icon Button */}
           <button
@@ -1677,37 +1660,17 @@ export default function CalendarPage() {
       }
     >
       <PageTransition className="flex flex-col h-full bg-[#08080a] text-white relative">
-        {/* Search Bar on Mobile ONLY when toggled */}
-        {isSearchOpen && (
-          <div className="md:hidden border-b border-[#282C35]/80 bg-[#090A0C] px-4 py-2 flex items-center gap-2">
-            {/* Same field shape as the inbox's mobile search: the border and the
-             * 44px floor belong to the wrapper, the input is transparent inside
-             * it, and the clear ✕ lives in the field rather than beside it — so
-             * "empty the query" and "leave search" stop being the same gesture. */}
-            <div className="flex-1 flex items-center gap-2 min-h-[44px] rounded-xl border border-[#3A404D]/80 bg-[#111318]/90 px-3 shadow-inner transition-colors focus-within:border-[#FF8C42]">
-              <IconSearch size={16} className="shrink-0 text-[#A1A4AC]" />
-              <input
-                type="search"
-                placeholder="Search events, meetings, tasks, birthdays…"
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                className="h-11 w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
-                autoFocus
-              />
-              {searchFilter && <SearchClearButton onClear={() => setSearchFilter('')} />}
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setIsSearchOpen(false);
-                setSearchFilter('');
-              }}
-              className="min-h-11 shrink-0 px-2 text-xs text-[#A1A4AC] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded-lg"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
+        {/*
+          The mobile search field used to be hand-rolled here — a conditionally
+          mounted row with its own `autoFocus`, its own Cancel, and the same field
+          shape as the inbox's. That made three copies of one pattern (inbox,
+          calendar, and the shell's desktop bar) and left Drive and Contacts with
+          no mobile search at all, since the shell's only field is `hidden md:flex`.
+
+          `AppShell` owns the row now, directly under the header, animated on
+          `grid-template-rows` and `inert` while collapsed. This route keeps
+          `searchValue`/`onSearchChange` and loses the copy.
+        */}
 
         {/* Desktop Header Toolbar */}
         <div className="hidden md:flex items-center justify-between border-b border-[#282C35]/80 px-6 py-3 bg-[#0c0c0f]">
