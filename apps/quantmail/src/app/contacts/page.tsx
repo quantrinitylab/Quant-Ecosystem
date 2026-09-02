@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button, Modal, Avatar, Skeleton, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
+import { ContactsLetterIndex } from '../../components/ContactsLetterIndex';
 import { PageTransition } from '../../components/PageTransition';
 import {
   useContacts,
@@ -353,13 +354,88 @@ export default function ContactsPage() {
     setScrub(null);
   }, []);
 
-  // The rail earns its edge of the screen only once the list is long enough that
-  // scrolling to a name is actually work.
-  const showScrubRail = (contacts?.length ?? 0) >= 10 && groupedContacts.length > 1;
+  /*
+   * Which letter the stream is currently showing, for the sidebar index.
+   *
+   * An `IntersectionObserver` answers "is A on screen", but the question here is
+   * "which letter am I reading", and near the end of a short list several
+   * sections are on screen at once. So: the last section whose top has crossed
+   * the stream's top edge — exactly the heading a sticky header would be
+   * showing. rAF-coalesced, because a scroll fires far more often than the
+   * answer changes.
+   */
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
+
+  useEffect(() => {
+    const host = streamRef.current;
+    if (!host) return;
+
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      const edge = host.getBoundingClientRect().top + 12;
+      let current: string | null = null;
+      for (const group of groupedContacts) {
+        const section = document.getElementById(`letter-${group.letter}`);
+        if (section && section.getBoundingClientRect().top <= edge) current = group.letter;
+      }
+      setActiveLetter(current ?? groupedContacts[0]?.letter ?? null);
+    };
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(measure);
+    };
+
+    measure();
+    host.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      host.removeEventListener('scroll', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [groupedContacts]);
+
+  /*
+   * A letter tapped in the sidebar has to close the drawer, or on a phone the
+   * jump happens behind it and nothing appears to have happened.
+   */
+  const jumpFromSidebar = useCallback(
+    (letter: string) => {
+      window.dispatchEvent(new CustomEvent('quant:sidebar:close'));
+      jumpToLetter(letter, true);
+    },
+    [jumpToLetter],
+  );
+
+  const letterGroups = useMemo(
+    () => groupedContacts.map((group) => ({ letter: group.letter, count: group.contacts.length })),
+    [groupedContacts],
+  );
+
+  /*
+   * The rail is a drag control, and it earns the right edge of a phone only once
+   * scrolling to a name is actually work. On a pointer it is a click target that
+   * costs nothing but the 32px it occupies, so it is permanent there — the gate
+   * that used to hide it below ten contacts left a wide screen with no index at
+   * all. Expressed as a breakpoint class rather than `matchMedia` so the server
+   * render and the first client render agree.
+   */
+  const hasContacts = (contacts?.length ?? 0) > 0;
+  const railEarnsThumb = (contacts?.length ?? 0) >= 10 && groupedContacts.length > 1;
+  const showScrubRail = hasContacts && groupedContacts.length > 1;
 
   return (
     <AppShell
-      sidebar={<AppSidebar />}
+      sidebar={
+        <AppSidebar
+          extra={
+            <ContactsLetterIndex
+              groups={letterGroups}
+              activeLetter={activeLetter}
+              onJump={jumpFromSidebar}
+            />
+          }
+        />
+      }
       theme="dark"
       className="quantmail-shell"
       searchValue={searchQuery}
@@ -471,7 +547,7 @@ export default function ContactsPage() {
           <div
             ref={streamRef}
             className={`h-full overflow-y-auto px-4 py-6 sm:px-8 space-y-6 ${
-              showScrubRail ? 'pr-9 sm:pr-12' : ''
+              showScrubRail ? (railEarnsThumb ? 'pr-9 sm:pr-12' : 'md:pr-12') : ''
             }`}
           >
             {isLoading && (
@@ -819,6 +895,12 @@ export default function ContactsPage() {
            * reader can jump without dragging, while pointer capture on the wrapper
            * turns the whole column into one continuous scrub. It stops short of the
            * bottom on mobile because the shell's create FAB lives at `bottom-20`.
+           *
+           * Below ten contacts it is hidden on a phone and kept on a pointer: a
+           * drag control that overlays a list you can already see in one screen is
+           * not worth the right edge of a 393px viewport, but 32px of a wide one is
+           * cheap. The sidebar's `ContactsLetterIndex` is the richer pointer index;
+           * this stays because it tracks the reading position in place.
            */}
           {showScrubRail && (
             <div
@@ -830,7 +912,9 @@ export default function ContactsPage() {
               onLostPointerCapture={endScrub}
               role="navigation"
               aria-label="Jump to letter"
-              className="absolute bottom-24 right-0.5 top-2 z-20 flex w-8 select-none flex-col items-stretch [touch-action:none] sm:right-1.5 md:bottom-3"
+              className={`absolute bottom-24 right-0.5 top-2 z-20 w-8 select-none flex-col items-stretch [touch-action:none] sm:right-1.5 md:bottom-3 ${
+                railEarnsThumb ? 'flex' : 'hidden md:flex'
+              }`}
             >
               {ALPHABET.map((letter) => {
                 /*
@@ -843,6 +927,7 @@ export default function ContactsPage() {
                  * give.
                  */
                 const exists = availableLetters.has(letter);
+                const active = letter === activeLetter;
                 return (
                   <button
                     key={letter}
@@ -851,9 +936,14 @@ export default function ContactsPage() {
                       const target = resolveLetter(letter);
                       if (target) jumpToLetter(target, true);
                     }}
+                    aria-current={active ? 'true' : undefined}
                     aria-label={`Jump to ${letter === '#' ? 'other' : letter}`}
                     className={`flex flex-1 items-center justify-center rounded text-[10px] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                      exists ? 'text-[#F5F5F5] hover:text-[#FF8C42]' : 'text-[#A1A4AC]'
+                      active
+                        ? 'text-[#FF8C42]'
+                        : exists
+                          ? 'text-[#F5F5F5] hover:text-[#FF8C42]'
+                          : 'text-[#A1A4AC]'
                     }`}
                   >
                     {letter}
