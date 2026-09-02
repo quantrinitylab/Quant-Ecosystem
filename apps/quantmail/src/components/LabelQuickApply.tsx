@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { showToast } from './InboxToast';
+import { SearchClearButton } from './SearchClearButton';
 import { IconCheck } from './icons';
 
 interface Label {
@@ -112,7 +113,7 @@ export function LabelQuickApply({
             role="listbox"
             aria-label="Apply labels"
           >
-            <div className="label-dropdown-search">
+            <div className="label-dropdown-search quant-filter-field">
               <input
                 ref={inputRef}
                 type="search"
@@ -120,6 +121,7 @@ export function LabelQuickApply({
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
               />
+              {filter && <SearchClearButton onClear={() => setFilter('')} label="Clear filter" />}
             </div>
             <div className="label-dropdown-list">
               {filtered.length === 0 && <p className="label-dropdown-empty">No matching labels</p>}

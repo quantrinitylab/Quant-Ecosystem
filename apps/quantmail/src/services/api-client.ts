@@ -587,6 +587,20 @@ export class QuantMailApiClient {
     return this.get(`/contacts/${id}`);
   }
 
+  /**
+   * Every saved address, lowercased — for callers that need set membership rather
+   * than contact records. `getContacts` cannot answer that: it is paginated at 20
+   * by default and capped at 100, so a join against page one silently calls
+   * contact 21 a stranger.
+   *
+   * Through the Next proxy this is `/api/contacts/directory`, which lands in the
+   * `[id]` route and forwards `/contacts/directory` verbatim — the same way
+   * `/contacts/search` and `/contacts/frequent` would.
+   */
+  async getContactDirectory(): Promise<ApiResponse<{ emails: string[] }>> {
+    return this.get('/contacts/directory');
+  }
+
   async createContact(data: Partial<Contact>): Promise<ApiResponse<Contact>> {
     return this.post('/contacts', data);
   }

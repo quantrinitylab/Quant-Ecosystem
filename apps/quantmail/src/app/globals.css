@@ -130,6 +130,81 @@ html {
     outline-offset: 2px;
     border-radius: var(--quant-radius);
   }
+
+  /*
+   * THE DOUBLE-X. Every search field in this app is `<input type="search">`
+   * inside our own styled wrapper, and most of them draw their own clear button
+   * so the icon matches the rest of the suite and has a 44px target. Chrome and
+   * Safari ALSO draw `::-webkit-search-cancel-button` — an unstyleable grey ✕
+   * that cannot be made to match anything — so eleven fields showed two ✕s side
+   * by side, ours and the browser's. Nothing in the codebase suppressed it.
+   *
+   * This lives in `base` rather than on each field: it is a browser default
+   * being reset, it is the same reset every time, and doing it per-field is how
+   * we got here — the calendar's field escaped the bug only because it happens
+   * to have no custom clear button, which is luck, not design.
+   *
+   * `appearance: none` goes with it. Safari styles a search input as a pill
+   * regardless of our border-radius, so without this the field is the wrong
+   * shape on iOS while looking correct everywhere else.
+   */
+  input[type='search'] {
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  input[type='search']::-webkit-search-cancel-button,
+  input[type='search']::-webkit-search-decoration,
+  input[type='search']::-webkit-search-results-button,
+  input[type='search']::-webkit-search-results-decoration {
+    display: none;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+}
+
+/*
+ * The other half of the double-X fix. Five popover filter fields — labels,
+ * templates, files, snippets, branches — are plain CSS components whose only
+ * clear affordance WAS the native ✕ suppressed above. This is the wrapper that
+ * lets `SearchClearButton` sit inside them without each one inventing its own
+ * layout: the wrapper becomes a flex row, the input reserves room on its right,
+ * and the button is pulled back over that room. One class, five call sites, no
+ * per-component CSS.
+ */
+.quant-filter-field {
+  display: flex;
+  align-items: center;
+}
+
+/*
+ * Flow layout, not absolute: each of the five wrappers has a different padding,
+ * so an absolutely positioned button would need a different `right` in every one
+ * of them. A negative margin pulls the button back over the room the input
+ * reserves, which is the same distance regardless of the wrapper.
+ *
+ * WHY THE MARGINS SUM TO ZERO. -1.375rem + 0.875rem (the button's own 14px) +
+ * 0.5rem = 0, so the button contributes nothing to the flex line. That is not
+ * tidiness, it is the fix for a measured bug: with only a negative left margin
+ * the button's net contribution was -8.4px, the input's `flex-grow` ate that as
+ * free space, and every field ended up 8.4px WIDER than the wrapper it sits in.
+ * In the two 0.4rem-padded popovers — labels and branches — that pushed the
+ * field's right border 2px past the panel's own edge. Net zero keeps the input
+ * exactly its wrapper's content width in all five.
+ *
+ * The 1.75rem reservation and the 0.5rem right margin then place the 14px glyph
+ * 8px inside the field's border with 7px of clear air before the text can reach
+ * it. Verified in headless Chrome against all five real paddings, not eyeballed.
+ */
+.quant-filter-field > input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 1.75rem !important;
+}
+
+.quant-filter-field > button {
+  margin-left: -1.375rem;
+  margin-right: 0.5rem;
 }
 
 /* Scrollbar hiding utilities across all browsers (Chrome, Safari, Firefox, Edge, Windows) */

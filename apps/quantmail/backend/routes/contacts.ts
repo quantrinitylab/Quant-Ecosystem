@@ -186,13 +186,36 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: contacts });
   });
 
+  // GET /contacts/directory
+  //
+  // The address book as a flat list of addresses, for callers that need set
+  // membership rather than contact records — the inbox's `Contacts` lens asks
+  // "is this conversation with somebody I know?" of every visible thread.
+  //
+  // Deliberately unpaginated, which the list route is not: a client joining
+  // against page one of `GET /contacts` calls contact 21 a stranger, and that
+  // failure is silent. See `ContactService.listContactEmails` for why the payload
+  // is a projection.
+  fastify.get('/directory', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new ContactService(prisma as never);
+    const emails = await service.listContactEmails(userId);
+
+    return reply.send({ success: true, data: { emails } });
+  });
+
   // GET /contacts/:id
   //
-  // Registered after the two static routes it shares a prefix with. Fastify's
-  // radix router prefers a static segment over a parametric one, so `/search`
-  // and `/frequent` still reach their own handlers rather than arriving here as
-  // an id — but keeping the declaration order honest saves the next reader the
-  // trip to the router's source.
+  // Registered after the three static routes it shares a prefix with. Fastify's
+  // radix router prefers a static segment over a parametric one, so `/search`,
+  // `/frequent` and `/directory` still reach their own handlers rather than
+  // arriving here as an id — but keeping the declaration order honest saves the
+  // next reader the trip to the router's source.
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) {

@@ -334,6 +334,40 @@ export function threadParticipants(messages: Email[] = [], currentEmail?: string
 }
 
 /**
+ * Every address in a conversation that is not the signed-in user's, lowercased.
+ *
+ * `threadParticipants` cannot answer this. It returns display *names*, because
+ * that is what a row shows: `identityOf` keys on the address and then throws it
+ * away, returning the name. A caller joining a conversation against an address
+ * book needs the keys, so it gets its own pass.
+ *
+ * Senders *and* recipients, from every message rather than the latest — a
+ * conversation is "with somebody I know" when they replied three messages in, and
+ * a group thread is with everyone on it. `recipientsOf` covers both the structured
+ * `to`/`cc` arrays and the flat `toAddresses`/`ccAddresses` spellings.
+ *
+ * The `@` test drops name-only identities: this returns addresses, and a display
+ * name that reached an address book comparison would never match anything.
+ */
+export function threadAddresses(messages: Email[] = [], currentEmail?: string): string[] {
+  const seen = new Set<string>();
+
+  const add = (address?: string | null) => {
+    const addr = (address || '').trim().toLowerCase();
+    if (!addr || !addr.includes('@')) return;
+    if (isMyAddress(addr, currentEmail)) return;
+    seen.add(addr);
+  };
+
+  for (const message of messages) {
+    add(message.from?.email ?? (message as { fromAddress?: string }).fromAddress);
+    for (const recipient of recipientsOf(message)) add(recipient.email);
+  }
+
+  return Array.from(seen);
+}
+
+/**
  * How many participants a row names before it counts the rest.
  *
  * Three fits the narrowest supported row; beyond that the names are truncated

@@ -18,6 +18,37 @@ export function useContacts(options?: {
   });
 }
 
+/**
+ * The signed-in user's address book as a lowercased `Set` of addresses.
+ *
+ * Exists so a caller can ask "do I know this person?" without paging through
+ * `GET /contacts`, which returns 20 records at a time and caps at 100 — a join
+ * against one page silently reports contact 21 as a stranger.
+ *
+ * The key sits under `['contacts']` so the create/update/delete mutations below,
+ * which invalidate that prefix, refresh this too: save a contact and the inbox's
+ * `Contacts` lens picks them up without any extra wiring.
+ *
+ * Addresses are folded to lower case on the server as well, because
+ * `recordInteraction` trims but does not case-fold and the same person can hold
+ * two rows. Compare lowercased or the membership test misses one of them.
+ */
+export function useContactDirectory() {
+  return useQuery({
+    queryKey: ['contacts', 'directory'] as const,
+    queryFn: async () => {
+      const response = await apiClient.getContactDirectory();
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to load contact directory');
+      }
+      return new Set((response.data?.emails ?? []).map((email) => email.trim().toLowerCase()));
+    },
+    // An address book changes on a human timescale, and every mutation that can
+    // change it invalidates this key anyway.
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useCreateContact() {
   const queryClient = useQueryClient();
   return useMutation({

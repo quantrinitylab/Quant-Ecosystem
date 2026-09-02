@@ -7,6 +7,7 @@ import { Button, Skeleton, ErrorState, EmptyState } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
+import { SearchClearButton } from '../../components/SearchClearButton';
 import { useSearchEmails } from '../../hooks/useSearchEmails';
 import { listContainerVariants, listItemVariants } from '../../lib/motion-variants';
 import type { Email, SearchEmailRequest } from '../../types';
@@ -242,16 +243,7 @@ export default function SearchPage() {
                 autoFocus
                 className="h-11 w-full rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface)] pl-11 pr-10 text-sm outline-none transition-colors placeholder:text-[var(--quant-muted-foreground)]/60 focus:border-[var(--brand-primary)]/60 focus:ring-2 focus:ring-[var(--brand-primary)]/25"
               />
-              {query && (
-                <button
-                  type="button"
-                  onClick={handleResetSearch}
-                  aria-label="Clear search"
-                  className="absolute right-2.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)]"
-                >
-                  <Icon name="close" className="h-3.5 w-3.5" />
-                </button>
-              )}
+              {query && <SearchClearButton onClear={handleResetSearch} variant="ghost" />}
             </div>
             <Button variant="primary" onClick={handleSearch} disabled={!query.trim()}>
               Search

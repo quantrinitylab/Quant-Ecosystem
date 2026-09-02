@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { SearchClearButton } from './SearchClearButton';
 import {
   IconArrowDown,
   IconArrowUp,
@@ -78,7 +79,7 @@ export function GitBranchSelector({
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.12 }}
           >
-            <div className="branch-search">
+            <div className="branch-search quant-filter-field">
               <input
                 type="search"
                 placeholder="Find or create branch..."
@@ -86,6 +87,7 @@ export function GitBranchSelector({
                 onChange={(e) => setFilter(e.target.value)}
                 autoFocus
               />
+              {filter && <SearchClearButton onClear={() => setFilter('')} label="Clear filter" />}
             </div>
             <div className="branch-list">
               {filtered.map((branch) => (

@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
 import { PageTransition, useFocusTrap } from '@quant/shared-ui';
 import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
@@ -12,19 +11,11 @@ import { QuantDriveLogo } from './QuantDriveLogo';
 import { QuantContactsLogo } from './QuantContactsLogo';
 import { QuantGitLogo } from './QuantGitLogo';
 import { BrandWordmark, appDisplayName } from './BrandWordmark';
-// Type only: the shell renders per-app SVG marks itself. The value import of
-// `Interactive3DLogo` alongside it was unused — the switcher is its only caller.
+// Type only: the shell renders per-app SVG marks itself.
 import { type LogoAppType } from './Interactive3DLogo';
 import { QuantumSplashIntro } from './QuantumSplashIntro';
-import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInbox } from '../hooks/useInbox';
-
-// The switcher pulls in `Interactive3DLogo` for five app marks, so it stays out
-// of the shell's own chunk until the user first opens it.
-const EcosystemWarpMatrix = dynamic(
-  () => import('./EcosystemWarpMatrix').then((m) => m.EcosystemWarpMatrix),
-  { ssr: false },
-);
+import { SearchClearButton } from './SearchClearButton';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -221,9 +212,7 @@ export function AppShell({
 }: AppShellProps) {
   const drawerId = useId();
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const switcherTriggerRef = useRef<HTMLButtonElement>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
   const router = useRouter();
   const pathname = usePathname() ?? '/';
@@ -274,34 +263,10 @@ export function AppShell({
     return () => window.removeEventListener('quant:sidebar:close', handleClose);
   }, []);
 
-  useEffect(() => {
-    const handleOpen = () => setIsSwitcherOpen(true);
-    // `close` is what the palette and shortcuts sheet fire before they open, so
-    // two `aria-modal` dialogs are never on screen at once. It deliberately does
-    // *not* restore focus the way Escape does: the surface that asked for this is
-    // about to take focus itself.
-    const handleClose = () => setIsSwitcherOpen(false);
-    window.addEventListener('quant:switcher:open', handleOpen);
-    window.addEventListener('quant:switcher:close', handleClose);
-    return () => {
-      window.removeEventListener('quant:switcher:open', handleOpen);
-      window.removeEventListener('quant:switcher:close', handleClose);
-    };
-  }, []);
-
   const closeSidebar = useCallback((restoreFocus = true) => {
     setIsSidebarOpen(false);
     if (restoreFocus) menuTriggerRef.current?.focus();
   }, []);
-
-  // Same contract as the drawer: closing hands focus back to the control that
-  // opened it, so Escape does not drop the caret at the top of the document.
-  const closeSwitcher = useCallback(() => {
-    setIsSwitcherOpen(false);
-    switcherTriggerRef.current?.focus();
-  }, []);
-
-  const showSwitcher = useDeferredMount(isSwitcherOpen);
 
   const togglePinned = useCallback(() => {
     setIsPinned((previous) => {
@@ -587,32 +552,6 @@ export function AppShell({
 
                   <BrandWordmark app={currentApp} size="text-xl" />
                 </button>
-
-                {/*
-                  The app switcher. `EcosystemWarpMatrix` has been finished and
-                  design-system compliant for a while but had no trigger at all
-                  — imported and never rendered, which webpack simply tree-shook
-                  away, so the whole overlay shipped as nothing.
-                */}
-                <button
-                  ref={switcherTriggerRef}
-                  type="button"
-                  className="inline-flex size-11 sm:size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                  aria-label="Switch app"
-                  aria-haspopup="dialog"
-                  aria-expanded={isSwitcherOpen}
-                  onClick={() => setIsSwitcherOpen((open) => !open)}
-                >
-                  <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
-                    <path
-                      d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeLinejoin="round"
-                      strokeWidth="1.8"
-                    />
-                  </svg>
-                </button>
               </div>
 
               {/* Center: Real Contextual Live Search Bar (Desktop) */}
@@ -661,30 +600,7 @@ export function AppShell({
                       }
                       className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none"
                     />
-                    {searchValue && (
-                      <button
-                        type="button"
-                        onClick={() => onSearchChange('')}
-                        className="shrink-0 rounded p-0.5 text-[#A1A4AC] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                        title="Clear search"
-                        aria-label="Clear search"
-                      >
-                        <svg
-                          className="size-3.5"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.6"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                          focusable="false"
-                        >
-                          <line x1="18" y1="6" x2="6" y2="18" />
-                          <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                      </button>
-                    )}
+                    {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
                     <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#282C35] text-[10px] font-mono text-[#6B6E76] border border-[#3A404D]/60 shrink-0">
                       /
                     </kbd>
@@ -811,17 +727,6 @@ export function AppShell({
 
       {/* Mobile Bottom Navigation — strictly md:hidden */}
       <MobileBottomNav />
-
-      {/* One-tap gateway across the suite. Latched so the chunk is fetched on the
-          first open and the overlay then stays mounted like every other one. */}
-      {showSwitcher && (
-        <EcosystemWarpMatrix
-          isOpen={isSwitcherOpen}
-          onClose={closeSwitcher}
-          unreadCount={unreadCount}
-          onRefresh={handleLogoClick}
-        />
-      )}
 
       {/* Cinematic Quantum Ignition Startup Intro */}
       <QuantumSplashIntro />
