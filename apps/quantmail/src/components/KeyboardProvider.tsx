@@ -89,23 +89,20 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
   useEffect(() => startOutbox(), []);
 
   /**
-   * Both overlays render above the shell's own two — the navigation drawer and
-   * the app switcher — so opening one while either of those is out would stack
-   * two `aria-modal` dialogs and leave their focus traps and Escape handlers
-   * fighting. Measured before this existed: pressing ⌘K with the switcher open
-   * left "Switch app" and "Command palette" both visible and both modal.
+   * Both overlays render above the shell's own navigation drawer, so opening one
+   * while the drawer is out would stack two `aria-modal` dialogs and leave their
+   * focus traps and Escape handlers fighting.
    *
-   * Closing them first is what a user pressing ⌘K from an open drawer or
-   * switcher means anyway: they are done with it. The palette is `unmaskable`,
-   * so it punches through the switcher's exclusive scope and this is the only
-   * place that can decide the switcher has to go.
+   * Closing it first is what a user pressing ⌘K from an open drawer means
+   * anyway: they are done with it. The palette is `unmaskable`, so it punches
+   * through the drawer's exclusive scope and this is the only place that can
+   * decide the drawer has to go.
    *
-   * Events rather than callbacks because both open states live in `AppShell`,
+   * Events rather than callbacks because the open state lives in `AppShell`,
    * which this provider renders inside.
    */
   const dismissShellOverlays = useCallback(() => {
     window.dispatchEvent(new CustomEvent('quant:sidebar:close'));
-    window.dispatchEvent(new CustomEvent('quant:switcher:close'));
   }, []);
 
   const openPalette = useCallback(() => {
@@ -261,24 +258,6 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       keywords: ['git', 'repositories', 'branches', 'pull requests', 'codehub'],
       run: go('/codehub'),
     },
-    {
-      id: 'nav.appSwitcher',
-      label: 'Switch app',
-      group: 'Apps',
-      keys: 'g g',
-      icon: 'grid',
-      description: 'Open the ecosystem switcher',
-      keywords: ['apps', 'switcher', 'ecosystem', 'grid', 'jump'],
-      // The overlay's open state lives in `AppShell`, which this provider sits
-      // inside — same reason `quant:sidebar:close` is an event rather than a
-      // callback drilled through the tree.
-      run: () => {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('quant:switcher:open'));
-        }
-      },
-    },
-
     // ── Compose ───────────────────────────────────────────────────────────────
     {
       id: 'compose.new',

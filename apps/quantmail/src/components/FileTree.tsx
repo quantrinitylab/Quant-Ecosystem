@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
+import { SearchClearButton } from './SearchClearButton';
 import { FileTypeIcon, IconChevronRight } from './icons';
 
 interface FileTreeProps {
@@ -176,7 +177,7 @@ export function FileTree({ paths, selectedFile, onSelectFile }: FileTreeProps) {
 
   return (
     <div className="file-tree">
-      <div className="file-tree-search">
+      <div className="file-tree-search quant-filter-field">
         <input
           type="search"
           placeholder="Filter files…"
@@ -184,6 +185,7 @@ export function FileTree({ paths, selectedFile, onSelectFile }: FileTreeProps) {
           onChange={(e) => setFilter(e.target.value)}
           className="file-tree-filter"
         />
+        {filter && <SearchClearButton onClear={() => setFilter('')} label="Clear filter" />}
       </div>
       <div className="file-tree-list">
         {filteredTree.map((node) => (

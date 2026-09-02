@@ -19,6 +19,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { useDeferredMount } from '../../hooks/useDeferredMount';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
+import { SearchClearButton } from '../../components/SearchClearButton';
 import {
   IconActivity,
   IconAlertCircle,
@@ -49,6 +50,7 @@ import {
   IconPaperclip,
   IconRefresh,
   IconScale,
+  IconSearch,
   IconSettings,
   IconShield,
   IconSparkle,
@@ -1687,14 +1689,22 @@ export default function CalendarPage() {
         {/* Search Bar on Mobile ONLY when toggled */}
         {isSearchOpen && (
           <div className="md:hidden border-b border-[#282C35]/80 bg-[#090A0C] px-4 py-2 flex items-center gap-2">
-            <input
-              type="search"
-              placeholder="Search events, meetings, tasks, birthdays…"
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-              className="w-full min-h-11 bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 py-1.5 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
-              autoFocus
-            />
+            {/* Same field shape as the inbox's mobile search: the border and the
+             * 44px floor belong to the wrapper, the input is transparent inside
+             * it, and the clear ✕ lives in the field rather than beside it — so
+             * "empty the query" and "leave search" stop being the same gesture. */}
+            <div className="flex-1 flex items-center gap-2 min-h-[44px] rounded-xl border border-[#3A404D]/80 bg-[#111318]/90 px-3 shadow-inner transition-colors focus-within:border-[#FF8C42]">
+              <IconSearch size={16} className="shrink-0 text-[#A1A4AC]" />
+              <input
+                type="search"
+                placeholder="Search events, meetings, tasks, birthdays…"
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                className="h-11 w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
+                autoFocus
+              />
+              {searchFilter && <SearchClearButton onClear={() => setSearchFilter('')} />}
+            </div>
             <button
               type="button"
               onClick={() => {

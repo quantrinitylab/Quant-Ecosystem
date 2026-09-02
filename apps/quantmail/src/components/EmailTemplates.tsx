@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type ComponentType } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { SearchClearButton } from './SearchClearButton';
 import {
   IconCalendar,
   IconHandshake,
@@ -151,13 +152,14 @@ export function EmailTemplates({ isOpen, onClose, onSelectTemplate }: EmailTempl
             </button>
           </header>
 
-          <div className="templates-search">
+          <div className="templates-search quant-filter-field">
             <input
               type="search"
               placeholder="Search templates..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
+            {searchQuery && <SearchClearButton onClear={() => setSearchQuery('')} />}
           </div>
 
           <nav className="templates-categories">

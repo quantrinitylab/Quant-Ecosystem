@@ -16,6 +16,7 @@ import { IdentityAvatar } from '../components/IdentityAvatar';
 import { InboxZeroState } from '../components/InboxZeroState';
 import { showToast } from '../components/InboxToast';
 import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
+import { SearchClearButton } from '../components/SearchClearButton';
 import { QuantMailLogo } from '../components/QuantMailLogo';
 import { Quanty } from '../components/Quanty';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
@@ -1705,17 +1706,7 @@ export default function InboxPage() {
                     className="w-full h-11 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
                     autoFocus
                   />
-                  {searchQuery && (
-                    <button
-                      type="button"
-                      onClick={() => setSearchQuery('')}
-                      className="relative shrink-0 text-[#A1A4AC] hover:text-white before:absolute before:-inset-[15px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded"
-                      title="Clear search"
-                      aria-label="Clear search"
-                    >
-                      <MailIcon name="close" className="size-3.5" />
-                    </button>
-                  )}
+                  {searchQuery && <SearchClearButton onClear={() => setSearchQuery('')} />}
                 </div>
                 <button
                   type="button"
