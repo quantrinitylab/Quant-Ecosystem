@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ErrorState, Skeleton, Button, useFocusTrap } from '@quant/shared-ui';
@@ -32,12 +33,14 @@ import {
   findConversation,
   groupEmailsIntoThreads,
   sanitizeSnippetText,
+  threadAddresses,
   threadFocus,
   threadMessageIds,
   type ConversationThread,
 } from '../lib/threading';
 import { useAuth } from '../providers/auth-provider';
-import { IconCheck, IconFilter, IconX } from '../components/icons';
+import { useContactDirectory } from '../hooks/useContacts';
+import { IconCheck, IconFilter, IconSpam, IconX } from '../components/icons';
 import type { Email } from '../types';
 
 export type { ConversationThread };
@@ -63,52 +66,89 @@ const ESTIMATED_ROW_HEIGHT = 80;
 /**
  * The two halves of the inbox's Focus Bar.
  *
- * `InboxFocus` partitions the list by who spoke last, which is the one thing
- * about a conversation this client can always answer from the messages already in
- * hand. The seven category chips it replaces could not: `Updates` and `Offers`
- * read `ConversationThread.category`, which resolves from the server's
- * `aiCategory` column — declared in `packages/database/prisma/schema.prisma`,
- * read in five places, and written in none. Every message ever stored therefore
- * arrives as `'primary'`, so both chips were permanently empty, and `Contacts`
- * (`!automated && (count <= 2 || category === 'primary')`) collapsed to "not
- * automated" and returned nearly everything. Three of seven tabs described a
- * classifier that was never built.
+ * `InboxLens` is the chip row: one partition at a time, each answering a question
+ * this client can settle from what it already holds. `All` and `Unread` read a
+ * field the row itself renders, so they can never disagree with what is on screen.
+ * `Groups` reads the recipient count. `Contacts` joins the conversation's
+ * addresses against the user's own address book — a real join, over
+ * `GET /contacts/directory` — where the chip of that name used to test
+ * `!automated && (count <= 2 || category === 'primary')`, which collapses to "not
+ * automated" and returned nearly everything.
  *
- * `InboxFilter` keeps the narrowings that were always honest and makes them
- * *compose* with the partition — which the chip strip could not do, since
- * choosing `Unread` there discarded the category and vice versa. Each filter
- * reads a field the row itself renders, so it can never disagree with what is on
- * screen.
+ * The seven category chips this descends from could not answer their own
+ * question. `Updates` and `Offers` read `ConversationThread.category`, which
+ * resolves from the server's `aiCategory` column — declared in
+ * `packages/database/prisma/schema.prisma`, read in five places, and written in
+ * none. Every message ever stored therefore arrives as `'primary'`, so both chips
+ * were permanently empty. They stay out until something writes that column.
+ *
+ * `InboxTurn` and `InboxFilter` live in the Filter popover, where they *compose*
+ * with the lens — which the old chip strip could not do, since choosing `Unread`
+ * there discarded the category and vice versa.
+ *
+ * `Spam` sits in the chip row but is deliberately not a lens. Spam is a folder the
+ * inbox query excludes at the database, `/spam` already renders it with a working
+ * `Not spam` action, and a second spam list built inside the inbox would be that
+ * rescue button missing. So the chip is a link, and the row is a tablist plus one
+ * link rather than five tabs.
  */
-type InboxFocus = 'needs_you' | 'waiting' | 'all';
-type InboxFilter = 'unread' | 'starred' | 'attachment' | 'group';
+type InboxLens = 'all' | 'unread' | 'contacts' | 'groups';
+type InboxTurn = 'any' | 'needs_you' | 'waiting';
+type InboxFilter = 'starred' | 'attachment';
 
-const INBOX_FOCUSES: Array<{ key: InboxFocus; label: string; hint: string }> = [
+const INBOX_LENSES: Array<{ key: InboxLens; label: string; hint: string }> = [
   /*
    * `All` leads because it is the default and the widest: a reader lands on the
-   * full list and narrows from there, so the first tab should be the one already
+   * full list and narrows from there, so the first chip should be the one already
    * selected rather than a partition they have to opt out of.
-   *
-   * The two partitions are named as a pair — `Your turn` / `Their turn` — so the
-   * axis reads off the labels. `Needs you` / `Waiting` named the same split from
-   * two unrelated angles: one an instruction, one a state, with nothing to say
-   * they were opposite halves of one whole.
    */
   { key: 'all', label: 'All', hint: 'Every conversation, automated mail included' },
-  {
-    key: 'needs_you',
-    label: 'Your turn',
-    hint: 'A person wrote last, so the next reply is yours',
-  },
+  { key: 'unread', label: 'Unread', hint: 'Conversations you have not opened yet' },
+  { key: 'contacts', label: 'Contacts', hint: 'Conversations with someone in your address book' },
+  { key: 'groups', label: 'Groups', hint: 'Conversations with more than one other person' },
+];
+
+/**
+ * Whose turn it is — the one thing about a conversation this client can always
+ * answer from the messages already in hand.
+ *
+ * Named as a pair, `Your turn` / `Their turn`, so the axis reads off the labels.
+ * `Needs you` / `Waiting` named the same split from two unrelated angles — one an
+ * instruction, one a state — with nothing to say they were opposite halves of one
+ * whole.
+ */
+const INBOX_TURNS: Array<{ key: InboxTurn; label: string; hint: string }> = [
+  { key: 'any', label: 'Anyone', hint: 'Both sides of every conversation' },
+  { key: 'needs_you', label: 'Your turn', hint: 'A person wrote last, so the next reply is yours' },
   { key: 'waiting', label: 'Their turn', hint: 'You wrote last, so you are waiting on them' },
 ];
 
 const INBOX_FILTERS: Array<{ key: InboxFilter; label: string }> = [
-  { key: 'unread', label: 'Unread' },
   { key: 'starred', label: 'Starred' },
   { key: 'attachment', label: 'Has attachment' },
-  { key: 'group', label: 'Group thread' },
 ];
+
+/**
+ * The next index for a Left/Right/Home/End press over `length` items, or `null`
+ * when the key is none of those and the event should be left alone.
+ *
+ * Shared by the lens tablist and the popover's turn group. Both are ordered
+ * single-select strips, so both owe a reader the same keyboard contract, and
+ * writing the arithmetic twice is how the two drift apart. Wrapping, because a
+ * ring is faster than a strip with two dead ends.
+ *
+ * Vertical arrows are deliberately not handled: `ArrowDown` on a focused control
+ * scrolls the page, and taking that away from someone reading a mail list is a
+ * worse trade than the one extra key press.
+ */
+function nextRovingIndex(key: string, index: number, length: number): number | null {
+  const last = length - 1;
+  if (key === 'ArrowRight') return index === last ? 0 : index + 1;
+  if (key === 'ArrowLeft') return index === 0 ? last : index - 1;
+  if (key === 'Home') return 0;
+  if (key === 'End') return last;
+  return null;
+}
 
 type MailIconName =
   | 'archive'
@@ -802,10 +842,28 @@ function ArchivedFolderRow({
 
 export default function InboxPage() {
   const router = useRouter();
-  const [activeFocus, setActiveFocus] = useState<InboxFocus>('all');
+  const [activeLens, setActiveLens] = useState<InboxLens>('all');
+  const [activeTurn, setActiveTurn] = useState<InboxTurn>('any');
   const [activeFilters, setActiveFilters] = useState<Set<InboxFilter>>(() => new Set());
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * Closing the popover has to put focus back where it came from. Escape on a menu
+   * that leaves focus on a detached node drops a keyboard user at the top of the
+   * document, which is a longer way back to the list than they were before they
+   * opened it.
+   */
+  const filterTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const turnGroupLabelId = useId();
+  /**
+   * The chips are a tablist and the turn rows are a radiogroup, so one arrow key
+   * must move the selection along each — a `role="tablist"` whose members are only
+   * reachable by Tab is a lie to a screen reader and a slower path for everyone
+   * else. Focus has to be moved imperatively after the state change, which needs
+   * the elements.
+   */
+  const lensChipRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const turnRowRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -829,6 +887,20 @@ export default function InboxPage() {
   const { data: searchResults, isLoading: isSearching } = useSearchEmails(
     debouncedQuery ? { query: debouncedQuery } : null,
   );
+  /**
+   * The address book, for the `Contacts` lens.
+   *
+   * Fetched eagerly rather than on first use of that chip, because the chip carries
+   * a count and a count that appears a round trip after the chip is a worse lie
+   * than a slightly wider first paint: one unpaginated projection of addresses, a
+   * five-minute `staleTime`, and no polling, against two inbox queries that poll
+   * every thirty seconds.
+   *
+   * `isPending` is kept because "no contacts in this view" and "the address book
+   * has not arrived" are different statements and the count badge must not make
+   * the second look like the first.
+   */
+  const { data: contactDirectory, isPending: isDirectoryPending } = useContactDirectory();
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(searchQuery.trim()), 260);
@@ -918,39 +990,94 @@ export default function InboxPage() {
     [],
   );
 
-  const matchesFilter = useCallback(
-    (t: ConversationThread, filter: InboxFilter) => {
-      if (filter === 'unread') return !t.isRead;
-      if (filter === 'starred') return t.isStarred;
-      if (filter === 'attachment') return threadHasAttachment(t);
+  /**
+   * Is this conversation with somebody in the address book?
+   *
+   * The chip this replaces asked `!automated && (count <= 2 || category ===
+   * 'primary')`, which is "not automated" wearing a costume — `category` is always
+   * `'primary'` — so it matched nearly every conversation and told the reader
+   * nothing. This asks the address book.
+   *
+   * `threadAddresses` rather than `t.participants`, because `participants` holds
+   * display *names*: `identityOf` keys on the address and returns the name, so the
+   * key never reaches the caller. Senders and recipients from every message, not
+   * just the latest, so a conversation counts when the person you know joined it
+   * three replies in.
+   *
+   * An empty book matches nothing, which is the honest answer for someone who has
+   * saved no contacts and is also what the badge then reports. A *pending* book is
+   * not the same statement, and the callers below keep them apart.
+   */
+  const isContactThread = useCallback(
+    (t: ConversationThread) => {
+      if (!contactDirectory || contactDirectory.size === 0) return false;
+      return threadAddresses(t.messages, currentEmail).some((a) => contactDirectory.has(a));
+    },
+    [contactDirectory, currentEmail],
+  );
+
+  const matchesLens = useCallback(
+    (t: ConversationThread, lens: InboxLens) => {
+      if (lens === 'all') return true;
+      if (lens === 'unread') return !t.isRead;
+      if (lens === 'contacts') return isContactThread(t);
       return isGroupThread(t);
     },
-    [isGroupThread, threadHasAttachment],
+    [isContactThread, isGroupThread],
+  );
+
+  const matchesFilter = useCallback(
+    (t: ConversationThread, filter: InboxFilter) =>
+      filter === 'starred' ? t.isStarred : threadHasAttachment(t),
+    [threadHasAttachment],
   );
 
   /**
-   * Narrow a list to one focus and every active filter.
+   * Narrow a list to one lens, one turn, and every active filter.
    *
-   * Filters are ANDed with each other and with the partition, so `Needs you` +
-   * `Unread` + `Has attachment` means all three at once. The default view narrows
-   * nothing and returns the array untouched.
+   * All three compose, ANDed: `Contacts` + `Your turn` + `Has attachment` means all
+   * three at once, where the old chip strip made the first two mutually exclusive.
+   * The default view narrows nothing and returns the array untouched, so the
+   * unfiltered inbox pays nothing for the machinery.
    */
   const narrowThreads = useCallback(
-    (list: ConversationThread[], focus: InboxFocus, filters: Set<InboxFilter>) => {
+    (
+      list: ConversationThread[],
+      lens: InboxLens,
+      turn: InboxTurn,
+      filters: Set<InboxFilter>,
+    ): ConversationThread[] => {
       const active = Array.from(filters);
-      if (focus === 'all' && active.length === 0) return list;
+      if (lens === 'all' && turn === 'any' && active.length === 0) return list;
       return list.filter(
         (t) =>
-          (focus === 'all' || threadFocus(t, currentEmail) === focus) &&
+          matchesLens(t, lens) &&
+          (turn === 'any' || threadFocus(t, currentEmail) === turn) &&
           active.every((f) => matchesFilter(t, f)),
       );
     },
-    [currentEmail, matchesFilter],
+    [currentEmail, matchesFilter, matchesLens],
   );
 
   const resetInboxView = useCallback(() => {
-    setActiveFocus('all');
+    setActiveLens('all');
+    setActiveTurn('any');
     setActiveFilters(new Set());
+  }, []);
+
+  /**
+   * Every narrowing control leaves the archived shelf, because the shelf is a
+   * different pool: staying on it while the lens changes shows a count for one list
+   * above a different one.
+   */
+  const selectLens = useCallback((lens: InboxLens) => {
+    setActiveLens(lens);
+    setShowArchivedView(false);
+  }, []);
+
+  const selectTurn = useCallback((turn: InboxTurn) => {
+    setActiveTurn(turn);
+    setShowArchivedView(false);
   }, []);
 
   const toggleFilter = useCallback((filter: InboxFilter) => {
@@ -963,6 +1090,41 @@ export default function InboxPage() {
     setShowArchivedView(false);
   }, []);
 
+  /**
+   * Arrow keys along the lens tablist, per the WAI-ARIA tabs pattern: the chips are
+   * one tab stop and Left/Right (plus Home/End) move between them, selecting as
+   * they go. Without this a `role="tablist"` announces a widget whose keyboard
+   * contract does not exist.
+   *
+   * `preventDefault` keeps those keys off the horizontal scroller the row becomes
+   * on a narrow screen, which would otherwise slide the pill under the moving
+   * focus ring.
+   */
+  const onLensKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      const next = nextRovingIndex(event.key, index, INBOX_LENSES.length);
+      if (next === null) return;
+      event.preventDefault();
+      const lens = INBOX_LENSES[next]?.key;
+      if (lens) selectLens(lens);
+      lensChipRefs.current[next]?.focus();
+    },
+    [selectLens],
+  );
+
+  /** The same contract for the popover's turn group, which is a radiogroup. */
+  const onTurnKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      const next = nextRovingIndex(event.key, index, INBOX_TURNS.length);
+      if (next === null) return;
+      event.preventDefault();
+      const turn = INBOX_TURNS[next]?.key;
+      if (turn) selectTurn(turn);
+      turnRowRefs.current[next]?.focus();
+    },
+    [selectTurn],
+  );
+
   /** Dismiss the filter popover on an outside click or Escape. */
   useEffect(() => {
     if (!isFilterMenuOpen) return;
@@ -970,7 +1132,12 @@ export default function InboxPage() {
       if (!filterMenuRef.current?.contains(event.target as Node)) setIsFilterMenuOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsFilterMenuOpen(false);
+      if (event.key !== 'Escape') return;
+      setIsFilterMenuOpen(false);
+      // Escape is a keyboard gesture, so it has to leave focus somewhere a
+      // keyboard can work from. An outside click does not: the pointer has
+      // already moved on, and yanking focus back to the trigger would fight it.
+      filterTriggerRef.current?.focus();
     };
     document.addEventListener('mousedown', onPointerDown);
     document.addEventListener('touchstart', onPointerDown);
@@ -1000,72 +1167,111 @@ export default function InboxPage() {
   );
 
   /**
-   * Focus counts, measured on the pool the active filters have already narrowed.
+   * Lens counts, measured on the pool the turn and the active filters have already
+   * narrowed.
    *
-   * Cross-tabulating is the whole reason the two controls can compose. A count
-   * that ignored the other control would promise rows the list will not show: with
-   * `Unread` on, `Your turn 12` has to mean twelve unread conversations waiting on
-   * a reply, not twelve conversations of which some are already read.
+   * Cross-tabulating is the whole reason the controls can compose. A count that
+   * ignored the others would promise rows the list will not show: with `Your turn`
+   * on, `Contacts 12` has to mean twelve conversations from people you know that are
+   * waiting on a reply, not twelve conversations of which some are settled.
    *
-   * `needs_you + waiting` deliberately falls short of `all` — a receipt from
+   * `contacts` is left at `null` while the address book is in flight. Zero there
+   * would read as "nobody you know has written", which is a different and possibly
+   * false statement; the chip shows no badge until it can show a true one.
+   */
+  const lensCounts = useMemo(() => {
+    const pool = narrowThreads(activeThreadPool, 'all', activeTurn, activeFilters);
+    let unread = 0;
+    let groups = 0;
+    let contacts: number | null = isDirectoryPending ? null : 0;
+    for (const t of pool) {
+      if (!t.isRead) unread += 1;
+      if (isGroupThread(t)) groups += 1;
+      if (contacts !== null && isContactThread(t)) contacts += 1;
+    }
+    const counts: Record<InboxLens, number | null> = { all: pool.length, unread, contacts, groups };
+    return counts;
+  }, [
+    activeThreadPool,
+    activeTurn,
+    activeFilters,
+    narrowThreads,
+    isGroupThread,
+    isContactThread,
+    isDirectoryPending,
+  ]);
+
+  /**
+   * Each turn's count is "how many rows you would get by choosing this", measured
+   * against the active lens and filters.
+   *
+   * `needs_you + waiting` deliberately falls short of `any` — a receipt from
    * `no-reply@` is neither a reply you owe nor one you are owed. `heldBackCount`
    * says so out loud rather than leaving the gap to look like a bug.
    */
-  const focusCounts = useMemo(() => {
-    const pool = narrowThreads(activeThreadPool, 'all', activeFilters);
-    const counts: Record<InboxFocus, number> = { needs_you: 0, waiting: 0, all: pool.length };
+  const turnCounts = useMemo(() => {
+    const pool = narrowThreads(activeThreadPool, activeLens, 'any', activeFilters);
+    const counts: Record<InboxTurn, number> = { any: pool.length, needs_you: 0, waiting: 0 };
     for (const t of pool) {
       const focus = threadFocus(t, currentEmail);
       if (focus === 'needs_you') counts.needs_you += 1;
       else if (focus === 'waiting') counts.waiting += 1;
     }
     return counts;
-  }, [activeThreadPool, activeFilters, narrowThreads, currentEmail]);
+  }, [activeThreadPool, activeLens, activeFilters, narrowThreads, currentEmail]);
 
   /**
    * Each filter's count is "how many rows you would get by turning this on",
-   * measured against the active focus and the *other* active filters. For a filter
-   * already on, that is exactly the length of the list under it.
+   * measured against the active lens and turn and the *other* active filters. For a
+   * filter already on, that is exactly the length of the list under it.
    */
   const filterCounts = useMemo(() => {
-    const counts = { unread: 0, starred: 0, attachment: 0, group: 0 } as Record<
-      InboxFilter,
-      number
-    >;
+    const counts = { starred: 0, attachment: 0 } as Record<InboxFilter, number>;
     for (const { key } of INBOX_FILTERS) {
       const others = new Set(activeFilters);
       others.delete(key);
-      counts[key] = narrowThreads(activeThreadPool, activeFocus, others).filter((t) =>
+      counts[key] = narrowThreads(activeThreadPool, activeLens, activeTurn, others).filter((t) =>
         matchesFilter(t, key),
       ).length;
     }
     return counts;
-  }, [activeThreadPool, activeFocus, activeFilters, narrowThreads, matchesFilter]);
+  }, [activeThreadPool, activeLens, activeTurn, activeFilters, narrowThreads, matchesFilter]);
 
   const heldBackCount =
-    activeFocus === 'all' ? 0 : focusCounts.all - focusCounts.needs_you - focusCounts.waiting;
+    activeTurn === 'any' ? 0 : turnCounts.any - turnCounts.needs_you - turnCounts.waiting;
+
+  /** How many narrowings are on, for the Filter trigger's badge and its footer. */
+  const narrowingCount = (activeTurn === 'any' ? 0 : 1) + activeFilters.size;
 
   /** What the archived shelf calls the population it is counting. */
   const viewLabel = useMemo(() => {
-    // Named off the tabs. These read `conversations needing you` / `conversations
+    // Named off the controls. These read `conversations needing you` / `conversations
     // you are waiting on` when the tabs still said `Needs you` / `Waiting`, and kept
     // saying it after the relabel — so the shelf described a partition by a name
     // that appeared nowhere on screen.
-    const base =
-      activeFocus === 'needs_you'
+    const turnPart =
+      activeTurn === 'needs_you'
         ? 'conversations on your turn'
-        : activeFocus === 'waiting'
+        : activeTurn === 'waiting'
           ? 'conversations on their turn'
           : 'conversations';
-    return activeFilters.size > 0 ? `filtered ${base}` : base;
-  }, [activeFocus, activeFilters]);
+    const lensPart =
+      activeLens === 'unread'
+        ? `unread ${turnPart}`
+        : activeLens === 'contacts'
+          ? `${turnPart} with your contacts`
+          : activeLens === 'groups'
+            ? `group ${turnPart}`
+            : turnPart;
+    return activeFilters.size > 0 ? `filtered ${lensPart}` : lensPart;
+  }, [activeLens, activeTurn, activeFilters]);
 
   const currentArchivedThreads = useMemo(() => {
-    return narrowThreads(allArchivedThreads, activeFocus, activeFilters);
-  }, [allArchivedThreads, activeFocus, activeFilters, narrowThreads]);
+    return narrowThreads(allArchivedThreads, activeLens, activeTurn, activeFilters);
+  }, [allArchivedThreads, activeLens, activeTurn, activeFilters, narrowThreads]);
 
   const displayThreads = useMemo(() => {
-    const sourceThreads = narrowThreads(activeThreadPool, activeFocus, activeFilters);
+    const sourceThreads = narrowThreads(activeThreadPool, activeLens, activeTurn, activeFilters);
 
     return [...sourceThreads].sort((a, b) => {
       if (a.isStarred !== b.isStarred) {
@@ -1073,7 +1279,7 @@ export default function InboxPage() {
       }
       return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
     });
-  }, [activeThreadPool, activeFocus, activeFilters, narrowThreads]);
+  }, [activeThreadPool, activeLens, activeTurn, activeFilters, narrowThreads]);
 
   /**
    * Whether to say out loud that starred conversations are held at the top.
@@ -1144,7 +1350,7 @@ export default function InboxPage() {
     virtualizer.scrollToTop();
     // `scrollToTop` is stable for a given scroll container; re-running on every
     // virtualizer commit would fight the user's own scrolling.
-  }, [activeFocus, activeFilters, showArchivedView, debouncedQuery]);
+  }, [activeLens, activeTurn, activeFilters, showArchivedView, debouncedQuery]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
@@ -1622,7 +1828,7 @@ export default function InboxPage() {
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search in QuantMail (sender, subject, keyword)…"
       onFabClick={() =>
-        activeFilters.has('group') ? setIsCreateGroupModalOpen(true) : router.push('/compose')
+        activeLens === 'groups' ? setIsCreateGroupModalOpen(true) : router.push('/compose')
       }
       mobileActions={
         <div className="flex items-center gap-1.5">
@@ -1664,12 +1870,10 @@ export default function InboxPage() {
               type="button"
               className="hero-compose"
               onClick={() =>
-                activeFilters.has('group')
-                  ? setIsCreateGroupModalOpen(true)
-                  : router.push('/compose')
+                activeLens === 'groups' ? setIsCreateGroupModalOpen(true) : router.push('/compose')
               }
             >
-              <MailIcon name="compose" /> {activeFilters.has('group') ? 'Create Group' : 'Compose'}
+              <MailIcon name="compose" /> {activeLens === 'groups' ? 'Create Group' : 'Compose'}
             </button>
           </header>
 
@@ -1723,9 +1927,10 @@ export default function InboxPage() {
           </AnimatePresence>
 
           {/*
-            Focus Bar. Left: which side of the conversation the ball is on, a
-            partition derived from the messages in hand. Right: the filters that
-            compose with it. See `InboxFocus` for why the category chips went.
+            Focus Bar. Left: the lens — which slice of the inbox is on screen,
+            plus a link out to the spam folder. Right: the narrowings that
+            compose with it. See `InboxLens` for why the category chips went and
+            why Spam is a link rather than a fifth tab.
           */}
           {/*
            * `relative z-30` is load-bearing, not decoration. `backdrop-blur-md`
@@ -1740,73 +1945,103 @@ export default function InboxPage() {
            * they say. Any popover added to this row inherits the fix.
            */}
           <div className="relative z-30 flex items-center gap-2 py-2 px-3 sm:px-4 border-b border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md">
-            <div
-              role="tablist"
-              aria-label="Conversation focus"
-              className="flex-1 min-w-0 flex items-center gap-1 p-1 rounded-full bg-[#111318] border border-[#282C35] overflow-x-auto no-scrollbar select-none"
-            >
-              {INBOX_FOCUSES.map((focus) => {
-                const isActive = activeFocus === focus.key;
-                const count = focusCounts[focus.key];
-                return (
-                  <button
-                    key={focus.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    title={focus.hint}
-                    onClick={() => {
-                      setActiveFocus(focus.key);
-                      setShowArchivedView(false);
-                    }}
-                    className={`px-3.5 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                      isActive
-                        ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] font-semibold'
-                        : 'border border-transparent text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#1C1F26]'
-                    }`}
-                  >
-                    <span>{focus.label}</span>
-                    {count > 0 && (
-                      <span
-                        /*
-                          The unselected count was `#6B6E76` on `#090A0C` — 3.88:1,
-                          under the floor, on the one glyph in the pill that carries
-                          information rather than a label.
-                        */
-                        className={`text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight ${
-                          isActive
-                            ? 'bg-[#FF8C42]/20 text-[#FF9B5A]'
-                            : 'bg-[#090A0C] text-[#A1A4AC] border border-[#282C35]'
-                        }`}
-                      >
-                        {count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
+            {/*
+              One pill holds the four lenses and the spam link, because they are
+              one row of destinations to a reader. The tablist is a nested group
+              rather than the pill itself: a link is not a `role="tab"`, and a
+              tablist containing something that is not a tab is a widget a screen
+              reader cannot describe. The hairline says the last chip leaves.
+            */}
+            <div className="flex-1 min-w-0 flex items-center gap-1 p-1 rounded-full bg-[#111318] border border-[#282C35] overflow-x-auto no-scrollbar select-none">
+              <div
+                role="tablist"
+                aria-label="Conversation lens"
+                className="flex items-center gap-1 shrink-0"
+              >
+                {INBOX_LENSES.map((lens, index) => {
+                  const isActive = activeLens === lens.key;
+                  const count = lensCounts[lens.key];
+                  return (
+                    <button
+                      key={lens.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      // Roving focus: the selected tab is the row's single tab
+                      // stop, and the arrow keys move between the rest.
+                      tabIndex={isActive ? 0 : -1}
+                      ref={(node) => {
+                        lensChipRefs.current[index] = node;
+                      }}
+                      title={lens.hint}
+                      onClick={() => selectLens(lens.key)}
+                      onKeyDown={(event) => onLensKeyDown(event, index)}
+                      className={`px-3.5 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                        isActive
+                          ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] font-semibold'
+                          : 'border border-transparent text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#1C1F26]'
+                      }`}
+                    >
+                      <span>{lens.label}</span>
+                      {typeof count === 'number' && count > 0 && (
+                        <span
+                          /*
+                            The unselected count was `#6B6E76` on `#090A0C` — 3.88:1,
+                            under the floor, on the one glyph in the pill that carries
+                            information rather than a label.
+                          */
+                          className={`text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight ${
+                            isActive
+                              ? 'bg-[#FF8C42]/20 text-[#FF9B5A]'
+                              : 'bg-[#090A0C] text-[#A1A4AC] border border-[#282C35]'
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <span aria-hidden="true" className="shrink-0 w-px h-5 mx-0.5 bg-[#282C35]" />
+              {/*
+                A real anchor, so it prefetches, opens in a new tab on a modified
+                click, and is announced as a link. No count badge: a third
+                thirty-second poll on the landing route to number a chip that
+                navigates away is a bad trade.
+              */}
+              <Link
+                href="/spam"
+                title="Spam is kept in its own folder — open it to rescue anything caught by mistake"
+                className="px-3.5 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 border border-transparent text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              >
+                <IconSpam size={13} aria-hidden="true" />
+                <span>Spam</span>
+              </Link>
             </div>
             <div className="relative shrink-0" ref={filterMenuRef}>
               <button
                 type="button"
+                ref={filterTriggerRef}
                 onClick={() => setIsFilterMenuOpen((prev) => !prev)}
                 aria-expanded={isFilterMenuOpen}
+                aria-haspopup="true"
                 aria-label={
-                  activeFilters.size > 0
-                    ? `Filter conversations, ${activeFilters.size} active`
+                  narrowingCount > 0
+                    ? `Filter conversations, ${narrowingCount} active`
                     : 'Filter conversations'
                 }
                 className={`inline-flex items-center justify-center gap-1.5 px-3 min-h-[44px] min-w-[44px] sm:min-h-[34px] sm:min-w-0 rounded-full text-xs font-medium border whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                  activeFilters.size > 0 || isFilterMenuOpen
+                  narrowingCount > 0 || isFilterMenuOpen
                     ? 'bg-[#2B1A11] text-[#FF8C42] border-[#5C3016] font-semibold'
                     : 'bg-[#111318] text-[#A1A4AC] border-[#282C35] hover:text-[#F5F5F5] hover:bg-[#1C1F26]'
                 }`}
               >
                 <IconFilter size={14} />
                 <span className="hidden sm:inline">Filter</span>
-                {activeFilters.size > 0 && (
+                {narrowingCount > 0 && (
                   <span className="text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight bg-[#FF8C42]/20 text-[#FF9B5A]">
-                    {activeFilters.size}
+                    {narrowingCount}
                   </span>
                 )}
               </button>
@@ -1817,9 +2052,69 @@ export default function InboxPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
                     transition={{ duration: 0.14 }}
-                    className="absolute right-0 top-full mt-2 z-30 w-64 rounded-2xl bg-[#16181D] border border-[#282C35] shadow-[0_4px_16px_rgba(0,0,0,0.6)] overflow-hidden"
+                    className="absolute right-0 top-full mt-2 z-30 w-72 rounded-2xl bg-[#16181D] border border-[#282C35] shadow-[0_4px_16px_rgba(0,0,0,0.6)] overflow-hidden"
                   >
-                    <p className="px-3 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]">
+                    {/*
+                      Two groups, two indicator shapes: a circle for the one-of
+                      turn, a square for the any-of filters. That is the only
+                      thing on screen telling a reader that picking `Their turn`
+                      drops `Your turn` while ticking `Starred` drops nothing, and
+                      it is the shape convention they already know from every
+                      other form they have used.
+
+                      Rows rather than a horizontal segment because three labels
+                      with counts do not fit across a popover at any width a
+                      phone has, and a 44px row is a target either thumb can hit.
+                    */}
+                    <p
+                      id={turnGroupLabelId}
+                      className="px-3 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]"
+                    >
+                      Whose turn
+                    </p>
+                    <div role="radiogroup" aria-labelledby={turnGroupLabelId}>
+                      {INBOX_TURNS.map((turn, index) => {
+                        const isOn = activeTurn === turn.key;
+                        return (
+                          <button
+                            key={turn.key}
+                            type="button"
+                            role="radio"
+                            aria-checked={isOn}
+                            tabIndex={isOn ? 0 : -1}
+                            ref={(node) => {
+                              turnRowRefs.current[index] = node;
+                            }}
+                            title={turn.hint}
+                            onClick={() => selectTurn(turn.key)}
+                            onKeyDown={(event) => onTurnKeyDown(event, index)}
+                            className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`size-[18px] shrink-0 rounded-full border inline-flex items-center justify-center transition-colors ${
+                                isOn ? 'border-[#FF8C42]' : 'border-[#3A404D]'
+                              }`}
+                            >
+                              <span
+                                className={`size-2 rounded-full transition-colors ${
+                                  isOn ? 'bg-[#FF8C42]' : 'bg-transparent'
+                                }`}
+                              />
+                            </span>
+                            <span
+                              className={`flex-1 truncate ${isOn ? 'text-[#F5F5F5] font-semibold' : 'text-[#A1A4AC]'}`}
+                            >
+                              {turn.label}
+                            </span>
+                            <span className="shrink-0 text-[10px] font-semibold text-[#A1A4AC]">
+                              {turnCounts[turn.key]}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-1 px-3 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] border-t border-[#282C35]">
                       Narrow this view
                     </p>
                     {INBOX_FILTERS.map((filter) => {
@@ -1853,17 +2148,25 @@ export default function InboxPage() {
                         </button>
                       );
                     })}
-                    {activeFilters.size > 0 && (
+                    {narrowingCount > 0 && (
                       <button
                         type="button"
                         onClick={() => {
+                          setActiveTurn('any');
                           setActiveFilters(new Set());
                           setIsFilterMenuOpen(false);
                         }}
                         className="w-full min-h-[44px] px-3 flex items-center gap-2 text-left text-xs font-semibold text-[#A1A4AC] border-t border-[#282C35] transition-colors hover:bg-[#1C1F26] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
                       >
                         <IconX size={13} />
-                        Clear {activeFilters.size} filter{activeFilters.size === 1 ? '' : 's'}
+                        {/*
+                          "Narrowing" rather than "filter", because the count now
+                          includes the turn, which is not one of the things this
+                          menu calls a filter. A footer reading `Clear 2 filters`
+                          above one ticked filter is a number the reader cannot
+                          account for.
+                        */}
+                        Clear {narrowingCount} narrowing{narrowingCount === 1 ? '' : 's'}
                       </button>
                     )}
                   </motion.div>
@@ -1965,7 +2268,7 @@ export default function InboxPage() {
                     </Button>
                   </div>
                 </div>
-              ) : activeFilters.has('group') ? (
+              ) : activeLens === 'groups' && narrowingCount === 0 ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-3">
                   <div className="size-12 rounded-full bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto mb-1">
                     <svg
@@ -1991,7 +2294,7 @@ export default function InboxPage() {
                     </Button>
                   </div>
                 </div>
-              ) : activeFilters.has('unread') ? (
+              ) : activeLens === 'unread' && narrowingCount === 0 ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-2">
                   <div className="size-12 rounded-full bg-emerald-950/40 border border-emerald-800/60 text-emerald-400 flex items-center justify-center mx-auto mb-1">
                     <svg
@@ -2007,18 +2310,57 @@ export default function InboxPage() {
                   <h3 className="text-base font-bold text-white">All caught up!</h3>
                   <p className="text-xs text-[#A1A4AC]">Zero unread messages in your inbox.</p>
                 </div>
-              ) : activeFocus !== 'all' || activeFilters.size > 0 ? (
+              ) : activeLens === 'contacts' && narrowingCount === 0 ? (
+                /*
+                  Two different situations wear the same empty list, and telling a
+                  reader to "save a contact" when they have two hundred saved is the
+                  kind of copy that teaches people to stop reading empty states.
+                  An empty address book gets the invitation; a full one gets the fact.
+                */
+                <div className="mail-empty py-12 px-4 text-center space-y-3">
+                  <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
+                    <svg
+                      className="size-6"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    >
+                      <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+                      <circle cx="9" cy="11" r="2.2" />
+                      <path d="M5.6 16.6c.5-1.7 1.9-2.6 3.4-2.6s2.9.9 3.4 2.6" />
+                      <path d="M15.6 10.4h2.8M15.6 13.6h2.8" />
+                    </svg>
+                  </div>
+                  <h3 className="text-base font-bold text-white">
+                    {contactDirectory && contactDirectory.size === 0
+                      ? 'No saved contacts yet'
+                      : 'Nothing from your contacts'}
+                  </h3>
+                  <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
+                    {contactDirectory && contactDirectory.size === 0
+                      ? 'Save someone to your address book and their conversations collect here. Anyone you send mail to is saved automatically.'
+                      : 'Every conversation in your inbox is with someone outside your address book.'}
+                  </p>
+                  <div className="pt-2 flex justify-center">
+                    <Button variant="secondary" onClick={() => router.push('/contacts')}>
+                      Open Contacts
+                    </Button>
+                  </div>
+                </div>
+              ) : activeLens !== 'all' || narrowingCount > 0 ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-2">
                   <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
                     <IconFilter size={22} />
                   </div>
                   <h3 className="text-base font-bold text-white">Nothing in this view</h3>
                   <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
-                    {activeFocus === 'needs_you'
-                      ? 'Nothing is on your turn — no one is waiting on a reply from you.'
-                      : activeFocus === 'waiting'
-                        ? 'Nothing is on their turn — you are not waiting on a reply from anyone.'
-                        : 'No conversation matches the filters you have on.'}
+                    {activeTurn === 'needs_you'
+                      ? 'Nothing here is on your turn — no one is waiting on a reply from you.'
+                      : activeTurn === 'waiting'
+                        ? 'Nothing here is on their turn — you are not waiting on a reply from anyone.'
+                        : 'No conversation matches everything you have on.'}
                     {heldBackCount > 0 &&
                       ` ${heldBackCount} automated ${
                         heldBackCount === 1 ? 'conversation is' : 'conversations are'
@@ -2072,7 +2414,7 @@ export default function InboxPage() {
                     </p>
                   )}
                   {/*
-                    `Your turn` and `Their turn` do not sum to `All`, and an
+                    `Your turn` and `Their turn` do not sum to `Anyone`, and an
                     unexplained gap between two counts reads as a bug. Say where
                     the difference went, and offer the one click that shows it.
                   */}
@@ -2085,10 +2427,10 @@ export default function InboxPage() {
                         this view — no one is waiting on a reply to them.{' '}
                         <button
                           type="button"
-                          onClick={() => setActiveFocus('all')}
+                          onClick={() => selectTurn('any')}
                           className="relative font-semibold text-[#FF8C42] underline decoration-dotted underline-offset-2 hover:text-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded after:absolute after:-inset-y-[13px] after:-inset-x-[10px] after:content-['']"
                         >
-                          Show all
+                          Show both sides
                         </button>
                       </span>
                     </p>
@@ -2165,8 +2507,6 @@ export default function InboxPage() {
           onToggleStar={(id) => void toggleStar(null, id)}
         />
       </div>
-
-      <Quanty />
 
       {showGlobalQuanty && (
         <QuantyCopilotDrawer

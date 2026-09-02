@@ -355,6 +355,39 @@ export class ContactService {
     });
   }
 
+  /**
+   * Every address in this user's address book, lowercased and deduplicated.
+   *
+   * This exists because the inbox has to answer "is this conversation with
+   * somebody I know?", and it cannot answer that from `GET /contacts`: that route
+   * is paginated at 20 by default and capped at 100, so a client joining against
+   * one page would call contact 21 a stranger. Walking every page to rebuild the
+   * set on the client is the same data in n round trips.
+   *
+   * A projection, not whole rows — the caller wants set membership, and a name,
+   * phone, company, tag list and avatar per contact is a payload it throws away.
+   * Even a large book is a few KB of addresses.
+   *
+   * Lowercased here because {@link ContactService.recordInteraction} trims but does
+   * not case-fold, so the same person can hold two rows (`Alice@x.com` and
+   * `alice@x.com`). Folding on read means a client comparing lowercased addresses
+   * matches either spelling, which is the behaviour every caller wants; the
+   * duplicate rows themselves are a separate data problem.
+   */
+  async listContactEmails(userId: string): Promise<string[]> {
+    const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
+
+    const rows = await contactModel.findMany({ where: { userId }, select: { email: true } });
+
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const email = row.email?.trim().toLowerCase();
+      if (email) seen.add(email);
+    }
+
+    return Array.from(seen);
+  }
+
   async deleteContact(contactId: string, userId: string): Promise<Contact> {
     const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
 
@@ -368,6 +401,14 @@ export class ContactService {
 interface ContactModel {
   findFirst(args: unknown): Promise<Contact | null>;
   findUnique(args: unknown): Promise<Contact | null>;
+  /**
+   * A `select` projection returns the selected columns, not a whole `Contact` —
+   * so it gets its own signature rather than a cast at the call site. Overload
+   * order matters: this one is tried first and only matches an argument that
+   * actually carries `select`, so every existing whole-row call still resolves to
+   * the signature below it.
+   */
+  findMany(args: { where: unknown; select: { email: true } }): Promise<Array<{ email: string }>>;
   findMany(args: unknown): Promise<Contact[]>;
   count(args: unknown): Promise<number>;
   create(args: unknown): Promise<Contact>;

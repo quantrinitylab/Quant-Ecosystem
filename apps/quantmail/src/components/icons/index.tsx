@@ -302,6 +302,26 @@ export function IconBan(props: IconProps) {
   );
 }
 
+/**
+ * Spam, as a caution diamond rather than a `IconBan` circle or an `IconWarning`
+ * triangle — the same geometry `AppSidebar`'s `spam` entry draws, so the Spam chip
+ * in the inbox and the Spam row in the nav read as one destination instead of two
+ * features that happen to share a word.
+ *
+ * The sidebar keeps its copy inline because its icon set is a map of SVG
+ * *fragments* rendered inside one shared `<svg>`, not a map of components; it
+ * cannot consume this without a wrapper element it does not want. Two literals,
+ * one shape — if the shape changes, both move.
+ */
+export function IconSpam(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 3.2 3.2 12 12 20.8 20.8 12Z" />
+      <path d="M12 8.4v4.4M12 16.2h.01" />
+    </Svg>
+  );
+}
+
 export function IconRefresh(props: IconProps) {
   return (
     <Svg {...props}>
