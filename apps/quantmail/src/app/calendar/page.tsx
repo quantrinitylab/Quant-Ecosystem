@@ -20,6 +20,7 @@ import { useDeferredMount } from '../../hooks/useDeferredMount';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
 import { SearchClearButton } from '../../components/SearchClearButton';
+import { QuantFab } from '../../components/QuantFab';
 import {
   IconActivity,
   IconAlertCircle,
@@ -442,9 +443,6 @@ export default function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [activeView, setActiveView] = useState<CalendarView>('agenda');
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
-
-  // Speed Dial FAB State
-  const [isFabOpen, setIsFabOpen] = useState(false);
 
   // Active Creation Sheet Type (Dedicated sheet per mode)
   const [activeSheetType, setActiveSheetType] = useState<EntryType | null>(null);
@@ -1210,7 +1208,6 @@ export default function CalendarPage() {
         currentCycleDay: 1,
       });
 
-      setIsFabOpen(false);
       setSheetDragY(0);
       setPeriodSubTab('track');
       setEditingEventId(null);
@@ -1257,7 +1254,6 @@ export default function CalendarPage() {
     }));
 
     setSelectedEvent(null);
-    setIsFabOpen(false);
     setSheetDragY(0);
     setPeriodSubTab('track');
     setEditingEventId(ev.id);
@@ -1297,7 +1293,7 @@ export default function CalendarPage() {
   // pointer-reachable ancestor of the backdrop. Locking the body would change
   // nothing.
   useEffect(() => {
-    if (!activeSheetType && !isFabOpen) return;
+    if (!activeSheetType) return;
     const nestedOverlayOpen =
       isPeriodCustomizeOpen ||
       isTimezoneModalOpen ||
@@ -1307,17 +1303,12 @@ export default function CalendarPage() {
       Boolean(selectedEvent);
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || nestedOverlayOpen) return;
-      if (activeSheetType) {
-        closeSheet();
-      } else {
-        setIsFabOpen(false);
-      }
+      closeSheet();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [
     activeSheetType,
-    isFabOpen,
     isPeriodCustomizeOpen,
     isTimezoneModalOpen,
     isRecurrenceModalOpen,
@@ -2469,81 +2460,42 @@ export default function CalendarPage() {
           )}
         </div>
 
-        {/* 3D Floating Action Button with Quant Brand Liquid Gradient & Glow */}
-        <div className="fixed bottom-20 right-4 md:hidden z-40 flex flex-col items-end gap-2.5">
-          <AnimatePresence>
-            {isFabOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 15, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 15, scale: 0.9 }}
-                transition={{ duration: 0.18 }}
-                className="flex flex-col items-end gap-2.5 mb-1"
-              >
-                <button
-                  type="button"
-                  onClick={() => openDedicatedSheet('birthday')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 text-xs font-extrabold border border-emerald-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                >
-                  <IconCake className="size-4 text-emerald-400" />
-                  <span>Birthday</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openDedicatedSheet('task')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-[#2B1A11]/90 hover:bg-[#2B1A11] text-[#FFB875] text-xs font-extrabold border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                >
-                  <IconTarget className="size-4 text-[#FF8C42]" />
-                  <span>Task</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openDedicatedSheet('period')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-rose-950/90 hover:bg-rose-900 text-rose-200 text-xs font-extrabold border border-rose-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                >
-                  <IconFlower className="size-4 text-rose-400" />
-                  <span>Period Tracker</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openDedicatedSheet('event')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-[#2a1b10]/95 hover:bg-[#3d2716] text-[#FF8C42] text-xs font-extrabold border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                >
-                  <IconCalendar className="size-4 text-[#FF8C42]" />
-                  <span>Event</span>
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <button
-            type="button"
-            onClick={() => setIsFabOpen((prev) => !prev)}
-            style={{
-              background: 'linear-gradient(135deg, #FF9B5A 0%, #FF8C42 55%, #E8752F 100%)',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.18)',
-            }}
-            className={`size-14 rounded-full font-black text-[#111111] flex items-center justify-center active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] ${
-              isFabOpen ? 'rotate-45' : ''
-            }`}
-            aria-label="Toggle calendar speed dial"
-            aria-expanded={isFabOpen}
-          >
-            <svg
-              className="size-6 transition-transform duration-200"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </button>
-        </div>
+        {/*
+          The four entry kinds, most-used first. `QuantFab` reverses the column so
+          index 0 lands nearest the thumb, which is why Event is written first here
+          and still renders closest to the trigger.
+        */}
+        <QuantFab
+          label="New calendar entry"
+          actions={[
+            {
+              id: 'event',
+              label: 'Event',
+              icon: <IconCalendar className="size-4 text-[#FF8C42]" />,
+              onSelect: () => openDedicatedSheet('event'),
+            },
+            {
+              id: 'task',
+              label: 'Task',
+              icon: <IconTarget className="size-4 text-[#FF8C42]" />,
+              onSelect: () => openDedicatedSheet('task'),
+            },
+            {
+              id: 'period',
+              label: 'Period Tracker',
+              tone: 'rose',
+              icon: <IconFlower className="size-4 text-rose-400" />,
+              onSelect: () => openDedicatedSheet('period'),
+            },
+            {
+              id: 'birthday',
+              label: 'Birthday',
+              tone: 'emerald',
+              icon: <IconCake className="size-4 text-emerald-400" />,
+              onSelect: () => openDedicatedSheet('birthday'),
+            },
+          ]}
+        />
 
         {/* Dedicated Slide-up Sheets with 3D Glass Surface & Animated Save Button */}
         <AnimatePresence>

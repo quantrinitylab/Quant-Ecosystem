@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { PageTransition, useFocusTrap } from '@quant/shared-ui';
 import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
@@ -16,6 +16,7 @@ import { type LogoAppType } from './Interactive3DLogo';
 import { QuantumSplashIntro } from './QuantumSplashIntro';
 import { useInbox } from '../hooks/useInbox';
 import { SearchClearButton } from './SearchClearButton';
+import { QuantFab, type FabAction } from './QuantFab';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -31,6 +32,13 @@ export interface AppShellProps {
   onSearchChange?: (val: string) => void;
   searchPlaceholder?: string;
   onFabClick?: () => void;
+  /**
+   * Accessible name for the create button when `onFabClick` is supplied. The
+   * inbox swaps its action by lens, so the name has to be able to follow it —
+   * without this the Groups lens announced "Compose email" and then opened the
+   * group dialog.
+   */
+  fabLabel?: string;
   'aria-label'?: string;
 }
 
@@ -208,6 +216,7 @@ export function AppShell({
   onSearchChange,
   searchPlaceholder,
   onFabClick,
+  fabLabel,
   'aria-label': ariaLabel = 'Application shell',
 }: AppShellProps) {
   const drawerId = useId();
@@ -392,22 +401,54 @@ export function AppShell({
     };
   }, [isDrawerPresented, drawerRef]);
 
-  // Contextual FAB Action Handler
-  const handleFabClick = () => {
+  /*
+   * What the shell's create button does, per route. `QuantFab` renders nothing
+   * for an empty list, so this table is also the opt-out list:
+   *
+   *  - `/calendar` mounts its own `QuantFab` with four entries. Two of these in
+   *    the same corner at the same z-index is the stacking bug that used to make
+   *    a 48px circle sit on top of a 56px one, so the shell stays out of its way.
+   *  - `/compose`, `/thread` and any nested `settings` screen have nothing to create.
+   *  - `/codehub` dispatched `quant:codehub:create`, which nothing in the repo
+   *    has ever listened for. That button rendered a `+` and did nothing at all,
+   *    so it is gone rather than left there lying.
+   *  - Everything else has exactly one create action, so the `+` fires it on the
+   *    first tap. Drive's New Folder already has a mobile home in the toolbar and
+   *    group creation lives in the inbox's Groups lens; neither needs a dial.
+   */
+  const fabActions: FabAction[] = useMemo(() => {
+    if (
+      pathname.startsWith('/calendar') ||
+      pathname.startsWith('/compose') ||
+      pathname.startsWith('/thread') ||
+      pathname.startsWith('/codehub') ||
+      pathname.includes('/settings')
+    ) {
+      return [];
+    }
     if (onFabClick) {
-      onFabClick();
-      return;
+      return [{ id: 'primary', label: fabLabel ?? 'Compose email', onSelect: onFabClick }];
     }
     if (pathname.startsWith('/drive')) {
-      window.dispatchEvent(new CustomEvent('quant:drive:upload'));
-    } else if (pathname.startsWith('/contacts')) {
-      window.dispatchEvent(new CustomEvent('quant:contacts:create'));
-    } else if (pathname.startsWith('/codehub')) {
-      window.dispatchEvent(new CustomEvent('quant:codehub:create'));
-    } else {
-      router.push('/compose');
+      return [
+        {
+          id: 'upload',
+          label: 'Upload files',
+          onSelect: () => window.dispatchEvent(new CustomEvent('quant:drive:upload')),
+        },
+      ];
     }
-  };
+    if (pathname.startsWith('/contacts')) {
+      return [
+        {
+          id: 'contact',
+          label: 'New contact',
+          onSelect: () => window.dispatchEvent(new CustomEvent('quant:contacts:create')),
+        },
+      ];
+    }
+    return [{ id: 'compose', label: 'Compose email', onSelect: () => router.push('/compose') }];
+  }, [pathname, onFabClick, fabLabel, router]);
 
   const semanticTheme = theme === 'dark' ? quantMailDarkSemanticTheme : undefined;
 
@@ -637,93 +678,7 @@ export function AppShell({
         </main>
       </div>
 
-      {/*
-        Floating action button.
-
-        Not on the calendar: that page ships its own speed dial at the same
-        `bottom-20 right-4`, and the two were stacking — a 48px circle sitting on top of
-        a 56px one, both orange, one of them opening the plain Event sheet directly and
-        the other offering Event / Task / Birthday / Cycle. Whichever the thumb landed
-        on was luck. The speed dial is the one that can reach all four, so it stays and
-        this one stands down there.
-      */}
-      {!isSidebarOpen &&
-        !pathname.startsWith('/calendar') &&
-        !pathname.startsWith('/compose') &&
-        !pathname.startsWith('/thread') &&
-        !pathname.includes('/settings') && (
-          <button
-            type="button"
-            onClick={handleFabClick}
-            className="fixed bottom-20 right-4 md:hidden z-40 size-12 rounded-full bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] font-semibold shadow-[0_4px_16px_rgba(0,0,0,0.6)] border border-[#FF9B5A]/30 flex items-center justify-center active:scale-95 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#FF8C42]/50"
-            aria-label={
-              pathname.startsWith('/drive')
-                ? 'Upload files'
-                : pathname.startsWith('/contacts')
-                  ? 'New contact'
-                  : pathname.startsWith('/codehub')
-                    ? 'New repository'
-                    : 'Compose email'
-            }
-          >
-            {pathname.startsWith('/drive') ? (
-              <svg
-                className="size-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-            ) : pathname.startsWith('/contacts') ? (
-              <svg
-                className="size-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <line x1="19" y1="8" x2="19" y2="14" />
-                <line x1="22" y1="11" x2="16" y2="11" />
-              </svg>
-            ) : pathname.startsWith('/codehub') ? (
-              <svg
-                className="size-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            ) : (
-              <svg
-                className="size-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-            )}
-          </button>
-        )}
+      {!isSidebarOpen && <QuantFab actions={fabActions} />}
 
       {/* Mobile Bottom Navigation — strictly md:hidden */}
       <MobileBottomNav />

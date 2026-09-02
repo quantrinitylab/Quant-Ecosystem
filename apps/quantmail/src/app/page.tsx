@@ -1830,6 +1830,7 @@ export default function InboxPage() {
       onFabClick={() =>
         activeLens === 'groups' ? setIsCreateGroupModalOpen(true) : router.push('/compose')
       }
+      fabLabel={activeLens === 'groups' ? 'New group' : 'Compose email'}
       mobileActions={
         <div className="flex items-center gap-1.5">
           <button
