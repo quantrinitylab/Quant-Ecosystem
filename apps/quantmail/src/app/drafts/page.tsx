@@ -87,9 +87,19 @@ export default function DraftsPage() {
                 : "Drafts hold messages until you're ready to send"}
             </p>
           </div>
-          <Button variant="primary" onClick={() => router.push('/compose')}>
-            New draft
-          </Button>
+          {/*
+            Below `md` the shell's own compose FAB is the create control, and it
+            is `md:hidden` — so this header button is its exact complement, not a
+            second copy of it. Two controls that both mean "write a message" on a
+            393px screen is one too many; the wrapper is what hides, because
+            `Button`'s own base styles already emit `inline-flex` and a
+            `hidden md:inline-flex` in `className` would lose that race.
+          */}
+          <div className="hidden md:block">
+            <Button variant="primary" onClick={() => router.push('/compose')}>
+              New draft
+            </Button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto">

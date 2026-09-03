@@ -194,9 +194,18 @@ export default function SentPage() {
                 : 'Messages you send will appear here'}
             </p>
           </div>
-          <Button variant="secondary" onClick={() => router.push('/compose')}>
-            Compose
-          </Button>
+          {/*
+            The shell's compose FAB is `md:hidden`, so this is its complement.
+            Without the gate a phone showed two controls with the identical
+            accessible name "Compose email" — the header button and the FAB —
+            and a screen reader had no way to tell them apart. Hide the wrapper,
+            not the Button: its base styles already set `inline-flex`.
+          */}
+          <div className="hidden md:block">
+            <Button variant="secondary" onClick={() => router.push('/compose')}>
+              Compose
+            </Button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto">

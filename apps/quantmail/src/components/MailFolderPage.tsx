@@ -159,9 +159,18 @@ export function MailFolderPage({
                 : emptyTitle}
             </p>
           </div>
-          <Button variant="secondary" onClick={() => router.push('/compose')}>
-            Compose
-          </Button>
+          {/*
+            One header button here is four on the phone — /archive, /spam,
+            /starred and /snoozed all render this component — each duplicating
+            the shell's `md:hidden` compose FAB. Gating at the same breakpoint
+            leaves exactly one create control at every width. The wrapper hides,
+            not the Button, whose base styles already emit `inline-flex`.
+          */}
+          <div className="hidden md:block">
+            <Button variant="secondary" onClick={() => router.push('/compose')}>
+              Compose
+            </Button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto">
