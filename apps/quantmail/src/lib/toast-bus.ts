@@ -1,13 +1,19 @@
 /**
  * The toast bus: subscription plumbing and the undo registry, with no JSX.
  *
- * This lives in its own `.ts` module rather than inside `InboxToast.tsx`
- * because `tsconfig.backend.json` typechecks `src/**\/*.ts` with no `jsx`
- * option set. Any `.ts` file under `src/` that imports a `.tsx` module
- * therefore fails that pass with TS6142 — and `pnpm typecheck` runs both
- * passes, so it fails CI even though the Next build is perfectly happy.
- * `useMailMutations.ts` needs `showToast`, so `showToast` has to be reachable
- * without crossing into a `.tsx` file.
+ * This lives in its own `.ts` module rather than inside `InboxToast.tsx` so
+ * that non-component callers can reach `showToast` without importing a
+ * component. `useMailMutations.ts` is a hook and renders nothing; pulling it
+ * into `InboxToast.tsx` would make every consumer of the mutation layer depend
+ * on a React tree it never touches.
+ *
+ * The split was originally forced by the build: `tsconfig.backend.json` used to
+ * `include` `src/**\/*.ts` with no `jsx` option, so any `.ts` under `src/` that
+ * imported a `.tsx` failed that pass with TS6142 while the Next build stayed
+ * happy. That include has since narrowed to `backend/**\/*.ts` — verified with
+ * `tsc --listFiles`, which now pulls in zero files from `src/` — so the
+ * compiler no longer requires this shape. It is kept on the dependency-direction
+ * argument above, which does not expire.
  *
  * `InboxToast.tsx` re-exports everything here, so component callers can keep
  * importing from `./InboxToast` and nothing about the public surface changes.
