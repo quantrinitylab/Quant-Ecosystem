@@ -84,7 +84,12 @@ export interface MailMutations {
   toggleStar: (ids: string | string[]) => Promise<void>;
   markRead: (ids: string | string[]) => Promise<void>;
   markUnread: (ids: string | string[]) => Promise<void>;
-  snooze: (ids: string | string[], until: Date) => Promise<void>;
+  /**
+   * `unitCount` switches the toast from a single row's voice to a batch's: omit it
+   * and it reads "Snoozed until tomorrow 09:00", pass it and it says how many
+   * conversations left. A row already knows which one it is; a selection does not.
+   */
+  snooze: (ids: string | string[], until: Date, unitCount?: number) => Promise<void>;
   /**
    * Batch archive or trash: one optimistic update, one request per id, one toast.
    * `unitCount` is what the toast counts — the number of *conversations* selected,
@@ -322,13 +327,16 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
   );
 
   const snooze = useCallback(
-    (ids: string | string[], until: Date) =>
+    (ids: string | string[], until: Date, unitCount?: number) =>
       run({
         kind: 'snooze',
         ids: idList(ids),
         patch: { snoozedUntil: until },
         snoozeUntil: until,
-        toast: `Snoozed until ${formatSnoozeTarget(until)}`,
+        toast:
+          unitCount === undefined
+            ? `Snoozed until ${formatSnoozeTarget(until)}`
+            : `${conversationNoun(unitCount)} snoozed until ${formatSnoozeTarget(until)}`,
         removesFromView: true,
       }),
     [run],
@@ -337,8 +345,7 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
   const batch = useCallback(
     (kind: 'archive' | 'trash', ids: string[], unitCount?: number) => {
       const list = idList(ids);
-      const units = unitCount ?? list.length;
-      const noun = `${units} conversation${units === 1 ? '' : 's'}`;
+      const noun = conversationNoun(unitCount ?? list.length);
       return kind === 'archive'
         ? run({
             kind: 'archive',
@@ -376,6 +383,11 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
     }),
     [archive, unarchive, trash, restore, toggleStar, markRead, markUnread, snooze, batch],
   );
+}
+
+/** "3 conversations", "1 conversation" — the unit every batch toast counts in. */
+function conversationNoun(count: number): string {
+  return `${count} conversation${count === 1 ? '' : 's'}`;
 }
 
 /** "Snoozed until tomorrow 09:00" reads better than a full locale timestamp. */

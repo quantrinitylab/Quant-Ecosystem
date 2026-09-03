@@ -200,11 +200,19 @@
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
-   Touch-device mail rows — hover-action bar is mouse-only.
-   On coarse-pointer devices (phones/tablets) the bar must never appear:
-   the swipe-to-archive gesture and the individual row tap handle the same
-   actions.  The @media query targets any primary pointer without hover
-   (i.e. every touch-first device, even foldables in touch mode).
+   Touch-device mail rows — the hover-action bar is mouse-only.
+
+   A coarse pointer has no hover, so a bar that appears on hover can only ever
+   appear stuck; it is hidden outright rather than restyled. What a finger gets
+   instead is on the row itself: a 44px Archive and a 44px Pin, always visible,
+   always in the same place. Snooze and the read-state toggle are one long-press
+   away — 450ms selects the conversation (`page.tsx`), which swaps the shell
+   header for the selection bar and its full set of bulk actions.
+
+   This used to credit "the swipe-to-archive gesture". That gesture was removed:
+   a horizontal drag on a vertical list steals the scroll it was competing with,
+   and a mis-swipe filed a message somewhere the user never chose. See the
+   `EmailRow` comment for the reasoning that replaced it with buttons.
    ────────────────────────────────────────────────────────────────────────── */
 
 @media (hover: none), (pointer: coarse) {

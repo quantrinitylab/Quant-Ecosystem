@@ -66,6 +66,15 @@ export interface UseInboxKeyboardOptions<Row extends InboxKeyboardRow> {
   onClose: () => void;
   /** Toggle the row's selection checkbox. */
   onToggleSelect: (id: string) => void;
+  /**
+   * How many conversations are checked, and how to uncheck them. Escape clears a
+   * selection before it closes a reader: the selection header replaces the shell's
+   * own and is the loudest thing on screen, so it is what Escape must answer to.
+   * The header's tooltip has always promised this; until these two arrived it was
+   * the only thing in the bar that promised a key and delivered nothing.
+   */
+  selectionCount?: number;
+  onClearSelection?: () => void;
   mutations: MailMutations;
   /**
    * Every message id a row stands for. A row is a conversation, so `e` has to
@@ -97,6 +106,8 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
     onOpen,
     onClose,
     onToggleSelect,
+    selectionCount = 0,
+    onClearSelection,
     mutations,
     expandIds,
     scrollToIndex,
@@ -236,9 +247,12 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       hidden: true,
       // Only claims Escape when there is something to dismiss, so it falls
       // through to the sidebar drawer otherwise.
-      enabled: () => selectedId !== null || focusedId !== null,
+      enabled: () => selectionCount > 0 || selectedId !== null || focusedId !== null,
       run: () => {
-        if (selectedId !== null) onClose();
+        // Innermost thing first: a checked selection, then an open reader, then
+        // the cursor. Anything else and Escape would dismiss the wrong layer.
+        if (selectionCount > 0) onClearSelection?.();
+        else if (selectedId !== null) onClose();
         else clearFocus();
       },
     },

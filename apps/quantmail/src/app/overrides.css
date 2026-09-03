@@ -294,10 +294,10 @@
   background: #2B1A11;
 }
 
-/* Snooze: hidden trigger keeps the menu anchored while the hover bar covers it */
-.snooze-trigger.is-hidden {
-  visibility: hidden;
-}
+/* Snooze: the menu is anchored by a trigger the hover bar covers, so the trigger
+   hides itself. `visibility: hidden` used to be repeated here; shell.css already
+   takes it out of layout with `display: none !important`, which subsumes this and
+   also stops the invisible button eating a tap. */
 .snooze-custom {
   border-top: 1px solid var(--quant-border, rgba(255, 255, 255, 0.09));
   margin-top: 6px;
@@ -334,6 +334,46 @@
 .snooze-custom-row button:disabled {
   opacity: 0.45;
   cursor: default;
+}
+
+/* Anchored-menu rows under a finger.
+   `.snooze-option` is shared: the snooze presets draw it, and so do the selection
+   bar's Select-all / Pin / Mark-read rows, so this one floor covers both menus.
+   It has to live in this layer because the class is declared in three of them —
+   globals.css gives it `min-height: 2.35rem` (37.6px) and shell.css gives it the
+   padding, and overrides.css is the sheet layout.tsx loads last.
+
+   Gated on the pointer, not the width: a 768px tablet has the same finger a
+   375px phone does. */
+@media (pointer: coarse) {
+  .snooze-option {
+    min-height: 44px;
+  }
+
+  /* Stacked rather than side by side. A datetime-local field needs ~180px to
+     show `mm/dd/yyyy --:-- --`, and a 44px Set button beside it inside a 240px
+     menu leaves ~150px — the value would be clipped in the one control whose
+     whole job is to be read back. Full width each, 44px each. */
+  .snooze-custom-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .snooze-custom-row input,
+  .snooze-custom-row button {
+    min-height: 44px;
+  }
+
+  /* Taller rows can outgrow a short viewport — a landscape phone is ~375px tall,
+     and `.snooze-menu` is `overflow: hidden` in globals.css, so anything past the
+     bottom edge would be unreachable rather than merely off-screen. `AnchoredMenu`
+     clamps the top against a static height hint, which cannot know the coarse
+     heights, so the menu owns its own ceiling. */
+  .snooze-menu {
+    max-height: calc(100vh - 1.5rem);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
 }
 
 /* Sidebar: manage-labels shortcut under the label list */

@@ -16,9 +16,11 @@ import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
 import { InboxZeroState } from '../components/InboxZeroState';
 import { showToast } from '../components/InboxToast';
+import { MailIcon } from '../components/MailIcon';
 import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
 import { QuantMailLogo } from '../components/QuantMailLogo';
 import { Quanty } from '../components/Quanty';
+import { SelectionHeader } from '../components/SelectionHeader';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { EmailSenderHeader } from '../components/EmailSenderHeader';
 import { ConversationalThreadView } from '../components/ConversationalThreadView';
@@ -147,93 +149,6 @@ function nextRovingIndex(key: string, index: number, length: number): number | n
   if (key === 'Home') return 0;
   if (key === 'End') return last;
   return null;
-}
-
-type MailIconName =
-  | 'archive'
-  | 'close'
-  | 'compose'
-  | 'mail'
-  | 'search'
-  | 'star'
-  | 'pin'
-  | 'trash'
-  | 'reply'
-  | 'forward'
-  | 'sparkles'
-  | 'shield';
-
-function MailIcon({ name, className = 'h-4 w-4' }: { name: MailIconName; className?: string }) {
-  const paths = {
-    archive: (
-      <>
-        <path d="M4 7h16" />
-        <path d="M5 7l1-3h12l1 3v12H5z" />
-        <path d="M9 11h6" />
-      </>
-    ),
-    close: <path d="m7 7 10 10M17 7 7 17" />,
-    compose: (
-      <>
-        <path d="M12 20h9" />
-        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z" />
-      </>
-    ),
-    mail: (
-      <>
-        <rect x="3" y="5" width="18" height="14" rx="2" />
-        <path d="m3 7 9 6 9-6" />
-      </>
-    ),
-    search: (
-      <>
-        <circle cx="11" cy="11" r="7" />
-        <path d="m20 20-4-4" />
-      </>
-    ),
-    star: <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" />,
-    pin: (
-      <>
-        <line x1="12" y1="17" x2="12" y2="22" />
-        <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
-      </>
-    ),
-    trash: (
-      <>
-        <path d="M3 6h18" />
-        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-      </>
-    ),
-    reply: <path d="M9 17 4 12l5-5M4 12h12a4 4 0 0 1 4 4v2" />,
-    forward: <path d="m15 17 5-5-5-5M20 12H8a4 4 0 0 0-4 4v2" />,
-    sparkles: (
-      <>
-        <path d="m12 3-1.9 4.8L5.3 9.7l4.8 1.9L12 16.4l1.9-4.8 4.8-1.9-4.8-1.9L12 3z" />
-        <path d="m19 16-.9 2.1L16 19l2.1.9.9 2.1.9-2.1 2.1-.9-2.1-.9-.9-2.1z" />
-      </>
-    ),
-    shield: (
-      <>
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        <path d="m9 12 2 2 4-4" />
-      </>
-    ),
-  };
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {paths[name]}
-    </svg>
-  );
 }
 
 function formatReceivedAt(value?: string | Date) {
@@ -434,8 +349,11 @@ function EmailRow({
         </AnimatePresence>
         {/* Snooze popup anchor */}
         <EmailSnooze
-          emailId={email.id}
-          onSnooze={onSnooze}
+          // The row closes over its own id; `EmailSnooze` no longer takes one back,
+          // because the selection header snoozes many conversations and had nothing
+          // to hand in. `snoozeEmail` stays a shared, stable callback rather than a
+          // per-row closure, so the id is bound here instead of in the props.
+          onSnooze={(snoozeUntil) => onSnooze(email.id, snoozeUntil)}
           open={showSnoozeMenu}
           onOpenChange={setShowSnoozeMenu}
           triggerHidden={true}
@@ -1581,6 +1499,26 @@ export default function InboxPage() {
     [mutations, conversationIds],
   );
 
+  /**
+   * Snooze the whole selection, which is the action the bulk bar was missing —
+   * a phone's only route to snooze is long-press to select, so its absence here
+   * meant a finger could not snooze at all.
+   *
+   * One `mutations.snooze` call, not a `Promise.all` over the ids like the two
+   * batches above: it takes an array, does a single optimistic patch, and rolls
+   * the whole thing back as one unit if the server refuses. `ids.length` counts
+   * the conversations, which is what the toast says; the request list is every
+   * message inside them.
+   */
+  const batchSnooze = useCallback(
+    async (until: Date) => {
+      const ids = Array.from(selectedIds);
+      setSelectedIds(new Set());
+      await mutations.snooze(ids.flatMap(conversationIds), until, ids.length);
+    },
+    [mutations, selectedIds, conversationIds],
+  );
+
   const batchMarkRead = useCallback(
     async (ids: string[], read: boolean) => {
       setSelectedIds(new Set());
@@ -1679,141 +1617,52 @@ export default function InboxPage() {
       setSelectedThread(null);
     },
     onToggleSelect: (id) => toggleSelect(id),
+    // Escape's innermost layer. The selection bar replaces the shell's own header
+    // and is the loudest thing on screen, so it is what Escape has to answer to
+    // before it closes a reader — which is what the bar's tooltip has always
+    // promised. See `inbox.close`.
+    selectionCount: selectedIds.size,
+    onClearSelection: () => setSelectedIds(new Set()),
     mutations,
     // `e` and `#` act on the conversation the cursor is on, all of it.
     expandIds: threadMessageIds,
     scrollToIndex: virtualizer.scrollToIndex,
   });
 
+  /**
+   * Whether every selected conversation is already pinned, which is what turns the
+   * menu's one Pin row into `Unpin`. Two rows for one boolean state would be the
+   * duplicate affordance this audit is removing.
+   *
+   * Hoisted out of the header's JSX, where it was an inline IIFE. `every` over an
+   * empty set is `true`, and the bar is only mounted above zero, so the vacuous
+   * case never reaches a label.
+   */
+  const allSelectedPinned = useMemo(
+    () =>
+      Array.from(selectedIds).every(
+        (id) =>
+          displayThreads.find(
+            (t) => t.id === id || t.threadId === id || t.messages.some((m) => m.id === id),
+          )?.isStarred,
+      ),
+    [selectedIds, displayThreads],
+  );
+
   const selectionHeader = (
-    <header className="flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[#282C35] bg-[#121622] px-3 sm:px-5 shadow-xl select-none sticky top-0 z-50">
-      {/* Left: Close/Deselect button & Count */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        <button
-          type="button"
-          onClick={() => setSelectedIds(new Set())}
-          className="size-9 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all active:scale-95"
-          title="Deselect all (Esc)"
-          aria-label="Deselect all"
-        >
-          <svg
-            className="size-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-          >
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
-        <span className="text-sm sm:text-base font-bold text-white tracking-wide">
-          {selectedIds.size} selected
-        </span>
-
-        {/* Select All Visible toggle */}
-        {selectedIds.size < (displayThreads?.length ?? 0) && (
-          <button
-            type="button"
-            onClick={() => {
-              const allVisibleIds = new Set(displayThreads.map((t) => t.id));
-              setSelectedIds(allVisibleIds);
-            }}
-            className="ml-2 px-2.5 py-1 rounded-lg bg-[#282C35] hover:bg-[#3A404D] text-xs font-semibold text-[#FF8C42] transition-colors"
-          >
-            Select all {displayThreads.length}
-          </button>
-        )}
-      </div>
-
-      {/* Right Quick Action Icons (Clean, WhatsApp / Superhuman Style) */}
-      <div className="flex items-center gap-1 sm:gap-2">
-        {/* Dynamic Pin / Unpin Toggle */}
-        {(() => {
-          const allPinned = Array.from(selectedIds).every((id) => {
-            const thread = displayThreads.find(
-              (t) => t.id === id || t.threadId === id || t.messages.some((m) => m.id === id),
-            );
-            return thread?.isStarred;
-          });
-
-          return (
-            <button
-              type="button"
-              onClick={() => void batchToggleStar(Array.from(selectedIds), Boolean(allPinned))}
-              className={`size-9 inline-flex items-center justify-center rounded-xl transition-all active:scale-95 ${
-                allPinned
-                  ? 'text-[#FF8C42] bg-[#FF8C42]/20 hover:bg-[#FF8C42]/30'
-                  : 'text-[#A1A4AC] hover:text-[#FF8C42] hover:bg-[#282C35]'
-              }`}
-              title={allPinned ? 'Unpin selected (S)' : 'Pin selected (S)'}
-              aria-label={allPinned ? 'Unpin selected' : 'Pin selected'}
-            >
-              <svg
-                className="size-5"
-                viewBox="0 0 24 24"
-                fill={allPinned ? 'currentColor' : 'none'}
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <line x1="12" y1="17" x2="12" y2="22" />
-                <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
-              </svg>
-            </button>
-          );
-        })()}
-
-        {/* Mark Unread */}
-        <button
-          type="button"
-          onClick={() => void batchMarkRead(Array.from(selectedIds), false)}
-          className="size-9 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-[#FFB875] hover:bg-[#282C35] transition-all active:scale-95"
-          title="Mark as unread (U)"
-        >
-          <svg
-            className="size-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <rect x="3" y="5" width="18" height="14" rx="2" />
-            <path d="m3 7 9 6 9-6" />
-            <circle cx="18" cy="6" r="2.5" fill="#FF8C42" stroke="none" />
-          </svg>
-        </button>
-
-        {/* Mark Read */}
-        <button
-          type="button"
-          onClick={() => void batchMarkRead(Array.from(selectedIds), true)}
-          className="size-9 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-sky-400 hover:bg-[#282C35] transition-all active:scale-95"
-          title="Mark as read"
-        >
-          <MailIcon name="mail" className="size-5" />
-        </button>
-
-        {/* Delete */}
-        <button
-          type="button"
-          onClick={() => void batchAction('delete')}
-          className="size-9 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-rose-400 hover:bg-[#282C35] transition-all active:scale-95"
-          title="Move to Trash (#)"
-        >
-          <MailIcon name="trash" className="size-5" />
-        </button>
-
-        {/* Archive */}
-        <button
-          type="button"
-          onClick={() => void batchAction('archive')}
-          className="size-9 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-emerald-400 hover:bg-[#282C35] transition-all active:scale-95"
-          title="Archive (E)"
-        >
-          <MailIcon name="archive" className="size-5" />
-        </button>
-      </div>
-    </header>
+    <SelectionHeader
+      count={selectedIds.size}
+      totalVisible={displayThreads.length}
+      allPinned={allSelectedPinned}
+      onDeselectAll={() => setSelectedIds(new Set())}
+      onSelectAllVisible={() => setSelectedIds(new Set(displayThreads.map((t) => t.id)))}
+      onTogglePin={() => void batchToggleStar(Array.from(selectedIds), allSelectedPinned)}
+      onMarkRead={() => void batchMarkRead(Array.from(selectedIds), true)}
+      onMarkUnread={() => void batchMarkRead(Array.from(selectedIds), false)}
+      onArchive={() => void batchAction('archive')}
+      onDelete={() => void batchAction('delete')}
+      onSnooze={(until) => void batchSnooze(until)}
+    />
   );
 
   return (
