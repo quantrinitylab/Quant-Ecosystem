@@ -138,8 +138,11 @@ export default function RepoEditorPage() {
             )}
           </aside>
 
-          {/* Editor area */}
-          <main className="ide-editor-area">
+          {/* Editor area — a `section`, not a second `<main>`. `AppShell` owns the
+              page's landmark; this is one of three peers (file tree aside, editor,
+              AI aside) and an unnamed section is not exposed as a landmark, so the
+              landmark list stays honest. */}
+          <section className="ide-editor-area">
             {!selectedFile ? (
               <div className="ide-welcome">
                 <h2>Select a file to preview</h2>
@@ -222,7 +225,7 @@ export default function RepoEditorPage() {
                 </motion.div>
               )}
             </AnimatePresence>
-          </main>
+          </section>
 
           {/* AI Chat Panel */}
           <AnimatePresence>

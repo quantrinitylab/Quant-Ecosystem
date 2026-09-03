@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
 import { AuthShell } from '../../components/auth/AuthShell';
 import { PasswordStrengthMeter } from '../../components/auth/PasswordStrengthMeter';
-import { PageTransition } from '../../components/PageTransition';
+import { PageTransition } from '@quant/shared-ui';
 import {
   QUANT_MAIL_DOMAIN,
   isValidUsername,

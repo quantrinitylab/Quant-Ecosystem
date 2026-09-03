@@ -16,7 +16,6 @@ import {
 } from '@quant/shared-ui';
 import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
-import { PageTransition } from '../../../components/PageTransition';
 import { RoleSelect } from '../../../components/workspaces/RoleSelect';
 import {
   useDeleteWorkspace,
@@ -144,7 +143,7 @@ export default function WorkspaceDetailPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page flex h-full flex-col">
+      <div className="workspace-page flex h-full flex-col">
         <div className="border-b border-[var(--quant-border)] p-4">
           <button
             type="button"
@@ -519,7 +518,7 @@ export default function WorkspaceDetailPage() {
             />
           </FormField>
         </Modal>
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

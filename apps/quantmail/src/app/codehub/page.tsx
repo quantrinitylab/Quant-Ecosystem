@@ -23,7 +23,6 @@ import {
 } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
-import { PageTransition } from '../../components/PageTransition';
 import { Quanty, type QuantyExpression } from '../../components/Quanty';
 import { useRepos, useCreateRepo } from '../../hooks/useRepos';
 import { useBuilds, useDeployments } from '../../hooks/usePipelines';
@@ -610,7 +609,7 @@ export default function CodeHubPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page codehub-workspace flex flex-col h-full overflow-hidden">
+      <div className="workspace-page codehub-workspace flex flex-col h-full overflow-hidden">
         <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-0">
           {/* Main column */}
           <section className="min-h-0 overflow-y-auto p-4 sm:p-5">
@@ -904,7 +903,7 @@ export default function CodeHubPage() {
             </div>
           </div>
         </Modal>
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

@@ -7,7 +7,6 @@ import { Button, Skeleton } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
-import { PageTransition } from '../../components/PageTransition';
 import { showToast } from '../../components/InboxToast';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useInbox } from '../../hooks/useInbox';
@@ -75,7 +74,7 @@ export default function DraftsPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page drafts-workspace flex flex-col h-full">
+      <div className="workspace-page drafts-workspace flex flex-col h-full">
         <header className="sent-header">
           <div>
             <p className="sent-kicker">
@@ -181,7 +180,7 @@ export default function DraftsPage() {
           )}
         </div>
         {dialog}
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

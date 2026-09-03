@@ -5,7 +5,6 @@ import { Card, Badge, Button, Skeleton } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
-import { PageTransition } from '../../components/PageTransition';
 import {
   useWorkflows,
   useBuilds,
@@ -65,7 +64,7 @@ export default function PipelinesPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page pipelines-workspace flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-8">
+      <div className="workspace-page pipelines-workspace flex flex-col h-full overflow-y-auto p-4 md:p-6 space-y-8">
         {/* Workflows */}
         <section>
           <h2 className="text-lg font-semibold mb-3">Workflows</h2>
@@ -115,7 +114,9 @@ export default function PipelinesPage() {
           {buildsError && (
             <ErrorState message={buildsError.message} onRetry={() => void refetchBuilds()} />
           )}
-          {!loadingBuilds && !buildsError && (!builds || builds.length === 0) &&
+          {!loadingBuilds &&
+            !buildsError &&
+            (!builds || builds.length === 0) &&
             (firstWorkflow ? (
               <EmptyState
                 title="Run your first build"
@@ -164,7 +165,9 @@ export default function PipelinesPage() {
           <h2 className="text-lg font-semibold mb-3">Deployments</h2>
           {loadingDeployments && <Skeleton variant="rect" width="100%" height="120px" />}
           {deploymentsError && <ErrorState message={deploymentsError.message} />}
-          {!loadingDeployments && !deploymentsError && (!deployments || deployments.length === 0) &&
+          {!loadingDeployments &&
+            !deploymentsError &&
+            (!deployments || deployments.length === 0) &&
             (firstWorkflow ? (
               <EmptyState
                 title="Ship your first deployment"
@@ -199,7 +202,7 @@ export default function PipelinesPage() {
               </Card>
             ))}
         </section>
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

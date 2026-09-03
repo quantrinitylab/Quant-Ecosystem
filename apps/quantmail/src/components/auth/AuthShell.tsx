@@ -10,6 +10,8 @@ interface AuthShellProps {
 export function AuthShell({ brand, children }: AuthShellProps) {
   return (
     <main
+      id="main-content"
+      tabIndex={-1}
       className="auth-shell"
       data-quant-theme={quantMailAuthThemeName}
       style={quantMailAuthTheme}

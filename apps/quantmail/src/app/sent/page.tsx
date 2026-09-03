@@ -8,7 +8,6 @@ import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { IdentityAvatar } from '../../components/IdentityAvatar';
-import { PageTransition } from '../../components/PageTransition';
 import { useInbox } from '../../hooks/useInbox';
 import { apiClient } from '../../services/api-client';
 import type { Email, EmailStatus } from '../../types';
@@ -182,7 +181,7 @@ export default function SentPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page sent-workspace flex flex-col h-full">
+      <div className="workspace-page sent-workspace flex flex-col h-full">
         <header className="sent-header">
           <div>
             <p className="sent-kicker">
@@ -257,7 +256,7 @@ export default function SentPage() {
             </motion.div>
           )}
         </div>
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

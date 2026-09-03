@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Modal, Skeleton, ErrorState, useFocusTrap } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
-import { PageTransition } from '../../components/PageTransition';
 import { Quanty } from '../../components/Quanty';
 import {
   useCalendarEvents,
@@ -1659,7 +1658,7 @@ export default function CalendarPage() {
         </div>
       }
     >
-      <PageTransition className="flex flex-col h-full bg-[#08080a] text-white relative">
+      <div className="flex flex-col h-full bg-[#08080a] text-white relative">
         {/*
           The mobile search field used to be hand-rolled here — a conditionally
           mounted row with its own `autoFocus`, its own Cancel, and the same field
@@ -3974,7 +3973,7 @@ export default function CalendarPage() {
           />
         )}
         {dialog}
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

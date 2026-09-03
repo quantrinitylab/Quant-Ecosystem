@@ -15,6 +15,8 @@ export default function Error({
 
   return (
     <div
+      id="main-content"
+      tabIndex={-1}
       className="flex h-screen flex-col items-center justify-center p-6 text-center"
       role="alert"
       aria-labelledby="global-error-title"

@@ -87,8 +87,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       `KeyboardSurfaces` is a client host that code-splits both of
                       them out of the root chunk; it cannot be inlined here because
                       this layout is a Server Component. */}
+                  {/* `children` is deliberately not wrapped in a landmark here.
+                      Every route already renders its own `<main>` — `AppShell` for
+                      the twenty-eight shell routes, `AuthShell` for the four auth
+                      screens, and its own for `/invite/[token]` and `/lab/marks` —
+                      so a wrapper here made two `<main>` elements on every page and
+                      handed `#main-content` to the outer one. The skip link then
+                      landed above the header, the drawer and the search field:
+                      four more tabbables to cross on `/`, three on `/drive`. The id
+                      lives on the innermost landmark instead, next to the content it
+                      names. */}
                   <KeyboardProvider>
-                    <main id="main-content">{children}</main>
+                    {children}
                     <KeyboardSurfaces />
                   </KeyboardProvider>
                   <InboxToastContainer />

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
 import { AuthShell } from '../../components/auth/AuthShell';
-import { PageTransition } from '../../components/PageTransition';
+import { PageTransition } from '@quant/shared-ui';
 import { QUANT_MAIL_DOMAIN, toQuantAddress } from '../../config/identity';
 import { safeReturnPath } from '../../lib/safe-return-path';
 import { useAuth } from '../../providers/auth-provider';

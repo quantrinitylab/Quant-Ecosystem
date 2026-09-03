@@ -892,7 +892,19 @@ export function AppShell({
 
         {topBar}
 
-        <main id="main-content" className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        {/*
+          The app's only `<main>`, and the target of the root layout's skip link.
+          `tabIndex={-1}` is what makes that link work: without it the fragment
+          jump scrolls but leaves `document.activeElement` on `BODY`, so the next
+          Tab starts from the top of the page again — the header and the drawer
+          the link was meant to skip. A programmatic focus on a `tabindex="-1"`
+          element does not match `:focus-visible`, so this draws no ring.
+        */}
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
           {animated ? <PageTransition>{children}</PageTransition> : children}
         </main>
       </div>

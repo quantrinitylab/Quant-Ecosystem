@@ -3,7 +3,6 @@
 import { useParams, useRouter } from 'next/navigation';
 import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
-import { PageTransition } from '../../../components/PageTransition';
 import { ConversationalThreadView } from '../../../components/ConversationalThreadView';
 import { useMailMutations } from '../../../hooks/useMailMutations';
 
@@ -17,18 +16,18 @@ export default function ThreadPage() {
   if (!threadId) {
     return (
       <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-        <PageTransition className="workspace-page thread-workspace flex flex-col h-full bg-[#0a0d14]">
+        <div className="workspace-page thread-workspace flex flex-col h-full bg-[#0a0d14]">
           <div className="flex-1 flex items-center justify-center p-6 text-[#A1A4AC]">
             Redirecting to inbox…
           </div>
-        </PageTransition>
+        </div>
       </AppShell>
     );
   }
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page thread-workspace flex flex-col h-full bg-[#090A0C]">
+      <div className="workspace-page thread-workspace flex flex-col h-full bg-[#090A0C]">
         <ConversationalThreadView
           threadId={threadId}
           onClose={() => router.push('/')}
@@ -51,7 +50,7 @@ export default function ThreadPage() {
           variant="full"
           className="h-full flex-1"
         />
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

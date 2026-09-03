@@ -8,7 +8,6 @@ import { AppShell } from './AppShell';
 import { AppSidebar } from './AppSidebar';
 import { IdentityAvatar } from './IdentityAvatar';
 import { showToast } from './InboxToast';
-import { PageTransition } from './PageTransition';
 import { useInbox } from '../hooks/useInbox';
 import { useAuth } from '../providers/auth-provider';
 import {
@@ -147,7 +146,7 @@ export function MailFolderPage({
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page sent-workspace flex flex-col h-full">
+      <div className="workspace-page sent-workspace flex flex-col h-full">
         <header className="sent-header">
           <div>
             <p className="sent-kicker">
@@ -227,7 +226,7 @@ export function MailFolderPage({
             </motion.div>
           )}
         </div>
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }
