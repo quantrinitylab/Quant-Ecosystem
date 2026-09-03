@@ -31,7 +31,7 @@ const FILTER_CHIPS: { type: SearchFilter['type']; label: string; placeholder: st
 ];
 
 // --- tiny inline icon set (no emoji, no HTML entities) ----------------------
-type IconName = 'search' | 'clock' | 'close' | 'clip' | 'arrow';
+type IconName = 'search' | 'clock' | 'close' | 'clip' | 'arrow' | 'check';
 const ICON_PATHS: Record<IconName, React.ReactNode> = {
   search: (
     <>
@@ -46,6 +46,7 @@ const ICON_PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   close: <path d="m6 6 12 12M18 6 6 18" />,
+  check: <path d="m5 12.5 4.5 4.5L19 7" />,
   clip: (
     <path d="m21 12-8.5 8.5a5 5 0 0 1-7-7L14 5a3.4 3.4 0 0 1 4.8 4.8L10.4 18a1.8 1.8 0 0 1-2.5-2.5L16 7.5" />
   ),
@@ -165,29 +166,70 @@ export default function SearchPage() {
     if (seed) runSearchString(seed);
   }, [runSearchString]);
 
-  const handleAddFilter = useCallback((type: SearchFilter['type']) => {
-    if (type === 'has') {
-      setActiveFilters((prev) => {
-        if (prev.some((f) => f.type === 'has')) return prev;
-        return [...prev, { type: 'has', label: 'Has attachment', value: 'attachment' }];
-      });
-      setEditingFilter(null);
-    } else {
+  /**
+   * The chip row's one job: open this filter's editor, or toggle the one filter
+   * that has no value to edit.
+   *
+   * `has` is boolean — "Has attachment" is on or off — so a second tap turns it
+   * off. Every other type carries a value, and tapping an applied chip now
+   * *edits* that value: `filterInput` is seeded from the applied filter, so
+   * "From: a@b.com" opens with `a@b.com` in the field. Blanking it
+   * unconditionally, which is what this did, meant an applied filter could never
+   * be corrected — only deleted and retyped from memory.
+   *
+   * Removal is not here. It lives on the applied pill below, once per filter,
+   * where the value being removed is on screen to read first.
+   */
+  const handleFilterChipClick = useCallback(
+    (type: SearchFilter['type']) => {
+      if (type === 'has') {
+        setActiveFilters((prev) =>
+          prev.some((f) => f.type === 'has')
+            ? prev.filter((f) => f.type !== 'has')
+            : [...prev, { type: 'has', label: 'Has attachment', value: 'attachment' }],
+        );
+        setEditingFilter(null);
+        return;
+      }
       setEditingFilter(type);
-      setFilterInput('');
-    }
-  }, []);
+      setFilterInput(activeFilters.find((f) => f.type === type)?.value ?? '');
+    },
+    [activeFilters],
+  );
 
   const handleConfirmFilter = useCallback(() => {
-    if (!editingFilter || !filterInput.trim()) {
+    if (!editingFilter) return;
+    const trimmed = filterInput.trim();
+    /*
+     * Applying an empty field removes the filter. The field *is* the filter's
+     * value, and a filter with no value is not a filter — Cancel is the button
+     * that means "leave it as it was". Previously this closed the editor and
+     * silently kept the old value, so clearing the box looked like it had worked.
+     */
+    if (!trimmed) {
+      setActiveFilters((prev) => prev.filter((f) => f.type !== editingFilter));
       setEditingFilter(null);
+      setFilterInput('');
       return;
     }
     const chip = FILTER_CHIPS.find((c) => c.type === editingFilter);
-    setActiveFilters((prev) => [
-      ...prev.filter((f) => f.type !== editingFilter),
-      { type: editingFilter, label: `${chip?.label || ''}: ${filterInput}`, value: filterInput },
-    ]);
+    // `trimmed`, not `filterInput`: the guard above trims, so sending the raw
+    // value would let " a@b.com " through to the backend as a distinct sender.
+    const next: SearchFilter = {
+      type: editingFilter,
+      label: `${chip?.label || ''}: ${trimmed}`,
+      value: trimmed,
+    };
+    setActiveFilters((prev) => {
+      const at = prev.findIndex((f) => f.type === editingFilter);
+      if (at === -1) return [...prev, next];
+      // Replace in place. Filtering and appending sent an edited filter to the
+      // end of the row, so fixing a typo made the pill you were reading jump
+      // past the others.
+      const copy = [...prev];
+      copy[at] = next;
+      return copy;
+    });
     setEditingFilter(null);
     setFilterInput('');
   }, [editingFilter, filterInput]);
@@ -250,7 +292,20 @@ export default function SearchPage() {
             </Button>
           </div>
 
-          {/* Filter chips — compact pills */}
+          {/*
+            Filter chips — compact pills. This row is the catalogue of what you
+            can filter by; the row of applied pills below is what you *have*
+            filtered by, with the values. Different information, so both stay —
+            but only one of them removes anything.
+
+            An active chip used to carry its own ✕ and delete the filter, which
+            gave every applied filter two ✕ buttons on one screen and made the
+            value unreachable: the only way to fix a typo in "From: a@b.com" was
+            to throw it away and type the whole address again. Now the chip adds
+            or edits, and `aria-pressed` is what carries active state to a screen
+            reader — before this, an applied "From" and an unapplied one
+            announced identically.
+          */}
           <div className="mt-3 flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5">
             {FILTER_CHIPS.map((chip) => {
               const isActive = activeFilters.some((f) => f.type === chip.type);
@@ -258,20 +313,25 @@ export default function SearchPage() {
                 <button
                   key={chip.type}
                   type="button"
-                  onClick={() =>
-                    isActive ? handleRemoveFilter(chip.type) : handleAddFilter(chip.type)
-                  }
+                  onClick={() => handleFilterChipClick(chip.type)}
+                  aria-pressed={isActive}
                   // `min-w-11` because the height floor alone is not the whole
                   // target: "To" is two characters, so `px-3` left it 40px wide
                   // on a phone while every longer label cleared 44 by accident.
-                  className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-medium whitespace-nowrap transition-colors sm:min-h-0 sm:h-8 ${
+                  className={`inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 sm:h-8 ${
                     isActive
                       ? 'border-[var(--brand-primary)]/60 bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
                       : 'border-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-muted)] hover:text-[var(--quant-foreground)]'
                   }`}
                 >
                   {chip.label}
-                  {isActive && <Icon name="close" className="h-3 w-3" />}
+                  {/*
+                    A check, not a cross. The glyph states what is true — this
+                    filter is applied — rather than advertising an action the
+                    chip no longer performs, and it keeps active state legible
+                    without relying on colour alone.
+                  */}
+                  {isActive && <Icon name="check" className="h-3 w-3" />}
                 </button>
               );
             })}
@@ -294,12 +354,26 @@ export default function SearchPage() {
                 </span>
                 <input
                   type={editingFilter === 'date' ? 'date' : 'text'}
-                  className="h-9 min-w-0 flex-1 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm outline-none focus:border-[var(--brand-primary)]/60 focus:ring-2 focus:ring-[var(--brand-primary)]/25"
+                  className="h-11 min-w-0 flex-1 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-sm outline-none focus:border-[var(--brand-primary)]/60 focus:ring-2 focus:ring-[var(--brand-primary)]/25 sm:h-9"
                   placeholder={FILTER_CHIPS.find((c) => c.type === editingFilter)?.placeholder}
+                  aria-label={`${FILTER_CHIPS.find((c) => c.type === editingFilter)?.label} filter value`}
                   value={filterInput}
                   onChange={(e) => setFilterInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleConfirmFilter();
+                    /*
+                     * Escape cancels the editor from inside the field, which is
+                     * where the user is. The engine's only Escape binding is
+                     * scoped to the shell drawer and active while that drawer is
+                     * presented, so it never sees this — `stopPropagation` keeps
+                     * it that way if a shallower binding is ever added, which a
+                     * `document`-level listener could not do for itself.
+                     */
+                    if (e.key === 'Escape') {
+                      e.stopPropagation();
+                      setEditingFilter(null);
+                      setFilterInput('');
+                    }
                   }}
                   autoFocus
                 />
@@ -314,22 +388,39 @@ export default function SearchPage() {
           )}
         </AnimatePresence>
 
-        {/* Active filters */}
+        {/*
+          Applied filters. This ✕ is now the only remove control per filter, and
+          for `from`, `to`, `in` and `date` it is the *only* way to remove one at
+          all — the chip above edits. So it has to be a real target: it was a
+          20px square with no focus ring, which is 24px short of the floor and
+          invisible to a keyboard.
+
+          The 44px floor is spent on the button rather than on a pseudo-element
+          halo, because these pills wrap. A `before:-inset-3` halo on a 24px-tall
+          pill would put wrapped rows 30px apart — closer than 44 — and the later
+          sibling wins the overlap, so a tap aimed at row one lands on row two.
+          A pill that is genuinely 44 tall puts the rows 50px apart (44 + the
+          row's own `gap-1.5`) and the geometry stops lying. The vertical padding
+          goes with it — `py-1` around a 44px button measured 52, which is height
+          spent on nothing. From `sm:` the pointer is fine and the compact pill
+          comes back, which is the same `min-h-11 … sm:min-h-0` shape the chip row
+          above already uses.
+        */}
         {activeFilters.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 px-4 py-2">
             {activeFilters.map((filter) => (
               <span
                 key={filter.type}
-                className="inline-flex items-center gap-1 rounded-full bg-[var(--brand-primary)]/12 py-1 pl-2.5 pr-1 text-xs font-medium text-[var(--brand-primary)]"
+                className="inline-flex min-h-11 items-center gap-1 rounded-full bg-[var(--brand-primary)]/12 py-0 pl-2.5 pr-1 text-xs font-medium text-[var(--brand-primary)] sm:min-h-0 sm:py-1"
               >
                 {filter.label}
                 <button
                   type="button"
                   onClick={() => handleRemoveFilter(filter.type)}
                   aria-label={`Remove filter ${filter.label}`}
-                  className="grid h-5 w-5 place-items-center rounded-full transition-colors hover:bg-[var(--brand-primary)]/20"
+                  className="grid min-h-11 min-w-11 place-items-center rounded-full transition-colors hover:bg-[var(--brand-primary)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:h-5 sm:min-h-0 sm:w-5 sm:min-w-0"
                 >
-                  <Icon name="close" className="h-2.5 w-2.5" />
+                  <Icon name="close" className="h-3.5 w-3.5 sm:h-2.5 sm:w-2.5" />
                 </button>
               </span>
             ))}
