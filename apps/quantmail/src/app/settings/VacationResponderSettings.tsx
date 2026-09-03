@@ -7,6 +7,7 @@ import {
   type UpsertVacationResponderPreference,
   type VacationResponderPreference,
 } from '../../services/api-client';
+import { SettingsSection, SettingsToggleRow } from './SettingsPrimitives';
 
 type Draft = {
   subject: string;
@@ -184,25 +185,24 @@ export function VacationResponderSettings() {
   const busy = status === 'loading' || status === 'saving';
 
   return (
-    <div className="space-y-4 border-t border-[var(--quant-border)] pt-4">
-      <label className="flex min-h-11 items-start justify-between gap-4">
-        <div>
-          <span className="text-sm font-medium text-[var(--quant-foreground)]">
-            Vacation auto-reply
-          </span>
-          <p className="text-xs text-[var(--quant-muted-foreground)]">
-            Automatically respond to incoming messages while you are away.
-          </p>
-        </div>
-        <input
-          type="checkbox"
-          checked={responder?.enabled ?? false}
-          disabled={busy || (status === 'error' && !responder)}
-          onChange={(event) => void toggle(event.target.checked)}
-          aria-label="Enable vacation auto-reply"
-          className="mt-1 h-4 w-4 shrink-0 rounded accent-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-        />
-      </label>
+    /*
+     * This used to be a `border-t` continuation of whatever card happened to sit
+     * above it — a bordered strip floating on the page background with no heading
+     * of its own, so the auto-reply controls read as the tail of the composer
+     * section rather than as their own thing. It is a card now, like every other
+     * group on this page, and the main switch is the shared toggle row so its hit
+     * area and its 44px floor are defined once.
+     */
+    <SettingsSection
+      title="Vacation auto-reply"
+      description="Answers incoming mail while you are away. Applies to live delivery, not just this browser."
+    >
+      <SettingsToggleRow
+        label="Turn on auto-reply"
+        checked={responder?.enabled ?? false}
+        disabled={busy || (status === 'error' && !responder)}
+        onChange={(next) => void toggle(next)}
+      />
 
       {status === 'loading' ? (
         <p className="text-xs text-[var(--quant-muted-foreground)]">
@@ -303,6 +303,6 @@ export function VacationResponderSettings() {
           </div>
         </div>
       )}
-    </div>
+    </SettingsSection>
   );
 }

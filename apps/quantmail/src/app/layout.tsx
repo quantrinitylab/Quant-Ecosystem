@@ -53,10 +53,15 @@ const themeBootstrap = `
     root.setAttribute('data-theme', resolved);
     root.classList.toggle('dark', resolved === 'dark');
     root.style.colorScheme = resolved;
+    // Row density, for the same reason the theme is resolved here: applied after
+    // paint it would show one frame of comfortable rows and then jump.
+    var density = localStorage.getItem('quant-density');
+    root.setAttribute('data-density', density === 'compact' ? 'compact' : 'comfortable');
   } catch (error) {
     document.documentElement.setAttribute('data-theme', 'dark');
     document.documentElement.classList.add('dark');
     document.documentElement.style.colorScheme = 'dark';
+    document.documentElement.setAttribute('data-density', 'comfortable');
   }
 })();
 `;

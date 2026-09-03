@@ -19,6 +19,15 @@
   --brand-accent: #FFB875;
   --brand-accent-hover: #FFD1A3;
   --brand-soft: #2B1A11;
+  /*
+   * `--brand-soft` never travels alone: the brand-soft fill and this border are
+   * written as a pair in more than twenty rules and every accent chip in the
+   * product, so the border earns a token too. Both are overridden under
+   * `[data-theme='light']` — a near-black brown fill is the correct "soft accent"
+   * on the dark canvas and completely wrong on the light one, which is how the
+   * theme picker in Settings came to sit in a black chip on a cream page.
+   */
+  --brand-soft-border: #5C3016;
   --brand-subtle: #1D1410;
   --brand-app-color: #FF8C42;
   --app-color: #FF8C42;
@@ -56,6 +65,21 @@
   --quant-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
   --quant-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
   --quant-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.6);
+  /*
+   * The card elevation the whole product uses — `0 4px 16px rgba(0,0,0,0.6)` is
+   * written out by hand in fourteen places. On the dark canvas a 60%-black drop
+   * is the correct depth; on the light one it is a bruise, which is the only
+   * reason this needed to become a token rather than stay a literal.
+   */
+  --quant-shadow-card: 0 4px 16px rgba(0, 0, 0, 0.6);
+  /*
+   * Modal elevation. `.quantmail-root [role='dialog']` skins every dialog in the
+   * app from one rule, and it carried this drop as a literal — so a modal opened
+   * in light mode was lifted by a 62%-black shadow over cream. The geometry is
+   * deliberately the same in both themes (34/110); only the ink changes, because
+   * a dialog that changed shape with the theme would read as two components.
+   */
+  --quant-shadow-dialog: 0 34px 110px rgba(0, 0, 0, 0.62);
   --quant-accent-soft: rgba(255, 140, 66, 0.12);
   --quant-accent-border: rgba(255, 140, 66, 0.28);
 
@@ -111,6 +135,10 @@
   --quant-border-subtle: rgba(30, 24, 40, 0.09);
   --quant-border-strong: rgba(30, 24, 40, 0.16);
   --quant-shadow-xl: 0 28px 70px rgba(35, 27, 50, 0.16);
+  --quant-shadow-card: 0 1px 2px rgba(35, 27, 50, 0.05), 0 8px 24px rgba(35, 27, 50, 0.07);
+  /* Same 34/110 geometry as dark, a fifth of the ink — a modal still has to read
+   * as the top layer over cream, so this stays heavier than `--quant-shadow-xl`. */
+  --quant-shadow-dialog: 0 34px 110px rgba(35, 27, 50, 0.2);
   --quant-accent-soft: rgba(215, 102, 0, 0.08);
   --quant-accent-border: rgba(215, 102, 0, 0.22);
 }
@@ -761,6 +789,7 @@ html {
   --quant-destructive: #EF4444;
   /* Enterprise elevation, not a coloured bloom. See the shadow contract below. */
   --quant-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.62);
+  --quant-shadow-dialog: 0 34px 110px rgba(0, 0, 0, 0.62);
   --background: var(--quant-background);
   --foreground: var(--quant-foreground);
   --surface: var(--quant-surface);
@@ -773,6 +802,14 @@ html {
 :root[data-theme='light'] {
   --brand-primary: #d76600;
   --brand-primary-hover: #b95500;
+  /*
+   * Translucent rather than a flat hex so the accent wash composites over
+   * whichever surface it lands on — the card, the canvas and the elevated
+   * popover are three different creams in this theme, and one opaque tint
+   * would be visibly wrong on two of them.
+   */
+  --brand-soft: rgba(215, 102, 0, 0.1);
+  --brand-soft-border: rgba(215, 102, 0, 0.3);
   --quant-primary: #d76600;
   --quant-secondary: #0f7010;
   --quant-background: #f4f2ed;
@@ -982,6 +1019,35 @@ body {
 }
 .mail-row-copy { min-width: 0; flex: 1; }.mail-row-meta { display: flex; align-items: center; gap: 0.4rem; }.mail-row-meta strong { overflow: hidden; color: #A1A4AC; font-size: 0.68rem; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }.mail-row.is-unread .mail-row-meta strong { color: #f1f1ed; font-weight: 730; }.mail-row-meta time { margin-left: auto; color: #A1A4AC; font-size: 0.625rem; font-variant-numeric: tabular-nums; }.mail-unread-dot { width: 0.32rem; height: 0.32rem; flex: none; border-radius: 50%; background: #FF8C42; box-shadow: 0 0 7px rgba(255, 140, 66,.5); }
 .mail-row-copy h3 { margin-top: 0.22rem; overflow: hidden; color: #c8c8c9; font-size: 0.74rem; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }.mail-row.is-unread h3 { color: #f5f5f0; font-weight: 680; }.mail-row-copy p { margin-top: 0.16rem; overflow: hidden; color: #A1A4AC; font-size: 0.66rem; text-overflow: ellipsis; white-space: nowrap; }
+/*
+ * Row density — the setting that used to be write-only.
+ *
+ * Settings › Appearance has offered Comfortable/Compact for as long as it has
+ * existed and `quant-density` had exactly two references in the whole monorepo,
+ * both inside `settings/page.tsx`: one read on mount, one write on click. The
+ * pill moved, the toast said "Updated", and every row stayed the height it was.
+ *
+ * Compact buys its rows back from *spacing*, never from content: the padding,
+ * the column gap and the two margins between the sender, the subject and the
+ * preview. The preview line in particular stays — a density control that hides
+ * the line telling you whether a message is worth opening is a different feature
+ * wearing this one's label, and on a phone it is the line people actually read.
+ *
+ * `3.9rem` is 62.4px, so a compact row still clears the 44px touch floor with
+ * room to spare. Comfortable needs no rules of its own: it is the declared
+ * values above, which is why `themeBootstrap` writes the attribute pre-paint
+ * rather than leaving it absent — an unset attribute and `comfortable` must not
+ * be two different code paths.
+ *
+ * These land at (0,3,0)/(0,3,1), above `overrides.css`'s `.mail-row-copy h3`
+ * and above the `max-width: 640px` block's `.mail-row`, so neither file order
+ * nor the phone breakpoint can quietly undo them.
+ */
+:root[data-density='compact'] .mail-list { padding: 0.25rem 0.4rem; }
+:root[data-density='compact'] .mail-row { min-height: 3.9rem; padding: 0.42rem 0.6rem; gap: 0.55rem; }
+:root[data-density='compact'] .mail-row-copy h3 { margin-top: 0.1rem; }
+:root[data-density='compact'] .mail-row-copy p { margin-top: 0.05rem; }
+:root[data-density='compact'] .mail-pinned-notice { padding: 0.2rem 0.4rem 0.3rem; }
 .mail-star { display: grid; width: 1.85rem; height: 1.85rem; flex: none; place-items: center; border-radius: 0.45rem; color: #6B6E76; opacity: 0; }.mail-row:hover .mail-star, .mail-star.is-starred { opacity: 1; }.mail-star.is-starred { color: #ffb547; }.mail-star.is-starred svg { fill: currentColor; }
 /* Says out loud that the sort is starred-first, then newest. Sits in the measured
    list header above the first row, so it scrolls away with the archived shelf
@@ -1155,11 +1221,17 @@ body {
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.025), 0 18px 55px rgba(0, 0, 0, 0.12);
 }
 
+/*
+ * Every dialog in the app gets its chrome here, from `role="dialog"` — so a
+ * component that renders a modal should not re-declare a background, a border or
+ * a shadow, because this rule's `.quantmail-root [attr]` specificity beats a
+ * single class and would silently win anyway.
+ */
 .quantmail-root [role='dialog'] {
   border: 1px solid var(--quant-border-strong);
   background: color-mix(in srgb, var(--quant-popover) 94%, transparent);
   color: var(--quant-popover-foreground);
-  box-shadow: 0 34px 110px rgba(0, 0, 0, 0.62);
+  box-shadow: var(--quant-shadow-dialog);
   backdrop-filter: blur(24px) saturate(1.12);
 }
 
@@ -1367,26 +1439,34 @@ body {
   text-transform: uppercase;
 }
 
-/* Settings and security */
-.settings-workspace > nav,
+/*
+ * Settings and security.
+ *
+ * These rules used to name `.settings-workspace` as well, from when both pages
+ * shared one hand-rolled shape: a `<nav>` of tab buttons, a scroll pane as the
+ * last child, and `rounded-lg` sub-panels directly inside each `<section>`.
+ * Settings' tab strip is a real `role="tablist"` now and its cards come from
+ * `SettingsSection`, so two of these selectors stopped matching it and two kept
+ * matching and quietly won: the pane padding was coming from here rather than
+ * from the `px-4 py-6 sm:px-8` written on the element, and `max-width: 48rem`
+ * was overriding the panel's own `max-w-*`. A layout you cannot find by reading
+ * the component is a layout that gets fought twice. Settings owns its own
+ * spacing now; security still has the markup these were written for.
+ */
 .security-workspace > nav {
   gap: .25rem;
   padding-inline: clamp(1rem, 2.6vw, 2rem);
   scrollbar-width: none;
 }
-.settings-workspace > nav button,
 .security-workspace > nav button {
   min-height: 2.85rem;
   border-radius: .55rem .55rem 0 0;
   padding-inline: .8rem;
 }
-.settings-workspace > div:last-child,
 .security-workspace > div:last-child {
   padding: clamp(1rem, 3vw, 2rem);
 }
-.settings-workspace section,
 .security-workspace section { max-width: 48rem; }
-.settings-workspace section > div[class*='rounded-lg'],
 .security-workspace section > div[class*='rounded-lg'] {
   border-color: var(--quant-border-subtle);
   border-radius: .95rem;
@@ -1909,139 +1989,6 @@ body {
 }
 
 /* ==========================================================================
-   Keyboard Shortcuts Help Modal
-   ========================================================================== */
-.shortcuts-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9996;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
-}
-.shortcuts-modal {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  z-index: 9997;
-  width: min(38rem, calc(100vw - 2rem));
-  max-height: min(32rem, 80vh);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid var(--quant-border-strong);
-  border-radius: 1rem;
-  background: linear-gradient(145deg, #16181D, #0C0E11);
-  box-shadow: 0 32px 90px rgba(0, 0, 0, 0.65);
-  transform: translate(-50%, -50%);
-}
-.shortcuts-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--quant-border-subtle);
-}
-.shortcuts-header h2 {
-  font-size: 0.95rem;
-  font-weight: 650;
-}
-.shortcuts-close {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border-radius: 0.45rem;
-  color: var(--quant-muted-foreground);
-  font-size: 0.85rem;
-}
-.shortcuts-close:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--quant-foreground);
-}
-.shortcuts-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1rem 1.25rem;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
-}
-@media (max-width: 600px) {
-  .shortcuts-body { grid-template-columns: 1fr; }
-}
-.shortcuts-group h3 {
-  margin-bottom: 0.55rem;
-  color: var(--brand-primary);
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.shortcuts-group dl {
-  display: grid;
-  gap: 0.25rem;
-}
-.shortcuts-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 2rem;
-  padding: 0 0.4rem;
-  border-radius: 0.4rem;
-}
-.shortcuts-row:hover {
-  background: rgba(255, 255, 255, 0.03);
-}
-.shortcuts-row dt {
-  display: flex;
-  align-items: center;
-  gap: 0.15rem;
-}
-.shortcuts-row dt kbd {
-  display: inline-flex;
-  min-width: 1.4rem;
-  height: 1.4rem;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #3A404D;
-  border-radius: 0.3rem;
-  padding: 0 0.35rem;
-  background: #1F2228;
-  color: #A1A4AC;
-  font-family: inherit;
-  font-size: 0.625rem;
-  font-weight: 600;
-  box-shadow: inset 0 -1px rgba(0, 0, 0, 0.3);
-}
-.shortcuts-plus {
-  margin: 0 0.1rem;
-  color: #A1A4AC;
-  font-size: 0.625rem;
-}
-.shortcuts-row dd {
-  color: var(--quant-muted-foreground);
-  font-size: 0.72rem;
-}
-.shortcuts-footer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  min-height: 2.5rem;
-  border-top: 1px solid var(--quant-border-subtle);
-  color: #A1A4AC;
-  font-size: 0.625rem;
-}
-.shortcuts-footer kbd {
-  border: 1px solid #3A404D;
-  border-radius: 0.25rem;
-  padding: 0.05rem 0.3rem;
-  background: #1F2228;
-  color: #A1A4AC;
-  font-size: 0.625rem;
-}
-
-/* ==========================================================================
    Email Safety Banners
    ========================================================================== */
 .email-safety-banners {
@@ -2489,6 +2436,23 @@ body {
 /* ========================================================================== */
 /* Gmail-killer: Keyboard Shortcuts Help Panel                                */
 /* ========================================================================== */
+/*
+ * One definition per selector, and every colour a token.
+ *
+ * There were two of these blocks. The older one styled a `.shortcuts-backdrop`
+ * / `.shortcuts-modal` / `.shortcuts-group` / `.shortcuts-row` markup that no
+ * component has rendered for a long time — but it also declared
+ * `.shortcuts-header`, `.shortcuts-body`, `.shortcuts-footer` and
+ * `.shortcuts-footer kbd`, which the live panel *does* render, so it kept
+ * contributing whatever this block did not redeclare: `display: flex` on the
+ * footer, `overflow: hidden` on the body, a `display: grid` the block below had
+ * to override with `display: block`. The dead half is gone and the four live
+ * declarations that only existed up there were moved down here, so what renders
+ * is what you can read in one place.
+ *
+ * The scrim stays a black wash in both themes — a light scrim over a light page
+ * does not read as "the page behind is inert", which is the scrim's whole job.
+ */
 .shortcuts-overlay {
   position: fixed;
   inset: 0;
@@ -2498,15 +2462,21 @@ body {
   backdrop-filter: blur(4px);
   z-index: 10000;
 }
+/*
+ * The panel is a `role="dialog"`, so its background, border colour and shadow
+ * come from the app-wide dialog skin near the top of this file and are not
+ * repeated here. They used to be, and the copy lost: `.quantmail-root
+ * [role='dialog']` outranks a lone class, so the three declarations sitting here
+ * described a panel nobody has ever seen. What is left is what this panel adds
+ * on top of the skin — its width, its radius, and the fact that it is the
+ * scroll container.
+ */
 .shortcuts-panel {
   width: 92%;
   max-width: 720px;
   max-height: 82vh;
   overflow-y: auto;
-  background: #16181D;
-  border: 1px solid #282C35;
   border-radius: 1rem;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.62);
 }
 .shortcuts-header {
   position: sticky;
@@ -2517,14 +2487,14 @@ body {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.85rem 1rem 0.85rem 1.5rem;
-  background: #16181D;
-  border-bottom: 1px solid #282C35;
+  background: var(--quant-popover);
+  border-bottom: 1px solid var(--quant-border);
 }
 .shortcuts-header h2 {
   font-size: 0.95rem;
   font-weight: 650;
   letter-spacing: -0.01em;
-  color: #F5F5F5;
+  color: var(--quant-foreground);
 }
 /*
  * Balanced columns, not a grid.
@@ -2536,17 +2506,14 @@ body {
  * `column-fill: balance` cuts the flow at equal heights instead, and the two
  * columns come out within a section of each other.
  *
- * `flex: none` and `overflow: visible` undo the legacy `.shortcuts-body` rule
- * further up this file, which is still in the cascade: a multicol box that is
- * also a scroll container fragments *sideways*, and the panel's inherited
- * `overflow-x: hidden` would have clipped every column past the second. The
- * panel is the scroll container — it already declares `overflow-y: auto` and the
- * sticky header that goes with it.
+ * `display: block` is written out because multicol needs a block container and
+ * a `display` utility landing here would silently kill the columns. It used to
+ * sit beside a `flex: none` and an `overflow: visible` that existed only to undo
+ * the duplicate rule above; the panel is the scroll container and always was, so
+ * with the duplicate gone both are dropped rather than left as decoration.
  */
 .shortcuts-body {
   display: block;
-  flex: none;
-  overflow: visible;
   padding: 1.15rem 1.5rem;
   column-width: 215px;
   column-gap: 1.75rem;
@@ -2564,7 +2531,7 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: #FF8C42;
+  color: var(--brand-primary);
   margin-bottom: 0.5rem;
 }
 .shortcuts-body ul {
@@ -2572,15 +2539,28 @@ body {
   padding: 0;
   margin: 0;
 }
-.shortcuts-body li {
+/*
+ * One shortcut row, wherever it is listed.
+ *
+ * These rules were `.shortcuts-body li`, which meant Settings › Keyboard — the
+ * second surface that renders the same reference — could reuse the `kbd` pills
+ * and nothing else: it got the glyphs right and the dim tier wrong, because the
+ * "this key needs a focused conversation" treatment below was locked to the
+ * modal's descendant selector. Keyed on the row's own class instead, so both
+ * surfaces share one definition rather than agreeing by hand.
+ *
+ * `min-height` is deliberately absent: the modal is dense by design and the
+ * settings list wants the 44px touch floor, so each caller sets its own.
+ */
+.shortcut-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.42rem 0;
-  border-bottom: 1px solid #1C1F26;
+  border-bottom: 1px solid var(--quant-border-subtle);
 }
-.shortcuts-body li:last-child { border-bottom: none; }
+.shortcut-row:last-child { border-bottom: none; }
 /*
  * A binding that needs a focused conversation is still part of the reference —
  * hiding it is why this sheet used to show ten navigation keys next to a single
@@ -2593,17 +2573,23 @@ body {
  * "unavailable" indistinguishable from "available". The available row is the
  * strong tier now and the unavailable row the secondary one, so the two are
  * still a step apart and both are legible.
+ *
+ * The unavailable key sits on the panel's own colour rather than the plate the
+ * available keys stand on. That is the dim, and it is also what keeps the light
+ * theme legible: muted text on the plate is 4.28:1, under AA for a 10px glyph,
+ * while the same text on the panel is 5.19:1. An unavailable key reading as
+ * unplated rather than merely greyer is the better sign anyway.
  */
-.shortcuts-body li.is-unavailable .shortcut-desc { color: #A1A4AC; }
-.shortcuts-body li.is-unavailable .shortcut-keys kbd {
-  border-color: #282C35;
-  background: #111318;
-  color: #A1A4AC;
+.shortcut-row.is-unavailable .shortcut-desc { color: var(--quant-muted-foreground); }
+.shortcut-row.is-unavailable .shortcut-keys kbd {
+  border-color: var(--quant-border);
+  background: var(--quant-popover);
+  color: var(--quant-muted-foreground);
 }
 .shortcut-desc {
   font-size: 0.72rem;
   letter-spacing: -0.005em;
-  color: #F5F5F5;
+  color: var(--quant-foreground);
 }
 .shortcut-keys {
   display: flex;
@@ -2618,19 +2604,30 @@ body {
   height: 1.4rem;
   padding: 0 0.35rem;
   border-radius: 0.3rem;
-  border: 1px solid #3A404D;
-  background: #111318;
-  color: #F5F5F5;
+  border: 1px solid var(--quant-border-strong);
+  background: var(--quant-surface);
+  color: var(--quant-foreground);
   font-size: 0.625rem;
   font-family: inherit;
   font-weight: 600;
 }
+/*
+ * The flex centring here came from the duplicate block that used to sit further
+ * up the file — the footer is one line of text with two `kbd`s in it, so it
+ * needs both the 2.5rem floor and the centring, and neither was written where
+ * you would look for it.
+ */
 .shortcuts-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2.5rem;
   padding: 0.75rem 1.5rem;
-  border-top: 1px solid #282C35;
+  border-top: 1px solid var(--quant-border);
   text-align: center;
   font-size: 0.65rem;
-  color: #A1A4AC;
+  color: var(--quant-muted-foreground);
 }
 .shortcuts-footer kbd {
   display: inline-flex;
@@ -2640,9 +2637,9 @@ body {
   height: 1.2rem;
   padding: 0 0.3rem;
   border-radius: 0.25rem;
-  border: 1px solid #333;
-  background: #16181D;
-  color: #aaa;
+  border: 1px solid var(--quant-border);
+  background: var(--quant-surface-elevated);
+  color: var(--quant-muted-foreground);
   font-size: 0.625rem;
   font-family: inherit;
   margin: 0 0.15rem;
@@ -4325,11 +4322,25 @@ body {
 .email-signature-block { margin-top: 1rem; opacity: 0.7; transition: opacity 200ms; }
 .email-signature-block:hover { opacity: 1; }
 .signature-divider { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
-.signature-divider span:first-child, .signature-divider span:last-child { flex: 1; height: 1px; background: #282C35; }
-.signature-label { font-size: 0.625rem; color: #A1A4AC; text-transform: uppercase; letter-spacing: 0.05em; }
-.signature-content { font-size: 0.7rem; color: #888; line-height: 1.5; }
-.signature-content a { color: #60a5fa; text-decoration: none; }
-.signature-content a:hover { text-decoration: underline; }
+.signature-divider span:first-child, .signature-divider span:last-child { flex: 1; height: 1px; background: var(--quant-border); }
+.signature-label { font-size: 0.625rem; color: var(--quant-muted-foreground); text-transform: uppercase; letter-spacing: 0.05em; }
+/*
+ * Shared with the signature preview in Settings › General, which is the first
+ * surface to actually render this rule: `EmailSignatureBlock` has no importers,
+ * so until now `.signature-content` styled nothing and its two off-palette
+ * colours were invisible. `#888` (3.54:1 on the card) became `#A1A4AC` and the
+ * blue link the brand accent, and both are tokens now — the preview sits on the
+ * page that owns the theme picker, so a signature that stayed dark-grey on cream
+ * would be the one thing on that page contradicting the control above it.
+ *
+ * The link carries a permanent underline. It used to be accent-coloured with
+ * `text-decoration: none`, which makes colour the only thing marking it as a
+ * link — and the light accent is 3.24:1 on the preview's canvas, so the colour
+ * was not carrying that job either.
+ */
+.signature-content { font-size: 0.7rem; color: var(--quant-muted-foreground); line-height: 1.5; }
+.signature-content a { color: var(--brand-primary); text-decoration: underline; text-underline-offset: 2px; }
+.signature-content a:hover { color: var(--brand-primary-hover); }
 
 /* ========================================================================== */
 /* Thread Activity Timeline                                                   */
