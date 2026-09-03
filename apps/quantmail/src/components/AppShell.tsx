@@ -18,6 +18,7 @@ import { useInbox } from '../hooks/useInbox';
 import { SearchClearButton } from './SearchClearButton';
 import { QuantFab, type FabAction } from './QuantFab';
 import { ShellChromeProvider } from './ShellChromeContext';
+import { QuantyTrigger, QuantyDrawerHost } from './QuantyLauncher';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -40,6 +41,18 @@ export interface AppShellProps {
    * group dialog.
    */
   fabLabel?: string;
+  /**
+   * Told whenever the shell's Quanty drawer opens or closes.
+   *
+   * Only the calendar needs this, and it needs it for one honest reason: its
+   * slide-up sheet guards Escape so a nested overlay closes alone instead of
+   * taking the sheet with it, and Quanty is one of those overlays. The flag used
+   * to be the page's own `useState` because the drawer was. Now that the shell
+   * owns the drawer, the page cannot read that state — it renders `AppShell`,
+   * so its own body sits outside any provider the shell could publish through.
+   * A callback is the whole fix, and it is the same shape as `onSearchChange`.
+   */
+  onQuantyOpenChange?: (open: boolean) => void;
   'aria-label'?: string;
 }
 
@@ -218,6 +231,7 @@ export function AppShell({
   searchPlaceholder,
   onFabClick,
   fabLabel,
+  onQuantyOpenChange,
   'aria-label': ariaLabel = 'Application shell',
 }: AppShellProps) {
   const drawerId = useId();
@@ -242,6 +256,28 @@ export function AppShell({
   const pathname = usePathname() ?? '/';
   const { data: inboxEmails, refetch: refetchInbox } = useInbox({ folderType: 'INBOX' });
   const unreadCount = inboxEmails?.filter((e) => !e.isRead).length ?? 0;
+
+  /**
+   * Quanty, on every shell route rather than the two that hand-rolled it.
+   *
+   * `/thread` and `/compose` opt out because they already carry their own —
+   * the thread view passes the open message, the composer passes the draft and
+   * takes an action back to apply to it. Both are strictly more than a route
+   * name, and the shell header is `hidden md:flex` on those two rather than
+   * absent, so without this a desktop reader would see two Quanty buttons a few
+   * hundred pixels apart opening two drawers with two separate conversations.
+   */
+  const hasOwnQuanty = pathname.startsWith('/thread') || pathname.startsWith('/compose');
+  const [isQuantyOpen, setIsQuantyOpen] = useState(false);
+  const setQuantyOpen = useCallback(
+    (open: boolean) => {
+      setIsQuantyOpen(open);
+      onQuantyOpenChange?.(open);
+    },
+    [onQuantyOpenChange],
+  );
+  const openQuanty = useCallback(() => setQuantyOpen(true), [setQuantyOpen]);
+  const closeQuanty = useCallback(() => setQuantyOpen(false), [setQuantyOpen]);
 
   const currentApp: LogoAppType = pathname.startsWith('/calendar')
     ? 'calendar'
@@ -812,6 +848,15 @@ export function AppShell({
                       </svg>
                     </button>
                   )}
+                  {/*
+                  Quanty, between the search toggle and whatever the route adds.
+                  That is where both routes that had one already put it, so the
+                  inbox and the calendar keep the header they were tested with
+                  while twenty-one other surfaces gain the control. It is not
+                  breakpoint-gated: `mobileActions` never was either, and an
+                  assistant that vanishes at 768px is not an assistant.
+                */}
+                  {!hasOwnQuanty && <QuantyTrigger isOpen={isQuantyOpen} onOpen={openQuanty} />}
                   {mobileActions}
                 </div>
               </header>
@@ -921,6 +966,14 @@ export function AppShell({
         </div>
 
         <QuantFab actions={fabActions} />
+
+        {/*
+        Out here rather than in the header on purpose: `customHeader` replaces
+        that whole element, and the inbox swaps it in the moment a message is
+        selected. A drawer mounted inside the header would be unmounted by that
+        swap and take the conversation with it.
+      */}
+        {!hasOwnQuanty && <QuantyDrawerHost isOpen={isQuantyOpen} onClose={closeQuanty} />}
 
         {/* Mobile Bottom Navigation — strictly md:hidden */}
         <MobileBottomNav />

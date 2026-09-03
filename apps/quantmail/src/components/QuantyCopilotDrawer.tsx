@@ -24,7 +24,17 @@ export interface QuantyAssistantDrawerProps {
   onClose: () => void;
   contextEmail?: Email | null;
   contextThreadSubject?: string;
-  isInboxContext?: boolean;
+  /**
+   * What the user is looking at, in a phrase Quanty can read — "Browsing the
+   * primary inbox", "Looking at the calendar". This used to be a single
+   * `isInboxContext` boolean, which meant exactly one of QuantMail's twenty-odd
+   * surfaces could say where it was and every other one opened an assistant
+   * that had been told nothing. A string costs the same and scales.
+   *
+   * Ignored while `contextEmail`/`contextThreadSubject` are set: an open message
+   * is a more specific answer to the same question.
+   */
+  viewLabel?: string;
   isComposeContext?: boolean;
   onInsertReply?: (text: string) => void;
   onApplyAction?: (action: QuantyEmailAction) => void;
@@ -260,7 +270,7 @@ export function QuantyCopilotDrawer({
   onClose,
   contextEmail,
   contextThreadSubject,
-  isInboxContext = false,
+  viewLabel,
   isComposeContext = false,
   onInsertReply,
   onApplyAction,
@@ -357,8 +367,8 @@ export function QuantyCopilotDrawer({
     } else if (isComposeContext) {
       context.view =
         'Composing a new message. When asked to draft one, answer with a Subject line, a greeting, a body and a closing.';
-    } else if (isInboxContext) {
-      context.view = 'Browsing the primary inbox';
+    } else if (viewLabel) {
+      context.view = viewLabel;
     }
 
     return context;

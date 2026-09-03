@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -26,13 +25,11 @@ import { showToast } from '../components/InboxToast';
 import { MailIcon } from '../components/MailIcon';
 import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
 import { QuantMailLogo } from '../components/QuantMailLogo';
-import { Quanty } from '../components/Quanty';
 import { SelectionHeader } from '../components/SelectionHeader';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { EmailSenderHeader } from '../components/EmailSenderHeader';
 import { ConversationalThreadView } from '../components/ConversationalThreadView';
 import { ThreadKindBadge } from '../components/MessageKindBadge';
-import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
@@ -52,17 +49,6 @@ import { IconCheck, IconFilter, IconSpam, IconX } from '../components/icons';
 import type { Email } from '../types';
 
 export type { ConversationThread };
-
-/**
- * Quanty's drawer is 663 lines plus its own chat history layer, and the inbox is
- * the app's landing route — so it must not be in the first chunk. Paired with
- * `useDeferredMount` below, the code is fetched the first time the user actually
- * asks for Quanty and then stays mounted, so the conversation survives closing
- * the drawer exactly as it did when the import was static.
- */
-const QuantyCopilotDrawer = dynamic(() => import('../components/QuantyCopilotDrawer'), {
-  ssr: false,
-});
 
 /**
  * Starting height guess for a conversation row: `.mail-row`'s `min-height` of
@@ -1353,8 +1339,6 @@ export default function InboxPage() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
-  const [isGlobalQuantyOpen, setIsGlobalQuantyOpen] = useState(false);
-  const showGlobalQuanty = useDeferredMount(isGlobalQuantyOpen);
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const isPulling = useRef(false);
@@ -1761,25 +1745,6 @@ export default function InboxPage() {
         activeLens === 'groups' ? setIsCreateGroupModalOpen(true) : router.push('/compose')
       }
       fabLabel={activeLens === 'groups' ? 'New group' : 'Compose email'}
-      mobileActions={
-        <div className="flex items-center gap-1.5">
-          {/*
-            The search toggle that used to lead this row is `AppShell`'s now, and
-            the shell renders it immediately before `mobileActions` — so the order
-            on this route is unchanged while Drive, Contacts and Calendar gain the
-            control they never had. Quanty stays here because its drawer is still
-            mounted per route, not by the shell.
-          */}
-          <button
-            type="button"
-            onClick={() => setIsGlobalQuantyOpen(true)}
-            className="inline-flex size-11 sm:size-9 items-center justify-center rounded-lg text-[#FF8C42] hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-            aria-label="Ask Quanty AI"
-          >
-            <Quanty size={24} expression="happy" bob={false} />
-          </button>
-        </div>
-      }
       aria-label="QuantMail inbox"
     >
       <div className="inbox-workspace">
@@ -2397,14 +2362,6 @@ export default function InboxPage() {
           onToggleStar={(id) => void toggleStar(null, id)}
         />
       </div>
-
-      {showGlobalQuanty && (
-        <QuantyCopilotDrawer
-          isOpen={isGlobalQuantyOpen}
-          onClose={() => setIsGlobalQuantyOpen(false)}
-          isInboxContext={true}
-        />
-      )}
 
       <CreateGroupModal
         isOpen={isCreateGroupModalOpen}
