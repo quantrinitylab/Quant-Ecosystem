@@ -4,8 +4,9 @@
 // Shared UI - SearchInput Component
 // ============================================================================
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from 'framer-motion';
+import { SearchClearButton } from './SearchClearButton';
 
 export interface SearchInputProps {
   value?: string;
@@ -30,27 +31,86 @@ export const SearchInput: React.FC<SearchInputProps> = ({
 }) => {
   const prefersReducedMotion = useReducedMotion();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  /*
+   * The field is controlled by `draft`, not by `value`, and that is the whole
+   * fix. It used to be `defaultValue={value}` — a genuinely uncontrolled input —
+   * so `handleClear` calling `onChange('')` emptied the *parent's* state and left
+   * the text sitting in the DOM. The results list cleared, the query you were
+   * looking at did not, and the button that had just "worked" unmounted because
+   * its own gate read the prop. Every consumer passes `value={state}
+   * onChange={setState}`, so all five of them had a clear button that visibly
+   * did nothing.
+   *
+   * `value={value}` is not the fix either: `onChange` is debounced by 300ms, so
+   * the prop lags the keystrokes, and feeding a lagging prop back into the field
+   * rewrites what you are typing mid-word. `draft` is what you typed, `value` is
+   * what the parent has heard about, and they are allowed to differ for exactly
+   * one debounce interval.
+   */
+  const [draft, setDraft] = useState(value);
+
+  // What we last handed to `onChange`. A controlled parent echoes that value
+  // straight back as a new `value` prop, and adopting the echo is what would
+  // fight the typist. Anything *else* arriving in `value` is the parent changing
+  // the query on its own — a "clear all filters" button, a restored URL query —
+  // and that has to win.
+  const lastEmittedRef = useRef(value);
+
+  const emit = useCallback(
+    (next: string) => {
+      lastEmittedRef.current = next;
+      onChange?.(next);
+    },
+    [onChange],
+  );
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const newValue = e.target.value;
+      setDraft(newValue);
       if (debounceMs > 0) {
         if (timerRef.current) {
           clearTimeout(timerRef.current);
         }
         timerRef.current = setTimeout(() => {
-          onChange?.(newValue);
+          timerRef.current = null;
+          emit(newValue);
         }, debounceMs);
       } else {
-        onChange?.(newValue);
+        emit(newValue);
       }
     },
-    [onChange, debounceMs],
+    [emit, debounceMs],
   );
 
   const handleClear = useCallback(() => {
-    onChange?.('');
-  }, [onChange]);
+    /*
+     * Cancelling the pending timer is not tidiness. Clearing within `debounceMs`
+     * of the last keystroke leaves a timer holding the old text, and it fires
+     * *after* the clear — so the query the user just deleted comes back a quarter
+     * of a second later with an empty field to explain it.
+     */
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setDraft('');
+    // Emitted immediately, not debounced: a clear is one deliberate act, not a
+    // keystroke that might be followed by another.
+    emit('');
+    // The button unmounts the moment the field is empty, so without this focus
+    // lands on `document.body` and a keyboard user has to tab back in from the
+    // top of the page to retype.
+    inputRef.current?.focus();
+  }, [emit]);
+
+  useEffect(() => {
+    if (value === lastEmittedRef.current) return;
+    lastEmittedRef.current = value;
+    setDraft(value);
+  }, [value]);
 
   useEffect(() => {
     return () => {
@@ -84,12 +144,13 @@ export const SearchInput: React.FC<SearchInputProps> = ({
         </svg>
       </span>
       <input
+        ref={inputRef}
         type="search"
-        defaultValue={value}
+        value={draft}
         onChange={handleChange}
         placeholder={placeholder}
         disabled={disabled}
-        className="quant-field w-full py-2 pl-9 pr-9 text-sm disabled:cursor-not-allowed disabled:opacity-50 [@media(pointer:coarse)]:min-h-11"
+        className="quant-field w-full py-2 pl-9 pr-10 text-sm disabled:cursor-not-allowed disabled:opacity-50 [@media(pointer:coarse)]:min-h-11"
         aria-label={ariaLabel}
         role="searchbox"
       />
@@ -99,26 +160,19 @@ export const SearchInput: React.FC<SearchInputProps> = ({
           aria-label="Loading search results"
         />
       )}
-      {!loading && value && (
-        <button
-          onClick={handleClear}
-          className="absolute right-1 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-md text-[#6B6E76] transition-colors hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] [@media(pointer:coarse)]:size-11"
-          aria-label="Clear search"
-          type="button"
-        >
-          <svg
-            className="size-3.5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        </button>
-      )}
+      {/*
+        Gated on `draft`, not on `value`. The prop is one debounce behind, so the
+        old gate meant the ✕ took 300ms to appear after you started typing and
+        300ms to leave after you finished deleting.
+
+        `SearchClearButton` replaces a hand-drawn 32px disc that grew to
+        `size-11` on coarse pointers — 44px of button inside a ~38px field, which
+        overflowed it. `ghost` keeps the 44px *pointer* target on a
+        pseudo-element and leaves the disc at 28px, so the target no longer
+        depends on the field being tall enough to hold it. The field's right
+        padding goes 36px → 40px to clear the disc's 38px extent.
+      */}
+      {!loading && draft && <SearchClearButton onClear={handleClear} variant="ghost" />}
     </div>
   );
 };

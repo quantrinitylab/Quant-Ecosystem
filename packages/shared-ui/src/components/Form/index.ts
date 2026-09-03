@@ -14,5 +14,7 @@ export type { SelectProps, SelectOption } from './Select';
 export { SearchInput } from './SearchInput';
 export type { SearchInputProps } from './SearchInput';
 
+export { SearchClearButton } from './SearchClearButton';
+
 export { FileUpload } from './FileUpload';
 export type { FileUploadProps } from './FileUpload';
