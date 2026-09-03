@@ -27,6 +27,31 @@ const eventCreateSchema = z.object({
   calendarId: z.string().optional(),
 });
 
+// Update is create with every field optional, plus the startTime/endTime
+// spelling. api-client sends both spellings on purpose — quantcalendar
+// validates startTime/endTime and this route validates start/end — so a
+// payload that satisfies either service has to be accepted by both.
+const eventUpdateSchema = z.object({
+  title: z.string().min(1).max(300).optional(),
+  description: z.string().max(5000).optional(),
+  start: z.string().optional(),
+  end: z.string().optional(),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
+  allDay: z.boolean().optional(),
+  location: z.string().max(500).optional(),
+  calendarId: z.string().optional(),
+});
+
+// An unparseable date reaches Prisma as `Invalid Date` and comes back as a 500,
+// which tells the caller nothing. Reject it here as the 400 it is.
+function toDate(value: string, field: string): Date {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime()))
+    throw createAppError(`\`${field}\` is not a valid date`, 400, 'INVALID_DATE');
+  return date;
+}
+
 type EventRow = {
   id: string;
   title: string;
@@ -122,6 +147,20 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: rows.map(toEventDto) });
   });
 
+  // GET /events/:id — one event, owner only. Registered after the static
+  // /events/today and /events/upcoming routes, which find-my-way matches ahead
+  // of a parametric segment, so neither is shadowed by this.
+  fastify.get<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const ev = (await prisma.event.findUnique({ where: { id: request.params.id } })) as
+      | (EventRow & { userId: string })
+      | null;
+    if (!ev || ev.userId !== userId)
+      throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+    return reply.send({ success: true, data: toEventDto(ev) });
+  });
+
   // POST /events — create an event.
   fastify.post('/events', async (request, reply) => {
     const parsed = eventCreateSchema.safeParse(request.body);
@@ -129,8 +168,10 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
     const now = new Date();
-    const start = new Date(parsed.data.start);
-    const end = parsed.data.end ? new Date(parsed.data.end) : new Date(start.getTime() + 3600_000);
+    const start = toDate(parsed.data.start, 'start');
+    const end = parsed.data.end
+      ? toDate(parsed.data.end, 'end')
+      : new Date(start.getTime() + 3600_000);
     const created = (await prisma.event.create({
       data: {
         title: parsed.data.title,
@@ -146,6 +187,44 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
       },
     })) as EventRow;
     return reply.status(201).send({ success: true, data: toEventDto(created) });
+  });
+
+  // PUT /events/:id — edit an event (owner only). The calendar page's edit sheet
+  // has always called this through api-client's `updateEvent`; without it the
+  // request reached the allow-list, passed, and 404'd here, so saving an edit
+  // failed while creating the same entry worked.
+  fastify.put<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
+    const parsed = eventUpdateSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const ev = await prisma.event.findUnique({ where: { id: request.params.id } });
+    if (!ev || ev.userId !== userId)
+      throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+
+    const { title, description, allDay, location } = parsed.data;
+    const startRaw = parsed.data.start ?? parsed.data.startTime;
+    const endRaw = parsed.data.end ?? parsed.data.endTime;
+    const start = startRaw ? toDate(startRaw, 'start') : undefined;
+    const end = endRaw ? toDate(endRaw, 'end') : undefined;
+    if (start && end && end.getTime() < start.getTime())
+      throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
+
+    // `updatedAt` has no @updatedAt attribute in the schema, so Prisma will not
+    // touch it on its own — the create route sets it by hand and so must this.
+    const data: Record<string, unknown> = { updatedAt: new Date() };
+    if (title !== undefined) data.title = title;
+    if (description !== undefined) data.description = description;
+    if (allDay !== undefined) data.allDay = allDay;
+    if (location !== undefined) data.location = location;
+    if (start) data.startTime = start;
+    if (end) data.endTime = end;
+
+    const updated = (await prisma.event.update({
+      where: { id: request.params.id },
+      data,
+    })) as EventRow;
+    return reply.send({ success: true, data: toEventDto(updated) });
   });
 
   // DELETE /events/:id — remove an event (owner only).
