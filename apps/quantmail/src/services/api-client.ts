@@ -140,6 +140,20 @@ export class QuantMailApiClient {
   }
 
   /**
+   * The write side of `getUserInfo`. Settings' "Save display name" used to write
+   * `localStorage` and toast success, and `getUserInfo` put the old name back on
+   * the next mount — the two calls are deliberately the same shape so a save and
+   * the reload after it cannot disagree.
+   */
+  async updateProfile(
+    displayName: string,
+  ): Promise<
+    ApiResponse<{ id: string; email: string; username: string; displayName: string; role: string }>
+  > {
+    return this.patch('/auth/profile', { displayName });
+  }
+
+  /**
    * Two-factor authentication.
    *
    * `setupTwoFactor` no longer returns backup codes: codes handed out before an

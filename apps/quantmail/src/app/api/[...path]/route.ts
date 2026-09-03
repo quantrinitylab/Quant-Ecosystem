@@ -8,6 +8,9 @@ const ALLOWED_BACKEND_ROUTES: Array<{ pattern: RegExp; methods: readonly string[
     pattern: /^auth\/(?:password-reset(?:\/confirm)?|change-password)$/,
     methods: ['POST'],
   },
+  // The only mutable field on an identity. `email` and `username` are not
+  // editable anywhere, so there is no PUT here to advertise.
+  { pattern: /^auth\/profile$/, methods: ['PATCH'] },
   // Second factor. `verify` completes a login and is reached without a token;
   // the rest carry the caller's access token through to the backend, which is
   // what actually authorises them.
@@ -82,7 +85,14 @@ const handle = async (
   return proxyToBackend(request, backendPath);
 };
 
+// One handler, one export per method. The App Router 405s a method that has no
+// export, *before* the allow-list above is consulted — so a `methods: ['PATCH']`
+// entry without a `PATCH` export is a route that advertises itself and cannot be
+// called. That is what shipped: `workspaces/:id`, its member rows, `threads`,
+// `emails` and `labels` all listed PATCH while the Save button behind
+// `updateWorkspace()` could only ever get a 405 back.
 export const GET = handle;
 export const POST = handle;
 export const PUT = handle;
+export const PATCH = handle;
 export const DELETE = handle;

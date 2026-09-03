@@ -1,7 +1,9 @@
 import { NextRequest } from 'next/server';
 import { proxyToBackend } from '../../../_lib/proxy';
 
-const CALENDAR_BACKEND_URL = process.env.QUANTCALENDAR_BACKEND_URL || 'http://localhost:3013';
+// See ../route.ts: undefined means `proxyToBackend` resolves
+// QUANTMAIL_BACKEND_URL, which is the backend that actually serves /events/:id.
+const CALENDAR_BACKEND_URL = process.env.QUANTCALENDAR_BACKEND_URL;
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

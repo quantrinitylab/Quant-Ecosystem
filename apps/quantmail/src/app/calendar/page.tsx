@@ -1,12 +1,10 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Modal, Skeleton, ErrorState, useFocusTrap } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
-import { Quanty } from '../../components/Quanty';
 import {
   useCalendarEvents,
   useCreateEvent,
@@ -15,7 +13,6 @@ import {
 } from '../../hooks/useCalendar';
 import { useAuth } from '../../providers/auth-provider';
 import { useConfirm } from '../../hooks/useConfirm';
-import { useDeferredMount } from '../../hooks/useDeferredMount';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
 import { QuantFab } from '../../components/QuantFab';
@@ -64,17 +61,6 @@ import {
   IconWave,
   IconX,
 } from '../../components/icons';
-
-/**
- * Split out of the calendar's route chunk. `calendar/page.tsx` is the heaviest
- * page in the app, and Quanty's drawer is a 663-line feature behind a single
- * toolbar button — most calendar sessions never touch it. `useDeferredMount`
- * keeps it mounted once opened, so an in-progress conversation is not discarded
- * when the drawer closes.
- */
-const QuantyCopilotDrawer = dynamic(() => import('../../components/QuantyCopilotDrawer'), {
-  ssr: false,
-});
 
 const WEEKDAYS_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const FULL_WEEKDAYS = [
@@ -450,8 +436,15 @@ export default function CalendarPage() {
 
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventLike | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
+  /**
+   * A mirror of the shell's Quanty, not a second drawer. `AppShell` owns the
+   * launcher now — the button, the state and the panel — and reports the open
+   * state back through `onQuantyOpenChange`. This page still has to know,
+   * because the sheet's Escape guard below counts Quanty as one of the overlays
+   * that must close alone; it cannot read the shell's own state, since this
+   * component renders `AppShell` rather than living inside it.
+   */
   const [isQuantyDrawerOpen, setIsQuantyDrawerOpen] = useState(false);
-  const showQuantyDrawer = useDeferredMount(isQuantyDrawerOpen);
 
   // Selector sheets / modals
   const [isTimezoneModalOpen, setIsTimezoneModalOpen] = useState(false);
@@ -1229,6 +1222,15 @@ export default function CalendarPage() {
           .map((a) => (typeof a === 'string' ? a : ((a as { email?: string })?.email ?? '')))
           .filter(Boolean)
       : [];
+    // Restored, not defaulted. The sheet re-sends `notifications` on every save
+    // and the backend now writes that list, so carrying `prev.notifications`
+    // through an edit would overwrite the event's real reminders with whichever
+    // ones the last sheet happened to leave in state.
+    const reminderList = Array.isArray(ev.reminders)
+      ? (ev.reminders as unknown[])
+          .map((r) => (typeof r === 'string' ? r : ((r as { label?: string })?.label ?? '')))
+          .filter(Boolean)
+      : [];
 
     setFormState((prev) => ({
       ...prev,
@@ -1244,6 +1246,7 @@ export default function CalendarPage() {
       color: ev.color || prev.color,
       attendeeInput: '',
       attendees: attendeeList,
+      notifications: reminderList,
       priority: ev.priority || 'medium',
       subtaskInput: '',
       subtasks: ev.subtasks || [],
@@ -1638,28 +1641,7 @@ export default function CalendarPage() {
       searchValue={searchFilter}
       onSearchChange={setSearchFilter}
       searchPlaceholder="Search events, meetings, tasks, birthdays…"
-      mobileActions={
-        <div className="flex items-center gap-1.5">
-          {/*
-           * The magnifier that used to lead this row is gone, not moved: `AppShell`
-           * renders its own search toggle immediately before `mobileActions`, so
-           * this route was showing two — "Search" and "Search calendar", side by
-           * side, opening two different fields onto the same `searchFilter`.
-           * The shell's is the one that survives.
-           */}
-
-          {/* Quanty Copilot Robot Icon Button */}
-          <button
-            type="button"
-            onClick={() => setIsQuantyDrawerOpen(true)}
-            className="size-11 rounded-xl hover:bg-[#282C35] text-[#FF8C42] hover:text-[#FFB875] transition-all inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-            title="Open Quanty AI Copilot"
-            aria-label="Open Quanty AI Copilot"
-          >
-            <Quanty size={22} expression="happy" bob={false} />
-          </button>
-        </div>
-      }
+      onQuantyOpenChange={setIsQuantyDrawerOpen}
     >
       <div className="flex flex-col h-full bg-[#08080a] text-white relative">
         {/*
@@ -3955,13 +3937,6 @@ export default function CalendarPage() {
           </Modal>
         )}
 
-        {/* Quanty AI Copilot Drawer */}
-        {showQuantyDrawer && (
-          <QuantyCopilotDrawer
-            isOpen={isQuantyDrawerOpen}
-            onClose={() => setIsQuantyDrawerOpen(false)}
-          />
-        )}
         {dialog}
       </div>
     </AppShell>

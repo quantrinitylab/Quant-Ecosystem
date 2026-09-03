@@ -193,6 +193,69 @@ export async function authRoutes(fastify: FastifyInstance) {
     },
   );
 
+  /**
+   * PATCH /auth/profile — the only mutable field on a user's identity.
+   *
+   * Settings had a "Save display name" button for a long time with nothing
+   * behind it: it wrote `localStorage` and toasted success, and the next reload
+   * re-read `/oauth/userinfo` and put the old name back. A control that reports
+   * a save it did not perform is worse than no control, so this is the write
+   * side that `/oauth/userinfo` reads back.
+   *
+   * `email` and `username` are deliberately not accepted. Both are identity —
+   * mail is addressed to them and other rows reference them — so changing
+   * either is a migration, not a preference.
+   */
+  fastify.patch('/auth/profile', async (request, reply) => {
+    const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
+    if (!userId) {
+      return fail(reply, 401, 'UNAUTHORIZED', 'Authentication required.');
+    }
+
+    const { displayName } = (request.body ?? {}) as { displayName?: unknown };
+    if (typeof displayName !== 'string') {
+      return fail(reply, 400, 'VALIDATION_ERROR', 'A display name is required.');
+    }
+
+    // Collapse whitespace before measuring: a name of 80 spaces is not 80
+    // characters of name, and a tab inside one breaks every header it lands in.
+    const next = displayName.replace(/\s+/g, ' ').trim();
+    if (!next) {
+      return fail(reply, 400, 'VALIDATION_ERROR', 'A display name cannot be empty.');
+    }
+    if (next.length > 80) {
+      return fail(reply, 400, 'VALIDATION_ERROR', 'A display name cannot exceed 80 characters.');
+    }
+    // A display name is rendered into a `From:` header. C0/C1 controls there let
+    // a name inject a second header line, so they are rejected rather than
+    // stripped — silently saving something other than what was typed is its own
+    // small lie.
+    if (/[\u0000-\u001F\u007F-\u009F]/.test(next)) {
+      return fail(
+        reply,
+        400,
+        'VALIDATION_ERROR',
+        'A display name cannot contain control characters.',
+      );
+    }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { displayName: next },
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+        role: user.role,
+      },
+    });
+  });
+
   // 2FA lives in `routes/two-factor.ts`. It used to live here as a pair of
   // handlers that generated a secret nobody stored and accepted any six digits.
   // Password reset lives in `routes/password-reset.ts`. It used to live here as

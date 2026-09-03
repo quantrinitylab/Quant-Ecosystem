@@ -1,6 +1,67 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+/**
+ * Settings.
+ *
+ * The rule this page is being rebuilt against: **a control that does not change
+ * the product is worse than a missing one**, because a missing control is an
+ * obvious gap and a fake one is a lie the user acts on. Nine of the controls
+ * here wrote a `localStorage` key that `git grep` proves nothing reads, and each
+ * one toasted "saved" on the way out. They are gone, and every removal is
+ * recorded below rather than quietly dropped:
+ *
+ * - **Accent Highlight** (five colour dots). Set `--brand-primary` inline and
+ *   persisted `quant-accent` — but no boot script re-applies it, so the choice
+ *   died on reload. Worse, only ~30 rules read that variable while the app
+ *   carries ~3,157 hardcoded hex literals and `--quant-accent-soft`/`-border`
+ *   are hardcoded orange rgba that do not derive from it. "Rose Red" recoloured
+ *   a handful of borders and left the rest of the product orange.
+ * - **Midnight Blue** theme. Pointed at `#0f172a`, a colour the palette does not
+ *   contain and no stylesheet implements; the pre-paint bootstrap already fell
+ *   through to `dark` for it, so the card sat selected over an Obsidian canvas.
+ *   A stored `midnight` is migrated to `dark` on mount.
+ * - **Composer & Delivery Rules** entire section — Undo Send Delay
+ *   (`quant-undo-delay`, no reader), Default Reply Action (no persistence at
+ *   all), Conversation Threading and Automatic Read Receipts (neither persisted
+ *   nor read). The undo window is currently owned by the outbox, not by this.
+ * - **"When something is slow or down"** entire section — the rerouting toggle
+ *   (`quant-ai-failover`, no reader) and the three temperature pills
+ *   (`quant-ai-creativity`, no reader) over a backend that hardcodes `0.7`.
+ * - **Email / Sound / Direct-Mentions notification toggles**. `quant-notifications`
+ *   has no reader, there is no digest job, no sound asset and no mention parser.
+ *   One real channel survives, wired to the browser's own permission state.
+ * - **The emerald "Active & Verified Identity" badge**, which asserted a
+ *   verification this app never performs. Replaced by the real `@username`.
+ * - **The hand-written 16-row shortcut table**, which documented `Ctrl+S`,
+ *   `Escape` and a `C` compose key that are not bound, and said "selected email"
+ *   for keys that act on the *focused* row. The tab now renders
+ *   `INBOX_COMMAND_REFERENCE` through the same model the `?` sheet uses, so a key
+ *   listed here cannot fail to exist. The `J / ↓` glyphs the old table spelled by
+ *   hand come out of `chords.ts`'s `SYMBOL_LABELS` instead.
+ * - **Phone verification on the General tab.** It is still here, once, under
+ *   Security — where a recovery factor belongs. Two entry points to one control
+ *   is the ambiguity this page has been shedding everywhere else.
+ *
+ * What is left either calls the API or paints the DOM. `handleSaveProfile` is a
+ * real `PATCH`, `changeTheme` mirrors the boot script's three attributes, and
+ * `changeDensity` applies `data-density` in the same tick.
+ *
+ * Cards, toggle rows and choice groups come from `./SettingsPrimitives` — ART
+ * LAW 18. The AI engine-mode radiogroup below is deliberately NOT folded into
+ * `SettingsChoice`: it is already a correct `role="radiogroup"` with per-option
+ * copy and a layout of its own.
+ */
+
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { Button, FormField, Input, TextArea } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
@@ -8,9 +69,20 @@ import { apiClient } from '../../services/api-client';
 import { VacationResponderSettings } from './VacationResponderSettings';
 import { PhoneVerificationCard } from '../../components/PhoneVerificationCard';
 import { showToast } from '../../components/InboxToast';
+import { ShortcutKeys } from '../../components/ShortcutKeys';
+import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
+import { buildHelpGroups, dimNoteFor, helpGroupHeading } from '../../lib/keyboard/help-model';
+import { useCommandList } from '../../lib/keyboard/hooks';
+import { useSafeEmailHtml } from '../../lib/safe-html';
+import {
+  SettingsChoice,
+  SettingsSection,
+  SettingsToggleRow,
+  type SettingsChoiceOption,
+} from './SettingsPrimitives';
 
 type SettingsTab = 'general' | 'ai' | 'security' | 'notifications' | 'appearance' | 'keyboard';
-type Theme = 'light' | 'dark' | 'system' | 'midnight';
+type Theme = 'light' | 'dark' | 'system';
 type Density = 'comfortable' | 'compact';
 
 interface AIModelOption {
@@ -80,37 +152,85 @@ const TABS: Array<{ key: SettingsTab; label: string }> = [
   { key: 'keyboard', label: 'Keyboard Shortcuts' },
 ];
 
-const ACCENT_COLORS = [
-  { name: 'Bharat Saffron', hex: '#FF8C42' },
-  { name: 'Quantum Blue', hex: '#3b82f6' },
-  { name: 'Emerald Vault', hex: '#10b981' },
-  { name: 'Nebula Purple', hex: '#8b5cf6' },
-  { name: 'Rose Red', hex: '#f43f5e' },
+/**
+ * The swatches are the real canvases, not decorative approximations: `#090A0C`
+ * is `--quant-background` under `:root[data-theme='dark']` and `#f4f2ed` is the
+ * light one. The old card previewed light mode as `#F5F5F5`, a colour the light
+ * theme uses for *text*, so the swatch was showing something the theme never
+ * paints.
+ */
+const THEME_OPTIONS: readonly SettingsChoiceOption<Theme>[] = [
+  {
+    value: 'dark',
+    label: 'Obsidian',
+    description: 'The default. Near-black canvas, warm accent.',
+    swatch: 'bg-[#090A0C]',
+  },
+  {
+    value: 'light',
+    label: 'Daylight',
+    description: 'Warm paper canvas for a bright room.',
+    swatch: 'bg-[#f4f2ed]',
+  },
+  {
+    value: 'system',
+    label: 'Match system',
+    description: 'Follows your OS, and keeps following it.',
+    swatch: 'bg-gradient-to-br from-[#090A0C] via-[#090A0C] to-[#f4f2ed]',
+  },
 ];
 
-const SHORTCUTS = [
-  ['Ctrl/Cmd + K', 'Open command palette (global)'],
-  ['Ctrl/Cmd + Enter', 'Send email (compose only)'],
-  ['Ctrl/Cmd + S', 'Save draft (compose only)'],
-  ['J / ↓', 'Next email in inbox'],
-  ['K / ↑', 'Previous email in inbox'],
-  ['E', 'Archive selected email'],
-  ['#', 'Delete selected email'],
-  ['S', 'Star / unstar email'],
-  ['U', 'Toggle read / unread'],
-  ['X', 'Select / deselect email'],
-  ['R', 'Reply to email'],
-  ['F', 'Forward email'],
-  ['C', 'Compose new message'],
-  ['/', 'Focus search'],
-  ['?', 'Show keyboard shortcuts help'],
-  ['Escape', 'Close / deselect'],
-] as const;
+const DENSITY_OPTIONS: readonly SettingsChoiceOption<Density>[] = [
+  {
+    value: 'comfortable',
+    label: 'Comfortable',
+    description: 'Sender, subject and preview with room around them.',
+  },
+  {
+    value: 'compact',
+    label: 'Compact',
+    description: 'Shorter rows — roughly four more conversations per screen.',
+  },
+];
+
+/**
+ * Paint the resolved theme onto `<html>` the same three ways the pre-paint
+ * bootstrap in `layout.tsx` does.
+ *
+ * This page used to toggle the `dark` class and nothing else, while the boot
+ * script set `data-theme`, the class *and* `style.colorScheme`. `globals.css`
+ * keys its entire light palette on `:root[data-theme='light']`, so choosing
+ * "light" here changed a class no light rule reads: the canvas stayed black
+ * until a reload, and the browser's own scrollbars and form controls stayed dark
+ * even after one. One function, called by both the picker and the `system`
+ * listener, so the two cannot drift apart again.
+ */
+function paintTheme(resolved: 'light' | 'dark') {
+  const root = document.documentElement;
+  root.setAttribute('data-theme', resolved);
+  root.classList.toggle('dark', resolved === 'dark');
+  root.style.colorScheme = resolved;
+}
+
+function resolveTheme(theme: Theme): 'light' | 'dark' {
+  if (theme !== 'system') return theme;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+/** A one-word reason a control is off, sitting beside its label. */
+function StatusPill({ children }: { children: ReactNode }) {
+  return (
+    <span className="rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--quant-muted-foreground)]">
+      {children}
+    </span>
+  );
+}
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [profile, setProfile] = useState({ displayName: '', email: '', username: '' });
   const [loadedProfile, setLoadedProfile] = useState({ displayName: '', email: '', username: '' });
+  const [profileSaving, setProfileSaving] = useState(false);
   const [signature, setSignature] = useState('');
   const [loadedSignature, setLoadedSignature] = useState('');
   const [defaultSignatureId, setDefaultSignatureId] = useState<string | null>(null);
@@ -118,32 +238,34 @@ export default function SettingsPage() {
     'loading' | 'idle' | 'saving' | 'saved' | 'error'
   >('loading');
   const [theme, setTheme] = useState<Theme>('dark');
-  const [accentColor, setAccentColor] = useState('#FF8C42');
   const [density, setDensity] = useState<Density>('comfortable');
-  const [undoSendDelay, setUndoSendDelay] = useState('5');
-  const [defaultReplyAll, setDefaultReplyAll] = useState(false);
-  const [conversationView, setConversationView] = useState(true);
-  const [readReceipts, setReadReceipts] = useState(true);
   const [selectedAIModel, setSelectedAIModel] = useState('auto-router');
-  const [enableAutoFailover, setEnableAutoFailover] = useState(true);
-  const [aiCreativity, setAiCreativity] = useState('balanced');
-  const [notifications, setNotifications] = useState({
-    email: true,
-    push: true,
-    desktop: true,
-    sound: true,
-    mentionsOnly: false,
+
+  const desktopNotifications = useDesktopNotifications();
+  const commands = useCommandList();
+  const helpGroups = useMemo(() => buildHelpGroups(commands), [commands]);
+  const helpNote = dimNoteFor(helpGroups, {
+    elsewhere: ' Dimmed keys belong to the inbox and work there.',
+    contextual: ' Dimmed keys need a focused conversation.',
   });
 
   const hasProfileChanges = profile.displayName.trim() !== loadedProfile.displayName;
   const hasSignatureChanges = signature !== loadedSignature;
+  const signaturePreview = useSafeEmailHtml(signature);
 
   useEffect(() => {
     try {
-      setTheme((localStorage.getItem('quant-theme') as Theme) || 'dark');
-      setDensity((localStorage.getItem('quant-density') as Density) || 'comfortable');
-      setAccentColor(localStorage.getItem('quant-accent') || '#FF8C42');
-      setUndoSendDelay(localStorage.getItem('quant-undo-delay') || '5');
+      const stored = localStorage.getItem('quant-theme');
+      // A browser that used the app while `midnight` existed still holds it, and
+      // it now matches no option — the picker would render with nothing selected
+      // over a canvas the boot script had already resolved to `dark`. Migrate the
+      // stored value rather than merely validating it, or the mismatch survives
+      // every reload.
+      const next: Theme =
+        stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'dark';
+      if (stored !== next) localStorage.setItem('quant-theme', next);
+      setTheme(next);
+      setDensity(localStorage.getItem('quant-density') === 'compact' ? 'compact' : 'comfortable');
       const savedModel = localStorage.getItem('quant-ai-model-mode');
       // Browsers that used the app before the vendor-named models were replaced
       // by intent tiers still hold an id like `@cf/meta/llama-3.3-70b-instruct`,
@@ -151,16 +273,26 @@ export default function SettingsPage() {
       if (savedModel && AI_ENGINE_MODES.some((m) => m.id === savedModel)) {
         setSelectedAIModel(savedModel);
       }
-      const savedFailover = localStorage.getItem('quant-ai-failover');
-      if (savedFailover !== null) setEnableAutoFailover(savedFailover === '1');
-      const savedCreativity = localStorage.getItem('quant-ai-creativity');
-      if (savedCreativity) setAiCreativity(savedCreativity);
-      const savedNotifs = localStorage.getItem('quant-notifications');
-      if (savedNotifs) setNotifications(JSON.parse(savedNotifs));
     } catch {
       /* ignore */
     }
   }, []);
+
+  /**
+   * "Match system" has to keep matching it.
+   *
+   * Without this the option is a one-shot copy of the OS setting taken at page
+   * load: the machine switching to light at sunset left the app dark until a
+   * reload, which is precisely the behaviour a user picks this option to avoid.
+   */
+  useEffect(() => {
+    if (theme !== 'system') return;
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    const sync = () => paintTheme(query.matches ? 'dark' : 'light');
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, [theme]);
 
   useEffect(() => {
     void apiClient.getUserInfo().then((response) => {
@@ -187,16 +319,39 @@ export default function SettingsPage() {
     });
   }, []);
 
-  const handleSaveProfile = () => {
-    if (!profile.displayName.trim()) return;
-    setLoadedProfile(profile);
-    try {
-      localStorage.setItem('quant-display-name', profile.displayName.trim());
-    } catch {
-      /* ignore */
+  /**
+   * The one that was a lie.
+   *
+   * This used to write `quant-display-name` to `localStorage`, toast
+   * "Profile display name updated", and stop. Nothing read that key, and the
+   * `getUserInfo()` call above put the server's old name straight back on the
+   * next mount — so the user watched their change succeed and then vanish. It is
+   * a `PATCH /auth/profile` now, the toast waits for the response, and the field
+   * is re-seeded from what the server actually stored rather than from what was
+   * typed.
+   */
+  const handleSaveProfile = useCallback(async () => {
+    const displayName = profile.displayName.trim();
+    if (!displayName || profileSaving) return;
+    setProfileSaving(true);
+    const response = await apiClient.updateProfile(displayName);
+    setProfileSaving(false);
+    if (!response.success || !response.data) {
+      showToast({
+        text: response.error?.message || 'Display name could not be saved',
+        type: 'error',
+      });
+      return;
     }
-    showToast({ text: 'Profile display name updated', type: 'success' });
-  };
+    const next = {
+      displayName: response.data.displayName || '',
+      email: response.data.email || '',
+      username: response.data.username || '',
+    };
+    setProfile(next);
+    setLoadedProfile(next);
+    showToast({ text: 'Display name saved', type: 'success' });
+  }, [profile.displayName, profileSaving]);
 
   const saveSignature = useCallback(async () => {
     const contentHtml = signature.trim();
@@ -242,25 +397,18 @@ export default function SettingsPage() {
     } catch {
       /* ignore */
     }
-    const dark =
-      next === 'dark' ||
-      next === 'midnight' ||
-      (next === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    document.documentElement.classList.toggle('dark', dark);
-    showToast({ text: `Switched theme to ${next}`, type: 'info' });
+    paintTheme(resolveTheme(next));
+    const label = THEME_OPTIONS.find((option) => option.value === next)?.label ?? next;
+    showToast({ text: `Theme set to ${label}`, type: 'info' });
   }, []);
 
-  const changeAccent = (hex: string) => {
-    setAccentColor(hex);
-    try {
-      localStorage.setItem('quant-accent', hex);
-      document.documentElement.style.setProperty('--brand-primary', hex);
-    } catch {
-      /* ignore */
-    }
-    showToast({ text: 'Accent color updated', type: 'info' });
-  };
-
+  /**
+   * Density was persisted and never applied, so the choice took effect on the
+   * next full reload — a preference that appears to do nothing is
+   * indistinguishable from one that is broken. `globals.css` has the
+   * `:root[data-density='compact']` rules; this sets the attribute they key on,
+   * in the same tick as the click.
+   */
   const changeDensity = useCallback((next: Density) => {
     setDensity(next);
     try {
@@ -268,281 +416,333 @@ export default function SettingsPage() {
     } catch {
       /* ignore */
     }
+    document.documentElement.setAttribute('data-density', next);
+    showToast({
+      text: next === 'compact' ? 'Rows are compact' : 'Rows are comfortable',
+      type: 'info',
+    });
   }, []);
 
-  const updateNotif = (key: keyof typeof notifications, val: boolean) => {
-    const next = { ...notifications, [key]: val };
-    setNotifications(next);
-    try {
-      localStorage.setItem('quant-notifications', JSON.stringify(next));
-    } catch {
-      /* ignore */
-    }
-    showToast({ text: 'Notification preferences saved', type: 'success' });
+  const tabsId = useId();
+  const tabListRef = useRef<HTMLDivElement>(null);
+  const tabId = (key: SettingsTab) => `${tabsId}-tab-${key}`;
+  const panelId = (key: SettingsTab) => `${tabsId}-panel-${key}`;
+
+  /**
+   * The AI mode list is a `role="radiogroup"`, and a radiogroup is one Tab stop
+   * whose members move under the arrow keys. It was four Tab stops with no arrow
+   * handling — the role announced a set that did not behave like one, so a
+   * keyboard user tabbed through every option to reach the button after it. The
+   * layout is untouched; only the focus model changed.
+   */
+  const aiGroupRef = useRef<HTMLDivElement>(null);
+  const aiModeIndex = AI_ENGINE_MODES.findIndex((mode) => mode.id === selectedAIModel);
+  const aiTabbableIndex = aiModeIndex >= 0 ? aiModeIndex : 0;
+
+  const onAIModeKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const delta =
+      event.key === 'ArrowDown' || event.key === 'ArrowRight'
+        ? 1
+        : event.key === 'ArrowUp' || event.key === 'ArrowLeft'
+          ? -1
+          : 0;
+    if (!delta) return;
+    event.preventDefault();
+    const next =
+      AI_ENGINE_MODES[(aiTabbableIndex + delta + AI_ENGINE_MODES.length) % AI_ENGINE_MODES.length];
+    if (!next) return;
+    handleSelectAIModel(next.id);
+    aiGroupRef.current?.querySelector<HTMLButtonElement>(`[data-mode="${next.id}"]`)?.focus();
   };
+
+  /**
+   * Six buttons wearing an orange pill were six Tab stops, and `aria-current="page"`
+   * told a screen reader this was navigation to a different document. They are a
+   * tablist: one stop, arrows to move, and the panel announced as belonging to
+   * the tab that names it. Focus follows selection, which is what a tablist with
+   * automatic activation does — the panel is already swapping on click, so
+   * requiring a second keypress to activate would only differ by keyboard.
+   */
+  const moveTab = (to: number | 'first' | 'last') => {
+    const current = TABS.findIndex((tab) => tab.key === activeTab);
+    const index =
+      to === 'first'
+        ? 0
+        : to === 'last'
+          ? TABS.length - 1
+          : (Math.max(current, 0) + to + TABS.length) % TABS.length;
+    const next = TABS[index];
+    if (!next) return;
+    setActiveTab(next.key);
+    tabListRef.current?.querySelector<HTMLButtonElement>(`[data-tab="${next.key}"]`)?.focus();
+  };
+
+  const onTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      moveTab(1);
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveTab(-1);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      moveTab('first');
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      moveTab('last');
+    }
+  };
+
+  const notificationStatus = !desktopNotifications.supported ? (
+    <StatusPill>Not supported here</StatusPill>
+  ) : desktopNotifications.permission === 'denied' ? (
+    <StatusPill>Blocked in this browser</StatusPill>
+  ) : null;
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <div className="workspace-page settings-workspace flex h-full flex-col overflow-hidden bg-[#0a0d14]">
-        {/* Sleek Settings Header */}
-        <header className="shrink-0 px-4 sm:px-6 pt-5 pb-3 border-b border-[#282C35]/80 bg-[#0d1017]/95">
+      <div className="workspace-page settings-workspace flex h-full flex-col overflow-hidden bg-[var(--quant-background)]">
+        <header className="shrink-0 border-b border-[var(--quant-border)] bg-[var(--quant-card)] px-4 pb-3 pt-5 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="size-10 rounded-2xl bg-gradient-to-br from-[#FF8C42]/20 to-[#E8752F]/20 border border-[#FF8C42]/40 flex items-center justify-center text-[#FF8C42] shadow-[0_4px_16px_rgba(0,0,0,0.6)]">
+            <div className="flex size-10 items-center justify-center rounded-xl border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] text-[var(--brand-primary)]">
               <svg
                 className="size-5"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
+                aria-hidden="true"
               >
                 <circle cx="12" cy="12" r="3" />
                 <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
               </svg>
             </div>
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">
-                Settings & Preferences
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold tracking-tight text-[var(--quant-foreground)] sm:text-xl">
+                Settings
               </h1>
-              <p className="text-xs text-[#A1A4AC]">
-                Manage profile, AI model router, security keys, and workspace preferences.
+              <p className="truncate text-xs text-[var(--quant-muted-foreground)]">
+                Your identity, your assistant, and how this workspace looks.
               </p>
             </div>
           </div>
         </header>
 
-        {/* Smooth Horizontal Pill Tabs */}
-        <nav
-          className="flex items-center gap-2 overflow-x-auto py-3 px-4 sm:px-6 no-scrollbar select-none border-b border-[#282C35] bg-[#090A0C]/90 backdrop-blur-md shrink-0"
+        <div
+          ref={tabListRef}
+          role="tablist"
           aria-label="Settings sections"
+          aria-orientation="horizontal"
+          onKeyDown={onTabKeyDown}
+          className="no-scrollbar flex shrink-0 select-none items-center gap-2 overflow-x-auto border-b border-[var(--quant-border)] bg-[var(--quant-background)] px-4 py-3 sm:px-6"
         >
           {TABS.map((tab) => {
             const isActive = activeTab === tab.key;
             return (
               <button
                 key={tab.key}
+                id={tabId(tab.key)}
                 type="button"
+                role="tab"
+                data-tab={tab.key}
+                aria-selected={isActive}
+                /* Only the live panel exists in the DOM, and `aria-controls`
+                   must point at something real — an inactive tab naming an
+                   unrendered id is a dangling reference, not a hint. */
+                aria-controls={isActive ? panelId(tab.key) : undefined}
+                tabIndex={isActive ? 0 : -1}
                 onClick={() => setActiveTab(tab.key)}
-                aria-current={isActive ? 'page' : undefined}
-                className={`relative px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all flex items-center gap-1.5 ${
+                className={`min-h-11 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-ring)] ${
                   isActive
-                    ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] font-semibold'
-                    : 'bg-[#16181D] hover:bg-[#1C1F26] text-[#A1A4AC] hover:text-[#F5F5F5] border border-[#282C35]'
+                    ? 'border-[var(--brand-soft-border)] bg-[var(--brand-soft)] font-semibold text-[var(--brand-primary)]'
+                    : 'border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] font-medium text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-hover)] hover:text-[var(--quant-foreground)]'
                 }`}
               >
-                <span>{tab.label}</span>
+                {tab.label}
               </button>
             );
           })}
-        </nav>
+        </div>
 
-        {/* A `div`, not a second `<main>`: `AppShell` already renders the page's
-            landmark, and two `<main>` elements in one document is invalid and
-            leaves a screen reader picking between them. The tab strip above is a
-            `<nav>`, so this region needs no role of its own. */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 w-full max-w-4xl mx-auto space-y-6">
-          {/* 1. GENERAL TAB */}
+        {/*
+         * A `div`, not a second `<main>`: `AppShell` already renders the page's
+         * landmark, and two `<main>` elements in one document is invalid and
+         * leaves a screen reader picking between them. It is the tab panel for
+         * the strip above, named by whichever tab is selected, so the region
+         * announces what it belongs to without inventing a landmark.
+         */}
+        <div
+          role="tabpanel"
+          id={panelId(activeTab)}
+          aria-labelledby={tabId(activeTab)}
+          /*
+           * `max-w-3xl`, and the horizontal padding, are the real numbers now.
+           * A `.settings-workspace > div:last-child { padding }` rule and a
+           * `.settings-workspace section { max-width: 48rem }` rule in
+           * `globals.css` were silently supplying both — written for the old
+           * hand-rolled markup, still matching enough of the new markup to win
+           * against these utilities. They are scoped to `/security` now, which
+           * is the page they were written for, so what renders is what is here.
+           */
+          className="mx-auto w-full max-w-3xl flex-1 space-y-6 overflow-y-auto px-4 py-6 sm:px-8"
+        >
           {activeTab === 'general' && (
-            <div className="space-y-6 animate-in fade-in duration-150">
-              <section className="rounded-xl border border-[#282C35] bg-[#111318] p-5 shadow-sm space-y-4">
-                <div className="border-b border-[#282C35] pb-3">
-                  <h2 className="text-sm font-semibold text-[#F5F5F5]">Profile Identity</h2>
-                  <p className="text-xs text-[#A1A4AC]">
-                    Your public identifier visible to teammates and mail recipients.
-                  </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#2B1A11] border border-[#5C3016] text-base font-bold text-[#FF8C42]">
-                    {profile.displayName.charAt(0).toUpperCase() || 'Q'}
+            <>
+              <SettingsSection
+                title="Profile"
+                description="The name that goes out on your mail. Your address and username are set when the account is created."
+                action={
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void handleSaveProfile()}
+                    disabled={!hasProfileChanges || profileSaving || !profile.displayName.trim()}
+                  >
+                    {profileSaving
+                      ? 'Saving…'
+                      : hasProfileChanges
+                        ? 'Save display name'
+                        : 'Profile up to date'}
+                  </Button>
+                }
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    aria-hidden="true"
+                    className="grid size-12 flex-none place-items-center rounded-xl border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] text-base font-bold text-[var(--brand-primary)]"
+                  >
+                    {(loadedProfile.displayName || loadedProfile.email || '?')
+                      .charAt(0)
+                      .toUpperCase()}
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-[#F5F5F5]">
-                      {profile.displayName || 'Quant User'}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-[var(--quant-foreground)]">
+                      {loadedProfile.displayName || 'Unnamed account'}
                     </p>
-                    <p className="text-xs text-[#A1A4AC]">{profile.email}</p>
-                    <span className="inline-block mt-1 text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      Active & Verified Identity
-                    </span>
+                    {/*
+                     * Where the emerald "Active & Verified Identity" badge was.
+                     * Nothing in this product verifies an identity, so the badge
+                     * asserted a check that never ran. The handle underneath is
+                     * a fact the server returned.
+                     */}
+                    <p className="truncate text-xs text-[var(--quant-muted-foreground)]">
+                      {loadedProfile.username ? `@${loadedProfile.username}` : loadedProfile.email}
+                    </p>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
-                  <FormField label="Display name">
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField label="Display name" htmlFor="settings-display-name">
                     <Input
+                      id="settings-display-name"
                       value={profile.displayName}
                       onChange={(event) =>
-                        setProfile((current) => ({ ...current, displayName: event.target.value }))
+                        setProfile((prev) => ({ ...prev, displayName: event.target.value }))
                       }
-                      placeholder="Your full name"
+                      placeholder="Kundan Kumar"
+                      maxLength={80}
+                      fullWidth
                     />
                   </FormField>
-                  <FormField label="Username">
-                    <Input value={profile.username} readOnly disabled />
+                  <FormField label="Username" htmlFor="settings-username">
+                    <Input id="settings-username" value={profile.username} readOnly fullWidth />
                   </FormField>
                 </div>
-                <FormField label="Email address">
-                  <Input value={profile.email} readOnly disabled />
-                </FormField>
-                <div className="flex items-center gap-3 pt-2">
-                  <Button
-                    variant="primary"
-                    onClick={handleSaveProfile}
-                    disabled={!hasProfileChanges}
-                  >
-                    {hasProfileChanges ? 'Save display name' : 'Profile up to date'}
-                  </Button>
-                </div>
-              </section>
-
-              <PhoneVerificationCard />
-
-              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-[#282C35] pb-3">
-                  <h2 className="text-sm font-bold text-white">Email Signature</h2>
-                  <p className="text-xs text-[#A1A4AC]">
-                    Automatically attached to all outgoing emails.
-                  </p>
-                </div>
-                <FormField label="HTML / Plain Text Signature">
-                  <TextArea
-                    value={signature}
-                    onChange={(event) => setSignature(event.target.value)}
-                    placeholder="Best regards,&#10;Kundan&#10;Founder @ Quantrinity"
-                    rows={4}
+                <FormField label="Email address" htmlFor="settings-email">
+                  <Input
+                    id="settings-email"
+                    type="email"
+                    value={profile.email}
+                    readOnly
+                    fullWidth
                   />
                 </FormField>
-                {signature.trim() && (
-                  <div className="p-3 rounded-xl bg-[#090A0C] border border-[#282C35] text-xs">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] block mb-1">
-                      Live Preview
-                    </span>
-                    <div className="text-[#A1A4AC] whitespace-pre-wrap">{signature}</div>
-                  </div>
-                )}
-                <div className="flex items-center gap-3 pt-1">
+              </SettingsSection>
+
+              <SettingsSection
+                title="Email signature"
+                description="Appended to messages you send. HTML is allowed."
+                action={
                   <Button
-                    variant="primary"
-                    onClick={saveSignature}
-                    disabled={signatureStatus === 'saving' || !hasSignatureChanges}
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void saveSignature()}
+                    disabled={
+                      signatureStatus === 'saving' || !hasSignatureChanges || !signature.trim()
+                    }
                   >
                     {signatureStatus === 'saving' ? 'Saving signature…' : 'Save signature'}
                   </Button>
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-[#282C35] pb-3">
-                  <h2 className="text-sm font-bold text-white">Composer & Delivery Rules</h2>
-                  <p className="text-xs text-[#A1A4AC]">
-                    Fine-tune sending delays and thread behaviors.
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-semibold text-[#A1A4AC] mb-1">
-                      Undo Send Delay
-                    </label>
-                    <select
-                      value={undoSendDelay}
-                      onChange={(e) => {
-                        setUndoSendDelay(e.target.value);
-                        localStorage.setItem('quant-undo-delay', e.target.value);
-                        showToast({
-                          text: `Undo send delay set to ${e.target.value}s`,
-                          type: 'info',
-                        });
-                      }}
-                      className="h-11 sm:h-9 w-full rounded-xl border border-[#3A404D]/80 bg-[#111318] px-3 text-xs text-white focus:outline-none focus:border-[#FF8C42]"
-                    >
-                      <option value="5">5 seconds</option>
-                      <option value="10">10 seconds</option>
-                      <option value="20">20 seconds</option>
-                      <option value="30">30 seconds</option>
-                    </select>
+                }
+              >
+                <TextArea
+                  value={signature}
+                  onChange={(event) => setSignature(event.target.value)}
+                  rows={4}
+                  aria-label="Email signature"
+                  placeholder={'Best regards,\nKundan\nFounder @ Quantrinity'}
+                />
+                {signature.trim() && (
+                  <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] p-3">
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--quant-text-muted)]">
+                      Preview
+                    </p>
+                    {/*
+                     * The old "Live Preview" printed the field's raw text, so an
+                     * HTML signature previewed as `<b>Kundan</b>` — the one thing
+                     * a preview exists to not do. It renders through the same
+                     * sanitiser the message body uses; when that returns nothing
+                     * (no DOM yet, or nothing survived sanitising) the raw text is
+                     * the honest fallback rather than a blank box.
+                     */}
+                    {signaturePreview ? (
+                      <div
+                        className="signature-content"
+                        dangerouslySetInnerHTML={{ __html: signaturePreview }}
+                      />
+                    ) : (
+                      <div className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
+                        {signature}
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[#A1A4AC] mb-1">
-                      Default Reply Action
-                    </label>
-                    <select
-                      value={defaultReplyAll ? 'all' : 'single'}
-                      onChange={(e) => {
-                        setDefaultReplyAll(e.target.value === 'all');
-                        showToast({ text: 'Updated default reply behavior', type: 'info' });
-                      }}
-                      className="h-11 sm:h-9 w-full rounded-xl border border-[#3A404D]/80 bg-[#111318] px-3 text-xs text-white focus:outline-none focus:border-[#FF8C42]"
-                    >
-                      <option value="single">Reply (Direct Sender)</option>
-                      <option value="all">Reply All (All Recipients)</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-2 pt-2 border-t border-[#282C35]">
-                  {/* The label is the hit area — a tap anywhere on the row toggles
-                   * the box — so the 44px floor belongs here, not on the 13px
-                   * native checkbox that a phone was measuring. */}
-                  <label className="flex min-h-11 items-center justify-between py-1 cursor-pointer">
-                    <span className="text-xs text-[#A1A4AC] font-medium">
-                      Conversation Threading
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={conversationView}
-                      onChange={(e) => setConversationView(e.target.checked)}
-                      className="size-4 shrink-0 accent-[#FF8C42] rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                    />
-                  </label>
-                  <label className="flex min-h-11 items-center justify-between py-1 cursor-pointer">
-                    <span className="text-xs text-[#A1A4AC] font-medium">
-                      Automatic Read Receipts
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={readReceipts}
-                      onChange={(e) => setReadReceipts(e.target.checked)}
-                      className="size-4 shrink-0 accent-[#FF8C42] rounded cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                    />
-                  </label>
-                </div>
-              </section>
+                )}
+              </SettingsSection>
 
               <VacationResponderSettings />
-            </div>
+            </>
           )}
 
-          {/* 2. AI & MULTI-MODEL ROUTER TAB */}
           {activeTab === 'ai' && (
-            <div className="space-y-6 animate-in fade-in duration-150">
-              {/* Dynamic Model Router Banner */}
-              <section className="rounded-xl border border-[#282C35] bg-[#111318] p-5 shadow-sm space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <span className="size-2.5 rounded-full bg-[#FF8C42]" />
-                    <h2 className="text-sm font-semibold text-[#F5F5F5]">
-                      Quanty routes every request for you
-                    </h2>
-                  </div>
-                  <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]">
+            <>
+              <SettingsSection
+                title="Quanty routes every request for you"
+                description="You pick how much thinking a request deserves; Quanty picks what answers it. That choice shifts with load and health, so it is deliberately not something you pin to a named engine. Everything below is an intent, not a machine."
+                action={
+                  <span className="rounded-full border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--brand-primary)]">
                     Automatic
                   </span>
-                </div>
-                <p className="text-xs text-[#A1A4AC] leading-relaxed">
-                  You pick how much thinking a request deserves; Quanty picks what answers it. That
-                  choice shifts with load and health, so it is deliberately not something you pin to
-                  a named engine. Everything below is an intent, not a machine.
+                }
+              >
+                <p className="text-xs leading-relaxed text-[var(--quant-text-muted)]">
+                  Your choice is stored on this browser and sent with each request as an intent. No
+                  engine name is pinned, so a route going unhealthy changes what answers you — not
+                  whether you get an answer.
                 </p>
-              </section>
+              </SettingsSection>
 
-              {/* Model Selection List */}
-              <section className="rounded-xl border border-[#282C35] bg-[#111318] p-5 shadow-sm space-y-4">
-                <div className="border-b border-[#282C35] pb-3">
-                  <h2 className="text-sm font-semibold text-[#F5F5F5]">How much thinking</h2>
-                  <p className="text-xs text-[#A1A4AC]">
-                    Leave this on Automatic unless a particular kind of work needs a particular
-                    trade-off.
-                  </p>
-                </div>
-
-                <div className="space-y-3" role="radiogroup" aria-label="How much thinking">
-                  {AI_ENGINE_MODES.map((model) => {
+              <SettingsSection
+                title="How much thinking"
+                description="Leave this on Automatic unless a particular kind of work needs a particular trade-off."
+              >
+                <div
+                  ref={aiGroupRef}
+                  className="space-y-3"
+                  role="radiogroup"
+                  aria-label="How much thinking"
+                  onKeyDown={onAIModeKeyDown}
+                >
+                  {AI_ENGINE_MODES.map((model, index) => {
                     const isSelected = selectedAIModel === model.id;
                     return (
                       <button
@@ -550,121 +750,57 @@ export default function SettingsPage() {
                         type="button"
                         role="radio"
                         aria-checked={isSelected}
+                        data-mode={model.id}
+                        tabIndex={index === aiTabbableIndex ? 0 : -1}
                         onClick={() => handleSelectAIModel(model.id)}
-                        className={`w-full min-h-11 p-4 rounded-xl border transition-all cursor-pointer select-none flex items-start justify-between gap-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                        className={`flex min-h-11 w-full cursor-pointer select-none items-start justify-between gap-4 rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--quant-ring)] ${
                           isSelected
-                            ? 'bg-[#2B1A11] border-[#5C3016] shadow-sm'
-                            : 'bg-[#16181D] border-[#282C35] hover:border-[#3A404D] hover:bg-[#1C1F26]'
+                            ? 'border-[var(--brand-soft-border)] bg-[var(--brand-soft)]'
+                            : 'border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] hover:border-[var(--quant-border-strong)] hover:bg-[var(--quant-surface-hover)]'
                         }`}
                       >
-                        <div className="space-y-1.5 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-semibold text-[#F5F5F5]">
+                        <span className="min-w-0 space-y-1.5">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-semibold text-[var(--quant-foreground)]">
                               {model.name}
                             </span>
                             <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                                 isSelected
-                                  ? 'bg-[#FF8C42] text-[#111111]'
-                                  : 'bg-[#282C35] text-[#A1A4AC] border border-[#3A404D]'
+                                  ? 'bg-[var(--brand-primary)] text-[#111111]'
+                                  : 'border border-[var(--quant-border-strong)] bg-[var(--quant-border)] text-[var(--quant-muted-foreground)]'
                               }`}
                             >
                               {model.badge}
                             </span>
-                          </div>
-                          <p className="text-xs text-[#A1A4AC]">{model.description}</p>
-                          <div className="flex items-center gap-2 pt-0.5">
-                            <span className="text-[11px] text-[#FF8C42] font-semibold">
-                              Best for: {model.bestFor}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="pt-1">
-                          <div
-                            className={`size-5 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
-                              isSelected
-                                ? 'border-[#FF8C42] bg-[#FF8C42]'
-                                : 'border-[#6B6E76] bg-transparent'
-                            }`}
-                          >
-                            {isSelected && <div className="size-2 rounded-full bg-[#111111]" />}
-                          </div>
-                        </div>
+                          </span>
+                          <span className="block text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
+                            {model.description}
+                          </span>
+                          <span className="block pt-0.5 text-[11px] font-semibold text-[var(--brand-primary)]">
+                            Best for: {model.bestFor}
+                          </span>
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className={`mt-1 grid size-5 flex-none place-items-center rounded-full border-2 transition-colors ${
+                            isSelected
+                              ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)]'
+                              : 'border-[var(--quant-text-muted)] bg-transparent'
+                          }`}
+                        >
+                          {isSelected && <span className="size-2 rounded-full bg-[#111111]" />}
+                        </span>
                       </button>
                     );
                   })}
                 </div>
-              </section>
-
-              {/* Failover & Advanced AI Options */}
-              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <h2 className="text-sm font-bold text-white">When something is slow or down</h2>
-                <div className="space-y-3">
-                  <label className="flex min-h-11 items-center justify-between gap-3 py-2 border-b border-[#282C35] cursor-pointer">
-                    <div>
-                      <strong className="block text-xs text-white font-bold">
-                        Reroute automatically
-                      </strong>
-                      <span className="text-[11px] text-[#A1A4AC]">
-                        If a request stalls or errors, try a different route instead of returning
-                        nothing. Turn this off to see failures as they are.
-                      </span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={enableAutoFailover}
-                      onChange={(e) => {
-                        setEnableAutoFailover(e.target.checked);
-                        localStorage.setItem('quant-ai-failover', e.target.checked ? '1' : '0');
-                        showToast({ text: 'Updated rerouting preference', type: 'info' });
-                      }}
-                      className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                    />
-                  </label>
-
-                  <div className="pt-2">
-                    <label className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
-                      Copilot Response Temperature
-                    </label>
-                    <div className="grid grid-cols-3 gap-2.5">
-                      {[
-                        { key: 'precise', label: 'Precise (0.1)', desc: 'Fact-based & factual' },
-                        {
-                          key: 'balanced',
-                          label: 'Balanced (0.7)',
-                          desc: 'Standard business tone',
-                        },
-                        { key: 'creative', label: 'Creative (1.0)', desc: 'Expressive marketing' },
-                      ].map((item) => (
-                        <button
-                          key={item.key}
-                          type="button"
-                          onClick={() => {
-                            setAiCreativity(item.key);
-                            localStorage.setItem('quant-ai-creativity', item.key);
-                            showToast({ text: `Set AI creativity to ${item.key}`, type: 'info' });
-                          }}
-                          className={`p-2.5 rounded-xl border text-left transition-colors ${
-                            aiCreativity === item.key
-                              ? 'border-[#FF8C42] bg-[#FF8C42]/15 text-white'
-                              : 'border-[#282C35] bg-[#111318] text-[#A1A4AC] hover:text-white'
-                          }`}
-                        >
-                          <span className="text-xs font-bold block">{item.label}</span>
-                          <span className="text-[10px] text-[#A1A4AC] block">{item.desc}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </div>
+              </SettingsSection>
+            </>
           )}
 
-          {/* 3. SECURITY & ENCRYPTION TAB */}
           {activeTab === 'security' && (
-            <div className="space-y-6 animate-in fade-in duration-150">
+            <>
               {/*
                 This card used to read "Zero-Knowledge E2EE Vault Active / AES-256-GCM + Ed25519"
                 over an emerald background, and claimed payloads were encrypted on the device before
@@ -676,267 +812,156 @@ export default function SettingsPage() {
                 A false green badge is worse than an amber honest one, so the card now states the
                 two protections separately and says plainly where the boundary is.
               */}
-              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-[0_4px_16px_rgba(0,0,0,0.6)] space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-[#F5F5F5] inline-flex items-center gap-2">
-                    <span className="size-2.5 rounded-full bg-emerald-400" />
-                    Encrypted in transit and at rest
-                  </span>
-                  <span className="text-[10px] px-2.5 py-0.5 rounded bg-[#16181D] text-[#A1A4AC] border border-[#282C35]">
+              <SettingsSection
+                title="Encrypted in transit and at rest"
+                action={
+                  <span className="rounded-md border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-2.5 py-0.5 text-[10px] text-[var(--quant-muted-foreground)]">
                     TLS 1.2+ · AES-256 at rest
                   </span>
-                </div>
-                <p className="text-xs text-[#A1A4AC] leading-relaxed">
+                }
+              >
+                <p className="text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
                   Mail is encrypted on the wire to and from our servers and encrypted on disk once
                   it arrives. Your session can read it, and so can the delivery pipeline that has to
                   hand it to the recipient&apos;s provider.
                 </p>
-                <p className="text-xs text-[#A1A4AC] leading-relaxed border-t border-[#282C35] pt-3">
-                  It is <strong className="text-[#F5F5F5] font-semibold">not</strong> end-to-end
-                  encrypted. Ordinary email cannot be — SMTP requires a readable message at the
-                  boundary. Anyone telling you otherwise about a normal mailbox is selling you
-                  something. End-to-end encrypted QuantMail-to-QuantMail threads are in progress and
-                  will say so explicitly on the thread itself when they land.
+                <p className="border-t border-[var(--quant-border)] pt-3 text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
+                  It is{' '}
+                  <strong className="font-semibold text-[var(--quant-foreground)]">not</strong>{' '}
+                  end-to-end encrypted. Ordinary email cannot be — SMTP requires a readable message
+                  at the boundary. Anyone telling you otherwise about a normal mailbox is selling
+                  you something. End-to-end encrypted QuantMail-to-QuantMail threads are in progress
+                  and will say so explicitly on the thread itself when they land.
                 </p>
-              </section>
+              </SettingsSection>
 
-              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-[#282C35] pb-3">
-                  <h2 className="text-sm font-bold text-white">Session & Active Credentials</h2>
-                  <p className="text-xs text-[#A1A4AC]">
-                    Security status for current logged-in identity.
-                  </p>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#111318] border border-[#282C35]">
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-white">Device signing key</p>
-                      <p className="text-[11px] text-[#A1A4AC]">
-                        Not generated on this browser yet
-                      </p>
-                    </div>
-                    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#A1A4AC]">
-                      Not set up
-                    </span>
+              <SettingsSection
+                title="Session & credentials"
+                description="What this browser holds, and how outgoing mail is authorised."
+              >
+                {/*
+                 * These were two boxes inside a box. The rows sit on the card's own
+                 * surface with a divider between them instead — a nested panel at the
+                 * same lightness reads as a rendering fault, not as structure.
+                 *
+                 * The DKIM row used to carry a green tick and the word "Passed",
+                 * which nothing on this page checks: it is a deployment fact, not a
+                 * live probe, and a status that cannot fail is not a status. It is
+                 * stated as configuration now, in the neutral tier.
+                 */}
+                <div className="flex min-h-11 items-center justify-between gap-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-[var(--quant-foreground)]">
+                      Device signing key
+                    </p>
+                    <p className="text-xs text-[var(--quant-muted-foreground)]">
+                      Not generated on this browser yet
+                    </p>
                   </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#111318] border border-[#282C35]">
-                    <div>
-                      <p className="text-xs font-bold text-white">DKIM & SPF Authorization</p>
-                      <p className="text-[11px] text-[#A1A4AC]">
-                        quantmail.in domain verified on AWS SES
-                      </p>
-                    </div>
-                    <span className="inline-flex items-center gap-1 text-xs font-mono font-bold text-emerald-400">
-                      <svg
-                        className="size-3.5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                      Passed
-                    </span>
-                  </div>
+                  <StatusPill>Not set up</StatusPill>
                 </div>
-              </section>
+                <div className="flex min-h-11 items-center justify-between gap-3 border-t border-[var(--quant-border)] py-2 pt-3">
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-medium text-[var(--quant-foreground)]">
+                      DKIM &amp; SPF
+                    </p>
+                    <p className="text-xs text-[var(--quant-muted-foreground)]">
+                      Outgoing mail is signed for quantmail.in through AWS SES
+                    </p>
+                  </div>
+                  <StatusPill>Configured</StatusPill>
+                </div>
+              </SettingsSection>
 
               <PhoneVerificationCard />
-            </div>
+            </>
           )}
 
-          {/* 4. NOTIFICATIONS TAB */}
           {activeTab === 'notifications' && (
-            <div className="space-y-6 animate-in fade-in duration-150">
-              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-3">
-                <div className="border-b border-[#282C35] pb-3">
-                  <h2 className="text-sm font-bold text-white">Notification Channels</h2>
-                  <p className="text-xs text-[#A1A4AC]">
-                    Manage how and when you receive incoming email and calendar alerts.
-                  </p>
-                </div>
-                <label className="flex min-h-11 items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
-                  <div>
-                    <strong className="block text-xs text-white font-bold">
-                      Email Notifications
-                    </strong>
-                    <span className="text-[11px] text-[#A1A4AC]">
-                      Receive daily digest and urgent priority forwards
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={notifications.email}
-                    onChange={(e) => updateNotif('email', e.target.checked)}
-                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                  />
-                </label>
-
-                <label className="flex min-h-11 items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
-                  <div>
-                    <strong className="block text-xs text-white font-bold">
-                      Desktop Browser Notifications
-                    </strong>
-                    <span className="text-[11px] text-[#A1A4AC]">
-                      Show instant push notifications when new emails arrive
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={notifications.desktop}
-                    onChange={(e) => updateNotif('desktop', e.target.checked)}
-                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                  />
-                </label>
-
-                <label className="flex min-h-11 items-center justify-between py-2.5 border-b border-[#282C35] cursor-pointer">
-                  <div>
-                    <strong className="block text-xs text-white font-bold">Sound Alerts</strong>
-                    <span className="text-[11px] text-[#A1A4AC]">
-                      Play subtle haptic chime on incoming mail
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={notifications.sound}
-                    onChange={(e) => updateNotif('sound', e.target.checked)}
-                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                  />
-                </label>
-
-                <label className="flex min-h-11 items-center justify-between py-2.5 cursor-pointer">
-                  <div>
-                    <strong className="block text-xs text-white font-bold">
-                      Direct Mentions Only
-                    </strong>
-                    <span className="text-[11px] text-[#A1A4AC]">
-                      Only trigger alerts when you are in To/CC or specifically @mentioned
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={notifications.mentionsOnly}
-                    onChange={(e) => updateNotif('mentionsOnly', e.target.checked)}
-                    className="accent-[#FF8C42] rounded h-4 w-4 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                  />
-                </label>
-              </section>
-            </div>
+            <SettingsSection
+              title="Notifications"
+              description="One switch, because one of them is real. Email digests, sound alerts and a mentions-only filter each wrote a preference nothing read — there is no digest job, no sound asset and no mention parser — so they are gone rather than sitting here pretending."
+            >
+              <SettingsToggleRow
+                label="Desktop notifications"
+                description={
+                  desktopNotifications.permission === 'denied'
+                    ? 'Your browser is blocking notifications for this site. Allow them in the address-bar site settings, then switch this back on.'
+                    : 'A system notification when new mail arrives while this tab is in the background.'
+                }
+                checked={desktopNotifications.enabled}
+                disabled={
+                  !desktopNotifications.supported || desktopNotifications.permission === 'denied'
+                }
+                onChange={(next) => void desktopNotifications.setEnabled(next)}
+                status={notificationStatus}
+              />
+            </SettingsSection>
           )}
 
-          {/* 5. APPEARANCE TAB */}
           {activeTab === 'appearance' && (
-            <div className="space-y-6 animate-in fade-in duration-150">
-              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-[#282C35] pb-3">
-                  <h2 className="text-sm font-bold text-white">Theme & Palette</h2>
-                  <p className="text-xs text-[#A1A4AC]">
-                    Select your workspace aesthetic and dark mode level.
-                  </p>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {[
-                    { key: 'dark', label: 'Obsidian OLED', bg: 'bg-[#090A0C]' },
-                    { key: 'midnight', label: 'Midnight Blue', bg: 'bg-[#0f172a]' },
-                    { key: 'light', label: 'Clean White', bg: 'bg-[#F5F5F5] text-[#111318]' },
-                    { key: 'system', label: 'System Match', bg: 'bg-[#111318]' },
-                  ].map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => changeTheme(item.key as Theme)}
-                      className={`p-3.5 rounded-2xl border text-left transition-all ${
-                        theme === item.key
-                          ? 'border-[#FF8C42] ring-1 ring-[#FF8C42]'
-                          : 'border-[#282C35] hover:border-[#3A404D]'
-                      } ${item.bg}`}
-                    >
-                      <span className="text-xs font-bold block">{item.label}</span>
-                      <span className="text-[10px] opacity-70">
-                        {theme === item.key ? 'Active' : 'Select'}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
+            <>
+              <SettingsSection
+                title="Theme"
+                description="Applies the moment you pick it, and survives a reload."
+              >
+                <SettingsChoice<Theme>
+                  legend="Canvas"
+                  value={theme}
+                  options={THEME_OPTIONS}
+                  onChange={changeTheme}
+                  columns={3}
+                />
+              </SettingsSection>
 
-              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-[#282C35] pb-3">
-                  <h2 className="text-sm font-bold text-white">Accent Highlight</h2>
-                  <p className="text-xs text-[#A1A4AC]">
-                    Primary brand color across buttons and active tabs.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {ACCENT_COLORS.map((acc) => (
-                    <button
-                      key={acc.hex}
-                      type="button"
-                      onClick={() => changeAccent(acc.hex)}
-                      title={acc.name}
-                      className={`size-8 rounded-full border-2 transition-transform ${
-                        accentColor === acc.hex
-                          ? 'scale-115 border-white'
-                          : 'border-transparent hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: acc.hex }}
-                    />
-                  ))}
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl space-y-4">
-                <div className="border-b border-[#282C35] pb-3">
-                  <h2 className="text-sm font-bold text-white">Density Spacing</h2>
-                  <p className="text-xs text-[#A1A4AC]">
-                    Adjust spacing for compact or spacious layouts.
-                  </p>
-                </div>
-                <div className="flex gap-3">
-                  {(['comfortable', 'compact'] as const).map((item) => (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => changeDensity(item)}
-                      className={`px-4 py-2 rounded-xl border text-xs font-semibold capitalize transition-colors ${
-                        density === item
-                          ? 'border-[#FF8C42] bg-[#FF8C42]/15 text-[#FF8C42]'
-                          : 'border-[#282C35] text-[#A1A4AC] hover:text-white'
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            </div>
+              <SettingsSection
+                title="Density"
+                description="How much vertical room a conversation row gets in the list."
+              >
+                <SettingsChoice<Density>
+                  legend="Row height"
+                  value={density}
+                  options={DENSITY_OPTIONS}
+                  onChange={changeDensity}
+                  columns={2}
+                />
+              </SettingsSection>
+            </>
           )}
 
-          {/* 6. KEYBOARD SHORTCUTS TAB */}
           {activeTab === 'keyboard' && (
-            <div className="space-y-4 animate-in fade-in duration-150">
-              <section className="rounded-2xl border border-[#282C35] bg-[#121622]/90 p-5 shadow-xl">
-                <div className="border-b border-[#282C35] pb-3 mb-3">
-                  <h2 className="text-sm font-bold text-white">Keyboard Navigation Shortcuts</h2>
-                  <p className="text-xs text-[#A1A4AC]">
-                    High-efficiency keyboard shortcuts to fly through your inbox.
+            <SettingsSection
+              title="Keyboard shortcuts"
+              description="Read from the same registry the keyboard engine matches against, so a key listed here is a key that is bound. The previous table was written by hand and had drifted: it documented Ctrl+S, a C for compose and an Escape that nothing listened for."
+            >
+              {helpGroups.map(({ group, items }) => (
+                <div key={group}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--quant-text-muted)]">
+                    {helpGroupHeading(group)}
                   </p>
+                  <ul className="mt-2 list-none p-0">
+                    {items.map((item) => (
+                      <li
+                        key={item.id}
+                        className={`shortcut-row min-h-11${item.available ? '' : ' is-unavailable'}`}
+                      >
+                        <span className="shortcut-desc">{item.label}</span>
+                        <span className="shortcut-keys">
+                          <ShortcutKeys keys={item.keys} aliases />
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <div className="divide-y divide-[#282C35]">
-                  {SHORTCUTS.map(([keys, action]) => (
-                    <div key={keys} className="flex items-center justify-between py-2.5">
-                      <span className="text-xs font-medium text-white">{action}</span>
-                      <kbd className="rounded-lg border border-[#3A404D] bg-[#111318] px-2 py-1 font-mono text-[11px] text-[#FF8C42]">
-                        {keys}
-                      </kbd>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            </div>
+              ))}
+              <p className="border-t border-[var(--quant-border)] pt-3 text-xs leading-relaxed text-[var(--quant-muted-foreground)]">
+                Press{' '}
+                <span className="shortcut-keys inline-flex">
+                  <kbd>?</kbd>
+                </span>{' '}
+                anywhere to see this as a sheet.{helpNote}
+              </p>
+            </SettingsSection>
           )}
         </div>
       </div>

@@ -47,10 +47,15 @@ type RouteHandler = (request: any, reply: any) => Promise<unknown>;
 
 const loadHandlers = async () => {
   const handlers = new Map<string, RouteHandler>();
+  const registerRoute = (path: string, optionsOrHandler: unknown, maybeHandler?: RouteHandler) => {
+    handlers.set(path, (maybeHandler ?? optionsOrHandler) as RouteHandler);
+  };
   const app = {
-    post(path: string, optionsOrHandler: unknown, maybeHandler?: RouteHandler) {
-      handlers.set(path, (maybeHandler ?? optionsOrHandler) as RouteHandler);
-    },
+    post: registerRoute,
+    get: registerRoute,
+    patch: registerRoute,
+    put: registerRoute,
+    delete: registerRoute,
   };
   await authRoutes(app as never);
   return handlers;

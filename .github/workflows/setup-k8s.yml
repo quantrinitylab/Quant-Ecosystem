@@ -42,7 +42,7 @@ jobs:
       EKS_CLUSTER: ${{ vars.EKS_CLUSTER }}
       K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
       REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com
-      RDS_ENDPOINT: quant-staging-postgres.cqzas6wik73y.us-east-1.rds.amazonaws.com
+      RDS_ENDPOINT: quant-staging-postgres.cgj0y8m2azc2.us-east-1.rds.amazonaws.com
       RDS_DB: quant_staging
       RDS_USER: quant
     steps:

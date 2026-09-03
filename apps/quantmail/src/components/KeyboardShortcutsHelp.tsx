@@ -9,47 +9,23 @@
  * commands that are actually registered are listed, and each binding is rendered
  * from the same string the engine matches against.
  *
- * Commands whose `enabled()` guard is currently false are listed but dimmed. They
- * used to be filtered out, which is why the sheet showed ten navigation keys
- * beside a single compose key: every conversation action (`e`, `s`, `u`, `#`,
- * `r`, `f`, `x`) is gated on a focused row, so opening the sheet from a fresh
- * inbox erased the entire section. A shortcuts *reference* should answer "what
- * keys exist here", not "what can I press this exact millisecond".
- *
- * The same argument applies one level up. Those bindings are registered by
- * `useInboxKeyboard`, which only the inbox mounts, so opening this panel from
- * Calendar or Drive dropped Conversation and Selection entirely and left two
- * short columns beside a column of dead space. `INBOX_COMMAND_REFERENCE` fills
- * them in from the declarations the inbox registers from — same labels, same
- * keys, dimmed — so the sheet is a reference to the app rather than to the
- * current route.
+ * What to list, in what order, and why a row is dim now live in
+ * `lib/keyboard/help-model.ts`, because Settings › Keyboard renders the same
+ * reference and a second copy of those rules is how the old table came to
+ * disagree with the engine. This file owns the modal: the scope, the focus trap,
+ * the animation and the three-column layout.
  */
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { useId, useMemo } from 'react';
 import { useFocusTrap } from '@quant/shared-ui';
-import { chordToLabelParts, parseSequence } from '../lib/keyboard/chords';
-import {
-  COMMAND_GROUPS,
-  INBOX_COMMAND_REFERENCE,
-  type CommandGroup,
-} from '../lib/keyboard/command-registry';
+import { buildHelpGroups, dimNoteFor, helpGroupHeading } from '../lib/keyboard/help-model';
 import { useCommandList, useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
 import { IconX } from './icons';
 import { useKeyboardSurfaces } from './KeyboardProvider';
+import { ShortcutKeys } from './ShortcutKeys';
 
 const SCOPE = 'shortcuts-help';
-
-interface HelpEntry {
-  id: string;
-  label: string;
-  keys: string | string[];
-  /** Bound and pressable right now. */
-  available: boolean;
-  /** Documented from the reference because its surface is not mounted. */
-  elsewhere: boolean;
-  destructive: boolean;
-}
 
 export function KeyboardShortcutsHelp() {
   const { isHelpOpen, closeHelp } = useKeyboardSurfaces();
@@ -69,70 +45,11 @@ export function KeyboardShortcutsHelp() {
    */
   const panelRef = useFocusTrap<HTMLDivElement>({ active: isHelpOpen });
 
-  const groups = useMemo(() => {
-    const byGroup = new Map<CommandGroup, HelpEntry[]>();
-    const add = (group: CommandGroup, entry: HelpEntry) => {
-      const existing = byGroup.get(group);
-      if (existing) existing.push(entry);
-      else byGroup.set(group, [entry]);
-    };
-
-    const registered = new Set<string>();
-    for (const command of commands) {
-      if (!command.keys || command.hiddenInHelp) continue;
-      registered.add(command.id);
-      add(command.group, {
-        id: command.id,
-        label: command.label,
-        keys: command.keys,
-        available: !command.enabled || command.enabled(),
-        elsewhere: false,
-        destructive: !!command.destructive,
-      });
-    }
-
-    // Only the ids the inbox has not already registered, so the live command —
-    // with its live label, `u` reading "Mark as read" on an unread row — always
-    // wins over the static one.
-    for (const reference of INBOX_COMMAND_REFERENCE) {
-      if (registered.has(reference.id)) continue;
-      add(reference.group, {
-        id: reference.id,
-        label: reference.label,
-        keys: reference.keys,
-        available: false,
-        elsewhere: true,
-        destructive: !!reference.destructive,
-      });
-    }
-
-    // Available bindings first within a section, so the dimmed contextual ones
-    // collect at the bottom instead of interleaving with what works right now.
-    // Destructive last regardless, matching the palette's ordering.
-    for (const entries of byGroup.values()) {
-      entries.sort(
-        (a, b) =>
-          Number(b.available) - Number(a.available) ||
-          Number(a.destructive) - Number(b.destructive),
-      );
-    }
-    return COMMAND_GROUPS.filter((group) => byGroup.has(group)).map((group) => ({
-      group,
-      items: byGroup.get(group)!,
-    }));
-  }, [commands]);
-
-  const allItems = groups.flatMap(({ items }) => items);
-  const hasElsewhere = allItems.some((item) => item.elsewhere);
-  const hasContextual = allItems.some((item) => !item.available && !item.elsewhere);
-  // Two different reasons a row is dim, and telling the user the wrong one is
-  // worse than telling them nothing: "pick a conversation" is unactionable
-  // advice on the Calendar page.
-  const dimNote = hasElsewhere
-    ? ' · dimmed keys apply to the inbox'
-    : hasContextual
-      ? ' · dimmed keys need a focused conversation'
-      : '';
+  const groups = useMemo(() => buildHelpGroups(commands), [commands]);
+  const dimNote = dimNoteFor(groups, {
+    elsewhere: ' · dimmed keys apply to the inbox',
+    contextual: ' · dimmed keys need a focused conversation',
+  });
 
   return (
     <AnimatePresence>
@@ -180,13 +97,16 @@ export function KeyboardShortcutsHelp() {
             <div className="shortcuts-body">
               {groups.map(({ group, items }) => (
                 <section key={group}>
-                  <h3>{group === 'Conversation' ? 'Conversation actions' : group}</h3>
+                  <h3>{helpGroupHeading(group)}</h3>
                   <ul>
                     {items.map((item) => (
-                      <li key={item.id} className={item.available ? undefined : 'is-unavailable'}>
+                      <li
+                        key={item.id}
+                        className={`shortcut-row${item.available ? '' : ' is-unavailable'}`}
+                      >
                         <span className="shortcut-desc">{item.label}</span>
                         <span className="shortcut-keys">
-                          <BindingKeys keys={item.keys} />
+                          <ShortcutKeys keys={item.keys} />
                         </span>
                       </li>
                     ))}
@@ -205,29 +125,5 @@ export function KeyboardShortcutsHelp() {
         </motion.div>
       )}
     </AnimatePresence>
-  );
-}
-
-/**
- * Render one binding as separate `kbd` pills. Sequences read as `G` then `I`
- * rather than a single opaque "GI", because they are pressed in turn.
- */
-function BindingKeys({ keys }: { keys: string | string[] }) {
-  // Only the primary binding is documented; aliases would double the sheet's
-  // length without telling the user anything new.
-  const primary = Array.isArray(keys) ? keys[0] : keys;
-  const chords = parseSequence(primary);
-
-  return (
-    <>
-      {chords.map((chord, chordIndex) => (
-        <span key={`${chord}-${chordIndex}`} className="inline-flex items-center gap-1">
-          {chordIndex > 0 && <span className="px-0.5 text-[10px] text-[#A1A4AC]">then</span>}
-          {chordToLabelParts(chord).map((part, partIndex) => (
-            <kbd key={`${part}-${partIndex}`}>{part}</kbd>
-          ))}
-        </span>
-      ))}
-    </>
   );
 }

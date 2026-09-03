@@ -34,6 +34,21 @@ function toLocalInputValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/**
+ * Tomorrow at 09:00, local.
+ *
+ * Exported because the inbox row's swipe-right commits to this same time, and a
+ * gesture that snoozed to a *slightly different* tomorrow than the menu's
+ * `Tomorrow` would be two different features wearing one word. One function, two
+ * callers.
+ */
+export function snoozeUntilNextMorning(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  return d;
+}
+
 // Every option is guaranteed to land in the future (the backend rejects past
 // snooze times): weekend/next-week math rolls forward a full week when the
 // naive target would be today-or-earlier.
@@ -48,12 +63,7 @@ const SNOOZE_OPTIONS = [
   },
   {
     label: 'Tomorrow',
-    getDate: () => {
-      const d = new Date();
-      d.setDate(d.getDate() + 1);
-      d.setHours(9, 0, 0, 0);
-      return d;
-    },
+    getDate: snoozeUntilNextMorning,
   },
   {
     label: 'This weekend',

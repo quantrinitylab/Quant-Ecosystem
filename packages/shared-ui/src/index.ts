@@ -416,6 +416,14 @@ export type {
 export { useDragDrop } from './hooks/useDragDrop';
 export type { UseDragDropOptions, UseDragDropReturn } from './hooks/useDragDrop';
 
+// Swipe actions hook — horizontal row actions that survive a vertical scroll
+export { useSwipeActions } from './hooks/useSwipeActions';
+export type {
+  SwipeAction,
+  UseSwipeActionsOptions,
+  UseSwipeActionsReturn,
+} from './hooks/useSwipeActions';
+
 // CommandPaletteUI component
 export { CommandPaletteUI } from './components/CommandPaletteUI';
 export type { CommandPaletteUIProps, CommandPaletteItem } from './components/CommandPaletteUI';
