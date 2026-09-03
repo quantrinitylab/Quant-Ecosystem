@@ -37,17 +37,31 @@ function localDate(value: string | null): string {
     : new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
-function draftFrom(value: VacationResponderPreference | null): Draft {
-  return value
-    ? {
-        subject: value.subject,
-        message: value.message,
-        startAt: localDate(value.startAt),
-        endAt: localDate(value.endAt),
-        onlyContacts: value.onlyContacts,
-        intervalDays: value.intervalDays,
-      }
-    : EMPTY;
+/**
+ * Build the editable draft from whatever the API actually returned.
+ *
+ * `VacationResponderPreference` declares `subject` and `message` as required
+ * strings and the Prisma model backs that up, but a TypeScript interface is a
+ * promise about a network payload, not a guarantee about one. A response that
+ * was an object with those keys missing used to reach `draft.subject.trim()` in
+ * the validation memo below and throw — and because that memo runs during
+ * render, the whole of /settings went down with it: every tab replaced by the
+ * route error boundary, not just this card. Coercing here costs a bad payload
+ * an empty field instead of the page.
+ */
+function draftFrom(value: Partial<VacationResponderPreference> | null): Draft {
+  if (!value) return EMPTY;
+  return {
+    subject: typeof value.subject === 'string' ? value.subject : '',
+    message: typeof value.message === 'string' ? value.message : '',
+    startAt: localDate(typeof value.startAt === 'string' ? value.startAt : null),
+    endAt: localDate(typeof value.endAt === 'string' ? value.endAt : null),
+    onlyContacts: value.onlyContacts === true,
+    intervalDays:
+      typeof value.intervalDays === 'number' && Number.isInteger(value.intervalDays)
+        ? value.intervalDays
+        : EMPTY.intervalDays,
+  };
 }
 
 function payloadFrom(value: Draft): UpsertVacationResponderPreference {
