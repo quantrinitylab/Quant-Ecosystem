@@ -42,12 +42,14 @@ spec:
             - name: JWT_ISSUER
               value: 'quantai'
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /readyz
               port: 3004
             initialDelaySeconds: 10
             periodSeconds: 5
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /livez
               port: 3004
             initialDelaySeconds: 20
             periodSeconds: 10

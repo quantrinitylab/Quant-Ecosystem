@@ -54,6 +54,11 @@ spec:
             - name: http
               containerPort: {{ $svc.port }}
               protocol: TCP
+            {{- if $svc.healthPort }}
+            - name: health
+              containerPort: {{ $svc.healthPort }}
+              protocol: TCP
+            {{- end }}
             - name: metrics
               containerPort: 9090
               protocol: TCP
@@ -78,13 +83,13 @@ spec:
           livenessProbe:
             httpGet:
               path: {{ $svc.probes.liveness.path }}
-              port: http
+              port: {{ default (default "http" (and $svc.healthPort "health")) $svc.probes.liveness.port }}
             initialDelaySeconds: {{ $svc.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ $svc.probes.liveness.periodSeconds }}
           readinessProbe:
             httpGet:
               path: {{ $svc.probes.readiness.path }}
-              port: http
+              port: {{ default (default "http" (and $svc.healthPort "health")) $svc.probes.readiness.port }}
             initialDelaySeconds: {{ $svc.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ $svc.probes.readiness.periodSeconds }}
           resources:

@@ -39,12 +39,14 @@ spec:
             - name: JWT_ISSUER
               value: 'quantchat'
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /readyz
               port: 3002
             initialDelaySeconds: 10
             periodSeconds: 5
           livenessProbe:
-            tcpSocket:
+            httpGet:
+              path: /livez
               port: 3002
             initialDelaySeconds: 20
             periodSeconds: 10

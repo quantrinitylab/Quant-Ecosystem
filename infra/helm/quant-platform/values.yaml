@@ -121,9 +121,12 @@ services:
     # `createServer` handler that answers `/health` and `/api/health` with a 200
     # on the same port it upgrades connections on, which is the port these probes
     # target. `@quant/health-server` also gives it `/healthz` and `/readyz`, but
-    # those listen on a separate HEALTH_PORT (3040) that this chart does not
-    # expose as a container port — so pointing a probe at `/healthz` here would
-    # break a service that is currently probed correctly.
+    # those listen on a separate HEALTH_PORT (3040), and nothing here asks for it.
+    # The chart can now reach that port — set `healthPort: 3040` on this service
+    # and the probes retarget the `health` container port automatically — but
+    # changing the path alone, with no `healthPort`, points a probe at a route
+    # that does not exist on the port it is querying and breaks a service that is
+    # currently probed correctly.
     probes:
       liveness:
         path: /health

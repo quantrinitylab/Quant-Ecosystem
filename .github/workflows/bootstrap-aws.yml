@@ -452,6 +452,18 @@ jobs:
                     image: $FE
                     ports:
                       - containerPort: 3000
+                    readinessProbe:
+                      httpGet:
+                        path: /
+                        port: 3000
+                      initialDelaySeconds: 10
+                      periodSeconds: 5
+                    livenessProbe:
+                      httpGet:
+                        path: /
+                        port: 3000
+                      initialDelaySeconds: 20
+                      periodSeconds: 10
                     envFrom:
                       - configMapRef:
                           name: quant-staging-config
@@ -479,6 +491,18 @@ jobs:
                     image: $BE
                     ports:
                       - containerPort: 3011
+                    readinessProbe:
+                      httpGet:
+                        path: /readyz
+                        port: 3011
+                      initialDelaySeconds: 10
+                      periodSeconds: 5
+                    livenessProbe:
+                      httpGet:
+                        path: /livez
+                        port: 3011
+                      initialDelaySeconds: 20
+                      periodSeconds: 10
                     envFrom:
                       - configMapRef:
                           name: quant-staging-config
@@ -537,26 +561,48 @@ jobs:
       # ── Prisma migrations ─────────────────────────────────────────────────
       - name: Run Prisma migrations
         run: |
+          # Every `run:` block is a fresh shell, so these have to be set here.
+          # `BACKEND_IMAGE` is the exception — it reaches us through $GITHUB_ENV.
           NS="quant-staging"
           RUN_ID="${{ github.run_id }}"
-          DB_URL=$(kubectl get secret quant-staging-secrets -n "$NS" \
-            -o jsonpath='{.data.DATABASE_URL}' | base64 -d)
 
-          kubectl run prisma-migrate-${RUN_ID} -n "$NS" \
-            --image="$BACKEND_IMAGE" --restart=Never \
-            --env="DATABASE_URL=$DB_URL" \
-            -- sh -c "pnpm prisma migrate deploy 2>&1; echo PRISMA_DONE"
+          # The migration pod takes the database URL from the cluster Secret via
+          # envFrom, never from argv: `kubectl run --env=DATABASE_URL=$(…)` put
+          # the credential in the runner's process list and in the pod spec.
+          kubectl apply -n "$NS" -f - <<EOF
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: prisma-migrate-${RUN_ID}
+            namespace: $NS
+          spec:
+            restartPolicy: Never
+            containers:
+              - name: prisma-migrate
+                image: $BACKEND_IMAGE
+                envFrom:
+                  - secretRef:
+                      name: quant-staging-secrets
+                command: ["sh", "-c", "pnpm prisma migrate deploy"]
+          EOF
 
           echo ">> Waiting for migrations (max 5 min)..."
+          STATUS="Pending"
           for i in $(seq 1 30); do
             STATUS=$(kubectl get pod prisma-migrate-${RUN_ID} -n "$NS" \
               -o jsonpath='{.status.phase}' 2>/dev/null || echo "Pending")
-            [ "$STATUS" = "Succeeded" ] || [ "$STATUS" = "Failed" ] && break
+            if [ "$STATUS" = "Succeeded" ] || [ "$STATUS" = "Failed" ]; then
+              break
+            fi
             sleep 10
           done
-          kubectl logs prisma-migrate-${RUN_ID} -n "$NS" 2>/dev/null | tail -10
+          kubectl logs prisma-migrate-${RUN_ID} -n "$NS" 2>/dev/null | tail -20
           kubectl delete pod prisma-migrate-${RUN_ID} -n "$NS" 2>/dev/null || true
-          echo ">> Migrations done"
+          if [ "$STATUS" != "Succeeded" ]; then
+            echo ">> Prisma migration failed with phase: $STATUS"
+            exit 1
+          fi
+          echo ">> Migrations succeeded"
 
       # ── Get ELB hostname ──────────────────────────────────────────────────
       - name: Get nginx ingress ELB hostname
