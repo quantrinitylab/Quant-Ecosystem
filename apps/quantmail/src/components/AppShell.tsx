@@ -17,6 +17,7 @@ import { QuantumSplashIntro } from './QuantumSplashIntro';
 import { useInbox } from '../hooks/useInbox';
 import { SearchClearButton } from './SearchClearButton';
 import { QuantFab, type FabAction } from './QuantFab';
+import { ShellChromeProvider } from './ShellChromeContext';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -547,108 +548,118 @@ export function AppShell({
       style={semanticTheme}
       role="application"
     >
-      {sidebar && (
-        <>
-          {/* Backdrop for overlay drawer */}
-          <button
-            type="button"
-            className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
-              isDrawerPresented ? 'visible opacity-100' : 'invisible opacity-0 pointer-events-none'
-            }`}
-            aria-label="Close navigation menu"
-            onClick={() => closeSidebar()}
-          />
+      {/*
+        Everything modal about the drawer hangs off `isDrawerPresented`, and the
+        floating create button is modal-adjacent: it must not be hittable over a
+        backdrop. Publishing the flag here rather than guarding `<QuantFab>`
+        inline is what makes that true for the copy `/calendar` mounts inside
+        `{children}` as well as for the shell's own.
+      */}
+      <ShellChromeProvider isDrawerPresented={isDrawerPresented}>
+        {sidebar && (
+          <>
+            {/* Backdrop for overlay drawer */}
+            <button
+              type="button"
+              className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
+                isDrawerPresented
+                  ? 'visible opacity-100'
+                  : 'invisible opacity-0 pointer-events-none'
+              }`}
+              aria-label="Close navigation menu"
+              onClick={() => closeSidebar()}
+            />
 
-          {/* Desktop Pinned Sidebar */}
-          {isPinned && (
+            {/* Desktop Pinned Sidebar */}
+            {isPinned && (
+              <aside
+                className="hidden md:relative md:flex flex-none bg-[var(--surface)] border-r border-[var(--border)]"
+                aria-label="Sidebar"
+              >
+                <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="size-9 inline-flex items-center justify-center rounded-md text-[var(--foreground)]/70 outline-none hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
+                    aria-label="Unpin navigation"
+                    aria-pressed={true}
+                    onClick={togglePinned}
+                  >
+                    <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
+                      <path
+                        d="M9 4h6l-1 6 4 4H6l4-4-1-6Zm3 10v6"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                {sidebar}
+              </aside>
+            )}
+
+            {/* Mobile & Unpinned Overlay Drawer */}
             <aside
-              className="hidden md:relative md:flex flex-none bg-[var(--surface)] border-r border-[var(--border)]"
-              aria-label="Sidebar"
+              ref={drawerRef}
+              id={drawerId}
+              className={`fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-3rem)] flex-none bg-[var(--surface)] shadow-2xl transition-transform duration-200 ease-out motion-reduce:transition-none ${
+                isSidebarOpen ? 'visible translate-x-0' : 'invisible -translate-x-full'
+              } ${isPinned ? 'md:hidden' : ''}`}
+              // A backdrop, a locked page and a focus trap already make this a modal
+              // dialog; saying so lets a screen reader announce the boundary instead
+              // of presenting it as one more complementary region on the page.
+              role="dialog"
+              aria-modal={isDrawerPresented || undefined}
+              aria-label="Navigation"
+              aria-hidden={!isDrawerPresented}
+              onClickCapture={(event) => {
+                if ((event.target as HTMLElement).closest('.sidebar-nav-item, .sidebar-compose')) {
+                  closeSidebar(false);
+                }
+              }}
             >
-              <div className="absolute right-2 top-2 z-10 flex items-center gap-1">
-                <button
-                  type="button"
-                  className="size-9 inline-flex items-center justify-center rounded-md text-[var(--foreground)]/70 outline-none hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
-                  aria-label="Unpin navigation"
-                  aria-pressed={true}
-                  onClick={togglePinned}
-                >
-                  <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
-                    <path
-                      d="M9 4h6l-1 6 4 4H6l4-4-1-6Zm3 10v6"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeWidth="2"
-                    />
-                  </svg>
-                </button>
-              </div>
               {sidebar}
             </aside>
-          )}
+          </>
+        )}
 
-          {/* Mobile & Unpinned Overlay Drawer */}
-          <aside
-            ref={drawerRef}
-            id={drawerId}
-            className={`fixed inset-y-0 left-0 z-50 flex max-w-[calc(100vw-3rem)] flex-none bg-[var(--surface)] shadow-2xl transition-transform duration-200 ease-out motion-reduce:transition-none ${
-              isSidebarOpen ? 'visible translate-x-0' : 'invisible -translate-x-full'
-            } ${isPinned ? 'md:hidden' : ''}`}
-            // A backdrop, a locked page and a focus trap already make this a modal
-            // dialog; saying so lets a screen reader announce the boundary instead
-            // of presenting it as one more complementary region on the page.
-            role="dialog"
-            aria-modal={isDrawerPresented || undefined}
-            aria-label="Navigation"
-            aria-hidden={!isDrawerPresented}
-            onClickCapture={(event) => {
-              if ((event.target as HTMLElement).closest('.sidebar-nav-item, .sidebar-compose')) {
-                closeSidebar(false);
-              }
-            }}
-          >
-            {sidebar}
-          </aside>
-        </>
-      )}
+        <div
+          className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-14 md:pb-0'}`}
+        >
+          {/* Top Header bar with Logo + Search in QuantMail or Custom Header */}
+          {sidebar &&
+            (customHeader ? (
+              customHeader
+            ) : (
+              <header
+                className={`flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--border)] bg-[#090A0C]/90 backdrop-blur px-3 md:px-5 ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'hidden md:flex' : ''}`}
+              >
+                {/* Left: Menu trigger + Brand Logo & Title */}
+                <div className="flex items-center gap-3">
+                  <button
+                    ref={menuTriggerRef}
+                    type="button"
+                    // Hidden once the rail is pinned on a wide screen: the drawer it
+                    // opens is `md:hidden` there, so the control had nothing to show.
+                    className={`inline-flex size-11 sm:size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${isPinned ? 'md:hidden' : ''}`}
+                    aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                    aria-expanded={isDrawerPresented}
+                    aria-controls={drawerId}
+                    onClick={() => setIsSidebarOpen((open) => !open)}
+                  >
+                    <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
+                      <path
+                        d="M4 6h16M4 12h16M4 18h16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                  </button>
 
-      <div
-        className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-14 md:pb-0'}`}
-      >
-        {/* Top Header bar with Logo + Search in QuantMail or Custom Header */}
-        {sidebar &&
-          (customHeader ? (
-            customHeader
-          ) : (
-            <header
-              className={`flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--border)] bg-[#090A0C]/90 backdrop-blur px-3 md:px-5 ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'hidden md:flex' : ''}`}
-            >
-              {/* Left: Menu trigger + Brand Logo & Title */}
-              <div className="flex items-center gap-3">
-                <button
-                  ref={menuTriggerRef}
-                  type="button"
-                  // Hidden once the rail is pinned on a wide screen: the drawer it
-                  // opens is `md:hidden` there, so the control had nothing to show.
-                  className={`inline-flex size-11 sm:size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${isPinned ? 'md:hidden' : ''}`}
-                  aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
-                  aria-expanded={isDrawerPresented}
-                  aria-controls={drawerId}
-                  onClick={() => setIsSidebarOpen((open) => !open)}
-                >
-                  <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
-                    <path
-                      d="M4 6h16M4 12h16M4 18h16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeWidth="2"
-                    />
-                  </svg>
-                </button>
-
-                {/*
+                  {/*
                   A real `button`, not a clickable `div`. As a div it was
                   unreachable by keyboard and had no focus ring, and because
                   `QuantMailLogo` also took `onClick={handleLogoClick}` while
@@ -658,30 +669,30 @@ export function AppShell({
                   handler runs exactly once — and the wordmark is part of the
                   same target instead of a dead strip beside it.
                 */}
-                <button
-                  type="button"
-                  className="flex min-h-touch items-center gap-3 select-none group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                  onClick={handleLogoClick}
-                  title={`${appDisplayName(currentApp)} — Click to refresh`}
-                  aria-label={`${appDisplayName(currentApp)} — refresh`}
-                >
-                  {currentApp === 'calendar' ? (
-                    <QuantCalendarLogo size={36} />
-                  ) : currentApp === 'drive' ? (
-                    <QuantDriveLogo size={36} />
-                  ) : currentApp === 'contacts' ? (
-                    <QuantContactsLogo size={36} />
-                  ) : currentApp === 'code' ? (
-                    <QuantGitLogo size={36} />
-                  ) : (
-                    <QuantMailLogo size={38} unreadCount={unreadCount} interactive={false} />
-                  )}
+                  <button
+                    type="button"
+                    className="flex min-h-touch items-center gap-3 select-none group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    onClick={handleLogoClick}
+                    title={`${appDisplayName(currentApp)} — Click to refresh`}
+                    aria-label={`${appDisplayName(currentApp)} — refresh`}
+                  >
+                    {currentApp === 'calendar' ? (
+                      <QuantCalendarLogo size={36} />
+                    ) : currentApp === 'drive' ? (
+                      <QuantDriveLogo size={36} />
+                    ) : currentApp === 'contacts' ? (
+                      <QuantContactsLogo size={36} />
+                    ) : currentApp === 'code' ? (
+                      <QuantGitLogo size={36} />
+                    ) : (
+                      <QuantMailLogo size={38} unreadCount={unreadCount} interactive={false} />
+                    )}
 
-                  <BrandWordmark app={currentApp} size="text-xl" />
-                </button>
-              </div>
+                    <BrandWordmark app={currentApp} size="text-xl" />
+                  </button>
+                </div>
 
-              {/*
+                {/*
                 Center: the live search bar, on a pointer.
 
                 A route that cannot search collapses this to `display: none` — the
@@ -693,120 +704,120 @@ export function AppShell({
                 so three of QuantMail's surfaces offered a search box that was a
                 picture of one.
               */}
-              <div
-                className={`flex-1 max-w-xl mx-4 ${onSearchChange ? 'hidden md:flex' : 'hidden'}`}
-              >
-                {onSearchChange ? (
-                  /*
-                   * The vertical padding is on the input, not on this wrapper. With
-                   * `py-1.5` here the box looked 34px tall but the field that
-                   * actually took the click was the 16px line of text inside it, so
-                   * a click aimed at the top or bottom of the search bar did
-                   * nothing. `min-h` keeps the box the same size it looked before.
-                   */
-                  <div className="w-full flex min-h-[38px] items-center gap-2.5 px-3.5 rounded-xl bg-[#111318]/90 border border-[#282C35] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner">
-                    <svg
-                      className="size-4 text-[#A1A4AC] shrink-0"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                      focusable="false"
-                    >
-                      <circle cx="11" cy="11" r="7" />
-                      <path d="m20 20-4-4" />
-                    </svg>
-                    <input
-                      ref={desktopSearchRef}
-                      id="app-shell-search-input"
-                      name="searchQuery"
-                      type="search"
-                      value={searchValue ?? ''}
-                      onChange={(e) => onSearchChange(e.target.value)}
-                      // The placeholder says what is searchable, which is context,
-                      // not a name — and it is gone the moment anyone types.
-                      aria-label="Search"
-                      placeholder={
-                        searchPlaceholder ||
-                        // Every app name comes from `appDisplayName`, so a rename
-                        // lands here too. The chain this replaced had no `code`
-                        // case, so QuantGit's search bar read "Search in
-                        // QuantMail (sender, subject, keyword)…".
-                        (currentApp === 'mail'
-                          ? 'Search in QuantMail (sender, subject, keyword)…'
-                          : `Search in ${appDisplayName(currentApp)}…`)
-                      }
-                      className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none"
-                    />
-                    {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
-                    {/*
+                <div
+                  className={`flex-1 max-w-xl mx-4 ${onSearchChange ? 'hidden md:flex' : 'hidden'}`}
+                >
+                  {onSearchChange ? (
+                    /*
+                     * The vertical padding is on the input, not on this wrapper. With
+                     * `py-1.5` here the box looked 34px tall but the field that
+                     * actually took the click was the 16px line of text inside it, so
+                     * a click aimed at the top or bottom of the search bar did
+                     * nothing. `min-h` keeps the box the same size it looked before.
+                     */
+                    <div className="w-full flex min-h-[38px] items-center gap-2.5 px-3.5 rounded-xl bg-[#111318]/90 border border-[#282C35] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner">
+                      <svg
+                        className="size-4 text-[#A1A4AC] shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                        focusable="false"
+                      >
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m20 20-4-4" />
+                      </svg>
+                      <input
+                        ref={desktopSearchRef}
+                        id="app-shell-search-input"
+                        name="searchQuery"
+                        type="search"
+                        value={searchValue ?? ''}
+                        onChange={(e) => onSearchChange(e.target.value)}
+                        // The placeholder says what is searchable, which is context,
+                        // not a name — and it is gone the moment anyone types.
+                        aria-label="Search"
+                        placeholder={
+                          searchPlaceholder ||
+                          // Every app name comes from `appDisplayName`, so a rename
+                          // lands here too. The chain this replaced had no `code`
+                          // case, so QuantGit's search bar read "Search in
+                          // QuantMail (sender, subject, keyword)…".
+                          (currentApp === 'mail'
+                            ? 'Search in QuantMail (sender, subject, keyword)…'
+                            : `Search in ${appDisplayName(currentApp)}…`)
+                        }
+                        className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none"
+                      />
+                      {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
+                      {/*
                       The pill now describes the field it sits in. `/` was always
                       bound — to `nav.search`, which navigated to `/search` — so on
                       this route the hint pointed at a key that left the page. The
                       shadowing binding above puts the caret here instead; see the
                       comment on `focusSearch`.
                     */}
-                    <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#282C35] text-[10px] font-mono text-[#6B6E76] border border-[#3A404D]/60 shrink-0">
-                      /
-                    </kbd>
-                  </div>
-                ) : null}
-              </div>
+                      <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#282C35] text-[10px] font-mono text-[#6B6E76] border border-[#3A404D]/60 shrink-0">
+                        /
+                      </kbd>
+                    </div>
+                  ) : null}
+                </div>
 
-              {/* Right: Mobile Title / Actions */}
-              <div className="flex items-center gap-2">
-                {mobileTitle && <div className="md:hidden">{mobileTitle}</div>}
-                {/*
+                {/* Right: Mobile Title / Actions */}
+                <div className="flex items-center gap-2">
+                  {mobileTitle && <div className="md:hidden">{mobileTitle}</div>}
+                  {/*
                   The phone's way into search. Before the header, so it reads
                   left-to-right as the same control the desktop bar is — and
                   before `mobileActions`, which is where the inbox used to keep
                   its own copy of this button, so the order on that route is
                   unchanged now that it no longer has one.
                 */}
-                {onSearchChange && (
-                  <button
-                    type="button"
-                    className={`md:hidden inline-flex size-11 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                      isMobileSearchOpen
-                        ? 'bg-[#282C35] text-[#FF8C42]'
-                        : 'text-[#A1A4AC] hover:bg-[#282C35] hover:text-white'
-                    }`}
-                    onClick={() => {
-                      // Closing discards the query. A collapsed row that is still
-                      // filtering the list behind it is a filter with no visible
-                      // cause, and the only way back to everything would be to
-                      // reopen the row to clear it.
-                      if (isMobileSearchOpen) onSearchChange('');
-                      setIsMobileSearchOpen((open) => !open);
-                    }}
-                    aria-expanded={isMobileSearchOpen}
-                    aria-controls={mobileSearchId}
-                    aria-label={isMobileSearchOpen ? 'Close search' : 'Search'}
-                  >
-                    <svg
-                      className="size-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.75"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
+                  {onSearchChange && (
+                    <button
+                      type="button"
+                      className={`md:hidden inline-flex size-11 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                        isMobileSearchOpen
+                          ? 'bg-[#282C35] text-[#FF8C42]'
+                          : 'text-[#A1A4AC] hover:bg-[#282C35] hover:text-white'
+                      }`}
+                      onClick={() => {
+                        // Closing discards the query. A collapsed row that is still
+                        // filtering the list behind it is a filter with no visible
+                        // cause, and the only way back to everything would be to
+                        // reopen the row to clear it.
+                        if (isMobileSearchOpen) onSearchChange('');
+                        setIsMobileSearchOpen((open) => !open);
+                      }}
+                      aria-expanded={isMobileSearchOpen}
+                      aria-controls={mobileSearchId}
+                      aria-label={isMobileSearchOpen ? 'Close search' : 'Search'}
                     >
-                      <circle cx="11" cy="11" r="7" />
-                      <path d="m20 20-4-4" />
-                    </svg>
-                  </button>
-                )}
-                {mobileActions}
-              </div>
-            </header>
-          ))}
+                      <svg
+                        className="size-5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.75"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <circle cx="11" cy="11" r="7" />
+                        <path d="m20 20-4-4" />
+                      </svg>
+                    </button>
+                  )}
+                  {mobileActions}
+                </div>
+              </header>
+            ))}
 
-        {/*
+          {/*
           The mobile search row.
 
           Below the header rather than inside it, because at 375px a 44px field
@@ -818,92 +829,105 @@ export function AppShell({
           animate both ways, and `inert` keeps a collapsed field out of the tab
           order and out of the accessibility tree while it is closed.
         */}
-        {sidebar && !customHeader && onSearchChange && (
-          <div
-            id={mobileSearchId}
-            inert={!isMobileSearchOpen}
-            className={`md:hidden grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${
-              isMobileSearchOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-            }`}
-          >
-            <div className="min-h-0 overflow-hidden">
-              <div className="flex items-center gap-2 border-b border-[#282C35]/80 bg-[#090A0C] px-3 py-2.5 sm:px-4">
-                <div className="flex min-h-touch flex-1 items-center gap-2 rounded-xl border border-[#3A404D]/80 bg-[#111318]/90 px-3 shadow-inner focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30">
-                  <svg
-                    className="size-4 shrink-0 text-[#A1A4AC]"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <circle cx="11" cy="11" r="7" />
-                    <path d="m20 20-4-4" />
-                  </svg>
-                  <input
-                    ref={mobileSearchRef}
-                    id="app-shell-mobile-search-input"
-                    name="searchQuery"
-                    type="search"
-                    value={searchValue ?? ''}
-                    onChange={(e) => onSearchChange(e.target.value)}
-                    onKeyDown={(event) => {
-                      // Escape closes the row from inside the field, which is
-                      // where the user is. The engine's Escape binding is scoped
-                      // to the drawer, so it never sees this.
-                      if (event.key === 'Escape') {
-                        event.stopPropagation();
-                        onSearchChange('');
-                        setIsMobileSearchOpen(false);
+          {sidebar && !customHeader && onSearchChange && (
+            <div
+              id={mobileSearchId}
+              inert={!isMobileSearchOpen}
+              className={`md:hidden grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${
+                isMobileSearchOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+              }`}
+            >
+              <div className="min-h-0 overflow-hidden">
+                <div className="flex items-center gap-2 border-b border-[#282C35]/80 bg-[#090A0C] px-3 py-2.5 sm:px-4">
+                  <div className="flex min-h-touch flex-1 items-center gap-2 rounded-xl border border-[#3A404D]/80 bg-[#111318]/90 px-3 shadow-inner focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30">
+                    <svg
+                      className="size-4 shrink-0 text-[#A1A4AC]"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <circle cx="11" cy="11" r="7" />
+                      <path d="m20 20-4-4" />
+                    </svg>
+                    <input
+                      ref={mobileSearchRef}
+                      id="app-shell-mobile-search-input"
+                      name="searchQuery"
+                      type="search"
+                      value={searchValue ?? ''}
+                      onChange={(e) => onSearchChange(e.target.value)}
+                      onKeyDown={(event) => {
+                        // Escape closes the row from inside the field, which is
+                        // where the user is. The engine's Escape binding is scoped
+                        // to the drawer, so it never sees this.
+                        if (event.key === 'Escape') {
+                          event.stopPropagation();
+                          onSearchChange('');
+                          setIsMobileSearchOpen(false);
+                        }
+                      }}
+                      aria-label="Search"
+                      placeholder={
+                        searchPlaceholder ||
+                        (currentApp === 'mail'
+                          ? 'Search messages, contacts, keywords…'
+                          : `Search in ${appDisplayName(currentApp)}…`)
                       }
-                    }}
-                    aria-label="Search"
-                    placeholder={
-                      searchPlaceholder ||
-                      (currentApp === 'mail'
-                        ? 'Search messages, contacts, keywords…'
-                        : `Search in ${appDisplayName(currentApp)}…`)
-                    }
-                    className="h-11 w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
-                  />
-                  {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
-                </div>
-                {/*
+                      className="h-11 w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
+                    />
+                    {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
+                  </div>
+                  {/*
                   A real 44px button, not a 26px line of text. Clear empties the
                   field and keeps it; Cancel puts the row away — two different
                   intentions, so two controls.
                 */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSearchChange('');
-                    setIsMobileSearchOpen(false);
-                  }}
-                  className="inline-flex min-h-touch items-center justify-center rounded-lg px-3 text-xs font-medium text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                >
-                  Cancel
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSearchChange('');
+                      setIsMobileSearchOpen(false);
+                    }}
+                    className="inline-flex min-h-touch items-center justify-center rounded-lg px-3 text-xs font-medium text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {topBar}
+          {topBar}
 
-        <main id="main-content" className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-          {animated ? <PageTransition>{children}</PageTransition> : children}
-        </main>
-      </div>
+          {/*
+          The app's only `<main>`, and the target of the root layout's skip link.
+          `tabIndex={-1}` is what makes that link work: without it the fragment
+          jump scrolls but leaves `document.activeElement` on `BODY`, so the next
+          Tab starts from the top of the page again — the header and the drawer
+          the link was meant to skip. A programmatic focus on a `tabindex="-1"`
+          element does not match `:focus-visible`, so this draws no ring.
+        */}
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            {animated ? <PageTransition>{children}</PageTransition> : children}
+          </main>
+        </div>
 
-      {!isSidebarOpen && <QuantFab actions={fabActions} />}
+        <QuantFab actions={fabActions} />
 
-      {/* Mobile Bottom Navigation — strictly md:hidden */}
-      <MobileBottomNav />
+        {/* Mobile Bottom Navigation — strictly md:hidden */}
+        <MobileBottomNav />
 
-      {/* Cinematic Quantum Ignition Startup Intro */}
-      <QuantumSplashIntro />
+        {/* Cinematic Quantum Ignition Startup Intro */}
+        <QuantumSplashIntro />
+      </ShellChromeProvider>
     </section>
   );
 }

@@ -8,7 +8,6 @@ import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { IdentityAvatar } from '../../components/IdentityAvatar';
-import { PageTransition } from '../../components/PageTransition';
 import { useInbox } from '../../hooks/useInbox';
 import { apiClient } from '../../services/api-client';
 import type { Email, EmailStatus } from '../../types';
@@ -182,7 +181,7 @@ export default function SentPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page sent-workspace flex flex-col h-full">
+      <div className="workspace-page sent-workspace flex flex-col h-full">
         <header className="sent-header">
           <div>
             <p className="sent-kicker">
@@ -195,9 +194,18 @@ export default function SentPage() {
                 : 'Messages you send will appear here'}
             </p>
           </div>
-          <Button variant="secondary" onClick={() => router.push('/compose')}>
-            Compose
-          </Button>
+          {/*
+            The shell's compose FAB is `md:hidden`, so this is its complement.
+            Without the gate a phone showed two controls with the identical
+            accessible name "Compose email" — the header button and the FAB —
+            and a screen reader had no way to tell them apart. Hide the wrapper,
+            not the Button: its base styles already set `inline-flex`.
+          */}
+          <div className="hidden md:block">
+            <Button variant="secondary" onClick={() => router.push('/compose')}>
+              Compose
+            </Button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto">
@@ -257,7 +265,7 @@ export default function SentPage() {
             </motion.div>
           )}
         </div>
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

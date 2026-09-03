@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, FormField, Input, TextArea } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
-import { PageTransition } from '../../components/PageTransition';
 import { apiClient } from '../../services/api-client';
 import { VacationResponderSettings } from './VacationResponderSettings';
 import { PhoneVerificationCard } from '../../components/PhoneVerificationCard';
@@ -284,7 +283,7 @@ export default function SettingsPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page settings-workspace flex h-full flex-col overflow-hidden bg-[#0a0d14]">
+      <div className="workspace-page settings-workspace flex h-full flex-col overflow-hidden bg-[#0a0d14]">
         {/* Sleek Settings Header */}
         <header className="shrink-0 px-4 sm:px-6 pt-5 pb-3 border-b border-[#282C35]/80 bg-[#0d1017]/95">
           <div className="flex items-center gap-3">
@@ -336,7 +335,11 @@ export default function SettingsPage() {
           })}
         </nav>
 
-        <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 w-full max-w-4xl mx-auto space-y-6">
+        {/* A `div`, not a second `<main>`: `AppShell` already renders the page's
+            landmark, and two `<main>` elements in one document is invalid and
+            leaves a screen reader picking between them. The tab strip above is a
+            `<nav>`, so this region needs no role of its own. */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 w-full max-w-4xl mx-auto space-y-6">
           {/* 1. GENERAL TAB */}
           {activeTab === 'general' && (
             <div className="space-y-6 animate-in fade-in duration-150">
@@ -935,8 +938,8 @@ export default function SettingsPage() {
               </section>
             </div>
           )}
-        </main>
-      </PageTransition>
+        </div>
+      </div>
     </AppShell>
   );
 }

@@ -6,7 +6,6 @@ import { Card, Badge, Button, Skeleton } from '@quant/shared-ui';
 import { AppShell } from '../../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../../components/AppSidebar';
-import { PageTransition } from '../../../components/PageTransition';
 import { CodeEditor } from '../../../components/CodeEditor';
 import { AICodeReview } from '../../../components/AICodeReview';
 import { FileTree } from '../../../components/FileTree';
@@ -53,7 +52,7 @@ export default function RepoDetailPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page repo-detail-workspace flex flex-col h-full">
+      <div className="workspace-page repo-detail-workspace flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center gap-3 p-4 border-b border-[var(--quant-border)]">
           <Button variant="secondary" onClick={() => router.push('/repos')}>
@@ -259,7 +258,7 @@ export default function RepoDetailPage() {
             </>
           )}
         </div>
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

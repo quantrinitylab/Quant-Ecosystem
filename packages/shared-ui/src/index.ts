@@ -163,6 +163,8 @@ export type { SelectProps, SelectOption } from './components/Form/Select';
 export { SearchInput } from './components/Form/SearchInput';
 export type { SearchInputProps } from './components/Form/SearchInput';
 
+export { SearchClearButton } from './components/Form/SearchClearButton';
+
 export { FileUpload } from './components/Form/FileUpload';
 export type { FileUploadProps } from './components/Form/FileUpload';
 

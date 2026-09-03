@@ -23,7 +23,11 @@ const DESTINATIONS = [
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-[#090A0C] p-6">
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className="flex min-h-[100dvh] items-center justify-center bg-[#090A0C] p-6"
+    >
       <div className="w-full max-w-xl">
         <div className="mb-8 text-center">
           <svg
@@ -82,6 +86,6 @@ export default function NotFound() {
           ))}
         </nav>
       </div>
-    </div>
+    </main>
   );
 }

@@ -10,7 +10,6 @@ import { spring } from '@quant/brand';
 import { AppSidebar } from '../../components/AppSidebar';
 import { showToast } from '../../components/InboxToast';
 import { IconTrash, IconUndo } from '../../components/icons';
-import { PageTransition } from '../../components/PageTransition';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useInbox } from '../../hooks/useInbox';
 import { apiClient } from '../../services/api-client';
@@ -171,7 +170,7 @@ export default function TrashPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page trash-workspace flex flex-col h-full">
+      <div className="workspace-page trash-workspace flex flex-col h-full">
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
           <div>
             <h1 className="text-lg font-semibold">Trash</h1>
@@ -303,7 +302,7 @@ export default function TrashPage() {
           )}
         </div>
         {dialog}
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

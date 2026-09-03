@@ -5,7 +5,6 @@ import { Button, Skeleton, Modal, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { AIMemoryPanel } from '../../components/AIMemoryPanel';
-import { PageTransition } from '../../components/PageTransition';
 import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useDrive } from '../../hooks/useDrive';
@@ -517,7 +516,7 @@ export default function DrivePage() {
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search files, folders, documents…"
     >
-      <PageTransition className="workspace-page drive-workspace flex flex-col h-full bg-[#090A0C]">
+      <div className="workspace-page drive-workspace flex flex-col h-full bg-[#090A0C]">
         <input
           id="drive-file-input"
           name="driveFiles"
@@ -1305,7 +1304,7 @@ export default function DrivePage() {
           </div>
         </Modal>
         {dialog}
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

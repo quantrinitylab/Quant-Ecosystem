@@ -7,7 +7,6 @@ import { Button, Skeleton } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
-import { PageTransition } from '../../components/PageTransition';
 import { showToast } from '../../components/InboxToast';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useInbox } from '../../hooks/useInbox';
@@ -75,7 +74,7 @@ export default function DraftsPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page drafts-workspace flex flex-col h-full">
+      <div className="workspace-page drafts-workspace flex flex-col h-full">
         <header className="sent-header">
           <div>
             <p className="sent-kicker">
@@ -88,9 +87,19 @@ export default function DraftsPage() {
                 : "Drafts hold messages until you're ready to send"}
             </p>
           </div>
-          <Button variant="primary" onClick={() => router.push('/compose')}>
-            New draft
-          </Button>
+          {/*
+            Below `md` the shell's own compose FAB is the create control, and it
+            is `md:hidden` — so this header button is its exact complement, not a
+            second copy of it. Two controls that both mean "write a message" on a
+            393px screen is one too many; the wrapper is what hides, because
+            `Button`'s own base styles already emit `inline-flex` and a
+            `hidden md:inline-flex` in `className` would lose that race.
+          */}
+          <div className="hidden md:block">
+            <Button variant="primary" onClick={() => router.push('/compose')}>
+              New draft
+            </Button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto">
@@ -181,7 +190,7 @@ export default function DraftsPage() {
           )}
         </div>
         {dialog}
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

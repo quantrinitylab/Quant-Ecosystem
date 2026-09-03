@@ -57,6 +57,32 @@ html {
     @apply bg-[var(--quant-background)] text-[var(--quant-foreground)] antialiased;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
+
+  /*
+   * THE DOUBLE-X. `SearchInput` from `@quant/shared-ui` draws its own clear
+   * button so the icon matches the suite and gets a 44px target. Chrome and
+   * Safari ALSO draw `::-webkit-search-cancel-button` — an unstyleable grey ✕
+   * that cannot be made to match anything — so the field showed two ✕s side by
+   * side, ours and the browser's. QuantMail already carries this reset; the
+   * component is shared, so the reset has to be wherever the component is used.
+   *
+   * `appearance: none` goes with it. Safari styles a search input as a pill
+   * regardless of our border-radius, so without this the field is the wrong
+   * shape on iOS while looking correct everywhere else.
+   */
+  input[type='search'] {
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  input[type='search']::-webkit-search-cancel-button,
+  input[type='search']::-webkit-search-decoration,
+  input[type='search']::-webkit-search-results-button,
+  input[type='search']::-webkit-search-results-decoration {
+    display: none;
+    appearance: none;
+    -webkit-appearance: none;
+  }
 }
 
 /* Responsive breakpoints */

@@ -14,7 +14,6 @@ import { AppSidebar } from '../../../components/AppSidebar';
 // The route stays `/codehub`; the name the user reads comes from the one place
 // that owns app names, so the next rename does not have to find this crumb.
 import { appDisplayName } from '../../../components/BrandWordmark';
-import { PageTransition } from '../../../components/PageTransition';
 import {
   useRepo,
   useBranches,
@@ -361,7 +360,7 @@ export default function CodeHubRepoPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page codehub-workspace flex flex-col h-full overflow-hidden">
+      <div className="workspace-page codehub-workspace flex flex-col h-full overflow-hidden">
         <header className="px-5 pt-4 border-b border-[var(--quant-border)]">
           <button
             type="button"
@@ -1244,7 +1243,7 @@ export default function CodeHubRepoPage() {
             </Panel>
           )}
         </div>
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

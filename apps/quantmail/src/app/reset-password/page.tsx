@@ -27,7 +27,7 @@ import {
   PasswordStrengthMeter,
   structuralComplaint,
 } from '../../components/auth/PasswordStrengthMeter';
-import { PageTransition } from '../../components/PageTransition';
+import { PageTransition } from '@quant/shared-ui';
 import { apiClient } from '../../services/api-client';
 
 /** The codes that mean the link itself is finished, not the password. */

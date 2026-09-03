@@ -36,6 +36,8 @@ export default function InviteAcceptPage() {
 
   return (
     <main
+      id="main-content"
+      tabIndex={-1}
       className="flex min-h-screen items-center justify-center p-6"
       style={{
         background: 'var(--quant-background, #0b0b0f)',

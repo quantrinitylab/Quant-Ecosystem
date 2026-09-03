@@ -8,7 +8,6 @@ import { AppShell } from './AppShell';
 import { AppSidebar } from './AppSidebar';
 import { IdentityAvatar } from './IdentityAvatar';
 import { showToast } from './InboxToast';
-import { PageTransition } from './PageTransition';
 import { useInbox } from '../hooks/useInbox';
 import { useAuth } from '../providers/auth-provider';
 import {
@@ -147,7 +146,7 @@ export function MailFolderPage({
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page sent-workspace flex flex-col h-full">
+      <div className="workspace-page sent-workspace flex flex-col h-full">
         <header className="sent-header">
           <div>
             <p className="sent-kicker">
@@ -160,9 +159,18 @@ export function MailFolderPage({
                 : emptyTitle}
             </p>
           </div>
-          <Button variant="secondary" onClick={() => router.push('/compose')}>
-            Compose
-          </Button>
+          {/*
+            One header button here is four on the phone — /archive, /spam,
+            /starred and /snoozed all render this component — each duplicating
+            the shell's `md:hidden` compose FAB. Gating at the same breakpoint
+            leaves exactly one create control at every width. The wrapper hides,
+            not the Button, whose base styles already emit `inline-flex`.
+          */}
+          <div className="hidden md:block">
+            <Button variant="secondary" onClick={() => router.push('/compose')}>
+              Compose
+            </Button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-y-auto">
@@ -227,7 +235,7 @@ export function MailFolderPage({
             </motion.div>
           )}
         </div>
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

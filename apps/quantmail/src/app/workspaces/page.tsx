@@ -16,7 +16,6 @@ import {
 } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
-import { PageTransition } from '../../components/PageTransition';
 import { useCreateWorkspace, useWorkspaces } from '../../hooks/useWorkspaces';
 import { ROLE_COPY } from '../../types/workspace';
 
@@ -67,7 +66,7 @@ export default function WorkspacesPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page workspaces-workspace flex h-full flex-col">
+      <div className="workspace-page workspaces-workspace flex h-full flex-col">
         <div className="flex items-center justify-between border-b border-[var(--quant-border)] p-4">
           <div>
             <h1 className="text-lg font-semibold">Workspaces</h1>
@@ -190,7 +189,7 @@ export default function WorkspacesPage() {
             </FormField>
           </div>
         </Modal>
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { Button, Input, FormField, Skeleton } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
-import { PageTransition } from '../../components/PageTransition';
 import { IconCheck } from '../../components/icons';
 import { TwoFactorQrCode } from '../../components/security/TwoFactorQrCode';
 import { apiClient } from '../../services/api-client';
@@ -247,7 +246,7 @@ export default function SecurityPage() {
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page security-workspace flex flex-col h-full overflow-hidden">
+      <div className="workspace-page security-workspace flex flex-col h-full overflow-hidden">
         {/* Header */}
         <div className="shrink-0 px-6 pt-6 pb-0">
           <h1 className="text-xl font-semibold tracking-tight text-[var(--quant-foreground)]">
@@ -842,7 +841,7 @@ export default function SecurityPage() {
             </div>
           )}
         </div>
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

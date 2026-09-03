@@ -6,7 +6,6 @@ import { Button, Modal, Avatar, Skeleton, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { ContactsLetterIndex } from '../../components/ContactsLetterIndex';
-import { PageTransition } from '../../components/PageTransition';
 import {
   useContacts,
   useCreateContact,
@@ -442,7 +441,7 @@ export default function ContactsPage() {
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search contacts by name, email, company…"
     >
-      <PageTransition className="workspace-page contacts-workspace flex flex-col h-full bg-[#090A0C]">
+      <div className="workspace-page contacts-workspace flex flex-col h-full bg-[#090A0C]">
         <input
           ref={vcardInputRef}
           type="file"
@@ -1249,7 +1248,7 @@ export default function ContactsPage() {
           </div>
         </Modal>
         {dialog}
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

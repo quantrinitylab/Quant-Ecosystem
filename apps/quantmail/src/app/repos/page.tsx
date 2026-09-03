@@ -15,7 +15,6 @@ import {
 import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
-import { PageTransition } from '../../components/PageTransition';
 import { useRepos, useCreateRepo } from '../../hooks/useRepos';
 
 export default function ReposPage() {
@@ -40,7 +39,7 @@ export default function ReposPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <PageTransition className="workspace-page repos-workspace flex flex-col h-full">
+      <div className="workspace-page repos-workspace flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--quant-border)]">
           <h1 className="text-lg font-semibold">Repositories</h1>
@@ -165,7 +164,7 @@ export default function ReposPage() {
             </div>
           </div>
         </Modal>
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

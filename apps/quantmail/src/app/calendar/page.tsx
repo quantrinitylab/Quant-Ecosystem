@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Modal, Skeleton, ErrorState, useFocusTrap } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
-import { PageTransition } from '../../components/PageTransition';
 import { Quanty } from '../../components/Quanty';
 import {
   useCalendarEvents,
@@ -839,7 +838,10 @@ export default function CalendarPage() {
   }, []);
 
   const COLLAPSED_HEIGHT = isCoarsePointer ? 128 : 114;
-  const EXPANDED_HEIGHT = isCoarsePointer ? 384 : 336;
+  // Was 384/336, sized around a header row inside the expanded grid that
+  // duplicated the toolbar's month label and stepper. That row is gone, so the
+  // picker gives back exactly what it measured: 48px coarse, 32px fine.
+  const EXPANDED_HEIGHT = isCoarsePointer ? 336 : 304;
 
   const [isDragging, setIsDragging] = useState(false);
   const [currentHeight, setCurrentHeight] = useState(COLLAPSED_HEIGHT);
@@ -1659,7 +1661,7 @@ export default function CalendarPage() {
         </div>
       }
     >
-      <PageTransition className="flex flex-col h-full bg-[#08080a] text-white relative">
+      <div className="flex flex-col h-full bg-[#08080a] text-white relative">
         {/*
           The mobile search field used to be hand-rolled here — a conditionally
           mounted row with its own `autoFocus`, its own Cancel, and the same field
@@ -1679,14 +1681,16 @@ export default function CalendarPage() {
               <button
                 type="button"
                 onClick={() => goMonth(-1)}
-                className="size-8 grid place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors"
+                aria-label="Previous month"
+                className="size-8 grid place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
                 ‹
               </button>
               <button
                 type="button"
                 onClick={() => goMonth(1)}
-                className="size-8 grid place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors"
+                aria-label="Next month"
+                className="size-8 grid place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
                 ›
               </button>
@@ -1700,7 +1704,7 @@ export default function CalendarPage() {
             <button
               type="button"
               onClick={goToday}
-              className="px-2.5 py-1 text-xs font-medium rounded-lg border border-[#282C35] bg-[#16181D] hover:bg-[#1C1F26] text-[#F5F5F5] transition-colors"
+              className="px-2.5 py-1 text-xs font-medium rounded-lg border border-[#282C35] bg-[#16181D] hover:bg-[#1C1F26] text-[#F5F5F5] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             >
               Today
             </button>
@@ -1811,35 +1815,20 @@ export default function CalendarPage() {
           }}
         >
           <div className="flex flex-col h-full justify-between px-3 pt-2 pb-1">
-            {isMonthExpanded && (
-              <div className="flex items-center justify-between px-2 pb-1">
-                <span className="text-xs font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-[#FF8C42]">
-                  {MONTH_NAMES[month]} {year}
-                </span>
-                <div className="flex items-center gap-1">
-                  {/* 28px on a mouse, 44 on a finger — the same coarse-pointer
-                   * escape the collapsed day rows below use, so the grid header
-                   * stays compact without putting a sub-floor target on a phone. */}
-                  <button
-                    type="button"
-                    onClick={() => goMonth(-1)}
-                    aria-label="Previous month"
-                    className="size-7 [@media(pointer:coarse)]:size-11 text-sm text-[#A1A4AC] hover:text-white rounded-lg hover:bg-[#282C35]/80 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                  >
-                    ‹
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => goMonth(1)}
-                    aria-label="Next month"
-                    className="size-7 [@media(pointer:coarse)]:size-11 text-sm text-[#A1A4AC] hover:text-white rounded-lg hover:bg-[#282C35]/80 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                  >
-                    ›
-                  </button>
-                </div>
-              </div>
-            )}
-
+            {/*
+              The month grid used to open its own header here: a second
+              "September 2026" and a second ‹ › pair. Measured at 375x812 with
+              the grid expanded, that made four visible steppers on one screen —
+              two announcing "Previous month", two "Next month", 118px apart —
+              beside two identical month labels 122px apart. `selectDate` keeps
+              `currentDate` in `selectedDate`'s month and `goMonth` moves both,
+              so the two labels could never disagree; it was duplication, not
+              context. The toolbar above owns the month name and the stepper at
+              every width — `md:hidden` on the phone, `hidden md:flex` on the
+              desktop — so deleting the row leaves exactly one of each, and the
+              grid gets that height back (EXPANDED_HEIGHT dropped by the row's
+              measured 32px fine / 48px coarse).
+            */}
             <div className="grid grid-cols-7 text-center py-1">
               {WEEKDAYS_SHORT.map((d, i) => (
                 <div key={i} className="text-[11px] font-bold text-[#A1A4AC]">
@@ -3974,7 +3963,7 @@ export default function CalendarPage() {
           />
         )}
         {dialog}
-      </PageTransition>
+      </div>
     </AppShell>
   );
 }

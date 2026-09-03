@@ -154,7 +154,7 @@ export function MarkLab() {
   }, [json]);
 
   return (
-    <main className="min-h-screen bg-[#090A0C] px-4 py-8 sm:px-8">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#090A0C] px-4 py-8 sm:px-8">
       <div className="mx-auto max-w-[1180px]">
         <header>
           <p className="text-[11px] uppercase tracking-[0.14em] text-[#6B6E76]">
