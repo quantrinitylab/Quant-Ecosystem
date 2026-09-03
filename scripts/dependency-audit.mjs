@@ -130,6 +130,7 @@ function loadAuditReport() {
   const result = spawnSync('pnpm', ['audit', '--json'], {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
+    shell: process.platform === 'win32',
   });
   if (result.error) throw new Error(`Unable to run pnpm audit: ${result.error.message}`);
   if (!result.stdout?.trim()) {
