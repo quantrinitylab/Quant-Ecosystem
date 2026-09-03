@@ -1229,6 +1229,15 @@ export default function CalendarPage() {
           .map((a) => (typeof a === 'string' ? a : ((a as { email?: string })?.email ?? '')))
           .filter(Boolean)
       : [];
+    // Restored, not defaulted. The sheet re-sends `notifications` on every save
+    // and the backend now writes that list, so carrying `prev.notifications`
+    // through an edit would overwrite the event's real reminders with whichever
+    // ones the last sheet happened to leave in state.
+    const reminderList = Array.isArray(ev.reminders)
+      ? (ev.reminders as unknown[])
+          .map((r) => (typeof r === 'string' ? r : ((r as { label?: string })?.label ?? '')))
+          .filter(Boolean)
+      : [];
 
     setFormState((prev) => ({
       ...prev,
@@ -1244,6 +1253,7 @@ export default function CalendarPage() {
       color: ev.color || prev.color,
       attendeeInput: '',
       attendees: attendeeList,
+      notifications: reminderList,
       priority: ev.priority || 'medium',
       subtaskInput: '',
       subtasks: ev.subtasks || [],
