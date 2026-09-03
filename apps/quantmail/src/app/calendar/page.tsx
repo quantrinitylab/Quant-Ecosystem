@@ -19,7 +19,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { useDeferredMount } from '../../hooks/useDeferredMount';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
-import { SearchClearButton } from '../../components/SearchClearButton';
+import { QuantFab } from '../../components/QuantFab';
 import {
   IconActivity,
   IconAlertCircle,
@@ -50,7 +50,6 @@ import {
   IconPaperclip,
   IconRefresh,
   IconScale,
-  IconSearch,
   IconSettings,
   IconShield,
   IconSparkle,
@@ -443,9 +442,6 @@ export default function CalendarPage() {
   const [activeView, setActiveView] = useState<CalendarView>('agenda');
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
 
-  // Speed Dial FAB State
-  const [isFabOpen, setIsFabOpen] = useState(false);
-
   // Active Creation Sheet Type (Dedicated sheet per mode)
   const [activeSheetType, setActiveSheetType] = useState<EntryType | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -455,7 +451,6 @@ export default function CalendarPage() {
 
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventLike | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isQuantyDrawerOpen, setIsQuantyDrawerOpen] = useState(false);
   const showQuantyDrawer = useDeferredMount(isQuantyDrawerOpen);
 
@@ -1210,7 +1205,6 @@ export default function CalendarPage() {
         currentCycleDay: 1,
       });
 
-      setIsFabOpen(false);
       setSheetDragY(0);
       setPeriodSubTab('track');
       setEditingEventId(null);
@@ -1257,7 +1251,6 @@ export default function CalendarPage() {
     }));
 
     setSelectedEvent(null);
-    setIsFabOpen(false);
     setSheetDragY(0);
     setPeriodSubTab('track');
     setEditingEventId(ev.id);
@@ -1297,7 +1290,7 @@ export default function CalendarPage() {
   // pointer-reachable ancestor of the backdrop. Locking the body would change
   // nothing.
   useEffect(() => {
-    if (!activeSheetType && !isFabOpen) return;
+    if (!activeSheetType) return;
     const nestedOverlayOpen =
       isPeriodCustomizeOpen ||
       isTimezoneModalOpen ||
@@ -1307,17 +1300,12 @@ export default function CalendarPage() {
       Boolean(selectedEvent);
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || nestedOverlayOpen) return;
-      if (activeSheetType) {
-        closeSheet();
-      } else {
-        setIsFabOpen(false);
-      }
+      closeSheet();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [
     activeSheetType,
-    isFabOpen,
     isPeriodCustomizeOpen,
     isTimezoneModalOpen,
     isRecurrenceModalOpen,
@@ -1650,27 +1638,13 @@ export default function CalendarPage() {
       searchPlaceholder="Search events, meetings, tasks, birthdays…"
       mobileActions={
         <div className="flex items-center gap-1.5">
-          {/* Search Button (Mobile ONLY — on desktop, search is in top header).
-           * Both of these are mobile-only, so there is no desktop density to
-           * protect: a phone measured them at 32x32 and 30x27, under the 44px
-           * touch floor. */}
-          <button
-            type="button"
-            onClick={() => setIsSearchOpen((prev) => !prev)}
-            className="md:hidden size-11 inline-flex items-center justify-center rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-            aria-label="Search calendar"
-          >
-            <svg
-              className="size-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
-          </button>
+          {/*
+           * The magnifier that used to lead this row is gone, not moved: `AppShell`
+           * renders its own search toggle immediately before `mobileActions`, so
+           * this route was showing two — "Search" and "Search calendar", side by
+           * side, opening two different fields onto the same `searchFilter`.
+           * The shell's is the one that survives.
+           */}
 
           {/* Quanty Copilot Robot Icon Button */}
           <button
@@ -1686,37 +1660,17 @@ export default function CalendarPage() {
       }
     >
       <PageTransition className="flex flex-col h-full bg-[#08080a] text-white relative">
-        {/* Search Bar on Mobile ONLY when toggled */}
-        {isSearchOpen && (
-          <div className="md:hidden border-b border-[#282C35]/80 bg-[#090A0C] px-4 py-2 flex items-center gap-2">
-            {/* Same field shape as the inbox's mobile search: the border and the
-             * 44px floor belong to the wrapper, the input is transparent inside
-             * it, and the clear ✕ lives in the field rather than beside it — so
-             * "empty the query" and "leave search" stop being the same gesture. */}
-            <div className="flex-1 flex items-center gap-2 min-h-[44px] rounded-xl border border-[#3A404D]/80 bg-[#111318]/90 px-3 shadow-inner transition-colors focus-within:border-[#FF8C42]">
-              <IconSearch size={16} className="shrink-0 text-[#A1A4AC]" />
-              <input
-                type="search"
-                placeholder="Search events, meetings, tasks, birthdays…"
-                value={searchFilter}
-                onChange={(e) => setSearchFilter(e.target.value)}
-                className="h-11 w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
-                autoFocus
-              />
-              {searchFilter && <SearchClearButton onClear={() => setSearchFilter('')} />}
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setIsSearchOpen(false);
-                setSearchFilter('');
-              }}
-              className="min-h-11 shrink-0 px-2 text-xs text-[#A1A4AC] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded-lg"
-            >
-              Cancel
-            </button>
-          </div>
-        )}
+        {/*
+          The mobile search field used to be hand-rolled here — a conditionally
+          mounted row with its own `autoFocus`, its own Cancel, and the same field
+          shape as the inbox's. That made three copies of one pattern (inbox,
+          calendar, and the shell's desktop bar) and left Drive and Contacts with
+          no mobile search at all, since the shell's only field is `hidden md:flex`.
+
+          `AppShell` owns the row now, directly under the header, animated on
+          `grid-template-rows` and `inert` while collapsed. This route keeps
+          `searchValue`/`onSearchChange` and loses the copy.
+        */}
 
         {/* Desktop Header Toolbar */}
         <div className="hidden md:flex items-center justify-between border-b border-[#282C35]/80 px-6 py-3 bg-[#0c0c0f]">
@@ -2469,81 +2423,42 @@ export default function CalendarPage() {
           )}
         </div>
 
-        {/* 3D Floating Action Button with Quant Brand Liquid Gradient & Glow */}
-        <div className="fixed bottom-20 right-4 md:hidden z-40 flex flex-col items-end gap-2.5">
-          <AnimatePresence>
-            {isFabOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 15, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 15, scale: 0.9 }}
-                transition={{ duration: 0.18 }}
-                className="flex flex-col items-end gap-2.5 mb-1"
-              >
-                <button
-                  type="button"
-                  onClick={() => openDedicatedSheet('birthday')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 text-xs font-extrabold border border-emerald-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                >
-                  <IconCake className="size-4 text-emerald-400" />
-                  <span>Birthday</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openDedicatedSheet('task')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-[#2B1A11]/90 hover:bg-[#2B1A11] text-[#FFB875] text-xs font-extrabold border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                >
-                  <IconTarget className="size-4 text-[#FF8C42]" />
-                  <span>Task</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openDedicatedSheet('period')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-rose-950/90 hover:bg-rose-900 text-rose-200 text-xs font-extrabold border border-rose-500/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                >
-                  <IconFlower className="size-4 text-rose-400" />
-                  <span>Period Tracker</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => openDedicatedSheet('event')}
-                  className="flex items-center gap-2.5 px-4 py-2.5 min-h-[44px] rounded-2xl bg-[#2a1b10]/95 hover:bg-[#3d2716] text-[#FF8C42] text-xs font-extrabold border border-[#FF8C42]/50 backdrop-blur-xl active:scale-95 transition-all shadow-[0_4px_16px_rgba(0,0,0,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                >
-                  <IconCalendar className="size-4 text-[#FF8C42]" />
-                  <span>Event</span>
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <button
-            type="button"
-            onClick={() => setIsFabOpen((prev) => !prev)}
-            style={{
-              background: 'linear-gradient(135deg, #FF9B5A 0%, #FF8C42 55%, #E8752F 100%)',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.18)',
-            }}
-            className={`size-14 rounded-full font-black text-[#111111] flex items-center justify-center active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] ${
-              isFabOpen ? 'rotate-45' : ''
-            }`}
-            aria-label="Toggle calendar speed dial"
-            aria-expanded={isFabOpen}
-          >
-            <svg
-              className="size-6 transition-transform duration-200"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </button>
-        </div>
+        {/*
+          The four entry kinds, most-used first. `QuantFab` reverses the column so
+          index 0 lands nearest the thumb, which is why Event is written first here
+          and still renders closest to the trigger.
+        */}
+        <QuantFab
+          label="New calendar entry"
+          actions={[
+            {
+              id: 'event',
+              label: 'Event',
+              icon: <IconCalendar className="size-4 text-[#FF8C42]" />,
+              onSelect: () => openDedicatedSheet('event'),
+            },
+            {
+              id: 'task',
+              label: 'Task',
+              icon: <IconTarget className="size-4 text-[#FF8C42]" />,
+              onSelect: () => openDedicatedSheet('task'),
+            },
+            {
+              id: 'period',
+              label: 'Period Tracker',
+              tone: 'rose',
+              icon: <IconFlower className="size-4 text-rose-400" />,
+              onSelect: () => openDedicatedSheet('period'),
+            },
+            {
+              id: 'birthday',
+              label: 'Birthday',
+              tone: 'emerald',
+              icon: <IconCake className="size-4 text-emerald-400" />,
+              onSelect: () => openDedicatedSheet('birthday'),
+            },
+          ]}
+        />
 
         {/* Dedicated Slide-up Sheets with 3D Glass Surface & Animated Save Button */}
         <AnimatePresence>

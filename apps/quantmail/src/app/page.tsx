@@ -17,7 +17,6 @@ import { IdentityAvatar } from '../components/IdentityAvatar';
 import { InboxZeroState } from '../components/InboxZeroState';
 import { showToast } from '../components/InboxToast';
 import { ReadTimeEstimate } from '../components/ReadTimeEstimate';
-import { SearchClearButton } from '../components/SearchClearButton';
 import { QuantMailLogo } from '../components/QuantMailLogo';
 import { Quanty } from '../components/Quanty';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
@@ -866,7 +865,6 @@ export default function InboxPage() {
   const turnRowRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [showArchivedView, setShowArchivedView] = useState(false);
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1830,20 +1828,16 @@ export default function InboxPage() {
       onFabClick={() =>
         activeLens === 'groups' ? setIsCreateGroupModalOpen(true) : router.push('/compose')
       }
+      fabLabel={activeLens === 'groups' ? 'New group' : 'Compose email'}
       mobileActions={
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            className={`md:hidden inline-flex size-11 sm:size-9 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-              isSearchOpen
-                ? 'bg-[#282C35] text-[#FF8C42]'
-                : 'text-[#A1A4AC] hover:text-white hover:bg-[#282C35]'
-            }`}
-            onClick={() => setIsSearchOpen((prev) => !prev)}
-            aria-label="Search messages"
-          >
-            <MailIcon name="search" className="size-5" />
-          </button>
+          {/*
+            The search toggle that used to lead this row is `AppShell`'s now, and
+            the shell renders it immediately before `mobileActions` — so the order
+            on this route is unchanged while Drive, Contacts and Calendar gain the
+            control they never had. Quanty stays here because its drawer is still
+            mounted per route, not by the shell.
+          */}
           <button
             type="button"
             onClick={() => setIsGlobalQuantyOpen(true)}
@@ -1878,53 +1872,17 @@ export default function InboxPage() {
           </header>
 
           {/*
-            Unified Expandable Search Dropdown Tab (Mobile ONLY).
+            The mobile search row used to live here, hand-rolled: an
+            `AnimatePresence` height animation, a 44px field, a real Cancel button.
+            It was right, and it was right on exactly one route — Drive, Contacts
+            and Calendar all pass `onSearchChange` and all three had no search at
+            all under 768px, because the shell's only field is `hidden md:flex`.
 
-            Sizes are the reason this reads as a comment. The field was the 16px text
-            line and nothing else — `py-1.5` sat on the wrapper, so the padding around
-            the input was not part of the input, and the only thing a thumb could hit
-            was the glyph height. The wrapper carries the 44px now and the input fills
-            it; Clear grows its hit area with a pseudo-element so a 14px × in a 44px
-            target costs no layout, and Cancel is a real 44px button rather than a
-            26px line of text. The same mistake, and the same fix, as the desktop bar
-            in `AppShell`.
+            So the row moved into `AppShell`, which is where the desktop bar
+            already lives, and the animation moved to `grid-template-rows` on the
+            way — the shell is on every route and one collapsing row does not
+            justify framer-motion in the first chunk.
           */}
-          <AnimatePresence>
-            {isSearchOpen && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.18 }}
-                className="md:hidden overflow-hidden border-b border-[#282C35]/80 bg-[#090A0C] px-3 sm:px-4 py-2.5 flex items-center gap-2"
-              >
-                <div className="flex-1 flex items-center gap-2 bg-[#111318]/90 border border-[#3A404D]/80 rounded-xl px-3 min-h-[44px] shadow-inner">
-                  <MailIcon name="search" className="size-4 text-[#A1A4AC] shrink-0" />
-                  <input
-                    id="mobile-search-input"
-                    name="search"
-                    type="search"
-                    placeholder="Search messages, contacts, keywords…"
-                    value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
-                    className="w-full h-11 bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
-                    autoFocus
-                  />
-                  {searchQuery && <SearchClearButton onClear={() => setSearchQuery('')} />}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSearchOpen(false);
-                    setSearchQuery('');
-                  }}
-                  className="inline-flex items-center justify-center min-h-[44px] text-xs text-[#A1A4AC] hover:text-white font-medium px-3 rounded-lg hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                >
-                  Cancel
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/*
             Focus Bar. Left: the lens — which slice of the inbox is on screen,

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Quanty } from './Quanty';
 import { showToast } from './InboxToast';
 import { IconX } from './icons';
+import { browserAuthSession } from '../services/browser-auth-session';
 import type { Email } from '../types';
 
 export interface QuantyEmailAction {
@@ -61,6 +62,199 @@ export function parseEmailActionFromText(text: string): QuantyEmailAction {
 
 const STORAGE_KEY = 'quantmail_quanty_chats_v1';
 
+/*
+ * ─── Talking to the model ──────────────────────────────────────────────────────
+ *
+ * This drawer used to POST to `/api/ai/chat` with a bare `fetch` and a
+ * hand-rolled `{role: 'system'}` message. Both halves of that were wrong, and
+ * they failed in an order that hid each other:
+ *
+ *   1. `chatSchema` in `backend/routes/ai-chat.ts` types a message role as
+ *      `z.enum(['user', 'assistant'])`. A `system` role failed `safeParse`, so
+ *      the route threw a 400 *before* it ever looked at the caller's identity.
+ *   2. Underneath that, the request carried no `Authorization` header at all, so
+ *      even a schema-clean body would have been answered 401 — the route reads
+ *      `request.auth?.userId` and throws `UNAUTHORIZED` without it.
+ *
+ * So the request could never succeed, from any surface, ever. And because the
+ * old code treated `!res.ok` as "improvise", every Quanty answer in the product
+ * was a canned string written in this file — including "I've analyzed this
+ * conversation. Everything looks in order.", asserted about an email no model
+ * had read. In compose context it went further and wrote that fabrication into
+ * the user's draft, then toasted "Quanty updated your email draft".
+ *
+ * The fix is the pattern `MailCopilot` and QuantGit's build chat already use:
+ * `authenticatedFetch` (bearer token, plus one refresh-and-retry on a 401), and
+ * the backend's own `context` object instead of a fake system turn. Every field
+ * the old prompt string was smuggling — subject, sender, body, which surface the
+ * user is on — has a real slot in `chatSchema.context`, and the backend composes
+ * the system prompt itself. A client should not be authoring one.
+ */
+
+const REQUEST_TIMEOUT_MS = 45_000;
+/** Transient by nature: a retry is a reasonable thing to offer the user. */
+const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504, 522, 524]);
+
+/** Backend caps: `messages` max 24, each `content` max 6000 chars. */
+const MAX_TURNS = 12;
+const MAX_CONTENT = 6000;
+
+const clamp = (text: string, max: number): string =>
+  text.length > max ? `${text.slice(0, max - 1)}…` : text;
+
+/**
+ * A failed round trip, stated rather than papered over. Kept out of `messages`
+ * on purpose: an error rendered as an assistant bubble would be saved into chat
+ * history and read back later as something Quanty said.
+ */
+interface ChatFailure {
+  title: string;
+  detail: string;
+  retryable: boolean;
+}
+
+type ChatTurn = { role: 'user' | 'assistant'; text: string };
+
+type ChatResult = { ok: true; message: string } | { ok: false; failure: ChatFailure };
+
+/**
+ * Shape a transcript into a history a provider will accept.
+ *
+ * `chatSchema` only bounds the count, but the models behind it expect roles to
+ * alternate and to start on a `user` turn, and two things here break that:
+ *
+ *  - A failed turn leaves the user's prompt on screen with nothing after it, so
+ *    their *next* prompt makes two `user` messages in a row. Folding them into
+ *    one is what two stacked user bubbles already mean on screen, and it stops a
+ *    single transient failure from wedging the conversation permanently.
+ *  - `slice(-12)` of an odd-length history lands on an `assistant` turn — at 13
+ *    turns, which is an ordinary afternoon, not an edge case.
+ *
+ * Fold first, then trim, then drop a leading answer: trimming first could cut
+ * between two turns that were about to merge.
+ */
+function buildHistory(turns: ChatTurn[]): { role: 'user' | 'assistant'; content: string }[] {
+  const folded = turns.reduce<ChatTurn[]>((acc, turn) => {
+    const previous = acc[acc.length - 1];
+    if (previous && previous.role === turn.role) {
+      acc[acc.length - 1] = { role: previous.role, text: `${previous.text}\n\n${turn.text}` };
+      return acc;
+    }
+    acc.push(turn);
+    return acc;
+  }, []);
+
+  const recent = folded.slice(-MAX_TURNS);
+  const start = recent[0]?.role === 'assistant' ? 1 : 0;
+
+  return recent
+    .slice(start)
+    .map((turn) => ({ role: turn.role, content: clamp(turn.text, MAX_CONTENT) }));
+}
+
+/** One round trip, with a hard timeout so the sheet can never spin forever. */
+async function requestQuanty(
+  turns: ChatTurn[],
+  context: Record<string, string>,
+): Promise<ChatResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await browserAuthSession.authenticatedFetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        messages: buildHistory(turns),
+        ...(Object.keys(context).length > 0 ? { context } : {}),
+      }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as {
+      success?: boolean;
+      data?: { message?: string };
+      error?: { code?: string; message?: string };
+    } | null;
+
+    if (response.ok && payload?.success && payload.data?.message) {
+      return { ok: true, message: payload.data.message };
+    }
+
+    if (response.status === 401) {
+      // `authenticatedFetch` has already tried one silent refresh by this point.
+      return {
+        ok: false,
+        failure: {
+          title: 'Session expired',
+          detail: 'Sign in again to keep chatting with Quanty.',
+          retryable: false,
+        },
+      };
+    }
+
+    if (payload?.error?.code === 'AI_UNAVAILABLE') {
+      // The backend answers 503 `AI_UNAVAILABLE` both when the provider is
+      // unconfigured (permanent) and when a live call to it failed (transient),
+      // so this cannot branch on the status. It offers a retry and lets the
+      // backend's own wording carry the difference.
+      return {
+        ok: false,
+        failure: {
+          title: 'Quanty is unavailable',
+          detail:
+            payload.error.message ?? 'The assistant is not configured on this environment yet.',
+          retryable: true,
+        },
+      };
+    }
+
+    if (response.ok) {
+      // A 2xx that carries no message is a contract violation, not an answer.
+      // Reachable in production: the API proxy only rejects a non-JSON body, so
+      // any well-formed envelope with the wrong shape inside arrives here intact.
+      // Saying "replied 200" would be true and useless, so this names the fault.
+      return {
+        ok: false,
+        failure: {
+          title: 'Quanty answered with nothing',
+          detail: 'The assistant service returned an empty reply. Nothing was sent to your draft.',
+          retryable: true,
+        },
+      };
+    }
+
+    return {
+      ok: false,
+      failure: {
+        title: 'Quanty could not answer',
+        detail:
+          payload?.error?.message ??
+          `The assistant service replied ${response.status}. Nothing was sent to your draft.`,
+        retryable: RETRYABLE_STATUS.has(response.status),
+      },
+    };
+  } catch (error) {
+    const aborted = error instanceof DOMException && error.name === 'AbortError';
+    return {
+      ok: false,
+      failure: aborted
+        ? {
+            title: 'Quanty took too long',
+            detail: 'The request timed out after 45 seconds. Try a shorter prompt.',
+            retryable: true,
+          }
+        : {
+            title: 'Could not reach Quanty',
+            detail: 'Check your connection and try again.',
+            retryable: true,
+          },
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function QuantyCopilotDrawer({
   isOpen,
   onClose,
@@ -71,9 +265,18 @@ export function QuantyCopilotDrawer({
   onInsertReply,
   onApplyAction,
 }: QuantyAssistantDrawerProps) {
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
+  const [messages, setMessages] = useState<ChatTurn[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  /**
+   * Deliberately not cleared when the drawer closes. A failed turn leaves the
+   * user's own prompt as the last thing in the transcript, so on reopening,
+   * dropping the banner would show an unanswered question with no explanation
+   * and no way to retry it. It is cleared where it genuinely goes stale: at the
+   * top of every turn, and in `loadChat`, which swaps the transcript underneath
+   * it for a different conversation.
+   */
+  const [failure, setFailure] = useState<ChatFailure | null>(null);
   const [quantyExpression, setQuantyExpression] = useState<
     'idle' | 'happy' | 'thinking' | 'wink' | 'shock'
   >('happy');
@@ -106,14 +309,12 @@ export function QuantyCopilotDrawer({
   }, [isOpen]);
 
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 || failure) {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, failure]);
 
-  const saveCurrentConversation = (
-    newMsgs: Array<{ role: 'user' | 'assistant'; text: string }>,
-  ) => {
+  const saveCurrentConversation = (newMsgs: ChatTurn[]) => {
     if (newMsgs.length < 2) return;
     try {
       const firstUserMsg = newMsgs.find((m) => m.role === 'user')?.text || 'Conversation';
@@ -134,94 +335,83 @@ export function QuantyCopilotDrawer({
     }
   };
 
-  const handleSend = async (userPrompt?: string) => {
-    const promptToSend = userPrompt || inputValue;
-    if (!promptToSend.trim() || isLoading) return;
+  /**
+   * Everything the old fake `system` turn was smuggling, in the fields the
+   * backend actually declares. `contextEmail` is authoritative where it exists —
+   * these are real props, not a DOM scrape — and the open message's body goes in
+   * `screenText` because `chatSchema.context` has no `body` slot and that text
+   * is, literally, what is on the screen.
+   */
+  const buildContext = (): Record<string, string> => {
+    const context: Record<string, string> = { app: 'QuantMail' };
+    if (typeof window !== 'undefined') context.route = window.location.pathname;
 
-    const newMsgs = [...messages, { role: 'user' as const, text: promptToSend }];
-    setMessages(newMsgs);
-    setInputValue('');
+    if (contextEmail || contextThreadSubject) {
+      context.view = 'Reading a message';
+      const subject = contextEmail?.subject || contextThreadSubject;
+      if (subject) context.subject = clamp(subject, 1000);
+      const from = contextEmail?.from?.name || contextEmail?.from?.email;
+      if (from) context.from = clamp(from, 320);
+      const body = contextEmail?.bodyText || contextEmail?.snippet;
+      if (body) context.screenText = clamp(body, 8000);
+    } else if (isComposeContext) {
+      context.view =
+        'Composing a new message. When asked to draft one, answer with a Subject line, a greeting, a body and a closing.';
+    } else if (isInboxContext) {
+      context.view = 'Browsing the primary inbox';
+    }
+
+    return context;
+  };
+
+  /**
+   * Send a history and commit whatever comes back — or say plainly that nothing
+   * did. There is deliberately no local substitute for an answer: a canned string
+   * that claims to have read the user's mail is worse than an error, and in
+   * compose context the old one wrote itself into the draft and toasted success.
+   */
+  const runTurn = async (turns: ChatTurn[]) => {
+    setFailure(null);
     setIsLoading(true);
     setQuantyExpression('thinking');
 
-    try {
-      let systemContext = '';
-      if (contextEmail) {
-        systemContext = `Context Email Subject: "${contextEmail.subject || contextThreadSubject || ''}"\nFrom: "${contextEmail.from?.name || contextEmail.from?.email}"\nBody: "${contextEmail.bodyText || contextEmail.snippet || ''}"`;
-      } else if (isComposeContext) {
-        systemContext = `Context: User is composing an email in QuantMail. If requested to draft an email, output a crisp, corporate message with Subject, Greeting, Body, and Closing clearly outlined.`;
-      } else if (isInboxContext) {
-        systemContext = `Context: User is browsing their primary QuantMail inbox.`;
-      }
+    const result = await requestQuanty(turns, buildContext());
+    setIsLoading(false);
 
-      const res = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [
-            ...(systemContext
-              ? [
-                  {
-                    role: 'system',
-                    content: `You are Quanty AI assistant inside QuantMail. Keep answers crisp, smart, elegant, and directly helpful.\n${systemContext}`,
-                  },
-                ]
-              : []),
-            ...newMsgs.map((m) => ({ role: m.role, content: m.text })),
-          ],
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const responseText = data?.data?.message || data?.content;
-        if (responseText) {
-          const finalMsgs = [...newMsgs, { role: 'assistant' as const, text: responseText }];
-          setMessages(finalMsgs);
-          setQuantyExpression('happy');
-          saveCurrentConversation(finalMsgs);
-
-          if (isComposeContext && onApplyAction) {
-            const action = parseEmailActionFromText(responseText);
-            onApplyAction(action);
-            showToast({ text: 'Quanty updated your email draft', type: 'success' });
-          }
-          return;
-        }
-      }
-
-      // High-quality local simulated fallback
-      setTimeout(() => {
-        let simulated =
-          "I've analyzed this conversation. Everything looks in order. Let me know if you need to draft a reply or schedule a reminder.";
-        if (promptToSend.toLowerCase().includes('hindi')) {
-          simulated = `यह ईमेल "${contextThreadSubject || contextEmail?.subject || 'संदेश'}" के संदर्भ में है। यदि आप चाहें तो मैं इसका औपचारिक उत्तर तैयार कर सकता हूँ।`;
-        } else if (promptToSend.toLowerCase().includes('summar')) {
-          simulated = `• Main topic: ${contextThreadSubject || contextEmail?.subject || 'Inbox message'}\n• Sender: ${contextEmail?.from?.name || 'Verified Sender'}\n• Next Step: Review details and reply at your convenience.`;
-        }
-        const finalMsgs = [...newMsgs, { role: 'assistant' as const, text: simulated }];
-        setMessages(finalMsgs);
-        setQuantyExpression('happy');
-        saveCurrentConversation(finalMsgs);
-
-        if (isComposeContext && onApplyAction) {
-          const action = parseEmailActionFromText(simulated);
-          onApplyAction(action);
-          showToast({ text: 'Quanty updated your email draft', type: 'success' });
-        }
-      }, 500);
-    } catch {
-      setMessages([
-        ...newMsgs,
-        {
-          role: 'assistant',
-          text: 'I could not connect to the assistant service right now. Please try again.',
-        },
-      ]);
+    if (!result.ok) {
+      setFailure(result.failure);
       setQuantyExpression('shock');
-    } finally {
-      setIsLoading(false);
+      return;
     }
+
+    const finalMsgs: ChatTurn[] = [...turns, { role: 'assistant', text: result.message }];
+    setMessages(finalMsgs);
+    setQuantyExpression('happy');
+    saveCurrentConversation(finalMsgs);
+
+    if (isComposeContext && onApplyAction) {
+      onApplyAction(parseEmailActionFromText(result.message));
+      showToast({ text: 'Quanty updated your email draft', type: 'success' });
+    }
+  };
+
+  const handleSend = async (userPrompt?: string) => {
+    const promptToSend = (userPrompt ?? inputValue).trim();
+    if (!promptToSend || isLoading) return;
+
+    const turns: ChatTurn[] = [...messages, { role: 'user', text: promptToSend }];
+    setMessages(turns);
+    setInputValue('');
+    await runTurn(turns);
+  };
+
+  /**
+   * Re-send the same history. A failed turn appends no assistant message, so
+   * `messages` still ends on the user's prompt and is already the right payload.
+   */
+  const retryLastTurn = () => {
+    if (isLoading || messages.length === 0) return;
+    void runTurn(messages);
   };
 
   const clearHistory = () => {
@@ -233,6 +423,9 @@ export function QuantyCopilotDrawer({
 
   const loadChat = (item: ChatHistoryItem) => {
     setMessages(item.messages);
+    // A stale error banner over a conversation the user just restored would be
+    // describing a request that has nothing to do with what is now on screen.
+    setFailure(null);
     setShowHistoryMenu(false);
   };
 
@@ -243,6 +436,8 @@ export function QuantyCopilotDrawer({
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
+  // A failed first turn still put the user's own prompt on screen, so the
+  // transcript is what should render — not the starter buttons behind it.
   const hasConversation = messages.length > 0;
 
   return (
@@ -283,16 +478,36 @@ export function QuantyCopilotDrawer({
                 </h3>
               </div>
 
-              <div className="flex items-center gap-1">
+              {/*
+                `gap-3.5`, not `gap-1`, and the 14px is load-bearing: two 30px
+                controls can only both own a 44px-wide target if their centres are
+                44px apart, and 30 + 14 = 44. At `gap-1` the two halos overlapped
+                by 10px, the later sibling won every point in the overlap, and the
+                history button's real hit area was 34px wide while measuring as if
+                it were fine. Costs 10px of header width; buys two honest targets.
+              */}
+              <div className="flex items-center gap-3.5">
+                {/*
+                  A 44px pointer target on a 30px control, the way
+                  `SearchClearButton` already does it: `before:-inset-[7px]`
+                  expands the hit box without touching layout, so this header
+                  keeps its 28px mark and 13px title instead of growing 14px
+                  taller to satisfy the touch minimum. Measured with
+                  `elementFromPoint`, not with `getBoundingClientRect` — the rect
+                  under-reports a pseudo-element target.
+                */}
                 <button
                   type="button"
                   onClick={() => setShowHistoryMenu(!showHistoryMenu)}
-                  className={`p-1.5 rounded-full transition-colors ${
+                  className={`relative p-1.5 rounded-full transition-colors before:absolute before:-inset-[7px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     showHistoryMenu
                       ? 'text-[#FF8C42] bg-[#2B1A11]'
                       : 'text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#16181D]'
                   }`}
-                  title="Chat History"
+                  title="Chat history"
+                  aria-label="Chat history"
+                  aria-haspopup="menu"
+                  aria-expanded={showHistoryMenu}
                 >
                   <svg
                     className="size-[18px]"
@@ -300,6 +515,8 @@ export function QuantyCopilotDrawer({
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
+                    aria-hidden="true"
+                    focusable="false"
                   >
                     <circle cx="12" cy="12" r="1" fill="currentColor" />
                     <circle cx="12" cy="5" r="1" fill="currentColor" />
@@ -310,8 +527,9 @@ export function QuantyCopilotDrawer({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-1.5 rounded-full text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#16181D] transition-colors"
-                  aria-label="Close"
+                  className="relative p-1.5 rounded-full text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#16181D] transition-colors before:absolute before:-inset-[7px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  aria-label="Close Quanty"
+                  title="Close Quanty"
                 >
                   <svg
                     className="size-[18px]"
@@ -319,6 +537,8 @@ export function QuantyCopilotDrawer({
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
+                    aria-hidden="true"
+                    focusable="false"
                   >
                     <path d="M18 6L6 18M6 6l12 12" />
                   </svg>
@@ -607,6 +827,59 @@ export function QuantyCopilotDrawer({
                     </div>
                   </div>
                 )}
+
+                {/*
+                  Not an assistant bubble. An error styled as one gets written to
+                  chat history by `saveCurrentConversation` and read back a week
+                  later as something Quanty actually said — which is how the
+                  fabricated fallback this replaces did its damage. It keeps the
+                  assistant surface so it sits in the column, and carries rose
+                  type (the hue this file already uses for destructive actions)
+                  plus `role="alert"` to say what it is.
+                */}
+                {failure && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex gap-2.5"
+                    role="alert"
+                  >
+                    <div className="shrink-0 mt-0.5">
+                      <Quanty size={22} expression="shock" bob={false} />
+                    </div>
+                    <div className="max-w-[86%] rounded-xl rounded-bl-none border border-[#282C35] bg-[#16181D] px-3.5 py-2.5 shadow-sm">
+                      <p className="text-xs font-semibold text-rose-300">{failure.title}</p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-[#A1A4AC]">
+                        {failure.detail}
+                      </p>
+                      {failure.retryable && (
+                        <button
+                          type="button"
+                          onClick={retryLastTurn}
+                          className="mt-2 inline-flex min-h-touch items-center gap-1.5 rounded-lg border border-[#5C3016] bg-[#2B1A11] px-2.5 text-xs font-semibold text-[#FF8C42] transition-colors hover:bg-[#3A2416] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                        >
+                          <svg
+                            className="size-3.5"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                            focusable="false"
+                          >
+                            <path d="M3 12a9 9 0 0 1 15.5-6.2L21 8" />
+                            <path d="M21 3v5h-5" />
+                            <path d="M21 12a9 9 0 0 1-15.5 6.2L3 16" />
+                            <path d="M3 21v-5h5" />
+                          </svg>
+                          <span>Try again</span>
+                        </button>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
               </div>
             )}
 
@@ -628,11 +901,24 @@ export function QuantyCopilotDrawer({
                   className="w-full rounded-full border border-[#3A404D]/80 bg-[#1a1f2c] pl-4 pr-11 py-3 text-xs sm:text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42]/40 transition-all shadow-inner font-sans"
                 />
 
+                {/*
+                  32px glyph, 44px target. The halo is asymmetric on purpose:
+                  `pr-11` stops the field's text 44px short of its right edge, so
+                  a symmetric `-inset-[6px]` would put 2px of hit area over the
+                  last of the text and steal a click meant to place the caret.
+                  This one ends exactly on that boundary and takes its remaining
+                  width outward to the field's edge instead.
+
+                  No `relative` here — `absolute right-2` is already a containing
+                  block for the pseudo-element, and Tailwind emits `.relative`
+                  after `.absolute`, so adding it would unpin the button.
+                */}
                 <button
                   type="submit"
                   disabled={!inputValue.trim() || isLoading}
-                  className="absolute right-2 p-1.5 rounded-full text-[#FF8C42] hover:text-[#FFB875] disabled:opacity-30 transition-all active:scale-95"
+                  className="absolute right-2 p-1.5 rounded-full text-[#FF8C42] hover:text-[#FFB875] disabled:opacity-30 transition-all active:scale-95 before:absolute before:-inset-y-[6px] before:-left-[4px] before:-right-[8px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   title="Send"
+                  aria-label="Send prompt to Quanty"
                 >
                   <svg
                     className="size-5"
@@ -640,6 +926,8 @@ export function QuantyCopilotDrawer({
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
+                    aria-hidden="true"
+                    focusable="false"
                   >
                     <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
                   </svg>

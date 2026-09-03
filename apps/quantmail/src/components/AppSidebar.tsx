@@ -199,7 +199,17 @@ const NAV_GROUPS: Array<{
   },
 ];
 
-export function AppSidebar() {
+export interface AppSidebarProps {
+  /**
+   * Rendered inside the scroll region, after the nav groups and before the
+   * storage readout. A route that has its own navigation — Contacts and its
+   * A–Z index — puts it here rather than teaching this component about
+   * contacts, so the sidebar stays the same component on every screen.
+   */
+  extra?: ReactNode;
+}
+
+export function AppSidebar({ extra }: AppSidebarProps = {}) {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
   const isActive = (path: string) => (path === '/' ? pathname === '/' : pathname.startsWith(path));
@@ -296,6 +306,8 @@ export function AppSidebar() {
             </ul>
           </section>
         ))}
+
+        {extra}
 
         {/* QuantMail Storage Indicator */}
         {/*
