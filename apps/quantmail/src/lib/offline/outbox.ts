@@ -23,7 +23,8 @@ export type MailMutationKind =
   | 'toggleStar'
   | 'markRead'
   | 'markUnread'
-  | 'snooze';
+  | 'snooze'
+  | 'unsnooze';
 
 export interface OutboxEntry {
   id: string;
@@ -60,6 +61,8 @@ function execute(entry: OutboxEntry): Promise<Envelope> {
       return apiClient.markAsUnread(entry.emailId);
     case 'snooze':
       return apiClient.snoozeEmail(entry.emailId, new Date(entry.snoozeUntil ?? Date.now()));
+    case 'unsnooze':
+      return apiClient.unsnoozeEmail(entry.emailId);
   }
 }
 

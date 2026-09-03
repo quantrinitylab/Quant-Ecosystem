@@ -923,12 +923,32 @@ body {
 .batch-toolbar strong { margin-right: auto; }.batch-toolbar button { min-height: 1.8rem; border: 1px solid var(--quant-border); border-radius: 0.45rem; padding: 0 0.55rem; color: #aaa; }.batch-toolbar button:hover { background: var(--quant-muted); color: white; }
 .mail-list { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0.45rem 0.55rem; scrollbar-width: thin; scrollbar-color: #3A404D transparent; }
 .mail-loading { display: grid; gap: 0.45rem; padding: 0.35rem; }.mail-loading > * { border-radius: 0.72rem !important; background: #16181D !important; }
-/* `overflow: hidden` here is what keeps the row's 0.72rem corners from being
-   squared off by the opaque child backgrounds. It used to also clip the swipe
-   reveal panels, which are gone — see `EmailRow` for why the drag went. */
+/* `overflow: hidden` here does two jobs: it keeps the row's 0.72rem corners from
+   being squared off by the opaque child backgrounds, and it clips the swipe pane
+   the row slides off — which is why that pane declares neither a radius of its
+   own nor any clipping. See `EmailRow` for what the gesture had to prove. */
 .mail-row-shell { position: relative; overflow: hidden; border-radius: 0.72rem; }
 .mail-row { position: relative; display: flex; min-height: 4.85rem; align-items: center; gap: 0.7rem; border: 1px solid transparent; border-radius: 0.72rem; padding: 0.65rem 0.65rem; background: #0C0E11; cursor: pointer; transition: background 130ms ease, border-color 130ms ease; }
 .mail-row:hover { border-color: #2d2d30; background: #111318; }
+/*
+ * The pane the row slides off. It fills the shell rather than sizing itself to the
+ * travel, so the label holds still while the row moves — the row reads as leaving,
+ * which is the honest picture of what is about to happen. `is-trailing` is the
+ * leftward swipe, whose gap opens on the right; `is-leading` is the rightward one.
+ *
+ * Both directions wear the same material, because they are peers: one surface at
+ * rest, one brand-soft fill once armed. A colour per side would rank them, and
+ * ranking them is precisely the mistake the deleted first attempt made.
+ */
+.mail-row-swipe-pane { position: absolute; inset: 0; display: flex; align-items: center; background: #16181D; transition: background 130ms ease; }
+.mail-row-swipe-pane.is-trailing { justify-content: flex-end; padding-right: 1rem; }
+.mail-row-swipe-pane.is-leading { justify-content: flex-start; padding-left: 1rem; }
+.mail-row-swipe-pane.is-armed { background: #2B1A11; box-shadow: inset 0 0 0 1px #5C3016; }
+.mail-row-swipe-label { display: inline-flex; align-items: center; gap: 0.4rem; color: #A1A4AC; font-size: 0.688rem; font-weight: 600; white-space: nowrap; }
+.mail-row-swipe-pane.is-armed .mail-row-swipe-label { color: #FF8C42; }
+/* The release, and only the release. Absent while a finger is down, which is what
+   keeps the row's travel 1:1 under the thumb instead of chasing it. */
+.mail-row.is-swipe-settling { transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), background 130ms ease, border-color 130ms ease; }
 /*
  * Selection is a surface and a border, not a brand wash. There is one accent
  * signal on a row and it belongs to unread; painting the open row orange too

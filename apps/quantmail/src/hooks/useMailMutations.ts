@@ -18,8 +18,8 @@
  *
  * A mutation declares only what changed about the message; folder membership is
  * derived from that by `lib/offline/folders`. One code path therefore covers
- * archive, unarchive, trash, restore and snooze, and a message can never end up
- * visible in both the inbox and the archive.
+ * archive, unarchive, trash, restore, snooze and unsnooze, and a message can never
+ * end up visible in both the inbox and the archive.
  *
  * Every handler takes one id or many, because the unit a person acts on is a
  * *conversation*: the row says `11` and its archive button has to move all eleven.
@@ -337,6 +337,10 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
           unitCount === undefined
             ? `Snoozed until ${formatSnoozeTarget(until)}`
             : `${conversationNoun(unitCount)} snoozed until ${formatSnoozeTarget(until)}`,
+        // Clearing `snoozedUntil` is enough to put the row back: `belongsInFolder`
+        // reads INBOX as "not trashed, not archived, not snoozed", so the same
+        // absent-field patch `restore` uses for `trashedAt` restores membership here.
+        undo: { kind: 'unsnooze', patch: { snoozedUntil: undefined } },
         removesFromView: true,
       }),
     [run],

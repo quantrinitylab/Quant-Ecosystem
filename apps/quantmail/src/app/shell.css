@@ -234,31 +234,6 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-/* Pull-to-refresh indicator that page.tsx inserts above the mail-list */
-.ptr-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  height: 0;
-  overflow: hidden;
-  font-size: 12px;
-  color: var(--quant-muted-foreground);
-  transition: height 120ms ease;
-}
-.ptr-indicator.ptr-ready {
-  height: 48px;
-}
-.ptr-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #5C3016;
-  border-top-color: #FF8C42;
-  border-radius: 50%;
-  animation: ptr-spin 0.7s linear infinite;
-}
-@keyframes ptr-spin { to { transform: rotate(360deg); } }
-
 /* ──────────────────────────────────────────────────────────────────────────
    Superhuman-style Snooze Popover (Floating, Glassmorphic, High Z-Index)
    ────────────────────────────────────────────────────────────────────────── */

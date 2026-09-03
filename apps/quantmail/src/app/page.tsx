@@ -5,13 +5,20 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ErrorState, Skeleton, Button, useFocusTrap } from '@quant/shared-ui';
+import {
+  ErrorState,
+  Skeleton,
+  Button,
+  useFocusTrap,
+  useReducedMotion,
+  useSwipeActions,
+} from '@quant/shared-ui';
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
 import { AppSidebar } from '../components/AppSidebar';
 import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
-import { EmailSnooze } from '../components/EmailSnooze';
+import { EmailSnooze, snoozeUntilNextMorning } from '../components/EmailSnooze';
 import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
 import { InboxZeroState } from '../components/InboxZeroState';
@@ -162,26 +169,35 @@ function formatReceivedAt(value?: string | Date) {
 }
 
 /*
- * The row used to be a two-sided drag target: pull left past 96px to archive,
- * right past 96px to pin, with a green and an orange panel revealed underneath.
- * All of it is gone, for three reasons the gesture could not be tuned out of.
+ * The row is a two-sided swipe target again, and the three reasons the first
+ * attempt was deleted are the three things this one is built around. They are
+ * restated here because each is a way the feature can quietly rot back into what
+ * was removed.
  *
- * A horizontal drag on a vertically-scrolling list has no honest resting state.
- * framer's `drag="x"` claims the pointer on the first horizontal pixel, so a
- * thumb travelling up the list at any angle off vertical would slide a row a
- * few pixels, and a slightly generous flick would archive a message the reader
- * only meant to scroll past. Second, the two directions were not peers: archive
- * is destructive and reversible only through a toast, pin is a decoration, and
- * putting them on opposite ends of one motion made the expensive one as easy to
- * trigger as the cheap one. Third, the affordance was invisible — nothing on the
- * row said a swipe existed, so the only people who found it found it by
- * accident.
+ * The first attempt used framer's `drag="x"`, which claims the pointer on the
+ * first horizontal pixel: a thumb travelling up the list at any angle off
+ * vertical slid a row, and a slightly generous flick archived a message the
+ * reader only meant to scroll past. `useSwipeActions` claims nothing until the
+ * finger has travelled 14px horizontally *and* 1.6x more horizontally than
+ * vertically; the moment vertical intent wins the touch is latched out and
+ * cannot be reclaimed however the finger curves afterwards; and there is no
+ * velocity path at all, so committing means crossing 35% of the row's own width,
+ * floored at 88px, which no flick can reach.
  *
- * What replaces it is the boring thing: buttons. Archive and Pin sit on the row
- * at 44px, always visible on a phone, always in the same place, and a mis-tap
- * costs one undo rather than a message. Pointers keep `HoverActions` for the
- * fuller set. The row itself no longer transforms at all, so vertical scrolling
- * is the only gesture the list interprets.
+ * Second, the two ends were not peers: archive was destructive and pin was a
+ * decoration, so one motion made the expensive action exactly as easy as the
+ * cheap one. Both ends now file the conversation somewhere real and both come
+ * back from the toast's Undo — left archives, right snoozes until tomorrow
+ * morning. Pin stays a button, which is where a decoration belongs.
+ *
+ * Third, the affordance was invisible. The revealed pane names the action from
+ * the first few pixels, only reaches full strength past the commit line, and the
+ * phone ticks exactly as that line is crossed — so a first half-drag teaches the
+ * gesture and then lets go of it with nothing having happened.
+ *
+ * The buttons stay. Archive at 44px on a phone, Pin at 44px, `HoverActions` for
+ * pointers: everything the swipe reaches is reachable without it, which is what
+ * makes it an accelerator rather than the only door.
  */
 type EmailRowProps = {
   thread: ConversationThread;
@@ -252,18 +268,85 @@ function EmailRow({
   };
 
   const email = thread.latestEmail;
+  const reducedMotion = useReducedMotion();
+
+  /*
+   * Left files the conversation away, right puts it down until tomorrow morning.
+   * `snoozeUntilNextMorning` is the same function the snooze menu's `Tomorrow`
+   * calls, so a gesture and a menu item that use one word can never mean two
+   * different times.
+   *
+   * Off while the row is selected or its snooze menu is open: a selected row
+   * belongs to the selection header's batch actions, and a row sliding out from
+   * under an anchored menu would leave the menu pointing at nothing.
+   */
+  const swipe = useSwipeActions({
+    left: { label: 'Archive', onCommit: onArchive },
+    right: { label: 'Snooze', onCommit: () => onSnooze(email.id, snoozeUntilNextMorning()) },
+    disabled: isChecked || showSnoozeMenu,
+    reducedMotion,
+  });
 
   return (
     <div className={`mail-row-shell relative ${showSnoozeMenu ? 'z-50' : ''}`}>
+      {/*
+        Declared before the row and given no `z-index`: two positioned siblings
+        paint in source order, so the row's own opaque background covers this
+        until the finger moves it. `.mail-row-shell` already clips and already
+        carries the row's radius, so the pane needs neither.
+
+        `aria-hidden` because this is the gesture's picture of itself rather than
+        a control. The same two actions are named on the row's Archive button and
+        in the selection header, which is where a screen reader reaches them.
+      */}
+      {swipe.direction && (
+        <div
+          aria-hidden="true"
+          className={`mail-row-swipe-pane ${swipe.armed ? 'is-armed' : ''} ${
+            swipe.direction === 'left' ? 'is-trailing' : 'is-leading'
+          }`}
+        >
+          <span className="mail-row-swipe-label" style={{ opacity: 0.45 + swipe.progress * 0.55 }}>
+            <MailIcon name={swipe.direction === 'left' ? 'archive' : 'clock'} className="size-4" />
+            {swipe.direction === 'left' ? 'Archive' : 'Snooze'}
+          </span>
+        </div>
+      )}
       <article
+        ref={swipe.ref}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        className={`mail-row ${thread.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''}`}
+        onTouchStart={(event) => {
+          handleTouchStart();
+          swipe.handlers.onTouchStart(event);
+        }}
+        onTouchMove={(event) => {
+          handleTouchMove();
+          swipe.handlers.onTouchMove(event);
+        }}
+        onTouchEnd={(event) => {
+          handleTouchEnd();
+          swipe.handlers.onTouchEnd(event);
+        }}
+        onTouchCancel={(event) => {
+          handleTouchEnd();
+          swipe.handlers.onTouchCancel(event);
+        }}
+        // `touch-pan-y` is what makes the gesture legal rather than a fight: the
+        // browser keeps vertical scrolling and hands over the horizontal axis.
+        // React binds `touchmove` passively at the root, so `preventDefault` is
+        // not available to do this job — the CSS is the only lever.
+        //
+        // `is-swipe-settling` carries the release animation as a class instead of
+        // an inline `transition`, so it cannot clobber the row's own background
+        // and border transitions. It is absent exactly while a finger is down,
+        // which is what keeps travel 1:1 under the thumb.
+        className={`mail-row touch-pan-y ${swipe.direction || reducedMotion ? '' : 'is-swipe-settling'} ${thread.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''}`}
+        style={
+          swipe.offset === 0 ? undefined : { transform: `translate3d(${swipe.offset}px, 0, 0)` }
+        }
         onClick={() => {
-          if (!isLongPressRef.current) onOpen();
+          if (!isLongPressRef.current && !swipe.wasSwipe()) onOpen();
         }}
       >
         <input
