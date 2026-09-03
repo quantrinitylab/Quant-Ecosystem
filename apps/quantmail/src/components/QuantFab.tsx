@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useShellChrome } from './ShellChromeContext';
 
 /**
  * The one mobile create button.
@@ -63,6 +64,7 @@ export interface QuantFabProps {
 
 export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
   const reduceMotion = useReducedMotion();
+  const { isDrawerPresented } = useShellChrome();
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -80,9 +82,15 @@ export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
    * Neither predecessor could be dismissed without hitting the trigger again:
    * no Escape, no outside press. On a phone that meant an open dial covered the
    * list it was floating over and the only way out was a 56px target.
+   *
+   * `isDrawerPresented` is in the guard as well as in the early return below,
+   * because these listeners are `document`-level: leaving them mounted for the
+   * frame between the drawer appearing and the reset effect flushing would let
+   * the FAB's own Escape handler pull focus onto a trigger inside a subtree that
+   * is `aria-hidden`, out of the drawer's `aria-modal` region.
    */
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isDrawerPresented) return;
 
     const onPointerDown = (event: PointerEvent) => {
       if (!rootRef.current?.contains(event.target as Node)) close(false);
@@ -97,14 +105,33 @@ export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
       document.removeEventListener('pointerdown', onPointerDown, true);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [isOpen, close]);
+  }, [isOpen, isDrawerPresented, close]);
+
+  /*
+   * Returning `null` below does not unmount this component, so an open dial
+   * would come back open once the drawer closed — with `rotate-45` still on a
+   * trigger nobody had touched. Collapse it instead. `setIsOpen` rather than
+   * `close(true)`: restoring focus here would drag it out of the drawer that
+   * just took over.
+   */
+  useEffect(() => {
+    if (isDrawerPresented) setIsOpen(false);
+  }, [isDrawerPresented]);
 
   // WAI-ARIA menu button: opening moves focus in, so Escape has somewhere to send it back from.
   useEffect(() => {
     if (isOpen) rowsRef.current[0]?.focus();
   }, [isOpen]);
 
-  if (actions.length === 0) return null;
+  /*
+   * Two ways out, and both belong here rather than at the call sites. Empty
+   * actions is how a route opts out. A presented drawer is modal: `AppShell`
+   * used to guard only its own instance, so `/calendar`'s copy stayed hittable
+   * over the backdrop — measured at 375x812 as `visibility: visible`,
+   * `pointer-events: auto`, and `elementFromPoint(331, 704)` landing on the FAB
+   * rather than on the drawer covering it.
+   */
+  if (actions.length === 0 || isDrawerPresented) return null;
 
   /*
    * The column is reversed so `actions[0]` lands nearest the thumb: the entry a
