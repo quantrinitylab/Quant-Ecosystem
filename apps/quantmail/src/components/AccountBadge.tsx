@@ -119,7 +119,14 @@ export function AccountBadge() {
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-haspopup="menu"
-        aria-controls="account-badge-menu"
+        /*
+          Attached only while the menu is mounted. The menu below renders on
+          `open`, so a permanent `aria-controls` is an IDREF to nothing for as
+          long as the sidebar sits closed — which is nearly always. `menu` is the
+          right `aria-haspopup` value here, unlike the inbox filter popover: this
+          one really is a `role="menu"`.
+        */
+        aria-controls={open ? 'account-badge-menu' : undefined}
         className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--quant-muted)]"
       >
         <span

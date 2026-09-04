@@ -1136,7 +1136,37 @@ export default function InboxPage() {
    */
   const filterTriggerRef = useRef<HTMLButtonElement | null>(null);
   const turnGroupLabelId = useId();
+  /**
+   * The popover's other two names. `turnGroupLabelId` already ties `Whose turn` to
+   * its radiogroup; `filterGroupLabelId` does the same for `Narrow this view`,
+   * which was a heading in name only — the toggles under it were loose siblings
+   * of a paragraph, so a reader met them one at a time with nothing saying what
+   * they had in common or where the group ended.
+   *
+   * `filterPanelId` is what the trigger points `aria-controls` at, and it is
+   * attached only while the panel is mounted: the popover unmounts on close, so a
+   * permanent `aria-controls` would be an IDREF to nothing for as long as the
+   * inbox is at rest.
+   */
+  const filterGroupLabelId = useId();
+  const filterPanelId = useId();
   const savedGroupsLabelId = useId();
+  /**
+   * The tablist's other half. A `role="tab"` owes a reader the thing it controls —
+   * `aria-controls` is required on a tab, not advisory — and without it the chips
+   * announce "Unread, tab, 2 of 4, selected" attached to nothing: no relationship
+   * to the list below, and no "move to controlled element" jump in NVDA or JAWS.
+   *
+   * One panel for four tabs, because the tabs swap one list in place rather than
+   * revealing four. The panel is the scroll container, which is the element that
+   * always exists — the windowed list, the six skeletons, the error and all five
+   * empty states come and go inside it, so an id on any of those would dangle for
+   * most of the inbox's life. Its label follows the selection, so entering the
+   * region says which slice you are about to read.
+   */
+  const lensPanelId = useId();
+  const lensTabBaseId = useId();
+  const lensTabId = useCallback((lens: InboxLens) => `${lensTabBaseId}-${lens}`, [lensTabBaseId]);
   /**
    * The chips are a tablist and the turn rows are a radiogroup, so one arrow key
    * must move the selection along each — a `role="tablist"` whose members are only
@@ -2106,7 +2136,7 @@ export default function InboxPage() {
    * be handed the flat, differently-ordered `emails` array. That mismatch is why
    * `j`/`k` highlighted one conversation while `e` archived another.
    */
-  const { focusedIndex, focusRow } = useInboxKeyboard({
+  const { focusedIndex, focusedId, focusRow } = useInboxKeyboard({
     rows: displayThreads,
     selectedId: selectedEmail?.id ?? null,
     onOpen: (thread) => openEmail(thread.latestEmail, thread),
@@ -2126,6 +2156,47 @@ export default function InboxPage() {
     expandIds: threadMessageIds,
     scrollToIndex: virtualizer.scrollToIndex,
   });
+
+  /**
+   * The `j`/`k` cursor, said out loud.
+   *
+   * The cursor is a class on a row — `is-focused` — and the rows are deliberately
+   * not tab stops, because navigation here is the keys rather than Tab. So DOM
+   * focus never moves, and a screen reader is told nothing at all when the cursor
+   * advances. `aria-current` on the row makes it identifiable to a reader that
+   * arrives there on its own terms; this makes the *move* audible, which is the
+   * half that matters when the keys are the whole interaction.
+   *
+   * Keyed on the row's id, not its index. Archiving hands the cursor to whatever
+   * slides into that index — a different conversation at the same number, which
+   * must be announced — while a re-sort moves the same conversation to a new
+   * number, which must not be. Silent on mount, because an announcer that speaks
+   * on load teaches people to ignore it.
+   */
+  const [cursorAnnouncement, setCursorAnnouncement] = useState('');
+  const announcedCursorRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (focusedId === announcedCursorRef.current) return;
+    announcedCursorRef.current = focusedId;
+    if (focusedId === null) {
+      setCursorAnnouncement('');
+      return;
+    }
+    const index = displayThreads.findIndex((thread) => thread.id === focusedId);
+    if (index === -1) return;
+    const thread = displayThreads[index];
+    // Who and what first; the arithmetic last, so a reader hears the useful half
+    // before it has to sit through "4 of 312". Full stops between the three groups
+    // rather than commas throughout, because `participantsSummary` is itself a
+    // comma list — "Shipping, ops, billing, Shipment 88214…" has no seam in it.
+    const tail: string[] = [];
+    if (!thread.isRead) tail.push('unread');
+    if (thread.count > 1) tail.push(`${thread.count} messages`);
+    tail.push(`${index + 1} of ${displayThreads.length}`);
+    setCursorAnnouncement(
+      `${thread.participantsSummary || 'No sender'}. ${thread.subject || 'No subject'}. ${tail.join(', ')}`,
+    );
+  }, [focusedId, displayThreads]);
 
   /**
    * Whether every selected conversation is already pinned, which is what turns the
@@ -2252,7 +2323,9 @@ export default function InboxPage() {
                       key={lens.key}
                       type="button"
                       role="tab"
+                      id={lensTabId(lens.key)}
                       aria-selected={isActive}
+                      aria-controls={lensPanelId}
                       // Roving focus: the selected tab is the row's single tab
                       // stop, and the arrow keys move between the rest.
                       tabIndex={isActive ? 0 : -1}
@@ -2311,7 +2384,17 @@ export default function InboxPage() {
                 ref={filterTriggerRef}
                 onClick={() => setIsFilterMenuOpen((prev) => !prev)}
                 aria-expanded={isFilterMenuOpen}
-                aria-haspopup="true"
+                /*
+                  No `aria-haspopup`. In ARIA it is not a generic "there is a
+                  popover here" flag — `true` is exactly synonymous with `menu`,
+                  and this is not a menu: it holds a radiogroup and a set of
+                  checkboxes, so a reader told "has popup menu" arrives expecting
+                  `menuitem` children, arrow-key traversal of the whole panel and
+                  typeahead, and finds a form instead. `aria-expanded` plus
+                  `aria-controls` is the disclosure pattern, which is what this
+                  actually is: a button that reveals the controls next to it.
+                */
+                aria-controls={isFilterMenuOpen ? filterPanelId : undefined}
                 aria-label={
                   narrowingCount > 0
                     ? `Filter conversations, ${narrowingCount} active`
@@ -2334,6 +2417,18 @@ export default function InboxPage() {
               <AnimatePresence>
                 {isFilterMenuOpen && (
                   <motion.div
+                    id={filterPanelId}
+                    /*
+                      A named group, not a bare box. Without a role the panel is
+                      three unrelated things in a row to a reader — a heading, a
+                      radiogroup, some buttons — and nothing says they are one
+                      control surface or that leaving it means leaving the filter.
+                      `group` rather than `dialog` because nothing here is modal:
+                      focus is not trapped, the list behind stays live, and Tab
+                      walks out the far side on purpose.
+                    */
+                    role="group"
+                    aria-label="Filter conversations"
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
@@ -2400,40 +2495,60 @@ export default function InboxPage() {
                         );
                       })}
                     </div>
-                    <p className="mt-1 px-3 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] border-t border-[#282C35]">
+                    <p
+                      id={filterGroupLabelId}
+                      className="mt-1 px-3 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] border-t border-[#282C35]"
+                    >
                       Narrow this view
                     </p>
-                    {INBOX_FILTERS.map((filter) => {
-                      const isOn = activeFilters.has(filter.key);
-                      return (
-                        <button
-                          key={filter.key}
-                          type="button"
-                          aria-pressed={isOn}
-                          onClick={() => toggleFilter(filter.key)}
-                          className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
-                        >
-                          <span
-                            aria-hidden="true"
-                            className={`size-[18px] shrink-0 rounded-md border inline-flex items-center justify-center transition-colors ${
-                              isOn
-                                ? 'bg-[#FF8C42] border-[#FF8C42] text-[#090A0C]'
-                                : 'border-[#3A404D] text-transparent'
-                            }`}
+                    {/*
+                      The second half of the pair the indicator shapes promise. A
+                      circle for the one-of turn, a square for the any-of filters —
+                      and now the roles say the same thing the shapes do:
+                      `radiogroup`/`radio` above, `group`/`checkbox` here. These
+                      were `aria-pressed` toggle buttons, which announces "toggle
+                      button, pressed" beside a drawn checkbox and leaves the eye
+                      and the ear describing two different controls.
+
+                      The group is what makes `Narrow this view` a heading rather
+                      than decoration: without it a reader meets the checkboxes as
+                      loose siblings of a paragraph, with nothing saying what they
+                      share or where the set ends.
+                    */}
+                    <div role="group" aria-labelledby={filterGroupLabelId}>
+                      {INBOX_FILTERS.map((filter) => {
+                        const isOn = activeFilters.has(filter.key);
+                        return (
+                          <button
+                            key={filter.key}
+                            type="button"
+                            role="checkbox"
+                            aria-checked={isOn}
+                            onClick={() => toggleFilter(filter.key)}
+                            className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
                           >
-                            <IconCheck size={12} strokeWidth={2.4} />
-                          </span>
-                          <span
-                            className={`flex-1 truncate ${isOn ? 'text-[#F5F5F5] font-semibold' : 'text-[#A1A4AC]'}`}
-                          >
-                            {filter.label}
-                          </span>
-                          <span className="shrink-0 text-[10px] font-semibold text-[#A1A4AC]">
-                            {filterCounts[filter.key]}
-                          </span>
-                        </button>
-                      );
-                    })}
+                            <span
+                              aria-hidden="true"
+                              className={`size-[18px] shrink-0 rounded-md border inline-flex items-center justify-center transition-colors ${
+                                isOn
+                                  ? 'bg-[#FF8C42] border-[#FF8C42] text-[#090A0C]'
+                                  : 'border-[#3A404D] text-transparent'
+                              }`}
+                            >
+                              <IconCheck size={12} strokeWidth={2.4} />
+                            </span>
+                            <span
+                              className={`flex-1 truncate ${isOn ? 'text-[#F5F5F5] font-semibold' : 'text-[#A1A4AC]'}`}
+                            >
+                              {filter.label}
+                            </span>
+                            <span className="shrink-0 text-[10px] font-semibold text-[#A1A4AC]">
+                              {filterCounts[filter.key]}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                     {narrowingCount > 0 && (
                       <button
                         type="button"
@@ -2604,11 +2719,37 @@ export default function InboxPage() {
           <div
             className="mail-list"
             ref={listRef}
+            /*
+              The lens tablist's panel. See `lensPanelId` for why one panel serves
+              four tabs and why it is this element.
+
+              `tabIndex={0}` for two reasons that happen to want the same thing.
+              A tab panel has to be reachable from its tab, and this one's contents
+              are not always focusable — the loading skeletons and `All caught up!`
+              hold nothing at all, and the rows are driven by `j`/`k` rather than
+              by Tab. It is also a real scroll container (`overflow-y: auto`), and
+              a scroller no one can put the caret into cannot be scrolled from the
+              keyboard. Deliberately unconditional: a tab stop that appears only
+              when the list happens to be empty is worse than one that is always
+              in the same place.
+            */
+            role="tabpanel"
+            id={lensPanelId}
+            aria-labelledby={lensTabId(activeLens)}
+            tabIndex={0}
             aria-busy={isLoading || isSearching}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
+            {/*
+              Where the cursor is, for a reader. Mounted unconditionally, and inside
+              the one element that always exists, because a live region inserted at
+              the moment it has something to say is a live region readers miss.
+            */}
+            <p className="sr-only" role="status" aria-live="polite">
+              {cursorAnnouncement}
+            </p>
             {/*
               The archived shelf scrolls with the conversations, so when the list
               is windowed it belongs inside the sized container (below). Here it
@@ -2879,6 +3020,10 @@ export default function InboxPage() {
                         // reader "12 of 9,431" instead of "12 of 30".
                         aria-setsize={displayThreads.length}
                         aria-posinset={item.index + 1}
+                        // The `j`/`k` cursor. `aria-current` is what says "this is
+                        // the one" to a reader arriving here on its own terms; the
+                        // `is-focused` class beside it only says that to an eye.
+                        aria-current={focusedIndex === item.index ? 'true' : undefined}
                       >
                         <EmailRow
                           thread={thread}
