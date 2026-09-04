@@ -80,6 +80,7 @@ import { showToast } from '../../components/InboxToast';
 import { ShortcutKeys } from '../../components/ShortcutKeys';
 import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
 import { writeAIIntent } from '../../lib/ai-intent-preference';
+import { invalidateDefaultSignature } from '../../lib/email-signature-preference';
 import { buildHelpGroups, dimNoteFor, helpGroupHeading } from '../../lib/keyboard/help-model';
 import { useCommandList } from '../../lib/keyboard/hooks';
 import { useSafeEmailHtml } from '../../lib/safe-html';
@@ -417,6 +418,10 @@ export default function SettingsPage() {
     setSignature(response.data.contentHtml);
     setLoadedSignature(response.data.contentHtml);
     setSignatureStatus('saved');
+    // The composer caches the default signature for the session, so an edit here
+    // has to drop that cache — otherwise saving a new signature and immediately
+    // composing would attach the old one, and the toast below would be a lie.
+    invalidateDefaultSignature();
     showToast({ text: 'Email signature saved and active', type: 'success' });
   }, [defaultSignatureId, hasSignatureChanges, signature]);
 
@@ -705,7 +710,7 @@ export default function SettingsPage() {
 
               <SettingsSection
                 title="Email signature"
-                description="Appended to messages you send. HTML is allowed."
+                description="Attached to messages you compose, above Send, where you can leave it off for one message. HTML is allowed."
                 action={
                   <Button
                     variant="secondary"
