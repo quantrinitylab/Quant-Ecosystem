@@ -632,7 +632,7 @@ function GroupEditorModal({
   const titleId = `${baseId}-title`;
   const nameId = `${baseId}-name`;
   const memberId = `${baseId}-member`;
-  const memberListId = `${baseId}-members`;
+  const memberHintId = `${baseId}-member-hint`;
   /**
    * One radio `name` per dialog instance, not a shared literal: two accent groups
    * on one page (this dialog reopened over itself while the old one animates out)
@@ -822,7 +822,7 @@ function GroupEditorModal({
                 type="email"
                 placeholder="colleague@domain.com"
                 value={memberInput}
-                aria-describedby={members.length > 0 ? memberListId : undefined}
+                aria-describedby={memberHintId}
                 onChange={(e) => {
                   setMemberInput(e.target.value);
                   if (error) setError('');
@@ -839,12 +839,20 @@ function GroupEditorModal({
               </button>
             </div>
             {members.length > 0 && (
-              <div
-                id={memberListId}
-                className="flex flex-wrap gap-1.5 mt-2.5 max-h-28 overflow-y-auto"
+              <ul
+                /*
+                  A real list, like the chip strip: without one a reader lands on a
+                  run of addresses with no idea how many there are. Labelled
+                  because "Members" alone would just repeat the input's own label,
+                  and `role="list"` restated for the same reason as the strip —
+                  `list-style: none` is enough for WebKit to stop calling it one.
+                */
+                role="list"
+                aria-label="Addresses in this group"
+                className="list-none m-0 p-0 flex flex-wrap gap-1.5 mt-2.5 max-h-28 overflow-y-auto"
               >
                 {members.map((email) => (
-                  <span
+                  <li
                     key={email}
                     className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-lg bg-[#282C35]/90 border border-[#3A404D] text-xs text-[#F5F5F5]"
                   >
@@ -853,15 +861,15 @@ function GroupEditorModal({
                       type="button"
                       onClick={() => handleRemoveMember(email)}
                       aria-label={`Remove ${email}`}
-                      className="size-6 [@media(pointer:coarse)]:size-9 shrink-0 rounded-md flex items-center justify-center text-[#A1A4AC] hover:text-rose-400 hover:bg-[#111318] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="size-6 [@media(pointer:coarse)]:size-11 shrink-0 rounded-md flex items-center justify-center text-[#A1A4AC] hover:text-rose-400 hover:bg-[#111318] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     >
                       <IconX size={11} aria-hidden="true" />
                     </button>
-                  </span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
-            <p className="mt-1.5 text-[11px] text-[#A1A4AC]">
+            <p id={memberHintId} className="mt-1.5 text-[11px] text-[#A1A4AC]">
               {members.length === 0
                 ? 'Enter or comma adds an address. Addresses do not have to be saved contacts.'
                 : `${members.length} member${members.length === 1 ? '' : 's'} · Enter or comma adds another`}
@@ -1007,6 +1015,17 @@ function GroupChip({
       <button
         type="button"
         onClick={onCompose}
+        /*
+          Named explicitly because the content alone announces as "Family 3" — a
+          number with no unit, attached to a control whose purpose is invisible.
+          The label overrides that content, so the bare count stays visible for
+          sighted readers without being read as part of the name.
+        */
+        aria-label={
+          count === 0
+            ? `${group.name} — no members yet, add some to write to it`
+            : `Write to ${group.name}, ${count} ${count === 1 ? 'member' : 'members'}`
+        }
         title={
           count === 0
             ? `${group.name} has no members yet — add some to write to it`
@@ -2510,8 +2529,17 @@ export default function InboxPage() {
                   come free, and the alternative — a `display: contents` wrapper
                   carrying `role="listitem"` — is a shape several browsers are known
                   to strip the semantics from.
+
+                  `role="list"` is still spelled out, redundant as it looks. WebKit
+                  drops list semantics from a `ul` whose `list-style` is `none`, and
+                  a horizontal chip rail cannot keep its bullets — so the one thing
+                  that makes this a list to a reader is the thing the styling
+                  removes, unless the role says otherwise.
                 */
-                <ul className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto no-scrollbar list-none m-0 p-0">
+                <ul
+                  role="list"
+                  className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto no-scrollbar list-none m-0 p-0"
+                >
                   {savedGroups.map((group) => (
                     <li key={group.id} className="shrink-0">
                       <GroupChip

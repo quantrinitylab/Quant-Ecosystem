@@ -206,7 +206,10 @@ export default function ComposePage() {
   return (
     <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#0d1017]">
       <EmailComposer
-        initialTo={draftData?.to ?? (prefillTo ? [{ email: prefillTo }] : undefined)}
+        // Handed over as the raw string, not wrapped in a one-entry array: `?to=`
+        // can carry a whole group's members, and the composer is the thing that
+        // knows how to cut a list of addresses into one chip each.
+        initialTo={draftData?.to ?? prefillTo ?? undefined}
         initialSubject={
           draftData?.subject ??
           (prefillSubject ? prefillSubject.replace(/^(Re:\s*)+/i, '').trim() : '')
