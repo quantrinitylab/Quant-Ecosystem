@@ -1138,6 +1138,22 @@ export default function InboxPage() {
   const turnGroupLabelId = useId();
   const savedGroupsLabelId = useId();
   /**
+   * The tablist's other half. A `role="tab"` owes a reader the thing it controls —
+   * `aria-controls` is required on a tab, not advisory — and without it the chips
+   * announce "Unread, tab, 2 of 4, selected" attached to nothing: no relationship
+   * to the list below, and no "move to controlled element" jump in NVDA or JAWS.
+   *
+   * One panel for four tabs, because the tabs swap one list in place rather than
+   * revealing four. The panel is the scroll container, which is the element that
+   * always exists — the windowed list, the six skeletons, the error and all five
+   * empty states come and go inside it, so an id on any of those would dangle for
+   * most of the inbox's life. Its label follows the selection, so entering the
+   * region says which slice you are about to read.
+   */
+  const lensPanelId = useId();
+  const lensTabBaseId = useId();
+  const lensTabId = useCallback((lens: InboxLens) => `${lensTabBaseId}-${lens}`, [lensTabBaseId]);
+  /**
    * The chips are a tablist and the turn rows are a radiogroup, so one arrow key
    * must move the selection along each — a `role="tablist"` whose members are only
    * reachable by Tab is a lie to a screen reader and a slower path for everyone
@@ -2252,7 +2268,9 @@ export default function InboxPage() {
                       key={lens.key}
                       type="button"
                       role="tab"
+                      id={lensTabId(lens.key)}
                       aria-selected={isActive}
+                      aria-controls={lensPanelId}
                       // Roving focus: the selected tab is the row's single tab
                       // stop, and the arrow keys move between the rest.
                       tabIndex={isActive ? 0 : -1}
@@ -2604,6 +2622,24 @@ export default function InboxPage() {
           <div
             className="mail-list"
             ref={listRef}
+            /*
+              The lens tablist's panel. See `lensPanelId` for why one panel serves
+              four tabs and why it is this element.
+
+              `tabIndex={0}` for two reasons that happen to want the same thing.
+              A tab panel has to be reachable from its tab, and this one's contents
+              are not always focusable — the loading skeletons and `All caught up!`
+              hold nothing at all, and the rows are driven by `j`/`k` rather than
+              by Tab. It is also a real scroll container (`overflow-y: auto`), and
+              a scroller no one can put the caret into cannot be scrolled from the
+              keyboard. Deliberately unconditional: a tab stop that appears only
+              when the list happens to be empty is worse than one that is always
+              in the same place.
+            */
+            role="tabpanel"
+            id={lensPanelId}
+            aria-labelledby={lensTabId(activeLens)}
+            tabIndex={0}
             aria-busy={isLoading || isSearching}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}

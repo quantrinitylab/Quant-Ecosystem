@@ -959,6 +959,14 @@ body {
 .batch-toolbar { display: flex; align-items: center; gap: 0.4rem; overflow: hidden; padding: 0.55rem 1.2rem; border-bottom: 1px solid var(--quant-border-subtle); background: rgba(255, 140, 66, 0.07); font-size: 0.7rem; }
 .batch-toolbar strong { margin-right: auto; }.batch-toolbar button { min-height: 1.8rem; border: 1px solid var(--quant-border); border-radius: 0.45rem; padding: 0 0.55rem; color: #aaa; }.batch-toolbar button:hover { background: var(--quant-muted); color: white; }
 .mail-list { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0.45rem 0.55rem; scrollbar-width: thin; scrollbar-color: #3A404D transparent; }
+/* The list is the lens tablist's `role="tabpanel"` and carries `tabindex="0"`, so
+   Tab out of the selected chip lands here. The base ring's `outline-offset: 2px`
+   would draw that landing 2px outside a container flush with the pane edges, where
+   the next scroller clips it — a focus stop with no visible focus. Pulled inward
+   instead, and the base rule's `border-radius` dropped: the ring traces this box,
+   and this box has square corners. It rides the container rather than the content,
+   so it stays put while the list scrolls under it. */
+.mail-list:focus-visible { outline: 2px solid var(--quant-ring); outline-offset: -2px; border-radius: 0; }
 .mail-loading { display: grid; gap: 0.45rem; padding: 0.35rem; }.mail-loading > * { border-radius: 0.72rem !important; background: #16181D !important; }
 /* `overflow: hidden` here does two jobs: it keeps the row's 0.72rem corners from
    being squared off by the opaque child backgrounds, and it clips the swipe pane
