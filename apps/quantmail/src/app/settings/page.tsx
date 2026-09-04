@@ -175,9 +175,17 @@ const AI_ENGINE_MODES: AIModelOption[] = [
   },
 ];
 
+/**
+ * The AI tab is called "Assistant", not "AI & Models". Nothing on it selects a
+ * model: the four options below buy a longer answer, a reasoning instruction and
+ * a longer wait, and the section header says so in as many words. A tab promising
+ * "Models" over a page that deliberately offers no model choice is the same
+ * defect as the badges that used to quote latencies nothing measured — a label
+ * the product does not honour.
+ */
 const TABS: Array<{ key: SettingsTab; label: string }> = [
   { key: 'general', label: 'General' },
-  { key: 'ai', label: 'AI & Models' },
+  { key: 'ai', label: 'Assistant' },
   { key: 'security', label: 'Security & Encryption' },
   { key: 'notifications', label: 'Notifications' },
   { key: 'appearance', label: 'Appearance' },
