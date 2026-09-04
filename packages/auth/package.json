@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@quant/common": "workspace:*",
-    "@simplewebauthn/server": "^13.1.1",
+    "@simplewebauthn/server": "^13.3.2",
     "argon2": "^0.43.0",
     "jose": "^6.0.11",
     "openpgp": "^6.3.0",
