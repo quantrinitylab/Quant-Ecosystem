@@ -8,6 +8,7 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { EmailComposer } from '../../components/EmailComposer';
 import type { ComposerMessageData } from '../../components/EmailComposer';
 import { showToast } from '../../components/InboxToast';
+import { stripTrailingSignature } from '../../lib/email-body';
 import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
 
@@ -46,7 +47,14 @@ export default function ComposePage() {
           setDraftData({
             to: storedDraft.to ?? storedDraft.toAddresses?.map((email) => ({ email })),
             subject: storedDraft.subject ?? '',
-            body: storedDraft.bodyText ?? storedDraft.bodyPlain ?? storedDraft.snippet ?? '',
+            // A saved draft's plain-text half ends with the appended signature,
+            // behind the RFC 3676 "-- " line. It must not come back into the
+            // editable body: the signature is attached from the saved default at
+            // send time, so a restored copy would be appended a second time and
+            // would freeze whatever the signature said on the day of the draft.
+            body: stripTrailingSignature(
+              storedDraft.bodyText ?? storedDraft.bodyPlain ?? storedDraft.snippet ?? '',
+            ),
           });
         }
         setDraftLoading(false);

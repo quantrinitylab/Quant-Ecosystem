@@ -23,6 +23,7 @@ import {
   threadParticipants,
 } from '../lib/threading';
 import { invalidateMailLists } from '../lib/offline/folders';
+import { plainTextToHtml } from '../lib/email-body';
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInbox } from '../hooks/useInbox';
@@ -518,7 +519,10 @@ export function ConversationalThreadView({
         userId: '',
         subject: threadSubject.startsWith('Re:') ? threadSubject : `Re: ${threadSubject}`,
         bodyText: replyContent,
-        bodyHtml: `<p>${replyContent.replace(/\n/g, '<br/>')}</p>`,
+        // `plainTextToHtml` rather than a local `replace(/\n/g, '<br/>')`: this is
+        // the second place that conversion was hand-written, and the hand-written
+        // copy did not escape, so a reply containing `<` lost its middle on screen.
+        bodyHtml: plainTextToHtml(replyContent),
         snippet: replyContent.slice(0, 100),
         // Carried on the optimistic copy so the message keeps its mark for the
         // moment it is on screen before the refetch replaces it with the server's

@@ -58,7 +58,7 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
-interface EmailSignaturePreference {
+export interface EmailSignaturePreference {
   id: string;
   name: string;
   contentHtml: string;

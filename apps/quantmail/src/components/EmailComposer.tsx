@@ -9,6 +9,9 @@ import { type QuantyEmailAction } from './QuantyCopilotDrawer';
 import { InsertLinkModal } from './InsertLinkModal';
 import { showToast } from './InboxToast';
 import { formatBytes } from '../lib/format-bytes';
+import { composeMessageBodies, htmlToPlainText } from '../lib/email-body';
+import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
+import { useSafeEmailHtml } from '../lib/safe-html';
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { RecipientChipInput, type RecipientOption } from './RecipientChipInput';
@@ -264,6 +267,48 @@ export function EmailComposer({
   // Template / Structured Mode Toggle (default: false for fluid modern email composer)
   const [isTemplateMode, setIsTemplateMode] = useState(false);
 
+  /**
+   * The account signature saved in Settings → General.
+   *
+   * Loaded once per session through `lib/email-signature-preference`, not held in
+   * `body` state: the sender edits their message, not their signature, and a
+   * signature prefilled into the textarea would be re-saved into every draft and
+   * then appended again on the next open.
+   *
+   * `includeSignature` is per message and starts on, which is what "Appended to
+   * messages you send" has to mean to be true. Turning it off is one click, and
+   * the block below the body shows exactly what will be attached — the point of
+   * appending client-side rather than on the server is that it is visible before
+   * Send, not discovered afterwards in the Sent folder.
+   */
+  const [signatureHtml, setSignatureHtml] = useState('');
+  const [includeSignature, setIncludeSignature] = useState(true);
+  const safeSignatureHtml = useSafeEmailHtml(signatureHtml);
+
+  useEffect(() => {
+    let active = true;
+    void loadDefaultSignatureHtml().then((html) => {
+      if (active) setSignatureHtml(html);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  /** '' when there is nothing to append, which `composeMessageBodies` treats as absent. */
+  const activeSignatureHtml = includeSignature && !isTemplateMode ? signatureHtml : '';
+
+  /**
+   * Template mode suppresses the account signature, and the toggle below says so
+   * rather than silently doing it.
+   *
+   * That mode already ends the message with a sign-off block the sender typed
+   * themselves — `signoff`, `senderName` and each line of `customDetails`.
+   * Appending the saved signature under it would put two signatures on one mail,
+   * which is the failure a server-side append would have produced everywhere.
+   */
+  const signatureSuppressedByTemplate = isTemplateMode && Boolean(signatureHtml);
+
   // Loading & Execution
   const [isSending, setIsSending] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -331,6 +376,19 @@ export function EmailComposer({
     return parts.join('\n\n');
   };
 
+  /**
+   * The two bodies a send or a draft-save actually carries.
+   *
+   * Both handlers used to set `body`, `bodyText` and `bodyHtml` to one plain-text
+   * string. `EmailLetterCard` renders `bodyHtml` through `dangerouslySetInnerHTML`
+   * as soon as it is non-empty, and that branch has no `whitespace-pre-wrap` — so
+   * every paragraph break the sender typed was lost in the reader, including in
+   * their own Sent folder. `composeMessageBodies` is the one place that conversion
+   * happens now, and it appends the signature to both halves at the same time so
+   * the HTML and plain-text versions of a message cannot say different things.
+   */
+  const buildOutgoingBodies = () => composeMessageBodies(buildFinalMessage(), activeSignatureHtml);
+
   // Send Handler
   const handleSend = async (scheduledAt?: string) => {
     if (!to.trim()) {
@@ -346,7 +404,7 @@ export function EmailComposer({
       return;
     }
 
-    const compiledBody = buildFinalMessage();
+    const { bodyText, bodyHtml } = buildOutgoingBodies();
     setIsSending(true);
 
     const toList = to
@@ -373,9 +431,11 @@ export function EmailComposer({
           cc: ccList,
           bcc: bccList,
           subject: subject.trim(),
-          body: compiledBody,
-          bodyText: compiledBody,
-          bodyHtml: compiledBody,
+          // `body` is the legacy field `compose/page.tsx` falls back to when the
+          // two real halves are absent. It carries the plain text, never the HTML.
+          body: bodyText,
+          bodyText,
+          bodyHtml,
           attachments,
           scheduledAt,
           inReplyTo: inReplyTo || initialReplyToId,
@@ -389,7 +449,7 @@ export function EmailComposer({
             cc: cc.trim() || undefined,
             bcc: bcc.trim() || undefined,
             subject: subject.trim(),
-            body: compiledBody,
+            body: bodyText,
             replyToId: inReplyTo || initialReplyToId,
             attachments,
             scheduledAt,
@@ -418,7 +478,7 @@ export function EmailComposer({
 
   // Save Draft Handler
   const handleSaveDraft = async () => {
-    const compiledBody = buildFinalMessage();
+    const { bodyText, bodyHtml } = buildOutgoingBodies();
     const toList = to
       .split(/[,;\s]+/)
       .filter(Boolean)
@@ -444,9 +504,9 @@ export function EmailComposer({
           cc: ccList,
           bcc: bccList,
           subject: subject.trim(),
-          body: compiledBody,
-          bodyText: compiledBody,
-          bodyHtml: compiledBody,
+          body: bodyText,
+          bodyText,
+          bodyHtml,
           attachments,
           inReplyTo: inReplyTo || initialReplyToId,
         });
@@ -459,7 +519,7 @@ export function EmailComposer({
             cc: cc.trim() || undefined,
             bcc: bcc.trim() || undefined,
             subject: subject.trim(),
-            body: compiledBody,
+            body: bodyText,
             attachments,
           }),
         });
@@ -885,6 +945,79 @@ export function EmailComposer({
             </div>
           )}
         </div>
+
+        {/*
+          The account signature, shown because it is about to be sent.
+
+          Settings described this row as "Appended to messages you send" from the
+          day it shipped, while `getDefaultEmailSignature()` had exactly one caller
+          — the settings page itself. Appending it on the server would have made
+          that sentence true and the behaviour invisible; this block makes it true
+          and checkable in the second before Send, which is why the settings copy
+          now says "above Send, where you can leave it off for one message".
+        */}
+        {(signatureHtml || signatureSuppressedByTemplate) && (
+          <div className="w-full max-w-full box-border rounded-2xl border border-[#282C35]/80 bg-[#111318]/40">
+            <div className="flex min-h-[44px] items-center justify-between gap-3 px-3.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-[#6B6E76]">
+                Signature
+              </span>
+              {signatureSuppressedByTemplate ? (
+                <span className="text-[11px] text-[#A1A4AC]">
+                  Not appended — the sign-off below is this message&rsquo;s signature
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIncludeSignature((prev) => !prev)}
+                  aria-pressed={includeSignature}
+                  // `min-h-touch`, not the 32px a text button wants to be: this is
+                  // the only control in the card, and a 12px shortfall on the one
+                  // thing a thumb has to hit is the whole 44px floor being missed.
+                  className="inline-flex min-h-touch items-center gap-2 rounded-lg px-2 text-xs font-medium text-[#A1A4AC] transition-colors hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${
+                      includeSignature
+                        ? 'border-[#FF8C42] bg-[#FF8C42] text-[#090A0C]'
+                        : 'border-[#3A404D] bg-transparent text-transparent'
+                    }`}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <path
+                        d="M2.5 6.2 4.7 8.4 9.5 3.6"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
+                  {includeSignature ? 'Included' : 'Not included'}
+                </button>
+              )}
+            </div>
+
+            {includeSignature && !signatureSuppressedByTemplate && (
+              <div className="border-t border-[#282C35]/80 px-3.5 py-3">
+                {safeSignatureHtml ? (
+                  <div
+                    className="email-html-content prose prose-invert max-w-none break-words text-xs leading-6 text-[#A1A4AC]"
+                    dangerouslySetInnerHTML={{ __html: safeSignatureHtml }}
+                  />
+                ) : (
+                  // `useSafeEmailHtml` yields '' before the browser has a DOM, and
+                  // a signature is text before it is markup — so show the text
+                  // rather than an empty box that reads as "nothing will be sent".
+                  <div className="whitespace-pre-wrap break-words text-xs leading-6 text-[#A1A4AC]">
+                    {htmlToPlainText(signatureHtml)}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Guided Structured Corporate Closing & Sign-off (When Template Mode is ON) */}
         {isTemplateMode && (
