@@ -30,8 +30,19 @@ const ALLOWED_BACKEND_ROUTES: Array<{ pattern: RegExp; methods: readonly string[
   { pattern: /^ai\/chat$/, methods: ['POST'] },
   { pattern: /^ai\/chat\/health$/, methods: ['GET'] },
   { pattern: /^repos\/[^/]+\/(?:branches|commits|tree|file)$/, methods: ['GET'] },
+  // The Pipelines page. `backend/routes/ci.ts` implements six routes and its
+  // header comment says it exists because the page "showed Failed to load" —
+  // but three of its GETs were never allow-listed here, so this proxy answered
+  // `API_ROUTE_NOT_FOUND` before the request left Next and Workflows and Recent
+  // Builds still failed to load. The backend fix landed; the door stayed shut.
+  { pattern: /^ci\/(?:workflows|builds)$/, methods: ['GET'] },
+  { pattern: /^ci\/builds\/[^/]+$/, methods: ['GET'] },
   { pattern: /^ci\/(?:workflows\/[^/]+\/trigger|builds\/[^/]+\/cancel)$/, methods: ['POST'] },
-  { pattern: /^ci\/deployments$/, methods: ['GET', 'POST'] },
+  // GET only. There is no `POST /ci/deployments` in the backend and the one
+  // client for it, `apiClient.deploy`, has no callers — so listing POST was
+  // precisely the route-that-advertises-itself this file's closing note warns
+  // about, one layer further out.
+  { pattern: /^ci\/deployments$/, methods: ['GET'] },
   { pattern: /^calendars$/, methods: ['GET'] },
   { pattern: /^events$/, methods: ['GET', 'POST'] },
   { pattern: /^events\/(?:today|upcoming)$/, methods: ['GET'] },

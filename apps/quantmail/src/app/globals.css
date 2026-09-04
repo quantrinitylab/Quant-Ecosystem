@@ -1421,16 +1421,28 @@ body {
 }
 .calendar-workspace .grid-cols-7 button:hover { border-color: var(--quant-border); background: var(--quant-surface-hover); }
 
-/* Developer surfaces */
-.pipelines-workspace { padding: clamp(1rem, 2.6vw, 2.25rem); }
-.pipelines-workspace > section {
+/*
+ * Developer surfaces.
+ *
+ * Two changes when Pipelines gained the shared `.sent-header`. That header
+ * draws its own full-bleed border-bottom across the pane, so it cannot sit
+ * inside a padded page — the page padding moved down onto the section stack,
+ * written in the component (`p-4 md:p-6 lg:p-9`) rather than here, per the note
+ * below at `.security-workspace`: a layout you cannot find by reading the
+ * component is a layout that gets fought twice.
+ *
+ * And `> section` became a descendant match, because the sections are children
+ * of that stack now, not of the page. The child combinator would have matched
+ * nothing and dropped the card shell off all three silently.
+ */
+.pipelines-workspace section {
   border: 1px solid var(--quant-border-subtle);
   border-radius: 1.1rem;
   padding: clamp(1rem, 2vw, 1.4rem);
   background: color-mix(in srgb, var(--quant-surface-elevated) 78%, transparent);
   box-shadow: 0 24px 70px rgba(0,0,0,.12);
 }
-.pipelines-workspace > section > h2 {
+.pipelines-workspace section > h2 {
   margin-bottom: 1rem;
   color: var(--quant-foreground);
   font-size: .72rem;
@@ -1484,7 +1496,6 @@ body {
   .workspace-page > div:first-child h1::before { display: none; }
   .calendar-workspace .grid-cols-7 { gap: .15rem; padding: .35rem; }
   .calendar-workspace .grid-cols-7 button { min-height: 2.8rem; padding: .25rem; }
-  .pipelines-workspace { padding: .75rem; }
 }
 
 /* ========================================================================== */
