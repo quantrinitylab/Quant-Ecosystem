@@ -2122,7 +2122,7 @@ export default function InboxPage() {
    * be handed the flat, differently-ordered `emails` array. That mismatch is why
    * `j`/`k` highlighted one conversation while `e` archived another.
    */
-  const { focusedIndex, focusRow } = useInboxKeyboard({
+  const { focusedIndex, focusedId, focusRow } = useInboxKeyboard({
     rows: displayThreads,
     selectedId: selectedEmail?.id ?? null,
     onOpen: (thread) => openEmail(thread.latestEmail, thread),
@@ -2142,6 +2142,47 @@ export default function InboxPage() {
     expandIds: threadMessageIds,
     scrollToIndex: virtualizer.scrollToIndex,
   });
+
+  /**
+   * The `j`/`k` cursor, said out loud.
+   *
+   * The cursor is a class on a row — `is-focused` — and the rows are deliberately
+   * not tab stops, because navigation here is the keys rather than Tab. So DOM
+   * focus never moves, and a screen reader is told nothing at all when the cursor
+   * advances. `aria-current` on the row makes it identifiable to a reader that
+   * arrives there on its own terms; this makes the *move* audible, which is the
+   * half that matters when the keys are the whole interaction.
+   *
+   * Keyed on the row's id, not its index. Archiving hands the cursor to whatever
+   * slides into that index — a different conversation at the same number, which
+   * must be announced — while a re-sort moves the same conversation to a new
+   * number, which must not be. Silent on mount, because an announcer that speaks
+   * on load teaches people to ignore it.
+   */
+  const [cursorAnnouncement, setCursorAnnouncement] = useState('');
+  const announcedCursorRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (focusedId === announcedCursorRef.current) return;
+    announcedCursorRef.current = focusedId;
+    if (focusedId === null) {
+      setCursorAnnouncement('');
+      return;
+    }
+    const index = displayThreads.findIndex((thread) => thread.id === focusedId);
+    if (index === -1) return;
+    const thread = displayThreads[index];
+    // Who and what first; the arithmetic last, so a reader hears the useful half
+    // before it has to sit through "4 of 312". Full stops between the three groups
+    // rather than commas throughout, because `participantsSummary` is itself a
+    // comma list — "Shipping, ops, billing, Shipment 88214…" has no seam in it.
+    const tail: string[] = [];
+    if (!thread.isRead) tail.push('unread');
+    if (thread.count > 1) tail.push(`${thread.count} messages`);
+    tail.push(`${index + 1} of ${displayThreads.length}`);
+    setCursorAnnouncement(
+      `${thread.participantsSummary || 'No sender'}. ${thread.subject || 'No subject'}. ${tail.join(', ')}`,
+    );
+  }, [focusedId, displayThreads]);
 
   /**
    * Whether every selected conversation is already pinned, which is what turns the
@@ -2646,6 +2687,14 @@ export default function InboxPage() {
             onTouchEnd={handleTouchEnd}
           >
             {/*
+              Where the cursor is, for a reader. Mounted unconditionally, and inside
+              the one element that always exists, because a live region inserted at
+              the moment it has something to say is a live region readers miss.
+            */}
+            <p className="sr-only" role="status" aria-live="polite">
+              {cursorAnnouncement}
+            </p>
+            {/*
               The archived shelf scrolls with the conversations, so when the list
               is windowed it belongs inside the sized container (below). Here it
               only covers the states that replace the list entirely.
@@ -2915,6 +2964,10 @@ export default function InboxPage() {
                         // reader "12 of 9,431" instead of "12 of 30".
                         aria-setsize={displayThreads.length}
                         aria-posinset={item.index + 1}
+                        // The `j`/`k` cursor. `aria-current` is what says "this is
+                        // the one" to a reader arriving here on its own terms; the
+                        // `is-focused` class beside it only says that to an eye.
+                        aria-current={focusedIndex === item.index ? 'true' : undefined}
                       >
                         <EmailRow
                           thread={thread}
