@@ -26,6 +26,11 @@ const ALLOWED_BACKEND_ROUTES: Array<{ pattern: RegExp; methods: readonly string[
   { pattern: /^email-signatures\/[^/]+$/, methods: ['PUT', 'DELETE'] },
   { pattern: /^vacation-responder$/, methods: ['GET', 'PUT'] },
   { pattern: /^vacation-responder\/(?:enable|disable)$/, methods: ['POST'] },
+  // Contact groups. `/contacts` and `/contacts/:id` have their own route files;
+  // these do not, because the pattern list is the cheaper place to add a resource
+  // and every method below has an export at the bottom of this file.
+  { pattern: /^contact-groups$/, methods: ['GET', 'POST'] },
+  { pattern: /^contact-groups\/[^/]+$/, methods: ['GET', 'PUT', 'DELETE'] },
   { pattern: /^ai\/compose$/, methods: ['POST'] },
   { pattern: /^ai\/chat$/, methods: ['POST'] },
   { pattern: /^ai\/chat\/health$/, methods: ['GET'] },

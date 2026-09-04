@@ -87,8 +87,9 @@ model User {
   agentOrgs      AgentOrg[]
 
   // QuantMail relations
-  labels   Label[]
-  contacts Contact[]
+  labels        Label[]
+  contacts      Contact[]
+  contactGroups ContactGroup[]
 
   // QuantMail productivity features
   mailFilters       MailFilter[]
@@ -1717,6 +1718,61 @@ model Contact {
   // The Favorites tab filters on exactly this pair.
   @@index([userId, isFavorite])
   @@map("contacts")
+}
+
+/// A named set of addresses the user writes to as a unit — "Family", "Standup".
+///
+/// The inbox's Groups lens has had a "New group" button since it shipped. It
+/// collected a name and a member list, toasted `Group "X" created with N
+/// members!`, and then opened the composer pre-filled with those addresses.
+/// Nothing was ever stored, so the group it claimed to have created did not
+/// outlive the toast. This is the table that makes that message true.
+///
+/// Membership is a list of ADDRESSES, not `Contact` ids, and that is deliberate:
+///
+///   * `Contact` is keyed `@@unique([userId, email])` and `recordInteraction`
+///     upserts on that pair, so in this schema an address already *is* a
+///     person's identity. A join table would add a second identity for the same
+///     thing and let the two disagree.
+///   * The group editor accepts any address the user types. Requiring a saved
+///     `Contact` would mean either silently dropping the ones that are not in
+///     the book — the exact class of lie this table exists to remove — or
+///     creating contacts as a side effect of naming a group.
+///   * A member who is in the address book still renders with their name and
+///     avatar: the client joins `emails` against the contacts it already holds.
+///     Storing the ids would buy nothing that join does not already give.
+///
+/// Addresses are stored trimmed and lowercased, so `Ann@x.com` and `ann@x.com`
+/// are one member. That matches `ContactService.listContactEmails`, which folds
+/// on read for the same reason.
+model ContactGroup {
+  id     String @id @default(cuid())
+  userId String
+  name   String
+
+  /// Trimmed, lowercased, de-duplicated. May be empty: a group you have named
+  /// but not filled in yet is not an error, and emptying one by removing its
+  /// last member must not delete it out from under the user.
+  emails String[] @default([])
+
+  /// Optional accent for the group's chip, `#rrggbb`. Null is not "unset" so
+  /// much as a real choice the editor offers first: the chip then paints brand
+  /// orange, which is what an accentless chip has always looked like.
+  color String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Two groups with the same name are indistinguishable in a chip row, so the
+  /// database refuses them rather than leaving the UI to guess which is which.
+  /// The service also rejects a case-insensitive collision, since `Family` and
+  /// `family` are just as indistinguishable to a reader as they are distinct to
+  /// this index.
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("contact_groups")
 }
 
 // ==================== QUANTMAIL: PRODUCTIVITY FEATURES ====================

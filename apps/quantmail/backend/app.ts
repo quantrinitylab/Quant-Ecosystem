@@ -5,6 +5,7 @@ import labelsRoutes from './routes/labels';
 import threadsRoutes from './routes/threads';
 import foldersRoutes from './routes/folders';
 import contactsRoutes from './routes/contacts';
+import contactGroupsRoutes from './routes/contact-groups';
 import aiRoutes from './routes/ai';
 import aiServicesRoutes from './routes/ai-services';
 import mailFiltersRoutes from './routes/mail-filters';
@@ -130,6 +131,12 @@ export async function buildApp(config?: AppConfig) {
   await app.register(threadsRoutes, { prefix: '/threads' });
   await app.register(foldersRoutes, { prefix: '/folders' });
   await app.register(contactsRoutes, { prefix: '/contacts' });
+  // Named address sets, under their own prefix rather than `/contacts/groups`.
+  // Fastify's router would resolve the static `groups` segment ahead of
+  // `/contacts/:id`, so nesting would work — but only for as long as nobody
+  // reorders the declarations, and a reader would have to know that rule to be
+  // sure `GET /contacts/groups` is not a contact whose id is "groups".
+  await app.register(contactGroupsRoutes, { prefix: '/contact-groups' });
   // Product-surface repositories API (id-based, list-my-repos) consumed by the
   // Repos page. Complements the QuantCode owner/name git API under /api/code.
   await app.register(reposRoutes, { prefix: '/repos' });

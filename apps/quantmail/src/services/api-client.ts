@@ -33,6 +33,7 @@ import type {
   CalendarEvent,
   Calendar,
   Contact,
+  ContactGroup,
   AIComposeRequest,
   MeetingExtraction,
 } from '../types';
@@ -628,10 +629,50 @@ export class QuantMailApiClient {
     return this.delete(`/contacts/${id}`);
   }
 
-  // `getContactGroups()` and `syncContacts()` used to live here. Neither route
-  // existed on the server, so both returned a 404 envelope; nothing in the app
-  // called them, so nothing noticed. Removed rather than stubbed — an API client
-  // method is a promise that an endpoint exists.
+  // --------------------------------------------------------------------------
+  // Contact groups API
+  //
+  // `getContactGroups()` lived here once with no route behind it, returned a 404
+  // envelope, and was deleted with the note that "an API client method is a
+  // promise that an endpoint exists." `/contact-groups` now exists
+  // (`backend/routes/contact-groups.ts`), so the promise is one the server keeps.
+  // The other half of that pair, `syncContacts()`, is still absent and stays
+  // absent — nothing on the server syncs contacts from anywhere.
+  // --------------------------------------------------------------------------
+
+  /**
+   * Every group, name-ascending. Unpaginated, matching the server: these render
+   * as a chip strip the user built by hand, and a page two the strip never shows
+   * is a group the user cannot reach.
+   */
+  async getContactGroups(): Promise<ApiResponse<ContactGroup[]>> {
+    return this.get('/contact-groups');
+  }
+
+  async createContactGroup(data: {
+    name: string;
+    emails?: string[];
+    color?: string | null;
+  }): Promise<ApiResponse<ContactGroup>> {
+    return this.post('/contact-groups', data);
+  }
+
+  /**
+   * `emails` is a full replacement, not a merge — the editor always holds the
+   * whole member list, so an add/remove pair would let two clients editing the
+   * same group interleave silently. Send only the fields that changed; the
+   * server rejects an empty body rather than reporting a no-op as success.
+   */
+  async updateContactGroup(
+    id: string,
+    data: { name?: string; emails?: string[]; color?: string | null },
+  ): Promise<ApiResponse<ContactGroup>> {
+    return this.put(`/contact-groups/${id}`, data);
+  }
+
+  async deleteContactGroup(id: string): Promise<ApiResponse<ContactGroup>> {
+    return this.delete(`/contact-groups/${id}`);
+  }
 
   // --------------------------------------------------------------------------
   // AI API
