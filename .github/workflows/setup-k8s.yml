@@ -124,13 +124,41 @@ jobs:
 
       # ---------------------------------------------------------------
       # 5. Create Secrets
+      #
+      #    NO CREDENTIAL LITERALS IN THIS FILE. Both of these used to be
+      #    hardcoded here — an `AI_API_KEY` beginning `qk_c7f2…` and a
+      #    `MEILISEARCH_API_KEY` of `ChangeMe_…` — which meant the real staging
+      #    key was readable by anyone who could read the repo, and stayed
+      #    readable in git history after any rotation. `bootstrap-aws.yml` was
+      #    already moved to `secrets.AI_API_KEY`; this sibling workflow was
+      #    missed and kept writing the literal.
+      #
+      #    These fail closed rather than falling back. A cluster-bootstrap
+      #    workflow that quietly provisions a known-exposed key is worse than one
+      #    that stops and says which secret to set, and the failure is loud at
+      #    setup time instead of silent for months.
       # ---------------------------------------------------------------
       - name: Create K8s Secrets
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          MEILISEARCH_API_KEY: ${{ secrets.MEILISEARCH_API_KEY }}
         run: |
+          missing=()
+          [ -n "${AI_API_KEY:-}" ] || missing+=(AI_API_KEY)
+          [ -n "${MEILISEARCH_API_KEY:-}" ] || missing+=(MEILISEARCH_API_KEY)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secret(s): ${missing[*]}"
+            for name in "${missing[@]}"; do
+              echo "  gh secret set $name --repo \"$GITHUB_REPOSITORY\""
+            done
+            echo "Both were hardcoded in this workflow until now; the previous AI_API_KEY value is"
+            echo "in git history and must be treated as compromised — rotate it, do not re-use it."
+            exit 1
+          fi
           kubectl create secret generic quant-platform-production-secrets \
             --from-literal=JWT_SECRET="${{ inputs.jwt_secret }}" \
-            --from-literal=AI_API_KEY="qk_c7f2a94e1d5b8360f4a2c9e7d1b5a8f3c6e0d9b2a4f7c1e5d8b3a6f0c4e7d2b9" \
-            --from-literal=MEILISEARCH_API_KEY="ChangeMe_Meilisearch_2026!" \
+            --from-literal=AI_API_KEY="$AI_API_KEY" \
+            --from-literal=MEILISEARCH_API_KEY="$MEILISEARCH_API_KEY" \
             -n "$K8S_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
           echo "Secrets created"
 
@@ -161,9 +189,58 @@ jobs:
 
       # ---------------------------------------------------------------
       # 7. Create placeholder app Deployments (will be updated with real images)
+      #
+      #    THIS FILE AND `bootstrap-aws.yml` DECLARE THE SAME TWO DEPLOYMENT
+      #    NAMES WITH INCOMPATIBLE SELECTORS. Only one of them can ever have
+      #    created the live objects, and it is this one.
+      #
+      #      * Here:              `app.kubernetes.io/name: quantmail-backend`
+      #        bootstrap-aws.yml: `app: quant-quantmail-backend`
+      #      * `spec.selector` is IMMUTABLE on an apps/v1 Deployment, so whichever
+      #        workflow applied first owns the object and the other's apply fails
+      #        with `spec.selector: Invalid value: ...: field is immutable`. They
+      #        do not merge; one of them has simply been erroring.
+      #      * `quant-quantmail-backend` in `quant-staging` was observed with
+      #        `readinessProbe: null` and `livenessProbe: null`. That is this
+      #        file's spec, not bootstrap-aws's — which means bootstrap-aws's
+      #        probes have never landed on the live deployment and never will.
+      #
+      #    So the probes are declared HERE as well, below, on both placeholders.
+      #    An unprobed Deployment is not a placeholder detail once `kubectl set
+      #    image` has put a real image in it: it is the running app, and nothing
+      #    pulls a wedged replica out of the Service. Nothing waits on the
+      #    placeholder itself — the only `kubectl rollout status` in this file
+      #    runs in section 10, after the real image is set — so a probe the
+      #    `nginx:alpine` stand-in cannot pass costs nothing here.
+      #
+      #    BOTH STEPS BELOW ARE ALSO CREATE-IF-ABSENT, AND THAT IS LOAD-BEARING.
+      #    Re-running this workflow against a cluster that is already serving
+      #    would otherwise:
+      #
+      #      * reset `image` to `nginx:alpine` — a full outage, not a no-op;
+      #      * repoint `envFrom` at `quant-platform-production-config`, while the
+      #        running staging pods are fed by `quant-staging-config`;
+      #      * repoint each Service's selector. This is the sharp one. A Service
+      #        selector IS mutable, so applying the Service in the same heredoc
+      #        over one created by `kubectl expose` in bootstrap-aws (selector
+      #        `app: quant-quantmail-backend`) silently repoints it at a label no
+      #        running pod carries, and the Service loses every endpoint.
+      #
+      #    That last point is why the guard covers the whole heredoc and not just
+      #    the Deployment. Applying "only the Service, it is harmless" is the
+      #    worst available outcome.
+      #
+      #    Guarding on existence keeps this workflow idempotent in the only sense
+      #    that matters: running it twice must not be worse than running it once.
       # ---------------------------------------------------------------
       - name: Create QuantMail frontend Deployment
         run: |
+          if kubectl get deployment quant-quantmail -n "$K8S_NAMESPACE" >/dev/null 2>&1; then
+            echo "quant-quantmail already exists — leaving it and its Service alone."
+            echo "Re-applying this placeholder would reset the image to nginx:alpine and"
+            echo "repoint the Service selector off the running pods. See the note above."
+            exit 0
+          fi
           cat <<EOF | kubectl apply -f -
           apiVersion: apps/v1
           kind: Deployment
@@ -188,6 +265,29 @@ jobs:
                     ports:
                       - containerPort: 3000
                         name: http
+                    # Same numbers as the frontend probes in bootstrap-aws.yml, so
+                    # neither file is a downgrade of the other. A GET of / on the
+                    # Next.js server has no database behind it, so the tight 5s x 3
+                    # readiness window that would be reckless on the backend is
+                    # correct here: there is no shared dependency whose blip could
+                    # fail every replica at once.
+                    #
+                    # NO BACKTICKS IN THIS HEREDOC. It opens as <<EOF, unquoted, so
+                    # that K8S_NAMESPACE expands — which means a backtick would run
+                    # its contents as a command on the runner and splice the output
+                    # into the manifest, silently, without failing the step.
+                    readinessProbe:
+                      httpGet:
+                        path: /
+                        port: 3000
+                      initialDelaySeconds: 10
+                      periodSeconds: 5
+                    livenessProbe:
+                      httpGet:
+                        path: /
+                        port: 3000
+                      initialDelaySeconds: 20
+                      periodSeconds: 10
                     envFrom:
                       - configMapRef:
                           name: quant-platform-production-config
@@ -216,6 +316,12 @@ jobs:
 
       - name: Create QuantMail backend Deployment
         run: |
+          if kubectl get deployment quant-quantmail-backend -n "$K8S_NAMESPACE" >/dev/null 2>&1; then
+            echo "quant-quantmail-backend already exists — leaving it and its Service alone."
+            echo "Re-applying this placeholder would reset the image to nginx:alpine and"
+            echo "repoint the Service selector off the running pods. See the note above."
+            exit 0
+          fi
           cat <<EOF | kubectl apply -f -
           apiVersion: apps/v1
           kind: Deployment
@@ -240,6 +346,37 @@ jobs:
                     ports:
                       - containerPort: 3011
                         name: http
+                    # AN OPEN SOCKET IS NOT READINESS, so this is an httpGet of
+                    # /readyz and not tcpSocket on 3011. /readyz runs SELECT 1
+                    # through Prisma and returns 503 when Postgres is unreachable;
+                    # a TCP accept passes the instant Fastify binds, which is before
+                    # Prisma has ever connected, and puts a pod that answers every
+                    # /api/ request with a 502 into the Service at 1/1 Ready.
+                    #
+                    # 10s x 6 = a 60s window. An honest check also fails for reasons
+                    # that are none of this pod's fault — an RDS failover, a
+                    # security-group reload, a pool blip — and at 5s x 3 every
+                    # replica reaches failureThreshold inside the same 15s, so one
+                    # shared hiccup drains the whole Service at once. Widen the
+                    # window; do not make the check dumber.
+                    #
+                    # No backticks here; see the note in the frontend step.
+                    readinessProbe:
+                      httpGet:
+                        path: /readyz
+                        port: 3011
+                      initialDelaySeconds: 10
+                      periodSeconds: 10
+                      failureThreshold: 6
+                    # Liveness stays deliberately dumber than readiness: /livez
+                    # reports only that the process is alive, so a brief Postgres
+                    # outage drains this pod without also restarting it.
+                    livenessProbe:
+                      httpGet:
+                        path: /livez
+                        port: 3011
+                      initialDelaySeconds: 20
+                      periodSeconds: 10
                     envFrom:
                       - configMapRef:
                           name: quant-platform-production-config
