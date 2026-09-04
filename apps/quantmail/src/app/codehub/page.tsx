@@ -27,6 +27,7 @@ import { Quanty, type QuantyExpression } from '../../components/Quanty';
 import { useRepos, useCreateRepo } from '../../hooks/useRepos';
 import { useBuilds, useDeployments } from '../../hooks/usePipelines';
 import { browserAuthSession } from '../../services/browser-auth-session';
+import { readAIIntent, clientTimeoutForIntent } from '../../lib/ai-intent-preference';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -136,7 +137,13 @@ function repoNameFromUrl(url: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Quanty build chat (Plan / Build — Quanty picks the model himself)
+// Quanty build chat (Plan / Build)
+//
+// This block was headed "Quanty picks the model himself", which was never true:
+// the route hardcoded one budget for every request. It now sends the user's
+// "How much thinking" preference, and `auto` — the default — genuinely picks a
+// tier from the size and depth of the request. Nobody picks a model here; a
+// deployment can pin one per tier, and usually has not.
 // ---------------------------------------------------------------------------
 
 type BuildChatMessage = { id: string; role: 'user' | 'assistant'; content: string };
@@ -147,31 +154,42 @@ async function askQuanty(
   mode: BuildMode,
   repoNames: string[],
 ): Promise<string> {
-  const response = await browserAuthSession.authenticatedFetch('/api/ai/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages: history.slice(-10).map(({ role, content }) => ({ role, content })),
-      context: {
-        // `QuantHub` was a third name for this app, and the model repeats the
-        // name it is told back to the user — so it said "QuantHub" in a product
-        // whose header says QuantGit.
-        app: 'QuantGit',
-        route: '/codehub',
-        view: `QuantGit home · ${mode === 'plan' ? 'Plan mode (explain, break down, estimate — no changes)' : 'Build mode (propose concrete repos, files, commits, deploy steps)'}`,
-        screenText: `Existing repositories: ${repoNames.join(', ') || 'none yet'}`,
-      },
-    }),
-  });
-  const payload = (await response.json().catch(() => null)) as {
-    success?: boolean;
-    data?: { message?: string };
-    error?: { message?: string };
-  } | null;
-  if (response.ok && payload?.success && payload.data?.message) return payload.data.message;
-  throw new Error(
-    payload?.error?.message ?? `Quanty could not answer (${response.status}). Retry in a moment.`,
-  );
+  const intent = readAIIntent();
+  // This call had no timeout at all, so a stalled provider left the composer
+  // spinning with no way back. The tier says how long is reasonable to wait.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), clientTimeoutForIntent(intent));
+  try {
+    const response = await browserAuthSession.authenticatedFetch('/api/ai/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        messages: history.slice(-10).map(({ role, content }) => ({ role, content })),
+        intent,
+        context: {
+          // `QuantHub` was a third name for this app, and the model repeats the
+          // name it is told back to the user — so it said "QuantHub" in a product
+          // whose header says QuantGit.
+          app: 'QuantGit',
+          route: '/codehub',
+          view: `QuantGit home · ${mode === 'plan' ? 'Plan mode (explain, break down, estimate — no changes)' : 'Build mode (propose concrete repos, files, commits, deploy steps)'}`,
+          screenText: `Existing repositories: ${repoNames.join(', ') || 'none yet'}`,
+        },
+      }),
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      success?: boolean;
+      data?: { message?: string };
+      error?: { message?: string };
+    } | null;
+    if (response.ok && payload?.success && payload.data?.message) return payload.data.message;
+    throw new Error(
+      payload?.error?.message ?? `Quanty could not answer (${response.status}). Retry in a moment.`,
+    );
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewRepo: () => void }) {

@@ -15,7 +15,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
-import { aiChat, isAIConfigured } from '../services/ai-provider.service';
+import { AI_INTENTS, measureAISignals, resolveAIIntent } from '@quant/common';
+import { aiChat, isAIConfigured, resolveTierModel } from '../services/ai-provider.service';
 
 const composeSchema = z.object({
   instructions: z.string().min(1).max(4000),
@@ -23,7 +24,21 @@ const composeSchema = z.object({
   length: z.string().optional(),
   recipient: z.string().optional(),
   subject: z.string().optional(),
+  // The same "How much thinking" preference the copilot sends. Optional: absent
+  // is `auto`, and `auto` routes on how much text this request actually carries.
+  intent: z.enum(AI_INTENTS).optional(),
 });
+
+/**
+ * A floor, not a budget. `length` is an explicit request from the composer UI,
+ * so a `fast` tier must not silently clip an email the user asked to be long —
+ * the tier raises the ceiling and never lowers it below what `length` implies.
+ */
+const LENGTH_TOKEN_FLOOR: Record<string, number> = {
+  short: 320,
+  medium: 640,
+  long: 1_536,
+};
 
 const TONE_PROMPTS: Record<string, string> = {
   formal: 'Write in a professional, formal tone suitable for business communication.',
@@ -58,11 +73,27 @@ export default async function aiComposeRoutes(fastify: FastifyInstance) {
     const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
 
-    const { instructions, tone, length, recipient, subject } = parsed.data;
+    const { instructions, tone, length, recipient, subject, intent } = parsed.data;
     const systemPrompt = buildSystemPrompt(tone, length, recipient);
     const userPrompt = subject
       ? `Subject: ${subject}\n\nInstructions: ${instructions}`
       : instructions;
+
+    // The tier's `directive` is deliberately NOT sent here. It is written for a
+    // chat answer ("state any assumption you had to make"), and a draft email
+    // that opens by narrating its own assumptions is worse than one that does
+    // not. On this route the tier's honest effect is the length ceiling, the
+    // time allowed, and the model when a deployment pins one per tier.
+    const plan = resolveAIIntent(
+      intent,
+      measureAISignals([{ content: systemPrompt }, { content: userPrompt }]),
+    );
+    // `length` is a free-form string in the schema, so it can arrive empty or as
+    // a value this table does not know. Both must read as "no floor" — an empty
+    // string short-circuits `&&` to `''`, which `??` does not catch, and
+    // `Math.max(320, '')` is `NaN` at runtime and a type error at build time.
+    const lengthFloor = length ? (LENGTH_TOKEN_FLOOR[length] ?? 0) : 0;
+    const maxTokens = Math.max(plan.maxTokens, lengthFloor);
 
     // Primary: whichever provider the environment configures (Workers AI today).
     if (isAIConfigured()) {
@@ -72,14 +103,21 @@ export default async function aiComposeRoutes(fastify: FastifyInstance) {
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-          { maxTokens: 1024, temperature: 0.7 },
+          {
+            maxTokens,
+            // 0.7 is this route's own choice — writing wants a little more give
+            // than answering. It is per-feature, not per-tier.
+            temperature: 0.7,
+            timeoutMs: plan.timeoutMs,
+            model: resolveTierModel(plan.modelEnvVar),
+          },
         );
         return reply.send({
           success: true,
-          data: { subject: subject ?? '', body, suggestions: [] },
+          data: { subject: subject ?? '', body, suggestions: [], tier: plan.tier },
         });
       } catch (err) {
-        request.log.error({ err }, 'AI compose failed');
+        request.log.error({ err, tier: plan.tier }, 'AI compose failed');
         return reply.code(503).send({
           success: false,
           error: {

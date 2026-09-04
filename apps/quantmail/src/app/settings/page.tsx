@@ -63,6 +63,14 @@ import {
   type ReactNode,
 } from 'react';
 import { Button, FormField, Input, TextArea } from '@quant/shared-ui';
+import {
+  AI_AUTO_THRESHOLDS,
+  AI_INTENT_STORAGE_KEY,
+  normalizeStoredIntent,
+  resolveAIIntent,
+  type AIIntent,
+  type AITier,
+} from '@quant/common';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { apiClient } from '../../services/api-client';
@@ -71,6 +79,7 @@ import { PhoneVerificationCard } from '../../components/PhoneVerificationCard';
 import { showToast } from '../../components/InboxToast';
 import { ShortcutKeys } from '../../components/ShortcutKeys';
 import { useDesktopNotifications } from '../../hooks/useDesktopNotifications';
+import { writeAIIntent } from '../../lib/ai-intent-preference';
 import { buildHelpGroups, dimNoteFor, helpGroupHeading } from '../../lib/keyboard/help-model';
 import { useCommandList } from '../../lib/keyboard/hooks';
 import { useSafeEmailHtml } from '../../lib/safe-html';
@@ -86,12 +95,29 @@ type Theme = 'light' | 'dark' | 'system';
 type Density = 'comfortable' | 'compact';
 
 interface AIModelOption {
-  id: string;
+  id: AIIntent;
   name: string;
   description: string;
   bestFor: string;
   badge: string;
 }
+
+/**
+ * The wait ceiling a tier is actually given, in seconds, read off the same table
+ * the request path reads. Written as a helper rather than typed into four strings
+ * so a budget change moves the copy with it — the previous version of this list
+ * quoted `'~380ms'` latencies that nothing measured, and the version before this
+ * one quoted nothing at all because there was nothing true to quote.
+ */
+const waitBadge = (tier: AITier) => `Up to ${resolveAIIntent(tier).timeoutMs / 1_000}s`;
+
+/**
+ * How much longer a tier is allowed to answer than Fast is, rounded. Same reason
+ * as `waitBadge`: a multiplier typed into a sentence is a number that stops being
+ * true the first time a budget moves.
+ */
+const lengthMultiple = (tier: AITier) =>
+  Math.round(resolveAIIntent(tier).maxTokens / resolveAIIntent('fast').maxTokens);
 
 /**
  * The user-facing AI choices.
@@ -101,45 +127,51 @@ interface AIModelOption {
  * problem. The latencies were hardcoded literals that nothing measured, so the
  * page was quoting numbers it had invented. And exposing the vendor contradicts
  * the routing model itself: which model answers a prompt is the router's call,
- * it changes with load and health, and a user who has pinned "Llama 3.3" has
- * pinned something we may not be serving.
+ * and a user who has pinned "Llama 3.3" has pinned something we may not be
+ * serving.
  *
  * What a user can actually reason about is how much thinking they want spent on
- * a request, so that is what the setting offers. `id` is the value persisted to
- * `quant-ai-model-mode` and handed to the router as an intent, not a model name.
+ * a request, so that is what the setting offers. `id` is an `AIIntent` from
+ * `@quant/common` — the same union `POST /ai/chat` and `POST /ai/compose` accept
+ * — persisted under `AI_INTENT_STORAGE_KEY` and sent in the request body.
+ *
+ * Every sentence below describes something a tier observably changes, and the
+ * three things it changes are all there is: the answer-length budget, the
+ * reasoning instruction appended to the system prompt, and how long the provider
+ * is given. Each description here paraphrases that tier's real `directive`. It
+ * does **not** claim a different engine — `AI_MODEL_FAST` / `_BALANCED` / `_DEEP`
+ * are optional deployment env vars, unset on this environment, so all three tiers
+ * currently run on the same model with different budgets.
  */
 const AI_ENGINE_MODES: AIModelOption[] = [
   {
-    id: 'auto-router',
+    id: 'auto',
     name: 'Automatic',
-    description:
-      'Reads each request and spends as much reasoning on it as it needs — a one-line reply stays instant, a long thread gets the slower pass. Falls back on its own if a route is unhealthy.',
+    description: `Measures the request and picks one of the three below. A prompt under ${AI_AUTO_THRESHOLDS.fastPromptChars} characters with little on screen and no history goes to Fast; anything past ${AI_AUTO_THRESHOLDS.deepTotalChars} characters in total, or ${AI_AUTO_THRESHOLDS.deepTurns} turns deep, goes to Deep; everything else is Balanced.`,
     bestFor: 'Everything, unless you have a reason to override it',
-    badge: 'Recommended',
+    badge: 'Default',
   },
   {
     id: 'fast',
     name: 'Fast',
     description:
-      'Answers immediately and keeps it short. Good for smart replies, autocomplete and one-line summaries where waiting is worse than a slightly plainer answer.',
+      'Asks for the answer in three sentences at most, with no preamble, and caps the reply short enough that it cannot run long. Good where waiting is worse than a plainer answer.',
     bestFor: 'Quick replies, autocomplete, categorising',
-    badge: 'Lowest wait',
+    badge: waitBadge('fast'),
   },
   {
     id: 'balanced',
     name: 'Balanced',
-    description:
-      'The middle setting: enough reasoning for a full draft or a thread summary, without the pause the deep setting takes.',
+    description: `Asks for a complete but economical answer — a short paragraph, or a tight list when the answer really is a list. Roughly ${lengthMultiple('balanced')}x the answer length Fast is allowed.`,
     bestFor: 'Drafting mail, summarising a thread',
-    badge: 'Default',
+    badge: waitBadge('balanced'),
   },
   {
     id: 'deep',
     name: 'Deep',
-    description:
-      'Takes noticeably longer and thinks harder. Worth it for contracts, long documents, multi-step logic and code review, where a shallow answer costs more than the wait.',
+    description: `Asks it to work the problem first: read the whole on-screen context, state any assumption it had to make, then cover the cases that could change the answer. Roughly ${lengthMultiple('deep')}x the answer length Fast is allowed, and it will use it.`,
     bestFor: 'Contracts, code, analysis, long documents',
-    badge: 'Most thorough',
+    badge: waitBadge('deep'),
   },
 ];
 
@@ -239,7 +271,7 @@ export default function SettingsPage() {
   >('loading');
   const [theme, setTheme] = useState<Theme>('dark');
   const [density, setDensity] = useState<Density>('comfortable');
-  const [selectedAIModel, setSelectedAIModel] = useState('auto-router');
+  const [selectedAIModel, setSelectedAIModel] = useState<AIIntent>('auto');
 
   const desktopNotifications = useDesktopNotifications();
   const commands = useCommandList();
@@ -266,13 +298,17 @@ export default function SettingsPage() {
       if (stored !== next) localStorage.setItem('quant-theme', next);
       setTheme(next);
       setDensity(localStorage.getItem('quant-density') === 'compact' ? 'compact' : 'comfortable');
-      const savedModel = localStorage.getItem('quant-ai-model-mode');
-      // Browsers that used the app before the vendor-named models were replaced
-      // by intent tiers still hold an id like `@cf/meta/llama-3.3-70b-instruct`,
-      // which now matches nothing and would render the list with no row selected.
-      if (savedModel && AI_ENGINE_MODES.some((m) => m.id === savedModel)) {
-        setSelectedAIModel(savedModel);
-      }
+      const storedIntent = localStorage.getItem(AI_INTENT_STORAGE_KEY);
+      // Same migration shape as the theme above, for the same reason. Browsers
+      // that used the app before this key had any reader hold `auto-router` (the
+      // id the picker shipped with) or a raw model name like
+      // `@cf/meta/llama-3.3-70b-instruct`; both now match no row and would render
+      // the list with nothing selected. `normalizeStoredIntent` folds every one of
+      // them to `auto`, and the value is rewritten so the legacy id retires
+      // instead of being re-normalised on every read for the life of the profile.
+      const intent = normalizeStoredIntent(storedIntent);
+      setSelectedAIModel(intent);
+      if (storedIntent !== null && storedIntent !== intent) writeAIIntent(intent);
     } catch {
       /* ignore */
     }
@@ -376,13 +412,13 @@ export default function SettingsPage() {
     showToast({ text: 'Email signature saved and active', type: 'success' });
   }, [defaultSignatureId, hasSignatureChanges, signature]);
 
-  const handleSelectAIModel = (modelId: string) => {
+  const handleSelectAIModel = (modelId: AIIntent) => {
     setSelectedAIModel(modelId);
-    try {
-      localStorage.setItem('quant-ai-model-mode', modelId);
-    } catch {
-      /* ignore */
-    }
+    // `writeAIIntent` owns the key and the try/catch, and is the same function the
+    // drawer, the composer and the build chat read through — the string
+    // `quant-ai-model-mode` was hand-written in three places while it had no
+    // readers at all, which is how it came to have none.
+    writeAIIntent(modelId);
     const found = AI_ENGINE_MODES.find((m) => m.id === modelId);
     showToast({
       text: `Assistant set to ${found?.name || modelId}`,
@@ -716,18 +752,24 @@ export default function SettingsPage() {
           {activeTab === 'ai' && (
             <>
               <SettingsSection
-                title="Quanty routes every request for you"
-                description="You pick how much thinking a request deserves; Quanty picks what answers it. That choice shifts with load and health, so it is deliberately not something you pin to a named engine. Everything below is an intent, not a machine."
+                title="What this setting changes"
+                description="A tier changes three things and nothing else: how long an answer may run, the instruction asking for that much reasoning, and how long the provider is given before the request is given up on."
                 action={
                   <span className="rounded-full border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--brand-primary)]">
-                    Automatic
+                    {AI_ENGINE_MODES[aiTabbableIndex]?.name ?? 'Automatic'}
                   </span>
                 }
               >
                 <p className="text-xs leading-relaxed text-[var(--quant-text-muted)]">
-                  Your choice is stored on this browser and sent with each request as an intent. No
-                  engine name is pinned, so a route going unhealthy changes what answers you — not
-                  whether you get an answer.
+                  Your choice is stored on this browser — not on your account — and is sent with
+                  every Quanty conversation and every drafted reply. It does not name an engine:
+                  Deep buys a longer, more thorough answer from whatever model this deployment runs,
+                  not a smarter one.
+                </p>
+                <p className="text-xs leading-relaxed text-[var(--quant-text-muted)]">
+                  Automatic is resolved per request, against the message that actually arrives
+                  rather than anything this browser asserts — so two questions asked back to back
+                  can land on two different tiers.
                 </p>
               </SettingsSection>
 
