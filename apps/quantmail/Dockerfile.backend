@@ -9,6 +9,24 @@
 # by the copied node_modules.
 # ============================================================================
 FROM node:22-slim AS deps
+# `openssl`, and it is not optional. Prisma's query engine picks its binary by
+# detecting the libssl version at runtime, and `node:22-slim` ships no openssl —
+# so the deployed pod logs "Prisma failed to detect the libssl/openssl version
+# to use ... defaulting to openssl-1.1.x" and then *guesses*. Proof, from inside
+# the running staging pod: `which openssl` exits 1.
+#
+# A guess that happens to match is still a guess: the day the base image's libssl
+# moves to a version whose engine was never generated, this fails at connect time
+# in production rather than at build time in CI. Installed in this stage too, not
+# only in `runner`, because `prisma generate` runs in the `builder` stage that
+# derives from here and the detection it does there decides which engine binary
+# ends up in the image.
+#
+# ca-certificates is deliberately NOT added: corepack already fetches pnpm over
+# HTTPS in this stage, so the base image plainly has it.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json turbo.json ./
@@ -24,6 +42,11 @@ RUN npx prisma@6.19.3 generate --schema=packages/database/prisma/schema.prisma
 RUN node infra/scripts/build-backend.mjs apps/quantmail backend/server.ts apps/quantmail/backend/dist/server.mjs
 
 FROM node:22-slim AS runner
+# See the note on the `deps` stage: this is the stage the query engine actually
+# runs in, so the detection has to succeed here as well.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 quantapp
 WORKDIR /app

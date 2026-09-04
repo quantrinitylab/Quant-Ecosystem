@@ -41,12 +41,23 @@ spec:
           # 502s while reporting 1/1 Ready. `/readyz` runs `SELECT 1` through the
           # `fastify.prisma` decorator and returns 503 when that fails, so the pod
           # leaves the load balancer instead of serving errors from it.
+          # 60s of grace, not 15s. `/readyz` is an honest check, which means it
+          # also fails for reasons that are none of this pod's fault — an RDS
+          # failover, a security-group reload, a connection-pool blip. At the old
+          # 5s x 3 every replica reached failureThreshold inside the same 15s
+          # window, so one shared hiccup drained the entire Service at once and
+          # the LB had nowhere to send traffic. 10s x 6 rides out a blip that
+          # short while still pulling a genuinely wedged pod within a minute.
+          #
+          # Widening the window is the correct lever here. Making the check
+          # dumber is not: see the note above.
           readinessProbe:
             httpGet:
               path: /readyz
               port: 3011
             initialDelaySeconds: 10
-            periodSeconds: 5
+            periodSeconds: 10
+            failureThreshold: 6
           # Liveness stays deliberately dumber than readiness: `/livez` reports
           # only that the process is alive and ignores dependency health, so a
           # brief Postgres outage drains the pod (readiness) without also

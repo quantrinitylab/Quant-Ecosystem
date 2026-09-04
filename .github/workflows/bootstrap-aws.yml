@@ -496,7 +496,19 @@ jobs:
                         path: /readyz
                         port: 3011
                       initialDelaySeconds: 10
-                      periodSeconds: 5
+                      # 10s x 6 = a 60s window, not 15s. /readyz runs SELECT 1,
+                      # so it also fails for reasons that are none of this pod's
+                      # fault. At 5s x 3 every replica hit failureThreshold inside
+                      # the same 15s, and one shared RDS blip drained the whole
+                      # Service. Keep the check honest and widen the window; do
+                      # not fall back to tcpSocket, which passes the instant the
+                      # port binds and reports Ready while /api/ returns 502.
+                      #
+                      # No backticks in this comment: the heredoc it sits in opens
+                      # as <<EOF, unquoted, so a backtick would run its contents on
+                      # the runner and splice the output into the manifest.
+                      periodSeconds: 10
+                      failureThreshold: 6
                     livenessProbe:
                       httpGet:
                         path: /livez
