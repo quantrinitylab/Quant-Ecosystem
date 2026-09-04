@@ -1136,6 +1136,20 @@ export default function InboxPage() {
    */
   const filterTriggerRef = useRef<HTMLButtonElement | null>(null);
   const turnGroupLabelId = useId();
+  /**
+   * The popover's other two names. `turnGroupLabelId` already ties `Whose turn` to
+   * its radiogroup; `filterGroupLabelId` does the same for `Narrow this view`,
+   * which was a heading in name only — the toggles under it were loose siblings
+   * of a paragraph, so a reader met them one at a time with nothing saying what
+   * they had in common or where the group ended.
+   *
+   * `filterPanelId` is what the trigger points `aria-controls` at, and it is
+   * attached only while the panel is mounted: the popover unmounts on close, so a
+   * permanent `aria-controls` would be an IDREF to nothing for as long as the
+   * inbox is at rest.
+   */
+  const filterGroupLabelId = useId();
+  const filterPanelId = useId();
   const savedGroupsLabelId = useId();
   /**
    * The tablist's other half. A `role="tab"` owes a reader the thing it controls —
@@ -2370,7 +2384,17 @@ export default function InboxPage() {
                 ref={filterTriggerRef}
                 onClick={() => setIsFilterMenuOpen((prev) => !prev)}
                 aria-expanded={isFilterMenuOpen}
-                aria-haspopup="true"
+                /*
+                  No `aria-haspopup`. In ARIA it is not a generic "there is a
+                  popover here" flag — `true` is exactly synonymous with `menu`,
+                  and this is not a menu: it holds a radiogroup and a set of
+                  checkboxes, so a reader told "has popup menu" arrives expecting
+                  `menuitem` children, arrow-key traversal of the whole panel and
+                  typeahead, and finds a form instead. `aria-expanded` plus
+                  `aria-controls` is the disclosure pattern, which is what this
+                  actually is: a button that reveals the controls next to it.
+                */
+                aria-controls={isFilterMenuOpen ? filterPanelId : undefined}
                 aria-label={
                   narrowingCount > 0
                     ? `Filter conversations, ${narrowingCount} active`
@@ -2393,6 +2417,18 @@ export default function InboxPage() {
               <AnimatePresence>
                 {isFilterMenuOpen && (
                   <motion.div
+                    id={filterPanelId}
+                    /*
+                      A named group, not a bare box. Without a role the panel is
+                      three unrelated things in a row to a reader — a heading, a
+                      radiogroup, some buttons — and nothing says they are one
+                      control surface or that leaving it means leaving the filter.
+                      `group` rather than `dialog` because nothing here is modal:
+                      focus is not trapped, the list behind stays live, and Tab
+                      walks out the far side on purpose.
+                    */
+                    role="group"
+                    aria-label="Filter conversations"
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
@@ -2459,40 +2495,60 @@ export default function InboxPage() {
                         );
                       })}
                     </div>
-                    <p className="mt-1 px-3 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] border-t border-[#282C35]">
+                    <p
+                      id={filterGroupLabelId}
+                      className="mt-1 px-3 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] border-t border-[#282C35]"
+                    >
                       Narrow this view
                     </p>
-                    {INBOX_FILTERS.map((filter) => {
-                      const isOn = activeFilters.has(filter.key);
-                      return (
-                        <button
-                          key={filter.key}
-                          type="button"
-                          aria-pressed={isOn}
-                          onClick={() => toggleFilter(filter.key)}
-                          className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
-                        >
-                          <span
-                            aria-hidden="true"
-                            className={`size-[18px] shrink-0 rounded-md border inline-flex items-center justify-center transition-colors ${
-                              isOn
-                                ? 'bg-[#FF8C42] border-[#FF8C42] text-[#090A0C]'
-                                : 'border-[#3A404D] text-transparent'
-                            }`}
+                    {/*
+                      The second half of the pair the indicator shapes promise. A
+                      circle for the one-of turn, a square for the any-of filters —
+                      and now the roles say the same thing the shapes do:
+                      `radiogroup`/`radio` above, `group`/`checkbox` here. These
+                      were `aria-pressed` toggle buttons, which announces "toggle
+                      button, pressed" beside a drawn checkbox and leaves the eye
+                      and the ear describing two different controls.
+
+                      The group is what makes `Narrow this view` a heading rather
+                      than decoration: without it a reader meets the checkboxes as
+                      loose siblings of a paragraph, with nothing saying what they
+                      share or where the set ends.
+                    */}
+                    <div role="group" aria-labelledby={filterGroupLabelId}>
+                      {INBOX_FILTERS.map((filter) => {
+                        const isOn = activeFilters.has(filter.key);
+                        return (
+                          <button
+                            key={filter.key}
+                            type="button"
+                            role="checkbox"
+                            aria-checked={isOn}
+                            onClick={() => toggleFilter(filter.key)}
+                            className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
                           >
-                            <IconCheck size={12} strokeWidth={2.4} />
-                          </span>
-                          <span
-                            className={`flex-1 truncate ${isOn ? 'text-[#F5F5F5] font-semibold' : 'text-[#A1A4AC]'}`}
-                          >
-                            {filter.label}
-                          </span>
-                          <span className="shrink-0 text-[10px] font-semibold text-[#A1A4AC]">
-                            {filterCounts[filter.key]}
-                          </span>
-                        </button>
-                      );
-                    })}
+                            <span
+                              aria-hidden="true"
+                              className={`size-[18px] shrink-0 rounded-md border inline-flex items-center justify-center transition-colors ${
+                                isOn
+                                  ? 'bg-[#FF8C42] border-[#FF8C42] text-[#090A0C]'
+                                  : 'border-[#3A404D] text-transparent'
+                              }`}
+                            >
+                              <IconCheck size={12} strokeWidth={2.4} />
+                            </span>
+                            <span
+                              className={`flex-1 truncate ${isOn ? 'text-[#F5F5F5] font-semibold' : 'text-[#A1A4AC]'}`}
+                            >
+                              {filter.label}
+                            </span>
+                            <span className="shrink-0 text-[10px] font-semibold text-[#A1A4AC]">
+                              {filterCounts[filter.key]}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                     {narrowingCount > 0 && (
                       <button
                         type="button"
