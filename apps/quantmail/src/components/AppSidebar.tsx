@@ -20,6 +20,7 @@ type IconName =
   | 'drafts'
   | 'drive'
   | 'inbox'
+  | 'labels'
   | 'pipeline'
   | 'postcard'
   | 'search'
@@ -27,6 +28,7 @@ type IconName =
   | 'sent'
   | 'settings'
   | 'spam'
+  | 'star'
   | 'trash'
   | 'workspaces';
 
@@ -86,6 +88,12 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
       <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
     </>
   ),
+  labels: (
+    <>
+      <path d="M20.6 12.4 12 3.8H4v8l8.6 8.6a2 2 0 0 0 2.8 0l5.2-5.2a2 2 0 0 0 0-2.8z" />
+      <circle cx="7.6" cy="7.6" r="1.1" />
+    </>
+  ),
   pipeline: (
     <>
       <circle cx="6" cy="5" r="2" />
@@ -131,6 +139,11 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
       <path d="M12 8v5M12 16h.01" />
     </>
   ),
+  star: (
+    <>
+      <path d="m12 3.6 2.7 5.5 6 .9-4.35 4.25 1.03 6-5.38-2.83-5.38 2.83 1.03-6L3.3 10l6-.9z" />
+    </>
+  ),
   trash: (
     <>
       <path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6M14 11v6" />
@@ -163,6 +176,35 @@ function Icon({ name, className = 'h-4 w-4' }: { name: IconName; className?: str
   );
 }
 
+/*
+  Eight mail folders, flat, in the order the keyboard registry already declares
+  them (`g i`, `g s`, `g d`, `g *`, `g b`, `g e`, `g t`, `g !` —
+  KeyboardProvider.tsx:138-209).
+
+  Five of these routes were fully built and completely unreachable by pointer.
+  `/sent` (a 271-line delivery-trail page with per-row send status and Resend),
+  `/starred`, `/snoozed` and `/archive` (real screens over the shared
+  `MailFolderPage`, each with its own row action) and `/labels` (a 314-line
+  label CRUD screen) had ZERO `href`/`router.push` anywhere in `src` outside
+  their own files. The only way in was a keypress: `nav.*` in the command
+  registry, reachable from the palette, which itself only opens on ⌘K. So on a
+  phone with no hardware keyboard, five finished features did not exist.
+
+  Flat rather than a "More" disclosure on purpose. A disclosure would be a new
+  interaction pattern used exactly once (against §18), it would cost Spam and
+  Trash the one-click reach they have today, and `.sidebar-scroll` already
+  scrolls — so the long list costs nothing structurally while a collapsed one
+  costs a click on every folder behind it.
+
+  Labels sits in Control, not Mail: it manages labels, it is not a folder of
+  mail. Keeping the Mail group purely folders is what makes the group heading
+  mean something.
+
+  No count badge on the new rows. The two that exist are fed by `useInbox`
+  calls (lines 216-217); a count per folder means a poll per folder on every
+  route. That is the trade the inbox's Spam chip already declined in writing at
+  `src/app/page.tsx:1861-1866`, and this matches it.
+*/
 const NAV_GROUPS: Array<{
   label: string;
   items: Array<{
@@ -178,7 +220,11 @@ const NAV_GROUPS: Array<{
     label: 'Mail',
     items: [
       { id: 'inbox', label: 'Mail', icon: 'inbox', path: '/' },
+      { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
+      { id: 'starred', label: 'Starred', icon: 'star', path: '/starred' },
+      { id: 'snoozed', label: 'Snoozed', icon: 'clock', path: '/snoozed' },
+      { id: 'archive', label: 'Archive', icon: 'archive', path: '/archive' },
       { id: 'spam', label: 'Spam', icon: 'spam', path: '/spam' },
       { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
     ],
@@ -191,11 +237,21 @@ const NAV_GROUPS: Array<{
       { id: 'contacts', label: 'Contacts', icon: 'contacts', path: '/contacts', desktopOnly: true },
       { id: 'drive', label: 'Drive', icon: 'drive', path: '/drive', desktopOnly: true },
       { id: 'code', label: 'Git', icon: 'code', path: '/codehub', desktopOnly: true },
+      {
+        id: 'pipelines',
+        label: 'Pipelines',
+        icon: 'pipeline',
+        path: '/pipelines',
+        desktopOnly: true,
+      },
     ],
   },
   {
     label: 'Control',
-    items: [{ id: 'settings', label: 'Settings', icon: 'settings', path: '/settings' }],
+    items: [
+      { id: 'labels', label: 'Labels', icon: 'labels', path: '/labels' },
+      { id: 'settings', label: 'Settings', icon: 'settings', path: '/settings' },
+    ],
   },
 ];
 
