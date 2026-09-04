@@ -13,6 +13,7 @@ import type {
 // ============================================================================
 
 import { browserAuthSession } from './browser-auth-session';
+import { readAIIntent } from '../lib/ai-intent-preference';
 import type {
   Email,
   EmailThread,
@@ -636,10 +637,18 @@ export class QuantMailApiClient {
   // AI API
   // --------------------------------------------------------------------------
 
+  /**
+   * The "How much thinking" preference is attached here rather than by the
+   * composer, so every current and future caller of `aiCompose` sends it without
+   * having to remember to. `tier` comes back so the caller can report what
+   * actually ran — on this route the tier sets the length ceiling (never below
+   * what an explicit `length` implies), the timeout, and the model when a
+   * deployment pins one.
+   */
   async aiCompose(
     data: AIComposeRequest,
-  ): Promise<ApiResponse<{ subject: string; body: string; suggestions: string[] }>> {
-    return this.post('/ai/compose', data);
+  ): Promise<ApiResponse<{ subject: string; body: string; suggestions: string[]; tier?: string }>> {
+    return this.post('/ai/compose', { ...data, intent: readAIIntent() });
   }
 
   async aiAutocomplete(

@@ -25,6 +25,18 @@ export interface AIChatOptions {
   maxTokens?: number;
   temperature?: number;
   timeoutMs?: number;
+  /**
+   * Override the model for this one call. Added so the reasoning tiers in
+   * `@quant/common`'s `ai-intent` can run on different models when a deployment
+   * sets `AI_MODEL_FAST` / `AI_MODEL_BALANCED` / `AI_MODEL_DEEP`; unset, every
+   * tier keeps using the provider default and differs only by budget and prompt.
+   *
+   * MUST come from `process.env`, never from a request body: the Cloudflare REST
+   * fallback interpolates the model into a URL path, so a client-supplied value
+   * here would be a request-forgery sink. `resolveTierModel()` below is the only
+   * intended source.
+   */
+  model?: string;
 }
 
 export type AIProviderName = 'cloudflare' | 'openai' | 'anthropic' | 'custom' | 'none';
@@ -74,6 +86,23 @@ export function isAIConfigured(): boolean {
   return activeProvider() !== 'none';
 }
 
+/**
+ * Read the model a reasoning tier is pinned to, if a deployment pinned one.
+ * Takes the env var *name* from an `AIIntentPlan` (a closed union of three
+ * literals), so nothing a client sends can select an arbitrary env var, and the
+ * value can only ever come from this environment's own configuration.
+ */
+export function resolveTierModel(modelEnvVar: string): string | undefined {
+  if (
+    modelEnvVar !== 'AI_MODEL_FAST' &&
+    modelEnvVar !== 'AI_MODEL_BALANCED' &&
+    modelEnvVar !== 'AI_MODEL_DEEP'
+  ) {
+    return undefined;
+  }
+  return env(modelEnvVar);
+}
+
 export function aiUnavailableReason(): string {
   return 'QuantAI is not configured on this environment';
 }
@@ -106,7 +135,11 @@ async function postJson(
 async function chatViaCloudflare(messages: AIMessage[], options: AIChatOptions): Promise<string> {
   const accountId = getCloudflareAccountId();
   const apiToken = getCloudflareToken()!;
-  const model = env('CLOUDFLARE_AI_MODEL') ?? env('AI_MODEL') ?? '@cf/meta/llama-3.1-70b-instruct';
+  const model =
+    options.model ??
+    env('CLOUDFLARE_AI_MODEL') ??
+    env('AI_MODEL') ??
+    '@cf/meta/llama-3.1-70b-instruct';
   const baseUrl = env('CLOUDFLARE_AI_BASE_URL') ?? 'https://api.cloudflare.com/client/v4/accounts';
 
   // Primary: OpenAI-compatible /ai/v1/chat/completions endpoint
@@ -152,7 +185,7 @@ async function chatViaOpenAICompatible(
 ): Promise<string> {
   const apiKey = env('AI_API_KEY') ?? env('OPENAI_API_KEY');
   const baseUrl = (env('AI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-  const model = env('AI_MODEL') ?? 'gpt-4o-mini';
+  const model = options.model ?? env('AI_MODEL') ?? 'gpt-4o-mini';
 
   const data = (await postJson(
     `${baseUrl}/chat/completions`,
@@ -174,7 +207,7 @@ async function chatViaOpenAICompatible(
 async function chatViaAnthropic(messages: AIMessage[], options: AIChatOptions): Promise<string> {
   const apiKey = (env('AI_API_KEY') ?? env('ANTHROPIC_API_KEY'))!;
   const baseUrl = (env('AI_BASE_URL') ?? 'https://api.anthropic.com/v1').replace(/\/$/, '');
-  const model = env('AI_MODEL') ?? 'claude-3-5-haiku-latest';
+  const model = options.model ?? env('AI_MODEL') ?? 'claude-3-5-haiku-latest';
 
   const system = messages
     .filter((m) => m.role === 'system')

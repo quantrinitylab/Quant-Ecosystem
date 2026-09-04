@@ -6,6 +6,7 @@ import { Quanty } from './Quanty';
 import { showToast } from './InboxToast';
 import { IconX } from './icons';
 import { browserAuthSession } from '../services/browser-auth-session';
+import { readAIIntent, clientTimeoutForIntent } from '../lib/ai-intent-preference';
 import type { Email } from '../types';
 
 export interface QuantyEmailAction {
@@ -101,7 +102,14 @@ const STORAGE_KEY = 'quantmail_quanty_chats_v1';
  * the system prompt itself. A client should not be authoring one.
  */
 
-const REQUEST_TIMEOUT_MS = 45_000;
+/*
+ * The 45 s timeout that used to live here was a hand-written number sitting next
+ * to a provider default of 40 s — a 5 s margin nobody had written down, and one
+ * that would have aborted the Deep tier (75 s) at the client while the server was
+ * still legitimately working. `clientTimeoutForIntent` derives the wait from the
+ * same tier table the backend resolves against, so the two cannot drift.
+ */
+
 /** Transient by nature: a retry is a reasonable thing to offer the user. */
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504, 522, 524]);
 
@@ -167,8 +175,11 @@ async function requestQuanty(
   turns: ChatTurn[],
   context: Record<string, string>,
 ): Promise<ChatResult> {
+  // Read at send time, not at mount: changing the preference in the settings tab
+  // then coming back here should take effect without a remount.
+  const intent = readAIIntent();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), clientTimeoutForIntent(intent));
 
   try {
     const response = await browserAuthSession.authenticatedFetch('/api/ai/chat', {
@@ -177,6 +188,7 @@ async function requestQuanty(
       signal: controller.signal,
       body: JSON.stringify({
         messages: buildHistory(turns),
+        intent,
         ...(Object.keys(context).length > 0 ? { context } : {}),
       }),
     });
