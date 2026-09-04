@@ -1,0 +1,53 @@
+# fix-staging result (run 33882428971)
+time: 2026-09-04T14:13:46Z
+migrations: success
+rollout: success
+readiness: success
+
+## deployments
+NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+quant-quantmail           1/1     1            1           5d18h
+quant-quantmail-backend   1/1     1            1           5d18h
+redis                     1/1     1            1           5d17h
+
+## pods
+NAME                                       READY   STATUS    RESTARTS   AGE
+quant-quantmail-54584c7659-snjdk           1/1     Running   0          3h5m
+quant-quantmail-backend-69b75975df-fjvxc   1/1     Running   0          17s
+redis-bc6657c4f-54lkx                      1/1     Running   0          5d17h
+
+## elb
+aa0b4ad60de5d45e98e3c1a5cd73320a-0b0629c783333142.elb.us-east-1.amazonaws.com
+
+## backend logs (tail)
+(node:1) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:1) [FSTDEP023] FastifyDeprecation: disableRequestLogging option is deprecated. Use the logController option with disableRequestLogging or isLogDisabled override instead. The disableRequestLogging top-level option will be removed in `fastify@6`.
+{"level":30,"time":1788531212958,"pid":1,"hostname":"quant-quantmail-backend-69b75975df-fjvxc","msg":"OpenTelemetry disabled (OTEL_EXPORTER_OTLP_ENDPOINT not set)"}
+RangeError [ERR_SOCKET_BAD_PORT]: Port should be >= 0 and < 65536. Received type number (NaN).
+    at lookupAndConnect (node:net:1331:5)
+    at Socket.connect (node:net:1286:5)
+    at connect (node:net:246:17)
+    at file:///app/apps/quantmail/backend/dist/server.mjs:255800:58
+    at process.processTicksAndRejections (node:internal/process/task_queues:84:11) {
+  code: 'ERR_SOCKET_BAD_PORT'
+}
+RangeError [ERR_SOCKET_BAD_PORT]: Port should be >= 0 and < 65536. Received type number (NaN).
+    at lookupAndConnect (node:net:1331:5)
+    at Socket.connect (node:net:1286:5)
+    at connect (node:net:246:17)
+    at file:///app/apps/quantmail/backend/dist/server.mjs:255800:58
+    at process.processTicksAndRejections (node:internal/process/task_queues:84:11) {
+  code: 'ERR_SOCKET_BAD_PORT'
+}
+{"level":30,"time":1788531213239,"pid":1,"hostname":"quant-quantmail-backend-69b75975df-fjvxc","msg":"Server listening at http://127.0.0.1:3011"}
+{"level":30,"time":1788531213239,"pid":1,"hostname":"quant-quantmail-backend-69b75975df-fjvxc","msg":"Server listening at http://192.168.53.3:3011"}
+{"level":30,"time":1788531213240,"pid":1,"hostname":"quant-quantmail-backend-69b75975df-fjvxc","msg":"outbound delivery worker started"}
+IMPORTANT! Eviction policy is allkeys-lru. It should be "noeviction"
+IMPORTANT! Eviction policy is allkeys-lru. It should be "noeviction"
+{"level":30,"time":1788531223710,"pid":1,"hostname":"quant-quantmail-backend-69b75975df-fjvxc","reqId":"e6e893b7-52b9-43ec-8623-05b46068d8fd","req":{"method":"GET","url":"/readyz","host":"192.168.53.3:3011","remoteAddress":"192.168.38.58","remotePort":38326},"msg":"incoming request"}
+{"level":30,"time":1788531223760,"pid":1,"hostname":"quant-quantmail-backend-69b75975df-fjvxc","reqId":"e6e893b7-52b9-43ec-8623-05b46068d8fd","request_id":"e6e893b7-52b9-43ec-8623-05b46068d8fd","trace_id":"bd34cc8a-ec2f-49ff-8e14-af73f1f907fe","requestId":"e6e893b7-52b9-43ec-8623-05b46068d8fd","method":"GET","url":"/readyz","statusCode":200,"responseTime":49.38532900000064,"userAgent":"kube-probe/1.34","ip":"192.168.38.58","contentLength":"55","msg":"request completed"}
+{"level":30,"time":1788531223762,"pid":1,"hostname":"quant-quantmail-backend-69b75975df-fjvxc","reqId":"e6e893b7-52b9-43ec-8623-05b46068d8fd","res":{"statusCode":200},"responseTime":49.38532900000064,"msg":"request completed"}
+{"level":30,"time":1788531225733,"pid":1,"hostname":"quant-quantmail-backend-69b75975df-fjvxc","reqId":"9f6c4aef-c38d-4e87-b558-f7cba85a8206","req":{"method":"GET","url":"/readyz","host":"127.0.0.1:3011","remoteAddress":"127.0.0.1","remotePort":43132},"msg":"incoming request"}
+{"level":30,"time":1788531225737,"pid":1,"hostname":"quant-quantmail-backend-69b75975df-fjvxc","reqId":"9f6c4aef-c38d-4e87-b558-f7cba85a8206","request_id":"9f6c4aef-c38d-4e87-b558-f7cba85a8206","trace_id":"1c3edda9-8212-42f2-b052-c4f828150661","requestId":"9f6c4aef-c38d-4e87-b558-f7cba85a8206","method":"GET","url":"/readyz","statusCode":200,"responseTime":3.9760200000000623,"userAgent":"node","ip":"127.0.0.1","contentLength":"55","msg":"request completed"}
+{"level":30,"time":1788531225737,"pid":1,"hostname":"quant-quantmail-backend-69b75975df-fjvxc","reqId":"9f6c4aef-c38d-4e87-b558-f7cba85a8206","res":{"statusCode":200},"responseTime":3.9760200000000623,"msg":"request completed"}
