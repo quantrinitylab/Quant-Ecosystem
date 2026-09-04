@@ -1,39 +1,6 @@
 'use client';
 
-import dynamic from 'next/dynamic';
-import { usePathname } from 'next/navigation';
 import { QuantSidekickProvider, ThemeProvider } from '@quant/shared-ui';
-import { useAuth } from './auth-provider';
-
-const PUBLIC_AUTH_PATHS = ['/login', '/register', '/forgot-password'];
-
-/**
- * Quanty's dock, out of the root bundle.
- *
- * This provider tree is mounted by the root layout, so a static import put
- * MailCopilot's 525 lines — plus the Quanty mascot and the chat transport — into
- * the first chunk of *every* route, including `/login`, where it can never
- * render. It is already gated on `showTools` below, and that gate only resolves
- * client-side once auth has settled, so nothing was ever painting it on the
- * first frame anyway: `ssr: false` costs no visible time and removes it from
- * every unauthenticated entry point.
- */
-const MailCopilot = dynamic(() => import('../components/MailCopilot').then((m) => m.MailCopilot), {
-  ssr: false,
-});
-
-/**
- * Contextual floating action button (bottom-right). Not yet implemented.
- *
- * Intended behaviour:
- * - Mail surfaces (inbox, folders, threads, search, labels) → compose a mail
- * - Calendar → add an event (opens the calendar's New event modal)
- * - Everywhere else (CodeHub, Drive, Repos, Pipelines, Settings…) → hidden,
- *   so the + never leaks into non-mail contexts.
- */
-function ContextFab() {
-  return null;
-}
 
 /**
  * Global, non-keyboard providers.
@@ -44,25 +11,36 @@ function ContextFab() {
  * `KeyboardEvent` at the document to reach the help sheet. The live palette is
  * `components/CommandPalette`, generated from the command registry, so all of
  * that has gone. Key handling belongs to `KeyboardProvider`.
+ *
+ * It also mounted two floating widgets, and both are gone for the same reason:
+ * something else already does the job, properly.
+ *
+ * `<MailCopilot />` was Quanty's bottom-right dock. Its only way in was the
+ * `.mail-copilot-trigger` pill, and `overrides.css` hides that with
+ * `display: none !important` — so every authenticated route paid for 525 lines,
+ * a 40px `<Quanty>` canvas and a chat transport behind a control that neither a
+ * pointer nor the Tab key could reach, while a screen reader was still told
+ * there was a "Quanty — QuantAI mail copilot" region with nothing usable inside
+ * it. `AppShell` owns the real launcher now (`QuantyLauncher`), in the header of
+ * every shell route. `MailCopilot.tsx` stays on disk; reviving the dock would
+ * need the `QuantSidekickProvider` below, which is why that provider stays even
+ * though nothing consumes it today.
+ *
+ * `<ContextFab />` was a `return null` stub whose comment described a
+ * contextual bottom-right `+`: compose on mail surfaces, a new event on the
+ * calendar, hidden everywhere else. `AppShell`'s `QuantFab` had already shipped
+ * exactly that, opt-out table included, so the stub was describing finished
+ * work.
+ *
+ * With both gone the auth gate went with them. `showTools` existed only to keep
+ * the copilot off `/login`, and reading `useAuth()` this high re-rendered the
+ * whole provider tree on every auth transition to decide whether to render
+ * nothing.
  */
 export function AppProviders({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const { isAuthenticated, isLoading } = useAuth();
-  const isPublicAuthRoute = PUBLIC_AUTH_PATHS.includes(pathname ?? '');
-  // Only mount the AI copilot once the user is actually signed in.
-  const showTools = isAuthenticated && !isPublicAuthRoute && !isLoading;
-
   return (
     <ThemeProvider defaultTheme="dark">
-      <QuantSidekickProvider>
-        {children}
-        {showTools ? (
-          <>
-            <MailCopilot />
-            <ContextFab />
-          </>
-        ) : null}
-      </QuantSidekickProvider>
+      <QuantSidekickProvider>{children}</QuantSidekickProvider>
     </ThemeProvider>
   );
 }

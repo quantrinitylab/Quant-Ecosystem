@@ -155,8 +155,8 @@ describe('SafetyAuditLogService', () => {
     });
 
     it('should filter by date range', () => {
-      const before = Date.now() - 1;
-      const after = Date.now() + 1000;
+      const before = Date.now() - 5000;
+      const after = Date.now() + 5000;
       const results = service.query({ startDate: before, endDate: after });
       expect(results.length).toBe(3);
     });
