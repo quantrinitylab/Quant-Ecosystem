@@ -23,7 +23,15 @@ export interface RecipientChipInputProps {
   rightAction?: React.ReactNode;
 }
 
-function parseEmailString(raw: string): RecipientOption[] {
+/**
+ * Split typed or pasted text into one recipient per address.
+ *
+ * Exported because it is the only definition of "what counts as one address" in
+ * the composer, and any second copy of that answer drifts: a chip whose email is
+ * `a@x.com,b@y.com` renders perfectly, joins back into a `To:` header nobody can
+ * deliver, and is invisible until the send fails.
+ */
+export function parseEmailString(raw: string): RecipientOption[] {
   if (!raw.trim()) return [];
   const parts = raw
     .split(/[,;\n\t]+/)

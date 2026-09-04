@@ -45,8 +45,14 @@ import {
 } from '../lib/threading';
 import { useAuth } from '../providers/auth-provider';
 import { useContactDirectory } from '../hooks/useContacts';
+import {
+  useContactGroups,
+  useCreateContactGroup,
+  useDeleteContactGroup,
+  useUpdateContactGroup,
+} from '../hooks/useContactGroups';
 import { IconCheck, IconFilter, IconSpam, IconX } from '../components/icons';
-import type { Email } from '../types';
+import type { ContactGroup, Email } from '../types';
 
 export type { ConversationThread };
 
@@ -553,24 +559,87 @@ function ReadingPane({
   );
 }
 
-function CreateGroupModal({
-  isOpen,
+/**
+ * The accents a group chip can carry.
+ *
+ * A fixed set rather than an `<input type="color">`, which is how a strict palette
+ * turns into a rainbow. Every value here already appears in this app (rose marks
+ * this dialog's own errors, emerald the caught-up state), so a coloured chip still
+ * belongs to the same product.
+ *
+ * `null` is first and is brand orange — the same colour a chip paints when the
+ * group has no accent of its own. There is deliberately no separate "Orange"
+ * entry: two swatches of one colour would be two controls a reader cannot tell
+ * apart, and one of them would have to be labelled by something other than colour.
+ */
+const GROUP_ACCENTS: Array<{ value: string | null; label: string }> = [
+  { value: null, label: 'Default orange' },
+  { value: '#34D399', label: 'Green' },
+  { value: '#60A5FA', label: 'Blue' },
+  { value: '#A78BFA', label: 'Violet' },
+  { value: '#FB7185', label: 'Rose' },
+  { value: '#FBBF24', label: 'Amber' },
+];
+
+/** What a chip paints when the group has no accent of its own. */
+const GROUP_ACCENT_DEFAULT = '#FF8C42';
+
+export interface GroupDraft {
+  name: string;
+  emails: string[];
+  color: string | null;
+}
+
+/**
+ * Create or edit one group.
+ *
+ * One dialog for both, because the fields are the same three and a separate
+ * "edit group" surface is how the two drift into disagreeing about what a valid
+ * name is. `group === null` creates.
+ *
+ * Mount it conditionally and key it on the group's id — `useState` initialisers
+ * then seed the draft and there is no reset effect to get wrong. It also means the
+ * focus trap's return target is captured while the button that opened it still has
+ * focus, which is what sends focus back to that button on Escape.
+ *
+ * `onSave` and `onDelete` return promises. The dialog stays open and shows the
+ * server's own message when one rejects — a duplicate name comes back as
+ * `You already have a group called "Family"`, which is the sentence the user needs
+ * and one this component could not write on its own.
+ */
+function GroupEditorModal({
+  group,
   onClose,
-  onCreated,
+  onSave,
+  onDelete,
 }: {
-  isOpen: boolean;
+  group: ContactGroup | null;
   onClose: () => void;
-  onCreated: (groupName: string, members: string[]) => void;
+  onSave: (draft: GroupDraft) => Promise<void>;
+  onDelete: (group: ContactGroup) => Promise<void>;
 }) {
-  const [groupName, setGroupName] = useState('');
+  const isEditing = group !== null;
+  const [groupName, setGroupName] = useState(group?.name ?? '');
   const [memberInput, setMemberInput] = useState('');
-  const [members, setMembers] = useState<string[]>([]);
+  const [members, setMembers] = useState<string[]>(() => [...(group?.emails ?? [])]);
+  const [color, setColor] = useState<string | null>(group?.color ?? null);
   const [error, setError] = useState('');
+  const [isBusy, setIsBusy] = useState(false);
+  /** Delete asks twice. The footer swaps rather than stacking a second dialog. */
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   const baseId = useId();
   const titleId = `${baseId}-title`;
   const nameId = `${baseId}-name`;
   const memberId = `${baseId}-member`;
+  const memberHintId = `${baseId}-member-hint`;
+  /**
+   * One radio `name` per dialog instance, not a shared literal: two accent groups
+   * on one page (this dialog reopened over itself while the old one animates out)
+   * would otherwise be one radio group, and picking a colour in the live dialog
+   * would uncheck the dead one's.
+   */
+  const accentGroupName = `${baseId}-accent`;
 
   /**
    * This dialog claimed `aria-modal="true"` and then had none of what that
@@ -578,24 +647,26 @@ function CreateGroupModal({
    * had no accessible name at all. `onEscape` is safe to own here — nothing else
    * binds Escape for this surface.
    */
-  const panelRef = useFocusTrap<HTMLDivElement>({ active: isOpen, onEscape: onClose });
+  const panelRef = useFocusTrap<HTMLDivElement>({ active: true, onEscape: onClose });
 
-  if (!isOpen) return null;
-
-  const handleAddMember = () => {
-    const trimmed = memberInput.trim().toLowerCase();
-    if (!trimmed) return;
+  const addMember = (raw: string): boolean => {
+    const trimmed = raw.trim().toLowerCase();
+    if (!trimmed) return false;
     if (!trimmed.includes('@')) {
       setError('Please enter a valid email address');
-      return;
+      return false;
     }
     if (members.includes(trimmed)) {
-      setError('Email already added');
-      return;
+      setError('That address is already in this group');
+      return false;
     }
     setMembers((prev) => [...prev, trimmed]);
-    setMemberInput('');
     setError('');
+    return true;
+  };
+
+  const handleAddMember = () => {
+    if (addMember(memberInput)) setMemberInput('');
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -609,49 +680,82 @@ function CreateGroupModal({
     setMembers((prev) => prev.filter((m) => m !== emailToRemove));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!groupName.trim()) {
+    if (isBusy) return;
+    const name = groupName.trim();
+    if (!name) {
       setError('Please enter a group name');
       return;
     }
+    /*
+     * Whatever is still sitting in the member field counts. Someone who typed an
+     * address and pressed the save button plainly meant to include it, and losing
+     * it silently is the same class of quiet failure this whole feature exists to
+     * remove.
+     */
     const finalMembers = [...members];
-    if (
-      memberInput.trim() &&
-      memberInput.includes('@') &&
-      !finalMembers.includes(memberInput.trim().toLowerCase())
-    ) {
-      finalMembers.push(memberInput.trim().toLowerCase());
+    const pending = memberInput.trim().toLowerCase();
+    if (pending) {
+      if (!pending.includes('@')) {
+        setError('Please enter a valid email address');
+        return;
+      }
+      if (!finalMembers.includes(pending)) finalMembers.push(pending);
     }
-    if (finalMembers.length === 0) {
-      setError('Please add at least one member email');
+    /*
+     * An empty group is allowed on edit and not on create: naming a group before
+     * filling it is something a person does deliberately, but a *new* group with
+     * no members is almost always an unfinished form, and the server would accept
+     * it silently.
+     */
+    if (!isEditing && finalMembers.length === 0) {
+      setError('Add at least one member, or a group has nobody to write to');
       return;
     }
-    onCreated(groupName.trim(), finalMembers);
-    setGroupName('');
-    setMembers([]);
-    setMemberInput('');
+
+    setIsBusy(true);
     setError('');
+    try {
+      await onSave({ name, emails: finalMembers, color });
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Could not save this group');
+      setIsBusy(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!group || isBusy) return;
+    setIsBusy(true);
+    setError('');
+    try {
+      await onDelete(group);
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Could not delete this group');
+      setIsBusy(false);
+      setIsConfirmingDelete(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
       <div
         ref={panelRef}
-        className="w-full max-w-md bg-[#121622] border border-[#3A404D]/80 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4"
+        className="w-full max-w-md bg-[#121622] border border-[#3A404D]/80 rounded-2xl p-5 sm:p-6 shadow-[0_4px_16px_rgba(0,0,0,0.6)] space-y-4"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
       >
-        <div className="flex items-center justify-between border-b border-[#282C35] pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="size-9 rounded-xl bg-[#FF8C42]/20 border border-[#FF8C42]/40 flex items-center justify-center text-[#FF8C42]">
+        <div className="flex items-center justify-between gap-3 border-b border-[#282C35] pb-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="size-9 shrink-0 rounded-xl bg-[#FF8C42]/20 border border-[#FF8C42]/40 flex items-center justify-center text-[#FF8C42]">
               <svg
                 className="size-5"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
+                aria-hidden="true"
               >
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                 <circle cx="9" cy="7" r="4" />
@@ -659,21 +763,25 @@ function CreateGroupModal({
                 <path d="M16 3.13a4 4 0 0 1 0 7.75" />
               </svg>
             </div>
-            <div>
-              <h2 id={titleId} className="text-base font-bold text-white">
-                Create New Group
+            <div className="min-w-0">
+              <h2 id={titleId} className="text-base font-bold text-white truncate">
+                {isEditing ? 'Edit group' : 'New group'}
               </h2>
-              <p className="text-xs text-[#A1A4AC]">Group mailing list & shared conversation</p>
+              <p className="text-xs text-[#A1A4AC] truncate">
+                {isEditing
+                  ? 'Saved to your account — rename it, change who is in it, or delete it'
+                  : 'A saved set of addresses you can write to in one tap'}
+              </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close create group dialog"
+            aria-label={isEditing ? 'Close edit group dialog' : 'Close new group dialog'}
             /* An icon-only button with no `aria-label` reads as "button" and
                nothing else. The coarse-pointer bump matches the shared Modal's
                close control: 32px keeps desktop density, 44px on touch. */
-            className="size-8 [@media(pointer:coarse)]:size-11 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] flex items-center justify-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            className="size-8 [@media(pointer:coarse)]:size-11 shrink-0 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] flex items-center justify-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
           >
             <MailIcon name="close" className="size-4" />
           </button>
@@ -682,18 +790,19 @@ function CreateGroupModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor={nameId} className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
-              Group Name <span className="text-[#FF8C42]">*</span>
+              Group name <span className="text-[#FF8C42]">*</span>
             </label>
             <input
               id={nameId}
               type="text"
               placeholder="e.g. Founders, Core Team, Project Alpha"
               value={groupName}
+              maxLength={60}
               onChange={(e) => {
                 setGroupName(e.target.value);
                 if (error) setError('');
               }}
-              className="w-full bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
+              className="w-full min-h-touch bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
               autoFocus
               /* React applies `autoFocus` imperatively and never renders the
                  attribute, so the focus trap above cannot see it and would take
@@ -705,7 +814,7 @@ function CreateGroupModal({
 
           <div>
             <label htmlFor={memberId} className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
-              Add Members (Emails) <span className="text-[#FF8C42]">*</span>
+              Members{!isEditing && <span className="text-[#FF8C42]"> *</span>}
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -713,62 +822,248 @@ function CreateGroupModal({
                 type="email"
                 placeholder="colleague@domain.com"
                 value={memberInput}
+                aria-describedby={memberHintId}
                 onChange={(e) => {
                   setMemberInput(e.target.value);
                   if (error) setError('');
                 }}
                 onKeyDown={handleKeyDown}
-                className="flex-1 bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
+                className="flex-1 min-w-0 min-h-touch bg-[#111318] border border-[#3A404D]/80 rounded-xl px-3 py-2 text-sm text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]"
               />
               <button
                 type="button"
                 onClick={handleAddMember}
-                className="px-3.5 py-2 rounded-xl bg-[#282C35] hover:bg-[#3A404D] text-xs font-semibold text-white transition-colors shrink-0"
+                className="px-3.5 min-h-touch rounded-xl bg-[#282C35] hover:bg-[#3A404D] text-xs font-semibold text-white transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
-                + Add
+                Add
               </button>
             </div>
             {members.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2.5 max-h-28 overflow-y-auto">
+              <ul
+                /*
+                  A real list, like the chip strip: without one a reader lands on a
+                  run of addresses with no idea how many there are. Labelled
+                  because "Members" alone would just repeat the input's own label,
+                  and `role="list"` restated for the same reason as the strip —
+                  `list-style: none` is enough for WebKit to stop calling it one.
+                */
+                role="list"
+                aria-label="Addresses in this group"
+                className="list-none m-0 p-0 flex flex-wrap gap-1.5 mt-2.5 max-h-28 overflow-y-auto"
+              >
                 {members.map((email) => (
-                  <span
+                  <li
                     key={email}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#282C35]/90 border border-[#3A404D] text-xs text-[#F5F5F5]"
+                    className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-lg bg-[#282C35]/90 border border-[#3A404D] text-xs text-[#F5F5F5]"
                   >
-                    <span>{email}</span>
+                    <span className="truncate max-w-[15rem]">{email}</span>
                     <button
                       type="button"
                       onClick={() => handleRemoveMember(email)}
-                      className="text-[#A1A4AC] hover:text-rose-400 ml-0.5 font-bold"
+                      aria-label={`Remove ${email}`}
+                      className="size-6 [@media(pointer:coarse)]:size-11 shrink-0 rounded-md flex items-center justify-center text-[#A1A4AC] hover:text-rose-400 hover:bg-[#111318] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                     >
-                      ×
+                      <IconX size={11} aria-hidden="true" />
                     </button>
-                  </span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
+            <p id={memberHintId} className="mt-1.5 text-[11px] text-[#A1A4AC]">
+              {members.length === 0
+                ? 'Enter or comma adds an address. Addresses do not have to be saved contacts.'
+                : `${members.length} member${members.length === 1 ? '' : 's'} · Enter or comma adds another`}
+            </p>
           </div>
 
-          {error && <p className="text-xs text-rose-400 font-medium">{error}</p>}
+          {/*
+            Native radios in a fieldset, not buttons wearing `role="radio"`.
 
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#282C35]">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-[#16181D] border border-[#282C35] text-xs font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-xs font-semibold text-[#111111] shadow-sm transition-all"
-            >
-              Create Group & Compose
-            </button>
-          </div>
+            The role is the easy half; what a reader expects from it is one tab stop
+            for the whole group and arrow keys to move within it, and that is a small
+            roving-tabindex implementation to hand-write. Real `<input type="radio">`
+            elements give all of it free, and the surrounding focus trap only
+            intercepts Tab at its first and last focusable, so native intra-group
+            arrow behaviour is left alone.
+
+            The input is `sr-only` rather than `hidden` because a `display: none`
+            control cannot be focused at all, and the focus ring moves to the swatch
+            through `peer-focus-visible`. The swatch *is* the target — 32px on a
+            mouse, 44px on a thumb — so what the user aims at is what they pick.
+          */}
+          <fieldset className="min-w-0">
+            <legend className="text-xs font-semibold text-[#A1A4AC] mb-1.5">Chip accent</legend>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {GROUP_ACCENTS.map((accent) => {
+                const isPicked = color === accent.value;
+                return (
+                  <label
+                    key={accent.label}
+                    title={accent.label}
+                    className={`size-8 [@media(pointer:coarse)]:size-11 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${
+                      isPicked
+                        ? 'bg-[#282C35] ring-1 ring-inset ring-[#5C3016]'
+                        : 'hover:bg-[#1C1F26]'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={accentGroupName}
+                      checked={isPicked}
+                      onChange={() => setColor(accent.value)}
+                      className="sr-only peer"
+                    />
+                    <span className="sr-only">{accent.label}</span>
+                    <span
+                      aria-hidden="true"
+                      className="size-4 rounded-full border border-black/40 peer-focus-visible:ring-2 peer-focus-visible:ring-[#FF8C42] peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[#121622]"
+                      style={{ background: accent.value ?? GROUP_ACCENT_DEFAULT }}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          {error && (
+            <p role="alert" className="text-xs text-rose-400 font-medium">
+              {error}
+            </p>
+          )}
+
+          {isConfirmingDelete && group ? (
+            <div className="flex items-center justify-between gap-2.5 pt-2 border-t border-[#282C35]">
+              <p className="text-xs text-[#A1A4AC] min-w-0">
+                Delete <span className="text-[#F5F5F5] font-semibold">{group.name}</span>?
+              </p>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmingDelete(false)}
+                  className="px-4 min-h-touch rounded-xl bg-[#16181D] border border-[#282C35] text-xs font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                >
+                  Keep
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  disabled={isBusy}
+                  className="px-4 min-h-touch rounded-xl bg-rose-500/15 border border-rose-500/50 text-xs font-semibold text-rose-300 hover:bg-rose-500/25 transition-colors disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                >
+                  {isBusy ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-2.5 pt-2 border-t border-[#282C35]">
+              {isEditing ? (
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmingDelete(true)}
+                  className="px-3 min-h-touch rounded-xl text-xs font-medium text-[#A1A4AC] hover:text-rose-300 hover:bg-rose-500/10 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                >
+                  Delete group
+                </button>
+              ) : (
+                <span />
+              )}
+              <div className="flex items-center gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 min-h-touch rounded-xl bg-[#16181D] border border-[#282C35] text-xs font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isBusy}
+                  className="px-5 min-h-touch rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-xs font-semibold text-[#111111] shadow-sm transition-all disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#121622]"
+                >
+                  {isBusy ? 'Saving…' : isEditing ? 'Save changes' : 'Create group'}
+                </button>
+              </div>
+            </div>
+          )}
         </form>
       </div>
     </div>
+  );
+}
+
+/**
+ * One saved group in the strip: a wide button that writes to it, and a narrow one
+ * that edits it.
+ *
+ * Two controls rather than one with a menu, because both are one-tap actions a
+ * person repeats, and the split is what keeps composing at a single tap. They sit
+ * inside one bordered shell so the pair still reads as a single chip.
+ */
+function GroupChip({
+  group,
+  onCompose,
+  onEdit,
+}: {
+  group: ContactGroup;
+  onCompose: () => void;
+  onEdit: () => void;
+}) {
+  const count = group.emails.length;
+  const accent = group.color ?? GROUP_ACCENT_DEFAULT;
+  return (
+    <span className="shrink-0 inline-flex items-stretch rounded-full bg-[#111318] border border-[#282C35] overflow-hidden">
+      <button
+        type="button"
+        onClick={onCompose}
+        /*
+          Named explicitly because the content alone announces as "Family 3" — a
+          number with no unit, attached to a control whose purpose is invisible.
+          The label overrides that content, so the bare count stays visible for
+          sighted readers without being read as part of the name.
+        */
+        aria-label={
+          count === 0
+            ? `${group.name} — no members yet, add some to write to it`
+            : `Write to ${group.name}, ${count} ${count === 1 ? 'member' : 'members'}`
+        }
+        title={
+          count === 0
+            ? `${group.name} has no members yet — add some to write to it`
+            : `Write to ${group.name}: ${group.emails.slice(0, 4).join(', ')}${count > 4 ? `, +${count - 4} more` : ''}`
+        }
+        className="min-h-touch pl-3 pr-2.5 inline-flex items-center gap-2 text-xs font-medium text-[#F5F5F5] hover:bg-[#1C1F26] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+      >
+        <span
+          aria-hidden="true"
+          className="size-2 rounded-full shrink-0"
+          style={{ background: accent }}
+        />
+        <span className="max-w-[10rem] truncate">{group.name}</span>
+        <span className="text-[11px] font-semibold text-[#A1A4AC] tabular-nums">{count}</span>
+      </button>
+      <span aria-hidden="true" className="w-px bg-[#282C35]" />
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`Edit group ${group.name}`}
+        title={`Edit ${group.name}`}
+        className="w-11 min-h-touch inline-flex items-center justify-center text-[#A1A4AC] hover:text-[#FF8C42] hover:bg-[#1C1F26] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+      >
+        <svg
+          className="size-3.5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+        </svg>
+      </button>
+    </span>
   );
 }
 
@@ -841,6 +1136,7 @@ export default function InboxPage() {
    */
   const filterTriggerRef = useRef<HTMLButtonElement | null>(null);
   const turnGroupLabelId = useId();
+  const savedGroupsLabelId = useId();
   /**
    * The chips are a tablist and the turn rows are a radiogroup, so one arrow key
    * must move the selection along each — a `role="tablist"` whose members are only
@@ -853,7 +1149,13 @@ export default function InboxPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [showArchivedView, setShowArchivedView] = useState(false);
-  const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
+  /**
+   * What the group editor is open on: `null` closed, `'new'` creating, a group to
+   * edit that one. One tri-state rather than an `isOpen` plus a nullable target,
+   * because those two can disagree — open with no target, or a stale target left
+   * behind after a close — and the dialog is mounted from this value alone.
+   */
+  const [groupEditorTarget, setGroupEditorTarget] = useState<ContactGroup | 'new' | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [selectedThread, setSelectedThread] = useState<ConversationThread | null>(null);
@@ -886,6 +1188,135 @@ export default function InboxPage() {
    * the second look like the first.
    */
   const { data: contactDirectory, isPending: isDirectoryPending } = useContactDirectory();
+  /**
+   * The saved groups, for the strip inside the `Groups` lens.
+   *
+   * Fetched with the page rather than on first use of that chip for the same reason
+   * as the directory above: the strip carries a count per group, and a count that
+   * arrives a round trip after the chip is worse than a marginally wider first
+   * paint. One unpaginated list, a five-minute `staleTime`, no polling.
+   *
+   * `isPending` is kept apart from `length === 0` because "you have no groups" and
+   * "your groups have not arrived" are different sentences, and the empty state
+   * below invites the user to create their first group — an invitation that must
+   * not appear while the answer is still in flight.
+   */
+  const {
+    data: contactGroups,
+    isPending: areGroupsPending,
+    error: groupsError,
+  } = useContactGroups();
+  const createGroup = useCreateContactGroup();
+  const updateGroup = useUpdateContactGroup();
+  const deleteGroup = useDeleteContactGroup();
+  const savedGroups = contactGroups ?? [];
+
+  /**
+   * Write to a group. The chip is the compose surface, so this is what "using" a
+   * saved group means.
+   *
+   * No subject is injected. The version this replaced pushed
+   * `?subject=[GroupName]%20`, which was the app writing the user's subject line
+   * for them — it existed because a create flow that stored nothing had to do
+   * *something* on submit to look like it had worked.
+   *
+   * A group with no members opens the editor instead of composing to nobody.
+   */
+  const composeToGroup = useCallback(
+    (group: ContactGroup) => {
+      if (group.emails.length === 0) {
+        showToast({
+          text: `"${group.name}" has no members yet — add some to write to it`,
+          type: 'warning',
+          subject: `group:${group.id}`,
+        });
+        setGroupEditorTarget(group);
+        return;
+      }
+      router.push(`/compose?to=${encodeURIComponent(group.emails.join(','))}`);
+    },
+    [router],
+  );
+
+  /**
+   * Create or update, then close.
+   *
+   * Rejections are left to propagate: the dialog awaits this, and a duplicate name
+   * is a correctable mistake, so it stays open showing the server's own sentence
+   * rather than closing and discarding everything typed into it.
+   */
+  const handleSaveGroup = useCallback(
+    async (draft: GroupDraft) => {
+      const editing = groupEditorTarget && groupEditorTarget !== 'new' ? groupEditorTarget : null;
+      if (editing) {
+        const saved = await updateGroup.mutateAsync({ id: editing.id, data: draft });
+        setGroupEditorTarget(null);
+        showToast({
+          text: `Saved "${saved.name}"`,
+          type: 'success',
+          subject: `group:${saved.id}`,
+        });
+        return;
+      }
+      const created = await createGroup.mutateAsync(draft);
+      setGroupEditorTarget(null);
+      showToast({
+        text: `Group "${created.name}" saved with ${created.emails.length} member${
+          created.emails.length === 1 ? '' : 's'
+        }`,
+        type: 'success',
+        subject: `group:${created.id}`,
+      });
+    },
+    [createGroup, groupEditorTarget, updateGroup],
+  );
+
+  /**
+   * Delete, with the group recoverable from the toast and from `z`.
+   *
+   * Undo re-creates rather than un-deletes, because the row is gone — there is no
+   * soft delete on `contact_groups`. The rebuilt group gets a new id, which matters
+   * to nothing the user can see: a group here *is* its name, its members and its
+   * accent, and all three come back. The failure branch says so out loud instead of
+   * letting a silent rejection look like a successful undo.
+   */
+  const handleDeleteGroup = useCallback(
+    async (group: ContactGroup) => {
+      await deleteGroup.mutateAsync(group.id);
+      setGroupEditorTarget(null);
+      showToast({
+        text: `Deleted "${group.name}"`,
+        type: 'info',
+        subject: `group:${group.id}`,
+        undoAction: () => {
+          createGroup
+            .mutateAsync({
+              name: group.name,
+              emails: group.emails,
+              color: group.color ?? null,
+            })
+            .then(() => {
+              showToast({
+                text: `Restored "${group.name}"`,
+                type: 'success',
+                subject: `group:${group.id}`,
+              });
+            })
+            .catch((restoreError: unknown) => {
+              showToast({
+                text:
+                  restoreError instanceof Error
+                    ? restoreError.message
+                    : `Could not restore "${group.name}"`,
+                type: 'error',
+                subject: `group:${group.id}`,
+              });
+            });
+        },
+      });
+    },
+    [createGroup, deleteGroup],
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(searchQuery.trim()), 260);
@@ -1742,7 +2173,7 @@ export default function InboxPage() {
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search in QuantMail (sender, subject, keyword)…"
       onFabClick={() =>
-        activeLens === 'groups' ? setIsCreateGroupModalOpen(true) : router.push('/compose')
+        activeLens === 'groups' ? setGroupEditorTarget('new') : router.push('/compose')
       }
       fabLabel={activeLens === 'groups' ? 'New group' : 'Compose email'}
       aria-label="QuantMail inbox"
@@ -1761,10 +2192,10 @@ export default function InboxPage() {
               type="button"
               className="hero-compose"
               onClick={() =>
-                activeLens === 'groups' ? setIsCreateGroupModalOpen(true) : router.push('/compose')
+                activeLens === 'groups' ? setGroupEditorTarget('new') : router.push('/compose')
               }
             >
-              <MailIcon name="compose" /> {activeLens === 'groups' ? 'Create Group' : 'Compose'}
+              <MailIcon name="compose" /> {activeLens === 'groups' ? 'New group' : 'Compose'}
             </button>
           </header>
 
@@ -2030,6 +2461,117 @@ export default function InboxPage() {
             </div>
           </div>
 
+          {/*
+            Your saved groups.
+
+            A sibling row rather than something inside the list, so it survives
+            every list state — loading, error, empty, populated. A user who opened
+            this lens to write to a group should not have to wait for the mailbox to
+            resolve before the group is reachable.
+
+            It is explicitly labelled `Your groups` and sits apart from the lens
+            chips because the `Groups` lens answers a different question: the chips
+            above narrow the mailbox to multi-person conversations, these chips are
+            address sets the user saved. Folding one into the other would make a
+            single control mean two things.
+          */}
+          {activeLens === 'groups' && (
+            <section
+              aria-labelledby={savedGroupsLabelId}
+              className="flex items-center gap-2 py-2 px-3 sm:px-4 border-b border-[#282C35] bg-[#0B0C0F]"
+            >
+              <p
+                id={savedGroupsLabelId}
+                className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]"
+              >
+                Your groups
+              </p>
+              {areGroupsPending ? (
+                /*
+                  `variant="circle"` for a pill: it is the one variant that sets no
+                  height class of its own, so the `width`/`height` props — which land
+                  as inline style — decide the box outright. A `className` of
+                  `h-11 w-32` would be racing the variant's own `h-4` on stylesheet
+                  order rather than overriding it.
+
+                  The second pill is hidden from assistive tech so the row announces
+                  "loading your groups" once, not twice.
+                */
+                <div className="flex items-center gap-2">
+                  <Skeleton
+                    variant="circle"
+                    width="132px"
+                    height="44px"
+                    aria-label="Loading your groups"
+                  />
+                  <span aria-hidden="true">
+                    <Skeleton variant="circle" width="96px" height="44px" />
+                  </span>
+                </div>
+              ) : groupsError ? (
+                /*
+                  A failed fetch is not "you have no groups". Saying so, with the
+                  create button still available, is the difference between a state
+                  the user can act on and one that quietly invites them to
+                  re-create something they already have.
+                */
+                <p className="text-xs text-rose-300 min-w-0 truncate">
+                  Could not load your groups.{' '}
+                  <span className="text-[#A1A4AC]">They are safe — try again in a moment.</span>
+                </p>
+              ) : savedGroups.length === 0 ? (
+                <p className="text-xs text-[#A1A4AC] min-w-0 truncate">
+                  None yet. A group is a set of addresses you write to in one tap.
+                </p>
+              ) : (
+                /*
+                  A real `ul`/`li` rather than `role="list"` on a div: the roles
+                  come free, and the alternative — a `display: contents` wrapper
+                  carrying `role="listitem"` — is a shape several browsers are known
+                  to strip the semantics from.
+
+                  `role="list"` is still spelled out, redundant as it looks. WebKit
+                  drops list semantics from a `ul` whose `list-style` is `none`, and
+                  a horizontal chip rail cannot keep its bullets — so the one thing
+                  that makes this a list to a reader is the thing the styling
+                  removes, unless the role says otherwise.
+                */
+                <ul
+                  role="list"
+                  className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto no-scrollbar list-none m-0 p-0"
+                >
+                  {savedGroups.map((group) => (
+                    <li key={group.id} className="shrink-0">
+                      <GroupChip
+                        group={group}
+                        onCompose={() => composeToGroup(group)}
+                        onEdit={() => setGroupEditorTarget(group)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                type="button"
+                onClick={() => setGroupEditorTarget('new')}
+                className="ml-auto shrink-0 inline-flex items-center gap-1.5 px-3 min-h-touch rounded-full bg-[#111318] border border-dashed border-[#3A404D] text-xs font-semibold text-[#A1A4AC] hover:text-[#FF8C42] hover:border-[#5C3016] hover:bg-[#1C1F26] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              >
+                <svg
+                  className="size-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                <span className="whitespace-nowrap">New group</span>
+              </button>
+            </section>
+          )}
+
           {/* Pull to Refresh Indicator Bar */}
           <AnimatePresence>
             {(pullDistance > 0 || isRefreshing) && (
@@ -2124,6 +2666,17 @@ export default function InboxPage() {
                   </div>
                 </div>
               ) : activeLens === 'groups' && narrowingCount === 0 ? (
+                /*
+                  Same two-situations problem as the Contacts branch below, and the
+                  same answer: a reader with four saved groups does not need to be
+                  told to create one. An empty shelf gets the invitation; a full one
+                  gets the fact — that no *conversation* in the mailbox has more than
+                  one other person in it, which is what this lens narrows on.
+
+                  While the groups query is still in flight neither sentence is
+                  known, so the copy stays on the lens's own meaning and the button
+                  is left out rather than guessed at.
+                */
                 <div className="mail-empty py-12 px-4 text-center space-y-3">
                   <div className="size-12 rounded-full bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto mb-1">
                     <svg
@@ -2132,6 +2685,7 @@ export default function InboxPage() {
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2"
+                      aria-hidden="true"
                     >
                       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                       <circle cx="9" cy="7" r="4" />
@@ -2139,15 +2693,25 @@ export default function InboxPage() {
                       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                     </svg>
                   </div>
-                  <h3 className="text-base font-bold text-white">No group conversations yet</h3>
+                  <h3 className="text-base font-bold text-white">
+                    {areGroupsPending || savedGroups.length > 0
+                      ? 'No group conversations yet'
+                      : 'No groups saved yet'}
+                  </h3>
                   <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
-                    Create a group to start a shared multi-recipient thread or mailing list.
+                    {areGroupsPending
+                      ? 'Conversations with more than one other person collect here.'
+                      : savedGroups.length > 0
+                        ? 'Your saved groups are in the strip above. Nothing in your inbox is a conversation with more than one other person yet — write to a group and its thread lands here.'
+                        : 'A group is a set of addresses you write to in one tap — a team, a family, a project. Save one and it appears in the strip above.'}
                   </p>
-                  <div className="pt-2 flex justify-center">
-                    <Button variant="primary" onClick={() => setIsCreateGroupModalOpen(true)}>
-                      + Create New Group
-                    </Button>
-                  </div>
+                  {!areGroupsPending && savedGroups.length === 0 && (
+                    <div className="pt-2 flex justify-center">
+                      <Button variant="primary" onClick={() => setGroupEditorTarget('new')}>
+                        Create your first group
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : activeLens === 'unread' && narrowingCount === 0 ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-2">
@@ -2363,20 +2927,28 @@ export default function InboxPage() {
         />
       </div>
 
-      <CreateGroupModal
-        isOpen={isCreateGroupModalOpen}
-        onClose={() => setIsCreateGroupModalOpen(false)}
-        onCreated={(groupName, members) => {
-          setIsCreateGroupModalOpen(false);
-          showToast({
-            text: `Group "${groupName}" created with ${members.length} members!`,
-            type: 'success',
-          });
-          router.push(
-            `/compose?to=${encodeURIComponent(members.join(','))}&subject=${encodeURIComponent(`[${groupName}] `)}`,
-          );
-        }}
-      />
+      {/*
+        Mounted only while open, and keyed on what it is editing.
+
+        The key is what makes `useState` initialisers the whole reset story: pick a
+        different group and the dialog remounts with that group's fields. The
+        alternative — one long-lived instance with a `useEffect` that copies the
+        `group` prop into state — clobbers a half-typed draft every time a
+        background refetch hands back a new object identity for the same group.
+
+        Conditional mounting is safe for the focus trap because it captures its
+        return-focus target during render, not in the activation effect: the first
+        render still happens while the chip that opened it holds focus.
+      */}
+      {groupEditorTarget !== null && (
+        <GroupEditorModal
+          key={groupEditorTarget === 'new' ? 'new' : groupEditorTarget.id}
+          group={groupEditorTarget === 'new' ? null : groupEditorTarget}
+          onClose={() => setGroupEditorTarget(null)}
+          onSave={handleSaveGroup}
+          onDelete={handleDeleteGroup}
+        />
+      )}
     </AppShell>
   );
 }

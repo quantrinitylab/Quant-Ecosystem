@@ -180,6 +180,16 @@ declare module '@prisma/client' {
     updatedAt: Date;
   }
 
+  export interface ContactGroup {
+    id: string;
+    userId: string;
+    name: string;
+    emails: string[];
+    color: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
   export interface Label {
     id: string;
     userId: string;
@@ -543,6 +553,7 @@ declare module '@prisma/client' {
     ciJob: ModelDelegate<CiJob>;
     branch: ModelDelegate<Branch>;
     contact: ModelDelegate<Contact>;
+    contactGroup: ModelDelegate<ContactGroup>;
     label: ModelDelegate<Label>;
     mailFilter: ModelDelegate<MailFilter>;
     vacationResponder: ModelDelegate<VacationResponder>;

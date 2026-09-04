@@ -503,11 +503,23 @@ export interface ContactAddress {
   zip: string;
 }
 
+/**
+ * A named set of addresses the user writes to as a unit — "Family", "Standup".
+ *
+ * Membership is `emails`, not contact ids. This interface said `contacts:
+ * string[]` for as long as it was unused, and the name mattered the moment a
+ * server started sending the real shape: `Contact` is keyed
+ * `@@unique([userId, email])`, so in this schema an address already *is* a
+ * person's identity, and the group editor accepts addresses that have no
+ * contact row at all. See `contact_groups` in the Prisma schema.
+ */
 export interface ContactGroup extends BaseEntity {
   userId: string;
   name: string;
-  contacts: string[];
-  color?: string;
+  /** Trimmed and lowercased by the server, so one address is one member. */
+  emails: string[];
+  /** `#rrggbb`, or null while the group has no accent of its own. */
+  color?: string | null;
 }
 
 // ============================================================================

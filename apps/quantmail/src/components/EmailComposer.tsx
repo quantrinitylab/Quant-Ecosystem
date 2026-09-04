@@ -14,7 +14,7 @@ import { loadDefaultSignatureHtml } from '../lib/email-signature-preference';
 import { useSafeEmailHtml } from '../lib/safe-html';
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
-import { RecipientChipInput, type RecipientOption } from './RecipientChipInput';
+import { RecipientChipInput, parseEmailString, type RecipientOption } from './RecipientChipInput';
 import {
   IconArrowRight,
   IconChevronDown,
@@ -78,7 +78,7 @@ export interface ComposerMessageData {
 }
 
 export interface EmailComposerProps {
-  initialTo?: string | Array<{ email: string }>;
+  initialTo?: string | Array<{ email: string; name?: string }>;
   initialSubject?: string;
   initialBody?: string;
   initialReplyToId?: string;
@@ -91,6 +91,31 @@ export interface EmailComposerProps {
     text: string,
   ) => Promise<string>;
   fullScreen?: boolean;
+}
+
+/**
+ * One chip per address, whichever shape the caller passed.
+ *
+ * Neither shape guarantees one address per slot. `?to=` arrives as a string, and
+ * the inbox's "write to this group" chip puts a whole group in it — five members
+ * joined by commas. A saved draft arrives as an array, and its `to[0]` can hold
+ * the same joined string if it was stored from one. Splitting both through
+ * `parseEmailString` is what stops that becoming a single chip reading
+ * `a@x.com,b@y.com`, which looks correct and sends to nobody.
+ *
+ * A name already separated from its address is kept as-is rather than re-parsed:
+ * `{ name: 'Ada, Countess', email: 'ada@x.com' }` would otherwise split on the
+ * comma in the name.
+ */
+function parseInitialRecipients(initial: EmailComposerProps['initialTo']): RecipientOption[] {
+  if (typeof initial === 'string') return parseEmailString(initial);
+  if (!Array.isArray(initial)) return [];
+
+  return initial.flatMap((entry) => {
+    const parsed = parseEmailString(entry.email ?? '');
+    if (parsed.length === 1) return [{ ...parsed[0], name: entry.name ?? parsed[0].name }];
+    return parsed;
+  });
 }
 
 const FONT_FAMILIES = [
@@ -176,19 +201,9 @@ export function EmailComposer({
   const { data: contacts } = useContacts();
 
   // Core Fields
-  const [toRecipients, setToRecipients] = useState<RecipientOption[]>(() => {
-    if (Array.isArray(initialTo)) {
-      return initialTo.map((t) => ({ email: t.email, name: (t as any).name }));
-    }
-    if (typeof initialTo === 'string' && initialTo.trim()) {
-      return initialTo
-        .split(/[,;\n]+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map((email) => ({ email }));
-    }
-    return [];
-  });
+  const [toRecipients, setToRecipients] = useState<RecipientOption[]>(() =>
+    parseInitialRecipients(initialTo),
+  );
   const [showCc, setShowCc] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
   const [ccRecipients, setCcRecipients] = useState<RecipientOption[]>([]);
