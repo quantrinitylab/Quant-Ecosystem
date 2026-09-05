@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import { nextRovingIndex, rovingTabIndex } from '@quant/shared-ui';
 import { AppShell } from '../AppShell';
 import { AppSidebar } from '../AppSidebar';
 import { PostcardCanvas } from './PostcardCanvas';
@@ -18,9 +19,46 @@ import {
 
 const STORAGE_KEY = 'quantmail_custom_postcards';
 
+/**
+ * The three views, hoisted out of the markup.
+ *
+ * A `tablist` needs the strip and the arrow arithmetic to agree on an order, and
+ * three buttons written out by hand cannot be indexed — so the list is the source
+ * of truth for both, the same shape the settings page uses for its six panes.
+ */
+const STUDIO_TABS = [
+  { key: 'designer', label: 'Postcard Designer' },
+  { key: 'templates', label: 'Vintage Presets Gallery' },
+  { key: 'my-cards', label: 'My Custom Postcards' },
+] as const;
+
+type StudioTab = (typeof STUDIO_TABS)[number]['key'];
+
+/**
+ * The two card pickers' options.
+ *
+ * Hoisted for the same reason as the tabs — a radiogroup's arrows need an
+ * indexable list — and typed as the unions they set, which retires the
+ * `as PostcardPaperTexture` casts the inline literals needed.
+ */
+const PAPER_TEXTURES: readonly { key: PostcardPaperTexture; label: string }[] = [
+  { key: 'antique-map', label: 'Antique Map' },
+  { key: 'vintage-parchment', label: 'Aged Parchment' },
+  { key: 'botanical-linen', label: 'Botanical Linen' },
+  { key: 'obsidian-matte', label: 'Obsidian 24K Gold' },
+  { key: 'clean-ivory', label: 'Clean Ivory' },
+];
+
+const POSTCARD_FONTS: readonly { key: PostcardFont; label: string }[] = [
+  { key: 'typewriter', label: 'Typewriter Mono' },
+  { key: 'serif', label: 'Classic Serif' },
+  { key: 'handwriting', label: 'Handwritten Cursive' },
+  { key: 'classic', label: 'Clean Sans' },
+];
+
 export function PostcardStudio() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'templates' | 'designer' | 'my-cards'>('designer');
+  const [activeTab, setActiveTab] = useState<StudioTab>('designer');
   const [customCards, setCustomCards] = useState<PostcardTemplate[]>([]);
 
   // Current Active Template being edited
@@ -32,6 +70,74 @@ export function PostcardStudio() {
   );
   const [sampleRecipient, setSampleRecipient] = useState('Eleanor Vance');
   const [sampleLocation, setSampleLocation] = useState('Kyoto / New Delhi');
+
+  /*
+    One base for every id this panel hands to `htmlFor`, `aria-labelledby` and
+    `aria-controls`.
+
+    `useId` rather than literals because nothing stops a second studio mounting in
+    the same document — a route and a preview modal — and two tablists pointing
+    `aria-controls` at the same panel id is a worse defect than the one being
+    fixed here. Six visible labels in this panel used to name nothing at all: a
+    `<label>` with no `htmlFor` over an input with no `id` is decoration, so the
+    title field, the postmark city, the stamp value and both file inputs reached a
+    screen reader as unnamed edit boxes.
+  */
+  const studioId = useId();
+  const tabId = (key: StudioTab) => `${studioId}-tab-${key}`;
+  const panelId = (key: StudioTab) => `${studioId}-panel-${key}`;
+  const tabListRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Arrows across the view strip, selecting as they go.
+   *
+   * Automatic activation — focus and selection move together — because switching
+   * view here costs nothing: no panel fetches anything, so making someone press
+   * Enter after arriving would be ceremony.
+   *
+   * Left/Right and Home/End only, which is `nextRovingIndex`'s default and the
+   * reason it takes an orientation: a horizontal strip that also swallowed Up/Down
+   * would take page scrolling away from anyone whose focus lands on it. The
+   * settings page's older copy of this does claim the vertical pair; the shared
+   * helper's rule is the newer one, and this is not an inconsistency to "fix" in
+   * the other direction.
+   */
+  const onTabKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const index = STUDIO_TABS.findIndex((tab) => tab.key === activeTab);
+    const next = nextRovingIndex(event.key, index, STUDIO_TABS.length);
+    if (next === null) return;
+    // The engine's own arrow bindings scroll the list behind this otherwise.
+    event.preventDefault();
+    const target = STUDIO_TABS[next];
+    if (!target) return;
+    setActiveTab(target.key);
+    tabListRef.current?.querySelector<HTMLButtonElement>(`[data-tab="${target.key}"]`)?.focus();
+  };
+
+  /**
+   * Arrows across a card picker, which is a radiogroup and therefore selects too.
+   *
+   * `both`, unlike the tab strip: these are two-column grids, so ArrowDown from
+   * the top-left card visually lands on the one below it and refusing that key
+   * would be pedantry. Focus is moved by querying the group's own live DOM — the
+   * buttons render from the same array the arithmetic indexes, so position N in
+   * the list is position N in the grid.
+   */
+  const onCardPickerKeyDown = <T extends string>(
+    event: React.KeyboardEvent<HTMLDivElement>,
+    options: readonly { key: T; label: string }[],
+    current: T,
+    select: (key: T) => void,
+  ) => {
+    const index = options.findIndex((option) => option.key === current);
+    const next = nextRovingIndex(event.key, index, options.length, 'both');
+    if (next === null) return;
+    event.preventDefault();
+    const target = options[next];
+    if (!target) return;
+    select(target.key);
+    event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
+  };
 
   // Load custom cards from storage
   useEffect(() => {
@@ -188,48 +294,69 @@ export function PostcardStudio() {
           </div>
         </header>
 
-        {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b border-[#282C35] mb-6">
-          <button
-            type="button"
-            onClick={() => setActiveTab('designer')}
-            className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors ${
-              activeTab === 'designer'
-                ? 'bg-[#111318] text-[#FF8C42] border-t-2 border-[#FF8C42]'
-                : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
-            }`}
-          >
-            Postcard Designer
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('templates')}
-            className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors ${
-              activeTab === 'templates'
-                ? 'bg-[#111318] text-[#FF8C42] border-t-2 border-[#FF8C42]'
-                : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
-            }`}
-          >
-            Vintage Presets Gallery
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('my-cards')}
-            className={`px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors ${
-              activeTab === 'my-cards'
-                ? 'bg-[#111318] text-[#FF8C42] border-t-2 border-[#FF8C42]'
-                : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
-            }`}
-          >
-            My Custom Postcards ({customCards.length})
-          </button>
+        {/*
+          Tab Navigation — and now actually a tablist.
+
+          Three buttons wearing an orange top border were three separate Tab stops,
+          and the only thing telling anyone which view was live was that border: no
+          `aria-selected`, no owned panels, nothing a screen reader could read. It
+          is the same contract the inbox lens and the settings panes already went
+          through, unapplied here.
+
+          One tab stop, arrows to move, and each panel below is owned by its tab.
+        */}
+        <div
+          ref={tabListRef}
+          role="tablist"
+          aria-label="Postcard studio views"
+          aria-orientation="horizontal"
+          onKeyDown={onTabKeyDown}
+          className="flex items-center gap-2 border-b border-[#282C35] mb-6"
+        >
+          {STUDIO_TABS.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                id={tabId(tab.key)}
+                type="button"
+                role="tab"
+                /* How `onTabKeyDown` finds the button it has to focus. */
+                data-tab={tab.key}
+                aria-selected={isActive}
+                /*
+                  Gated: only the selected panel is mounted, so an IDREF from the
+                  other two would point at nothing at all.
+                */
+                aria-controls={isActive ? panelId(tab.key) : undefined}
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => setActiveTab(tab.key)}
+                className={`min-h-11 px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
+                  isActive
+                    ? 'bg-[#111318] text-[#FF8C42] border-t-2 border-[#FF8C42]'
+                    : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
+                }`}
+              >
+                {tab.key === 'my-cards' ? `${tab.label} (${customCards.length})` : tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* ============================================================= */}
         {/* TAB 1: DESIGNER & LIVE CANVAS                                  */}
         {/* ============================================================= */}
         {activeTab === 'designer' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div
+            role="tabpanel"
+            /*
+              No `tabIndex={0}`: a tabpanel only needs to be focusable when it
+              holds nothing focusable, and all three of these open onto controls.
+            */
+            id={panelId('designer')}
+            aria-labelledby={tabId('designer')}
+            className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
+          >
             {/* Left: 3D Interactive Canvas Preview */}
             <div className="lg:col-span-7 flex flex-col items-center bg-[#111318] border border-[#282C35] rounded-2xl p-6 sm:p-8">
               <div className="w-full flex items-center justify-between text-xs text-[#A1A4AC] font-mono mb-4">
@@ -261,10 +388,14 @@ export function PostcardStudio() {
 
               {/* Template Name */}
               <div>
-                <label className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
+                <label
+                  htmlFor={`${studioId}-title`}
+                  className="block text-xs font-semibold text-[#A1A4AC] mb-1.5"
+                >
                   Postcard Title
                 </label>
                 <input
+                  id={`${studioId}-title`}
                   type="text"
                   value={currentTemplate.name}
                   onChange={(e) =>
@@ -276,35 +407,70 @@ export function PostcardStudio() {
 
               {/* Paper Texture Selection */}
               <div>
-                <label className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
+                {/*
+                  Five cards, exactly one of them live: that is a radiogroup, not
+                  five unrelated buttons, and the difference was audible — the
+                  orange fill was the only thing saying which texture was chosen,
+                  so a screen reader heard five identical unpressed buttons.
+
+                  The `<label>` that used to sit here labelled nothing (a label
+                  with no control is inert markup), so the text carries an id and
+                  the group points at it — which keeps the accessible name and the
+                  visible name the same string by construction.
+
+                  Not `aria-pressed`: a toggle state on a one-of-five control is
+                  precisely the mismatch this is fixing.
+                */}
+                <div
+                  id={`${studioId}-texture-label`}
+                  className="block text-xs font-semibold text-[#A1A4AC] mb-1.5"
+                >
                   Aged Paper Texture
-                </label>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {[
-                    { key: 'antique-map', label: 'Antique Map' },
-                    { key: 'vintage-parchment', label: 'Aged Parchment' },
-                    { key: 'botanical-linen', label: 'Botanical Linen' },
-                    { key: 'obsidian-matte', label: 'Obsidian 24K Gold' },
-                    { key: 'clean-ivory', label: 'Clean Ivory' },
-                  ].map((tex) => (
-                    <button
-                      key={tex.key}
-                      type="button"
-                      onClick={() =>
-                        setCurrentTemplate((prev) => ({
-                          ...prev,
-                          paperTexture: tex.key as PostcardPaperTexture,
-                        }))
-                      }
-                      className={`min-h-11 rounded-lg border px-3 py-2 text-left font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
-                        currentTemplate.paperTexture === tex.key
-                          ? 'bg-[#2B1A11] border-[#5C3016] text-[#FF8C42]'
-                          : 'bg-[#16181D] border-[#282C35] text-[#A1A4AC] hover:border-[#3E434D]'
-                      }`}
-                    >
-                      {tex.label}
-                    </button>
-                  ))}
+                </div>
+                <div
+                  role="radiogroup"
+                  aria-labelledby={`${studioId}-texture-label`}
+                  onKeyDown={(event) =>
+                    onCardPickerKeyDown(
+                      event,
+                      PAPER_TEXTURES,
+                      currentTemplate.paperTexture,
+                      (key) => setCurrentTemplate((prev) => ({ ...prev, paperTexture: key })),
+                    )
+                  }
+                  className="grid grid-cols-2 gap-2 text-xs"
+                >
+                  {PAPER_TEXTURES.map((tex, index) => {
+                    const isChosen = currentTemplate.paperTexture === tex.key;
+                    return (
+                      <button
+                        key={tex.key}
+                        type="button"
+                        role="radio"
+                        aria-checked={isChosen}
+                        /*
+                          `rovingTabIndex`, not `isChosen ? 0 : -1`: a saved card
+                          could carry a texture that is no longer in this list, and
+                          then nothing would hold the group's single tab stop and
+                          the whole picker would be unreachable.
+                        */
+                        tabIndex={rovingTabIndex(
+                          index,
+                          PAPER_TEXTURES.findIndex((t) => t.key === currentTemplate.paperTexture),
+                        )}
+                        onClick={() =>
+                          setCurrentTemplate((prev) => ({ ...prev, paperTexture: tex.key }))
+                        }
+                        className={`min-h-11 rounded-lg border px-3 py-2 text-left font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
+                          isChosen
+                            ? 'bg-[#2B1A11] border-[#5C3016] text-[#FF8C42]'
+                            : 'bg-[#16181D] border-[#282C35] text-[#A1A4AC] hover:border-[#3E434D]'
+                        }`}
+                      >
+                        {tex.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -333,34 +499,48 @@ export function PostcardStudio() {
 
               {/* Font Style */}
               <div className="border-t border-[#282C35] pt-4">
-                <label className="block text-xs font-semibold text-[#A1A4AC] mb-1.5">
+                {/* Same shape as the texture picker above, for the same reason. */}
+                <div
+                  id={`${studioId}-font-label`}
+                  className="block text-xs font-semibold text-[#A1A4AC] mb-1.5"
+                >
                   Typography Style
-                </label>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {[
-                    { key: 'typewriter', label: 'Typewriter Mono' },
-                    { key: 'serif', label: 'Classic Serif' },
-                    { key: 'handwriting', label: 'Handwritten Cursive' },
-                    { key: 'classic', label: 'Clean Sans' },
-                  ].map((font) => (
-                    <button
-                      key={font.key}
-                      type="button"
-                      onClick={() =>
-                        setCurrentTemplate((prev) => ({
-                          ...prev,
-                          fontFamily: font.key as PostcardFont,
-                        }))
-                      }
-                      className={`min-h-11 rounded-lg border px-3 py-2 text-left font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
-                        currentTemplate.fontFamily === font.key
-                          ? 'bg-[#2B1A11] border-[#5C3016] text-[#FF8C42]'
-                          : 'bg-[#16181D] border-[#282C35] text-[#A1A4AC] hover:border-[#3E434D]'
-                      }`}
-                    >
-                      {font.label}
-                    </button>
-                  ))}
+                </div>
+                <div
+                  role="radiogroup"
+                  aria-labelledby={`${studioId}-font-label`}
+                  onKeyDown={(event) =>
+                    onCardPickerKeyDown(event, POSTCARD_FONTS, currentTemplate.fontFamily, (key) =>
+                      setCurrentTemplate((prev) => ({ ...prev, fontFamily: key })),
+                    )
+                  }
+                  className="grid grid-cols-2 gap-2 text-xs"
+                >
+                  {POSTCARD_FONTS.map((font, index) => {
+                    const isChosen = currentTemplate.fontFamily === font.key;
+                    return (
+                      <button
+                        key={font.key}
+                        type="button"
+                        role="radio"
+                        aria-checked={isChosen}
+                        tabIndex={rovingTabIndex(
+                          index,
+                          POSTCARD_FONTS.findIndex((f) => f.key === currentTemplate.fontFamily),
+                        )}
+                        onClick={() =>
+                          setCurrentTemplate((prev) => ({ ...prev, fontFamily: font.key }))
+                        }
+                        className={`min-h-11 rounded-lg border px-3 py-2 text-left font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
+                          isChosen
+                            ? 'bg-[#2B1A11] border-[#5C3016] text-[#FF8C42]'
+                            : 'bg-[#16181D] border-[#282C35] text-[#A1A4AC] hover:border-[#3E434D]'
+                        }`}
+                      >
+                        {font.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -372,10 +552,14 @@ export function PostcardStudio() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[11px] font-medium text-[#A1A4AC] mb-1">
+                    <label
+                      htmlFor={`${studioId}-postmark-city`}
+                      className="block text-[11px] font-medium text-[#A1A4AC] mb-1"
+                    >
                       Postmark City
                     </label>
                     <input
+                      id={`${studioId}-postmark-city`}
                       type="text"
                       value={currentTemplate.stamp.postmarkCity || ''}
                       onChange={(e) =>
@@ -390,10 +574,14 @@ export function PostcardStudio() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-[#A1A4AC] mb-1">
+                    <label
+                      htmlFor={`${studioId}-stamp-value`}
+                      className="block text-[11px] font-medium text-[#A1A4AC] mb-1"
+                    >
                       Stamp Value
                     </label>
                     <input
+                      id={`${studioId}-stamp-value`}
                       type="text"
                       value={currentTemplate.stamp.value}
                       onChange={(e) =>
@@ -410,7 +598,10 @@ export function PostcardStudio() {
 
                 {/* Custom Photo Stamp Upload */}
                 <div>
-                  <label className="block text-[11px] font-medium text-[#A1A4AC] mb-1">
+                  <label
+                    htmlFor={`${studioId}-stamp-photo`}
+                    className="block text-[11px] font-medium text-[#A1A4AC] mb-1"
+                  >
                     Upload Custom Photo for Stamp (PNG / JPG)
                   </label>
                   {/* `min-h-11` grows the control, but on a file input the only
@@ -418,6 +609,7 @@ export function PostcardStudio() {
                    * sizes itself from its own padding — hence the coarse-pointer
                    * `file:py-3` as well. */}
                   <input
+                    id={`${studioId}-stamp-photo`}
                     type="file"
                     accept="image/*"
                     onChange={handleUploadStampPhoto}
@@ -429,7 +621,10 @@ export function PostcardStudio() {
               {/* PNG Stickers Layer */}
               <div className="border-t border-[#282C35] pt-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-bold uppercase tracking-wider text-[#FF8C42] font-mono">
+                  <div
+                    id={`${studioId}-stickers-label`}
+                    className="text-xs font-bold uppercase tracking-wider text-[#FF8C42] font-mono"
+                  >
                     Add Custom PNG Stickers
                   </div>
                   <span className="text-[11px] text-[#A1A4AC]">
@@ -437,7 +632,15 @@ export function PostcardStudio() {
                   </span>
                 </div>
 
+                {/*
+                  `aria-labelledby` rather than a new `<label>`: the section
+                  heading above already reads as this control's name, and adding a
+                  second visible label to say the same thing twice would be worse
+                  than the nameless input it replaces. The count beside it is
+                  deliberately outside the reference — it is status, not a name.
+                */}
                 <input
+                  aria-labelledby={`${studioId}-stickers-label`}
                   type="file"
                   accept="image/png,image/webp,image/*"
                   onChange={handleUploadSticker}
@@ -462,7 +665,12 @@ export function PostcardStudio() {
         {/* TAB 2: PRESET GALLERY                                         */}
         {/* ============================================================= */}
         {activeTab === 'templates' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div
+            role="tabpanel"
+            id={panelId('templates')}
+            aria-labelledby={tabId('templates')}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          >
             {DEFAULT_VINTAGE_PRESETS.map((preset) => (
               <div
                 key={preset.id}
@@ -509,7 +717,7 @@ export function PostcardStudio() {
         {/* TAB 3: MY CUSTOM POSTCARDS                                    */}
         {/* ============================================================= */}
         {activeTab === 'my-cards' && (
-          <div>
+          <div role="tabpanel" id={panelId('my-cards')} aria-labelledby={tabId('my-cards')}>
             {customCards.length === 0 ? (
               <div className="text-center py-16 bg-[#111318]/40 border border-dashed border-[#282C35] rounded-2xl">
                 <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-3">
