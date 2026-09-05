@@ -30,6 +30,7 @@ import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { EmailSenderHeader } from '../components/EmailSenderHeader';
 import { ConversationalThreadView } from '../components/ConversationalThreadView';
 import { ThreadKindBadge } from '../components/MessageKindBadge';
+import { UnreadDot } from '../components/UnreadDot';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
@@ -384,7 +385,7 @@ function EmailRow({
                 </span>
               )}
             </div>
-            {!thread.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
+            {!thread.isRead && <UnreadDot />}
             {/*
               The kind mark is here only when it says something. A conversation of
               letters is what an inbox holds by default, so a `Mail` pill on every

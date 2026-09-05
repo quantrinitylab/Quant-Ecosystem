@@ -8,7 +8,9 @@ import { AppShell } from '../../components/AppShell';
 import { ErrorState, EmptyState } from '@quant/shared-ui';
 import { AppSidebar } from '../../components/AppSidebar';
 import { IdentityAvatar } from '../../components/IdentityAvatar';
+import { showToast } from '../../components/InboxToast';
 import { useInbox } from '../../hooks/useInbox';
+import { resolveThreadTarget } from '../../lib/route-ids';
 import { apiClient } from '../../services/api-client';
 import type { Email, EmailStatus } from '../../types';
 
@@ -106,7 +108,15 @@ function DeliveryStatusIcon({ status }: { status: EmailStatus }) {
   }
 }
 
-function DeliveryStatus({ status, onResend }: { status: EmailStatus; onResend?: () => void }) {
+function DeliveryStatus({
+  status,
+  subject,
+  onResend,
+}: {
+  status: EmailStatus;
+  subject: string;
+  onResend?: () => void;
+}) {
   const config: Record<EmailStatus, { label: string; className: string }> = {
     sent: { label: 'Sent', className: 'status-sent' },
     delivered: { label: 'Delivered', className: 'status-delivered' },
@@ -121,7 +131,12 @@ function DeliveryStatus({ status, onResend }: { status: EmailStatus; onResend?: 
       <span aria-hidden="true">
         <DeliveryStatusIcon status={status} />
       </span>
-      <span className="sr-only">{c.label}</span>
+      {/*
+        The icon is decorative and this word is the status. It used to be said
+        twice — once from an `sr-only` copy, once from the visible span, which is
+        never hidden at any width — so every row announced "Delivered Delivered".
+        One copy, and it is the one on screen.
+      */}
       <span className="delivery-status-label">{c.label}</span>
       {(status === 'failed' || status === 'bounced') && onResend && (
         <button
@@ -131,6 +146,13 @@ function DeliveryStatus({ status, onResend }: { status: EmailStatus; onResend?: 
             e.stopPropagation();
             onResend();
           }}
+          /*
+            Only failed and bounced rows grow this button, so a mailbox can hold
+            several — and "Resend" alone names all of them identically. The
+            visible word stays the start of the name so speech control still
+            matches what is on screen.
+          */
+          aria-label={`Resend: ${subject || '(no subject)'}`}
           title="Retry sending"
         >
           Resend
@@ -162,7 +184,22 @@ export default function SentPage() {
 
   const handleEmailClick = useCallback(
     (email: Email) => {
-      router.push(`/thread/${email.threadId}`);
+      /*
+       * A sent row does not always have a thread of its own, and this used to
+       * interpolate whatever was there: an absent id produced `/thread/undefined`,
+       * a URL that looks valid and resolves to nothing. The five folder surfaces
+       * have always fallen back to the message id — the thread view opens either —
+       * so this is the same rule, in the one mailbox that was missing it.
+       */
+      const target = resolveThreadTarget(email);
+      if (!target) {
+        showToast({
+          text: 'This message is still syncing — try again in a moment.',
+          type: 'error',
+        });
+        return;
+      }
+      router.push(`/thread/${target}`);
     },
     [router],
   );
@@ -234,12 +271,17 @@ export default function SentPage() {
               animate="visible"
               variants={{ visible: { transition: { staggerChildren: 0.02 } } }}
               className="sent-list"
+              role="list"
+              aria-label="Sent conversations"
             >
               {emails.map((email) => (
                 <motion.article
                   key={email.id}
                   variants={{ hidden: { opacity: 0, y: 4 }, visible: { opacity: 1, y: 0 } }}
                   className="sent-row"
+                  /* One of n, so `listitem` rather than an uncountable article. */
+                  role="listitem"
+                  /* Pointer convenience; the subject button below is the keyboard route. */
                   onClick={() => handleEmailClick(email)}
                 >
                   <IdentityAvatar
@@ -253,11 +295,30 @@ export default function SentPage() {
                       </span>
                       <DeliveryStatus
                         status={email.status}
+                        subject={email.subject || ''}
                         onResend={() => void handleResend(email.id)}
                       />
                       <time className="sent-row-time">{formatSentDate(email.receivedAt)}</time>
                     </div>
-                    <h3 className="sent-row-subject">{email.subject || '(no subject)'}</h3>
+                    {/*
+                      The row's one real control. Nothing else in a sent row is
+                      focusable — the avatar is `aria-hidden`, and DeliveryStatus only
+                      renders its Resend button for a failed or bounced send — so
+                      before this the delivery trail could be read by a mouse and by
+                      nothing else. The row keeps its click as a shortcut; the ring is
+                      drawn on the row because `.sent-row-subject` clips its ellipsis.
+                    */}
+                    <h3 className="sent-row-subject">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleEmailClick(email);
+                        }}
+                      >
+                        {email.subject || '(no subject)'}
+                      </button>
+                    </h3>
                     <p className="sent-row-snippet">{email.snippet}</p>
                   </div>
                 </motion.article>
