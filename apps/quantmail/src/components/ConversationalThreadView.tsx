@@ -1,17 +1,19 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useId, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient } from '../services/api-client';
 import type { Email, EmailAttachment, EmailThread, MessageKind } from '../types';
+import { AnchoredMenu } from './AnchoredMenu';
 import { showToast } from './InboxToast';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
 import { MessageKindBadge } from './MessageKindBadge';
 import { Quanty } from './Quanty';
+import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
 import { IconChat, IconMail } from './icons';
 import {
   findConversation,
@@ -112,6 +114,16 @@ export function ConversationalThreadView({
   const showQuanty = useDeferredMount(isQuantyOpen);
   const [replyError, setReplyError] = useState<string | null>(null);
 
+  /*
+   * The face on the reply bar's copilot trigger. `mail` and `sys` only: this bar writes and
+   * sends, so a send outcome and a dropped connection are both its business, while a Drive
+   * upload three panes away is not.
+   *
+   * It was a hardcoded `expression="happy"` — the `arch` eye, a ∩ stroked rather than
+   * filled, which at 20px is indistinguishable from a shut lid.
+   */
+  const quantyFace = useQuantyMood({ channels: ['mail', 'sys'] });
+
   /**
    * Which of the two things the bar at the bottom is about to write.
    *
@@ -132,35 +144,12 @@ export function ConversationalThreadView({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   /**
-   * The phone's home for the two header actions that have no room of their own.
+   * Stable base for the per-message ids this view hands to `aria-controls`.
    *
-   * Five 44px targets plus gaps eat 236 of 375 pixels, so Expand All and Print used
-   * to simply stand down below `sm` — which is not the same as having an answer for
-   * them. They live in here now: one 44px button, and the actions keep their full
-   * target inside a sheet instead of being unavailable on the device most of this
-   * mailbox is read on.
+   * One `useId` for the component, suffixed with the message index, because the
+   * ids are minted inside a `map` and every expanded message needs its own.
    */
-  const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
-  const headerMenuRef = useRef<HTMLDivElement | null>(null);
-
-  /** Dismiss the overflow menu on an outside press or Escape. */
-  useEffect(() => {
-    if (!isHeaderMenuOpen) return;
-    const onPointerDown = (event: MouseEvent | TouchEvent) => {
-      if (!headerMenuRef.current?.contains(event.target as Node)) setIsHeaderMenuOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsHeaderMenuOpen(false);
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    document.addEventListener('touchstart', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      document.removeEventListener('touchstart', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [isHeaderMenuOpen]);
+  const detailsBaseId = useId();
 
   const loadedThreadIdRef = useRef<string | null>(null);
 
@@ -495,6 +484,10 @@ export function ConversationalThreadView({
     if ((!quickReplyText.trim() && pendingAttachments.length === 0) || isSendingQuickReply) return;
     setIsSendingQuickReply(true);
     setReplyError(null);
+    // A latch, cleared by whichever outcome arrives below. The reply bar has no spinner of
+    // its own beyond the button label going to `…`, so the mascot beside it is the only
+    // thing on screen that says a send is in flight.
+    quantyReact('mail:sending');
 
     const replyContent = quickReplyText.trim();
     const replyTarget = messages.length > 0 ? messages[messages.length - 1].id : threadId;
@@ -505,6 +498,7 @@ export function ConversationalThreadView({
       // than a guess about its length.
       const res = await apiClient.replyToEmail(replyTarget, replyContent, undefined, 'chat');
       if (!res.success) {
+        quantyReact('mail:sendFailed');
         setReplyError(res.error?.message || 'Failed to send reply');
         showToast({ text: res.error?.message || 'Failed to send reply', type: 'error' });
         return;
@@ -567,6 +561,7 @@ export function ConversationalThreadView({
 
       setQuickReplyText('');
       setPendingAttachments([]);
+      quantyReact('mail:sent');
       showToast({ text: 'Reply sent successfully', type: 'success' });
 
       // The conversation has a new message, so every mailbox list showing this
@@ -579,6 +574,7 @@ export function ConversationalThreadView({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     } catch {
+      quantyReact('mail:sendFailed');
       setReplyError('Failed to send reply');
       showToast({ text: 'Failed to send reply', type: 'error' });
     } finally {
@@ -817,39 +813,44 @@ export function ConversationalThreadView({
 
             `sm:hidden`, so it is exactly the inverse of Expand All and Print: one of
             the two is always reachable at every width, and neither action is simply
-            absent on the device this mailbox is mostly read on. `relative` so the
-            sheet hangs off this button rather than off the header — the header is
-            `sticky z-20` with no clipping, so it can.
+            absent on the device this mailbox is mostly read on.
+
+            `AnchoredMenu` rather than the hand-rolled popover this used to be. That
+            one declared `role="menu"` and delivered none of the keyboard the role
+            promises — no arrow traversal, no focus on open — while carrying its own
+            outside-press and Escape listeners, a third copy of machinery two other
+            menus already share (§18). The primitive brings the roving arrows, an
+            exclusive keyboard scope so `e`/`#`/`j` cannot act on the conversation
+            behind the open sheet, Escape that hands focus back somewhere it can live,
+            and a viewport clamp. `height` is the panel's real height — two 44px rows
+            plus the `py-1` — so the clamp never lifts it off its anchor.
           */}
-          <div className="relative sm:hidden" ref={headerMenuRef}>
-            <button
-              type="button"
-              onClick={() => setIsHeaderMenuOpen((open) => !open)}
-              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]"
-              aria-label="More conversation actions"
-              aria-haspopup="menu"
-              aria-expanded={isHeaderMenuOpen}
-            >
+          <AnchoredMenu
+            icon={
               <svg className="size-[18px]" viewBox="0 0 24 24" fill="currentColor">
                 <circle cx="12" cy="5" r="1.9" />
                 <circle cx="12" cy="12" r="1.9" />
                 <circle cx="12" cy="19" r="1.9" />
               </svg>
-            </button>
-
-            {isHeaderMenuOpen && (
-              <div
-                role="menu"
-                aria-label="Conversation actions"
-                className="absolute right-0 top-[calc(100%+6px)] z-30 w-52 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] py-1 shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
-              >
+            }
+            triggerLabel="More conversation actions"
+            triggerClassName="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]"
+            wrapperClassName="inline-flex sm:hidden"
+            menuLabel="Conversation actions"
+            menuClassName="w-52 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] py-1 shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
+            scope="thread-header-menu"
+            height={104}
+          >
+            {(close) => (
+              <>
                 <button
                   type="button"
                   role="menuitem"
+                  tabIndex={-1}
                   onClick={() => {
                     if (allExpanded) collapseAll();
                     else expandAll();
-                    setIsHeaderMenuOpen(false);
+                    close();
                   }}
                   disabled={messages.length === 0}
                   className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[#F5F5F5] transition-colors hover:bg-[#282C35] focus-visible:outline-none focus-visible:bg-[#282C35] disabled:cursor-not-allowed disabled:text-[#6B6E76] disabled:hover:bg-transparent"
@@ -860,6 +861,7 @@ export function ConversationalThreadView({
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2.2"
+                    aria-hidden="true"
                   >
                     <path d="m7 15 5 5 5-5" />
                     <path d="m7 9 5-5 5 5" />
@@ -870,8 +872,9 @@ export function ConversationalThreadView({
                 <button
                   type="button"
                   role="menuitem"
+                  tabIndex={-1}
                   onClick={() => {
-                    setIsHeaderMenuOpen(false);
+                    close();
                     window.print();
                   }}
                   className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[#F5F5F5] transition-colors hover:bg-[#282C35] focus-visible:outline-none focus-visible:bg-[#282C35]"
@@ -882,6 +885,7 @@ export function ConversationalThreadView({
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
+                    aria-hidden="true"
                   >
                     <polyline points="6 9 6 2 18 2 18 9" />
                     <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
@@ -889,9 +893,9 @@ export function ConversationalThreadView({
                   </svg>
                   Print conversation
                 </button>
-              </div>
+              </>
             )}
-          </div>
+          </AnchoredMenu>
 
           {/* Archive */}
           {onArchive && (
@@ -1022,18 +1026,35 @@ export function ConversationalThreadView({
                 className={`w-full flex flex-col ${isOutbound ? 'items-end' : 'items-start'}`}
               >
                 {!isExpanded ? (
-                  /* Collapsed 1-Line Strip */
-                  <div
+                  /*
+                    Collapsed 1-Line Strip — and the other half of a disclosure.
+
+                    This was a `<div onClick>`: no role, no tab stop, no state. The
+                    control that closes a message is a real button further down, so a
+                    keyboard or screen-reader user could collapse a message and then
+                    had nothing left to press — the body was unreachable for the rest
+                    of the session. `aria-expanded` on both ends makes the pair read
+                    as one disclosure instead of two unrelated controls.
+
+                    Nothing inside is interactive, so the presentational-children rule
+                    costs nothing here: sender, badge, snippet and date flatten into
+                    the button's name, which is exactly what a reader needs in order to
+                    decide whether to open it. The wrappers are spans for the same
+                    reason a button may not contain a div.
+                  */
+                  <button
+                    type="button"
                     onClick={() => toggleMessageExpand(index)}
-                    className={`group w-full max-w-[95%] sm:max-w-[88%] flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl border transition-all cursor-pointer shadow-sm select-none hover:shadow-md ${
+                    aria-expanded={false}
+                    className={`group w-full max-w-[95%] sm:max-w-[88%] flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-sm select-none hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                       isOutbound
                         ? 'border-[#3A2416] bg-[#161210] hover:border-[#5C3016]'
                         : 'border-[#282C35] bg-[#111318] hover:bg-[#16181D] hover:border-[#3A404D]'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="flex items-center gap-3 min-w-0 flex-1">
                       <IdentityAvatar name={msgFromName} size="sm" />
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="flex items-center gap-2 min-w-0 flex-1">
                         {/*
                           The name is text, so it takes the text ramp. It used to take
                           the brand accent whenever the message was yours, which in a
@@ -1047,7 +1068,7 @@ export function ConversationalThreadView({
                         </span>
 
                         {/* Badges: Mail or Chat */}
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="flex items-center gap-1.5 shrink-0">
                           {showKindBadges && <MessageKindBadge kind={messageKind} />}
                           {hasAtt && (
                             <span className="px-1.5 py-0.5 rounded bg-[#2B1A11] border border-[#5C3016] text-[10px] font-semibold text-[#FF8C42] flex items-center gap-1">
@@ -1056,6 +1077,7 @@ export function ConversationalThreadView({
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
+                                aria-hidden="true"
                               >
                                 <path
                                   strokeLinecap="round"
@@ -1065,17 +1087,26 @@ export function ConversationalThreadView({
                                 />
                               </svg>
                               <span>{msgAttachments.length}</span>
+                              {/*
+                                The paperclip is the noun on screen, and it is
+                                decorative. Inside the button's flattened name the
+                                count would otherwise be a bare number sitting between
+                                the sender and the snippet.
+                              */}
+                              <span className="sr-only">
+                                {msgAttachments.length === 1 ? 'attachment' : 'attachments'}
+                              </span>
                             </span>
                           )}
-                        </div>
+                        </span>
 
                         <span className="text-xs text-[#A1A4AC] truncate max-w-xs sm:max-w-md">
                           — {message.snippet || message.bodyText?.slice(0, 80) || '(No preview)'}
                         </span>
-                      </div>
-                    </div>
+                      </span>
+                    </span>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <span className="flex items-center gap-2 shrink-0">
                       <span className="text-[11px] text-[#A1A4AC] font-mono">
                         {formatMessageDate(message.receivedAt)}
                       </span>
@@ -1085,11 +1116,12 @@ export function ConversationalThreadView({
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="2"
+                        aria-hidden="true"
                       >
                         <path d="m6 9 6 6 6-6" />
                       </svg>
-                    </div>
-                  </div>
+                    </span>
+                  </button>
                 ) : (
                   /* Expanded Rich Card */
                   <div
@@ -1154,6 +1186,11 @@ export function ConversationalThreadView({
                           <button
                             type="button"
                             onClick={() => toggleDetailsExpand(index)}
+                            aria-expanded={isDetailsExpanded}
+                            /* Gated: the block below is only in the tree while open. */
+                            aria-controls={
+                              isDetailsExpanded ? `${detailsBaseId}-details-${index}` : undefined
+                            }
                             className="group relative inline-flex items-center gap-1 pt-0.5 text-left font-mono text-xs text-[#A1A4AC] before:absolute before:inset-x-0 before:-inset-y-[13px] before:content-[''] hover:text-[#FFB875] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                           >
                             <span>to {isOutbound ? toDisplay : 'me'}</span>
@@ -1163,6 +1200,7 @@ export function ConversationalThreadView({
                               fill="none"
                               stroke="currentColor"
                               strokeWidth="2.5"
+                              aria-hidden="true"
                             >
                               <path d="m6 9 6 6 6-6" />
                             </svg>
@@ -1175,6 +1213,13 @@ export function ConversationalThreadView({
                         <button
                           type="button"
                           onClick={() => toggleMessageExpand(index)}
+                          /*
+                            The expanded half of the collapsed strip's disclosure. No
+                            `aria-controls`: what this closes is the whole card it sits
+                            in, and the strip that replaces it carries no id to point
+                            at from the other direction.
+                          */
+                          aria-expanded={true}
                           className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:min-w-0"
                           title="Collapse this message"
                         >
@@ -1184,6 +1229,7 @@ export function ConversationalThreadView({
                             fill="none"
                             stroke="currentColor"
                             strokeWidth="2.2"
+                            aria-hidden="true"
                           >
                             <path d="m18 15-6-6-6 6" />
                           </svg>
@@ -1195,6 +1241,7 @@ export function ConversationalThreadView({
                     <AnimatePresence>
                       {isDetailsExpanded && (
                         <motion.div
+                          id={`${detailsBaseId}-details-${index}`}
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}
                           exit={{ opacity: 0, height: 0 }}
@@ -1492,7 +1539,7 @@ export function ConversationalThreadView({
             title="Ask Quanty AI to write response"
             aria-label="Ask Quanty AI to write a response"
           >
-            <Quanty size={20} expression="happy" bob={false} />
+            <Quanty size={20} expression={quantyFace} bob={false} />
           </button>
 
           {/* Chat Input Text Area */}

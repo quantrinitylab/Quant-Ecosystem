@@ -20,6 +20,16 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
 
+/**
+ * The rows the arrows walk.
+ *
+ * `:not([disabled])` because `.focus()` on a disabled button silently does
+ * nothing: the thread header's Expand-all item is disabled while the conversation
+ * is empty, and without the filter ArrowDown would land on it, fail, and leave
+ * the index where it started — the same key pressed twice going nowhere.
+ */
+const MENU_ITEMS = '[role="menuitem"]:not([disabled])';
+
 export interface AnchoredMenuProps {
   /** Glyph inside the trigger. Inline SVG — the design system forbids emoji. */
   icon: ReactNode;
@@ -176,7 +186,7 @@ export function AnchoredMenu({
    */
   const moveFocus = useCallback((delta: number) => {
     const items = Array.from(
-      menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [],
+      menuRef.current?.querySelectorAll<HTMLButtonElement>(MENU_ITEMS) ?? [],
     );
     if (items.length === 0) return;
     const current = items.findIndex((item) => item === document.activeElement);
@@ -195,7 +205,7 @@ export function AnchoredMenu({
   useEffect(() => {
     if (!isPositioned) return;
     const frame = window.requestAnimationFrame(() => {
-      menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+      menuRef.current?.querySelector<HTMLButtonElement>(MENU_ITEMS)?.focus();
     });
     return () => window.cancelAnimationFrame(frame);
   }, [isPositioned]);

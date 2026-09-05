@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { Quanty } from './Quanty';
 import { useDeferredMount } from '../hooks/useDeferredMount';
+import { useQuantyMood } from '../lib/quanty/reactions';
 
 /**
  * The way into Quanty, as one primitive instead of a pattern each route
@@ -75,6 +76,20 @@ function viewLabelForRoute(pathname: string): string {
 const QuantyCopilotDrawer = dynamic(() => import('./QuantyCopilotDrawer'), { ssr: false });
 
 export function QuantyTrigger({ onOpen, isOpen }: { onOpen: () => void; isOpen: boolean }) {
+  /*
+   * Live, and this is the one mount where that matters most: the trigger sits in the header of
+   * every route that renders `AppShell`, so it is the only Quanty a session is guaranteed to
+   * see. It used to pass `expression="happy"` — and `happy` is the `arch` eye, a ∩ stroked
+   * rather than filled, which at 22px is indistinguishable from a shut lid. A constant that
+   * renders as closed eyes on every screen is why the mascot read as asleep everywhere.
+   *
+   * All channels, no filter. A header belongs to the whole app, not to one pane: a send, an
+   * upload, a search that came back empty, a lost connection — the corner of the screen is
+   * exactly where the user should be able to catch any of them without looking for a toast.
+   * `idle` is the resting face, which is the *open* capsule eye.
+   */
+  const mood = useQuantyMood();
+
   return (
     <button
       type="button"
@@ -95,7 +110,7 @@ export function QuantyTrigger({ onOpen, isOpen }: { onOpen: () => void; isOpen: 
        * A permanently animating 22px figure in the top-right corner of every
        * route reads as a notification that never clears.
        */}
-      <Quanty size={22} expression="happy" bob={false} />
+      <Quanty size={22} expression={mood} bob={false} />
     </button>
   );
 }

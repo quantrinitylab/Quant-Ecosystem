@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Quanty } from './Quanty';
+import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
 import { showToast } from './InboxToast';
 import { IconX } from './icons';
 import { browserAuthSession } from '../services/browser-auth-session';
@@ -299,9 +300,30 @@ export function QuantyCopilotDrawer({
    * it for a different conversation.
    */
   const [failure, setFailure] = useState<ChatFailure | null>(null);
-  const [quantyExpression, setQuantyExpression] = useState<
-    'idle' | 'happy' | 'thinking' | 'wink' | 'shock'
-  >('happy');
+
+  /*
+   * The drawer's face, and it is no longer the drawer's alone.
+   *
+   * This was a five-member local union — `'idle' | 'happy' | 'thinking' | 'wink' | 'shock'`
+   * — set at three points inside `runTurn`. Two things were wrong with that. It resolved to
+   * `happy` between turns, and `happy` is the `arch` eye: a ∩ stroked rather than filled,
+   * which at 22–28px is indistinguishable from a shut lid, so the assistant sat there with
+   * its eyes apparently closed. And the state was private, so the header trigger two
+   * components up — the only Quanty a session is guaranteed to see — knew nothing about the
+   * request this drawer was running.
+   *
+   * Now `runTurn` announces on the bus and every mounted Quanty hears it. `ai:answered`
+   * holds `proud` for 1.4s and then decays to `idle`, the open capsule eye — an answer that
+   * lands should be a beat, not a permanent grin.
+   *
+   * `isLoading` is a backstop and nothing more. The `ai:thinking` latch caps at 25s while
+   * `clientTimeoutForIntent` can be longer, so a slow intent could otherwise decay to
+   * resting while its request is still in flight. Gating on `mood === 'idle'` means the
+   * backstop only fires in exactly that case — an unconditional override would hide
+   * `determined` on a retry, which is the one face this component asks for by name.
+   */
+  const mood = useQuantyMood({ channels: ['ai', 'mail', 'sys'] });
+  const quantyExpression = isLoading && mood === 'idle' ? 'thinking' : mood;
 
   const [showHistoryMenu, setShowHistoryMenu] = useState(false);
   const [historyList, setHistoryList] = useState<ChatHistoryItem[]>([]);
@@ -392,23 +414,26 @@ export function QuantyCopilotDrawer({
    * that claims to have read the user's mail is worse than an error, and in
    * compose context the old one wrote itself into the draft and toasted success.
    */
-  const runTurn = async (turns: ChatTurn[]) => {
+  const runTurn = async (turns: ChatTurn[], isRetry = false) => {
     setFailure(null);
     setIsLoading(true);
-    setQuantyExpression('thinking');
+    // A 25s latch in the table, so a request that never resolves cannot strand the mascot
+    // mid-thought on any of the mounts now listening. A retry wears `determined` instead —
+    // brow set, same ellipsis, because persistence and a first attempt are not the same face.
+    quantyReact(isRetry ? 'ai:retrying' : 'ai:thinking');
 
     const result = await requestQuanty(turns, buildContext());
     setIsLoading(false);
 
     if (!result.ok) {
       setFailure(result.failure);
-      setQuantyExpression('shock');
+      quantyReact('ai:failed');
       return;
     }
 
     const finalMsgs: ChatTurn[] = [...turns, { role: 'assistant', text: result.message }];
     setMessages(finalMsgs);
-    setQuantyExpression('happy');
+    quantyReact('ai:answered');
     saveCurrentConversation(finalMsgs);
 
     if (isComposeContext && onApplyAction) {
@@ -433,7 +458,11 @@ export function QuantyCopilotDrawer({
    */
   const retryLastTurn = () => {
     if (isLoading || messages.length === 0) return;
-    void runTurn(messages);
+    // The retry wears `determined` for the whole request instead of `thinking`, which is why
+    // it is a parameter rather than an extra `quantyReact` before the call: both events are
+    // `PRIORITY.state`, so firing them back to back in one tick would batch into a single
+    // render and `determined` would never appear at all.
+    void runTurn(messages, true);
   };
 
   const clearHistory = () => {
@@ -710,7 +739,12 @@ export function QuantyCopilotDrawer({
                     }
                     className="w-full flex items-center gap-3 p-3 rounded-xl bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] text-left transition-all active:scale-[0.99] group shadow-sm"
                   >
-                    <Quanty size={24} expression="happy" bob={false} />
+                    {/*
+                      `greeting`, not `happy` — this card only exists in the empty state, so
+                      the face is meeting the user for the first time in the session. It is
+                      the sheet's wink-and-wave: an arch, one shut eye, a grin and a spark.
+                    */}
+                    <Quanty size={24} expression="greeting" bob={false} />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-[#F5F5F5]">
                         What can Quanty do in QuantMail?

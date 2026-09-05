@@ -1,8 +1,18 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { useLiveMark, type MarkFrame } from './marks/useLiveMark';
+import {
+  MARK_COLORS,
+  markSquirclePath,
+  paintEmberPlate,
+  paintGlossSweep,
+  paintPlateDome,
+  paintSideWall,
+  strokeMarkBezel,
+} from '../lib/marks/canvas-mark';
 
 interface QuantMailLogoProps {
   size?: number;
@@ -22,13 +32,79 @@ interface QuantMailLogoProps {
 }
 
 /**
- * World-Class Living AI Mascot & Fluid Lava Squircle Logo for QuantMail
- * Features:
- * 1. 60FPS Continuous Uninterrupted Liquid Lava Fluid Shader (Solar Gold -> Fire Orange -> Crimson -> Obsidian).
- * 2. Signature "M" Quanty Mascot with lively open eyes (●  ●), real-time pointer tracking, and natural organic blinking.
- * 3. Smart Unread HUD Badge: Only appears when unreadCount > 0 with glowing amber pill and exact count (Zero clutter when 0 unread).
- * 4. Interactive pointer tracking, spring bounce, and one-tap instant inbox refresh & navigation.
+ * QuantMail's mark — a white envelope with a peach flap, on the family's *ember* plate.
+ *
+ * ## What this was, and why it changed
+ *
+ * This file used to paint "Solar Gold -> Fire Orange -> Crimson -> Obsidian": four
+ * orbiting radial gradients over `#060709`, plus a 54x44 "M mascot" glyph with two
+ * pupils that tracked the cursor, a blink cycle and blush. It was the most ambitious
+ * mark in the set and it is the reason `useLiveMark` exists at all — that hook's own
+ * doc comment credits this file for the shape of it. Two things about it were wrong,
+ * and the second only became visible once all six marks were put in one row.
+ *
+ * **The colours were not ours.** Thirteen gradient stops and not one design-system
+ * value: `#E52E14`, `#C61E08`, `#7F0A00`, `#FF3300`, `#D62000` and `#FF4500` are red,
+ * `#FFC700` is yellow. The palette is `#FF8C42` / `#FF9B5A` / `#E8752F`, and the
+ * system says no red. Beside Calendar, Contacts and Drive the flagship's own icon was
+ * the one plate in the row burning to crimson at its corners — a different colour
+ * family, in every page header. The plate is now `paintEmberPlate`, which was itself
+ * derived from this file's lava (an ember floor under four orbiting layers, three hot
+ * and one cold) and is the same molten construction in the right hues. The drama is
+ * kept. The crimson is not.
+ *
+ * **The glyph was a second mascot.** It was drawn as an "M" and read as an animal
+ * face: two ear peaks, a centre notch, two dark eyes following the pointer, blush on
+ * the cheeks. That is a mascot, and this product already has one — Quanty, with a
+ * thirty-five-expression face — so the cost of the second was paid by the icon whose
+ * only job is to say *mail*. It now says mail. The old intent survives as geometry
+ * rather than as a face: a flap creased to the centre is a wide M.
+ *
+ * Everything else is the shared rig, which is the point of having one — `paintEmberPlate`,
+ * `paintPlateDome`, `paintSideWall` for the envelope's thickness, `paintGlossSweep` on
+ * hover, `strokeMarkBezel` last and outside the clip. Moving onto `useLiveMark` also
+ * buys three things the hand-rolled loop never had: `prefers-reduced-motion`, which it
+ * ignored outright; a loop that stops off-screen and on a hidden tab; and frame-rate
+ * independence, since its fixed `time += 0.024` ran at double speed on a 120Hz panel.
  */
+
+/**
+ * The envelope, in the family's 100-unit buffer.
+ *
+ * 54 x 38 is a C6 ratio, and the plate left around it is deliberate: 18 units either
+ * side, 26 below. QuantGit's graph proved what happens without that margin — ink run
+ * to the glyph's own edges reads as a smudge at 36px, because the eye needs plate
+ * between the shape and the rim to resolve the shape against.
+ */
+const ENV = { x: 23, y: 32, w: 54, h: 38, r: 6 } as const;
+
+/**
+ * Where the two creases meet: 21 of the envelope's 38 units, so the flap covers 56% of
+ * the face. That is where a real flap folds. Shallower reads as a line ruled across a
+ * box; deeper and the envelope has no front left to be an envelope with.
+ */
+const CREASE_Y = 53;
+
+const ENV_MID_X = ENV.x + ENV.w / 2;
+
+function envelopePath(ctx: CanvasRenderingContext2D): void {
+  ctx.beginPath();
+  ctx.roundRect(ENV.x, ENV.y, ENV.w, ENV.h, ENV.r);
+}
+
+/**
+ * The flap, overshooting the envelope by two units on three sides so the *clip* supplies
+ * the rounded corners. Building the corner arcs into this path as well would be the same
+ * geometry written twice, and the two copies would drift the first time `ENV.r` moved.
+ */
+function flapPath(ctx: CanvasRenderingContext2D): void {
+  ctx.beginPath();
+  ctx.moveTo(ENV.x - 2, ENV.y - 2);
+  ctx.lineTo(ENV_MID_X, CREASE_Y);
+  ctx.lineTo(ENV.x + ENV.w + 2, ENV.y - 2);
+  ctx.closePath();
+}
+
 export function QuantMailLogo({
   size = 40,
   unreadCount = 0,
@@ -38,337 +114,141 @@ export function QuantMailLogo({
   interactive = true,
   title,
 }: QuantMailLogoProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
 
-  // Persistent Physics & Animation State Refs (Never restart the animation loop!)
-  const timeRef = useRef(Math.random() * 100);
+  // Read by the painter, so a changing count never rebuilds it.
   const unreadRef = useRef(unreadCount);
-  const blinkRef = useRef(false);
-  const winkRef = useRef(false);
-  const tiltRef = useRef({ x: 0, y: 0, targetX: 0, targetY: 0 });
-  const mouseVelocityRef = useRef({ x: 0, y: 0 });
-  const animFrameRef = useRef<number | null>(null);
-  const lastMousePosRef = useRef({ x: 0, y: 0 });
-
-  // Keep unread count ref in sync without remounting canvas
   useEffect(() => {
     unreadRef.current = unreadCount;
   }, [unreadCount]);
 
-  // Natural Organic Blinking Cycle (Every 3.5s - 5.5s)
-  useEffect(() => {
-    let blinkTimer: NodeJS.Timeout | null = null;
+  const paint = useCallback(
+    ({ ctx, cx, cy, time, tiltX, tiltY, hover, press, reduced }: MarkFrame) => {
+      const t = reduced ? 0 : time;
 
-    const triggerBlink = () => {
-      blinkRef.current = true;
-      setTimeout(() => {
-        blinkRef.current = false;
-      }, 150);
-      const nextDelay = 3500 + Math.random() * 2000;
-      blinkTimer = setTimeout(triggerBlink, nextDelay);
-    };
-
-    blinkTimer = setTimeout(triggerBlink, 3000);
-    return () => {
-      if (blinkTimer) clearTimeout(blinkTimer);
-    };
-  }, []);
-
-  // 60FPS Continuous Fluid Lava & Mascot Canvas Renderer (Mounted once, runs forever seamlessly)
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d', { alpha: true });
-    if (!ctx) return;
-
-    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 2, 3) : 2;
-    const res = 100; // Optimal 1:1 internal rendering buffer
-    canvas.width = res * dpr;
-    canvas.height = res * dpr;
-
-    const render = () => {
-      // Continuous smooth time increment (never resets or jumps)
-      timeRef.current += 0.024;
-      const time = timeRef.current;
-
-      // Smooth damping for tilt
-      const { targetX, targetY } = tiltRef.current;
-      tiltRef.current.x += (targetX - tiltRef.current.x) * 0.12;
-      tiltRef.current.y += (targetY - tiltRef.current.y) * 0.12;
-
-      // Mouse velocity decay
-      mouseVelocityRef.current.x *= 0.92;
-      mouseVelocityRef.current.y *= 0.92;
-
-      // Reset transform and scale idempotently for high-DPI displays
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, res, res);
-
-      const cx = res / 2;
-      const cy = res / 2;
-      const squircleRadius = 45; // 90px out of 100px with 5px margin
-      const cornerRadius = 22;
-
-      // -------------------------------------------------------------
-      // 1. APPLE SQUIRCLE CLIPPING PATH
-      // -------------------------------------------------------------
       ctx.save();
-      ctx.beginPath();
-      ctx.roundRect(
-        cx - squircleRadius,
-        cy - squircleRadius,
-        squircleRadius * 2,
-        squircleRadius * 2,
-        cornerRadius,
-      );
+      markSquirclePath(ctx, cx, cy);
+      ctx.clip();
+      paintEmberPlate(ctx, cx, cy, t, tiltX, tiltY);
+      paintPlateDome(ctx, cx, cy);
+
+      // ---- the envelope: one transform, so the whole card parallaxes as a unit ----
+      const lift = hover * 1.4 - press * 1;
+      ctx.translate(cx + tiltX * 2.6, cy + tiltY * 2.6 - lift);
+      const scale = 1 + hover * 0.02 - press * 0.03;
+      ctx.scale(scale, scale);
+      ctx.translate(-cx, -cy);
+
+      // Its thickness. Warm, because what lights the underside of a white card lying on
+      // an orange plate is the plate.
+      paintSideWall(ctx, envelopePath, 2.6 - press * 2, '#C4611F', '#5E230A', ENV.y, ENV.y + ENV.h);
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(46, 16, 2, 0.55)';
+      ctx.shadowBlur = 7 + hover * 4;
+      ctx.shadowOffsetY = 2.4 + hover * 1.2;
+      envelopePath(ctx);
+      const body = ctx.createLinearGradient(ENV.x, ENV.y, ENV.x + ENV.w, ENV.y + ENV.h);
+      body.addColorStop(0, '#FFFFFF');
+      body.addColorStop(0.46, '#F6F7FA');
+      body.addColorStop(1, '#DFE2E9');
+      ctx.fillStyle = body;
+      ctx.fill();
+      ctx.restore();
+
+      // Everything printed on the envelope is clipped to it.
+      ctx.save();
+      envelopePath(ctx);
       ctx.clip();
 
-      // -------------------------------------------------------------
-      // 2. PROCEDURAL 60FPS LIQUID LAVA / SMOKE FLUID GRADIENT
-      // -------------------------------------------------------------
-      const tX = tiltRef.current.x * 8 + mouseVelocityRef.current.x * 12;
-      const tY = tiltRef.current.y * 8 + mouseVelocityRef.current.y * 12;
-
-      const p1x = cx - 14 + Math.cos(time * 0.9) * 12 + tX * 0.5;
-      const p1y = cy + 14 + Math.sin(time * 0.8) * 10 + tY * 0.5; // Solar Gold (Bottom-Left)
-
-      const p2x = cx + 6 + Math.sin(time * 1.1) * 14 + tX * 0.7;
-      const p2y = cy - 14 + Math.cos(time * 0.95) * 12 + tY * 0.7; // Fire Orange (Top)
-
-      const p3x = cx + 18 + Math.cos(time * 0.75) * 10 + tX * 0.4;
-      const p3y = cy + 12 + Math.sin(time * 1.2) * 12 + tY * 0.4; // Crimson (Bottom-Right)
-
-      // Base Obsidian Background
-      ctx.fillStyle = '#060709';
-      ctx.fillRect(0, 0, res, res);
-
-      // Layer 1: Crimson Scarlet Fluid Mass (Right / Deep)
-      const gradCrimson = ctx.createRadialGradient(p3x, p3y, 2, p3x, p3y, 50);
-      gradCrimson.addColorStop(0, '#E52E14');
-      gradCrimson.addColorStop(0.4, '#C61E08');
-      gradCrimson.addColorStop(0.75, '#7F0A00');
-      gradCrimson.addColorStop(1, 'rgba(10, 5, 5, 0)');
-      ctx.fillStyle = gradCrimson;
-      ctx.fillRect(0, 0, res, res);
-
-      // Layer 2: Electric Fire Orange Silk Swirl (Top-Center)
-      const gradOrange = ctx.createRadialGradient(p2x, p2y, 2, p2x, p2y, 52);
-      gradOrange.addColorStop(0, '#FF5500');
-      gradOrange.addColorStop(0.35, '#FF3300');
-      gradOrange.addColorStop(0.7, '#D62000');
-      gradOrange.addColorStop(1, 'rgba(15, 6, 2, 0)');
-      ctx.fillStyle = gradOrange;
-      ctx.fillRect(0, 0, res, res);
-
-      // Layer 3: Intense Solar Gold Flame (Bottom-Left)
-      const gradGold = ctx.createRadialGradient(p1x, p1y, 1, p1x, p1y, 44);
-      gradGold.addColorStop(0, '#FFC700');
-      gradGold.addColorStop(0.28, '#FF8A00');
-      gradGold.addColorStop(0.65, '#FF4500');
-      gradGold.addColorStop(1, 'rgba(255, 69, 0, 0)');
-      ctx.fillStyle = gradGold;
-      ctx.fillRect(0, 0, res, res);
-
-      // Layer 4: Deep Obsidian Contrast Crevices
-      const voidX = cx + Math.sin(time * 0.85) * 8 - tX * 0.4;
-      const voidY = cy + Math.cos(time * 0.7) * 6 - tY * 0.4;
-      const gradVoid = ctx.createRadialGradient(voidX, voidY, 1, voidX, voidY, 36);
-      gradVoid.addColorStop(0, 'rgba(6, 7, 10, 0.92)');
-      gradVoid.addColorStop(0.5, 'rgba(12, 14, 20, 0.6)');
-      gradVoid.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = gradVoid;
-      ctx.fillRect(0, 0, res, res);
-
-      // -------------------------------------------------------------
-      // 3. CENTER SOLID WHITE "M" QUANTY MASCOT GLYPH
-      // -------------------------------------------------------------
-      ctx.save();
-      // Apply slight 3D perspective parallax to mascot relative to background
-      const mx = cx + tiltRef.current.x * 2.5;
-      const my = cy + tiltRef.current.y * 2.5 + 2;
-
-      // Mascot Dimensions: W: 54, H: 44
-      const mw = 54;
-      const mh = 44;
-      const x0 = mx - mw / 2;
-      const y0 = my - mh / 2;
-
-      // Draw Mascot Soft Drop Shadow for real 3D lift
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetY = 3;
-
-      ctx.beginPath();
-      // Start Bottom-Left
-      ctx.moveTo(x0 + 7, y0 + mh);
-      // Bottom flat edge with rounded bottom-left corner
-      ctx.arcTo(x0, y0 + mh, x0, y0 + mh - 7, 7);
-      // Left vertical wall
-      ctx.lineTo(x0, y0 + 12);
-      // Left Ear Outer Curve to Left Peak
-      ctx.bezierCurveTo(x0, y0 + 4, x0 + 4, y0, x0 + 9, y0);
-      // Left Ear Peak to Center 'M' Valley
-      ctx.bezierCurveTo(x0 + 15, y0 + 2, x0 + 21, y0 + 17, x0 + 27, y0 + 17);
-      // Center 'M' Valley to Right Ear Peak
-      ctx.bezierCurveTo(x0 + 33, y0 + 17, x0 + 39, y0 + 2, x0 + 45, y0);
-      // Right Peak to Right Outer Wall
-      ctx.bezierCurveTo(x0 + 50, y0, x0 + mw, y0 + 4, x0 + mw, y0 + 12);
-      // Right vertical wall
-      ctx.lineTo(x0 + mw, y0 + mh - 7);
-      // Bottom-Right rounded corner
-      ctx.arcTo(x0 + mw, y0 + mh, x0 + mw - 7, y0 + mh, 7);
-      // Close back to bottom-left
-      ctx.closePath();
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fill();
-      ctx.restore(); // restore shadow
-
-      // -------------------------------------------------------------
-      // 4. DYNAMIC MASCOT EYES (Always Lively Open, Eye Tracking & Blinking)
-      // -------------------------------------------------------------
-      const eyeY = my + 8;
-      const eyeSpacing = 9.5;
-      const leftEyeX = mx - eyeSpacing;
-      const rightEyeX = mx + eyeSpacing;
-      const eyeColor = '#060709'; // Deep obsidian pupil
-
-      // Dynamic Eye Tracking Offset (Eyes look towards cursor)
-      const lookOffsetX = tiltRef.current.x * 2.2;
-      const lookOffsetY = tiltRef.current.y * 1.6;
-
-      ctx.save();
-      ctx.fillStyle = eyeColor;
-      ctx.strokeStyle = eyeColor;
-      ctx.lineWidth = 2.8;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      const isBlinkingNow = blinkRef.current;
-      const isWinkingNow = winkRef.current;
-
-      if (isBlinkingNow) {
-        // Natural Smooth Blink: Horizontal closed line
-        ctx.beginPath();
-        ctx.moveTo(leftEyeX - 4, eyeY);
-        ctx.lineTo(leftEyeX + 4, eyeY);
-        ctx.moveTo(rightEyeX - 4, eyeY);
-        ctx.lineTo(rightEyeX + 4, eyeY);
-        ctx.stroke();
-      } else if (isWinkingNow) {
-        // Playful Wink on click: Left eye winks `^`, right eye looks open
-        ctx.beginPath();
-        ctx.arc(leftEyeX, eyeY + 1.5, 4.4, Math.PI * 1.15, Math.PI * 1.85, false);
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(rightEyeX + lookOffsetX, eyeY + lookOffsetY, 3.6, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath();
-        ctx.arc(rightEyeX + lookOffsetX + 1.1, eyeY + lookOffsetY - 1.1, 1.2, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        // Open Lively Eyes: Round curious pupils tracking the cursor with specular catchlights
-        const currentUnread = unreadRef.current;
-        const pupilRadius = currentUnread > 5 ? 4.2 : 3.5;
-
-        // Draw Left and Right Pupils
-        ctx.beginPath();
-        ctx.arc(leftEyeX + lookOffsetX, eyeY + lookOffsetY, pupilRadius, 0, Math.PI * 2);
-        ctx.arc(rightEyeX + lookOffsetX, eyeY + lookOffsetY, pupilRadius, 0, Math.PI * 2);
-        ctx.fill();
-
-        // White Specular Catchlight Sparkle in pupils (gives life and depth)
-        ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath();
-        ctx.arc(leftEyeX + lookOffsetX + 1.1, eyeY + lookOffsetY - 1.1, 1.2, 0, Math.PI * 2);
-        ctx.arc(rightEyeX + lookOffsetX + 1.1, eyeY + lookOffsetY - 1.1, 1.2, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Subtle cute warm blush spots on cheeks
-        ctx.beginPath();
-        ctx.arc(leftEyeX - 7.5, eyeY + 5.5, 2.6, 0, Math.PI * 2);
-        ctx.arc(rightEyeX + 7.5, eyeY + 5.5, 2.6, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 140, 66, 0.35)';
-        ctx.fill();
+      // Unread, as light inside the envelope rather than as a number on it. The badge
+      // carries the count; this carries the fact, and it still reads at 20px where a
+      // numeral cannot. The old mark spent this on 0.7 of a unit of extra pupil radius.
+      if (unreadRef.current > 0) {
+        const inner = ctx.createRadialGradient(
+          ENV_MID_X,
+          CREASE_Y + 3,
+          1,
+          ENV_MID_X,
+          CREASE_Y + 3,
+          20,
+        );
+        inner.addColorStop(0, 'rgba(255, 140, 66, 0.55)');
+        inner.addColorStop(0.55, 'rgba(255, 155, 90, 0.22)');
+        inner.addColorStop(1, 'rgba(255, 140, 66, 0)');
+        ctx.fillStyle = inner;
+        ctx.fillRect(ENV.x, ENV.y, ENV.w, ENV.h);
       }
 
-      ctx.restore();
+      // The flap. Peach rather than grey for two reasons: a white plane tilted towards an
+      // ember plate picks the plate up, and two near-whites touching read as one smear at
+      // 24px however clean the fold is — the law that decided the calendar's back sheet
+      // and QuantGit's dark under-stroke. It also keeps the whole mark inside the palette.
+      flapPath(ctx);
+      const flap = ctx.createLinearGradient(ENV.x, ENV.y, ENV.x + ENV.w * 0.6, CREASE_Y);
+      flap.addColorStop(0, '#FFE7CF');
+      flap.addColorStop(0.5, MARK_COLORS.peach);
+      flap.addColorStop(1, '#F0B583');
+      ctx.fillStyle = flap;
+      ctx.fill();
 
-      // -------------------------------------------------------------
-      // 5. OBSIDIAN BEZEL & INNER SPECULAR RIM (Glossy Glass Polish)
-      // -------------------------------------------------------------
-      ctx.restore(); // Restore squircle clip
-
-      // Outer Bezel Rim Line
-      ctx.save();
+      // The crease, as a hairline over a boundary that already exists in value. A stroke
+      // on its own would not survive: at 20px one buffer unit is a third of a device
+      // pixel, so the fold has to be a change of fill first and a line second.
       ctx.beginPath();
-      ctx.roundRect(
-        cx - squircleRadius,
-        cy - squircleRadius,
-        squircleRadius * 2,
-        squircleRadius * 2,
-        cornerRadius,
-      );
-      ctx.lineWidth = 1.4;
-      const rimGrad = ctx.createLinearGradient(
-        cx - squircleRadius,
-        cy - squircleRadius,
-        cx + squircleRadius,
-        cy + squircleRadius,
-      );
-      rimGrad.addColorStop(0, 'rgba(255, 255, 255, 0.45)'); // Top-left light catch
-      rimGrad.addColorStop(0.4, 'rgba(255, 140, 66, 0.3)');
-      rimGrad.addColorStop(1, 'rgba(255, 255, 255, 0.08)');
-      ctx.strokeStyle = rimGrad;
+      ctx.moveTo(ENV.x - 2, ENV.y - 2);
+      ctx.lineTo(ENV_MID_X, CREASE_Y);
+      ctx.lineTo(ENV.x + ENV.w + 2, ENV.y - 2);
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(122, 58, 18, 0.5)';
       ctx.stroke();
-      ctx.restore();
 
-      animFrameRef.current = requestAnimationFrame(render);
-    };
+      const sweep = reduced ? 0.34 : (t * 0.07 + hover * 0.5) % 1;
+      paintGlossSweep(ctx, ENV.x, ENV.y, ENV.w, ENV.h, sweep, 0.1 + hover * 0.12);
+      ctx.restore(); // envelope clip
 
-    render();
+      // The envelope's own edge, over the printing: caught light along the top-left pair
+      // of sides, falling to a warm seam along the bottom-right pair.
+      envelopePath(ctx);
+      ctx.lineWidth = 1.1;
+      const edge = ctx.createLinearGradient(ENV.x, ENV.y, ENV.x + ENV.w, ENV.y + ENV.h);
+      edge.addColorStop(0, 'rgba(255, 252, 248, 0.9)');
+      edge.addColorStop(0.45, 'rgba(255, 220, 186, 0.3)');
+      edge.addColorStop(1, 'rgba(140, 60, 16, 0.45)');
+      ctx.strokeStyle = edge;
+      ctx.stroke();
 
-    return () => {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    };
-  }, []); // Run once on mount!
+      ctx.restore(); // plate clip + group transform
 
-  // Pointer Interaction
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const nx = (e.clientX - rect.left) / rect.width - 0.5;
-    const ny = (e.clientY - rect.top) / rect.height - 0.5;
-    tiltRef.current.targetX = nx * 1.6;
-    tiltRef.current.targetY = ny * 1.6;
+      // The bezel last and outside the clip, so the highlight sits over the envelope's
+      // corners rather than under them — the ordering the whole family relies on.
+      strokeMarkBezel(ctx, cx, cy);
+    },
+    [],
+  );
 
-    // Calculate mouse velocity for fluid ripple
-    const dx = e.clientX - (lastMousePosRef.current.x || e.clientX);
-    const dy = e.clientY - (lastMousePosRef.current.y || e.clientY);
-    mouseVelocityRef.current.x = Math.max(Math.min(dx * 0.05, 1.5), -1.5);
-    mouseVelocityRef.current.y = Math.max(Math.min(dy * 0.05, 1.5), -1.5);
-    lastMousePosRef.current = { x: e.clientX, y: e.clientY };
-  }, []);
+  const { canvasRef, pointerProps } = useLiveMark(paint, size);
+  const { onPointerEnter, onPointerLeave } = pointerProps;
 
-  const handleMouseLeave = useCallback(() => {
-    tiltRef.current.targetX = 0;
-    tiltRef.current.targetY = 0;
+  // `useLiveMark` owns the canvas-side hover easing; `isHovered` drives the DOM-side
+  // scale on the wrapper, so both handlers have to run.
+  const handlePointerEnter = useCallback(() => {
+    onPointerEnter();
+    setIsHovered(true);
+  }, [onPointerEnter]);
+
+  const handlePointerLeave = useCallback(() => {
+    onPointerLeave();
     setIsHovered(false);
-  }, []);
+  }, [onPointerLeave]);
 
   // One-Tap Instant Refresh & Inbox Navigation
   const handleClick = useCallback(() => {
     setIsSpinning(true);
-    winkRef.current = true;
-    setTimeout(() => {
-      setIsSpinning(false);
-      winkRef.current = false;
-    }, 650);
+    setTimeout(() => setIsSpinning(false), 650);
 
     // Dispatch global refresh event
     if (onClick) {
@@ -419,9 +299,6 @@ export function QuantMailLogo({
         />
       </motion.span>
 
-      {/* ------------------------------------------------------------- */}
-      {/* 6. SMART HEAD HUD BADGE (ONLY rendered when unreadCount > 0)  */}
-      {/* ------------------------------------------------------------- */}
       {showBadge && unreadCount > 0 && (
         <span className="absolute -top-1 -right-1.5 z-20 pointer-events-none transition-transform duration-200 group-hover:scale-110">
           <span className="relative inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-[#111111] bg-[#FF8C42] rounded-full border border-[#090A0C] shadow-sm">
@@ -444,11 +321,23 @@ export function QuantMailLogo({
   if (!interactive) {
     return (
       <span
-        aria-hidden="true"
         className={`relative inline-flex items-center justify-center select-none group ${className}`}
         style={{ width: size, height: size }}
+        {...pointerProps}
       >
-        {art}
+        {/*
+          `aria-hidden` sits on the art rather than on this wrapper so the unread pill
+          is not silenced with it. `AppShell` mounts this decoratively *and* passes a
+          real `unreadCount`, so the count was painted on screen and announced nowhere —
+          a visible number no assistive tech could reach. `display: contents` keeps the
+          wrapper as the containing block for the absolutely-positioned badge.
+        */}
+        <span aria-hidden="true" style={{ display: 'contents' }}>
+          {art}
+        </span>
+        {showBadge && unreadCount > 0 && (
+          <span className="sr-only">{unreadCount > 99 ? 'over 99' : unreadCount} unread</span>
+        )}
       </span>
     );
   }
@@ -456,9 +345,9 @@ export function QuantMailLogo({
   return (
     <button
       type="button"
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={handleMouseLeave}
+      {...pointerProps}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
       onClick={handleClick}
       aria-label={accessibleName}
       title={accessibleName}

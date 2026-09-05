@@ -8,6 +8,7 @@ import {
   ErrorState,
   Skeleton,
   Button,
+  nextRovingIndex,
   useFocusTrap,
   useReducedMotion,
   useSwipeActions,
@@ -128,28 +129,6 @@ const INBOX_FILTERS: Array<{ key: InboxFilter; label: string }> = [
   { key: 'starred', label: 'Starred' },
   { key: 'attachment', label: 'Has attachment' },
 ];
-
-/**
- * The next index for a Left/Right/Home/End press over `length` items, or `null`
- * when the key is none of those and the event should be left alone.
- *
- * Shared by the lens tablist and the popover's turn group. Both are ordered
- * single-select strips, so both owe a reader the same keyboard contract, and
- * writing the arithmetic twice is how the two drift apart. Wrapping, because a
- * ring is faster than a strip with two dead ends.
- *
- * Vertical arrows are deliberately not handled: `ArrowDown` on a focused control
- * scrolls the page, and taking that away from someone reading a mail list is a
- * worse trade than the one extra key press.
- */
-function nextRovingIndex(key: string, index: number, length: number): number | null {
-  const last = length - 1;
-  if (key === 'ArrowRight') return index === last ? 0 : index + 1;
-  if (key === 'ArrowLeft') return index === 0 ? last : index - 1;
-  if (key === 'Home') return 0;
-  if (key === 'End') return last;
-  return null;
-}
 
 function formatReceivedAt(value?: string | Date) {
   if (!value) return '';
@@ -1546,6 +1525,11 @@ export default function InboxPage() {
    * `preventDefault` keeps those keys off the horizontal scroller the row becomes
    * on a narrow screen, which would otherwise slide the pill under the moving
    * focus ring.
+   *
+   * The arithmetic is `@quant/shared-ui`'s `nextRovingIndex`, left at its
+   * `'horizontal'` default on purpose. The vertical modes exist, but `ArrowDown`
+   * on a focused chip scrolls the mail list, and taking that away from someone
+   * reading their inbox is a worse trade than the one extra key press.
    */
   const onLensKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
