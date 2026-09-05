@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { nextRovingIndex, rovingTabIndex } from '@quant/shared-ui';
 import { Quanty } from './Quanty';
+import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
 import { type QuantyEmailAction } from './QuantyCopilotDrawer';
 import { InsertLinkModal } from './InsertLinkModal';
 import { showToast } from './InboxToast';
@@ -54,6 +55,25 @@ const QuantDrivePickerModal = dynamic(
   () => import('./QuantDrivePickerModal').then((m) => m.QuantDrivePickerModal),
   { ssr: false },
 );
+
+/**
+ * What the composer will accept from the local file picker.
+ *
+ * There was no ceiling here at all: the `onChange` below reads every selected file with
+ * `readAsDataURL`, so the bytes land in React state as base64 and are then posted whole.
+ * Base64 costs 4/3, and SESv2 rejects a raw message over 40 MB — so a single 40 MB video
+ * became a ~53 MB payload that the browser held in memory, the request carried, and the
+ * transport refused. The failure arrived as a network error minutes later, after the
+ * upload, with nothing on screen to say the file was the problem.
+ *
+ * 25 MB total is the number every mail client has trained users to expect, and it leaves
+ * ~33 MB of base64 plus headers under the 40 MB hard limit. The per-file cap is lower than
+ * the total on purpose: one 24 MB attachment passes and then a 2 MB signature image fails,
+ * which is a confusing pair of messages — the per-file line makes the common case fail
+ * early and by itself.
+ */
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const MAX_ATTACHMENTS_TOTAL_BYTES = 25 * 1024 * 1024;
 
 export interface Attachment {
   id: string;
@@ -452,6 +472,23 @@ export function EmailComposer({
   const [isSaving, setIsSaving] = useState(false);
   const bodyTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  /*
+   * The face on both copilot triggers — the mobile one in the header strip and the desktop
+   * one in the footer. One hook for two mounts because they are one mascot at two
+   * breakpoints; exactly one of them is ever visible.
+   *
+   * Three channels, which is the case `reactions.ts` documents by name: a composer has no
+   * business going `confused` because a search three panes away came back empty, but it
+   * absolutely should show the send it is running, the attachment it is reading and the
+   * connection it just lost. `isSending` stays authoritative over the top — a local spinner
+   * that disagrees with the mascot beside it is worse than either alone.
+   *
+   * Both mounts used to pass `expression="happy"`, and `happy` is the `arch` eye: a ∩
+   * stroked rather than filled, which at 20–24px is indistinguishable from a shut lid.
+   */
+  const composerMood = useQuantyMood({ channels: ['mail', 'file', 'sys'] });
+  const quantyFace = isSending ? 'working' : composerMood;
+
   // Focus body if initialTo or subject already provided
   useEffect(() => {
     if (initialTo && initialSubject) {
@@ -528,22 +565,33 @@ export function EmailComposer({
   const buildOutgoingBodies = () => composeMessageBodies(buildFinalMessage(), activeSignatureHtml);
 
   // Send Handler
+  //
+  // Every exit announces itself to Quanty as well as to the toast rail, and the two are not
+  // redundant: a toast is a sentence that appears and leaves, the mascot is a face that is
+  // already on screen and holds. `mail:noRecipients` deliberately is not an error event — an
+  // unfinished draft is `worried`, not `error`, because the user has not done anything wrong yet.
   const handleSend = async (scheduledAt?: string) => {
     if (!to.trim()) {
+      quantyReact('mail:noRecipients');
       showToast({ text: 'Please specify at least one recipient (To:)', type: 'error' });
       return;
     }
     if (!subject.trim()) {
+      quantyReact('mail:noRecipients');
       showToast({ text: 'Please enter an email subject', type: 'error' });
       return;
     }
     if (!body.trim()) {
+      quantyReact('mail:noRecipients');
       showToast({ text: 'Please enter your message body', type: 'error' });
       return;
     }
 
     const { bodyText, bodyHtml } = buildOutgoingBodies();
     setIsSending(true);
+    // A latch, cleared by whichever outcome arrives below — and capped at 20s inside the
+    // reaction table, so a request that never resolves cannot leave the mascot working forever.
+    quantyReact('mail:sending');
 
     const toList = to
       .split(/[,;\s]+/)
@@ -600,6 +648,7 @@ export function EmailComposer({
         }
       }
 
+      quantyReact(scheduledAt ? 'mail:scheduled' : 'mail:sent');
       showToast({
         text: scheduledAt ? 'Email scheduled' : 'Email sent',
         type: 'success',
@@ -607,6 +656,7 @@ export function EmailComposer({
 
       handleBack();
     } catch (err: any) {
+      quantyReact('mail:sendFailed');
       showToast({ text: err.message || 'Failed to send message', type: 'error' });
     } finally {
       setIsSending(false);
@@ -662,8 +712,13 @@ export function EmailComposer({
           }),
         });
       }
+      // `mail:draftSaved` is the sheet's quietest reaction on purpose — `calm`, at ambient
+      // priority for 1.2s. A draft save happens on a timer and on every close; announcing it
+      // as loudly as a send would make the mascot a flicker instead of a signal.
+      quantyReact('mail:draftSaved');
       showToast({ text: 'Draft saved', type: 'success' });
     } catch {
+      quantyReact('sys:error');
       showToast({ text: 'Failed to save draft', type: 'error' });
     } finally {
       setIsSaving(false);
@@ -697,6 +752,9 @@ export function EmailComposer({
   // Attach from QuantDrive
   const handleAttachFromDrive = (driveAttachments: Attachment[]) => {
     setAttachments((prev) => [...prev, ...driveAttachments]);
+    // The file channel, not the mail channel: an attachment arriving is a Drive outcome, and a
+    // composer mount that listened only to `mail` should still be allowed to miss it.
+    quantyReact('file:uploaded');
     showToast({
       text: `Attached ${driveAttachments.length} file(s) from QuantDrive`,
       type: 'success',
@@ -743,7 +801,7 @@ export function EmailComposer({
             className="flex sm:hidden min-h-[44px] min-w-[44px] p-1.5 rounded-xl hover:bg-[#282C35] text-[#FF8C42] hover:text-[#FFB875] transition-all items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             title="Open Quanty AI Copilot"
           >
-            <Quanty size={24} expression="happy" bob={false} />
+            <Quanty size={24} expression={quantyFace} bob={false} />
           </button>
 
           {/* Three-Dots Menu Dropdown */}
@@ -1329,11 +1387,52 @@ export function EmailComposer({
           onChange={(event) => {
             const files = event.target.files;
             if (!files || files.length === 0) return;
+
+            /*
+             * A budget, not just a per-file test. `used` starts at what is already on the
+             * draft, so the tenth 3 MB image is refused for the right reason instead of
+             * sailing past because it happens to be small on its own.
+             */
+            let used = attachments.reduce((sum, item) => sum + item.size, 0);
+            const accepted: File[] = [];
+            let refused = 0;
+
             for (let i = 0; i < files.length; i++) {
               const file = files[i];
+              if (!file) continue;
+              const tooBig = file.size > MAX_ATTACHMENT_BYTES;
+              const overBudget = used + file.size > MAX_ATTACHMENTS_TOTAL_BYTES;
+              if (tooBig || overBudget) {
+                refused += 1;
+                continue;
+              }
+              used += file.size;
+              accepted.push(file);
+            }
+            // Cleared here rather than after the reads, so re-picking the same file works.
+            event.target.value = '';
+
+            if (refused > 0) {
+              quantyReact('file:tooLarge');
+              showToast({
+                text: `${refused} file(s) too large — ${formatBytes(MAX_ATTACHMENT_BYTES)} each, ${formatBytes(MAX_ATTACHMENTS_TOTAL_BYTES)} total`,
+                type: 'error',
+              });
+            }
+            if (accepted.length === 0) return;
+            // One latch for the whole selection, cleared when the last reader settles.
+            // `file:uploading` caps itself at 30s in the reaction table, so a file that
+            // never finishes reading cannot leave the mascot working forever.
+            quantyReact('file:uploading');
+            let pending = accepted.length;
+            const settle = () => {
+              pending -= 1;
+              if (pending === 0) quantyReact('file:uploaded');
+            };
+
+            for (const file of accepted) {
               const reader = new FileReader();
               reader.onload = () => {
-                const dataUrl = reader.result as string;
                 setAttachments((prev) => [
                   ...prev,
                   {
@@ -1343,13 +1442,17 @@ export function EmailComposer({
                     size: file.size,
                     type: file.type || 'application/octet-stream',
                     mimeType: file.type || 'application/octet-stream',
-                    url: dataUrl,
+                    url: reader.result as string,
                   },
                 ]);
+                settle();
+              };
+              reader.onerror = () => {
+                showToast({ text: `Could not read ${file.name}`, type: 'error' });
+                settle();
               };
               reader.readAsDataURL(file);
             }
-            event.target.value = '';
           }}
         />
 
@@ -1813,7 +1916,7 @@ export function EmailComposer({
             title="Open Quanty AI Copilot"
             aria-label="Open Quanty AI Copilot"
           >
-            <Quanty size={20} expression="happy" bob={false} />
+            <Quanty size={20} expression={quantyFace} bob={false} />
           </button>
         </div>
       </div>

@@ -19,7 +19,19 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { MarkGL } from '../../../components/marks/MarkGL';
 import { QuantGitGraphiteMark } from '../../../components/marks/GraphiteMark';
+import { QuantCalendarLogo } from '../../../components/QuantCalendarLogo';
+import { QuantContactsLogo } from '../../../components/QuantContactsLogo';
+import { QuantDriveLogo } from '../../../components/QuantDriveLogo';
 import { QuantGitLogo } from '../../../components/QuantGitLogo';
+import { QuantMailLogo } from '../../../components/QuantMailLogo';
+import { Quanty } from '../../../components/Quanty';
+import { FACE_NAMES } from '../../../lib/quanty/faces';
+import {
+  REACTIONS,
+  quantyReact,
+  useQuantyMood,
+  type QuantyEvent,
+} from '../../../lib/quanty/reactions';
 import { buildMarkShader } from '../../../lib/marks/material.glsl';
 import { QUANTGIT_SDF_GLSL } from '../../../lib/marks/quantgit.glsl';
 
@@ -94,6 +106,68 @@ const DIALS: readonly {
 const FOCUS =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]';
 
+/**
+ * Every size a `<Quanty>` is mounted at in the product, plus the 104px lab hero for the
+ * comparison. 20 is the composer footer, 22 the header trigger and the chat avatars, 24 the
+ * composer strip, 26 the transcript, 34 and 36 the two assistant headers, 64 the CodeHub card.
+ * Seven of the eight are under 40px, which is the entire point of measuring here.
+ */
+const RING_SIZES = [20, 22, 24, 26, 34, 36, 64, 104];
+
+/**
+ * The six app marks, at the sizes that decide them.
+ *
+ * 36 is the real one — `AppShell.tsx:726` mounts the whole family there, and the bottom nav and
+ * the switcher are 20–24. 64 and 104 are here to judge *construction*, not to ship: a mark whose
+ * layering only resolves at 104px has its detail in the wrong place, and that is exactly the
+ * failure the calendar was rebuilt for. Read 36 first and 104 last, never the other way round.
+ */
+const APP_MARK_SIZES = [20, 24, 32, 36, 64, 104];
+
+const APP_MARKS = [
+  {
+    key: 'calendar',
+    label: 'Calendar',
+    render: (size: number) => <QuantCalendarLogo size={size} />,
+  },
+  {
+    key: 'contacts',
+    label: 'Contacts',
+    render: (size: number) => <QuantContactsLogo size={size} />,
+  },
+  { key: 'drive', label: 'Drive', render: (size: number) => <QuantDriveLogo size={size} /> },
+  {
+    key: 'mail',
+    label: 'Mail',
+    render: (size: number) => <QuantMailLogo size={size} interactive={false} />,
+  },
+  { key: 'git', label: 'QuantGit', render: (size: number) => <QuantGitLogo size={size} /> },
+  { key: 'quanty', label: 'Quanty', render: (size: number) => <Quanty size={size} /> },
+];
+
+/**
+ * The mail mark's three unread paths, as three cells.
+ *
+ * `interactive={false}` with a real count is the one production surface renders
+ * (`AppShell`), so it is the one that has to announce; the interactive case is
+ * rendered here because no product surface mounts it, and an unexercised branch
+ * is where a missing accessible name lives.
+ */
+const UNREAD_CASES = [
+  {
+    label: 'decorative, 0 unread',
+    render: (size: number) => <QuantMailLogo size={size} interactive={false} />,
+  },
+  {
+    label: 'decorative, 7 unread — AppShell',
+    render: (size: number) => <QuantMailLogo size={size} interactive={false} unreadCount={7} />,
+  },
+  {
+    label: 'interactive, 128 unread',
+    render: (size: number) => <QuantMailLogo size={size} unreadCount={128} />,
+  },
+];
+
 function format(value: number): string {
   return value.toFixed(2);
 }
@@ -110,6 +184,63 @@ function Panel({ label, note, children }: { label: string; note: string; childre
       <p className="text-[11px] uppercase tracking-[0.12em] text-[#A1A4AC]">{label}</p>
       <p className="mt-1 text-[11px] text-[#6B6E76]">{note}</p>
       <div className="no-scrollbar mt-4 flex items-end gap-5 overflow-x-auto pb-1">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * The mascot sheet, as a live sheet.
+ *
+ * Thirty-five faces built from a declarative table is exactly the kind of change that
+ * typechecks perfectly and renders two of them identically — a `bar` at `eyeH: 0.34` beside
+ * one at `0.4` either separates or it does not, and no amount of reading the numbers tells
+ * you which. So the sheet is rendered at three sizes: 104 because that is the hero mount,
+ * 40 because that is the copilot, and 26 because that is the sidebar, and a face that only
+ * works at 104 has failed the same way a material that only works at 250px has.
+ */
+function FaceSheet() {
+  return (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 lg:grid-cols-5">
+      {FACE_NAMES.map((name) => (
+        <div key={name} className="flex flex-col items-center gap-2">
+          <Quanty expression={name} size={104} />
+          <div className="flex items-end gap-2">
+            <Quanty expression={name} size={40} />
+            <Quanty expression={name} size={26} />
+          </div>
+          <code className="text-[11px] text-[#A1A4AC]">{name}</code>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The other half of the complaint — that the mascot never *reacts*. Every event in
+ * `REACTIONS` gets a button, and one mood-driven Quanty listens to all of them, so the
+ * latch/pulse/priority behaviour is testable by hand rather than by reading the table.
+ */
+function ReactionBench() {
+  const mood = useQuantyMood();
+  const events = Object.keys(REACTIONS) as QuantyEvent[];
+  return (
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+      <div className="flex shrink-0 flex-col items-center gap-2">
+        <Quanty expression={mood} size={104} bob />
+        <code className="text-[11px] text-[#A1A4AC]">{mood}</code>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {events.map((event) => (
+          <button
+            key={event}
+            type="button"
+            onClick={() => quantyReact(event)}
+            className="min-h-11 rounded-lg border border-[#282C35] bg-[#16181D] px-2.5 text-[11px] text-[#A1A4AC] transition-colors hover:border-[#5C3016] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          >
+            {event}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -318,6 +449,140 @@ export function MarkLab() {
                 <QuantGitLogo key={size} size={size} />
               ))}
             </Panel>
+          </div>
+        </section>
+
+        <section className="mt-10" aria-labelledby="faces">
+          <h2 id="faces" className="text-[13px] font-medium text-[#F5F5F5]">
+            Quanty — the whole sheet, at three sizes
+          </h2>
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+            Thirty-five faces, one painter. Read the 26px column, not the 104px one: that is the
+            sidebar, the launcher and the send button, and a face that needs 104px to be legible is
+            a face the product never actually shows.
+          </p>
+          <div className="mt-4">
+            <FaceSheet />
+          </div>
+        </section>
+
+        <section className="mt-10" aria-labelledby="ring">
+          <h2 id="ring" className="text-[13px] font-medium text-[#F5F5F5]">
+            The ring, at every size the product actually mounts
+          </h2>
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+            The sheet above proves the faces are distinguishable; this row exists because the ring
+            was not, and for a reason no single-size view can show. A stroke is measured in buffer
+            units and the buffer is fitted to the CSS box, so one unit buys{' '}
+            <code className="px-1 text-[#A1A4AC]">dpr × size / 100</code> device pixels — the 2.3
+            units that read as a rainbow at 104px are three quarters of one pixel at 22px.{' '}
+            <code className="px-1 text-[#A1A4AC]">ringWidthForSize</code> holds the weight and{' '}
+            <code className="px-1 text-[#A1A4AC]">ringVividness</code> raises the chroma as the box
+            shrinks. Quanty above, QuantGit below: the two share the primitive, so both have to be
+            read, and 20 through 36 is where every product mount lives.
+          </p>
+          <div className="mt-4 flex flex-wrap items-end gap-5 rounded-xl border border-[#282C35] bg-[#111318] p-5">
+            {RING_SIZES.map((size) => (
+              <div key={size} className="flex flex-col items-center gap-2">
+                <Quanty size={size} title={`Quanty at ${size}px`} />
+                <QuantGitLogo size={size} title={`QuantGit at ${size}px`} />
+                <code className="text-[10px] text-[#6B6E76]">{size}px</code>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-10" aria-labelledby="family">
+          <h2 id="family" className="text-[13px] font-medium text-[#F5F5F5]">
+            The whole family, at the sizes that decide it
+          </h2>
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+            Six marks, one silhouette, one light rig — and the row is the point. Judging a mark on
+            its own hero shot is how the calendar shipped value-inverted from its reference: the
+            grey sheet under it looked like depth at 104px and like a smudge at 36. Read the{' '}
+            <code className="px-1 text-[#A1A4AC]">36px</code> column first, because
+            <code className="px-1 text-[#A1A4AC]">AppShell</code> mounts every one of these there,
+            then scan down it — a suite reads as a suite when the whole column shares a light
+            direction and a material, not when each mark is separately pretty.
+          </p>
+          <div className="mt-4 overflow-x-auto no-scrollbar rounded-xl border border-[#282C35] bg-[#111318] p-5">
+            <div className="w-max">
+              {/*
+                Every cell is `shrink-0`, header included. Without it the header row — whose
+                content is wider than the scroller — shrank its 104px cells to 55px while the
+                mark rows below held theirs, so the labels sat between the columns they named.
+                A size sweep whose labels are off by one is worse than no labels.
+              */}
+              <div className="flex items-end gap-6">
+                <span className="w-[72px] shrink-0" aria-hidden="true" />
+                {APP_MARK_SIZES.map((size) => (
+                  <span
+                    key={size}
+                    className="w-[104px] shrink-0 text-center text-[10px] text-[#6B6E76]"
+                  >
+                    {size}px
+                  </span>
+                ))}
+              </div>
+              {APP_MARKS.map((mark) => (
+                <div key={mark.key} className="mt-4 flex items-center gap-6">
+                  <span className="w-[72px] shrink-0 text-[11px] text-[#A1A4AC]">{mark.label}</span>
+                  {APP_MARK_SIZES.map((size) => (
+                    <span
+                      key={size}
+                      className="flex w-[104px] shrink-0 items-center justify-center"
+                    >
+                      {mark.render(size)}
+                    </span>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-10" aria-labelledby="unread">
+          <h2 id="unread" className="text-[13px] font-medium text-[#F5F5F5]">
+            The mail mark carrying a count
+          </h2>
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+            Three states, because unread is the one thing this mark says beyond its own name and all
+            three used to be wrong. The old mark spent it on{' '}
+            <code className="px-1 text-[#A1A4AC]">0.7</code> of a unit of extra pupil radius, which
+            no eye resolves at 20px; it is now warm light inside the envelope, under the flap.{' '}
+            <code className="px-1 text-[#A1A4AC]">AppShell</code> mounts the middle case — a real
+            count on a decorative mark — and until now painted the pill inside an{' '}
+            <code className="px-1 text-[#A1A4AC]">aria-hidden</code> wrapper, so the number was on
+            screen and announced nowhere. Read each cell&apos;s screen-reader text below it.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-6">
+            {UNREAD_CASES.map((unread) => (
+              <div
+                key={unread.label}
+                className="flex w-[150px] flex-col items-center gap-3 rounded-xl border border-[#282C35] bg-[#111318] p-5"
+              >
+                <div className="flex items-end gap-4">{unread.render(36)}</div>
+                {unread.render(20)}
+                <code className="text-center text-[11px] leading-snug text-[#A1A4AC]">
+                  {unread.label}
+                </code>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-10" aria-labelledby="reactions">
+          <h2 id="reactions" className="text-[13px] font-medium text-[#F5F5F5]">
+            …and what makes one arrive
+          </h2>
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+            One <code className="px-1 text-[#A1A4AC]">useQuantyMood()</code> listening to every
+            channel. Press two in a row to watch priority work: a hard failure outranks a background
+            index, and a pulse decays back to <code className="px-1">idle</code> on its own while a
+            latch waits to be replaced.
+          </p>
+          <div className="mt-4 rounded-xl border border-[#282C35] bg-[#111318] p-5">
+            <ReactionBench />
           </div>
         </section>
 

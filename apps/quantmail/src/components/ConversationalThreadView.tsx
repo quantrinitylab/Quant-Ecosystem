@@ -13,6 +13,7 @@ import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
 import { MessageKindBadge } from './MessageKindBadge';
 import { Quanty } from './Quanty';
+import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
 import { IconChat, IconMail } from './icons';
 import {
   findConversation,
@@ -112,6 +113,16 @@ export function ConversationalThreadView({
   const [isQuantyOpen, setIsQuantyOpen] = useState(false);
   const showQuanty = useDeferredMount(isQuantyOpen);
   const [replyError, setReplyError] = useState<string | null>(null);
+
+  /*
+   * The face on the reply bar's copilot trigger. `mail` and `sys` only: this bar writes and
+   * sends, so a send outcome and a dropped connection are both its business, while a Drive
+   * upload three panes away is not.
+   *
+   * It was a hardcoded `expression="happy"` — the `arch` eye, a ∩ stroked rather than
+   * filled, which at 20px is indistinguishable from a shut lid.
+   */
+  const quantyFace = useQuantyMood({ channels: ['mail', 'sys'] });
 
   /**
    * Which of the two things the bar at the bottom is about to write.
@@ -473,6 +484,10 @@ export function ConversationalThreadView({
     if ((!quickReplyText.trim() && pendingAttachments.length === 0) || isSendingQuickReply) return;
     setIsSendingQuickReply(true);
     setReplyError(null);
+    // A latch, cleared by whichever outcome arrives below. The reply bar has no spinner of
+    // its own beyond the button label going to `…`, so the mascot beside it is the only
+    // thing on screen that says a send is in flight.
+    quantyReact('mail:sending');
 
     const replyContent = quickReplyText.trim();
     const replyTarget = messages.length > 0 ? messages[messages.length - 1].id : threadId;
@@ -483,6 +498,7 @@ export function ConversationalThreadView({
       // than a guess about its length.
       const res = await apiClient.replyToEmail(replyTarget, replyContent, undefined, 'chat');
       if (!res.success) {
+        quantyReact('mail:sendFailed');
         setReplyError(res.error?.message || 'Failed to send reply');
         showToast({ text: res.error?.message || 'Failed to send reply', type: 'error' });
         return;
@@ -545,6 +561,7 @@ export function ConversationalThreadView({
 
       setQuickReplyText('');
       setPendingAttachments([]);
+      quantyReact('mail:sent');
       showToast({ text: 'Reply sent successfully', type: 'success' });
 
       // The conversation has a new message, so every mailbox list showing this
@@ -557,6 +574,7 @@ export function ConversationalThreadView({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
     } catch {
+      quantyReact('mail:sendFailed');
       setReplyError('Failed to send reply');
       showToast({ text: 'Failed to send reply', type: 'error' });
     } finally {
@@ -1521,7 +1539,7 @@ export function ConversationalThreadView({
             title="Ask Quanty AI to write response"
             aria-label="Ask Quanty AI to write a response"
           >
-            <Quanty size={20} expression="happy" bob={false} />
+            <Quanty size={20} expression={quantyFace} bob={false} />
           </button>
 
           {/* Chat Input Text Area */}

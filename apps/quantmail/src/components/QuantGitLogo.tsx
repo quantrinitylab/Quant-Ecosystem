@@ -242,9 +242,15 @@ export function QuantGitLogo({ size = 32, className = '', title = 'QuantGit' }: 
       // `strokeMarkBezel` sits over the ember marks' glyphs. `chrome`, not `spectral`:
       // reference ⑤ says chrome, a saturated rainbow beside three ember plates reads as
       // an RGB gaming bezel, and the spectral finish is Quanty's own signature.
-      strokeIridescentBezel(ctx, cx, cy, t, 'chrome');
+      //
+      // `size` is passed because the ring's weight is measured in device pixels, not buffer
+      // units — at 22px a 2.3-unit stroke survives as three quarters of one pixel. The
+      // `chrome` table's saturated partner is a contrast push, not colour: alternating light
+      // and dark bands are what make steel read as iridescent, and they are the first thing
+      // downsampling flattens.
+      strokeIridescentBezel(ctx, cx, cy, t, 'chrome', size);
     },
-    [],
+    [size],
   );
 
   const { canvasRef, pointerProps } = useLiveMark(paint, size);

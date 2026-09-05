@@ -27,12 +27,27 @@ import {
  * buffer, 45/22 squircle and 1.4 rim so the silhouette cannot drift from the mark
  * beside it.
  *
- * Three planes give it depth: a back sheet rotated 11° behind the pad, the pad
- * face itself, and two binder posts standing proud of the pad's top edge. They
- * parallax against the plate under the pointer, the pad breathes, and a specular
- * band travels across its face — pushed along on hover rather than faded in.
+ * Three planes give it depth: a deep-ember sheet offset up-and-left behind the pad,
+ * the pad face itself, and two white binder posts standing proud of the pad's top
+ * edge. They parallax against the plate under the pointer, the pad breathes, and a
+ * specular band travels across its face — pushed along on hover, not faded in.
  *
- * The content is today's real date, not six placeholder dots: the day number
+ * **The pad is frosted glass, not obsidian, and that is a reversal.** The draft this
+ * replaced built it as a near-black slab (`#171A20 → #050608`) for the reason still
+ * recorded at plane 1 below. Reviewed against the reference render that was the wrong
+ * call, and wrong in a way worth keeping on the record rather than quietly deleting:
+ * the reference stacks a *bright* body on an orange plate, so the hero of the mark is
+ * its lightest element — warm at the top, cooling to near-white at the foot, with the
+ * ember reading around and behind it. Making the hero the darkest thing in the mark
+ * inverted the entire value structure, and no amount of gloss on a black face
+ * recovers that; at 24px in the sidebar it went to a muddy chip. Every value below
+ * follows from the inversion: the sheet went warm because it now has to sit between a
+ * bright plate and a brighter pad, the type went to ember ink because it sits on
+ * light, the pad's shading pools warm because a frosted sheet over molten metal
+ * cannot shade neutral, and the gloss ceiling lifted because frost has no charcoal to
+ * be lifted to.
+ *
+ * The content is today's real date, not the reference's six dots: the day number
  * always, the weekday only from 88px up, where 8.5px of type resolves instead of
  * turning to mud — at the 64px draft it was a grey smudge under the posts. A
  * calendar icon that shows the wrong day is a small lie the product cannot afford,
@@ -101,17 +116,22 @@ export function QuantCalendarLogo({
       ctx.scale(scale, scale);
       ctx.translate(-cx, -cy);
 
-      // ---- plane 1: the sheet behind, rotated so its corners read as a stack ----
-      // *Graphite, not ember.* Two drafts tried an orange back plate, copying reference
-      // ③ — but ③ stacks an orange plate against a white page, and here the background
-      // is already the ember plate. Sampled, the orange sheet came out `#C26930` beside
-      // a `#A45422` plate: one value apart, so it read as a muddy bloom on the plate's
-      // edge rather than a plane. Dark separates from both neighbours at once — bright
-      // ember, mid graphite, obsidian pad — which is what makes the stack legible.
-      // Same size as the pad, not a halo around it, so its corners poke four clean
-      // triangles past the pad's edges instead of a uniform outline.
+      // ---- plane 1: the sheet behind, offset up-and-left so it reads as a stack ----
+      // *Ember ink, not graphite — and this is where the reversal was argued.* The draft
+      // before this one wanted a cool graphite sheet, having sampled an orange one at
+      // `#C26930` beside a `#A45422` plate: one value apart, a muddy bloom on the
+      // plate's edge rather than a plane. The measurement was right; the conclusion was
+      // wrong, because it was taken with an obsidian pad in front. Against a frosted pad
+      // the sheet's job changes from *separate from the plate* to *sit between a bright
+      // plate and a brighter pad*, and the value it needs is still dark — but warm.
+      // Cool graphite between two warm planes was the grey seam the whole mark read as.
+      // Deep ember ink is the same value and belongs to the plate it lies on.
+      //
+      // Offset as well as rotated: the reference's back plate is a clean translation up
+      // and to the left. Rotation alone poked corners out symmetrically, which reads as
+      // an outline round the pad rather than as a second sheet behind it.
       ctx.save();
-      ctx.translate(PAD.cx, PAD.cy);
+      ctx.translate(PAD.cx - 2.4, PAD.cy - 2.4);
       ctx.rotate(-0.15 + sway * 0.012);
       ctx.translate(-PAD.cx, -PAD.cy);
       roundRectPath(ctx, PAD.x - 2, PAD.y - 2, PAD.w + 4, PAD.h + 4, PAD.r + 2);
@@ -119,19 +139,19 @@ export function QuantCalendarLogo({
       ctx.shadowBlur = 3.5;
       ctx.shadowOffsetY = 2;
       const sheet = ctx.createLinearGradient(PAD.x, PAD.y, PAD.x + PAD.w, PAD.y + PAD.h);
-      sheet.addColorStop(0, '#3B424F');
-      sheet.addColorStop(0.55, '#262B34');
-      sheet.addColorStop(1, '#171B21');
+      sheet.addColorStop(0, '#7A3510');
+      sheet.addColorStop(0.55, '#4A1D06');
+      sheet.addColorStop(1, '#2A0F04');
       ctx.fillStyle = sheet;
       ctx.fill();
 
-      // Its lit edge, drawn with the shadow off: warm light bouncing off the plate onto
-      // the plate's own rim, which is what stops a dark plane becoming a hole.
+      // Its lit edge, drawn with the shadow off: the plate's own glow caught on the
+      // sheet's rim, which is what stops a dark plane becoming a hole.
       ctx.shadowColor = 'transparent';
       ctx.shadowBlur = 0;
       ctx.shadowOffsetY = 0;
       ctx.lineWidth = 0.9;
-      ctx.strokeStyle = 'rgba(255, 208, 165, 0.42)';
+      ctx.strokeStyle = 'rgba(255, 198, 148, 0.5)';
       ctx.stroke();
       ctx.restore();
 
@@ -145,26 +165,36 @@ export function QuantCalendarLogo({
       // lower curves, and the pad becomes a slab lying on molten metal. Press shortens
       // the wall, because a thing pressed into a surface shows less of its side — which
       // is a far better press than a scale change, and it costs one extra path.
+      //
+      // The wall is the *shaded side of a light slab*, so it is warm and mid-value, not
+      // near-black. Frosted glass over ember has no black in its edge; the previous
+      // `#3A2417 → #130B07` was the wall of an obsidian pad and under a bright face it
+      // read as a drawn outline instead of a thickness.
       const depth = 3.2 - press * 2.4;
       paintSideWall(
         ctx,
         (c) => roundRectPath(c, PAD.x, PAD.y, PAD.w, PAD.h, PAD.r),
         depth,
-        '#3A2417',
-        '#130B07',
+        '#D79A67',
+        '#8A4A1C',
         PAD.y,
         PAD.y + PAD.h,
       );
 
+      // The face: warm ember-cream at the top, cooling to a faintly cool near-white at
+      // the foot. Four stops, because three read as a ramp and the reference's body has
+      // an interior — and the contact shadow under it is warm, since the only light
+      // reaching the plate beneath the pad is the plate's own.
       ctx.save();
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.42)';
+      ctx.shadowColor = 'rgba(70, 26, 6, 0.5)';
       ctx.shadowBlur = 5 + hover * 3;
       ctx.shadowOffsetY = 2.4 + hover * 1.4;
       roundRectPath(ctx, PAD.x, PAD.y, PAD.w, PAD.h, PAD.r);
       const face = ctx.createLinearGradient(PAD.x, PAD.y, PAD.x, PAD.y + PAD.h);
-      face.addColorStop(0, '#171A20');
-      face.addColorStop(0.5, '#0A0C10');
-      face.addColorStop(1, '#050608');
+      face.addColorStop(0, '#FFD2A8');
+      face.addColorStop(0.3, '#FFEEDD');
+      face.addColorStop(0.68, '#F4F2F1');
+      face.addColorStop(1, '#DFE2E9');
       ctx.fillStyle = face;
       ctx.fill();
       ctx.restore();
@@ -203,39 +233,56 @@ export function QuantCalendarLogo({
         ctx.fillText(today.weekday, PAD.cx, PAD.y + HEAD_H / 2 + 0.4);
       }
 
+      // Ember ink, not white: the face is light now, so the type is the dark element.
+      // The shadow is warm and almost gone — on a light face a hard black drop reads as
+      // an outline, and what sells type sitting *in* glass is one unit of warm bleed.
       ctx.save();
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
-      ctx.shadowBlur = 4;
-      ctx.shadowOffsetY = 1.2;
-      ctx.fillStyle = MARK_COLORS.type;
+      ctx.shadowColor = 'rgba(122, 58, 18, 0.34)';
+      ctx.shadowBlur = 2.4;
+      ctx.shadowOffsetY = 0.9;
+      ctx.fillStyle = MARK_COLORS.emberInk;
       ctx.font = markFont(700, showWeekday ? 27 : 30);
       ctx.fillText(today.day, PAD.cx, PAD.y + HEAD_H + (PAD.h - HEAD_H) / 2 - 0.2);
       ctx.restore();
 
-      // Travelling specular band. Idles slowly, and hover pushes it across. Kept
-      // faint: at 0.09 it lifted the whole obsidian face to charcoal.
+      // Travelling specular band. Idles slowly, and hover pushes it across. The old
+      // 0.055 ceiling was a constraint of the obsidian face — anything brighter lifted
+      // it to charcoal. Frost has the opposite requirement: the reference carries a
+      // highlight on every element in it and not one flat fill.
       const sweep = reduced ? 0.34 : (t * 0.07 + hover * 0.5) % 1;
-      paintGlossSweep(ctx, PAD.x, PAD.y, PAD.w, PAD.h, sweep, 0.055 + hover * 0.08);
+      paintGlossSweep(ctx, PAD.x, PAD.y, PAD.w, PAD.h, sweep, 0.16 + hover * 0.16);
 
-      // Inner rim: a lit top edge and a pooled bottom, drawn over everything on the pad.
+      // Shading, warm. A frosted sheet lying on molten metal cannot pool neutral: the
+      // light reaching its underside is the plate's, so the foot goes warm and the top
+      // keeps the sky. Black here was the other half of the muddiness.
       const inner = ctx.createLinearGradient(PAD.x, PAD.y, PAD.x, PAD.y + PAD.h);
-      inner.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
-      inner.addColorStop(0.12, 'rgba(255, 255, 255, 0)');
-      inner.addColorStop(0.8, 'rgba(0, 0, 0, 0)');
-      inner.addColorStop(1, 'rgba(0, 0, 0, 0.38)');
+      inner.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+      inner.addColorStop(0.16, 'rgba(255, 255, 255, 0)');
+      inner.addColorStop(0.74, 'rgba(122, 58, 18, 0)');
+      inner.addColorStop(1, 'rgba(108, 50, 14, 0.2)');
       ctx.fillStyle = inner;
       ctx.fillRect(PAD.x, PAD.y, PAD.w, PAD.h);
 
+      // The rim-light the reference traces round its whole silhouette, here on the pad's
+      // own edge: bright where it catches the plate's hottest layer at the top, deeper
+      // ember as it comes down. The white hairline this replaces vanished into the frost.
       roundRectPath(ctx, PAD.x + 0.5, PAD.y + 0.5, PAD.w - 1, PAD.h - 1, PAD.r - 0.5);
       ctx.lineWidth = 1;
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      const padRim = ctx.createLinearGradient(PAD.x, PAD.y, PAD.x, PAD.y + PAD.h);
+      padRim.addColorStop(0, 'rgba(255, 214, 172, 0.9)');
+      padRim.addColorStop(0.4, 'rgba(255, 165, 96, 0.5)');
+      padRim.addColorStop(1, 'rgba(226, 116, 46, 0.7)');
+      ctx.strokeStyle = padRim;
       ctx.stroke();
       ctx.restore();
 
       // ---- plane 3: the binder posts, standing proud of the pad's top edge ----
       // Short and chunky. The first pass stood 7 units clear at 4.2 wide and read as
       // antennae; a real binder ring is a stud, so the exposed part is now shorter
-      // than it is wide by less than half.
+      // than it is wide by less than half. White at the crown, because in the reference
+      // the rings are the one pure-white element and they have to stay the brightest
+      // thing on the mark now that the pad is light too — they read against the orange
+      // rail and the plate, never against the frost.
       const postY = PAD.y - 5.6;
       const postH = 11.4;
       for (const px of [PAD.x + 16, PAD.x + PAD.w - 16]) {
@@ -256,9 +303,9 @@ export function QuantCalendarLogo({
         ctx.shadowOffsetY = 2;
         roundRectPath(ctx, px - 2.5, postY, 5, postH, 2.5);
         const post = ctx.createLinearGradient(px - 2.5, postY, px + 2.5, postY + postH);
-        post.addColorStop(0, '#FFF4E9');
-        post.addColorStop(0.5, MARK_COLORS.peach);
-        post.addColorStop(1, '#DF9A65');
+        post.addColorStop(0, '#FFFFFF');
+        post.addColorStop(0.46, '#FFF1E1');
+        post.addColorStop(1, MARK_COLORS.peach);
         ctx.fillStyle = post;
         ctx.fill();
         ctx.restore();

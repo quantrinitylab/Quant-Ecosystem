@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRegisterCommands } from '../lib/keyboard/hooks';
 import { Quanty } from './Quanty';
+import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
 
 interface ChatMessage {
   id: string;
@@ -65,6 +66,17 @@ export function AICodingChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  /*
+   * `ai` and `sys`. This panel answers about code and nothing else, so an AI outcome and a
+   * lost connection are its business while a send or an upload elsewhere in the app is not.
+   *
+   * The header mount below already reads `isLoading` and that stays on top: a local typing
+   * row that disagrees with the face beside it is worse than either alone. What the bus adds
+   * is the tail — `proud` for the beat after an answer lands, `error` when one does not, and
+   * `idle` (the open capsule eye) at rest instead of a constant.
+   */
+  const mood = useQuantyMood({ channels: ['ai', 'sys'] });
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -106,6 +118,9 @@ export function AICodingChat({
       setMessages((prev) => [...prev, userMsg]);
       setInput('');
       setIsLoading(true);
+      // A 25s latch in the reaction table, so a request that never resolves cannot strand the
+      // mascot mid-thought on the header trigger two components up, which is listening too.
+      quantyReact('ai:thinking');
 
       // Build context for AI
       const context = currentFile
@@ -125,7 +140,9 @@ export function AICodingChat({
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, assistantMsg]);
+        quantyReact('ai:answered');
       } catch {
+        quantyReact('ai:failed');
         setMessages((prev) => [
           ...prev,
           {
@@ -181,7 +198,7 @@ export function AICodingChat({
     <div className="ai-coding-chat">
       <header className="ai-chat-header">
         <div className="ai-chat-title">
-          <Quanty expression={isLoading ? 'thinking' : 'idle'} size={34} />
+          <Quanty expression={isLoading ? 'thinking' : mood} size={34} />
           <strong>QuantAI Code</strong>
         </div>
         <div className="ai-chat-context">
@@ -232,6 +249,14 @@ export function AICodingChat({
           <div key={msg.id} className={`ai-chat-msg ai-chat-msg--${msg.role}`}>
             {msg.role === 'assistant' && (
               <span className="ai-msg-avatar">
+                {/*
+                  Deliberately not live, and the same call as the assistant panel's transcript.
+                  This avatar is rendered per message inside the map, so a live mood would put
+                  one identical reacting face on every past reply and make a finished message
+                  answer to a present event. No `expression` resolves to `idle`, the open
+                  capsule eye, which is the right resting mark for a line of history. The one
+                  live face here is the header mount above.
+                */}
                 <Quanty size={22} />
               </span>
             )}

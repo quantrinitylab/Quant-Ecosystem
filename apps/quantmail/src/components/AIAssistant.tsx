@@ -5,6 +5,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Quanty } from './Quanty';
+import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
 
 export interface AIAssistantProps {
   isOpen: boolean;
@@ -43,6 +44,13 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
   const [quickActions, setQuickActions] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  /*
+   * `ai` and `sys` only. This panel is an assistant, so an AI outcome and a dropped
+   * connection are its business; a send happening in a composer elsewhere is not.
+   * `isProcessing` stays on top of the header mount, which already reads that way.
+   */
+  const mood = useQuantyMood({ channels: ['ai', 'sys'] });
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -66,6 +74,7 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
     setInput('');
     addMessage('user', userMessage);
     setIsProcessing(true);
+    quantyReact('ai:thinking');
 
     try {
       // Detect intent and route to appropriate handler
@@ -98,7 +107,11 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
         const response = await onAsk(userMessage, currentContext?.content);
         addMessage('assistant', response);
       }
+      // One announcement for all four branches: every one of them ends in an assistant
+      // message, so from the mascot's point of view the turn answered.
+      quantyReact('ai:answered');
     } catch (error) {
+      quantyReact('ai:failed');
       addMessage(
         'assistant',
         'Sorry, I encountered an error processing your request. Please try again.',
@@ -110,6 +123,7 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
 
   const handleQuickAction = async (action: string) => {
     setIsProcessing(true);
+    quantyReact('ai:thinking');
     setQuickActions(false);
 
     try {
@@ -151,7 +165,9 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
           );
           break;
       }
+      quantyReact('ai:answered');
     } catch {
+      quantyReact('ai:failed');
       addMessage('assistant', 'Something went wrong. Please try again.');
     } finally {
       setIsProcessing(false);
@@ -172,7 +188,7 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
       {/* Header */}
       <div className="ai-header">
         <div className="ai-title">
-          <Quanty expression={isProcessing ? 'thinking' : 'idle'} size={36} />
+          <Quanty expression={isProcessing ? 'thinking' : mood} size={36} />
           <h3>Quanty</h3>
         </div>
         <button className="btn-icon" onClick={onClose}>
@@ -193,6 +209,13 @@ export function AIAssistant(props: AIAssistantProps): React.ReactElement {
         {messages.map((msg) => (
           <div key={msg.id} className={`ai-message ai-message-${msg.role}`}>
             <div className="message-avatar">
+              {/*
+                Deliberately not live. This is a per-message avatar inside the transcript, so
+                a live mood would put the same reacting face on all ten of a session's replies
+                and make a past message's avatar answer to a present event. No `expression`
+                resolves to `idle`, the open capsule eye, which is the right resting mark for
+                a line of history. The panel's one live face is the header mount below.
+              */}
               {msg.role === 'assistant' ? <Quanty size={26} /> : 'You'}
             </div>
             <div className="message-content">

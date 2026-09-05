@@ -297,42 +297,115 @@ export function paintObsidianPlate(
  * dark as anything in the `chrome` table, and they have to be: a ramp of pale hues with no
  * dark in it is a pastel sticker, and the two near-white stops only read as *specular* by
  * contrast with a terminator a tenth of a turn away. Pale hues, full range.
+ *
+ * ---
+ *
+ * **That whole judgement was made at one size, and the size was the wrong one.** It is kept
+ * above because it is still true at 104px — but 104px is the lab hero, and the product's
+ * largest Quanty is the 64px CodeHub card, with everything else at 20–36px. The ring is
+ * stroked in buffer units and the buffer is downsampled to the CSS box, so a unit is worth
+ * `dpr × size / 100` device pixels: the 2.3-unit ramp that measures 3.6 device px at 104px
+ * measures **0.76 device px at 22px**, where it cannot carry a hue at all — it alpha-blends
+ * into the dark backing on both sides and comes out as an off-white hairline. A screenshot of
+ * `/codehub` showed exactly that, and read as "no rainbow ring", which is the honest reading.
+ *
+ * So each stop is now a **pair**: the pale thin-film value above, and a saturated partner.
+ * `ringVividness(size)` mixes between them — 0 at hero size, where the measurement above
+ * holds, rising to 1 by 32px, where a 1.5-device-px line gets one chance to say "colour" and
+ * a soap-bubble tint is not it. The vivid end of `spectral` follows reference ⑧'s own
+ * sequence (red → orange → yellow → green → blue, warm side dominant) and passes through
+ * `#FF8C42` itself. `chrome`'s partner adds contrast rather than saturation: the same
+ * downsampling that greys a hue also collapses an alternating light/dark band into flat
+ * mid-grey, so polished steel needs whiter whites and blacker blacks at small sizes, not
+ * colour it never had.
  */
 const RING_FINISHES = {
   chrome: [
-    [0, '#FFFFFF'],
-    [0.06, '#C9D2DE'],
-    [0.14, '#6D7686'],
-    [0.22, '#2B3038'],
-    [0.3, '#8E96A4'],
-    [0.38, '#E8EEF6'],
-    [0.46, '#A99BC0'],
-    [0.54, '#4A4E58'],
-    [0.63, '#26313A'],
-    [0.71, '#9AA6B2'],
-    [0.79, '#F0DCC0'],
-    [0.87, '#6E645C'],
-    [0.94, '#3A3F49'],
-    [1, '#FFFFFF'],
+    [0, '#FFFFFF', '#FFFFFF'],
+    [0.06, '#C9D2DE', '#E4EBF4'],
+    [0.14, '#6D7686', '#7E8998'],
+    [0.22, '#2B3038', '#0E1116'],
+    [0.3, '#8E96A4', '#A8B2C0'],
+    [0.38, '#E8EEF6', '#FFFFFF'],
+    [0.46, '#A99BC0', '#B79FE0'],
+    [0.54, '#4A4E58', '#2E323A'],
+    [0.63, '#26313A', '#0C1015'],
+    [0.71, '#9AA6B2', '#BCC8D4'],
+    [0.79, '#F0DCC0', '#FFD9A0'],
+    [0.87, '#6E645C', '#5A5048'],
+    [0.94, '#3A3F49', '#14181F'],
+    [1, '#FFFFFF', '#FFFFFF'],
   ],
   spectral: [
-    [0, '#FFF6EC'],
-    [0.07, '#FFDCBC'],
-    [0.15, '#F0C8DE'],
-    [0.24, '#D9BEEE'],
-    [0.33, '#B9CBF2'],
-    [0.41, '#F2FAFF'],
-    [0.5, '#3E4A54'],
-    [0.59, '#7FA9A6'],
-    [0.68, '#C8E6DC'],
-    [0.77, '#F6E6C2'],
-    [0.85, '#FFD0BC'],
-    [0.93, '#4C4654'],
-    [1, '#FFF6EC'],
+    [0, '#FFF6EC', '#FFFFFF'],
+    [0.07, '#FFDCBC', '#FFA24A'],
+    [0.15, '#F0C8DE', '#FF5E7A'],
+    [0.24, '#D9BEEE', '#C25CFF'],
+    [0.33, '#B9CBF2', '#4E8CFF'],
+    [0.41, '#F2FAFF', '#EAF6FF'],
+    [0.5, '#3E4A54', '#141A20'],
+    [0.59, '#7FA9A6', '#22C08F'],
+    [0.68, '#C8E6DC', '#7BE8C0'],
+    [0.77, '#F6E6C2', '#FFD54A'],
+    [0.85, '#FFD0BC', '#FF8C42'],
+    [0.93, '#4C4654', '#1A1420'],
+    [1, '#FFF6EC', '#FFFFFF'],
   ],
-} satisfies Record<string, Array<[number, string]>>;
+} satisfies Record<string, Array<[number, string, string]>>;
 
 export type RingFinish = keyof typeof RING_FINISHES;
+
+/**
+ * The ring's weight, in buffer units, for a mark displayed at `size` CSS px.
+ *
+ * A unit is not a pixel. `useLiveMark` supersamples to `max(100, size) × dpr` and the browser
+ * then fits that buffer into a `size`-px box, so one unit survives as `dpr × size / 100`
+ * device pixels — and the reciprocal, `100 / (dpr × size)`, is how many units it takes to buy
+ * one. At 104px and dpr 1.5 that is 0.64 units per device px; at 22px it is 3.03. The same
+ * stroke is therefore 4.7× thinner on a header trigger than on the lab hero, which is why a
+ * ring tuned at 104px disappears everywhere the product actually mounts one.
+ *
+ * Two device pixels is the floor: one is exactly the case that fails, because a single pixel
+ * of a mid-tone hue sitting between a dark backing and a dark plate is averaged into both.
+ * `RING_MAX_WIDTH` then caps the compensation at twice the design weight, and that ceiling
+ * binds below ~29px — a 22px mark simply cannot hold 2 device px of ring without turning into
+ * a frame, so from there down `ringVividness` carries what the geometry cannot.
+ */
+const RING_DESIGN_WIDTH = 2.3;
+const RING_MIN_DEVICE_PX = 2;
+const RING_MAX_WIDTH = 4.6;
+
+export function ringWidthForSize(size: number): number {
+  const unitsPerDevicePx = MARK_RES / Math.max(1, markDpr() * size);
+  const needed = RING_MIN_DEVICE_PX * unitsPerDevicePx;
+  return Math.min(RING_MAX_WIDTH, Math.max(RING_DESIGN_WIDTH, needed));
+}
+
+/**
+ * How far along each stop's pale → saturated pair to sit, for a mark at `size` CSS px. Zero
+ * at 96px and above, where the pastel measurement stands; one at 32px and below, where the
+ * ring is a hairline and needs every bit of chroma it can hold. The 64px hero lands at 0.5.
+ */
+export function ringVividness(size: number): number {
+  return Math.min(1, Math.max(0, (96 - size) / 64));
+}
+
+/**
+ * sRGB lerp between two `#rrggbb` strings. Good enough here on purpose: every pair in
+ * `RING_FINISHES` holds hue and value roughly constant and moves saturation, which is the one
+ * axis where naive channel mixing does not visibly bend.
+ */
+function mixHex(from: string, to: string, t: number): string {
+  if (t <= 0) return from;
+  if (t >= 1) return to;
+  const a = parseInt(from.slice(1), 16);
+  const b = parseInt(to.slice(1), 16);
+  const lerp = (shift: number): number => {
+    const av = (a >> shift) & 255;
+    return Math.round(av + (((b >> shift) & 255) - av) * t);
+  };
+  return `rgb(${lerp(16)}, ${lerp(8)}, ${lerp(0)})`;
+}
 
 /**
  * The iridescent ring the dark marks wear instead of the warm bezel — reference ⑤'s
@@ -346,6 +419,11 @@ export type RingFinish = keyof typeof RING_FINISHES;
  * tilt a real one — a static rainbow is a decal.
  *
  * Stroked outside the plate clip, like `strokeMarkBezel`, so it sits over the glyph.
+ *
+ * `size` is the mark's displayed edge in CSS px, and it is not optional in spirit: the weight
+ * and the chroma are both read off it, because a ring is the one element of these marks whose
+ * correct value in buffer units changes with how big the buffer is being shown. Passing
+ * nothing gets the 100-unit assumption, which is the lab hero and nothing in the product.
  */
 export function strokeIridescentBezel(
   ctx: CanvasRenderingContext2D,
@@ -353,18 +431,52 @@ export function strokeIridescentBezel(
   cy: number,
   time: number,
   finish: RingFinish = 'chrome',
-  width = 2.3,
+  size: number = MARK_RES,
 ): void {
+  const width = ringWidthForSize(size);
+  const vivid = ringVividness(size);
+
   ctx.save();
   markSquirclePath(ctx, cx, cy);
   ctx.lineWidth = width + 1.2;
   ctx.strokeStyle = 'rgba(9, 10, 14, 0.94)';
   ctx.stroke();
 
+  const ring = ctx.createConicGradient(time * 0.3, cx, cy);
+  for (const [at, calm, hot] of RING_FINISHES[finish]) {
+    ring.addColorStop(at, mixHex(calm, hot, vivid));
+  }
+
+  /*
+   * Reference ⑧'s "soft inward bloom", and inward is the whole of it. Two widening strokes of
+   * the same gradient at falling alpha approximate a falloff — the trick `paintPulse` uses —
+   * clipped to the plate so the spill lands on the mark's own body and not on the app behind
+   * it. `shadowBlur` would be softer and is not an option: its `shadowColor` is one flat
+   * colour, so the bloom would lose the hue that is the entire point, and it would halo
+   * outward into exactly the neon glow the design system rules out.
+   *
+   * Clipping to the silhouette also halves each stroke, so the widths below reach inward by
+   * about `(width + n) / 2 − width / 2`. Scaled by `vivid` because at hero size the ring is
+   * wide enough to read on its own and a bloom there is just haze over the face.
+   */
+  if (vivid > 0.01) {
+    ctx.save();
+    markSquirclePath(ctx, cx, cy);
+    ctx.clip();
+    ctx.strokeStyle = ring;
+    ctx.lineWidth = width + 2.2;
+    ctx.globalAlpha = 0.3 * vivid;
+    markSquirclePath(ctx, cx, cy);
+    ctx.stroke();
+    ctx.lineWidth = width + 5;
+    ctx.globalAlpha = 0.16 * vivid;
+    markSquirclePath(ctx, cx, cy);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   markSquirclePath(ctx, cx, cy);
   ctx.lineWidth = width;
-  const ring = ctx.createConicGradient(time * 0.3, cx, cy);
-  for (const [at, colour] of RING_FINISHES[finish]) ring.addColorStop(at, colour);
   ctx.strokeStyle = ring;
   ctx.stroke();
   ctx.restore();

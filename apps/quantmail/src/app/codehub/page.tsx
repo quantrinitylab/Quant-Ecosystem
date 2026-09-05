@@ -26,6 +26,7 @@ import {
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { Quanty, type QuantyExpression } from '../../components/Quanty';
+import { quantyReact, useQuantyMood } from '../../lib/quanty/reactions';
 import { useRepos, useCreateRepo } from '../../hooks/useRepos';
 import { useBuilds, useDeployments } from '../../hooks/usePipelines';
 import { browserAuthSession } from '../../services/browser-auth-session';
@@ -245,13 +246,19 @@ function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewR
     setMessages(next);
     setInput('');
     setSending(true);
+    // Announced, not just held locally: the header trigger on this route is listening on all
+    // channels, so the corner of the screen shows the build request even after this hero
+    // scrolls out of view. The latch caps itself at 25s.
+    quantyReact('ai:thinking');
     try {
       const reply = await askQuanty(next, mode, repoNames);
       setMessages((prev) => [
         ...prev,
         { id: crypto.randomUUID(), role: 'assistant', content: reply },
       ]);
+      quantyReact('ai:answered');
     } catch (err) {
+      quantyReact('ai:failed');
       setChatError(
         err instanceof Error ? err.message : 'Quanty could not answer. Retry in a moment.',
       );
@@ -260,13 +267,23 @@ function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewR
     }
   }, [input, sending, messages, mode, repoNames]);
 
-  const expression: QuantyExpression = sending
-    ? 'thinking'
-    : chatError
-      ? 'sad'
-      : messages.some((m) => m.role === 'assistant')
-        ? 'happy'
-        : 'idle';
+  /*
+   * This is the largest Quanty in the product — 64px on the CodeHub hero — and it was the
+   * clearest instance of the mascot looking asleep. The expression was a four-arm local
+   * ternary whose resting value, once any reply existed, was `'happy'`; `happy` is the `arch`
+   * eye, a ∩ stroked rather than filled, so after one exchange the hero sat with what read as
+   * closed eyes for the rest of the session. The `chatError → 'sad'` arm had the mirror
+   * problem: the banner below persists until the next send, so the face was pinned sad too.
+   *
+   * On the bus instead. `ai:failed` holds `error` for 2.6s and `ai:answered` holds `proud` for
+   * 1.4s, then both decay to `idle` — the open capsule eye. The persistent information lives
+   * in the banner and the transcript, where it can be read; the face carries the event.
+   *
+   * `sending` stays on top of the hook because this component owns that fact directly and the
+   * thread below already renders a "Quanty is thinking" row from it.
+   */
+  const mood = useQuantyMood({ channels: ['ai', 'sys'] });
+  const expression: QuantyExpression = sending ? 'thinking' : mood;
 
   return (
     <section className="ch-quanty-hero" aria-label="Build with Quanty">
