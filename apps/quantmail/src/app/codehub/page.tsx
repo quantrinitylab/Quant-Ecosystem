@@ -8,7 +8,7 @@
 // connectors, repos and pipelines.
 // ============================================================================
 
-import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect, useId } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Button,
@@ -20,6 +20,8 @@ import {
   Skeleton,
   ErrorState,
   EmptyState,
+  nextRovingIndex,
+  rovingTabIndex,
 } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
@@ -149,6 +151,15 @@ function repoNameFromUrl(url: string): string {
 type BuildChatMessage = { id: string; role: 'user' | 'assistant'; content: string };
 type BuildMode = 'plan' | 'build';
 
+const BUILD_MODES: ReadonlyArray<{ value: BuildMode; label: string; hint: string }> = [
+  { value: 'plan', label: 'Plan', hint: 'Explain and break the work down. Nothing is changed.' },
+  {
+    value: 'build',
+    label: 'Build',
+    hint: 'Propose concrete repos, files, commits and deploy steps.',
+  },
+];
+
 async function askQuanty(
   history: BuildChatMessage[],
   mode: BuildMode,
@@ -199,6 +210,25 @@ function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewR
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
+  const modeRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const modeLabelId = useId();
+
+  /*
+    Plan and Build are a one-of-two choice, so the group is a radiogroup and it
+    owes arrow-key traversal: the whole set is a single tab stop and Left/Right
+    moves between the options. `nextRovingIndex` is the shared primitive so this
+    behaves identically to the inbox lens row.
+  */
+  const onModeKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      const next = nextRovingIndex(event.key, index, BUILD_MODES.length);
+      if (next === null) return;
+      event.preventDefault();
+      setMode(BUILD_MODES[next]!.value);
+      modeRefs.current[next]?.focus();
+    },
+    [],
+  );
 
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
@@ -249,49 +279,65 @@ function QuantyBuildChat({ repoNames, onNewRepo }: { repoNames: string[]; onNewR
             agents and watches the pipelines — he picks the best model for the job himself.
           </p>
         </div>
-        <div className="ch-mode-toggle" role="tablist" aria-label="Quanty mode">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'plan'}
-            className={mode === 'plan' ? 'is-active' : ''}
-            onClick={() => setMode('plan')}
-          >
-            Plan
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === 'build'}
-            className={mode === 'build' ? 'is-active' : ''}
-            onClick={() => setMode('build')}
-          >
-            Build
-          </button>
+        <span id={modeLabelId} className="sr-only">
+          Quanty mode
+        </span>
+        <div className="ch-mode-toggle" role="radiogroup" aria-labelledby={modeLabelId}>
+          {BUILD_MODES.map((option, index) => (
+            <button
+              key={option.value}
+              ref={(node) => {
+                modeRefs.current[index] = node;
+              }}
+              type="button"
+              role="radio"
+              aria-checked={mode === option.value}
+              tabIndex={rovingTabIndex(
+                index,
+                BUILD_MODES.findIndex((m) => m.value === mode),
+              )}
+              title={option.hint}
+              className={mode === option.value ? 'is-active' : ''}
+              onClick={() => setMode(option.value)}
+              onKeyDown={(event) => onModeKeyDown(event, index)}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {(messages.length > 0 || sending || chatError) && (
-        <div className="ch-quanty-thread" ref={threadRef} aria-live="polite">
-          {messages.map((message) => (
-            <div key={message.id} className={`ch-msg is-${message.role}`}>
-              {message.role === 'assistant' && <span className="ch-msg-author">Quanty</span>}
-              <p>{message.content.replace(/^\[(PLAN|BUILD)\]\s*/, '')}</p>
-            </div>
-          ))}
-          {sending && (
-            <div className="ch-msg is-assistant ch-msg-typing">
-              <Quanty expression="thinking" size={22} /> Quanty is{' '}
-              {mode === 'plan' ? 'planning' : 'building the approach'}…
-            </div>
-          )}
-          {chatError && (
-            <div className="ch-msg is-error" role="alert">
-              {chatError}
-            </div>
-          )}
-        </div>
-      )}
+      {/*
+        The thread is mounted unconditionally so that the polite region is in the
+        DOM *before* the first reply lands. Rendered conditionally it entered the
+        DOM already holding text, which is an insertion rather than a mutation —
+        several screen readers announce nothing for that, so the first answer was
+        silent.
+      */}
+      <div
+        className="ch-quanty-thread"
+        ref={threadRef}
+        aria-live="polite"
+        hidden={messages.length === 0 && !sending && !chatError}
+      >
+        {messages.map((message) => (
+          <div key={message.id} className={`ch-msg is-${message.role}`}>
+            {message.role === 'assistant' && <span className="ch-msg-author">Quanty</span>}
+            <p>{message.content.replace(/^\[(PLAN|BUILD)\]\s*/, '')}</p>
+          </div>
+        ))}
+        {sending && (
+          <div className="ch-msg is-assistant ch-msg-typing">
+            <Quanty expression="thinking" size={22} /> Quanty is{' '}
+            {mode === 'plan' ? 'planning' : 'building the approach'}…
+          </div>
+        )}
+        {chatError && (
+          <div className="ch-msg is-error" role="alert">
+            {chatError}
+          </div>
+        )}
+      </div>
 
       <form
         className="ch-quanty-composer"
@@ -578,12 +624,30 @@ export default function CodeHubPage() {
   const [query, setQuery] = useState('');
   const [visibility, setVisibility] = useState<VisibilityFilter>('all');
   const [showCreate, setShowCreate] = useState(false);
+  const visibilityRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const visibilityLabelId = useId();
   const [draft, setDraft] = useState({
     name: '',
     description: '',
     visibility: 'private',
     sourceUrl: '',
   });
+
+  /*
+    Four chips for one choice: a radiogroup, not four independent buttons. Before
+    this the selected chip differed only in border, background and font weight,
+    so all four announced identically and nothing said which was in force.
+  */
+  const onVisibilityKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      const next = nextRovingIndex(event.key, index, VISIBILITY_FILTERS.length);
+      if (next === null) return;
+      event.preventDefault();
+      setVisibility(VISIBILITY_FILTERS[next]!);
+      visibilityRefs.current[next]?.focus();
+    },
+    [],
+  );
 
   const { data: reposData, isLoading, error, refetch } = useRepos();
   const { data: buildsData } = useBuilds();
@@ -636,14 +700,28 @@ export default function CodeHubPage() {
             <ConnectorsRow />
 
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4 mt-6">
-              <div className="flex items-center gap-2 flex-wrap">
-                {VISIBILITY_FILTERS.map((option) => {
+              <div
+                role="radiogroup"
+                aria-labelledby={visibilityLabelId}
+                className="flex items-center gap-2 flex-wrap"
+              >
+                <span id={visibilityLabelId} className="sr-only">
+                  Filter repositories by visibility
+                </span>
+                {VISIBILITY_FILTERS.map((option, index) => {
                   const active = visibility === option;
                   return (
                     <button
                       key={option}
+                      ref={(node) => {
+                        visibilityRefs.current[index] = node;
+                      }}
                       type="button"
+                      role="radio"
+                      aria-checked={active}
+                      tabIndex={rovingTabIndex(index, VISIBILITY_FILTERS.indexOf(visibility))}
                       onClick={() => setVisibility(option)}
+                      onKeyDown={(event) => onVisibilityKeyDown(event, index)}
                       className={`inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                         active
                           ? 'border-[var(--quant-primary)] bg-[color-mix(in_srgb,var(--quant-primary)_18%,transparent)] text-[var(--quant-foreground)] font-bold'
@@ -698,12 +776,25 @@ export default function CodeHubPage() {
               {!isLoading &&
                 !error &&
                 filtered.map((repo) => (
-                  <li key={repo.id}>
+                  <li
+                    key={repo.id}
+                    className="group relative rounded-2xl border border-[var(--quant-border)] bg-[color-mix(in_srgb,var(--quant-card)_92%,transparent)] p-4 transition-all focus-within:border-[color-mix(in_srgb,var(--quant-primary)_45%,transparent)] hover:border-[color-mix(in_srgb,var(--quant-primary)_45%,transparent)] hover:shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)]"
+                  >
+                    {/*
+                      The whole row used to be one <button> with the clone-URL
+                      button nested inside it. ARIA 1.2 §5.2.7 makes a button's
+                      descendants presentational, so the inner control was
+                      flattened into the row's name and was not reachable at all.
+                      The row target is now a stretched overlay link and the
+                      clone control is its sibling, sitting above it.
+                    */}
                     <button
                       type="button"
                       onClick={() => router.push(`/codehub/${repo.id}`)}
-                      className="w-full text-left rounded-2xl border border-[var(--quant-border)] bg-[color-mix(in_srgb,var(--quant-card)_92%,transparent)] p-4 transition-all hover:border-[color-mix(in_srgb,var(--quant-primary)_45%,transparent)] hover:shadow-[0_18px_40px_-28px_rgba(0,0,0,0.9)]"
-                    >
+                      aria-label={`Open ${repo.fullName || repo.name}`}
+                      className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    />
+                    <div className="pointer-events-none relative z-10">
                       <div className="flex items-start gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -737,10 +828,12 @@ export default function CodeHubPage() {
                                 strokeWidth="2"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
+                                aria-hidden="true"
                               >
                                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                               </svg>
                               {repo.stars ?? 0}
+                              <span className="sr-only"> stars</span>
                             </span>
                             <span className="flex items-center gap-1">
                               <svg
@@ -751,6 +844,7 @@ export default function CodeHubPage() {
                                 strokeWidth="2"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
+                                aria-hidden="true"
                               >
                                 <line x1="6" y1="3" x2="6" y2="15" />
                                 <circle cx="18" cy="6" r="3" />
@@ -758,15 +852,22 @@ export default function CodeHubPage() {
                                 <path d="M18 9a9 9 0 0 1-9 9" />
                               </svg>
                               {repo.forks ?? 0}
+                              <span className="sr-only"> forks</span>
                             </span>
                             {repo.defaultBranch && <span>default: {repo.defaultBranch}</span>}
                             {repo.updatedAt && <span>updated {relativeTime(repo.updatedAt)}</span>}
-                            {/* Clone URL — one-click copy; stops propagation so row click still navigates */}
-                            <CloneButton repo={repo} />
+                            {/*
+                              Clone URL — one-click copy. The row body is
+                              pointer-events-none so clicks reach the stretched
+                              overlay behind it; this control opts back in.
+                            */}
+                            <span className="pointer-events-auto relative z-20">
+                              <CloneButton repo={repo} />
+                            </span>
                           </div>
                         </div>
                       </div>
-                    </button>
+                    </div>
                   </li>
                 ))}
             </ul>

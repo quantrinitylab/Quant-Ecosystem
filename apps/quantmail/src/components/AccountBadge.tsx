@@ -14,6 +14,15 @@ interface StoredAccount {
 
 const STORAGE_ACCOUNTS_KEY = 'quant_known_accounts';
 
+/**
+ * Every focusable row of the menu.
+ *
+ * AnchoredMenu.tsx asks for `[role="menuitem"]` alone, which is right for a flat
+ * action list; here the live account is a `menuitemradio`, so it has to be named
+ * too or the arrows skip straight past the accounts.
+ */
+const MENU_ITEMS = '[role="menuitem"],[role="menuitemradio"]';
+
 /** Deterministic gradient from a string, so each identity has a stable color. */
 function gradientFor(seed: string): string {
   let h = 0;
@@ -40,6 +49,7 @@ export function AccountBadge() {
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Sync current user into accounts list
   useEffect(() => {
@@ -69,7 +79,17 @@ export function AccountBadge() {
   useEffect(() => {
     if (!open) return;
     function onDoc(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+      if (!ref.current || ref.current.contains(event.target as Node)) return;
+      /*
+        The open menu holds focus (see the effect below), so tearing it down
+        without a destination leaves focus on `body` and the next Tab starts from
+        the top of the document. mousedown runs before the browser moves focus to
+        whatever was clicked, so handing focus back to the trigger here is safe:
+        a focusable click target still wins it a moment later.
+      */
+      const hadFocus = ref.current.contains(document.activeElement);
+      setOpen(false);
+      if (hadFocus) triggerRef.current?.focus();
     }
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
@@ -93,6 +113,39 @@ export function AccountBadge() {
   useKeyboardScope('account-menu', { active: open, exclusive: true });
 
   useShortcut('escape', close, { scope: 'account-menu', label: 'Close account menu' });
+
+  /*
+    `role="menu"` is a promise about the keyboard, not a label: focus moves into the
+    menu when it opens, Up/Down walk it, and the trigger stays the only tab stop.
+    This panel declared the role and delivered none of it — every button was its own
+    tab stop and the arrows scrolled the inbox behind it.
+
+    Lifted from AnchoredMenu.tsx, which already solves this for the row menus, so the
+    two stay the same shape: focus is read off the live DOM rather than mirrored into
+    state, because the list is short and a queried index cannot drift out of sync with
+    what is rendered.
+  */
+  const moveFocus = useCallback((delta: number) => {
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>(MENU_ITEMS) ?? [],
+    );
+    if (items.length === 0) return;
+    const current = items.findIndex((item) => item === document.activeElement);
+    // From outside the list, ArrowDown enters at the top and ArrowUp at the bottom.
+    const next = current === -1 ? (delta > 0 ? 0 : items.length - 1) : current + delta;
+    items[(next + items.length) % items.length]?.focus();
+  }, []);
+
+  useShortcut('arrowdown', () => moveFocus(1), { scope: 'account-menu', label: 'Next option' });
+  useShortcut('arrowup', () => moveFocus(-1), {
+    scope: 'account-menu',
+    label: 'Previous option',
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    menuRef.current?.querySelector<HTMLButtonElement>(MENU_ITEMS)?.focus();
+  }, [open]);
 
   if (!user) return null;
 
@@ -122,9 +175,13 @@ export function AccountBadge() {
         /*
           Attached only while the menu is mounted. The menu below renders on
           `open`, so a permanent `aria-controls` is an IDREF to nothing for as
-          long as the sidebar sits closed — which is nearly always. `menu` is the
-          right `aria-haspopup` value here, unlike the inbox filter popover: this
-          one really is a `role="menu"`.
+          long as the sidebar sits closed — which is nearly always.
+
+          `menu` is the right `aria-haspopup` value here, unlike the composer's
+          popovers: those hold checkboxes and colour swatches and are disclosures,
+          while every row of this panel runs a command and shuts it. The role's
+          contract — menuitem children, one tab stop, arrow-key traversal — is
+          honoured below, which it was not before.
         */
         aria-controls={open ? 'account-badge-menu' : undefined}
         className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--quant-muted)]"
@@ -165,66 +222,100 @@ export function AccountBadge() {
       {open && (
         <div
           id="account-badge-menu"
+          ref={menuRef}
           role="menu"
+          aria-orientation="vertical"
+          /* AnchoredMenu makes `menuLabel` a required prop; an unnamed menu is off-pattern here. */
+          aria-label="Account"
+          onKeyDown={(event) => {
+            // A menu is not a place to Tab through. Leave, and let focus land outside.
+            if (event.key === 'Tab') setOpen(false);
+          }}
           className="absolute bottom-[calc(100%-0.25rem)] left-3 right-3 z-30 mb-1 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-2xl animate-scale-in"
         >
-          {/* Multi-Account Switcher Section */}
-          <div className="p-2 border-b border-[#282C35] space-y-1">
-            <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]">
+          {/*
+            Multi-Account Switcher Section. `role="none"` on the padding wrapper:
+            a bare <div> is `role=generic`, and ARIA 1.2 does not let `menu` own one
+            — so the two sections used to swallow every item and the menu read as
+            empty. Presentational here, so the menu owns what is inside directly.
+          */}
+          <div role="none" className="p-2 border-b border-[#282C35] space-y-1">
+            <p
+              aria-hidden="true"
+              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]"
+            >
               Accounts ({accounts.length})
             </p>
-            {accounts.map((acc) => {
-              const isCurrent = acc.email.toLowerCase() === user.email.toLowerCase();
-              return (
-                <button
-                  key={acc.email}
-                  type="button"
-                  onClick={() => handleSwitchAccount(acc)}
-                  className={`w-full flex items-center justify-between gap-2.5 p-2 rounded-xl text-left transition-colors ${
-                    isCurrent
-                      ? 'bg-[#2B1A11] border border-[#5C3016]'
-                      : 'hover:bg-[#1C1F26] border border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span
-                      className="size-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
-                      style={{ background: gradientFor(acc.email) }}
-                    >
-                      {initials(acc.displayName || acc.email)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-white truncate leading-tight">
-                        {acc.displayName}
-                      </p>
-                      <p className="text-[10px] text-[#A1A4AC] truncate leading-tight">
-                        {acc.email}
-                      </p>
+            {/*
+              One of these accounts is the live one and the tick says which, so they
+              are radios and `aria-checked` says out loud what the tick draws. The
+              name lives on the group because a paragraph is not something a menu is
+              allowed to own — hence `aria-hidden` on the heading above.
+            */}
+            <div role="group" aria-label={`Accounts (${accounts.length})`} className="space-y-1">
+              {accounts.map((acc) => {
+                const isCurrent = acc.email.toLowerCase() === user.email.toLowerCase();
+                return (
+                  <button
+                    key={acc.email}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={isCurrent}
+                    tabIndex={-1}
+                    onClick={() => handleSwitchAccount(acc)}
+                    className={`w-full flex items-center justify-between gap-2.5 p-2 rounded-xl text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                      isCurrent
+                        ? 'bg-[#2B1A11] border border-[#5C3016]'
+                        : 'hover:bg-[#1C1F26] border border-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span
+                        className="size-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                        style={{ background: gradientFor(acc.email) }}
+                        aria-hidden="true"
+                      >
+                        {initials(acc.displayName || acc.email)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-white truncate leading-tight">
+                          {acc.displayName}
+                        </p>
+                        <p className="text-[10px] text-[#A1A4AC] truncate leading-tight">
+                          {acc.email}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  {isCurrent && (
-                    <svg
-                      className="size-3.5 text-[#FF8C42] shrink-0"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
-                </button>
-              );
-            })}
+                    {isCurrent && (
+                      <svg
+                        className="size-3.5 text-[#FF8C42] shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
             <button
               type="button"
+              role="menuitem"
+              tabIndex={-1}
               onClick={handleAddAccount}
-              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-[#FF8C42] hover:bg-[#2B1A11] transition-colors"
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-[#FF8C42] hover:bg-[#2B1A11] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             >
-              <span className="size-5 rounded-lg bg-[#2B1A11] border border-[#5C3016] flex items-center justify-center font-bold">
+              <span
+                className="size-5 rounded-lg bg-[#2B1A11] border border-[#5C3016] flex items-center justify-center font-bold"
+                aria-hidden="true"
+              >
                 +
               </span>
               <span>Add another account</span>
@@ -232,15 +323,16 @@ export function AccountBadge() {
           </div>
 
           {/* Quick Actions */}
-          <div className="p-1 space-y-0.5">
+          <div role="none" className="p-1 space-y-0.5">
             <button
               type="button"
               role="menuitem"
+              tabIndex={-1}
               onClick={() => {
                 setOpen(false);
                 router.push('/settings');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             >
               <svg
                 className="size-3.5 text-[#A1A4AC]"
@@ -260,11 +352,12 @@ export function AccountBadge() {
             <button
               type="button"
               role="menuitem"
+              tabIndex={-1}
               onClick={() => {
                 setOpen(false);
                 router.push('/security');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             >
               <svg
                 className="size-3.5 text-[#A1A4AC]"
@@ -283,12 +376,13 @@ export function AccountBadge() {
             <button
               type="button"
               role="menuitem"
+              tabIndex={-1}
               onClick={async () => {
                 setOpen(false);
                 await logout();
                 router.push('/login');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-colors"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             >
               <svg
                 className="size-3.5 text-rose-400"

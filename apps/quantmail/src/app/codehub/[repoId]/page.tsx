@@ -402,10 +402,13 @@ export default function CodeHubRepoPage() {
                 only the false affordance goes. These become buttons again on the
                 day the routes land.
               */}
-              <div
-                className="flex items-center gap-1.5 rounded-lg border border-[var(--quant-border)] px-2.5 py-1.5 text-[var(--quant-muted-foreground)]"
-                aria-label={`${repoInfo?.watchers ?? 0} watching, ${repoInfo?.forks ?? 0} forks, ${repoInfo?.stars ?? 0} stars`}
-              >
+              {/*
+                No aria-label here: a role-less div is role=generic, and ARIA 1.2
+                §5.2.8.5 prohibits aria-label on generic, so the whole string was
+                being dropped and three bare numbers were all that was announced.
+                Each count carries its own sr-only noun instead.
+              */}
+              <div className="flex items-center gap-1.5 rounded-lg border border-[var(--quant-border)] px-2.5 py-1.5 text-[var(--quant-muted-foreground)]">
                 <span className="flex items-center gap-1">
                   <svg
                     className="size-3.5"
@@ -419,6 +422,7 @@ export default function CodeHubRepoPage() {
                     <circle cx="12" cy="12" r="3" />
                   </svg>
                   {repoInfo?.watchers ?? 0}
+                  <span className="sr-only"> watching</span>
                 </span>
                 <span aria-hidden="true" className="text-[var(--quant-border)]">
                   ·
@@ -438,6 +442,7 @@ export default function CodeHubRepoPage() {
                     <path d="M18 9a9 9 0 0 1-9 9" />
                   </svg>
                   {repoInfo?.forks ?? 0}
+                  <span className="sr-only"> forks</span>
                 </span>
                 <span aria-hidden="true" className="text-[var(--quant-border)]">
                   ·
@@ -452,6 +457,7 @@ export default function CodeHubRepoPage() {
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                   </svg>
                   {repoInfo?.stars ?? 0}
+                  <span className="sr-only"> stars</span>
                 </span>
               </div>
               <Button variant="secondary" onClick={() => router.push(`/repos/${repoId}/editor`)}>
@@ -1156,7 +1162,13 @@ export default function CodeHubRepoPage() {
               </Panel>
               <Panel>
                 <SectionTitle>Features</SectionTitle>
-                <div className="px-4 py-4 space-y-2 text-xs">
+                {/*
+                  Five checkboxes are one set — repository features — and a styled
+                  div is neither a heading nor a label, so nothing tied them
+                  together. role="group" with a name says where the set starts and
+                  ends.
+                */}
+                <div role="group" aria-label="Features" className="px-4 py-4 space-y-2 text-xs">
                   {['Issues', 'Pull requests', 'Discussions', 'Projects', 'Actions'].map(
                     (feature) => (
                       <label
