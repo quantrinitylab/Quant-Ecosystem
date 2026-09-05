@@ -157,9 +157,26 @@ export const SearchInput: React.FC<SearchInputProps> = ({
       {loading && (
         <span
           className={`absolute right-3 top-1/2 -translate-y-1/2${prefersReducedMotion ? '' : ' animate-spin'} size-4 rounded-full border-2 border-[#FF8C42] border-t-transparent`}
-          aria-label="Loading search results"
+          aria-hidden="true"
         />
       )}
+      {/*
+        The spinner used to carry `aria-label="Loading search results"` and be the
+        only thing that said so. Two failures in one: it has no content, so it
+        maps to `role="generic"` where ARIA 1.2 prohibits `aria-label` and the
+        browser drops it; and even if it had stuck, a name on a decorative span
+        is not an announcement — nothing tells a screen reader the results are
+        being fetched, and search is precisely where the delay needs narrating.
+
+        So the spinner becomes what it looks like — decoration — and the state
+        moves into a live region that is mounted on every render and empty when
+        idle. `role="status"` inserted at the same moment it first has text is
+        the case readers most often miss; `sr-only` is `position: absolute`, so
+        the quiet version costs no layout inside the `relative` wrapper.
+      */}
+      <span role="status" className="sr-only">
+        {loading ? 'Loading search results' : ''}
+      </span>
       {/*
         Gated on `draft`, not on `value`. The prop is one debounce behind, so the
         old gate meant the ✕ took 300ms to appear after you started typing and

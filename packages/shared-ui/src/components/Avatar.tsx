@@ -84,7 +84,16 @@ export const Avatar: React.FC<AvatarProps> = ({
     <Component
       className={`relative inline-flex items-center justify-center shrink-0 ${sizeStyles[size]} ${shapeStyles} overflow-hidden ${onClick ? 'cursor-pointer' : ''} ${className}`}
       onClick={onClick}
-      aria-label={alt}
+      /* Without it a clickable avatar inside a form submits the form. */
+      type={onClick ? 'button' : undefined}
+      /*
+        Only on the `button`. A clickable avatar needs a name of its own and the
+        image inside is decoration for it; a static one is a `div`, where
+        `aria-label` is prohibited and dropped anyway — there the name comes from
+        the `<img alt>` or, for the initials fallback, from the initials
+        themselves. Same rule as the status dot below, one level up.
+      */
+      aria-label={onClick ? alt : undefined}
     >
       {src ? (
         <img src={src} alt={alt} className={`w-full h-full object-cover ${shapeStyles}`} />
@@ -96,10 +105,20 @@ export const Avatar: React.FC<AvatarProps> = ({
         </div>
       )}
       {showStatus && status && (
-        <span
-          className={`absolute bottom-0 right-0 ${statusSizes[size]} ${statusColors[status]} border-2 border-[#090A0C] rounded-full`}
-          aria-label={`Status: ${status}`}
-        />
+        <>
+          {/*
+            The dot is decoration. It has no content, so it maps to
+            `role="generic"`, where ARIA 1.2 lists `aria-label` as prohibited —
+            the browser dropped the label it used to carry and presence was
+            conveyed by colour alone. Avatar renders in every app in the suite,
+            so this was the widest instance of that mistake in the repo.
+          */}
+          <span
+            className={`absolute bottom-0 right-0 ${statusSizes[size]} ${statusColors[status]} border-2 border-[#090A0C] rounded-full`}
+            aria-hidden="true"
+          />
+          <span className="sr-only">{`Status: ${status}`}</span>
+        </>
       )}
     </Component>
   );

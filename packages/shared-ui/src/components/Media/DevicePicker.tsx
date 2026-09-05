@@ -3,7 +3,7 @@
 // Shared UI - DevicePicker Component
 // ============================================================================
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useId } from 'react';
 
 export interface DeviceInfo {
   deviceId: string;
@@ -35,6 +35,19 @@ export const DevicePicker: React.FC<DevicePickerProps> = ({
   const [speakers, setSpeakers] = useState<DeviceInfo[]>([]);
   const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [error, setError] = useState<string | null>(null);
+
+  /*
+    All three `<label>`s were preceding siblings with no `htmlFor`, and none of
+    the `<select>`s had an `id` — so the association was purely visual and every
+    one of the three was announced as an unnamed combo box reading out whatever
+    device happened to be selected. `useId` rather than fixed strings because a
+    pre-join screen and a settings dialog can both be mounted at once, and two
+    `id="camera"`s would silently point both labels at the first select.
+  */
+  const baseId = useId();
+  const cameraId = `${baseId}-camera`;
+  const micId = `${baseId}-mic`;
+  const speakerId = `${baseId}-speaker`;
 
   const enumerateDevices = useCallback(async () => {
     try {
@@ -91,7 +104,12 @@ export const DevicePicker: React.FC<DevicePickerProps> = ({
   if (permissionState === 'denied') {
     return (
       <div className={`p-4 ${className}`}>
-        <p className="text-red-600 text-sm">{error || 'Permission denied'}</p>
+        {/* The only feedback for a denied prompt. Without a role it is inert text
+            that arrives with the DOM it lives in, so nothing tells a reader why
+            the picker vanished. */}
+        <p className="text-red-600 text-sm" role="alert">
+          {error || 'Permission denied'}
+        </p>
       </div>
     );
   }
@@ -100,6 +118,7 @@ export const DevicePicker: React.FC<DevicePickerProps> = ({
     return (
       <div className={`p-4 ${className}`}>
         <button
+          type="button"
           onClick={requestPermissions}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
           data-testid="request-permissions"
@@ -114,8 +133,11 @@ export const DevicePicker: React.FC<DevicePickerProps> = ({
     <div className={`space-y-4 p-4 ${className}`} data-testid="device-picker">
       {cameras.length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Camera</label>
+          <label htmlFor={cameraId} className="block text-sm font-medium text-gray-700 mb-1">
+            Camera
+          </label>
           <select
+            id={cameraId}
             value={selectedCameraId || ''}
             onChange={(e) => onCameraSelect?.(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -131,8 +153,11 @@ export const DevicePicker: React.FC<DevicePickerProps> = ({
       )}
       {microphones.length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Microphone</label>
+          <label htmlFor={micId} className="block text-sm font-medium text-gray-700 mb-1">
+            Microphone
+          </label>
           <select
+            id={micId}
             value={selectedMicId || ''}
             onChange={(e) => onMicSelect?.(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
@@ -148,8 +173,11 @@ export const DevicePicker: React.FC<DevicePickerProps> = ({
       )}
       {speakers.length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Speaker</label>
+          <label htmlFor={speakerId} className="block text-sm font-medium text-gray-700 mb-1">
+            Speaker
+          </label>
           <select
+            id={speakerId}
             value={selectedSpeakerId || ''}
             onChange={(e) => onSpeakerSelect?.(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"

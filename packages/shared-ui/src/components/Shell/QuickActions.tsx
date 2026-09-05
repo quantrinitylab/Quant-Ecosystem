@@ -6,6 +6,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { nextRovingIndex, rovingTabIndex } from '../../utils/roving-focus';
 
 export interface QuickAction {
   id: string;
@@ -34,60 +36,80 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
   itemType = 'item',
   ariaLabel,
 }) => {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const menuRef = useRef<HTMLDivElement>(null);
+  /*
+    `role="menu"` is a promise about the keyboard, and this kept none of it. Every
+    item carried `tabIndex={-1}`, nothing ever called `.focus()`, and there was no
+    `aria-activedescendant` — so the menu could not be entered from the keyboard at
+    all, and the cursor it moved with the arrows was a background tint and nothing
+    else. A reader pressing Down heard silence, then Enter fired an action it had
+    never been told about.
 
-  // Reset active index on open
+    The arrows also lived on `document`, which stole Up/Down/Enter/Space from the
+    whole page for as long as the menu was open — including from a text field
+    behind it, where `preventDefault()` on Space is the difference between typing
+    and not. Real focus fixes both halves at once: the focused item IS the cursor,
+    so a reader is told what it landed on, and Enter/Space are the platform's job
+    on a native <button> rather than a global key grab.
+  */
+  const firstEnabled = actions.findIndex((a) => !a.disabled);
+  const [activeIndex, setActiveIndex] = useState(firstEnabled);
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  // Reset on close rather than on open: the trap's autofocus effect runs first, so
+  // resetting on open would hand it last session's index for one commit.
   useEffect(() => {
-    if (isOpen) {
-      setActiveIndex(0);
-    }
-  }, [isOpen]);
+    if (!isOpen) setActiveIndex(firstEnabled);
+  }, [isOpen, firstEnabled]);
 
-  // Focus trap and keyboard navigation
-  useEffect(() => {
-    if (!isOpen) return;
+  /*
+    Escape did close the menu, but focus was never inside it to begin with, so
+    closing left the reader wherever they had been — and there was no focus trap,
+    no initial focus, and no way back to whatever opened this. `useFocusTrap` is
+    the package's one answer to all of it, and its `tabindex !== '-1'` filter means
+    the roving cursor below is exactly what it autofocuses.
+  */
+  const menuRef = useFocusTrap<HTMLDivElement>({ active: isOpen, onEscape: onClose });
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          setActiveIndex((i) => {
-            let next = (i + 1) % actions.length;
-            while (actions[next]?.disabled && next !== i) {
-              next = (next + 1) % actions.length;
-            }
-            return next;
-          });
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          setActiveIndex((i) => {
-            let prev = (i - 1 + actions.length) % actions.length;
-            while (actions[prev]?.disabled && prev !== i) {
-              prev = (prev - 1 + actions.length) % actions.length;
-            }
-            return prev;
-          });
-          break;
-        case 'Enter':
-        case ' ':
-          e.preventDefault();
-          if (actions[activeIndex] && !actions[activeIndex].disabled) {
-            actions[activeIndex].onClick();
-            onClose();
-          }
-          break;
-        case 'Escape':
-          e.preventDefault();
-          onClose();
-          break;
+  /*
+    The arrows skip disabled entries, which is the behaviour this shipped with and
+    worth keeping: a cursor that parks on something Enter will not fire reads as a
+    broken menu. `nextRovingIndex` answers "which index next" and this walks on
+    from there in the direction the key implied, wrapping, giving up if every item
+    turns out to be disabled.
+  */
+  const step = useCallback(
+    (key: string, from: number): number | null => {
+      const next = nextRovingIndex(key, from, actions.length, 'vertical');
+      if (next === null) return null;
+      const forward = key === 'ArrowDown' || key === 'Home';
+      let i = next;
+      for (let guard = 0; guard < actions.length; guard++) {
+        if (!actions[i]?.disabled) return i;
+        i = forward ? (i + 1) % actions.length : (i - 1 + actions.length) % actions.length;
       }
-    };
+      return null;
+    },
+    [actions],
+  );
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, actions, activeIndex, onClose]);
+  const onItemKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      // APG for a menu: Tab closes it and lets focus carry on out, rather than
+      // leaving an open menu behind the thing the user just tabbed to.
+      if (event.key === 'Tab') {
+        onClose();
+        return;
+      }
+      const next = step(event.key, index);
+      if (next === null) return;
+      // Up/Down on a focused control scrolls the page behind the menu otherwise,
+      // which slides the surface out from under the cursor it is meant to move.
+      event.preventDefault();
+      setActiveIndex(next);
+      itemRefs.current[next]?.focus();
+    },
+    [onClose, step],
+  );
 
   // Close on click outside
   const handleBackdropClick = useCallback(
@@ -96,10 +118,12 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
         onClose();
       }
     },
-    [onClose],
+    [menuRef, onClose],
   );
 
-  if (!isOpen) return null;
+  // An empty `role="menu"` is a menu with nothing in it — a 180px blank card on
+  // screen and a structural hole for a reader. Nothing to show is nothing to open.
+  if (!isOpen || actions.length === 0) return null;
 
   return (
     <AnimatePresence>
@@ -123,13 +147,31 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
           {actions.map((action, index) => (
             <button
               key={action.id}
+              // A context menu is exactly the thing a consumer mounts inside a
+              // <form>, where a bare <button> submits it — and a `danger` item
+              // posting the form instead is the worst version of that.
+              type="button"
+              ref={(node) => {
+                itemRefs.current[index] = node;
+              }}
               onClick={() => {
                 if (!action.disabled) {
                   action.onClick();
                   onClose();
                 }
               }}
-              className="flex items-center gap-3 w-full px-3 py-2 text-sm text-left focus:outline-none"
+              onKeyDown={(event) => onItemKeyDown(event, index)}
+              /*
+                A tint from #ffffff to #f3f4f6 is a 1.05:1 change — nowhere near
+                the 3:1 WCAG 2.4.11 asks of a focus indicator, and it was the only
+                thing marking the cursor. `focus:` rather than `focus-visible:`
+                deliberately: the menu autofocuses on open, and Chrome does not
+                match :focus-visible for a programmatic focus that followed a
+                click, so the cursor would open invisible. `ring-inset` because the
+                card clips its overflow and an outset ring loses its top and
+                bottom edge on the first and last item.
+              */
+              className="flex items-center gap-3 w-full min-h-[44px] sm:min-h-0 px-3 py-2 text-sm text-left focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
               style={{
                 background:
                   index === activeIndex ? 'var(--quant-surface-hover, #f3f4f6)' : 'transparent',
@@ -143,7 +185,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
               }}
               role="menuitem"
               aria-disabled={action.disabled}
-              tabIndex={-1}
+              tabIndex={rovingTabIndex(index, activeIndex)}
             >
               {action.icon && <span aria-hidden="true">{action.icon}</span>}
               <span className="flex-1">{action.label}</span>

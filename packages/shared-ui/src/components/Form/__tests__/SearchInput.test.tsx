@@ -136,9 +136,18 @@ describe('SearchInput', () => {
     expect(field().value).toBe('auth');
     expect(clearButton()).not.toBeNull();
 
+    // The live region exists and is silent before there is anything to say — a
+    // `role="status"` node inserted at the same instant it first has text is the
+    // case screen readers most often miss entirely.
+    expect(screen.getByRole('status').textContent).toBe('');
+
     rerender(<SearchInput value="auth" onChange={vi.fn()} loading />);
     expect(clearButton()).toBeNull();
-    expect(screen.getByLabelText('Loading search results')).toBeDefined();
+    // The name used to sit on the spinner itself: a contentless span, which maps
+    // to `role="generic"` where `aria-label` is prohibited and dropped — and a
+    // name on decoration is not an announcement even when it survives.
+    expect(screen.getByRole('status').textContent).toBe('Loading search results');
+    expect(screen.queryByLabelText('Loading search results')).toBeNull();
   });
 
   it('emits synchronously when debouncing is switched off', () => {
