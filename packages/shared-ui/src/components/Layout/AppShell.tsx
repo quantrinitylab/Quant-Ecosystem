@@ -93,10 +93,17 @@ export const AppShell: React.FC<AppShellProps> = ({
   const showHamburger = overlayMode && !pinned;
 
   return (
-    <div
+    <section
       className={`relative flex h-screen w-full overflow-hidden ${themeStyles[theme]} ${className}`}
       aria-label={ariaLabel}
-      role="application"
+      /*
+        No `role="application"`. ARIA scopes that role to a single widget with
+        its own keyboard model, and NVDA and JAWS respond by leaving browse mode
+        for anything inside it — so a reader loses the virtual cursor over every
+        page this shell wraps, and the real landmarks nested below (the
+        `<aside>`, the header, `<main>`) stop behaving like landmarks. A named
+        `<section>` is a `region`, which is all the `aria-label` ever wanted.
+      */
       data-shell-fullscreen={overlayMode && !pinned ? 'true' : undefined}
     >
       {dockedSidebar && (
@@ -187,7 +194,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           {animated ? <PageTransition>{children}</PageTransition> : children}
         </main>
       </div>
-    </div>
+    </section>
   );
 };
 

@@ -582,7 +582,17 @@ export function AppShell({
       data-theme={theme}
       data-quant-theme={theme === 'dark' ? quantMailDarkSemanticThemeName : undefined}
       style={semanticTheme}
-      role="application"
+      /*
+        No `role="application"`. It used to sit here, presumably talked into
+        place by the default `aria-label` of 'Application shell', and it was the
+        single most expensive attribute in the app: ARIA scopes that role to one
+        widget with its own keyboard model, so NVDA and JAWS leave browse mode
+        the moment focus enters it — across every route, because every route
+        renders inside this element. A reader could not arrow through an email
+        body. The keyboard engine never needed it either; `engine.ts` binds
+        `keydown` on the document. A `<section>` with a name is a `region`, which
+        is what the label was for.
+      */
     >
       {/*
         Everything modal about the drawer hangs off `isDrawerPresented`, and the

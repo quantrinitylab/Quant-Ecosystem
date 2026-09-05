@@ -115,4 +115,123 @@ describe('SettingsPanel', () => {
     fireEvent.click(screen.getByLabelText('Save profile'));
     expect(defaultProps.onProfileUpdate).toHaveBeenCalledWith('New Name', 'test@quant.dev');
   });
+
+  // Every tab used to point `aria-controls` at `settings-profile`, `settings-appearance`
+  // and so on, and no element in the file ever rendered those ids. Asserting the
+  // string would have passed the whole time; the only assertion worth making is
+  // that the id resolves to something.
+  it('wires each tab to a panel that exists, in both directions', () => {
+    render(<SettingsPanel {...defaultProps} />);
+    const tab = screen.getByRole('tab', { name: /profile/i });
+    const controls = tab.getAttribute('aria-controls');
+    expect(controls).toBeTruthy();
+
+    // `getElementById`, not `querySelector`: a `useId` value contains colons, so
+    // `#${id}` is not a valid CSS selector and querySelector throws on it.
+    const panel = document.getElementById(controls as string);
+    expect(panel).not.toBeNull();
+    expect(panel?.getAttribute('role')).toBe('tabpanel');
+    // ...and back: the panel is named by the tab rather than by a hand-written
+    // `aria-label` that no longer has to be kept in step with it.
+    expect(panel?.getAttribute('aria-labelledby')).toBe(tab.id);
+    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(tab.id);
+  });
+
+  it('renders exactly one tabpanel, and follows the selected tab', () => {
+    render(<SettingsPanel {...defaultProps} />);
+    // Five `role="tabpanel"` divs used to be declared across the five renderers.
+    expect(screen.getAllByRole('tabpanel')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('tab', { name: /shortcuts/i }));
+    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(
+      screen.getByRole('tab', { name: /shortcuts/i }).id,
+    );
+  });
+
+  it('keeps exactly one tab in the tab sequence', () => {
+    render(<SettingsPanel {...defaultProps} />);
+    const inSequence = screen.getAllByRole('tab').filter((t) => t.tabIndex === 0);
+    expect(inSequence).toHaveLength(1);
+    expect(inSequence[0]).toBe(screen.getByRole('tab', { name: /profile/i }));
+  });
+
+  // `role="tablist"` is a promise about the keyboard. This shipped with no key
+  // handler at all, so the role described a widget that did not exist.
+  it('moves selection and focus with the arrow keys, wrapping at the ends', () => {
+    render(<SettingsPanel {...defaultProps} />);
+    const profile = screen.getByRole('tab', { name: /profile/i });
+    profile.focus();
+
+    fireEvent.keyDown(profile, { key: 'ArrowRight' });
+    const appearance = screen.getByRole('tab', { name: /appearance/i });
+    expect(appearance.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(appearance);
+    // Selection follows focus, so the panel came along with it.
+    expect(screen.getByRole('radio', { name: /light theme/i })).toBeDefined();
+
+    // A ring, not a strip with two dead ends: Left from the first lands on the last.
+    fireEvent.keyDown(appearance, { key: 'ArrowLeft' });
+    fireEvent.keyDown(screen.getByRole('tab', { name: /profile/i }), { key: 'ArrowLeft' });
+    const shortcuts = screen.getByRole('tab', { name: /shortcuts/i });
+    expect(shortcuts.getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(shortcuts);
+  });
+
+  it('jumps to the ends with Home and End', () => {
+    render(<SettingsPanel {...defaultProps} />);
+    const profile = screen.getByRole('tab', { name: /profile/i });
+    fireEvent.keyDown(profile, { key: 'End' });
+    expect(screen.getByRole('tab', { name: /shortcuts/i }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
+
+    fireEvent.keyDown(screen.getByRole('tab', { name: /shortcuts/i }), { key: 'Home' });
+    expect(screen.getByRole('tab', { name: /profile/i }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
+  });
+
+  // A horizontal strip must not claim the vertical arrows: taking page-scroll away
+  // from someone reading a long settings surface is a worse trade than one extra
+  // key press.
+  it('leaves ArrowDown alone', () => {
+    render(<SettingsPanel {...defaultProps} />);
+    const profile = screen.getByRole('tab', { name: /profile/i });
+    const handled = fireEvent.keyDown(profile, { key: 'ArrowDown' });
+    expect(handled).toBe(true); // not preventDefault()ed
+    expect(profile.getAttribute('aria-selected')).toBe('true');
+  });
+
+  // Both `radiogroup`s had every radio in the tab sequence and no key handler —
+  // nine tab stops where two groups should contribute two.
+  it('gives each radiogroup one tab stop and working arrow keys', () => {
+    render(<SettingsPanel {...defaultProps} />);
+    fireEvent.click(screen.getByRole('tab', { name: /appearance/i }));
+
+    const themes = screen.getAllByRole('radio', { name: /theme$/i });
+    expect(themes.filter((r) => r.tabIndex === 0)).toHaveLength(1);
+    // `theme: 'system'` is the third of three, so the cursor sits there.
+    expect(screen.getByRole('radio', { name: /system theme/i }).tabIndex).toBe(0);
+
+    // Selection follows focus for radios, so the arrow key is the change.
+    fireEvent.keyDown(screen.getByRole('radio', { name: /system theme/i }), { key: 'ArrowRight' });
+    expect(defaultProps.onThemeChange).toHaveBeenCalledWith('light');
+
+    const swatches = screen.getAllByRole('radio', { name: /^accent color/i });
+    expect(swatches).toHaveLength(6);
+    expect(swatches.filter((r) => r.tabIndex === 0)).toHaveLength(1);
+    fireEvent.keyDown(swatches[0]!, { key: 'End' });
+    expect(defaultProps.onAccentColorChange).toHaveBeenCalledWith('#ec4899');
+  });
+
+  // `accentColor` is a prop, so a consumer can pass a colour outside the six. The
+  // group has to stay reachable rather than dropping out of the tab sequence.
+  it('keeps the accent group reachable when no swatch matches', () => {
+    render(<SettingsPanel {...defaultProps} accentColor="#FF8C42" />);
+    fireEvent.click(screen.getByRole('tab', { name: /appearance/i }));
+    const swatches = screen.getAllByRole('radio', { name: /^accent color/i });
+    expect(swatches.every((r) => r.getAttribute('aria-checked') === 'false')).toBe(true);
+    expect(swatches.filter((r) => r.tabIndex === 0)).toHaveLength(1);
+    expect(swatches[0]!.tabIndex).toBe(0);
+  });
 });

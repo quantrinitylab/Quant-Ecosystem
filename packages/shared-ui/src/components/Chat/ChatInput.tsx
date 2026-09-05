@@ -18,6 +18,13 @@ export interface ChatInputProps {
   replyingTo?: { sender: string; message: string };
   onCancelReply?: () => void;
   className?: string;
+  /**
+   * `placeholder` is a fallback of last resort in the accessible-name algorithm
+   * and it disappears as soon as there is text, so a reader that re-reads the
+   * composer mid-message gets an unnamed textarea. Overridable because "Message"
+   * is wrong in a comment thread or a support console.
+   */
+  'aria-label'?: string;
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
@@ -32,6 +39,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   replyingTo,
   onCancelReply,
   className = '',
+  'aria-label': ariaLabel = 'Message',
 }) => {
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -98,8 +106,26 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             </span>
             <p className="text-xs text-gray-500 truncate">{replyingTo.message}</p>
           </div>
-          <button onClick={onCancelReply} className="text-gray-400 hover:text-gray-600 ml-2">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {/*
+            Every other icon-only button in this file already carries a name —
+            "Attach file", "Emoji", "Send message", "Voice message". This one did
+            not, so the only way out of a reply was announced as the empty
+            string, and the one thing a reader could not do was stop replying.
+          */}
+          <button
+            type="button"
+            onClick={onCancelReply}
+            className="text-gray-400 hover:text-gray-600 ml-2"
+            aria-label="Cancel reply"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -113,10 +139,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       <div className="flex items-end gap-2 p-3">
         {showAttachButton && (
           <button
+            type="button"
             className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-full hover:bg-gray-100"
             aria-label="Attach file"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -137,13 +171,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             rows={1}
             className="w-full resize-none rounded-2xl border border-gray-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed"
             style={{ maxHeight: '150px' }}
+            aria-label={ariaLabel}
           />
           {showEmojiButton && (
             <button
+              type="button"
               className="absolute right-3 bottom-2.5 text-gray-400 hover:text-gray-600"
               aria-label="Emoji"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -156,12 +199,20 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </div>
         {message.trim() ? (
           <button
+            type="button"
             onClick={handleSend}
             disabled={disabled}
             className="p-2.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50"
             aria-label="Send message"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -172,10 +223,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </button>
         ) : showVoiceButton ? (
           <button
+            type="button"
             className="p-2.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
             aria-label="Voice message"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"

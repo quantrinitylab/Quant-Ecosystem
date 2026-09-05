@@ -21,6 +21,13 @@ export interface ModalProps {
   showCloseButton?: boolean;
   footer?: React.ReactNode;
   className?: string;
+  /**
+   * For a modal with no visible `title`. `aria-modal="true"` has already told
+   * assistive tech the rest of the document is gone, so a nameless dialog is
+   * announced as the single word "dialog" — the user is trapped in something
+   * with no name. `title` still wins when both are given, via `aria-labelledby`.
+   */
+  'aria-label'?: string;
 }
 
 const SURFACE = 'var(--quant-popover, #16181D)';
@@ -42,6 +49,7 @@ export const Modal: React.FC<ModalProps> = ({
   showCloseButton = true,
   footer,
   className = '',
+  'aria-label': ariaLabel,
 }) => {
   const [mounted, setMounted] = useState(false);
 
@@ -112,6 +120,15 @@ export const Modal: React.FC<ModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? labelId : undefined}
+      /*
+        Only when there is no title to be labelled by — `aria-labelledby` wins
+        over `aria-label` in the name computation, so setting both would leave a
+        caller's deliberately-longer `aria-label` silently ignored. `'Dialog'` is
+        a poor name, but it beats the alternative: `title` is optional and
+        `aria-modal` is not, so before this the no-title case shipped a nameless
+        dialog that had already hidden the rest of the page.
+      */
+      aria-label={title ? undefined : (ariaLabel ?? 'Dialog')}
       aria-describedby={description ? descriptionId : undefined}
     >
       <style>{`@keyframes quantModalIn{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:none}}

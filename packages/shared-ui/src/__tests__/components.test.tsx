@@ -183,9 +183,10 @@ describe('AppShell', () => {
     expect(screen.getByText('Top bar')).toBeDefined();
   });
 
-  it('has application role', () => {
+  it('is a named region, not an application', () => {
     render(<AppShell>Content</AppShell>);
-    expect(screen.getByRole('application')).toBeDefined();
+    expect(screen.getByRole('region', { name: 'Application shell' })).toBeDefined();
+    expect(screen.queryByRole('application')).toBeNull();
   });
 });
 

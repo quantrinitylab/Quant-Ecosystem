@@ -67,7 +67,9 @@ describe('ResponsiveShell', () => {
         <div>Content</div>
       </ResponsiveShell>,
     );
-    expect(screen.getByRole('application')).toBeDefined();
+    // A named `<section>`, so a `region` — not `application`, which would drop
+    // a screen reader out of browse mode for everything the shell wraps.
+    expect(screen.getByRole('region', { name: 'Test app shell' })).toBeDefined();
   });
 
   it('supports safeArea prop', () => {

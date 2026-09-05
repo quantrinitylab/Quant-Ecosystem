@@ -167,6 +167,82 @@ describe('SlidePanel', () => {
     );
     expect(screen.getByText('Static Panel')).toBeDefined();
   });
+
+  // The defect the rest of this block exists for: a fixed, full-height,
+  // z-index-50 drawer with no role and no `aria-*` anywhere in the file, so it
+  // announced as an anonymous group of content that appeared from nowhere — and
+  // the props were enumerated, so a consumer could not name it either.
+  it('names itself as a dialog on both render paths', () => {
+    for (const animated of [true, false]) {
+      const { unmount } = render(
+        <SlidePanel isOpen={true} animated={animated}>
+          <span>Content</span>
+        </SlidePanel>,
+      );
+      expect(screen.getByRole('dialog').getAttribute('aria-label')).toBe('Panel');
+      unmount();
+    }
+  });
+
+  it('prefers the heading the caller points at over its own default name', () => {
+    render(
+      <SlidePanel isOpen={true} aria-labelledby="drawer-heading">
+        <h2 id="drawer-heading">Filters</h2>
+      </SlidePanel>,
+    );
+    const panel = screen.getByRole('dialog');
+    // aria-labelledby wins in the accname algorithm either way, so emitting the
+    // generic default alongside it would just leave a second, worse answer there.
+    expect(panel.hasAttribute('aria-label')).toBe(false);
+    expect(panel.getAttribute('aria-labelledby')).toBe('drawer-heading');
+  });
+
+  it('is modal exactly when it can be closed', () => {
+    const { container, unmount } = render(
+      <SlidePanel isOpen={true}>
+        <span>Content</span>
+      </SlidePanel>,
+    );
+    // No `onClose`: nothing to dismiss to, so no scrim laid over a dead page, no
+    // `aria-modal` claiming an inertness nothing enforces, and no Tab trap —
+    // because a trap with no exit is a prison.
+    expect(screen.getByRole('dialog').hasAttribute('aria-modal')).toBe(false);
+    expect(container.children).toHaveLength(1);
+    expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(false);
+    unmount();
+
+    render(
+      <SlidePanel isOpen={true} onClose={vi.fn()}>
+        <span>Content</span>
+      </SlidePanel>,
+    );
+    expect(screen.getByRole('dialog').getAttribute('aria-modal')).toBe('true');
+  });
+
+  it('closes on Escape and on the scrim, but not on a click inside itself', () => {
+    const onClose = vi.fn();
+    const { container } = render(
+      <SlidePanel isOpen={true} onClose={onClose}>
+        <span>Panel Body</span>
+      </SlidePanel>,
+    );
+    const scrim = container.firstElementChild!;
+    expect(scrim.getAttribute('aria-hidden')).toBe('true');
+
+    // The panel used to carry the close handler itself, guarded by
+    // `e.target === e.currentTarget` — a backdrop click written without a
+    // backdrop, so clicking a gap between the drawer's own children dismissed it.
+    fireEvent.click(screen.getByRole('dialog'));
+    fireEvent.click(screen.getByText('Panel Body'));
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(scrim);
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    // useFocusTrap owns Escape, from a capture-phase listener on `document`.
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('ScaleOnHover', () => {

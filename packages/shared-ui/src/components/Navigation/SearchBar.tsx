@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useRef, useCallback } from 'react';
+import { SearchClearButton } from '../Form/SearchClearButton';
 
 export interface SearchBarProps {
   value?: string;
@@ -19,6 +20,15 @@ export interface SearchBarProps {
   autoFocus?: boolean;
   debounceMs?: number;
   className?: string;
+  /**
+   * `placeholder` is not a label. Browsers do fall back to it when computing an
+   * accessible name, but it is the last resort in that algorithm and it vanishes
+   * the moment there is text in the field — so a reader that re-reads the input
+   * mid-query gets nothing. `SearchInput` in this package takes the same prop
+   * with the same default; a caller with two search fields on one screen needs to
+   * be able to tell them apart.
+   */
+  'aria-label'?: string;
 }
 
 export const SearchBar: React.FC<SearchBarProps> = ({
@@ -35,6 +45,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   autoFocus = false,
   debounceMs = 300,
   className = '',
+  'aria-label': ariaLabel = 'Search',
 }) => {
   const [internalValue, setInternalValue] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -101,6 +112,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
+            aria-hidden="true"
+            focusable="false"
           >
             <path
               strokeLinecap="round"
@@ -120,23 +133,22 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             autoFocus={autoFocus}
             className="flex-1 bg-transparent px-3 py-2 text-sm outline-none"
             role="searchbox"
+            aria-label={ariaLabel}
           />
-          {value && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="p-1 mr-2 text-gray-400 hover:text-gray-600"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          )}
+          {/*
+            Was a hand-drawn ✕ with no accessible name at all — a `<button>`
+            whose only child is an SVG is announced as the empty string, so the
+            one control that undoes a search was unreachable by name and
+            invisible in a rotor listing. It was also a 24px target.
+
+            `SearchClearButton` is the package's own answer to exactly this, and
+            using it here is the point of having it: `bare` keeps the glyph in
+            flow where this flex row already put it, and moves the 44px pointer
+            target onto a pseudo-element so the field does not have to grow to
+            hold it. `mr-2` is preserved because it is this field's spacing, not
+            the button's.
+          */}
+          {value && <SearchClearButton onClear={handleClear} className="mr-2" />}
         </div>
         {showCancelButton && isFocused && (
           <button
@@ -153,7 +165,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       </form>
 
       {/* Suggestions dropdown */}
-      {showSuggestions && (suggestions?.length || recentSearches?.length) && (
+      {/*
+        `&&` on a `.length` renders the number when it is 0. With
+        `recentSearches={[]}` and no `suggestions`, `(undefined || 0)` is `0`,
+        `true && 0` is `0`, and React prints a bare "0" under the field. Comparing
+        to 0 keeps the whole chain boolean.
+      */}
+      {showSuggestions && ((suggestions?.length ?? 0) > 0 || (recentSearches?.length ?? 0) > 0) && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
           {recentSearches && recentSearches.length > 0 && !value && (
             <div className="px-4 py-2">

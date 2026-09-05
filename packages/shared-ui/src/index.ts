@@ -460,6 +460,10 @@ export type { UseOptimisticActionReturn } from './hooks/useOptimisticAction';
 // Sanitization utilities
 export { sanitizeHtmlContent, sanitizeEmailHtml, sanitizeCodeHighlight } from './utils/sanitize';
 
+// Roving-focus arithmetic for composite widgets (tablist, menu, radiogroup)
+export { nextRovingIndex, rovingTabIndex } from './utils/roving-focus';
+export type { RovingOrientation } from './utils/roving-focus';
+
 // QuantLive components
 export {
   QuantLive,
