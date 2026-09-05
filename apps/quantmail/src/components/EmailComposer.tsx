@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { nextRovingIndex, rovingTabIndex } from '@quant/shared-ui';
 import { Quanty } from './Quanty';
 import { type QuantyEmailAction } from './QuantyCopilotDrawer';
 import { InsertLinkModal } from './InsertLinkModal';
@@ -145,6 +146,52 @@ const TEXT_COLORS = [
   { id: 'zinc', color: '#a1a1aa', label: 'Muted' },
 ];
 
+/**
+ * The alignment trio as data, so it can be one control instead of three.
+ *
+ * It was three hand-inlined buttons whose only state channel was an accent
+ * background and whose only name was a `title` — a one-of set with none of the
+ * things a one-of set owes a reader. As a list it becomes a `radiogroup` with a
+ * roving cursor, and the arithmetic has somewhere to index.
+ *
+ * `lines` is the glyph: three strokes at y = 6 / 12 / 18, each `[x1, x2]`. Right
+ * align is the exact mirror of left — it used to be drawn with two strokes and no
+ * middle one, which read as a different icon standing next to its own family.
+ */
+const TEXT_ALIGNMENTS: Array<{
+  value: 'left' | 'center' | 'right';
+  label: string;
+  lines: Array<[number, number]>;
+}> = [
+  {
+    value: 'left',
+    label: 'Align left',
+    lines: [
+      [21, 3],
+      [15, 3],
+      [17, 3],
+    ],
+  },
+  {
+    value: 'center',
+    label: 'Align centre',
+    lines: [
+      [21, 3],
+      [19, 5],
+      [21, 3],
+    ],
+  },
+  {
+    value: 'right',
+    label: 'Align right',
+    lines: [
+      [21, 3],
+      [21, 9],
+      [21, 7],
+    ],
+  },
+];
+
 const SMART_PREDICTIONS: Array<{ regex: RegExp; suggestion: string }> = [
   { regex: /\bhow\s*$/i, suggestion: ' are you doing?' },
   { regex: /\bhow are\s*$/i, suggestion: ' you doing today?' },
@@ -265,6 +312,30 @@ export function EmailComposer({
   const [showFontPicker, setShowFontPicker] = useState(false);
   const [showSizePicker, setShowSizePicker] = useState(false);
 
+  /**
+   * One tab stop for the alignment trio, so `radiogroup` is not a lie.
+   *
+   * The three buttons are a one-of set, and a `radiogroup` promises Left/Right
+   * traversal. `rovingTabIndex` keeps exactly the selected one in the tab
+   * sequence and these refs are what the arrows move focus to.
+   */
+  const alignButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const activeAlignIndex = TEXT_ALIGNMENTS.findIndex((a) => a.value === textAlign);
+  const onAlignKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+      const next = nextRovingIndex(event.key, index, TEXT_ALIGNMENTS.length);
+      if (next === null) return;
+      // Selection follows focus here, as it does for radios: there is nothing to
+      // confirm and no cost to being wrong for a keystroke.
+      event.preventDefault();
+      const alignment = TEXT_ALIGNMENTS[next];
+      if (!alignment) return;
+      setTextAlign(alignment.value);
+      alignButtonRefs.current[next]?.focus();
+    },
+    [],
+  );
+
   // Modals & Drawers
   const [isQuantyDrawerOpen, setIsQuantyDrawerOpen] = useState(false);
   const [isDrivePickerOpen, setIsDrivePickerOpen] = useState(false);
@@ -272,6 +343,58 @@ export function EmailComposer({
   const [showThreeDotsMenu, setShowThreeDotsMenu] = useState(false);
   const [showSendOptionsDropdown, setShowSendOptionsDropdown] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+
+  /*
+    Trigger refs for the four disclosure popovers in the header and formatting
+    bar. Each panel had exactly one way out — clicking the invisible backdrop —
+    which is a pointer gesture, so a keyboard user who opened one could not
+    close it. That was survivable while the panels were invisible to a reader;
+    it stops being survivable now that the triggers report `aria-expanded` and
+    point at the panel, because that is an invitation to go in.
+  */
+  const threeDotsTriggerRef = useRef<HTMLButtonElement>(null);
+  const fontTriggerRef = useRef<HTMLButtonElement>(null);
+  const sizeTriggerRef = useRef<HTMLButtonElement>(null);
+  const colorTriggerRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * Escape closes whichever composer popover is open, and hands focus back.
+   *
+   * The focus hand-back is the part that is easy to skip and expensive to omit:
+   * closing a panel unmounts whatever inside it had focus, and focus then falls
+   * to `<body>`, which drops a keyboard user out of the composer entirely. An
+   * outside *click* deliberately does not do this — the pointer has already
+   * moved on, and yanking focus back would fight it.
+   *
+   * Capture phase, because the textarea and the inputs below sit in the same
+   * subtree and a bubbling listener would race them.
+   */
+  useEffect(() => {
+    const anyOpen = showThreeDotsMenu || showFontPicker || showSizePicker || showColorPicker;
+    if (!anyOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      if (showThreeDotsMenu) {
+        setShowThreeDotsMenu(false);
+        threeDotsTriggerRef.current?.focus();
+      }
+      if (showFontPicker) {
+        setShowFontPicker(false);
+        fontTriggerRef.current?.focus();
+      }
+      if (showSizePicker) {
+        setShowSizePicker(false);
+        sizeTriggerRef.current?.focus();
+      }
+      if (showColorPicker) {
+        setShowColorPicker(false);
+        colorTriggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [showThreeDotsMenu, showFontPicker, showSizePicker, showColorPicker]);
 
   // Latched so the lazy chunks above are fetched on first open, not on mount —
   // and so each overlay keeps its state once it has been opened.
@@ -627,7 +750,21 @@ export function EmailComposer({
           <div className="relative">
             <button
               type="button"
+              ref={threeDotsTriggerRef}
               onClick={() => setShowThreeDotsMenu((prev) => !prev)}
+              /*
+                A disclosure, not a menu. `aria-haspopup` is not a generic "there
+                is a popover here" flag — in ARIA `true` is exactly synonymous
+                with `menu`, and none of these panels carries `role="menu"`, so a
+                reader told "has popup menu" would arrive expecting `menuitem`
+                children and arrow-key traversal and find plain buttons.
+                `aria-expanded` plus a gated `aria-controls` is the pattern that
+                matches what this actually is, and it is the one the inbox filter
+                already uses.
+              */
+              aria-expanded={showThreeDotsMenu}
+              aria-controls={showThreeDotsMenu ? 'composer-more-menu' : undefined}
+              aria-label="More composer options"
               className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               title="More options"
             >
@@ -637,6 +774,7 @@ export function EmailComposer({
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
+                aria-hidden="true"
               >
                 <circle cx="12" cy="12" r="1" />
                 <circle cx="12" cy="5" r="1" />
@@ -647,7 +785,17 @@ export function EmailComposer({
             {showThreeDotsMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowThreeDotsMenu(false)} />
-                <div className="absolute right-0 top-full mt-1.5 w-52 rounded-2xl border border-[#282C35] bg-[#121622] py-2 shadow-2xl z-50 text-xs">
+                {/*
+                  A named group, not a bare box: without a role the panel is four
+                  loose buttons that appeared next to the header, with nothing
+                  saying they are one surface or where it ends.
+                */}
+                <div
+                  id="composer-more-menu"
+                  role="group"
+                  aria-label="More composer options"
+                  className="absolute right-0 top-full mt-1.5 w-52 rounded-2xl border border-[#282C35] bg-[#121622] py-2 shadow-2xl z-50 text-xs"
+                >
                   <button
                     type="button"
                     onClick={() => {
@@ -884,12 +1032,24 @@ export function EmailComposer({
         {/* Guided Structured Corporate Email Fields (When Template Mode is ON) */}
         {isTemplateMode && (
           <div className="space-y-3 p-3.5 rounded-2xl bg-[#111318]/40 border border-[#282C35]/80">
+            {/*
+              Real labels, matching the Subject row above. These five template
+              fields were titled by styled `<span>`s with no `id` and no
+              `htmlFor`, so by HTML-AAM the accessible name fell all the way
+              through to the placeholder: the Greeting field was called "Dear
+              Sir/Madam," — a sample value presented as the field's name, which
+              also vanishes the moment anyone types.
+            */}
             {/* Greeting Row */}
             <div className="flex items-center gap-2 sm:gap-3 border-b border-[#282C35] pb-2 w-full max-w-full">
-              <span className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0">
+              <label
+                htmlFor="composer-greeting"
+                className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0"
+              >
                 Greeting:
-              </span>
+              </label>
               <input
+                id="composer-greeting"
                 type="text"
                 value={greeting}
                 onChange={(e) => setGreeting(e.target.value)}
@@ -900,10 +1060,14 @@ export function EmailComposer({
 
             {/* Opening / Purpose Row */}
             <div className="flex items-center gap-2 sm:gap-3 border-b border-[#282C35] pb-2 w-full max-w-full">
-              <span className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0">
+              <label
+                htmlFor="composer-opening"
+                className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0"
+              >
                 Opening:
-              </span>
+              </label>
               <input
+                id="composer-opening"
                 type="text"
                 value={opening}
                 onChange={(e) => setOpening(e.target.value)}
@@ -985,7 +1149,23 @@ export function EmailComposer({
                 <button
                   type="button"
                   onClick={() => setIncludeSignature((prev) => !prev)}
-                  aria-pressed={includeSignature}
+                  /*
+                    A checkbox, because that is what it is drawn as: a 16px square
+                    that fills with the accent and shows a tick. `aria-pressed`
+                    announced "toggle button, pressed" beside it, leaving the eye
+                    and the ear describing two different controls — the same
+                    defect the inbox filters already named and fixed.
+
+                    The `aria-label` is the other half. The box is `aria-hidden`,
+                    so the visible words were the whole accessible name, and they
+                    are the *state* — the name flipped between "Included" and
+                    "Not included" on every press and never once said what was
+                    being included. Now the name is stable and the words are the
+                    value display they read as.
+                  */
+                  role="checkbox"
+                  aria-checked={includeSignature}
+                  aria-label="Include signature"
                   // `min-h-touch`, not the 32px a text button wants to be: this is
                   // the only control in the card, and a 12px shortfall on the one
                   // thing a thumb has to hit is the whole 44px floor being missed.
@@ -1039,10 +1219,14 @@ export function EmailComposer({
           <div className="space-y-3 p-3.5 rounded-2xl bg-[#111318]/40 border border-[#282C35]/80">
             {/* Closing Row */}
             <div className="flex items-center gap-2 sm:gap-3 border-b border-[#282C35] pb-2 w-full max-w-full">
-              <span className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0">
+              <label
+                htmlFor="composer-closing"
+                className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0"
+              >
                 Closing:
-              </span>
+              </label>
               <input
+                id="composer-closing"
                 type="text"
                 value={closing}
                 onChange={(e) => setClosing(e.target.value)}
@@ -1054,19 +1238,38 @@ export function EmailComposer({
             {/* Sign-off & Sender Details */}
             <div className="space-y-2 pt-1 w-full max-w-full box-border">
               <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 w-full max-w-full">
-                <span className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0">
+                {/*
+                  One visible label over two fields, so it stays a `<span>` with
+                  an `id` and the pair becomes a named `group` — a `<label>` can
+                  only point at one control, and picking either field would leave
+                  the other unlabelled. Each field then carries its own name,
+                  because "Sign-off" alone does not tell you which box takes the
+                  phrase and which takes the person.
+                */}
+                <span
+                  id="composer-signoff-label"
+                  className="text-xs font-medium text-[#A1A4AC] w-14 sm:w-16 shrink-0"
+                >
                   Sign-off:
                 </span>
-                <div className="flex items-center gap-2 flex-1 min-w-0 w-full">
+                <div
+                  role="group"
+                  aria-labelledby="composer-signoff-label"
+                  className="flex items-center gap-2 flex-1 min-w-0 w-full"
+                >
                   <input
+                    id="composer-signoff"
                     type="text"
+                    aria-label="Sign-off phrase"
                     value={signoff}
                     onChange={(e) => setSignoff(e.target.value)}
                     placeholder="Best regards,"
                     className="w-28 sm:w-36 shrink-0 bg-transparent text-xs sm:text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none border-b border-[#282C35] pb-0.5"
                   />
                   <input
+                    id="composer-sender-name"
                     type="text"
+                    aria-label="Sender name"
                     value={senderName}
                     onChange={(e) => setSenderName(e.target.value)}
                     placeholder="Your Name"
@@ -1080,6 +1283,11 @@ export function EmailComposer({
                 <div key={idx} className="flex items-center gap-2 pl-0 sm:pl-16 min-w-0 w-full">
                   <input
                     type="text"
+                    // Numbered to match its own remove button below, which has
+                    // said `Remove detail line 2` since it shipped while the
+                    // field beside it was called "Designation / Company /
+                    // Contact..." — the placeholder, read as a name.
+                    aria-label={`Detail line ${idx + 1}`}
                     value={detail}
                     onChange={(e) => handleUpdateDetail(idx, e.target.value)}
                     placeholder="Designation / Company / Contact..."
@@ -1187,9 +1395,11 @@ export function EmailComposer({
             <div className="relative">
               <button
                 type="button"
+                ref={fontTriggerRef}
                 onClick={() => setShowFontPicker((prev) => !prev)}
                 className="flex items-center gap-1 px-2.5 py-1 min-h-[44px] sm:min-h-0 rounded-lg bg-[#111318] border border-[#282C35] text-[#F5F5F5] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 aria-expanded={showFontPicker}
+                aria-controls={showFontPicker ? 'composer-font-panel' : undefined}
                 aria-label={`Font family: ${selectedFont.name}`}
               >
                 <span>{selectedFont.name}</span>
@@ -1198,7 +1408,12 @@ export function EmailComposer({
               {showFontPicker && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setShowFontPicker(false)} />
-                  <div className="absolute left-0 bottom-full mb-1.5 w-44 rounded-xl border border-[#282C35] bg-[#121622] py-1 shadow-2xl z-40">
+                  <div
+                    id="composer-font-panel"
+                    role="group"
+                    aria-label="Font family"
+                    className="absolute left-0 bottom-full mb-1.5 w-44 rounded-xl border border-[#282C35] bg-[#121622] py-1 shadow-2xl z-40"
+                  >
                     {FONT_FAMILIES.map((font) => (
                       <button
                         key={font.id}
@@ -1226,9 +1441,11 @@ export function EmailComposer({
             <div className="relative">
               <button
                 type="button"
+                ref={sizeTriggerRef}
                 onClick={() => setShowSizePicker((prev) => !prev)}
                 className="flex items-center gap-1 px-2 py-1 min-h-[44px] sm:min-h-0 rounded-lg bg-[#111318] border border-[#282C35] text-[#F5F5F5] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 aria-expanded={showSizePicker}
+                aria-controls={showSizePicker ? 'composer-size-panel' : undefined}
                 aria-label={`Font size: ${selectedSize.name}`}
               >
                 <span>{selectedSize.name}</span>
@@ -1237,7 +1454,12 @@ export function EmailComposer({
               {showSizePicker && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setShowSizePicker(false)} />
-                  <div className="absolute left-0 bottom-full mb-1.5 w-28 rounded-xl border border-[#282C35] bg-[#121622] py-1 shadow-2xl z-40">
+                  <div
+                    id="composer-size-panel"
+                    role="group"
+                    aria-label="Font size"
+                    className="absolute left-0 bottom-full mb-1.5 w-28 rounded-xl border border-[#282C35] bg-[#121622] py-1 shadow-2xl z-40"
+                  >
                     {FONT_SIZES.map((s) => (
                       <button
                         key={s.id}
@@ -1261,11 +1483,22 @@ export function EmailComposer({
 
             <div className="h-4 w-px bg-[#282C35] mx-1" />
 
+            {/*
+              The four character toggles. Two things were missing and they
+              compound: `aria-pressed`, so on/off was carried by the accent
+              background alone; and a real name, because for a `<button>` the
+              accessible name comes from its contents before its `title` — so
+              these announced as "B", "I", "U", "S" and the words "Bold",
+              "Italic" and the rest never reached a reader at all. `title` stays
+              for the pointer tooltip; `aria-label` is what is spoken.
+            */}
             {/* Bold */}
             <button
               type="button"
               onClick={() => setIsBold((prev) => !prev)}
-              className={`p-1.5 rounded-lg font-bold text-xs ${
+              aria-pressed={isBold}
+              aria-label="Bold"
+              className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg font-bold text-xs ${
                 isBold
                   ? 'bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40'
                   : 'text-[#A1A4AC] hover:text-white hover:bg-[#111318]'
@@ -1279,7 +1512,9 @@ export function EmailComposer({
             <button
               type="button"
               onClick={() => setIsItalic((prev) => !prev)}
-              className={`p-1.5 rounded-lg italic text-xs font-serif ${
+              aria-pressed={isItalic}
+              aria-label="Italic"
+              className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg italic text-xs font-serif ${
                 isItalic
                   ? 'bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40'
                   : 'text-[#A1A4AC] hover:text-white hover:bg-[#111318]'
@@ -1293,7 +1528,9 @@ export function EmailComposer({
             <button
               type="button"
               onClick={() => setIsUnderline((prev) => !prev)}
-              className={`p-1.5 rounded-lg underline text-xs ${
+              aria-pressed={isUnderline}
+              aria-label="Underline"
+              className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg underline text-xs ${
                 isUnderline
                   ? 'bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40'
                   : 'text-[#A1A4AC] hover:text-white hover:bg-[#111318]'
@@ -1307,7 +1544,9 @@ export function EmailComposer({
             <button
               type="button"
               onClick={() => setIsStrikethrough((prev) => !prev)}
-              className={`p-1.5 rounded-lg line-through text-xs ${
+              aria-pressed={isStrikethrough}
+              aria-label="Strikethrough"
+              className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg line-through text-xs ${
                 isStrikethrough
                   ? 'bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40'
                   : 'text-[#A1A4AC] hover:text-white hover:bg-[#111318]'
@@ -1321,18 +1560,31 @@ export function EmailComposer({
             <div className="relative">
               <button
                 type="button"
+                ref={colorTriggerRef}
                 onClick={() => setShowColorPicker((prev) => !prev)}
-                className="flex items-center gap-1 p-1.5 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#111318]"
-                title="Text Color"
+                aria-expanded={showColorPicker}
+                aria-controls={showColorPicker ? 'composer-color-panel' : undefined}
+                aria-label={`Text colour: ${textColor.label}`}
+                className="inline-flex items-center justify-center gap-1 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#111318] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                title="Text colour"
               >
-                <span className="font-bold underline" style={{ color: textColor.color }}>
+                <span
+                  aria-hidden="true"
+                  className="font-bold underline"
+                  style={{ color: textColor.color }}
+                >
                   A
                 </span>
               </button>
               {showColorPicker && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setShowColorPicker(false)} />
-                  <div className="absolute left-0 bottom-full mb-1.5 p-2 rounded-xl border border-[#282C35] bg-[#121622] shadow-2xl z-40 flex gap-1.5">
+                  <div
+                    id="composer-color-panel"
+                    role="group"
+                    aria-label="Text colour"
+                    className="absolute left-0 bottom-full mb-1.5 p-2 rounded-xl border border-[#282C35] bg-[#121622] shadow-2xl z-40 flex gap-1.5"
+                  >
                     {TEXT_COLORS.map((c) => (
                       <button
                         key={c.id}
@@ -1341,8 +1593,14 @@ export function EmailComposer({
                           setTextColor(c);
                           setShowColorPicker(false);
                         }}
+                        // A swatch is a colour and nothing else: no text, so the
+                        // name has to be given, and no state channel at all
+                        // until now — the chosen colour was legible only from
+                        // the letter A back on the trigger.
+                        aria-pressed={textColor.id === c.id}
+                        aria-label={c.label}
                         style={{ backgroundColor: c.color }}
-                        className="size-5 rounded-full ring-1 ring-[#3A404D] hover:scale-110 transition-all"
+                        className="size-5 rounded-full ring-1 ring-[#3A404D] hover:scale-110 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                         title={c.label}
                       />
                     ))}
@@ -1354,73 +1612,47 @@ export function EmailComposer({
             <div className="h-4 w-px bg-[#282C35] mx-1" />
 
             {/* Alignments */}
-            <button
-              type="button"
-              onClick={() => setTextAlign('left')}
-              className={`p-1.5 rounded-lg ${
-                textAlign === 'left'
-                  ? 'bg-[#FF8C42]/20 text-[#FFB875]'
-                  : 'text-[#A1A4AC] hover:text-white'
-              }`}
-              title="Align Left"
+            <div
+              role="radiogroup"
+              aria-label="Text alignment"
+              className="flex items-center gap-1.5"
             >
-              <svg
-                className="size-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <line x1="21" x2="3" y1="6" y2="6" />
-                <line x1="15" x2="3" y1="12" y2="12" />
-                <line x1="17" x2="3" y1="18" y2="18" />
-              </svg>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setTextAlign('center')}
-              className={`p-1.5 rounded-lg ${
-                textAlign === 'center'
-                  ? 'bg-[#FF8C42]/20 text-[#FFB875]'
-                  : 'text-[#A1A4AC] hover:text-white'
-              }`}
-              title="Align Center"
-            >
-              <svg
-                className="size-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <line x1="21" x2="3" y1="6" y2="6" />
-                <line x1="19" x2="5" y1="12" y2="12" />
-                <line x1="21" x2="3" y1="18" y2="18" />
-              </svg>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setTextAlign('right')}
-              className={`p-1.5 rounded-lg ${
-                textAlign === 'right'
-                  ? 'bg-[#FF8C42]/20 text-[#FFB875]'
-                  : 'text-[#A1A4AC] hover:text-white'
-              }`}
-              title="Align Right"
-            >
-              <svg
-                className="size-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <line x1="21" x2="3" y1="6" y2="6" />
-                <line x1="21" x2="7" y1="18" y2="18" />
-              </svg>
-            </button>
+              {TEXT_ALIGNMENTS.map((alignment, index) => {
+                const isOn = textAlign === alignment.value;
+                return (
+                  <button
+                    key={alignment.value}
+                    type="button"
+                    ref={(node) => {
+                      alignButtonRefs.current[index] = node;
+                    }}
+                    role="radio"
+                    aria-checked={isOn}
+                    aria-label={alignment.label}
+                    tabIndex={rovingTabIndex(index, activeAlignIndex)}
+                    onClick={() => setTextAlign(alignment.value)}
+                    onKeyDown={(event) => onAlignKeyDown(event, index)}
+                    className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                      isOn ? 'bg-[#FF8C42]/20 text-[#FFB875]' : 'text-[#A1A4AC] hover:text-white'
+                    }`}
+                    title={alignment.label}
+                  >
+                    <svg
+                      className="size-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden="true"
+                    >
+                      {alignment.lines.map(([x1, x2], row) => (
+                        <line key={row} x1={x1} x2={x2} y1={6 + row * 6} y2={6 + row * 6} />
+                      ))}
+                    </svg>
+                  </button>
+                );
+              })}
+            </div>
 
             {/* Reset / Clear Formatting */}
             <button
@@ -1435,7 +1667,7 @@ export function EmailComposer({
                 setTextColor(TEXT_COLORS[0]);
                 setTextAlign('left');
               }}
-              className="ml-auto p-1.5 rounded-lg text-[#A1A4AC] hover:text-[#A1A4AC] text-xs"
+              className="ml-auto inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 p-1.5 rounded-lg text-[#A1A4AC] hover:text-[#F5F5F5] text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               title="Clear formatting"
             >
               T<span className="text-[10px]">x</span>
