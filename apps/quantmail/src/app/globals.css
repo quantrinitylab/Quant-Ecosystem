@@ -2185,6 +2185,38 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/*
+  The subject is the one real control in a Sent or folder row — /sent, /archive,
+  /spam, /starred and /snoozed all keep the row click as a pointer shortcut, but
+  this is what a keyboard reaches. It has to read as the heading it sits inside,
+  so it inherits the type and carries the truncation itself.
+
+  Its own ring is suppressed and drawn on the row instead: `.sent-row-subject`
+  clips to render its ellipsis, so an outline here would be cut off top and
+  bottom. `:has()` puts it exactly where the room is, and only for the control
+  that gave up its own — the rescue action beside it keeps its ring, so no row
+  ever shows two.
+*/
+.sent-row-subject button {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sent-row-subject button:focus-visible {
+  outline: none;
+}
+.sent-row:has(.sent-row-subject button:focus-visible) {
+  border-color: #FF8C42;
+  outline: 2px solid #FF8C42;
+  outline-offset: 2px;
+  background: #111318;
+}
 
 /* Delivery status indicators */
 .delivery-status {
@@ -4082,6 +4114,20 @@ body {
   transition: background 100ms;
 }
 .delivery-resend:hover { background: rgba(255, 140, 66, 0.14); }
+/*
+  A failed send is the one row in the delivery trail that asks for a tap, and at
+  10px type with 2.4px of block padding this button was about 18px tall — under
+  half the 44px a thumb needs. It keeps its small, quiet size on a mouse, where
+  18px is a comfortable target and the row is dense on purpose; a coarse pointer
+  gets the full target and the row grows to fit it. Same bump as
+  `.file-tree-item` above.
+*/
+@media (pointer: coarse) {
+  .delivery-resend {
+    min-height: 44px;
+    padding-inline: 0.6rem;
+  }
+}
 
 /* ========================================================================== */
 /* Right-Click Context Menu                                                   */

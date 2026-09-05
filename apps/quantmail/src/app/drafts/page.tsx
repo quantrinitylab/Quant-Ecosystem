@@ -128,12 +128,16 @@ export default function DraftsPage() {
               animate="visible"
               variants={{ visible: { transition: { staggerChildren: 0.02 } } }}
               className="sent-list"
+              role="list"
+              aria-label="Drafts"
             >
               {emails.map((email) => (
                 <motion.article
                   key={email.id}
                   variants={{ hidden: { opacity: 0, y: 4 }, visible: { opacity: 1, y: 0 } }}
                   className="draft-row"
+                  /* One of n, so `listitem` rather than an uncountable article. */
+                  role="listitem"
                   onClick={() => handleDraftClick(email)}
                 >
                   <div className="draft-indicator" aria-hidden="true" />
@@ -153,6 +157,13 @@ export default function DraftsPage() {
                     </p>
                   </div>
                   <div className="draft-actions">
+                    {/*
+                      Both names carry the draft they act on. "Delete draft" twenty
+                      times over is twenty identical names for twenty different pieces
+                      of unsent writing, and this is the pair where getting the wrong
+                      row means losing it. The visible word stays the start of each
+                      name, so speech control still matches what is on screen.
+                    */}
                     <button
                       type="button"
                       className="draft-resume"
@@ -160,7 +171,7 @@ export default function DraftsPage() {
                         e.stopPropagation();
                         handleDraftClick(email);
                       }}
-                      aria-label="Resume editing"
+                      aria-label={`Resume editing: ${email.subject || 'untitled draft'}`}
                     >
                       Resume
                     </button>
@@ -168,7 +179,7 @@ export default function DraftsPage() {
                       type="button"
                       className="draft-delete"
                       onClick={(e) => void handleDeleteDraft(e, email.id, email.subject)}
-                      aria-label="Delete draft"
+                      aria-label={`Delete draft: ${email.subject || 'untitled draft'}`}
                       title="Delete draft"
                     >
                       <svg

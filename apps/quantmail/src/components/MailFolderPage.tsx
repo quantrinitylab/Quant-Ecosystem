@@ -8,27 +8,15 @@ import { AppShell } from './AppShell';
 import { AppSidebar } from './AppSidebar';
 import { IdentityAvatar } from './IdentityAvatar';
 import { showToast } from './InboxToast';
+import { UnreadDot } from './UnreadDot';
 import { useInbox } from '../hooks/useInbox';
 import { useAuth } from '../providers/auth-provider';
+import { resolveThreadTarget } from '../lib/route-ids';
 import {
   groupEmailsIntoThreads,
   threadMessageIds,
   type ConversationThread,
 } from '../lib/threading';
-import type { Email } from '../types';
-
-/** True when a value is safe to place in a route segment or query param. */
-function isValidRouteId(value: unknown): value is string {
-  if (typeof value !== 'string') return false;
-  const trimmed = value.trim();
-  return trimmed.length > 0 && trimmed !== 'null' && trimmed !== 'undefined';
-}
-
-function resolveThreadTarget(email: Email): string | null {
-  if (isValidRouteId(email.threadId)) return email.threadId;
-  if (isValidRouteId(email.id)) return email.id;
-  return null;
-}
 
 function formatRowDate(value?: string | Date) {
   if (!value) return '';
@@ -194,44 +182,89 @@ export function MailFolderPage({
               animate="visible"
               variants={{ visible: { transition: { staggerChildren: 0.02 } } }}
               className="sent-list"
+              role="list"
+              aria-label={`${title} conversations`}
             >
-              {threads.map((thread) => (
-                <motion.article
-                  key={thread.id}
-                  variants={{ hidden: { opacity: 0, y: 4 }, visible: { opacity: 1, y: 0 } }}
-                  className="sent-row"
-                  onClick={() => openThread(thread)}
-                >
-                  <IdentityAvatar name={thread.participantsSummary || 'Unknown sender'} size="sm" />
-                  <div className="sent-row-content">
-                    <div className="sent-row-meta">
-                      <span className="sent-row-recipients">
-                        {thread.participantsSummary || 'Unknown sender'}
-                      </span>
-                      {thread.count > 1 && (
-                        <span className="folder-row-count">{thread.count} messages</span>
-                      )}
-                      {!thread.isRead && <span className="mail-unread-dot" aria-label="Unread" />}
-                      <time className="sent-row-time">{formatRowDate(thread.receivedAt)}</time>
+              {threads.map((thread) => {
+                const sender = thread.participantsSummary || 'Unknown sender';
+                const subject = thread.subject || '(no subject)';
+                const pending = pendingId === thread.id;
+                return (
+                  <motion.article
+                    key={thread.id}
+                    variants={{ hidden: { opacity: 0, y: 4 }, visible: { opacity: 1, y: 0 } }}
+                    className="sent-row"
+                    /*
+                      `listitem` over `article`: the row's job in this view is to be
+                      one of n, and a run of articles cannot be counted. No
+                      aria-posinset/aria-setsize pair here, unlike the inbox — that
+                      list is virtualized, so its DOM understates the mailbox and the
+                      numbers have to be supplied by hand. This one renders every row.
+                    */
+                    role="listitem"
+                    /*
+                      Pointer convenience. It was the *only* way to open a
+                      conversation on all four of these routes until the subject
+                      became a real button below.
+                    */
+                    onClick={() => openThread(thread)}
+                  >
+                    <IdentityAvatar name={sender} size="sm" />
+                    <div className="sent-row-content">
+                      <div className="sent-row-meta">
+                        <span className="sent-row-recipients">{sender}</span>
+                        {thread.count > 1 && (
+                          <span className="folder-row-count">{thread.count} messages</span>
+                        )}
+                        {!thread.isRead && <UnreadDot />}
+                        <time className="sent-row-time">{formatRowDate(thread.receivedAt)}</time>
+                      </div>
+                      {/*
+                        The row's one real control, and the whole reason a keyboard can
+                        reach these four mailboxes at all. The subject is the name
+                        because it is what a person is looking for; the rescue action
+                        beside it is not always rendered, so it cannot be the row's
+                        keyboard route. Its own focus ring is suppressed in CSS and
+                        drawn on the row instead — `.sent-row-subject` clips to draw
+                        its ellipsis and would cut an outline in half.
+                      */}
+                      <h3 className="sent-row-subject">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openThread(thread);
+                          }}
+                        >
+                          {subject}
+                        </button>
+                      </h3>
+                      <p className="sent-row-snippet">{thread.latestEmail.snippet}</p>
                     </div>
-                    <h3 className="sent-row-subject">{thread.subject || '(no subject)'}</h3>
-                    <p className="sent-row-snippet">{thread.latestEmail.snippet}</p>
-                  </div>
-                  {rowAction && (
-                    <button
-                      type="button"
-                      className="folder-row-action"
-                      disabled={pendingId === thread.id}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void runRowAction(thread);
-                      }}
-                    >
-                      {pendingId === thread.id ? rowAction.pendingLabel : rowAction.label}
-                    </button>
-                  )}
-                </motion.article>
-              ))}
+                    {rowAction && (
+                      <button
+                        type="button"
+                        className="folder-row-action"
+                        disabled={pending}
+                        /*
+                          "Move to inbox" forty times over says which button but never
+                          which conversation. The visible word stays the start of the
+                          name, so what a speech user says still matches what they see.
+                        */
+                        aria-label={`${pending ? rowAction.pendingLabel : rowAction.label}: ${
+                          thread.subject || sender
+                        }`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void runRowAction(thread);
+                        }}
+                      >
+                        {pending ? rowAction.pendingLabel : rowAction.label}
+                      </button>
+                    )}
+                  </motion.article>
+                );
+              })}
             </motion.div>
           )}
         </div>

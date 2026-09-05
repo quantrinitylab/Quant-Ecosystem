@@ -8,6 +8,7 @@ import { spring } from '@quant/brand';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { SearchClearButton } from '../../components/SearchClearButton';
+import { UnreadDot } from '../../components/UnreadDot';
 import { useSearchEmails } from '../../hooks/useSearchEmails';
 import { listContainerVariants, listItemVariants } from '../../lib/motion-variants';
 import type { Email, SearchEmailRequest } from '../../types';
@@ -552,9 +553,7 @@ export default function SearchPage() {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-2">
-                          {!email.isRead && (
-                            <span className="mail-unread-dot" aria-label="Unread" />
-                          )}
+                          {!email.isRead && <UnreadDot />}
                           <span
                             className={`min-w-0 truncate text-sm ${
                               email.isRead
