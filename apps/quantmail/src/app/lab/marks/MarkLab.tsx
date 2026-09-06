@@ -197,13 +197,19 @@ function Panel({ label, note, children }: { label: string; note: string; childre
  * you which. So the sheet is rendered at three sizes: 104 because that is the hero mount,
  * 40 because that is the copilot, and 26 because that is the sidebar, and a face that only
  * works at 104 has failed the same way a material that only works at 250px has.
+ *
+ * The 104 cell asks for `figure="badge"` explicitly. `auto` would resolve it to `full` — 104
+ * is over `FULL_FIGURE_MIN` — and a full figure scales the head to 0.578, which would shrink
+ * every face on this sheet by 42% to make room for a torso nobody came here to read. This is
+ * a face reference; the body has its own row. The two smaller cells are already under the
+ * threshold, so they need no override.
  */
 function FaceSheet() {
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 lg:grid-cols-5">
       {FACE_NAMES.map((name) => (
         <div key={name} className="flex flex-col items-center gap-2">
-          <Quanty expression={name} size={104} />
+          <Quanty expression={name} size={104} figure="badge" />
           <div className="flex items-end gap-2">
             <Quanty expression={name} size={40} />
             <Quanty expression={name} size={26} />
@@ -476,15 +482,22 @@ export function MarkLab() {
             units and the buffer is fitted to the CSS box, so one unit buys{' '}
             <code className="px-1 text-[#A1A4AC]">dpr × size / 100</code> device pixels — the 2.3
             units that read as a rainbow at 104px are three quarters of one pixel at 22px.{' '}
-            <code className="px-1 text-[#A1A4AC]">ringWidthForSize</code> holds the weight and{' '}
-            <code className="px-1 text-[#A1A4AC]">ringVividness</code> raises the chroma as the box
-            shrinks. Quanty above, QuantGit below: the two share the primitive, so both have to be
-            read, and 20 through 36 is where every product mount lives.
+            <code className="px-1 text-[#A1A4AC]">ringWidthForSize</code> holds the weight, widening
+            the unit stroke as the box shrinks so it never falls under two device pixels, and caps
+            at 4.6. <code className="px-1 text-[#A1A4AC]">ringVividness</code> is what changed: it
+            takes the finish, and <code className="px-1 text-[#A1A4AC]">spectral</code> now returns
+            1 at every size, because a hero that paid for a rainbow was getting a pastel one. Only
+            the inward bloom still tapers with the box. Quanty above, QuantGit below: the two share
+            the primitive, so both have to be read, and 20 through 36 is where every product mount
+            lives. Quanty is pinned to <code className="px-1 text-[#A1A4AC]">badge</code> here so
+            the two rings are compared at the same radius — a full figure strokes its ring on a head
+            scaled to 0.578 and asks for the width of a 0.578× box to compensate, which is the
+            family row&apos;s business, not this one&apos;s.
           </p>
           <div className="mt-4 flex flex-wrap items-end gap-5 rounded-xl border border-[#282C35] bg-[#111318] p-5">
             {RING_SIZES.map((size) => (
               <div key={size} className="flex flex-col items-center gap-2">
-                <Quanty size={size} title={`Quanty at ${size}px`} />
+                <Quanty size={size} figure="badge" title={`Quanty at ${size}px`} />
                 <QuantGitLogo size={size} title={`QuantGit at ${size}px`} />
                 <code className="text-[10px] text-[#6B6E76]">{size}px</code>
               </div>
@@ -504,6 +517,17 @@ export function MarkLab() {
             <code className="px-1 text-[#A1A4AC]">AppShell</code> mounts every one of these there,
             then scan down it — a suite reads as a suite when the whole column shares a light
             direction and a material, not when each mark is separately pretty.
+          </p>
+          <p className="mt-2 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+            Quanty&apos;s row breaks the column on purpose, and this is the only place to see it: it
+            is a head at 20/24/32/36 and a whole robot at 64/104, because{' '}
+            <code className="px-1 text-[#A1A4AC]">figure=&quot;auto&quot;</code> resolves to{' '}
+            <code className="px-1 text-[#A1A4AC]">full</code> at 56px and up. Arms, legs and ear
+            pods need buffer the small mounts do not have — the head alone already fills 5..95 there
+            — so the choice was a robot nobody can resolve at 20px or a head that grows into one.
+            Every live mount under 56px runs the identity transform and is unchanged byte for byte;
+            the one live surface over it is <code className="px-1 text-[#A1A4AC]">codehub</code>
+            &apos;s 64px mascot.
           </p>
           <div className="mt-4 overflow-x-auto no-scrollbar rounded-xl border border-[#282C35] bg-[#111318] p-5">
             <div className="w-max">

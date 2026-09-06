@@ -125,6 +125,38 @@ const HEAD_FRAME = {
   full: { cx: 50, cy: 30, k: 0.578 },
 } as const;
 
+/**
+ * The figure, in buffer units, derived from the head rather than guessed at.
+ *
+ * At `k` 0.578 the head occupies x 23.99..76.01 and y 3.99..56.01 — the squircle's own
+ * 5..95 span scaled and re-centred — and every number below is measured off those edges:
+ *
+ * | piece | centre | size | span |
+ * |---|---|---|---|
+ * | ear pod | (50 ± 29.3, 28) | 9.5 × 18 r 4.4 | x 15.95..25.45, y 19..37 |
+ * | neck | (50, 58) | 13 × 8 r 3 | y 54..62 |
+ * | torso | (50, 72.5) | 41 × 26 r 11.5 | x 29.5..70.5, y 59.5..85.5 |
+ * | core ring | (50, 72.5) | r 10.5, 1.7 wide | y 61.15..83.85 |
+ * | arm | (30.5, 64) → (24, 79) | 7 wide | — |
+ * | leg | (42, 84) → (42, 92.5) | 8.5 wide | reaches y 96.75 |
+ * | foot | (40.5, 94) | 16 × 7 r 3.4 | y 90.5..97.5 |
+ *
+ * Three of those are load-bearing. The **pod tuck**: the head's left boundary is flat at
+ * x 23.99 for all y between 16.71 and 43.29, which covers the pod's whole 19..37 height,
+ * so 1.46 units hide under the head with no gap at any y and 8.04 units — 7.7 device px at
+ * the 64px mount — stay visible. The **core clearance**: the ring sits on the torso's exact
+ * centre, not the 71 first drafted, because at 71 its stroke reached y 59.65 against a
+ * shell edge at 59.5 and would have read as touching; centred it leaves 1.65 units of
+ * chassis above *and* below. The **floor**: 97.5 is what the buffer allows once a contact
+ * shadow is given 3 units, and the leg's round cap at 96.75 is under the foot that covers
+ * it. Nothing here is drawn outside 15.95..84.05 horizontally, so the body never reaches
+ * the squircle's own 5/95 walls and needs no clip of its own.
+ */
+const EAR_DX = 29.3;
+const FIGURE_TOP = 19;
+const FIGURE_BOTTOM = 97.5;
+const CORE_CY = 72.5;
+
 /** Half the distance between the eyes, from the plate's centre. */
 const EYE_DX = 16;
 /**
@@ -1183,10 +1215,253 @@ function paintExtras(
   }
 }
 
+/**
+ * One piece of chassis: filled with the figure-wide material ramp, then rimmed twice.
+ *
+ * The ramp is two of the design system's own surface tokens — `border` → `card` — so the
+ * body introduces no hue to the mascot at all. It is laid over `FIGURE_TOP`..`FIGURE_BOTTOM`
+ * once and shared by every piece, which is the point: a foot is darker than a shoulder
+ * because of where it sits on the *character*, not because of how tall the foot is. Per-piece
+ * ramps were the first attempt and they make each part look independently lit, which is the
+ * sticker look this whole rebuild exists to escape.
+ *
+ * **The floor is `card`, not `void`, and that reverses this function's first draft.** The
+ * draft ran `border` → `card` → `void` on the argument that a chassis lighter than the
+ * obsidian head reads as another product's plastic bolted to it. Measured, that argument was
+ * built on the wrong number: the head's interior samples luminance **26** at the eye row, not
+ * black, because `paintObsidianPlate`'s dome lifts it — while `void` `#0B0C0F` is luminance
+ * **12** against a `canvas` of **10**. A 2-point edge is not a dark chassis, it is a hole. An
+ * ASCII luminance map of the 104px cell showed the whole figure below y 85 simply absent:
+ * both feet blank, both legs blank, and the torso's outline surviving only in the top 44% of
+ * its span where the old rim was still alive. `card` `#16181D` is luminance 24, so the ramp
+ * now runs 44 → 24 and the darkest chassis pixel still sits 14 points above the canvas.
+ *
+ * What carries the silhouette is the pair of rims. `cool` is built per piece over that
+ * piece's own span, brightest at its top edge because a rim appears wherever a surface faces
+ * the light — but it now **keeps a floor** rather than reaching zero at 0.44. The zero was the
+ * second half of the same bug: every piece lost its outline halfway down itself, so a foot
+ * whose top rim was crisp had no bottom at all. `warm` is one radial from the power core,
+ * shared, because it is not a second light: it is the core's ember bouncing on the inside of
+ * its own housing, which is why an arm is warmer than a foot and why the pods — 52 units
+ * away, outside the radial's reach — get none of it. `paintObsidianPlate` lays the same warm
+ * pass along the head's bottom-right, so both halves of the character are lit by one story.
+ */
+function paintShell(
+  ctx: CanvasRenderingContext2D,
+  build: (c: CanvasRenderingContext2D) => void,
+  fill: CanvasGradient,
+  warm: CanvasGradient,
+  top: number,
+  bottom: number,
+): void {
+  build(ctx);
+  ctx.fillStyle = fill;
+  ctx.fill();
+
+  const cool = ctx.createLinearGradient(0, top, 0, bottom);
+  cool.addColorStop(0, 'rgba(148, 158, 176, 0.46)');
+  cool.addColorStop(0.5, 'rgba(148, 158, 176, 0.2)');
+  cool.addColorStop(1, 'rgba(148, 158, 176, 0.15)');
+  ctx.lineWidth = 1.1;
+  ctx.strokeStyle = cool;
+  ctx.stroke();
+  ctx.strokeStyle = warm;
+  ctx.stroke();
+}
+
+/**
+ * A limb. Stroked rather than filled, because an arm is a cylinder and a rounded stroke is
+ * the honest primitive for one — the alternative is two rounded rects and a joint to hide.
+ *
+ * The thin concentric second stroke is the cylinder's specular band. It rides the same
+ * core-centred radial as every rim, so it is bright at the shoulder and gone by the mitt,
+ * which is what a limb lit by a lamp in its own chest actually looks like.
+ */
+function paintLimb(
+  ctx: CanvasRenderingContext2D,
+  build: (c: CanvasRenderingContext2D) => void,
+  fill: CanvasGradient,
+  warm: CanvasGradient,
+  width: number,
+): void {
+  build(ctx);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = width;
+  ctx.strokeStyle = fill;
+  ctx.stroke();
+  ctx.lineWidth = width * 0.34;
+  ctx.strokeStyle = warm;
+  ctx.stroke();
+}
+
+/**
+ * The character under the head: pods, neck, torso with a power core, two arms, two legs.
+ *
+ * This exists because a head alone cannot sit, walk or wave, and two of the three reference
+ * sheets are character sheets whose poses are all body — "इसके पास हाथ पैर है ये सब है",
+ * "इसका पैर भी है". A mascot with no limbs has one pose forever.
+ *
+ * **Three things are deliberately not here.**
+ *
+ * *Antennae*, which reference ③ has. With the head at y 3.99..56.01 there are four units of
+ * buffer above it; a stalk long enough to read would be clipped by the canvas edge at every
+ * size. The binding constraint is the 100-unit buffer the whole family shares, so this is a
+ * cut rather than an oversight.
+ *
+ * *A chest panel.* The scanline comment further down rejects a `ctx.rect` clip on the
+ * grounds that a hard-edged region inside the mark *is* a card inside a card whatever its
+ * alpha, and that argument does not stop being true on the torso. So the chest is a circular
+ * core, a ring and two vent slots — light and lines, no bounded rectangle. A circle inside a
+ * rounded rect is not the nested-card shape the design engine bans; a panel would be.
+ *
+ * *An accent chassis.* The reference's spec block reads `Color: Black + Rainbow Accent` for
+ * the body and `Face Display: LED (Dynamic)` only for the face, so the shell and the core
+ * stay neutral and ember at every expression. The one thing on the body that follows the
+ * face is the pair of ear-pod slits, because a status LED *is* display: an `alarm` Quanty
+ * runs hot in its pods, and its chassis does not repaint itself.
+ */
+function paintBody(
+  ctx: CanvasRenderingContext2D,
+  t: number,
+  hover: number,
+  reduced: boolean,
+  accent: FaceAccent,
+  float: number,
+): void {
+  // The contact shadow is outside the float, because a figure that lifts its own shadow with
+  // it is a figure hovering, not breathing. It is near-black by design: on the product's own
+  // #090A0C canvas it is invisible, and on anything lighter it is what stops the character
+  // from floating in the middle of a card.
+  ctx.save();
+  ctx.translate(50, 96.6);
+  ctx.scale(1, 0.12);
+  const shade = ctx.createRadialGradient(0, 0, 0, 0, 0, 27);
+  shade.addColorStop(0, 'rgba(2, 3, 5, 0.6)');
+  shade.addColorStop(0.55, 'rgba(2, 3, 5, 0.3)');
+  shade.addColorStop(1, 'rgba(2, 3, 5, 0)');
+  ctx.beginPath();
+  ctx.arc(0, 0, 27, 0, Math.PI * 2);
+  ctx.fillStyle = shade;
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(0, float);
+
+  const shell = ctx.createLinearGradient(0, FIGURE_TOP, 0, FIGURE_BOTTOM);
+  shell.addColorStop(0, MARK_COLORS.border);
+  shell.addColorStop(1, MARK_COLORS.card);
+
+  const warm = ctx.createRadialGradient(50, CORE_CY, 4, 50, CORE_CY, 36);
+  warm.addColorStop(0, 'rgba(255, 140, 66, 0.42)');
+  warm.addColorStop(0.5, 'rgba(255, 140, 66, 0.16)');
+  warm.addColorStop(1, 'rgba(255, 140, 66, 0)');
+
+  // Antiphase, so the pair reads as a swing rather than a shrug. Amplitude 1.6 units is
+  // 1.5 device px at the 64px mount — enough to notice, not enough to look like flailing.
+  const sway = reduced ? 0 : Math.sin(t * 1.05) * 1.6;
+  const lh = 79 + sway;
+  const rh = 79 - sway;
+
+  // Legs, feet, arms and mitts all go down before the torso, so no shoulder or hip joint is
+  // ever drawn — the torso covers every one of them.
+  const leg = (x: number) => (c: CanvasRenderingContext2D) => {
+    c.beginPath();
+    c.moveTo(x, 84);
+    c.lineTo(x, 92.5);
+  };
+  paintLimb(ctx, leg(42), shell, warm, 8.5);
+  paintLimb(ctx, leg(58), shell, warm, 8.5);
+  paintShell(ctx, (c) => bar(c, 40.5, 94, 16, 7, 3.4), shell, warm, 90.5, 97.5);
+  paintShell(ctx, (c) => bar(c, 59.5, 94, 16, 7, 3.4), shell, warm, 90.5, 97.5);
+
+  const arm =
+    (sx: number, ctrl: number, hx: number, hy: number) => (c: CanvasRenderingContext2D) => {
+      c.beginPath();
+      c.moveTo(sx, 64);
+      c.quadraticCurveTo(ctrl, 69.5, hx, hy);
+    };
+  paintLimb(ctx, arm(30.5, 25.6, 24, lh), shell, warm, 7);
+  paintLimb(ctx, arm(69.5, 74.4, 76, rh), shell, warm, 7);
+  const mitt = (x: number, y: number) => (c: CanvasRenderingContext2D) => {
+    c.beginPath();
+    c.arc(x, y, 5, 0, Math.PI * 2);
+  };
+  paintShell(ctx, mitt(24, lh), shell, warm, lh - 5, lh + 5);
+  paintShell(ctx, mitt(76, rh), shell, warm, rh - 5, rh + 5);
+
+  paintShell(ctx, (c) => bar(c, 50, 58, 13, 8, 3), shell, warm, 54, 62);
+
+  // Ear pods, behind the head. **Symmetric, and that is a decision.** The complaint pointed
+  // at one nub — "इसका सर में यहां पे एक निकला हुआ है… ये साइड में ऐसे निकला हुआ है" — but
+  // reference ② is a three-quarter view, where the near pod occludes the far one. A single
+  // nub on a dead-on silhouette does not read as a design, it reads as a rendering fault.
+  const led = LED_ACCENTS[accent];
+  for (const px of [50 - EAR_DX, 50 + EAR_DX]) {
+    paintShell(ctx, (c) => bar(c, px, 28, 9.5, 18, 4.4), shell, warm, FIGURE_TOP, 37);
+  }
+  ctx.save();
+  ctx.shadowColor = `rgba(${led.bloom}, 0.85)`;
+  ctx.shadowBlur = 5;
+  const slit = ctx.createLinearGradient(0, 23.5, 0, 32.5);
+  slit.addColorStop(0, led.core);
+  slit.addColorStop(0.34, led.mid);
+  slit.addColorStop(1, led.edge);
+  ctx.fillStyle = slit;
+  for (const px of [50 - EAR_DX, 50 + EAR_DX]) {
+    bar(ctx, px, 28, 3, 9, 1.5);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  paintShell(ctx, (c) => bar(c, 50, 72.5, 41, 26, 11.5), shell, warm, 59.5, 85.5);
+
+  // Two vent slots rather than a grille. A row of them would be the striped region the
+  // scanline note bans; a pair reads as hardware and cannot become a pattern.
+  const vent = ctx.createLinearGradient(0, 74.5, 0, 81.5);
+  vent.addColorStop(0, 'rgba(148, 158, 176, 0.26)');
+  vent.addColorStop(0.5, 'rgba(148, 158, 176, 0)');
+  ctx.lineWidth = 0.9;
+  for (const vx of [35, 65]) {
+    bar(ctx, vx, 78, 3.2, 7, 1.6);
+    ctx.fillStyle = MARK_COLORS.void;
+    ctx.fill();
+    ctx.strokeStyle = vent;
+    ctx.stroke();
+  }
+
+  // The core. `shadowBlur` on an ember source is the medium this file already runs on —
+  // every LED on the panel goes through `ledFill`, which does exactly this — so it is a
+  // light in the fiction rather than a glow bolted onto a card.
+  const beat = reduced ? 0.7 : 0.7 + Math.sin(t * 1.5) * 0.14;
+  const lift = Math.min(1, beat + hover * 0.2);
+  const core = ctx.createRadialGradient(50, CORE_CY, 0, 50, CORE_CY, 8);
+  core.addColorStop(0, `rgba(255, 214, 176, ${lift})`);
+  core.addColorStop(0.4, `rgba(255, 140, 66, ${lift * 0.54})`);
+  core.addColorStop(1, 'rgba(255, 140, 66, 0)');
+  ctx.beginPath();
+  ctx.arc(50, CORE_CY, 8, 0, Math.PI * 2);
+  ctx.fillStyle = core;
+  ctx.fill();
+
+  ctx.shadowColor = `rgba(255, 140, 66, ${lift * 0.7})`;
+  ctx.shadowBlur = 6;
+  ctx.globalAlpha = Math.min(1, 0.5 + lift * 0.42);
+  ctx.beginPath();
+  ctx.arc(50, CORE_CY, 10.5, 0, Math.PI * 2);
+  ctx.lineWidth = 1.7;
+  ctx.strokeStyle = MARK_COLORS.ember;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
 export function Quanty({
   expression = 'idle',
   size = 32,
   bob = false,
+  figure = 'auto',
   className = '',
   title = 'Quanty',
 }: QuantyProps) {
@@ -1194,6 +1469,29 @@ export function Quanty({
     ({ ctx, cx, cy, time, tiltX, tiltY, hover, press, reduced }: MarkFrame) => {
       const t = reduced ? 0 : time;
       const spec = faceSpec(expression);
+      const accent = spec.accent ?? 'white';
+      const resolved = figure === 'auto' ? (size >= FULL_FIGURE_MIN ? 'full' : 'badge') : figure;
+      const head = HEAD_FRAME[resolved];
+
+      // At `full` the float belongs to the whole character — a head bobbing on a still torso
+      // is a bobblehead. At `badge` there is no torso, so it stays where it has always been,
+      // inside the face group below, and this value is 0.
+      const float = bob && !reduced ? Math.sin(t * 1.32) * 2.1 : 0;
+      const figureFloat = resolved === 'full' ? float : 0;
+
+      if (resolved === 'full') paintBody(ctx, t, hover, reduced, accent, figureFloat);
+
+      // The head runs the *entire* pipeline below inside one frame instead of being
+      // re-parameterised, and at `badge` that frame is `translate(50,50) · scale(1,1) ·
+      // translate(-50,-50)` — the identity, with `figureFloat` 0 and `su` 1. So every size
+      // the product actually mounts emits the same instructions with the same numbers in the
+      // same order as the head-only build: unchanged by construction, not by inspection.
+      // Same discipline as `ringBloom` keeping the old expression verbatim in `canvas-mark`.
+      const su = 1 / head.k;
+      ctx.save();
+      ctx.translate(head.cx, head.cy + figureFloat);
+      ctx.scale(head.k, head.k);
+      ctx.translate(-cx, -cy);
 
       ctx.save();
       markSquirclePath(ctx, cx, cy);
@@ -1220,9 +1518,13 @@ export function Quanty({
       // the old SVG by a flat 5px — a quarter of the mark at size 20 and a twentieth of it
       // at 104 — whereas a buffer-space offset is the same gesture at every size. It also
       // stops for `prefers-reduced-motion` for free, because `t` is pinned to 0.
-      const float = bob && !reduced ? Math.sin(t * 1.32) * 2.1 : 0;
+      //
+      // `float - figureFloat` is the bob the *head* still owes: all of it at `badge`, where
+      // `figureFloat` is 0 and this is the original expression, and none of it at `full`,
+      // where `paintBody` has already lifted head and body together.
+      const faceFloat = float - figureFloat;
       const lean = hover * 1.4 - press * 0.9;
-      ctx.translate(tiltX * 2.6, tiltY * 2.4 + float - lean);
+      ctx.translate(tiltX * 2.6, tiltY * 2.4 + faceFloat - lean);
 
       // Blink and squint fold into one number, so no face has to know about either — it only
       // declares, through `lid` and `blinkFloor`, how far shut it is willing to go.
@@ -1261,6 +1563,13 @@ export function Quanty({
       //
       // Gated at 64px: below that the 1.5-unit pitch is under one device pixel, where a grid
       // stops being a grid and simply greys the eyes down.
+      //
+      // The pitch and the line weight are the two numbers in this file that are about device
+      // pixels rather than about the design, so they are the two that have to be divided by
+      // the head's scale: `1.5 * su` head units become 1.5 buffer units become the same 1.44
+      // device px at dpr 1.5 that the gate is justified by, at `full` and `badge` alike.
+      // `top` and `band` are *not* scaled — they are where the face is, and the face moved
+      // with them. At `badge`, `su` is 1 and every expression below is the original.
       if (size >= 64) {
         const top = cy - 30;
         const band = 62;
@@ -1271,10 +1580,10 @@ export function Quanty({
         fade.addColorStop(1, 'rgba(6, 10, 16, 0)');
         ctx.save();
         ctx.fillStyle = fade;
-        for (let y = top; y < top + band; y += 1.5) {
+        for (let y = top; y < top + band; y += 1.5 * su) {
           const d = ((y - top) / band) * 2 - 1;
           ctx.globalAlpha = Math.max(0, 1 - d * d * d * d);
-          ctx.fillRect(cx - 34, y, 68, 0.7);
+          ctx.fillRect(cx - 34, y, 68, 0.7 * su);
         }
         ctx.restore();
       }
@@ -1284,9 +1593,17 @@ export function Quanty({
       paintGlossSweep(ctx, cx - 45, cy - 45, 90, 90, sweep, 0.055 + hover * 0.06);
 
       ctx.restore(); // plate clip
-      strokeIridescentBezel(ctx, cx, cy, t, 'spectral', size);
+
+      // `size * head.k` is the ring-width compensation, not a cosmetic choice.
+      // `ringWidthForSize` returns a *wider* unit stroke for a smaller mark so the ring never
+      // falls under `RING_MIN_DEVICE_PX`, and a head at 0.578 is exactly a smaller mark. At
+      // the 64px mount this asks for the width of a 37px mark — about 3.6 head units, 2.08
+      // buffer units, 2.0 device px at dpr 1.5, which lands on that floor rather than under
+      // it. Passing bare `size` would have thinned the rainbow to 1.3 device px.
+      strokeIridescentBezel(ctx, cx, cy, t, 'spectral', size * head.k);
+      ctx.restore(); // head frame
     },
-    [bob, expression, size],
+    [bob, expression, figure, size],
   );
 
   const { canvasRef, pointerProps, repaint } = useLiveMark(paint, size);
@@ -1296,7 +1613,7 @@ export function Quanty({
   // stable, and on a moving mark this is a single redundant frame.
   useEffect(() => {
     repaint();
-  }, [expression, bob, repaint]);
+  }, [expression, bob, figure, repaint]);
 
   // The accessible name carries the expression, because `role="img"` is the *only* channel a
   // non-sighted user has for a state a sighted one reads straight off the panel: "Quanty —
