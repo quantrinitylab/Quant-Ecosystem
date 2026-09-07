@@ -4,9 +4,9 @@ doc_type: current-state
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-08-10
+last_verified: 2026-09-07
 verified_at_commit: 2e3a3d6b67883156e7cd4991ce0f4b53c3382d4a
-review_by: 2026-09-06
+review_by: 2026-10-07
 supersedes: []
 superseded_by: []
 canonical_scope: current-repository-state
