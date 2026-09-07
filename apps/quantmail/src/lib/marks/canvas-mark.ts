@@ -310,14 +310,51 @@ export function paintObsidianPlate(
  * `/codehub` showed exactly that, and read as "no rainbow ring", which is the honest reading.
  *
  * So each stop is now a **pair**: the pale thin-film value above, and a saturated partner.
- * `ringVividness(size)` mixes between them — 0 at hero size, where the measurement above
- * holds, rising to 1 by 32px, where a 1.5-device-px line gets one chance to say "colour" and
- * a soap-bubble tint is not it. The vivid end of `spectral` follows reference ⑧'s own
- * sequence (red → orange → yellow → green → blue, warm side dominant) and passes through
- * `#FF8C42` itself. `chrome`'s partner adds contrast rather than saturation: the same
- * downsampling that greys a hue also collapses an alternating light/dark band into flat
- * mid-grey, so polished steel needs whiter whites and blacker blacks at small sizes, not
- * colour it never had.
+ * `ringVividness(size, finish)` mixes between them. `chrome`'s partner adds contrast rather
+ * than saturation: the same downsampling that greys a hue also collapses an alternating
+ * light/dark band into flat mid-grey, so polished steel needs whiter whites and blacker
+ * blacks at small sizes, not colour it never had — and for `chrome` the mix is still a size
+ * ramp, 0 at hero rising to 1 by 32px.
+ *
+ * ---
+ *
+ * **`spectral` no longer ramps. It is vivid at every size, and the pastel judgement above is
+ * overturned for the mascot only.** The instruction was to build the AI-robot model sheet,
+ * and that sheet's own spec block reads `Color: Black + Rainbow Accent` with a saturated ring
+ * at every one of its seven views — including the largest. The CEO's words were about adding
+ * colour, not tuning it: *"इसमें कलर्स ऐड कर देगा तो ये कितना रियल लगेगा"*.
+ *
+ * The measurement that produced the pastel ramp is kept above and it is worth being precise
+ * about what it actually found, because it was misread as a rule about the palette. What the
+ * first render showed was that three 70-100% bands at 104px were *"louder than the face,
+ * which is the one element that must win"* — a statement about the **face**, not about the
+ * ring. And the face it was measured against was the one later judged
+ * *"बस एक डॉट डॉट लगा दिया है"*. Fixing that from the ring's side was solving the wrong half.
+ *
+ * The arithmetic supports the reversal, and the raster is blunter than the arithmetic was. The
+ * saturated column's loudest *hues* are `#4E8CFF` at chroma 177 and `#FF5E7A` at 161, but the
+ * stop at 0.85 **is** `#FF8C42` — so a 288-sample walk along the squircle's whole perimeter
+ * measures the ring's chroma ceiling at exactly **189 at every one of the six mounted sizes**,
+ * which is `MARK_COLORS.ember` itself, the dominant colour on four of the six marks. Nothing in
+ * this ring is more chromatic than the accent the entire product is built on. Median chroma
+ * along that walk is 123-129 with all twelve 30° hue buckets occupied at every size; the same
+ * walk on QuantGit's `chrome` ring, deliberately untouched, reads median 16-19 across five
+ * buckets with a ceiling that still ramps 48 → 94 as the mark shrinks. A vivid ring was never
+ * off-palette by chroma. It was only ever competing with an under-built face.
+ *
+ * The exception this spends is real, and it is geometrically confined — which is the honest way
+ * to state it. Over the whole buffer the wrap-aware census reads warm 34-44%, red 3.1-4.8%,
+ * magenta 9.5-14.7%, green 22.6-27.8%, blue 19.4-22.8%: a rainbow is all hues by definition.
+ * Over the plate inset by 10 units — everything the bloom can reach, plus margin — it reads
+ * **0% red, 0% green and 0% magenta at all six sizes**, warm 75-96% on a median hue of 20-21°,
+ * and the remaining 4.5-24.5% is the LED's own `#C8DEEC` edge at 203° that has always been
+ * there. About 95% of this mark's chromatic pixels sit in the outer ten units.
+ *
+ * What the pastel finding leaves standing is the **bloom**, which is why `ringBloom` now
+ * exists as its own function: a wide inward wash at hero size is haze over the face whatever
+ * its saturation, and that is still true. `ringBloom` is the old `ringVividness` expression
+ * verbatim, so the bloom's alpha is unchanged at every size, and `chrome` is unchanged
+ * entirely — `ringVividness(size, 'chrome')` returns what the one-parameter version returned.
  */
 const RING_FINISHES = {
   chrome: [
@@ -382,11 +419,31 @@ export function ringWidthForSize(size: number): number {
 }
 
 /**
- * How far along each stop's pale → saturated pair to sit, for a mark at `size` CSS px. Zero
- * at 96px and above, where the pastel measurement stands; one at 32px and below, where the
- * ring is a hairline and needs every bit of chroma it can hold. The 64px hero lands at 0.5.
+ * How far along each stop's pale → saturated pair to sit, for a mark at `size` CSS px.
+ *
+ * `spectral` is flat 1: the mascot's ring is the model sheet's rainbow accent and that sheet
+ * shows it saturated at every view. See the overturn note on `RING_FINISHES`.
+ *
+ * `chrome` keeps the size ramp — zero at 96px and above, one at 32px and below, 0.5 at the
+ * 64px hero — because its pair is a *contrast* pair rather than a saturation one, and the
+ * finding it compensates for (a light/dark band pair averaging to flat mid-grey once it is
+ * under two device pixels wide) is a downsampling fact that does not apply at hero size.
  */
-export function ringVividness(size: number): number {
+export function ringVividness(size: number, finish: RingFinish = 'chrome'): number {
+  if (finish === 'spectral') return 1;
+  return Math.min(1, Math.max(0, (96 - size) / 64));
+}
+
+/**
+ * How strongly the ring washes inward over the plate, for a mark at `size` CSS px.
+ *
+ * This is the ramp `ringVividness` used to carry for both finishes, split out because the two
+ * measurements it was serving point in opposite directions: chroma should rise as the ring
+ * thins, while the bloom should *fall* as the ring widens, since a wide inward wash at hero
+ * size is haze over the face however saturated it is. Tying them together meant the mascot
+ * could not have a vivid hero ring without also getting a hero-size haze.
+ */
+function ringBloom(size: number): number {
   return Math.min(1, Math.max(0, (96 - size) / 64));
 }
 
@@ -434,7 +491,8 @@ export function strokeIridescentBezel(
   size: number = MARK_RES,
 ): void {
   const width = ringWidthForSize(size);
-  const vivid = ringVividness(size);
+  const vivid = ringVividness(size, finish);
+  const bloom = ringBloom(size);
 
   ctx.save();
   markSquirclePath(ctx, cx, cy);
@@ -456,20 +514,21 @@ export function strokeIridescentBezel(
    * outward into exactly the neon glow the design system rules out.
    *
    * Clipping to the silhouette also halves each stroke, so the widths below reach inward by
-   * about `(width + n) / 2 − width / 2`. Scaled by `vivid` because at hero size the ring is
-   * wide enough to read on its own and a bloom there is just haze over the face.
+   * about `(width + n) / 2 − width / 2`. Scaled by `ringBloom` because at hero size the ring is
+   * wide enough to read on its own and a bloom there is just haze over the face — which stays
+   * true for the mascot even now that its ramp is fully saturated at every size.
    */
-  if (vivid > 0.01) {
+  if (bloom > 0.01) {
     ctx.save();
     markSquirclePath(ctx, cx, cy);
     ctx.clip();
     ctx.strokeStyle = ring;
     ctx.lineWidth = width + 2.2;
-    ctx.globalAlpha = 0.3 * vivid;
+    ctx.globalAlpha = 0.3 * bloom;
     markSquirclePath(ctx, cx, cy);
     ctx.stroke();
     ctx.lineWidth = width + 5;
-    ctx.globalAlpha = 0.16 * vivid;
+    ctx.globalAlpha = 0.16 * bloom;
     markSquirclePath(ctx, cx, cy);
     ctx.stroke();
     ctx.restore();

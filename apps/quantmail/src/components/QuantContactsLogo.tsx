@@ -25,11 +25,61 @@ import {
  * one `requestAnimationFrame` loop, the family's 100-unit buffer, 45/22 squircle and
  * 1.4 rim (see `useLiveMark` and `canvas-mark`).
  *
- * The two figures are deliberately *opposite* values rather than two tints of the
- * same peach: the one behind is peach, the one in front is obsidian. The calendar
- * mark taught this the expensive way — an orange plate stacked on an orange plate
- * sampled one value apart and read as a bloom, not a plane. Opposite values make
- * "two people" legible at 24px, where a tint difference is gone.
+ * ## Opposite values kept, obsidian overturned
+ *
+ * The measurement that produced the black figure stands, and it is still why this mark
+ * is not two tints of the same peach: the calendar mark taught it the expensive way —
+ * an orange plate stacked on an orange plate sampled one value apart read as a bloom,
+ * not a plane. Opposite values make "two people" legible at 24px, where a tint
+ * difference is gone.
+ *
+ * What is overturned, at the CEO's direct instruction after seeing this mark beside its
+ * four ember siblings, is the *pigment* that carried that gap. Obsidian
+ * (`#1B1F26 / #0B0D11 / #050608`) measured chroma 4-9 with blue above green above red —
+ * a literally cool near-black, in a suite that has no black anywhere else, and the
+ * family row's one obvious outlier at every mounted size.
+ *
+ * The front figure is now the design system's own **Brand Soft pair, lit**: `#5C3016`
+ * (the border token, luminance 58.2, hue 22.3°) as the mid stop, `#7A3F1C` above it —
+ * the same pigment at 1.33x exposure rather than a new colour — and `#2B1A11` (the
+ * surface token, luminance 30.1) in the shadow. Hue 20.8-22.3° against `#FF8C42`'s own
+ * 22.1°, and chroma 26-94 where obsidian had 4-9.
+ *
+ * The value gap survives the swap because it was never black-against-peach, it was
+ * *dark* against *pale*, and dark has a hue.
+ *
+ * ## What the raster says, at every mounted size
+ *
+ * Read off the live buffer: front head 62-73 at chroma 71-84, front torso 34-61 at chroma
+ * 32-55, every hue 21-24° against `#FF8C42`'s own 22.1°. The back figure is untouched at
+ * 232 and 190, which is the proof that only the front figure moved.
+ *
+ * The wrap-aware hue census — over each cell's own buffer, skipping `a < 200` and
+ * `max-min < 30` — reads **100.0% warm (14-60°) at all six sizes, with 0% red, 0% magenta
+ * and 0% stray mid-hues**, median 22.7-23.1°, p01 20.4° and p99 29.3-34.9°. Not one
+ * blue-dominant pixel remains, where obsidian was blue above green above red by
+ * construction. Unlike its Drive sibling, this mark spends no palette exception.
+ *
+ * The one boundary the arithmetic called marginal is the front figure's lower-left flank,
+ * the single edge that faces the plate's dark lower quadrant rather than the peach figure
+ * or the plate's lit core. On the device raster, plate against body across that edge:
+ *
+ * | size | 20px | 24px | 32px | 36px | 64px | 104px |
+ * |---|---|---|---|---|---|---|
+ * | gap | 30 | 38 | 59 | 63 | 30 | 35 |
+ *
+ * Above the 30-point floor everywhere, and the prediction of 32-37 was pessimistic in the
+ * middle of the range and exact at 24px. The two ends read 30 for opposite reasons: at
+ * 20px the plate, the rim and the body all land inside three device pixels, and at 104px
+ * the raster finally resolves the plate's own darkest ground (90) instead of averaging it
+ * with the rim. At 32-104px that rim measures 127-155 on the boundary itself, so the edge
+ * is carried by a line 47-78 above the body rather than by the plate alone.
+ *
+ * One consistency defect fell out of reading this file against its own rule. The back
+ * figure's shadow is `rgba(72, 28, 6, 0.5)` and its wall is peach, both because "a
+ * neutral wall under a warm body is the tell that an icon was assembled rather than
+ * lit" — while the front figure's shadow was pure `rgba(0, 0, 0, 0.5)` and its wall ran
+ * `#33231A` to `#100A07`, chroma 25 and 9. Both are warm now.
  *
  * The arc between them is the reference's white smile arc doing structural work: it
  * is the front figure's rim light, so where it crosses the peach figure it reads as
@@ -213,7 +263,7 @@ export function QuantContactsLogo({
       ctx.stroke();
       ctx.restore();
 
-      // ---- the figure in front: obsidian, deeper parallax, lifting on hover ----
+      // ---- the figure in front: dark ember, deeper parallax, lifting on hover ----
       const lift = hover * 1.6 - press * 1;
       ctx.save();
       ctx.translate(tiltX * 3, tiltY * 3 - lift);
@@ -223,25 +273,33 @@ export function QuantContactsLogo({
       ctx.translate(-FRONT.cx, -58);
 
       ctx.save();
-      // The front body's wall. Warm-dark rather than black: what lights the underside of
-      // an obsidian shape sitting on molten metal is the metal.
+      // The front body's wall. What lights the underside of a dark shape sitting on molten
+      // metal is the metal, so the wall is ember in shadow and its floor is the family's own
+      // `emberInk` — not the near-neutral `#33231A -> #100A07` it used to be, which had
+      // chroma 25 and 9 and was the same "assembled rather than lit" tell the back figure's
+      // own wall comment warns about.
       paintSideWall(
         ctx,
         (c) => figurePath(c, FRONT),
         2.8 - press * 2,
-        '#33231A',
-        '#100A07',
+        '#40200E',
+        MARK_COLORS.emberInk,
         FRONT.headCy - FRONT.headR,
         BODY_BOTTOM,
       );
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+      ctx.shadowColor = 'rgba(58, 22, 4, 0.55)';
       ctx.shadowBlur = 6;
       ctx.shadowOffsetY = 2.5;
       figurePath(ctx, FRONT);
+      // Brand Soft, lit from the upper left. The mid stop is `#5C3016` verbatim, the top is
+      // that same pigment at 1.33x exposure, and the floor is `#2B1A11`. The 0.34 midpoint
+      // is not a taste value: it puts the lower-left flank — the one edge in this mark that
+      // faces the plate's darkest quadrant — past the mid stop and onto the falling half of
+      // the ramp, which is what keeps that boundary above 30 luminance points.
       const front = ctx.createLinearGradient(FRONT.cx - 20, 30, FRONT.cx + 20, 98);
-      front.addColorStop(0, '#1B1F26');
-      front.addColorStop(0.5, '#0B0D11');
-      front.addColorStop(1, '#050608');
+      front.addColorStop(0, '#7A3F1C');
+      front.addColorStop(0.34, '#5C3016');
+      front.addColorStop(1, '#2B1A11');
       ctx.fillStyle = front;
       ctx.fill();
       ctx.restore();
@@ -265,8 +323,12 @@ export function QuantContactsLogo({
       // A single top-left ramp left the boundary between the two figures unlit, so the
       // separation rested entirely on the front body's cast shadow and the arc the sheet
       // shows was missing. The band is not a second light source: the peach figure is a
-      // large pale surface pressed against a near-black one, so bounce off it is exactly
+      // large pale surface pressed against a dark ember one, so bounce off it is exactly
       // what lights that edge — warmer and dimmer than the direct light, as bounce is.
+      //
+      // This stroke also carries the mark's tightest boundary. Its 0.9-alpha white start
+      // sits on the front figure's lower-left flank, which is the one edge that faces the
+      // plate's dark lower quadrant rather than the peach figure or the plate's lit core.
       bodyPath(ctx, FRONT);
       ctx.lineWidth = 1.9;
       const rim = ctx.createLinearGradient(FRONT.cx - 21, 52, FRONT.cx + 20, 84);

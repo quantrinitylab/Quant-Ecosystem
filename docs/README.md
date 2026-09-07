@@ -4,9 +4,9 @@ doc_type: authority-index
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-08-07
+last_verified: 2026-09-07
 verified_at_commit: 09a0a22e9aa5fe288d22987b90a6119a70f7c467
-review_by: 2026-09-06
+review_by: 2026-10-07
 supersedes: []
 superseded_by: []
 canonical_scope: repository-authority
@@ -35,15 +35,15 @@ For a new session—especially a prompt containing only `continue`—read this i
 
 ## Document classes
 
-| Class | Examples | Rule |
-| --- | --- | --- |
-| Constitution | Quant Foundation | Change only through an existential, CEO-approved ADR. |
-| Decision | ADRs | Append/supersede; do not rewrite accepted history. |
-| Current truth | Current State | Re-verify after implementation, risk, or gate changes. |
-| Execution | Execution Queue | Exactly one active milestone; ordered, evidence-driven work. |
-| Evidence | Scoreboards, baselines, logs | Append-only where declared. |
-| Guidance | Prompts, roadmaps, audits | Never overrides current code or accepted decisions. |
-| Working material | `.agents/` | Promote verified claims before relying on them. |
+| Class            | Examples                     | Rule                                                         |
+| ---------------- | ---------------------------- | ------------------------------------------------------------ |
+| Constitution     | Quant Foundation             | Change only through an existential, CEO-approved ADR.        |
+| Decision         | ADRs                         | Append/supersede; do not rewrite accepted history.           |
+| Current truth    | Current State                | Re-verify after implementation, risk, or gate changes.       |
+| Execution        | Execution Queue              | Exactly one active milestone; ordered, evidence-driven work. |
+| Evidence         | Scoreboards, baselines, logs | Append-only where declared.                                  |
+| Guidance         | Prompts, roadmaps, audits    | Never overrides current code or accepted decisions.          |
+| Working material | `.agents/`                   | Promote verified claims before relying on them.              |
 
 ## Update protocol
 

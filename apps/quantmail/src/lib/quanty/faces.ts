@@ -15,6 +15,11 @@
  * nothing can trigger is a sticker. `reactions.ts` owns that mapping from event to
  * face; this file owns how each face is drawn, and the two are kept apart so a product
  * event can be re-pointed at a different face without touching any geometry.
+ *
+ * A face also declares an `accent` — which colour its LEDs run. That is the same argument one
+ * level down: the sheet's spec block says the display is dynamic, and thirty-five faces drawn in
+ * one pigment are thirty-five faces drawn in one pigment. See `FaceAccent` for why none of the
+ * five colours spends a palette exception.
  */
 
 /** The eye shapes. Every face picks one per side, so `wink` is a pair, not a special case. */
@@ -56,13 +61,43 @@ export type ExtraKind =
   | 'question'
   | 'pulse'; /** a ring breathing outward: listening */
 
+/**
+ * What colour this face's LEDs run. The reference sheet's own spec block says
+ * `Face Display: LED (Dynamic)` — a dynamic display is one that changes colour, and a
+ * thirty-five-face sheet drawn in one colour is a thirty-five-face sheet drawn in one
+ * colour. So the accent is a *semantic* axis, not a decorative one: a user learns that
+ * warm means it went well and hot means it did not, and reads the state off the panel
+ * before they have parsed the shape.
+ *
+ * **None of the five spends a palette exception**, and the argument is per-hex rather than
+ * per-vibe. `white` runs the LED's own three existing hexes — `#FFFFFF`, `#F4FBFF`, `#C8DEEC`
+ * — so it introduces nothing. `ember` and `hot` are the product's own `#FF8C42` family at two
+ * depths. `gold`'s `#FFE49A` and `#F5B22E` measure hue 46.1° and 36.7°, inside the design
+ * system's warm 14–60° band, and the mascot's own disclosed `spectral` ring already carries
+ * `#FFD54A` at 0.77. `cool`'s `#9DBFD4` is `white`'s cool end run further down its own ramp —
+ * same family, chroma 55 against `#C8DEEC`'s 36. There is no red, no blue and no green here:
+ * rage is the deepest ember rather than a new red, which is the whole trick.
+ *
+ * What this axis does **not** claim is that an unaccented face is unchanged. Nothing on this
+ * sheet is: the eye box grew from 15×32 to 18×32 in the same pass, so every one of the
+ * thirty-five moved pixels whatever its accent. The by-construction identity in this rebuild
+ * lives in `HEAD_FRAME.badge` in `Quanty.tsx`, which is a genuine identity transform, and it
+ * is stated there rather than borrowed here.
+ */
+export type FaceAccent =
+  | 'white' /** the resting LED: neutral, and the default */
+  | 'ember' /** the product's accent — warmth, arrival, success */
+  | 'gold' /** brighter and higher: awe, celebration */
+  | 'hot' /** deep ember driven hard: alarm, anger, failure */
+  | 'cool'; /** the same white, powered down: bored, asleep, offline */
+
 /** One face. Everything optional falls back to the resting pose. */
 export interface FaceSpec {
   /** One kind for both eyes, or `[left, right]` when they differ. */
   eyes: EyeKind | readonly [EyeKind, EyeKind];
   /** Openness multiplier, applied on top of the blink and the press-squint. */
   lid?: number;
-  /** Eye box, as a multiple of the family's 15×27. */
+  /** Eye box, as a multiple of the family's 18×32. */
   eyeW?: number;
   eyeH?: number;
   /** Where the eyes sit, in buffer units, relative to the resting centre. */
@@ -79,6 +114,13 @@ export interface FaceSpec {
   blinkFloor?: number;
   /** LED brightness multiplier. `offline` is dim; `celebrate` runs hot. */
   bloom?: number;
+  /**
+   * LED colour. Omitted means `white`, the LED's own three hexes — which is a statement about
+   * pigment, not about pixels: `white` now runs on the four-stop plateau ramp the rest of the
+   * accents use, so an unaccented face reads as the same colour of light rather than as the
+   * same buffer. Fifteen of the thirty-five stay unaccented on purpose; see `FaceAccent`.
+   */
+  accent?: FaceAccent;
   /**
    * What a screen reader is told. The mascot is `role="img"`, so its accessible name is
    * the only channel a non-sighted user has for a state the sighted user reads off a
@@ -97,10 +139,13 @@ export interface FaceSpec {
  */
 export const FACES = {
   // ---- resting and content ----
+  // `idle` is the one face in this group with no accent, and that is the point: it is the
+  // face the product wears when nothing has happened, so it wears the resting pigment.
+  // Everything else here is warm, because everything else here is *good news*.
   idle: { eyes: 'capsule', label: 'idle' },
-  calm: { eyes: 'capsule', lid: 0.86, mouth: 'smile', label: 'calm' },
-  happy: { eyes: 'arch', label: 'happy' },
-  grateful: { eyes: 'arch', eyeW: 0.9, mouth: 'smile', label: 'grateful' },
+  calm: { eyes: 'capsule', lid: 0.86, mouth: 'smile', accent: 'ember', label: 'calm' },
+  happy: { eyes: 'arch', accent: 'ember', label: 'happy' },
+  grateful: { eyes: 'arch', eyeW: 0.9, mouth: 'smile', accent: 'ember', label: 'grateful' },
   // Bigger arches and **no spark**, which is the interesting half. `joy` and `success` are both
   // `arch` + `grin`, and `joy`'s `blush` is invisible to a lit-pixel measurement by design — it
   // is a 28%-alpha ember radial, not an LED, and it measured as a real but unlit +12 red lift on
@@ -120,9 +165,10 @@ export const FACES = {
     eyeH: 1.45,
     mouth: 'grin',
     extras: ['blush'],
+    accent: 'ember',
     label: 'delighted',
   },
-  love: { eyes: 'heart', mouth: 'smile', extras: ['blush'], label: 'fond' },
+  love: { eyes: 'heart', mouth: 'smile', extras: ['blush'], accent: 'ember', label: 'fond' },
   // `eyeH` is not decoration here. `bar` and `capsule` are the *same* rounded rect at the same
   // 15×27 — only the corner radius differs, 3.2 against 7.5 — so a `bar` face that does not
   // shorten its eyes is a capsule with sharper corners and nothing else. `proud` was the one
@@ -139,15 +185,21 @@ export const FACES = {
   // So `proud` takes the one axis none of the other eight uses: it looks *up*. A declared gaze
   // also drifts (see `paintFace`), so the ink moves rather than merely sitting off-centre, and
   // "pleased with itself" is a face that is not looking at you.
+  //
+  // `accent` is now a fifth axis on that same list, and the strongest of them at 26px, because
+  // it separates faces by *hue* rather than by two device pixels of eye height: `proud` is ember,
+  // `working` and `focused` stay white, `annoyed` is hot. The nine `bar` faces no longer sit on
+  // one pigment.
   proud: {
     eyes: 'bar',
     eyeH: 0.46,
     gaze: [0, -4],
     mouth: 'smirk',
     extras: ['spark'],
+    accent: 'ember',
     label: 'pleased',
   },
-  wink: { eyes: ['capsule', 'shut'], mouth: 'smirk', label: 'winking' },
+  wink: { eyes: ['capsule', 'shut'], mouth: 'smirk', accent: 'ember', label: 'winking' },
   // A hello is a *gesture*, not a louder `success`. The draft before this one made it `arch`
   // eyes with a grin and a spark, which is `success` with the arches 12% taller — 15 lit pixels
   // apart at 26px, and both are reachable from the table on the same mount (`sys:greeting`
@@ -155,8 +207,14 @@ export const FACES = {
   // catch. One eye shut turns it into a wink-and-wave: different silhouette, same warmth, and
   // still distinct from `wink` itself, which is a capsule and a smirk rather than an arch and
   // a grin.
-  greeting: { eyes: ['arch', 'shut'], mouth: 'grin', extras: ['spark'], label: 'saying hello' },
-  relieved: { eyes: 'shut', mouth: 'smile', label: 'relieved' },
+  greeting: {
+    eyes: ['arch', 'shut'],
+    mouth: 'grin',
+    extras: ['spark'],
+    accent: 'ember',
+    label: 'saying hello',
+  },
+  relieved: { eyes: 'shut', mouth: 'smile', accent: 'ember', label: 'relieved' },
 
   // ---- working. These are the faces the product wears most, so none of them is loud. ----
   thinking: {
@@ -194,19 +252,30 @@ export const FACES = {
   // sat 27 lit pixels from `annoyed` at 26px, the two differed only in brow tilt (0.3 against
   // 0.22, same sign) and 3.8 units of eye height, and both are table-reachable on the same mount
   // (`ai:retrying` against `mail:spam`). Persistence and contempt cannot be the same face.
+  //
+  // They are now also different colours — ember against hot — which is the separation that
+  // survives being twenty-six pixels wide, because a hue reads at any size a shape does not.
   determined: {
     eyes: 'bar',
     eyeH: 0.48,
     brow: { sign: 1, tilt: 0.3 },
     extras: ['dots'],
     blinkFloor: 0.78,
+    accent: 'ember',
     label: 'trying again',
   },
 
   // ---- surprise, escalating ----
   surprised: { eyes: 'wide', eyeW: 1.1, eyeH: 1.02, mouth: 'o', blinkFloor: 1, label: 'surprised' },
   shock: { eyes: 'wide', eyeW: 1.2, eyeH: 1.06, mouth: 'gasp', blinkFloor: 1, label: 'shocked' },
-  wow: { eyes: 'star', mouth: 'o', extras: ['spark'], blinkFloor: 1, label: 'impressed' },
+  wow: {
+    eyes: 'star',
+    mouth: 'o',
+    extras: ['spark'],
+    blinkFloor: 1,
+    accent: 'gold',
+    label: 'impressed',
+  },
   alarm: {
     eyes: 'wide',
     eyeW: 1.16,
@@ -215,6 +284,7 @@ export const FACES = {
     mouth: 'gasp',
     extras: ['exclaim'],
     blinkFloor: 1,
+    accent: 'hot',
     label: 'alarmed',
   },
 
@@ -231,7 +301,18 @@ export const FACES = {
   },
 
   // ---- low energy. Dimmer LEDs, because a tired panel is a darker panel. ----
-  bored: { eyes: 'bar', eyeH: 0.3, gaze: [-5, 2], mouth: 'flat', bloom: 0.85, label: 'bored' },
+  // These three — with `offline` at the bottom of the sheet — are the only `cool` faces, and
+  // `cool` is not a new colour: it is the LED's own `#C8DEEC` edge run further down its own
+  // ramp. A panel losing power drifts off white before it goes out.
+  bored: {
+    eyes: 'bar',
+    eyeH: 0.3,
+    gaze: [-5, 2],
+    mouth: 'flat',
+    bloom: 0.85,
+    accent: 'cool',
+    label: 'bored',
+  },
   sleepy: {
     eyes: 'droop',
     lid: 0.5,
@@ -239,10 +320,16 @@ export const FACES = {
     extras: ['zzz'],
     blinkFloor: 0.35,
     bloom: 0.7,
+    accent: 'cool',
     label: 'sleepy',
   },
 
   // ---- sorrow, escalating ----
+  // Deliberately unaccented, and this is the one place the accent axis is *declined*. All three
+  // already carry a raised brow, a frown and — for two of them — sweat or tears, which is more
+  // ink than any other group on the sheet. Tinting them as well would be a fourth signal for a
+  // reading nobody can miss, and it would spend chroma on the faces least in need of it. Sorrow
+  // is drawn, not coloured.
   sad: {
     eyes: 'capsule',
     lid: 0.55,
@@ -273,11 +360,17 @@ export const FACES = {
   // for a reason worth keeping: at `lid: 0.8` a capsule is 21.6 units tall, which is barely
   // hooded at all, and the documented separation is that **grief is slack and rage is
   // clenched** — a flattened eye is the clenched one.
+  //
+  // Both run `hot`, which is where the sheet's "Color: Black + Rainbow Accent" spec gets
+  // honoured without importing a red: `hot` is `#FF8C42 → #E8752F`, the product's own accent at
+  // its deepest, so rage is the same pigment as success driven further down rather than a new
+  // hue the suite uses nowhere else.
   annoyed: {
     eyes: 'bar',
     eyeH: 0.34,
     brow: { sign: 1, tilt: 0.22 },
     mouth: 'smirk',
+    accent: 'hot',
     label: 'unimpressed',
   },
   angry: {
@@ -286,16 +379,18 @@ export const FACES = {
     brow: { sign: 1, tilt: 0.46 },
     mouth: 'clench',
     bloom: 1.15,
+    accent: 'hot',
     label: 'angry',
   },
 
   // ---- outcomes. Almost always arrive as reactions; `reactions.ts` owns how long. ----
-  success: { eyes: 'arch', mouth: 'grin', extras: ['spark'], label: 'done' },
+  success: { eyes: 'arch', mouth: 'grin', extras: ['spark'], accent: 'ember', label: 'done' },
   celebrate: {
     eyes: 'star',
     mouth: 'grin',
     extras: ['confetti', 'spark'],
     bloom: 1.3,
+    accent: 'gold',
     label: 'celebrating',
   },
   dizzy: { eyes: 'spiral', mouth: 'wobble', label: 'dizzy' },
@@ -306,14 +401,23 @@ export const FACES = {
     extras: ['exclaim'],
     blinkFloor: 1,
     bloom: 0.9,
+    accent: 'hot',
     label: 'something went wrong',
   },
   /**
    * Powered down, and the only face that is allowed to be nearly invisible: two dim
    * dots at a third of the usual bloom. It never blinks, because a blink is a sign of
-   * life and this face's whole job is to say there is none.
+   * life and this face's whole job is to say there is none. `cool`, for the same reason
+   * the two low-energy faces are.
    */
-  offline: { eyes: 'dot', mouth: 'flat', blinkFloor: 1, bloom: 0.32, label: 'offline' },
+  offline: {
+    eyes: 'dot',
+    mouth: 'flat',
+    blinkFloor: 1,
+    bloom: 0.32,
+    accent: 'cool',
+    label: 'offline',
+  },
 } as const satisfies Record<string, FaceSpec>;
 
 /**
