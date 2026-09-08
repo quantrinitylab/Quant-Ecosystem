@@ -2,6 +2,11 @@ import type { PrismaClient, Email } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import type { OutboundDeliveryPipeline } from './outbound-delivery.service';
 import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
+import {
+  internalMailboxAliases,
+  internalRecipientLookup,
+  mailRecipientRoles,
+} from '../lib/mail-recipient-policy';
 
 export interface PaginationOptions {
   page?: number;
@@ -159,14 +164,9 @@ export class EmailService {
      */
     messageKind?: MessageKind;
   }): Promise<number> {
-    const recipients = Array.from(
-      new Set(
-        [...input.toAddresses, ...(input.ccAddresses ?? []), ...(input.bccAddresses ?? [])].map(
-          (a) => a.trim().toLowerCase(),
-        ),
-      ),
-    );
-    if (recipients.length === 0) return 0;
+    const { envelope } = mailRecipientRoles(input);
+    const lookup = internalRecipientLookup(envelope);
+    if (lookup.local.length === 0) return 0;
 
     const userModel = this.prisma as unknown as {
       user: {
@@ -177,7 +177,7 @@ export class EmailService {
           a: unknown,
         ): Promise<Array<{ id: string; email: string; username: string | null }>>;
       };
-      folder: {
+      emailFolder: {
         findFirst(a: unknown): Promise<{ id: string } | null>;
       };
     };
@@ -187,22 +187,8 @@ export class EmailService {
       select: { email: true, displayName: true, username: true },
     });
 
-    const targetHandles = recipients.map((r) => r.split('@')[0].toLowerCase());
     const matches = await userModel.user.findMany({
-      where: {
-        OR: [
-          { email: { in: recipients, mode: 'insensitive' } },
-          { username: { in: targetHandles, mode: 'insensitive' } },
-          ...recipients.flatMap((r) => {
-            const h = r.split('@')[0].toLowerCase();
-            return [
-              { email: { equals: `${h}@quantmail.in`, mode: 'insensitive' as const } },
-              { email: { equals: `${h}@quantrinity.in`, mode: 'insensitive' as const } },
-              { email: { equals: `${h}@quantchat.online`, mode: 'insensitive' as const } },
-            ];
-          }),
-        ],
-      },
+      where: lookup.where,
       select: { id: true, email: true, username: true },
     });
 
@@ -216,7 +202,7 @@ export class EmailService {
     const hasAttachments = Array.isArray(input.attachments) && input.attachments.length > 0;
     let delivered = 0;
     for (const recipient of matches) {
-      const inboxFolder = await userModel.folder
+      const inboxFolder = await userModel.emailFolder
         .findFirst({
           where: { userId: recipient.id, type: 'INBOX' },
         })
@@ -286,64 +272,29 @@ export class EmailService {
       throw createAppError('Not authorized to send this email', 403, 'FORBIDDEN');
     }
 
-    const asAddressList = (value: unknown): string[] => {
-      if (Array.isArray(value)) {
-        return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
-      }
-      if (typeof value === 'string' && value.trim().length > 0) return [value];
-      return [];
-    };
-
-    const recipients = Array.from(
-      new Set(
-        [
-          ...asAddressList((email as { toAddresses?: unknown }).toAddresses),
-          ...asAddressList((email as { ccAddresses?: unknown }).ccAddresses),
-          ...asAddressList((email as { bccAddresses?: unknown }).bccAddresses),
-        ].map((a) => a.trim().toLowerCase()),
-      ),
-    );
+    const roles = mailRecipientRoles(email);
+    const recipients = roles.envelope;
+    const lookup = internalRecipientLookup(recipients);
 
     let internal: string[] = [];
-    if (recipients.length > 0) {
+    if (lookup.local.length > 0) {
       try {
         const userModel = this.prisma as unknown as {
           user: {
             findMany(a: unknown): Promise<Array<{ email: string; username: string | null }>>;
           };
         };
-        const targetHandles = recipients.map((r) => r.split('@')[0].toLowerCase());
         const matches = await userModel.user.findMany({
-          where: {
-            OR: [
-              { email: { in: recipients, mode: 'insensitive' } },
-              { username: { in: targetHandles, mode: 'insensitive' } },
-              ...recipients.flatMap((r) => {
-                const h = r.split('@')[0].toLowerCase();
-                return [
-                  { email: { equals: `${h}@quantmail.in`, mode: 'insensitive' as const } },
-                  { email: { equals: `${h}@quantrinity.in`, mode: 'insensitive' as const } },
-                  { email: { equals: `${h}@quantchat.online`, mode: 'insensitive' as const } },
-                ];
-              }),
-            ],
-          },
+          where: lookup.where,
           select: { email: true, username: true },
         });
-        internal = matches.flatMap((u) => [
-          u.email.toLowerCase(),
-          ...(u.username
-            ? [
-                `${u.username.toLowerCase()}@quantmail.in`,
-                `${u.username.toLowerCase()}@quantrinity.in`,
-              ]
-            : []),
-        ]);
+        internal = matches.flatMap(internalMailboxAliases);
       } catch {
         internal = [];
       }
     }
     const external = recipients.filter((address) => !internal.includes(address));
+    const externalSet = new Set(external);
 
     let deliveryStatus = 'delivered';
     let deliveryError: string | undefined;
@@ -371,7 +322,9 @@ export class EmailService {
           const from = email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress;
           await sendViaSes({
             from,
-            to: external,
+            to: roles.to.filter((address) => externalSet.has(address)),
+            cc: roles.cc.filter((address) => externalSet.has(address)),
+            bcc: roles.bcc.filter((address) => externalSet.has(address)),
             subject: email.subject,
             ...(email.bodyHtml ? { bodyHtml: email.bodyHtml } : {}),
             ...(email.bodyPlain ? { bodyText: email.bodyPlain } : {}),

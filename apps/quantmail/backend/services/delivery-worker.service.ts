@@ -13,6 +13,7 @@ import {
 import { OUTBOUND_DELIVERY_QUEUE } from './outbound-delivery.service';
 import type { DeliverabilityAuthService, DkimSigner } from './deliverability-auth.service';
 import { sendViaSes, isSesConfigured } from '../lib/ses-sender';
+import { mailRecipientRoles, visibleRecipientHeaders } from '../lib/mail-recipient-policy';
 
 /**
  * Delivery worker `processDelivery` (QuantMail SuperHub — Pillar 1, Phase 2, task 6.2).
@@ -256,34 +257,6 @@ function senderDomainOf(from: string, fallback: string): string {
   return recipientDomain(from) ?? fallback;
 }
 
-function uniqueAddresses(...lists: string[][]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const list of lists) {
-    for (const addr of list) {
-      const clean = addr.trim();
-      if (clean.length > 0 && !seen.has(clean.toLowerCase())) {
-        seen.add(clean.toLowerCase());
-        out.push(clean);
-      }
-    }
-  }
-  return out;
-}
-
-function toAddressList(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.filter((v): v is string => typeof v === 'string' && v.length > 0);
-  }
-  if (typeof value === 'string' && value.length > 0) {
-    return value
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-  }
-  return [];
-}
-
 /** Structural view of the new delivery fields on an email row (task 6.1 additive). */
 interface EmailDeliveryFields {
   messageId: string | null;
@@ -354,11 +327,8 @@ export class DeliveryWorker {
           : `noreply@${this.fallbackDomain}`;
     const fromDomain = senderDomainOf(fromAddress, this.fallbackDomain);
 
-    const recipients = uniqueAddresses(
-      toAddressList((email as { toAddresses: unknown }).toAddresses),
-      toAddressList((email as { ccAddresses: unknown }).ccAddresses),
-      toAddressList((email as { bccAddresses: unknown }).bccAddresses),
-    );
+    const roles = mailRecipientRoles(email);
+    const recipients = roles.envelope;
     if (recipients.length === 0) {
       throw createAppError('Email has no recipients', 400, 'NO_RECIPIENTS');
     }
@@ -380,7 +350,10 @@ export class DeliveryWorker {
         try {
           await sendViaSes({
             from: fromAddress,
-            to: [recipient],
+            // Keep each recipient in their declared role, including blind-only sends.
+            to: roles.to.includes(recipient) ? [recipient] : [],
+            cc: roles.cc.includes(recipient) ? [recipient] : [],
+            bcc: roles.bcc.includes(recipient) ? [recipient] : [],
             subject: email.subject ?? '',
             bodyHtml: email.bodyHtml ?? undefined,
             bodyText: email.bodyPlain ?? undefined,
@@ -409,11 +382,11 @@ export class DeliveryWorker {
       return { emailId: email.id, deliveryStatus, recipients: receipts };
     }
 
-    // DKIM-sign once: the signed header set (From/To/Subject/Date/Message-ID) is
+    // DKIM-sign once: visible To/Cc headers omit envelope-only Bcc recipients and are
     // identical for every recipient of this message.
     const headers: Record<string, string> = {
       from: fromAddress,
-      to: recipients.join(', '),
+      ...visibleRecipientHeaders(email),
       subject: email.subject ?? '',
       date: this.now().toUTCString(),
       'message-id': messageId,
