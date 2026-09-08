@@ -34,6 +34,7 @@ import {
 } from '../../../lib/quanty/reactions';
 import { buildMarkShader } from '../../../lib/marks/material.glsl';
 import { QUANTGIT_SDF_GLSL } from '../../../lib/marks/quantgit.glsl';
+import { DinosaurMarkCandidate } from './DinosaurMarkCandidate';
 
 type Dials = {
   uEmber: number;
@@ -123,6 +124,8 @@ const RING_SIZES = [20, 22, 24, 26, 34, 36, 64, 104];
  * failure the calendar was rebuilt for. Read 36 first and 104 last, never the other way round.
  */
 const APP_MARK_SIZES = [20, 24, 32, 36, 64, 104];
+
+const DINOSAUR_MARK_SIZES = [20, 24, 32, 36, 64, 104];
 
 const APP_MARKS = [
   {
@@ -562,6 +565,26 @@ export function MarkLab() {
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="mt-10" aria-labelledby="dinosaur-candidate">
+          <h2 id="dinosaur-candidate" className="text-[13px] font-medium text-[#F5F5F5]">
+            Dinosaur candidate — isolated experiment
+          </h2>
+          <p className="mt-1 max-w-[68ch] text-[11px] leading-snug text-[#6B6E76]">
+            One uninterrupted theropod profile, because eyes and mascot expressions disappear before
+            the product&apos;s 20px floor. The silhouette carries the idea; an obsidian plate, a
+            warm cast-metal face and one travelling highlight carry the family material. This
+            candidate is intentionally outside the six shipping marks above.
+          </p>
+          <div className="mt-4 flex flex-wrap items-end gap-5 rounded-xl border border-[#282C35] bg-[#111318] p-5">
+            {DINOSAUR_MARK_SIZES.map((size) => (
+              <div key={size} className="flex min-w-[104px] flex-col items-center gap-2">
+                <DinosaurMarkCandidate size={size} title={`Dinosaur candidate at ${size}px`} />
+                <code className="text-[10px] text-[#6B6E76]">{size}px</code>
+              </div>
+            ))}
           </div>
         </section>
 
