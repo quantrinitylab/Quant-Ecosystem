@@ -349,7 +349,7 @@ export default function ContactsPage() {
       if (target && lastJumpRef.current !== target) {
         lastJumpRef.current = target;
         jumpToLetter(target, false);
-        // A short tick per letter crossing, the way a physical detentent would feel.
+        // A short tick per letter crossing, the way a physical detent would feel.
         if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
           navigator.vibrate(6);
         }
