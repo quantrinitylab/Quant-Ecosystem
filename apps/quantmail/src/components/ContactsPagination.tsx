@@ -1,3 +1,4 @@
+import * as React from 'react';
 import type { ContactsPagination as Pagination } from '../lib/contacts-pagination';
 
 interface ContactsPaginationProps {
@@ -14,7 +15,7 @@ export function ContactsPagination({
   isFetching,
   hasError,
   onPageChange,
-}: ContactsPaginationProps) {
+}: ContactsPaginationProps): React.ReactElement | null {
   const current = pagination?.page === page ? pagination : undefined;
   // Don't add a pager to a known single-page book. On a later page, keep Back
   // available after an error even when no metadata was returned for that page.

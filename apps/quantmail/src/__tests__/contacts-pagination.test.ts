@@ -12,16 +12,22 @@ function pageResponse(page: number, total = 21): ContactsPageResponse {
   const pageSize = 20;
   const offset = (page - 1) * pageSize;
   const count = Math.max(0, Math.min(pageSize, total - offset));
-  const data = Array.from({ length: count }, (_, index) => {
+  const data = Array.from({ length: count }, (_, index): Contact => {
     const number = offset + index + 1;
     return {
       id: `contact-${number}`,
+      createdAt: new Date('2026-09-09T00:00:00.000Z'),
+      updatedAt: new Date('2026-09-09T00:00:00.000Z'),
       userId: 'fixture-user',
       name: `Contact ${number}`,
       email: `person${number}@example.test`,
+      addresses: [],
       tags: [],
+      socialLinks: {},
       isFavorite: false,
-    } as Contact;
+      source: 'manual',
+      syncedApps: [],
+    };
   });
   return {
     success: true,
