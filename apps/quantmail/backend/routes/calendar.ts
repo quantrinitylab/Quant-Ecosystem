@@ -287,10 +287,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
   fastify.get<{ Querystring: { start?: string; end?: string; calendarId?: string } }>(
     '/events', async (request, reply) => {
       const where: Record<string, unknown> = { userId: requireUserId(request) };
-      const { start, end, calendarId } = request.query;
-      if (calendarId) {
-        where.calendarId = calendarId;
-      }
+      const { start, end } = request.query;
       if (start || end) {
         where.startTime = {
           ...(start ? { gte: toDate(start, 'start') } : {}),
