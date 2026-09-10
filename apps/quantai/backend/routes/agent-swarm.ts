@@ -51,6 +51,9 @@ export default async function agentSwarmRoutes(fastify: FastifyInstance) {
       }
 
       const userId = request.auth?.userId || request.user?.id || request.user?.sub;
+      if (!userId) {
+        throw createAppError('Unauthorized: user identity required', 401, 'UNAUTHORIZED');
+      }
       const tenantId = request.auth?.tenantId || request.user?.tenantId;
 
       const goal = fastify.agentSwarm.createGoal(parsed.data.description, parsed.data.budget, {

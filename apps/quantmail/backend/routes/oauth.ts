@@ -133,7 +133,13 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       const oauthClient = await prisma.oAuthClient.findUnique({
         where: { clientId: authCode.clientId },
       });
-      if (oauthClient && (oauthClient.isConfidential || oauthClient.clientSecretHash)) {
+      if (!oauthClient) {
+        return reply.code(401).send({
+          error: 'invalid_client',
+          error_description: 'Client authentication failed: unknown client',
+        });
+      }
+      if (oauthClient.isConfidential || oauthClient.clientSecretHash) {
         let presentedSecret = body.client_secret;
         if (!presentedSecret && request.headers.authorization?.startsWith('Basic ')) {
           const creds = Buffer.from(request.headers.authorization.slice(6), 'base64')
@@ -147,10 +153,29 @@ export async function oauthRoutes(fastify: FastifyInstance) {
             error_description: 'Client authentication failed',
           });
         }
-        const presentedHash = createHash('sha256').update(presentedSecret).digest('hex');
-        const hashBuf = Buffer.from(presentedHash);
-        const storedBuf = Buffer.from(oauthClient.clientSecretHash);
-        const valid = hashBuf.length === storedBuf.length && timingSafeEqual(hashBuf, storedBuf);
+        // Support both SHA-256 hash and legacy plaintext secret with auto-migration
+        const isSha256 = /^[0-9a-f]{64}$/i.test(oauthClient.clientSecretHash);
+        let valid = false;
+        if (isSha256) {
+          const presentedHash = createHash('sha256').update(presentedSecret).digest('hex');
+          const hashBuf = Buffer.from(presentedHash);
+          const storedBuf = Buffer.from(oauthClient.clientSecretHash);
+          valid = hashBuf.length === storedBuf.length && timingSafeEqual(hashBuf, storedBuf);
+        } else {
+          // Legacy plaintext fallback with constant-time check and auto-upgrade to SHA-256
+          const presBuf = Buffer.from(presentedSecret);
+          const storedBuf = Buffer.from(oauthClient.clientSecretHash);
+          valid = presBuf.length === storedBuf.length && timingSafeEqual(presBuf, storedBuf);
+          if (valid) {
+            const upgradedHash = createHash('sha256').update(presentedSecret).digest('hex');
+            await prisma.oAuthClient
+              .update({
+                where: { id: oauthClient.id },
+                data: { clientSecretHash: upgradedHash },
+              })
+              .catch(() => undefined);
+          }
+        }
         if (!valid) {
           return reply.code(401).send({
             error: 'invalid_client',
@@ -261,27 +286,30 @@ export async function oauthRoutes(fastify: FastifyInstance) {
     const { token } = request.body as any;
     if (!token) return reply.code(400).send({ error: 'invalid_request' });
 
+    let targetTokenId: string = token;
     try {
-      let targetTokenId: string = token;
-      try {
-        const decoded = jose.decodeJwt(token);
-        if (decoded && typeof decoded.jti === 'string') {
-          targetTokenId = decoded.jti;
-        }
-      } catch {
-        // Not a JWT, use token directly
+      const decoded = jose.decodeJwt(token);
+      if (decoded && typeof decoded.jti === 'string') {
+        targetTokenId = decoded.jti;
       }
-      const tokenHash = createHash('sha256').update(token).digest('hex');
-      await (prisma as any).refreshToken.updateMany({
-        where: {
-          OR: [{ id: targetTokenId }, { id: token }, { token: tokenHash }, { token: token }],
-        },
-        data: { isRevoked: true },
-      });
     } catch {
-      // RFC 7009 §2.2: revocation is idempotent; return 200 even if invalid/unknown
+      // Not a JWT, use token directly
     }
-
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    try {
+      if ((prisma as any)?.refreshToken?.updateMany) {
+        await (prisma as any).refreshToken.updateMany({
+          where: {
+            OR: [{ id: targetTokenId }, { id: token }, { token: tokenHash }, { token: token }],
+          },
+          data: { isRevoked: true },
+        });
+      }
+    } catch (err: any) {
+      request.log.warn({ err }, 'Token revocation database note');
+    }
+    // RFC 7009 §2.2: The authorization server responds with HTTP status code 200
+    // if the token has been revoked successfully or if the client submitted an invalid token.
     return reply.send({ success: true });
   });
 
