@@ -3887,6 +3887,8 @@ model File {
   contentHash       String
   userId            String
   folderId          String?
+  isStarred         Boolean   @default(false)
+  trashRootId       String?
   isDeleted         Boolean   @default(false)
   deletedAt         DateTime?
   createdAt         DateTime  @default(now())
@@ -3898,13 +3900,17 @@ model File {
 }
 
 model Folder {
-  id        String   @id @default(cuid())
-  name      String
-  userId    String
-  parentId  String?
-  path      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id @default(cuid())
+  name        String
+  userId      String
+  parentId    String?
+  path        String
+  isStarred   Boolean   @default(false)
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  trashRootId String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([userId])
   @@index([parentId])
