@@ -434,6 +434,10 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { slug: string } }>('/booking/links/:slug', async (request, reply) => {
     return reply.send({ success: true, data: await bookingService().getBookingLink(request.params.slug) });
   });
+  fastify.get<{ Params: { slug: string } }>('/calendar/booking/:slug', async (request, reply) => {
+    return reply.send({ success: true, data: await bookingService().getBookingLink(request.params.slug) });
+  });
+
   fastify.get<{ Params: { slug: string }; Querystring: { date?: string } }>(
     '/booking/links/:slug/slots', async (request, reply) => {
       if (!request.query.date) throw createAppError('Date query parameter is required', 400, 'VALIDATION_FAILED');
@@ -441,7 +445,24 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
       return reply.send({ success: true, data });
     },
   );
+  fastify.get<{ Params: { slug: string }; Querystring: { date?: string } }>(
+    '/calendar/booking/:slug/slots', async (request, reply) => {
+      if (!request.query.date) throw createAppError('Date query parameter is required', 400, 'VALIDATION_FAILED');
+      const data = await bookingService().getAvailableSlots(request.params.slug, toDate(request.query.date, 'date'));
+      return reply.send({ success: true, data });
+    },
+  );
+
   fastify.post<{ Params: { slug: string } }>('/booking/links/:slug/book', async (request, reply) => {
+    const parsed = confirmBookingSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+    const data = await bookingService().confirmBooking(
+      request.params.slug, toDate(parsed.data.slot, 'slot'),
+      { name: parsed.data.name, email: parsed.data.email, notes: parsed.data.notes },
+    );
+    return reply.status(201).send({ success: true, data });
+  });
+  fastify.post<{ Params: { slug: string } }>('/calendar/booking/:slug/book', async (request, reply) => {
     const parsed = confirmBookingSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
     const data = await bookingService().confirmBooking(

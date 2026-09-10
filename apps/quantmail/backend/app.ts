@@ -77,7 +77,6 @@ export function getConfig(): AppConfig {
       '/oauth/revoke',
       '/oauth/register',
       // Public booking link availability and booking slots (CAL-03)
-      '/booking/links/',
       '/calendar/booking',
       '/api/calendar/booking',
       // Invite preview (/public/invites/:token): shown to people who may not

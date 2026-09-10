@@ -151,9 +151,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
         const hashBuf = Buffer.from(presentedHash);
         const storedBuf = Buffer.from(oauthClient.clientSecretHash);
         const valid =
-          hashBuf.length === storedBuf.length && timingSafeEqual(hashBuf, storedBuf)
-            ? true
-            : presentedSecret === oauthClient.clientSecretHash;
+          hashBuf.length === storedBuf.length && timingSafeEqual(hashBuf, storedBuf);
         if (!valid) {
           return reply.code(401).send({
             error: 'invalid_client',
