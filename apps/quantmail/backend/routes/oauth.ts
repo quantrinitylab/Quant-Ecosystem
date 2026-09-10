@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import * as jose from 'jose';
 import { TokenService } from '@quant/auth/services/token-service';
 import { getJwtSecret, getJwtRefreshSecret } from '@quant/auth/lib/secrets';
@@ -133,7 +133,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       const oauthClient = await prisma.oAuthClient.findUnique({
         where: { clientId: authCode.clientId },
       });
-      if (oauthClient?.clientSecret) {
+      if (oauthClient && (oauthClient.isConfidential || oauthClient.clientSecretHash)) {
         let presentedSecret = body.client_secret;
         if (!presentedSecret && request.headers.authorization?.startsWith('Basic ')) {
           const creds = Buffer.from(request.headers.authorization.slice(6), 'base64')
@@ -141,7 +141,20 @@ export async function oauthRoutes(fastify: FastifyInstance) {
             .split(':');
           presentedSecret = creds[1];
         }
-        if (!presentedSecret || presentedSecret !== oauthClient.clientSecret) {
+        if (!presentedSecret || !oauthClient.clientSecretHash) {
+          return reply.code(401).send({
+            error: 'invalid_client',
+            error_description: 'Client authentication failed',
+          });
+        }
+        const presentedHash = createHash('sha256').update(presentedSecret).digest('hex');
+        const hashBuf = Buffer.from(presentedHash);
+        const storedBuf = Buffer.from(oauthClient.clientSecretHash);
+        const valid =
+          hashBuf.length === storedBuf.length && timingSafeEqual(hashBuf, storedBuf)
+            ? true
+            : presentedSecret === oauthClient.clientSecretHash;
+        if (!valid) {
           return reply.code(401).send({
             error: 'invalid_client',
             error_description: 'Client authentication failed',
@@ -493,11 +506,14 @@ export async function oauthRoutes(fastify: FastifyInstance) {
 
     const clientId = generateId('client_');
     const clientSecret = is_confidential ? generateId('secret_') : null;
+    const clientSecretHash = clientSecret
+      ? createHash('sha256').update(clientSecret).digest('hex')
+      : null;
 
     const client = await prisma.oAuthClient.create({
       data: {
         clientId,
-        clientSecretHash: clientSecret,
+        clientSecretHash,
         name,
         redirectUris: redirect_uris,
         allowedScopes: scopes || ['openid', 'profile', 'email'],

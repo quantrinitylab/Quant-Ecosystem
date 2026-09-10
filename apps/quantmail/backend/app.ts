@@ -38,14 +38,6 @@ export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
   if (env === 'production' && !process.env['JWT_SECRET']) throw new Error('JWT_SECRET environment variable is required in production');
   return {
-<<<<<<< Updated upstream
-    port: Number(process.env['PORT'] ?? 3010), host: process.env['HOST'] ?? '0.0.0.0',
-    logLevel: process.env['LOG_LEVEL'] ?? 'info', corsOrigins: (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000').split(','),
-    rateLimitMax: Number(process.env['RATE_LIMIT_MAX'] ?? 1000), rateLimitWindow: process.env['RATE_LIMIT_WINDOW'] ?? '1 minute',
-    redisUrl: process.env['REDIS_URL'], jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
-    jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantmail', jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
-    publicPaths: ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout', '/auth/2fa/verify', '/auth/password-reset', '/oauth/token', '/oauth/revoke', '/oauth/register', '/oauth/consent', '/public/invites', '/.well-known', '/webhook/inbound'],
-=======
     port: Number(process.env['PORT'] ?? 3010),
     host: process.env['HOST'] ?? '0.0.0.0',
     logLevel: process.env['LOG_LEVEL'] ?? 'info',
@@ -85,6 +77,7 @@ export function getConfig(): AppConfig {
       '/oauth/revoke',
       '/oauth/register',
       // Public booking link availability and booking slots (CAL-03)
+      '/booking/links/',
       '/calendar/booking',
       '/api/calendar/booking',
       // Invite preview (/public/invites/:token): shown to people who may not
