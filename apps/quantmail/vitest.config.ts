@@ -1,9 +1,13 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  esbuild: {
+    jsx: 'automatic',
+  },
   test: {
     globals: true,
     environment: 'node',
+    reporters: ['default', 'github-actions'],
     // ---------------------------------------------------------------------------
     // Boot the REAL `buildApp()` under vitest (engine-wiring-bugs-fix, Task 8.2).
     //
