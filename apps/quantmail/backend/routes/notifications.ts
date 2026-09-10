@@ -12,7 +12,7 @@ function userIdFrom(request: unknown): string {
 }
 
 export default async function notificationRoutes(fastify: FastifyInstance) {
-  const prisma = (fastify as unknown as { prisma: PrismaClient }).prisma;
+  const prisma = (fastify as unknown as { prisma: any }).prisma;
 
   fastify.get('/', async (request, reply) => {
     const userId = userIdFrom(request);
