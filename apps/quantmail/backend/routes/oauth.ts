@@ -150,8 +150,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
         const presentedHash = createHash('sha256').update(presentedSecret).digest('hex');
         const hashBuf = Buffer.from(presentedHash);
         const storedBuf = Buffer.from(oauthClient.clientSecretHash);
-        const valid =
-          hashBuf.length === storedBuf.length && timingSafeEqual(hashBuf, storedBuf);
+        const valid = hashBuf.length === storedBuf.length && timingSafeEqual(hashBuf, storedBuf);
         if (!valid) {
           return reply.code(401).send({
             error: 'invalid_client',
@@ -275,12 +274,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       const tokenHash = createHash('sha256').update(token).digest('hex');
       await (prisma as any).refreshToken.updateMany({
         where: {
-          OR: [
-            { id: targetTokenId },
-            { id: token },
-            { token: tokenHash },
-            { token: token },
-          ],
+          OR: [{ id: targetTokenId }, { id: token }, { token: tokenHash }, { token: token }],
         },
         data: { isRevoked: true },
       });
@@ -331,10 +325,14 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const requestedScopes: string[] = (scope || 'openid profile email').split(' ').filter(Boolean);
     const existingScopes: string[] = Array.isArray(existingConsent?.scopes)
       ? (existingConsent.scopes as string[])
       : [];
+    const requestedScopes: string[] = scope
+      ? scope.split(' ').filter(Boolean)
+      : existingScopes.length > 0
+        ? existingScopes
+        : ['openid', 'profile', 'email'];
 
     const hasAllScopes = requestedScopes.every((s: string) => existingScopes.includes(s));
 
@@ -445,7 +443,10 @@ export async function oauthRoutes(fastify: FastifyInstance) {
 
     const requestedScopes = (scope || 'openid profile email').split(' ').filter(Boolean);
     const clientAllowed = Array.isArray(oauthClient.allowedScopes) ? oauthClient.allowedScopes : [];
-    if (clientAllowed.length > 0 && !requestedScopes.every((s: string) => clientAllowed.includes(s))) {
+    if (
+      clientAllowed.length > 0 &&
+      !requestedScopes.every((s: string) => clientAllowed.includes(s))
+    ) {
       return reply.code(400).send({
         error: 'invalid_scope',
         error_description: 'Requested scope exceeds allowed client scopes',
