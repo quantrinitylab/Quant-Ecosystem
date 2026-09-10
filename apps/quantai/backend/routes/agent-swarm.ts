@@ -84,7 +84,7 @@ export default async function agentSwarmRoutes(fastify: FastifyInstance) {
         throw createAppError('Goal not found', 404, 'NOT_FOUND');
       }
 
-      if (goal.userId && goal.userId !== userId) {
+      if (!goal.userId || goal.userId !== userId) {
         throw createAppError('Forbidden', 403, 'FORBIDDEN');
       }
 
@@ -110,7 +110,7 @@ export default async function agentSwarmRoutes(fastify: FastifyInstance) {
         throw createAppError('Goal not found', 404, 'NOT_FOUND');
       }
 
-      if (goal.userId && goal.userId !== userId) {
+      if (!goal.userId || goal.userId !== userId) {
         throw createAppError('Forbidden', 403, 'FORBIDDEN');
       }
 
