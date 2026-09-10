@@ -331,12 +331,12 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       },
     });
 
-    const requestedScopes = (scope || 'openid profile email').split(' ').filter(Boolean);
+    const requestedScopes: string[] = (scope || 'openid profile email').split(' ').filter(Boolean);
     const existingScopes: string[] = Array.isArray(existingConsent?.scopes)
       ? (existingConsent.scopes as string[])
       : [];
 
-    const hasAllScopes = requestedScopes.every((s) => existingScopes.includes(s));
+    const hasAllScopes = requestedScopes.every((s: string) => existingScopes.includes(s));
 
     if (existingConsent && hasAllScopes) {
       // Auto-approve ONLY when all requested scopes are already consented (AUTH-03)
