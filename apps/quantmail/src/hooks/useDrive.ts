@@ -103,9 +103,12 @@ export function useDrive(): UseDriveReturn {
     { id: null, name: 'My Drive' },
   ]);
   const abortControllers = useRef<Map<string, AbortController>>(new Map());
+  const cancelledUploadIds = useRef<Set<string>>(new Set());
+  const fetchSeqRef = useRef<number>(0);
 
   const fetchFiles = useCallback(
     async (folderId?: string | null) => {
+      const seq = ++fetchSeqRef.current;
       setLoading(true);
       setError(null);
       const targetFolder = folderId !== undefined ? folderId : currentFolderId;
@@ -115,12 +118,18 @@ export function useDrive(): UseDriveReturn {
         const response = await apiRequest(`/api/drive/files?${params}`);
         if (!response.ok) throw new Error('Failed to fetch files');
         const data = await response.json();
-        setFiles(data.files || []);
-        if (data.quota) setQuota(data.quota);
+        if (seq === fetchSeqRef.current) {
+          setFiles(data.files || []);
+          if (data.quota) setQuota(data.quota);
+        }
       } catch (err) {
-        setError(getDriveErrorMessage(err, 'Drive is temporarily unavailable. Retry in a moment.'));
+        if (seq === fetchSeqRef.current) {
+          setError(getDriveErrorMessage(err, 'Drive is temporarily unavailable. Retry in a moment.'));
+        }
       } finally {
-        setLoading(false);
+        if (seq === fetchSeqRef.current) {
+          setLoading(false);
+        }
       }
     },
     [currentFolderId],
@@ -139,6 +148,10 @@ export function useDrive(): UseDriveReturn {
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i];
         const uploadId = newUploads[i].fileId;
+        if (cancelledUploadIds.current.has(uploadId)) {
+          cancelledUploadIds.current.delete(uploadId);
+          continue;
+        }
         const controller = new AbortController();
         abortControllers.current.set(uploadId, controller);
 
@@ -272,47 +285,59 @@ export function useDrive(): UseDriveReturn {
 
   const deleteFiles = useCallback(
     async (fileIds: string[]) => {
+      const prevFiles = [...files];
       setFiles((prev) => prev.filter((f) => !fileIds.includes(f.id)));
       try {
-        await apiRequest('/api/drive/files/trash', {
+        const response = await apiRequest('/api/drive/files/trash', {
           method: 'POST',
           body: JSON.stringify({ fileIds }),
         });
+        if (!response.ok) throw new Error('Delete failed');
       } catch (err) {
-        fetchFiles();
+        setFiles(prevFiles);
+        setError(getDriveErrorMessage(err, 'Delete failed'));
+        await fetchFiles();
       }
     },
-    [fetchFiles],
+    [files, fetchFiles],
   );
 
   const renameFile = useCallback(
     async (fileId: string, newName: string) => {
+      const prevFiles = [...files];
       setFiles((prev) => prev.map((f) => (f.id === fileId ? { ...f, name: newName } : f)));
       try {
-        await apiRequest(`/api/drive/files/${fileId}`, {
+        const response = await apiRequest(`/api/drive/files/${fileId}`, {
           method: 'PUT',
           body: JSON.stringify({ name: newName }),
         });
+        if (!response.ok) throw new Error('Rename failed');
       } catch (err) {
-        fetchFiles();
+        setFiles(prevFiles);
+        setError(getDriveErrorMessage(err, 'Rename failed'));
+        await fetchFiles();
       }
     },
-    [fetchFiles],
+    [files, fetchFiles],
   );
 
   const moveFiles = useCallback(
     async (fileIds: string[], targetFolderId: string) => {
+      const prevFiles = [...files];
       setFiles((prev) => prev.filter((f) => !fileIds.includes(f.id)));
       try {
-        await apiRequest('/api/drive/files/move', {
+        const response = await apiRequest('/api/drive/files/move', {
           method: 'POST',
           body: JSON.stringify({ fileIds, targetFolderId }),
         });
+        if (!response.ok) throw new Error('Move failed');
       } catch (err) {
-        fetchFiles();
+        setFiles(prevFiles);
+        setError(getDriveErrorMessage(err, 'Move failed'));
+        await fetchFiles();
       }
     },
-    [fetchFiles],
+    [files, fetchFiles],
   );
 
   const copyFile = useCallback(
@@ -334,10 +359,11 @@ export function useDrive(): UseDriveReturn {
 
   const shareFile = useCallback(async (params: ShareParams) => {
     try {
-      await apiRequest(`/api/drive/files/${params.fileId}/share`, {
+      const response = await apiRequest(`/api/drive/files/${params.fileId}/share`, {
         method: 'POST',
         body: JSON.stringify({ email: params.email, permission: params.permission }),
       });
+      if (!response.ok) throw new Error('Share failed');
       setFiles((prev) =>
         prev.map((f) =>
           f.id === params.fileId
@@ -353,15 +379,17 @@ export function useDrive(): UseDriveReturn {
       );
     } catch (err) {
       logger.error('Share failed:', err);
+      setError(getDriveErrorMessage(err, 'Share failed'));
     }
   }, []);
 
   const unshareFile = useCallback(async (fileId: string, email: string) => {
     try {
-      await apiRequest(`/api/drive/files/${fileId}/share`, {
+      const response = await apiRequest(`/api/drive/files/${fileId}/share`, {
         method: 'DELETE',
         body: JSON.stringify({ email }),
       });
+      if (!response.ok) throw new Error('Failed to remove collaborator');
       setFiles((prev) =>
         prev.map((f) =>
           f.id === fileId ? { ...f, sharedWith: f.sharedWith.filter((s) => s.email !== email) } : f,
@@ -369,24 +397,29 @@ export function useDrive(): UseDriveReturn {
       );
     } catch (err) {
       logger.error('Unshare failed:', err);
+      setError(getDriveErrorMessage(err, 'Remove collaborator failed'));
     }
   }, []);
 
   const starFile = useCallback(async (fileId: string) => {
     setFiles((prev) => prev.map((f) => (f.id === fileId ? { ...f, isStarred: true } : f)));
     try {
-      await apiRequest(`/api/drive/files/${fileId}/star`, { method: 'PUT' });
-    } catch {
-      /* optimistic */
+      const response = await apiRequest(`/api/drive/files/${fileId}/star`, { method: 'PUT' });
+      if (!response.ok) throw new Error('Failed to star file');
+    } catch (err) {
+      setFiles((prev) => prev.map((f) => (f.id === fileId ? { ...f, isStarred: false } : f)));
+      setError(getDriveErrorMessage(err, 'Starring failed'));
     }
   }, []);
 
   const unstarFile = useCallback(async (fileId: string) => {
     setFiles((prev) => prev.map((f) => (f.id === fileId ? { ...f, isStarred: false } : f)));
     try {
-      await apiRequest(`/api/drive/files/${fileId}/star`, { method: 'DELETE' });
-    } catch {
-      /* optimistic */
+      const response = await apiRequest(`/api/drive/files/${fileId}/star`, { method: 'DELETE' });
+      if (!response.ok) throw new Error('Failed to unstar file');
+    } catch (err) {
+      setFiles((prev) => prev.map((f) => (f.id === fileId ? { ...f, isStarred: true } : f)));
+      setError(getDriveErrorMessage(err, 'Unstarring failed'));
     }
   }, []);
 
@@ -407,12 +440,13 @@ export function useDrive(): UseDriveReturn {
   const restoreVersion = useCallback(
     async (fileId: string, versionId: string) => {
       try {
-        await apiRequest(`/api/drive/files/${fileId}/versions/${versionId}/restore`, {
+        const response = await apiRequest(`/api/drive/files/${fileId}/versions/${versionId}/restore`, {
           method: 'POST',
         });
+        if (!response.ok) throw new Error('Restore failed');
         await fetchFiles();
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Restore failed');
+        setError(getDriveErrorMessage(err, 'Restore failed'));
       }
     },
     [fetchFiles],
@@ -486,6 +520,7 @@ export function useDrive(): UseDriveReturn {
   }, []);
 
   const cancelUpload = useCallback((uploadId: string) => {
+    cancelledUploadIds.current.add(uploadId);
     const controller = abortControllers.current.get(uploadId);
     if (controller) {
       controller.abort();

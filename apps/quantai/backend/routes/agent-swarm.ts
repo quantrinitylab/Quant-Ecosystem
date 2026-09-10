@@ -44,13 +44,19 @@ export default async function agentSwarmRoutes(fastify: FastifyInstance) {
     {
       preHandler: fastify.requireAuth({ scopes: ['agents:execute'] }),
     },
-    async (request, reply) => {
+    async (request: any, reply) => {
       const parsed = createGoalSchema.safeParse(request.body);
       if (!parsed.success) {
         throw parsed.error;
       }
 
-      const goal = fastify.agentSwarm.createGoal(parsed.data.description, parsed.data.budget);
+      const userId = request.auth?.userId || request.user?.id || request.user?.sub;
+      const tenantId = request.auth?.tenantId || request.user?.tenantId;
+
+      const goal = fastify.agentSwarm.createGoal(parsed.data.description, parsed.data.budget, {
+        userId,
+        tenantId,
+      });
       if (parsed.data.subGoals && parsed.data.subGoals.length > 0) {
         fastify.agentSwarm.decompose(goal.id, parsed.data.subGoals);
       }
@@ -61,33 +67,55 @@ export default async function agentSwarmRoutes(fastify: FastifyInstance) {
   );
 
   // GET /agents/swarm/goals/:id — fetch a goal and its sub-goal tree
-  fastify.get('/goals/:id', async (request, reply) => {
-    const parsed = goalParamsSchema.safeParse(request.params);
-    if (!parsed.success) {
-      throw parsed.error;
-    }
+  fastify.get(
+    '/goals/:id',
+    {
+      preHandler: fastify.requireAuth(),
+    },
+    async (request: any, reply) => {
+      const parsed = goalParamsSchema.safeParse(request.params);
+      if (!parsed.success) {
+        throw parsed.error;
+      }
 
-    const goal = fastify.agentSwarm.getGoal(parsed.data.id);
-    if (!goal) {
-      throw createAppError('Goal not found', 404, 'NOT_FOUND');
-    }
+      const userId = request.auth?.userId || request.user?.id || request.user?.sub;
+      const goal = fastify.agentSwarm.getGoal(parsed.data.id);
+      if (!goal) {
+        throw createAppError('Goal not found', 404, 'NOT_FOUND');
+      }
 
-    return reply.send({ success: true, data: goal });
-  });
+      if (goal.userId && goal.userId !== userId) {
+        throw createAppError('Forbidden', 403, 'FORBIDDEN');
+      }
+
+      return reply.send({ success: true, data: goal });
+    },
+  );
 
   // GET /agents/swarm/goals/:id/progress — completion/failure roll-up for a goal
-  fastify.get('/goals/:id/progress', async (request, reply) => {
-    const parsed = goalParamsSchema.safeParse(request.params);
-    if (!parsed.success) {
-      throw parsed.error;
-    }
+  fastify.get(
+    '/goals/:id/progress',
+    {
+      preHandler: fastify.requireAuth(),
+    },
+    async (request: any, reply) => {
+      const parsed = goalParamsSchema.safeParse(request.params);
+      if (!parsed.success) {
+        throw parsed.error;
+      }
 
-    const goal = fastify.agentSwarm.getGoal(parsed.data.id);
-    if (!goal) {
-      throw createAppError('Goal not found', 404, 'NOT_FOUND');
-    }
+      const userId = request.auth?.userId || request.user?.id || request.user?.sub;
+      const goal = fastify.agentSwarm.getGoal(parsed.data.id);
+      if (!goal) {
+        throw createAppError('Goal not found', 404, 'NOT_FOUND');
+      }
 
-    const progress = fastify.agentSwarm.getProgress(parsed.data.id);
-    return reply.send({ success: true, data: progress });
-  });
+      if (goal.userId && goal.userId !== userId) {
+        throw createAppError('Forbidden', 403, 'FORBIDDEN');
+      }
+
+      const progress = fastify.agentSwarm.getProgress(parsed.data.id);
+      return reply.send({ success: true, data: progress });
+    },
+  );
 }

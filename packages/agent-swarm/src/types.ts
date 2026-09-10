@@ -19,6 +19,8 @@ export interface SwarmGoal {
   subGoals: SubGoal[];
   budget: BudgetConfig;
   createdAt: number;
+  userId?: string;
+  tenantId?: string;
 }
 export interface SubGoal {
   id: string;
