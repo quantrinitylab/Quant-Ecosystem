@@ -22,7 +22,7 @@ const SYNC_STEP_1 = 0;
 const SYNC_STEP_2 = 1;
 const SYNC_UPDATE = 2;
 
-function frame(type: number, subtype: number, payload = new Uint8Array()): Uint8Array {
+function frame(type: number, subtype: number, payload: Uint8Array = new Uint8Array()): Uint8Array {
   const result = new Uint8Array(payload.byteLength + 2);
   result[0] = type;
   result[1] = subtype;

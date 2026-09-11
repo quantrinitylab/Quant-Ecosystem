@@ -56,7 +56,7 @@ export function getLiveDoc(docName: string): Y.Doc | undefined {
   return rooms.get(docName)?.doc;
 }
 
-function frame(type: number, subtype: number, payload = new Uint8Array()): Uint8Array {
+function frame(type: number, subtype: number, payload: Uint8Array = new Uint8Array()): Uint8Array {
   const message = new Uint8Array(payload.byteLength + 2);
   message[0] = type;
   message[1] = subtype;
