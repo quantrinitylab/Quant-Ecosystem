@@ -1,0 +1,188 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { createAppError } from '@quant/server-core';
+import { RepoStorageService } from './repo-storage.service';
+
+const execFileAsync = promisify(execFile);
+const MAX_GIT_OUTPUT_BUFFER = 50 * 1024 * 1024;
+
+export interface GitTreeEntry {
+  mode: string;
+  type: 'blob' | 'tree';
+  sha: string;
+  size: number;
+  path: string;
+  name: string;
+}
+
+export interface GitBlob {
+  path: string;
+  content: string;
+  size: number;
+  sha: string;
+}
+
+export interface GitCommit {
+  sha: string;
+  parents: string[];
+  author: { name: string; email: string };
+  timestamp: number;
+  message: string;
+}
+
+export class GitInspectService {
+  constructor(private readonly repoStorage: RepoStorageService = new RepoStorageService()) {}
+
+  async getTree(
+    owner: string,
+    name: string,
+    ref: string,
+    treePath?: string,
+  ): Promise<GitTreeEntry[]> {
+    if (!(await this.repoStorage.repoExists(owner, name))) return [];
+
+    const repoPath = this.repoStorage.getRepoPath(owner, name);
+    const args = ['ls-tree', '-l', ref];
+    if (treePath) args.push(`${treePath.replace(/\/$/, '')}/`);
+
+    try {
+      const { stdout } = await execFileAsync('git', args, {
+        cwd: repoPath,
+        maxBuffer: MAX_GIT_OUTPUT_BUFFER,
+      });
+
+      if (!stdout.trim()) return [];
+
+      return stdout
+        .split('\n')
+        .filter(Boolean)
+        .flatMap((line): GitTreeEntry[] => {
+          const match = line.match(/^(\d+)\s+(blob|tree)\s+([0-9a-f]+)\s+(\d+|-)\t(.+)$/);
+          if (!match) return [];
+
+          const [, mode, type, sha, rawSize, path] = match;
+          const pathParts = path.split('/');
+
+          return [
+            {
+              mode,
+              type: type as 'blob' | 'tree',
+              sha,
+              size: rawSize === '-' ? 0 : Number.parseInt(rawSize, 10),
+              path,
+              name: pathParts[pathParts.length - 1] ?? path,
+            },
+          ];
+        });
+    } catch {
+      return [];
+    }
+  }
+
+  async getBlob(owner: string, name: string, ref: string, filePath: string): Promise<GitBlob> {
+    if (!(await this.repoStorage.repoExists(owner, name))) {
+      throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+    }
+
+    const repoPath = this.repoStorage.getRepoPath(owner, name);
+
+    try {
+      const { stdout } = await execFileAsync('git', ['show', `${ref}:${filePath}`], {
+        cwd: repoPath,
+        maxBuffer: MAX_GIT_OUTPUT_BUFFER,
+      });
+
+      return {
+        path: filePath,
+        content: stdout,
+        size: Buffer.byteLength(stdout),
+        sha: ref,
+      };
+    } catch {
+      throw createAppError('File not found in ref', 404, 'FILE_NOT_FOUND');
+    }
+  }
+
+  async getCommits(
+    owner: string,
+    name: string,
+    ref = 'HEAD',
+    options: { limit?: number; skip?: number } = {},
+  ): Promise<GitCommit[]> {
+    if (!(await this.repoStorage.repoExists(owner, name))) return [];
+
+    const repoPath = this.repoStorage.getRepoPath(owner, name);
+    const limit = options.limit || 30;
+    const skip = options.skip || 0;
+
+    try {
+      const { stdout } = await execFileAsync(
+        'git',
+        [
+          'log',
+          '--format=%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%s',
+          '-n',
+          String(limit),
+          '--skip',
+          String(skip),
+          ref,
+        ],
+        { cwd: repoPath, maxBuffer: MAX_GIT_OUTPUT_BUFFER },
+      );
+
+      if (!stdout.trim()) return [];
+
+      return stdout
+        .trimEnd()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => {
+          const [sha, rawParents, authorName, authorEmail, rawTimestamp, message] =
+            line.split('\x1f');
+
+          return {
+            sha,
+            parents: rawParents ? rawParents.split(' ').filter(Boolean) : [],
+            author: { name: authorName, email: authorEmail },
+            timestamp: Number.parseInt(rawTimestamp, 10),
+            message,
+          };
+        });
+    } catch {
+      return [];
+    }
+  }
+
+  async getDiff(
+    owner: string,
+    name: string,
+    base: string,
+    head: string,
+  ): Promise<{ patch: string; stat: string; base: string; head: string }> {
+    const repoPath = this.repoStorage.getRepoPath(owner, name);
+    const range = `${base}..${head}`;
+    const options = { cwd: repoPath, maxBuffer: MAX_GIT_OUTPUT_BUFFER };
+
+    const [{ stdout: patch }, { stdout: stat }] = await Promise.all([
+      execFileAsync('git', ['diff', '-p', range], options),
+      execFileAsync('git', ['diff', '--stat', range], options),
+    ]);
+
+    return { patch, stat, base, head };
+  }
+
+  async checkMerge(
+    owner: string,
+    name: string,
+    base: string,
+    head: string,
+  ): Promise<{ clean: boolean; output: string }> {
+    const repoPath = this.repoStorage.getRepoPath(owner, name);
+    const { stdout } = await execFileAsync('git', ['merge-tree', base, head], {
+      cwd: repoPath,
+      maxBuffer: MAX_GIT_OUTPUT_BUFFER,
+    });
+
+    return { clean: !stdout.includes('<<<<<<<'), output: stdout };
+  }
+}

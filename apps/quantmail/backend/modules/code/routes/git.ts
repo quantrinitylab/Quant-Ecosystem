@@ -3,7 +3,10 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import type { PrismaClient } from '@prisma/client';
 import { GitService } from '../services/git.service';
-import { RepoStorageService } from '../services/git-transport/repo-storage.service';
+import {
+  GitInspectService,
+  RepoStorageService,
+} from '../services/git-transport';
 
 function getUserId(request: unknown): string {
   const req = request as { auth?: { userId?: string } };
@@ -40,6 +43,12 @@ const PushRefsSchema = z.object({
     .min(1),
 });
 
+const CommitQuerySchema = z.object({
+  ref: z.string().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  skip: z.coerce.number().int().min(0).optional(),
+});
+
 export default async function gitRoutes(fastify: FastifyInstance) {
   const prisma = (fastify as unknown as { prisma?: PrismaClient }).prisma ?? null;
   if (!prisma) {
@@ -47,6 +56,7 @@ export default async function gitRoutes(fastify: FastifyInstance) {
   }
   const gitService = new GitService(prisma);
   const repoStorage = new RepoStorageService();
+  const gitInspectService = new GitInspectService(repoStorage);
 
   // POST /repos - create repo
   fastify.post('/repos', async (request, reply) => {
@@ -188,6 +198,61 @@ export default async function gitRoutes(fastify: FastifyInstance) {
       const result = await gitService.pushRefs(userId, repo.id, body.refs);
 
       return reply.send({ success: true, data: result });
+    },
+  );
+
+  // GET /repos/:owner/:name/tree/:ref - list the root tree.
+  fastify.get<{ Params: { owner: string; name: string; ref: string } }>(
+    '/repos/:owner/:name/tree/:ref',
+    async (request, reply) => {
+      const { owner, name, ref } = request.params;
+      const tree = await gitInspectService.getTree(owner, name, ref);
+      return reply.send({ success: true, data: tree });
+    },
+  );
+
+  // GET /repos/:owner/:name/tree/:ref/* - list a nested tree path.
+  fastify.get<{ Params: { owner: string; name: string; ref: string; '*': string } }>(
+    '/repos/:owner/:name/tree/:ref/*',
+    async (request, reply) => {
+      const { owner, name, ref } = request.params;
+      const tree = await gitInspectService.getTree(owner, name, ref, request.params['*']);
+      return reply.send({ success: true, data: tree });
+    },
+  );
+
+  // GET /repos/:owner/:name/blob/:ref/* - return a blob's contents.
+  fastify.get<{ Params: { owner: string; name: string; ref: string; '*': string } }>(
+    '/repos/:owner/:name/blob/:ref/*',
+    async (request, reply) => {
+      const { owner, name, ref } = request.params;
+      const blob = await gitInspectService.getBlob(owner, name, ref, request.params['*']);
+      return reply.send({ success: true, data: blob });
+    },
+  );
+
+  // GET /repos/:owner/:name/commits - return commit history.
+  fastify.get<{
+    Params: { owner: string; name: string };
+    Querystring: { ref?: string; limit?: string | number; skip?: string | number };
+  }>('/repos/:owner/:name/commits', async (request, reply) => {
+    const query = CommitQuerySchema.parse(request.query);
+    const commits = await gitInspectService.getCommits(
+      request.params.owner,
+      request.params.name,
+      query.ref ?? 'HEAD',
+      { limit: query.limit, skip: query.skip },
+    );
+    return reply.send({ success: true, data: commits });
+  });
+
+  // GET /repos/:owner/:name/compare/:base...:head - compare two refs.
+  fastify.get<{ Params: { owner: string; name: string; base: string; head: string } }>(
+    '/repos/:owner/:name/compare/:base...:head',
+    async (request, reply) => {
+      const { owner, name, base, head } = request.params;
+      const diff = await gitInspectService.getDiff(owner, name, base, head);
+      return reply.send({ success: true, data: diff });
     },
   );
 }

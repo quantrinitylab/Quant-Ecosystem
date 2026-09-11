@@ -14,6 +14,10 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
+import {
+  GitInspectService,
+  RepoStorageService,
+} from '../modules/code/services/git-transport';
 
 const createRepoSchema = z.object({
   name: z
@@ -84,6 +88,9 @@ function requireUserId(request: unknown): string {
 }
 
 export default async function reposRoutes(fastify: FastifyInstance) {
+  const repoStorage = new RepoStorageService();
+  const gitInspectService = new GitInspectService(repoStorage);
+
   // GET /repos — list the signed-in user's repositories.
   fastify.get('/', async (request, reply) => {
     const parsed = paginationSchema.safeParse(request.query);
@@ -143,6 +150,8 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         },
       },
     })) as RepoRow;
+
+    await repoStorage.initBareRepo(userId, parsed.data.name);
 
     return reply.status(201).send({ success: true, data: toDto(created) });
   });
@@ -267,30 +276,71 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // GET /repos/:id/commits — commit history requires the git storage backend
-  // (not yet wired for the product surface); a repo with no pushes has none.
-  fastify.get<{ Params: { id: string } }>('/:id/commits', async (request, reply) => {
-    await loadReadableRepo(request, request.params.id);
-    return reply.send({ success: true, data: [], metadata: { total: 0, page: 1, pageSize: 0 } });
+  // GET /repos/:id/commits — real commit history from the bare repository.
+  fastify.get<{
+    Params: { id: string };
+    Querystring: { ref?: string; limit?: string; skip?: string };
+  }>('/:id/commits', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const limit = Math.max(1, Math.min(100, Number(request.query.limit) || 30));
+    const skip = Math.max(0, Number(request.query.skip) || 0);
+    const commits = await gitInspectService.getCommits(
+      repo.ownerId,
+      repo.name,
+      request.query.ref ?? repo.defaultBranch ?? 'HEAD',
+      { limit, skip },
+    );
+
+    return reply.send({
+      success: true,
+      data: commits,
+      metadata: { total: commits.length, page: Math.floor(skip / limit) + 1, pageSize: limit },
+    });
   });
 
-  // GET /repos/:id/tree — file tree (empty until the repo has content).
-  fastify.get<{ Params: { id: string } }>('/:id/tree', async (request, reply) => {
-    await loadReadableRepo(request, request.params.id);
-    return reply.send({ success: true, data: [] });
+  // GET /repos/:id/tree — real tree listing from the bare repository.
+  fastify.get<{
+    Params: { id: string };
+    Querystring: { ref?: string; path?: string };
+  }>('/:id/tree', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const tree = await gitInspectService.getTree(
+      repo.ownerId,
+      repo.name,
+      request.query.ref ?? repo.defaultBranch ?? 'HEAD',
+      request.query.path,
+    );
+    return reply.send({ success: true, data: tree });
   });
 
-  // GET /repos/:id/file — file content (none until the repo has content).
-  fastify.get<{ Params: { id: string }; Querystring: { path?: string } }>(
-    '/:id/file',
-    async (request, reply) => {
-      await loadReadableRepo(request, request.params.id);
-      return reply.send({
-        success: true,
-        data: { path: request.query.path ?? '', content: '' },
-      });
-    },
-  );
+  // GET /repos/:id/file — real blob contents from the bare repository.
+  fastify.get<{
+    Params: { id: string };
+    Querystring: { path?: string; ref?: string };
+  }>('/:id/file', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const filePath = request.query.path ?? '';
+    const emptyBlob = { path: filePath, content: '', size: 0, sha: request.query.ref ?? repo.defaultBranch };
+
+    if (!filePath || !(await repoStorage.repoExists(repo.ownerId, repo.name))) {
+      return reply.send({ success: true, data: emptyBlob });
+    }
+
+    try {
+      const blob = await gitInspectService.getBlob(
+        repo.ownerId,
+        repo.name,
+        request.query.ref ?? repo.defaultBranch ?? 'HEAD',
+        filePath,
+      );
+      return reply.send({ success: true, data: blob });
+    } catch (error) {
+      if ((error as { code?: string }).code === 'FILE_NOT_FOUND') {
+        return reply.send({ success: true, data: emptyBlob });
+      }
+      throw error;
+    }
+  });
 
   // DELETE /repos/:id — soft-delete (owner only).
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
@@ -307,6 +357,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       where: { id: request.params.id },
       data: { deletedAt: new Date() },
     });
+    await repoStorage.deleteRepo(repo.ownerId, repo.name);
 
     return reply.send({ success: true, data: { message: 'Repository deleted' } });
   });
