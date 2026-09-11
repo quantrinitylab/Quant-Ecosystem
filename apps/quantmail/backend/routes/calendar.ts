@@ -193,6 +193,7 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
             .filter((occurrence) => occurrence.startTime <= endDate && occurrence.endTime >= startDate)
             .map(toEventDto);
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.warn(`Unable to expand recurring calendar event ${row.id}`, error);
           return [];
         }
