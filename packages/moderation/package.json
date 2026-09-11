@@ -18,8 +18,8 @@
     "sharp": "^0.35.3"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.1",
     "vitest": "^4",
-    "typescript": "~5.5.0"
+    "typescript": "~5.9.3"
   }
 }

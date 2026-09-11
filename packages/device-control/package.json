@@ -12,13 +12,13 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@capacitor/core": "^6.0.0",
+    "@capacitor/core": "^6.2.2",
     "twilio": "^5.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "~5.5.0",
+    "@types/node": "^22.20.1",
+    "typescript": "~5.9.3",
     "vitest": "^4.1.0"
   }
 }
