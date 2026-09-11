@@ -3,76 +3,32 @@
 import { useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
 import { IconSparkle } from './icons';
+import { errorMessage, requestCommitMessage } from './codehub-ai-client';
 
-interface AICommitMessageProps {
-  diff: string;
-  onUseMessage: (message: string) => void;
-}
+interface AICommitMessageProps { diff: string; onUseMessage: (message: string) => void }
 
-/**
- * AI Commit Message Generator — analyzes your code diff and suggests a conventional commit message.
- * GitHub doesn't have this. We generate perfect commit messages automatically.
- */
 export function AICommitMessage({ diff, onUseMessage }: AICommitMessageProps) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const generateMessages = useCallback(async () => {
-    setIsGenerating(true);
-    // Simulate AI generation — in production calls backend
-    await new Promise((r) => setTimeout(r, 800));
-
-    // Analyze diff to generate smart messages
-    const lines = diff.split('\n');
-    const adds = lines.filter((l) => l.startsWith('+')).length;
-    const removes = lines.filter((l) => l.startsWith('-')).length;
-    const files = lines.filter((l) => l.startsWith('diff --git')).length;
-
-    const suggestions = [
-      `feat: ${adds > removes ? 'add' : 'update'} ${files} file${files > 1 ? 's' : ''} with ${adds} additions and ${removes} deletions`,
-      `refactor: improve code quality and readability`,
-      `fix: resolve issues in ${files > 1 ? 'multiple files' : 'affected file'}`,
-    ];
-
-    setSuggestions(suggestions);
-    setIsGenerating(false);
+    if (!diff.trim()) return;
+    setIsGenerating(true); setError(null); setSuggestions([]);
+    try { setSuggestions(await requestCommitMessage(diff)); }
+    catch (cause) { setError(errorMessage(cause)); }
+    finally { setIsGenerating(false); }
   }, [diff]);
 
-  return (
-    <div className="ai-commit-msg">
-      <button
-        type="button"
-        className="ai-commit-trigger inline-flex items-center gap-1.5"
-        onClick={generateMessages}
-        disabled={isGenerating}
-      >
-        <span className="ai-commit-icon inline-flex">
-          <IconSparkle size={12} />
-        </span>
-        {isGenerating ? 'Generating...' : 'Generate commit message'}
-      </button>
-      {suggestions.length > 0 && (
-        <motion.div
-          className="ai-commit-suggestions"
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-        >
-          {suggestions.map((msg, idx) => (
-            <button
-              key={idx}
-              type="button"
-              className={`ai-commit-option ${selectedIdx === idx ? 'is-selected' : ''}`}
-              onClick={() => {
-                setSelectedIdx(idx);
-                onUseMessage(msg);
-              }}
-            >
-              <code>{msg}</code>
-            </button>
-          ))}
-        </motion.div>
-      )}
-    </div>
-  );
+  return <div className="ai-commit-msg">
+    <button type="button" className="ai-commit-trigger inline-flex items-center gap-1.5" onClick={generateMessages} disabled={isGenerating || !diff.trim()}>
+      <span className="ai-commit-icon inline-flex"><IconSparkle size={12} /></span>
+      {isGenerating ? 'Generating...' : 'Generate commit message'}
+    </button>
+    {error && <p className="text-xs text-rose-400" role="alert">{error}</p>}
+    {suggestions.length > 0 && <motion.div className="ai-commit-suggestions" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+      {suggestions.map((msg, idx) => <button key={`${msg}-${idx}`} type="button" className={`ai-commit-option ${selectedIdx === idx ? 'is-selected' : ''}`} onClick={() => { setSelectedIdx(idx); onUseMessage(msg); }}><code>{msg}</code></button>)}
+    </motion.div>}
+  </div>;
 }

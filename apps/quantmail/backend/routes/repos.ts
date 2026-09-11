@@ -47,11 +47,13 @@ type RepoRow = {
 
 /** Map a Prisma Repository row to the frontend Repository DTO shape. */
 function toDto(r: RepoRow, ownerHandle?: string) {
+  const slug = ownerHandle ? `${ownerHandle}/${r.name}` : r.name;
+  const appUrl = (process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://quantmail.in').replace(/\/$/, '');
   return {
     id: r.id,
     ownerId: r.ownerId,
     name: r.name,
-    fullName: ownerHandle ? `${ownerHandle}/${r.name}` : r.name,
+    fullName: slug,
     description: r.description ?? '',
     visibility: String(r.visibility).toLowerCase(),
     defaultBranch: r.defaultBranch,
@@ -64,8 +66,8 @@ function toDto(r: RepoRow, ownerHandle?: string) {
     isTemplate: false,
     isFork: false,
     topics: [] as string[],
-    cloneUrl: '',
-    sshUrl: '',
+    cloneUrl: `${appUrl}/git/${slug}.git`,
+    sshUrl: `git@quantmail.in:${slug}.git`,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -111,7 +113,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     });
   });
 
-  // POST /repos — create a repository owned by the signed-in user.
+  // POST /repos — create a repository and its default branch atomically.
   fastify.post('/', async (request, reply) => {
     const parsed = createRepoSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
@@ -132,6 +134,13 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         description: parsed.data.description ?? null,
         visibility: (parsed.data.visibility ?? 'private').toUpperCase(),
         defaultBranch: 'main',
+        branches: {
+          create: {
+            name: 'main',
+            // Empty repositories have an unborn default branch until the first push.
+            commitSha: '',
+          },
+        },
       },
     })) as RepoRow;
 
@@ -173,9 +182,9 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     return repo;
   }
 
-  // GET /repos/:id/branches — DB-backed branch list.
+  // GET /repos/:id/branches — query real persisted branches.
   fastify.get<{ Params: { id: string } }>('/:id/branches', async (request, reply) => {
-    await loadReadableRepo(request, request.params.id);
+    const repo = await loadReadableRepo(request, request.params.id);
     const prisma = getPrisma(fastify);
     const rows = (await prisma.branch.findMany({
       where: { repoId: request.params.id },
@@ -186,6 +195,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       data: rows.map((b) => ({
         name: b.name,
         sha: b.commitSha,
+        isDefault: b.name === repo.defaultBranch,
         isProtected: b.isProtected,
         protection: b.isProtected ? 'require_reviews' : 'none',
         aheadBy: 0,

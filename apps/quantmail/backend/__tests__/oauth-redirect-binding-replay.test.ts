@@ -111,6 +111,12 @@ beforeEach(() => {
     username: 'tester',
     role: 'USER',
   } as never);
+  db.oAuthClient.findUnique.mockResolvedValue({
+    id: 'client-1',
+    clientId: 'client_redirect',
+    isConfidential: false,
+    clientSecretHash: null,
+  } as never);
 });
 
 const futureExpiry = () => new Date(Date.now() + 5 * 60 * 1000);
@@ -127,6 +133,7 @@ describe('Task 1.4 — redirect_uri rebinding at /oauth/token (Req 1.4)', () => 
   it('rejects with NO tokens when the exchange redirect_uri differs from the bound value', async () => {
     db.authorizationCode.findUnique.mockResolvedValue({
       code: 'ac_rebind',
+      clientId: 'client_redirect',
       userId: 'user-1',
       scopes: ['openid'],
       redirectUri: BOUND_REDIRECT,
@@ -154,6 +161,7 @@ describe('Task 1.4 — redirect_uri rebinding at /oauth/token (Req 1.4)', () => 
   it('grants tokens when the exchange redirect_uri equals the bound value (positive control)', async () => {
     db.authorizationCode.findUnique.mockResolvedValue({
       code: 'ac_rebind_ok',
+      clientId: 'client_redirect',
       userId: 'user-1',
       scopes: ['openid'],
       redirectUri: BOUND_REDIRECT,
@@ -182,6 +190,7 @@ describe('Task 1.4 — single-use auth-code replay rejection (Req 1.6)', () => {
   it('first exchange succeeds and the replay of the same code is rejected with no tokens', async () => {
     db.authorizationCode.findUnique.mockResolvedValue({
       code: 'ac_replay',
+      clientId: 'client_redirect',
       userId: 'user-1',
       scopes: ['openid'],
       redirectUri: BOUND_REDIRECT,
