@@ -4,6 +4,7 @@ import { createAppError } from '@quant/server-core';
 import { CalendarService } from '../services/calendar.service';
 import { AlarmService, type AlarmEvent } from '../services/alarm.service';
 import { BookingLinkService } from '../services/booking-link.service';
+import { RecurringService, type CalendarEvent } from '../services/recurring.service';
 
 function getPrisma(fastify: FastifyInstance): any {
   return (fastify as unknown as { prisma: unknown }).prisma;
@@ -95,10 +96,13 @@ type EventRow = {
   endTime: Date;
   allDay: boolean;
   location: string;
+  userId: string;
   status: string;
   attendees?: unknown;
   reminders?: unknown;
   recurrenceRule?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 const REMINDER_UNIT_MINUTES: Record<string, number> = {
@@ -222,10 +226,14 @@ function alarmReminders(raw: unknown): AlarmEvent['reminders'] {
   });
 }
 
-function toRecurrenceRule(value: string | null | undefined): string | null {
+function normalizeRecurrenceRule(
+  value: string | null | undefined,
+  recurringService: RecurringService,
+): string | null {
   if (value === null || value === undefined) return null;
   const trimmed = value.trim();
-  return trimmed === '' || /^(none|does not repeat)$/i.test(trimmed) ? null : trimmed;
+  if (trimmed === '' || /^(none|does not repeat)$/i.test(trimmed)) return null;
+  return recurringService.serializeRRule(recurringService.parseRRule(trimmed));
 }
 
 function pickRecurrence(data: {
@@ -235,7 +243,26 @@ function pickRecurrence(data: {
   return data.recurrence !== undefined ? data.recurrence : data.recurrenceRule;
 }
 
-function toEventDto(event: EventRow) {
+function toCalendarEvent(row: EventRow): CalendarEvent {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description ?? '',
+    startTime: new Date(row.startTime),
+    endTime: new Date(row.endTime),
+    allDay: row.allDay ?? false,
+    location: row.location ?? '',
+    userId: row.userId,
+    attendees: parseJsonArray(row.attendees),
+    recurrenceRule: row.recurrenceRule ?? null,
+    status: row.status as CalendarEvent['status'],
+    reminders: parseJsonArray(row.reminders),
+    createdAt: new Date(row.createdAt),
+    updatedAt: new Date(row.updatedAt),
+  };
+}
+
+function toEventDto(event: EventRow | CalendarEvent) {
   return {
     id: event.id,
     title: event.title,
@@ -256,6 +283,7 @@ function toEventDto(event: EventRow) {
 export default async function calendarRoutes(fastify: FastifyInstance) {
   const calendarService = () => new CalendarService(getPrisma(fastify));
   const bookingService = () => new BookingLinkService(getPrisma(fastify));
+  const recurringService = new RecurringService(getPrisma(fastify));
 
   fastify.get('/calendars', async (request, reply) => {
     const data = await calendarService().listCalendars(requireUserId(request));
@@ -286,8 +314,45 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
 
   fastify.get<{ Querystring: { start?: string; end?: string; calendarId?: string } }>(
     '/events', async (request, reply) => {
-      const where: Record<string, unknown> = { userId: requireUserId(request) };
+      const userId = requireUserId(request);
       const { start, end } = request.query;
+
+      if (start && end) {
+        const startDate = toDate(start, 'start');
+        const endDate = toDate(end, 'end');
+        if (endDate < startDate) {
+          throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
+        }
+
+        const rows = (await getPrisma(fastify).event.findMany({
+          where: {
+            userId,
+            recurrenceRule: null,
+            startTime: { gte: startDate, lte: endDate },
+          },
+          orderBy: { startTime: 'asc' },
+          take: 1000,
+        })) as EventRow[];
+        const recurringRows = (await getPrisma(fastify).event.findMany({
+          where: {
+            userId,
+            recurrenceRule: { not: null },
+            startTime: { lte: endDate },
+          },
+        })) as EventRow[];
+
+        const expandedDtos = recurringRows.flatMap((row) =>
+          recurringService
+            .expandOccurrences(toCalendarEvent(row), startDate, endDate)
+            .map(toEventDto),
+        );
+        const merged = [...rows.map(toEventDto), ...expandedDtos];
+        const deduplicated = [...new Map(merged.map((event) => [event.id, event])).values()]
+          .sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime());
+        return reply.send({ success: true, data: deduplicated });
+      }
+
+      const where: Record<string, unknown> = { userId };
       if (start || end) {
         where.startTime = {
           ...(start ? { gte: toDate(start, 'start') } : {}),
@@ -348,13 +413,15 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
     const end = parsed.data.end ? toDate(parsed.data.end, 'end') : new Date(start.getTime() + 3_600_000);
     if (end < start) throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
     const now = new Date();
+    const recurrence = pickRecurrence(parsed.data);
     const created = (await getPrisma(fastify).event.create({ data: {
       title: parsed.data.title, description: parsed.data.description ?? '', startTime: start,
       endTime: end, allDay: parsed.data.allDay ?? false, location: parsed.data.location ?? '',
       userId: requireUserId(request), status: 'confirmed',
       attendees: JSON.stringify(toStoredAttendees(parsed.data.attendees ?? [])),
       reminders: JSON.stringify(toStoredReminders(parsed.data.reminders ?? [])),
-      recurrenceRule: toRecurrenceRule(pickRecurrence(parsed.data)), createdAt: now, updatedAt: now,
+      recurrenceRule: normalizeRecurrenceRule(recurrence, recurringService),
+      createdAt: now, updatedAt: now,
     } })) as EventRow;
     return reply.status(201).send({ success: true, data: toEventDto(created) });
   });
@@ -384,7 +451,9 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
     if (parsed.data.attendees !== undefined) data.attendees = JSON.stringify(toStoredAttendees(parsed.data.attendees));
     if (parsed.data.reminders !== undefined) data.reminders = JSON.stringify(toStoredReminders(parsed.data.reminders));
     const recurrence = pickRecurrence(parsed.data);
-    if (recurrence !== undefined) data.recurrenceRule = toRecurrenceRule(recurrence);
+    if (recurrence !== undefined) {
+      data.recurrenceRule = normalizeRecurrenceRule(recurrence, recurringService);
+    }
     const updated = (await prisma.event.update({ where: { id: request.params.id }, data })) as EventRow;
     return reply.send({ success: true, data: toEventDto(updated) });
   };
