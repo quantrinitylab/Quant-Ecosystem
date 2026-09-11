@@ -87,6 +87,9 @@ export function getConfig(): AppConfig {
       // Authenticated by the AWS SNS message signature, not by a JWT — SNS
       // cannot present a bearer token. See routes/inbound-webhook.ts.
       '/webhook/inbound',
+      // Leaf Smart HTTP transport. It performs PAT verification itself; never
+      // mount repository administration, PR, review, or issue routes below it.
+      '/api/code/gitd',
     ],
     env,
   };

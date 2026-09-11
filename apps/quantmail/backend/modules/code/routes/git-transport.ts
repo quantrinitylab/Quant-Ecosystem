@@ -1,6 +1,7 @@
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { PrismaClient, Repository } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
+import { verifyPersonalAccessToken } from '@quant/auth';
 import {
   GitReceivePackService,
   GitUploadPackService,
@@ -17,46 +18,86 @@ type RepositoryAccess = Pick<Repository, 'ownerId' | 'name' | 'visibility'>;
 
 const GIT_BODY_LIMIT = 100 * 1024 * 1024;
 
-function getOptionalUserId(request: unknown): string | undefined {
-  return (request as { auth?: { userId?: string } }).auth?.userId;
+type GitCredential = {
+  userId: string;
+  scopes: string[];
+};
+
+function authenticationRequired(reply: FastifyReply, reason = 'unknown'): never {
+  reply.header('WWW-Authenticate', 'Basic realm="QuantCode"');
+  throw createAppError(`Authentication required (${reason})`, 401, 'UNAUTHORIZED');
 }
 
-function sendAuthenticationRequired(reply: FastifyReply): void {
-  reply
-    .header('WWW-Authenticate', 'Basic realm="QuantCode"')
-    .status(401)
-    .send({ error: 'Authentication required' });
+async function resolveCredential(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  prisma: PrismaClient,
+): Promise<GitCredential | null> {
+  const sessionUserId = (request as FastifyRequest & { auth?: { userId?: string } }).auth?.userId;
+  if (sessionUserId) {
+    return { userId: sessionUserId, scopes: ['repo:read', 'repo:write'] };
+  }
+
+  const authorization = request.headers.authorization;
+  if (!authorization) return null;
+
+  let presented: string | undefined;
+  if (authorization.startsWith('Basic ')) {
+    let decoded: string;
+    try {
+      decoded = Buffer.from(authorization.slice(6), 'base64').toString('utf8');
+    } catch {
+      return authenticationRequired(reply, 'basic_decode_failed');
+    }
+    const separator = decoded.indexOf(':');
+    if (separator < 0) return authenticationRequired(reply, 'missing_colon');
+    presented = decoded.slice(separator + 1);
+  } else if (authorization.startsWith('Bearer ')) {
+    presented = authorization.slice(7);
+  } else {
+    return authenticationRequired(reply, 'not_basic_or_bearer');
+  }
+
+  if (!presented) return authenticationRequired(reply, 'empty_presented');
+  const verified = await verifyPersonalAccessToken(prisma, presented);
+  if (!verified) return authenticationRequired(reply, 'verify_pat_failed');
+  return { userId: verified.userId, scopes: verified.scopes };
 }
 
-function requireWriteAccess(
-  request: unknown,
+function requireScope(credential: GitCredential, scope: 'repo:read' | 'repo:write'): void {
+  if (!credential.scopes.includes(scope)) {
+    throw createAppError(`Token lacks required scope: ${scope}`, 403, 'INSUFFICIENT_SCOPE');
+  }
+}
+
+async function requireWriteAccess(
+  request: FastifyRequest,
   reply: FastifyReply,
   repo: RepositoryAccess,
-): boolean {
-  const userId = getOptionalUserId(request);
-  if (!userId) {
-    sendAuthenticationRequired(reply);
-    return false;
-  }
-  if (repo.ownerId !== userId) {
+  prisma: PrismaClient,
+): Promise<void> {
+  const credential = await resolveCredential(request, reply, prisma);
+  if (!credential) return authenticationRequired(reply, 'write_no_credential');
+  requireScope(credential, 'repo:write');
+  if (repo.ownerId !== credential.userId) {
     throw createAppError('Write access required', 403, 'FORBIDDEN');
   }
-  return true;
 }
 
-function requireReadAccess(request: unknown, reply: FastifyReply, repo: RepositoryAccess): boolean {
+async function requireReadAccess(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  repo: RepositoryAccess,
+  prisma: PrismaClient,
+): Promise<void> {
   const visibility = String(repo.visibility).toUpperCase();
-  if (visibility === 'PUBLIC') return true;
-
-  const userId = getOptionalUserId(request);
-  if (!userId) {
-    sendAuthenticationRequired(reply);
-    return false;
-  }
-  if (repo.ownerId !== userId) {
+  const credential = await resolveCredential(request, reply, prisma);
+  if (!credential && visibility === 'PUBLIC') return;
+  if (!credential) return authenticationRequired(reply, 'read_no_credential');
+  requireScope(credential, 'repo:read');
+  if (visibility !== 'PUBLIC' && repo.ownerId !== credential.userId) {
     throw createAppError('Read access required', 403, 'FORBIDDEN');
   }
-  return true;
 }
 
 function stripGitSuffix(name: string): string {
@@ -142,9 +183,9 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
       const repo = await findRepository(owner, name);
 
       if (service === 'git-receive-pack') {
-        if (!requireWriteAccess(request, reply, repo)) return reply;
-      } else if (!requireReadAccess(request, reply, repo)) {
-        return reply;
+        await requireWriteAccess(request, reply, repo, prisma);
+      } else {
+        await requireReadAccess(request, reply, repo, prisma);
       }
 
       const repoPath = await requireDiskRepository(repo);
@@ -173,7 +214,7 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
       const owner = request.params.owner;
       const name = stripGitSuffix(request.params.name);
       const repo = await findRepository(owner, name);
-      if (!requireReadAccess(request, reply, repo)) return reply;
+      await requireReadAccess(request, reply, repo, prisma);
 
       const repoPath = await requireDiskRepository(repo);
       const result = await uploadPack.execute(repoPath, requestBodyBuffer(request.body));
