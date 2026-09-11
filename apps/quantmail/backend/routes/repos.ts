@@ -4,7 +4,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
-import { GitInspectService, RepoStorageService } from '../modules/code/services/git-transport';
 
 const repoNameSchema = z
   .string()
@@ -79,9 +78,6 @@ function requireUserId(request: unknown): string {
 }
 
 export default async function reposRoutes(fastify: FastifyInstance) {
-  const repoStorage = new RepoStorageService();
-  const gitInspectService = new GitInspectService(repoStorage);
-
   fastify.get('/', async (request, reply) => {
     const parsed = paginationSchema.safeParse(request.query);
     if (!parsed.success) throw parsed.error;
@@ -129,7 +125,6 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         branches: { create: { name: 'main', commitSha: '' } },
       },
     })) as RepoRow;
-    await repoStorage.initBareRepo(userId, parsed.data.name);
     return reply.status(201).send({ success: true, data: toDto(created) });
   });
 
@@ -243,68 +238,28 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.get<{
-    Params: { id: string };
-    Querystring: { ref?: string; limit?: string; skip?: string };
-  }>('/:id/commits', async (request, reply) => {
-    const repo = await loadReadableRepo(request, request.params.id);
-    const limit = Math.max(1, Math.min(100, Number(request.query.limit) || 30));
-    const skip = Math.max(0, Number(request.query.skip) || 0);
-    const commits = await gitInspectService.getCommits(
-      repo.ownerId,
-      repo.name,
-      request.query.ref ?? repo.defaultBranch ?? 'HEAD',
-      { limit, skip },
-    );
+  fastify.get<{ Params: { id: string } }>('/:id/commits', async (request, reply) => {
+    await loadReadableRepo(request, request.params.id);
     return reply.send({
       success: true,
-      data: commits,
-      metadata: { total: commits.length, page: Math.floor(skip / limit) + 1, pageSize: limit },
+      data: [],
+      metadata: { total: 0, page: 1, pageSize: 0 },
     });
   });
 
-  fastify.get<{ Params: { id: string }; Querystring: { ref?: string; path?: string } }>(
-    '/:id/tree',
-    async (request, reply) => {
-      const repo = await loadReadableRepo(request, request.params.id);
-      const tree = await gitInspectService.getTree(
-        repo.ownerId,
-        repo.name,
-        request.query.ref ?? repo.defaultBranch ?? 'HEAD',
-        request.query.path,
-      );
-      return reply.send({ success: true, data: tree });
-    },
-  );
+  fastify.get<{ Params: { id: string } }>('/:id/tree', async (request, reply) => {
+    await loadReadableRepo(request, request.params.id);
+    return reply.send({ success: true, data: [] });
+  });
 
-  fastify.get<{ Params: { id: string }; Querystring: { path?: string; ref?: string } }>(
+  fastify.get<{ Params: { id: string }; Querystring: { path?: string } }>(
     '/:id/file',
     async (request, reply) => {
-      const repo = await loadReadableRepo(request, request.params.id);
-      const filePath = request.query.path ?? '';
-      const emptyBlob = {
-        path: filePath,
-        content: '',
-        size: 0,
-        sha: request.query.ref ?? repo.defaultBranch,
-      };
-      if (!filePath || !(await repoStorage.repoExists(repo.ownerId, repo.name))) {
-        return reply.send({ success: true, data: emptyBlob });
-      }
-      try {
-        const blob = await gitInspectService.getBlob(
-          repo.ownerId,
-          repo.name,
-          request.query.ref ?? repo.defaultBranch ?? 'HEAD',
-          filePath,
-        );
-        return reply.send({ success: true, data: blob });
-      } catch (error) {
-        if ((error as { code?: string }).code === 'FILE_NOT_FOUND') {
-          return reply.send({ success: true, data: emptyBlob });
-        }
-        throw error;
-      }
+      await loadReadableRepo(request, request.params.id);
+      return reply.send({
+        success: true,
+        data: { path: request.query.path ?? '', content: '' },
+      });
     },
   );
 
