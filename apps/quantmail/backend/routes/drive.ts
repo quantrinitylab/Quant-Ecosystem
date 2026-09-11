@@ -19,6 +19,9 @@ import {
 import { StorageQuotaService } from '../services/storage-quota.service';
 import { AIExtractDataService } from '../services/ai-extract-data.service';
 import { AISummarizeFileService } from '../services/ai-summarize-file.service';
+import { AISearchContentService } from '../services/ai-search-content.service';
+import { AIDuplicateService } from '../services/ai-duplicate.service';
+import { AIOrganizeService } from '../services/ai-organize.service';
 
 const MEMORY_SCAN_LIMIT = 2000;
 const MEMORY_APP_LABELS: Record<string, string> = {
@@ -27,6 +30,15 @@ const MEMORY_APP_LABELS: Record<string, string> = {
 };
 const MEMORY_SHARED_SESSIONS = new Set(['user-style', 'user-contacts']);
 const AI_FILE_SCHEMA = z.object({ fileId: z.string().min(1) });
+const AI_SEARCH_SCHEMA = z.object({
+  fileId: z.string().min(1),
+  query: z.string().trim().min(1).max(500),
+  limit: z.number().int().min(1).max(100).optional(),
+});
+const AI_ORGANIZE_SCHEMA = z.object({
+  fileId: z.string().min(1),
+  apply: z.boolean().optional().default(false),
+});
 const QUOTA_CHECK_SCHEMA = z.object({ additionalBytes: z.number().int().nonnegative() });
 const AI_TEXT_MIME_TYPES = new Set([
   'application/json', 'application/ld+json', 'application/xml', 'application/x-yaml',
@@ -161,6 +173,7 @@ async function purgeRows(fastify: FastifyInstance, userId: string, fileIds: stri
   for (const version of versions) if (ownedIds.includes(version.fileId) && version.encryptedContent) keys.add(version.encryptedContent);
   for (const key of keys) await deleteDriveObject(key);
   await prisma.$transaction([
+    prisma.fileIndex.deleteMany({ where: { fileId: { in: ownedIds } } }),
     prisma.fileVersion.deleteMany({ where: { fileId: { in: ownedIds } } }),
     prisma.share.deleteMany({ where: { OR: [{ fileId: { in: ownedIds } }, { folderId: { in: folderIds } }] } }),
     prisma.file.deleteMany({ where: { id: { in: ownedIds }, userId, isDeleted: true } }),
@@ -206,6 +219,9 @@ export default async function driveRoutes(fastify: FastifyInstance) {
   const aiEngine = new AIEngine();
   const extractService = new AIExtractDataService(aiEngine);
   const summarizeService = new AISummarizeFileService(aiEngine);
+  const searchService = new AISearchContentService(prisma);
+  const duplicateService = new AIDuplicateService(prisma);
+  const organizeService = new AIOrganizeService(aiEngine, prisma);
 
   fastify.get('/drive/quota', async (request, reply) => {
     const userId = requireUserId(request); const quota = await quotaService.getQuota(userId);
@@ -239,6 +255,22 @@ export default async function driveRoutes(fastify: FastifyInstance) {
   fastify.post('/drive/ai/summarize', async (request, reply) => {
     const { userId, file, content } = await aiFile(request, request.body);
     return reply.send(await summarizeService.summarizeFile({ fileId: file.id, content, mimeType: file.mimeType, fileName: file.name }, userId));
+  });
+  fastify.post('/drive/ai/search', async (request, reply) => {
+    const parsed = AI_SEARCH_SCHEMA.safeParse(request.body); if (!parsed.success) throw parsed.error;
+    const { userId, file, content } = await aiFile(request, { fileId: parsed.data.fileId });
+    await searchService.indexFile(file.id, file.name, content, file.mimeType, userId);
+    const results = await searchService.searchContent(parsed.data.query, userId, { limit: parsed.data.limit });
+    return reply.send({ results });
+  });
+  fastify.post('/drive/ai/duplicates', async (request, reply) => {
+    const userId = requireUserId(request);
+    return reply.send(await duplicateService.findDuplicates(userId));
+  });
+  fastify.post('/drive/ai/organize', async (request, reply) => {
+    const parsed = AI_ORGANIZE_SCHEMA.safeParse(request.body); if (!parsed.success) throw parsed.error;
+    const { userId, file, content } = await aiFile(request, { fileId: parsed.data.fileId });
+    return reply.send(await organizeService.autoOrganize(file.id, userId, content, parsed.data.apply));
   });
 
   fastify.get<{ Querystring: { folderId?: string } }>('/drive/files', async (request, reply) => {

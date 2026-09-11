@@ -12,11 +12,12 @@ import {
   randomBytes,
 } from 'node:crypto';
 import { createAppError } from '@quant/server-core';
+import { byteEnv } from '../lib/env-bytes';
 
 const MIB = 1024 * 1024;
 
-export const DRIVE_QUOTA_BYTES = Number(process.env.DRIVE_QUOTA_BYTES ?? 15 * 1024 * MIB);
-export const DRIVE_MAX_FILE_BYTES = Number(process.env.DRIVE_MAX_FILE_BYTES ?? 25 * MIB);
+export const DRIVE_QUOTA_BYTES = byteEnv('DRIVE_QUOTA_BYTES', 15 * 1024 * MIB);
+export const DRIVE_MAX_FILE_BYTES = byteEnv('DRIVE_MAX_FILE_BYTES', 25 * MIB);
 export const DRIVE_MAX_BODY_BYTES = Math.ceil(DRIVE_MAX_FILE_BYTES * 1.4) + 64 * 1024;
 
 type S3Config = {
