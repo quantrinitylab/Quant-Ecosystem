@@ -7,7 +7,9 @@ import { join } from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { errorHandlerPlugin } from '@quant/server-core';
+import gitRoutes from '../modules/code/routes/git';
 import gitTransportRoutes from '../modules/code/routes/git-transport';
+import { LocalGitServerPort } from '../modules/code/services/git.service';
 import {
   GitInspectService,
   GitReceivePackService,
@@ -29,9 +31,14 @@ let inspectRepoPath = '';
 let baseCommit = '';
 let headCommit = '';
 let routeApp: FastifyInstance | undefined;
+let inspectionApp: FastifyInstance | undefined;
 let fixtureSequence = 0;
 
-function git(repoPath: string, args: string[], options: { input?: string; env?: NodeJS.ProcessEnv } = {}) {
+function git(
+  repoPath: string,
+  args: string[],
+  options: { input?: string; env?: NodeJS.ProcessEnv } = {},
+) {
   return execFileSync('git', ['--git-dir', repoPath, ...args], {
     encoding: 'utf8',
     input: options.input,
@@ -119,10 +126,46 @@ beforeAll(async () => {
   });
   await routeApp.register(gitTransportRoutes);
   await routeApp.ready();
+
+  const privateRepo = {
+    id: 'private-repo-id',
+    ownerId: routeOwner,
+    name: 'private-repo',
+    visibility: 'PRIVATE',
+    defaultBranch: 'main',
+    storagePathUrl: null,
+    deletedAt: null,
+  };
+  const internalRepo = {
+    ...privateRepo,
+    id: 'internal-repo-id',
+    name: 'internal-repo',
+    visibility: 'INTERNAL',
+  };
+  const inspectionPrisma = {
+    repository: {
+      findFirst: vi.fn(async (args: { where: { ownerId: string; name: string } }) => {
+        if (args.where.ownerId !== routeOwner) return null;
+        if (args.where.name === privateRepo.name) return privateRepo;
+        if (args.where.name === internalRepo.name) return internalRepo;
+        return null;
+      }),
+    },
+  };
+
+  inspectionApp = Fastify();
+  await inspectionApp.register(errorHandlerPlugin);
+  inspectionApp.decorate('prisma', inspectionPrisma as never);
+  inspectionApp.addHook('onRequest', async (request) => {
+    (request as unknown as { auth: { userId: string } }).auth = { userId: 'non-owner' };
+  });
+  await inspectionApp.register(gitRoutes);
+  await inspectionApp.ready();
 });
 
 afterAll(async () => {
   if (routeApp) await routeApp.close();
+  if (inspectionApp) await inspectionApp.close();
   if (originalGitReposPath === undefined) delete process.env['GIT_REPOS_PATH'];
   else process.env['GIT_REPOS_PATH'] = originalGitReposPath;
   if (testRoot) await rm(testRoot, { recursive: true, force: true });
@@ -178,18 +221,80 @@ describe('RepoStorageService', () => {
 });
 
 describe('Git upload-pack and receive-pack services', () => {
-  it('advertises upload-pack refs from a bare repository', async () => {
+  it('advertises upload-pack refs as a byte-exact buffer', async () => {
     const repoPath = await repoStorage.initBareRepo(owner, 'upload-pack-repo');
     const service = new GitUploadPackService();
 
-    await expect(service.advertiseRefs(repoPath)).resolves.toEqual(expect.any(String));
+    const refs = await service.advertiseRefs(repoPath);
+    expect(Buffer.isBuffer(refs)).toBe(true);
+    expect(refs.length).toBeGreaterThan(0);
+    expect(refs.toString('utf8')).toContain('capabilities^{}');
   });
 
-  it('advertises receive-pack refs from a bare repository', async () => {
+  it('advertises receive-pack refs as a byte-exact buffer', async () => {
     const repoPath = await repoStorage.initBareRepo(owner, 'receive-pack-repo');
     const service = new GitReceivePackService();
 
-    await expect(service.advertiseRefs(repoPath)).resolves.toEqual(expect.any(String));
+    const refs = await service.advertiseRefs(repoPath);
+    expect(Buffer.isBuffer(refs)).toBe(true);
+    expect(refs.length).toBeGreaterThan(0);
+    expect(refs.toString('utf8')).toContain('capabilities^{}');
+  });
+});
+
+describe('LocalGitServerPort', () => {
+  it('advances an existing ref when oldSha matches', async () => {
+    const port = new LocalGitServerPort(repoStorage);
+    const ref = 'refs/heads/gt-old-sha';
+    git(inspectRepoPath, ['update-ref', ref, baseCommit]);
+
+    await expect(
+      port.advanceRef({
+        repoId: 'inspect-repo-id',
+        owner,
+        name: 'inspect-repo',
+        storagePathUrl: null,
+        branch: 'gt-old-sha',
+        ref,
+        newSha: headCommit,
+        oldSha: baseCommit,
+      }),
+    ).resolves.toEqual({ newSha: headCommit });
+    expect(git(inspectRepoPath, ['rev-parse', ref])).toBe(headCommit);
+  });
+
+  it('creates a ref when oldSha is omitted', async () => {
+    const port = new LocalGitServerPort(repoStorage);
+    const ref = 'refs/heads/gt-no-old-sha';
+
+    await expect(
+      port.advanceRef({
+        repoId: 'inspect-repo-id',
+        owner,
+        name: 'inspect-repo',
+        storagePathUrl: null,
+        branch: 'gt-no-old-sha',
+        ref,
+        newSha: headCommit,
+      }),
+    ).resolves.toEqual({ newSha: headCommit });
+    expect(git(inspectRepoPath, ['rev-parse', ref])).toBe(headCommit);
+  });
+
+  it('rejects when the bare repository does not exist', async () => {
+    const port = new LocalGitServerPort(repoStorage);
+
+    await expect(
+      port.advanceRef({
+        repoId: 'missing-repo-id',
+        owner,
+        name: 'missing-repo',
+        storagePathUrl: null,
+        branch: 'main',
+        ref: 'refs/heads/main',
+        newSha: headCommit,
+      }),
+    ).rejects.toThrow('Repository not found on disk');
   });
 });
 
@@ -303,5 +408,27 @@ describe('Smart HTTP Fastify routes', () => {
     });
 
     expect(response.statusCode).toBe(403);
+  });
+});
+
+describe('Git inspection route authorization', () => {
+  it('returns 403 FORBIDDEN when a non-owner inspects a PRIVATE repository', async () => {
+    const response = await inspectionApp!.inject({
+      method: 'GET',
+      url: '/repos/route-owner/private-repo/tree/main',
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error.code).toBe('FORBIDDEN');
+  });
+
+  it('returns 403 FORBIDDEN when a non-owner inspects an INTERNAL repository', async () => {
+    const response = await inspectionApp!.inject({
+      method: 'GET',
+      url: '/repos/route-owner/internal-repo/commits?ref=main',
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().error.code).toBe('FORBIDDEN');
   });
 });
