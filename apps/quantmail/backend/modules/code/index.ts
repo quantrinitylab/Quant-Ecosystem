@@ -43,11 +43,7 @@ import ciRoutes from './routes/ci';
 // need a QuantCode service (e.g. the Agent Runtime in Pillar 3) import it from
 // the module barrel — never by reaching into `modules/code/services/*`.
 // ---------------------------------------------------------------------------
-export {
-  PullRequestService,
-  CreatePRInputSchema,
-  MergePRInputSchema,
-} from './services/pr.service';
+export { PullRequestService, CreatePRInputSchema, MergePRInputSchema } from './services/pr.service';
 export type { CreatePRInput, MergePRInput, PRFilters } from './services/pr.service';
 
 export {
@@ -56,13 +52,8 @@ export {
   AddCommentInputSchema,
 } from './services/review.service';
 
-export {
-  MergeEligibilityService,
-} from './services/merge-eligibility.service';
-export type {
-  MergeDecision,
-  MergeEligibilityOptions,
-} from './services/merge-eligibility.service';
+export { MergeEligibilityService } from './services/merge-eligibility.service';
+export type { MergeDecision, MergeEligibilityOptions } from './services/merge-eligibility.service';
 
 export {
   PipelineService,
@@ -93,11 +84,7 @@ export type {
   EnforceResult,
 } from './services/branch-protection.service';
 
-export {
-  GitService,
-  LocalGitServerPort,
-  ownerOnlyAccess,
-} from './services/git.service';
+export { GitService, LocalGitServerPort, ownerOnlyAccess } from './services/git.service';
 export type {
   RefUpdate,
   RefUpdateOutcome,
@@ -106,6 +93,8 @@ export type {
   RepoAccessPort,
   GitServiceOptions,
 } from './services/git.service';
+
+export { GitInspectAdapter, GitProvisioningAdapter } from './adapters/repository.adapter';
 
 /**
  * The QuantCode route surface as a single encapsulated Fastify plugin.
@@ -117,7 +106,6 @@ export type {
  */
 const quantCodeRoutes: FastifyPluginAsync = async (app) => {
   await app.register(gitRoutes, { prefix: '/git' });
-  await app.register(gitTransportRoutes, { prefix: '/git' });
   await app.register(pullRequestRoutes, { prefix: '/git' });
   await app.register(reviewRoutes, { prefix: '/git' });
   await app.register(issueRoutes, { prefix: '/git' });
@@ -135,6 +123,8 @@ const quantCodeRoutes: FastifyPluginAsync = async (app) => {
 export async function registerQuantCodeModule(app: FastifyInstance): Promise<void> {
   await app.register(quantCodeRoutes, { prefix: '/api/code' });
   await app.register(quantCodeRoutes, { prefix: '/api/v1' });
+  // Leaf transport prefix. Never mount product/admin routes beneath this path.
+  await app.register(gitTransportRoutes, { prefix: '/api/code/gitd' });
 }
 
 export default registerQuantCodeModule;

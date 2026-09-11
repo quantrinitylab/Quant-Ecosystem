@@ -18,22 +18,7 @@ type RepositoryAccess = Pick<Repository, 'ownerId' | 'name' | 'visibility'>;
 const GIT_BODY_LIMIT = 100 * 1024 * 1024;
 
 function getOptionalUserId(request: unknown): string | undefined {
-  const req = request as {
-    auth?: { userId?: string };
-    headers?: { authorization?: string };
-  };
-  if (req.auth?.userId) return req.auth.userId;
-
-  const authorization = req.headers?.authorization;
-  if (!authorization?.startsWith('Basic ')) return undefined;
-
-  const decoded = Buffer.from(authorization.slice('Basic '.length), 'base64').toString('utf8');
-  const separator = decoded.indexOf(':');
-  if (separator <= 0) return undefined;
-
-  const username = decoded.slice(0, separator);
-  const passwordOrToken = decoded.slice(separator + 1);
-  return username && passwordOrToken ? username : undefined;
+  return (request as { auth?: { userId?: string } }).auth?.userId;
 }
 
 function sendAuthenticationRequired(reply: FastifyReply): void {
@@ -59,11 +44,7 @@ function requireWriteAccess(
   return true;
 }
 
-function requireReadAccess(
-  request: unknown,
-  reply: FastifyReply,
-  repo: RepositoryAccess,
-): boolean {
+function requireReadAccess(request: unknown, reply: FastifyReply, repo: RepositoryAccess): boolean {
   const visibility = String(repo.visibility).toUpperCase();
   if (visibility === 'PUBLIC') return true;
 
@@ -133,9 +114,15 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
     return repo;
   }
 
-  async function requireDiskRepository(owner: string, name: string): Promise<string> {
+  async function requireDiskRepository(
+    repo: RepositoryAccess & { storagePathUrl: string | null },
+  ): Promise<string> {
+    if (!repo.storagePathUrl) {
+      throw createAppError('Repository storage is not provisioned', 503, 'STORAGE_UNAVAILABLE');
+    }
+    const { ownerId: owner, name } = repo;
     if (!(await repoStorage.repoExists(owner, name))) {
-      throw createAppError('Repository not found on disk', 404, 'GIT_REPO_NOT_FOUND');
+      throw createAppError('Repository storage is unavailable', 503, 'STORAGE_UNAVAILABLE');
     }
     return repoStorage.getRepoPath(owner, name);
   }
@@ -160,9 +147,7 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
         return reply;
       }
 
-      const repoPath = (await repoStorage.repoExists(owner, name))
-        ? repoStorage.getRepoPath(owner, name)
-        : await repoStorage.initBareRepo(owner, name);
+      const repoPath = await requireDiskRepository(repo);
 
       const refs =
         service === 'git-upload-pack'
@@ -172,10 +157,7 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
         service === 'git-upload-pack'
           ? UPLOAD_PACK_ADV_CONTENT_TYPE
           : RECEIVE_PACK_ADV_CONTENT_TYPE;
-      const response = Buffer.concat([
-        Buffer.from(formatSmartHttpHeader(service), 'utf8'),
-        refs,
-      ]);
+      const response = Buffer.concat([Buffer.from(formatSmartHttpHeader(service), 'utf8'), refs]);
 
       return reply
         .header('Content-Type', contentType)
@@ -193,7 +175,7 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
       const repo = await findRepository(owner, name);
       if (!requireReadAccess(request, reply, repo)) return reply;
 
-      const repoPath = await requireDiskRepository(owner, name);
+      const repoPath = await requireDiskRepository(repo);
       const result = await uploadPack.execute(repoPath, requestBodyBuffer(request.body));
 
       return reply

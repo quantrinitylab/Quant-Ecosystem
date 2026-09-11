@@ -32,6 +32,8 @@ let baseCommit = '';
 let headCommit = '';
 let routeApp: FastifyInstance | undefined;
 let inspectionApp: FastifyInstance | undefined;
+let routeRepo: any;
+let routePrisma: any;
 let fixtureSequence = 0;
 
 function git(
@@ -101,16 +103,16 @@ beforeAll(async () => {
 
   const routeOwner = 'route-owner';
   const routeName = 'route-repo';
-  await repoStorage.initBareRepo(routeOwner, routeName);
-  const routeRepo = {
+  const routePath = await repoStorage.initBareRepo(routeOwner, routeName);
+  routeRepo = {
     id: 'route-repo-id',
     ownerId: routeOwner,
     name: routeName,
     visibility: 'PUBLIC',
     defaultBranch: 'main',
-    storagePathUrl: null,
+    storagePathUrl: routePath,
   };
-  const routePrisma = {
+  routePrisma = {
     repository: {
       findFirst: vi.fn(async (args: { where: { ownerId: string; name: string } }) =>
         args.where.ownerId === routeOwner && args.where.name === routeName ? routeRepo : null,
@@ -173,21 +175,13 @@ afterAll(async () => {
 
 describe('smart-http.utils', () => {
   it('formats Git Smart HTTP service announcement pkt-lines', () => {
-    expect(formatSmartHttpHeader('git-upload-pack')).toBe(
-      '001e# service=git-upload-pack\n0000',
-    );
-    expect(formatSmartHttpHeader('git-receive-pack')).toBe(
-      '001f# service=git-receive-pack\n0000',
-    );
+    expect(formatSmartHttpHeader('git-upload-pack')).toBe('001e# service=git-upload-pack\n0000');
+    expect(formatSmartHttpHeader('git-receive-pack')).toBe('001f# service=git-receive-pack\n0000');
   });
 
   it('exports the Git Smart HTTP content types', () => {
-    expect(UPLOAD_PACK_ADV_CONTENT_TYPE).toBe(
-      'application/x-git-upload-pack-advertisement',
-    );
-    expect(RECEIVE_PACK_ADV_CONTENT_TYPE).toBe(
-      'application/x-git-receive-pack-advertisement',
-    );
+    expect(UPLOAD_PACK_ADV_CONTENT_TYPE).toBe('application/x-git-upload-pack-advertisement');
+    expect(RECEIVE_PACK_ADV_CONTENT_TYPE).toBe('application/x-git-receive-pack-advertisement');
     expect(UPLOAD_PACK_CONTENT_TYPE).toBe('application/x-git-upload-pack-result');
     expect(RECEIVE_PACK_CONTENT_TYPE).toBe('application/x-git-receive-pack-result');
   });
@@ -408,6 +402,23 @@ describe('Smart HTTP Fastify routes', () => {
     });
 
     expect(response.statusCode).toBe(403);
+  });
+
+  it('returns 503 STORAGE_UNAVAILABLE when storagePathUrl is null', async () => {
+    const unprovisionedRepo = {
+      ...routeRepo,
+      name: 'unprovisioned-repo',
+      storagePathUrl: null,
+    };
+    routePrisma.repository.findFirst.mockImplementationOnce(async () => unprovisionedRepo);
+
+    const response = await routeApp!.inject({
+      method: 'GET',
+      url: '/repos/route-owner/unprovisioned-repo/info/refs?service=git-upload-pack',
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error.code).toBe('STORAGE_UNAVAILABLE');
   });
 });
 

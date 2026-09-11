@@ -15,8 +15,7 @@ export class RepoStorageService {
   private readonly basePath: string;
 
   constructor(
-    basePath: string =
-      process.env['GIT_REPOS_PATH'] ?? join(process.cwd(), 'data', 'git-repos'),
+    basePath: string = process.env['GIT_REPOS_PATH'] ?? join(process.cwd(), 'data', 'git-repos'),
   ) {
     this.basePath = basePath;
   }
@@ -45,8 +44,14 @@ export class RepoStorageService {
   async initBareRepo(owner: string, name: string): Promise<string> {
     const repoPath = this.getRepoPath(owner, name);
     await mkdir(repoPath, { recursive: true });
-    await execFileAsync('git', ['init', '--bare', repoPath], { env: GIT_CHILD_ENV });
-    return repoPath;
+    try {
+      await execFileAsync('git', ['init', '--bare', repoPath], { env: GIT_CHILD_ENV });
+      await access(join(repoPath, 'HEAD'));
+      return repoPath;
+    } catch (error) {
+      await rm(repoPath, { recursive: true, force: true });
+      throw error;
+    }
   }
 
   async deleteRepo(owner: string, name: string): Promise<void> {
@@ -55,7 +60,7 @@ export class RepoStorageService {
 
   async repoExists(owner: string, name: string): Promise<boolean> {
     try {
-      await access(this.getRepoPath(owner, name));
+      await access(join(this.getRepoPath(owner, name), 'HEAD'));
       return true;
     } catch {
       return false;

@@ -34,6 +34,7 @@ type RepoRow = {
   description: string | null;
   visibility: string;
   defaultBranch: string;
+  storagePathUrl: string | null;
   starCount: number;
   forkCount: number;
   createdAt: Date;
@@ -78,6 +79,19 @@ function requireUserId(request: unknown): string {
 }
 
 export default async function reposRoutes(fastify: FastifyInstance) {
+  function inspectionPort() {
+    if (!fastify.repositoryInspection) {
+      throw createAppError('Repository inspection is unavailable', 503, 'INSPECTION_UNAVAILABLE');
+    }
+    return fastify.repositoryInspection;
+  }
+
+  function provisioningPort() {
+    if (!fastify.repositoryProvisioning) {
+      throw createAppError('Repository storage is unavailable', 503, 'STORAGE_UNAVAILABLE');
+    }
+    return fastify.repositoryProvisioning;
+  }
   fastify.get('/', async (request, reply) => {
     const parsed = paginationSchema.safeParse(request.query);
     if (!parsed.success) throw parsed.error;
@@ -122,10 +136,32 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         description: parsed.data.description ?? null,
         visibility: (parsed.data.visibility ?? 'private').toUpperCase(),
         defaultBranch: 'main',
+        storagePathUrl: null,
         branches: { create: { name: 'main', commitSha: '' } },
       },
     })) as RepoRow;
-    return reply.status(201).send({ success: true, data: toDto(created) });
+
+    try {
+      const { storagePath } = await provisioningPort().provision({
+        owner: created.ownerId,
+        name: created.name,
+      });
+
+      const provisioned = (await prisma.repository.update({
+        where: { id: created.id },
+        data: { storagePathUrl: storagePath },
+      })) as RepoRow;
+
+      return reply.status(201).send({ success: true, data: toDto(provisioned) });
+    } catch (error) {
+      await prisma.repository.delete({ where: { id: created.id } });
+      request.log.error({ err: error, repoId: created.id }, 'repository provisioning failed');
+      throw createAppError(
+        'Repository storage could not be provisioned',
+        503,
+        'STORAGE_UNAVAILABLE',
+      );
+    }
   });
 
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
@@ -134,7 +170,8 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const repo = (await prisma.repository.findUnique({ where: { id: request.params.id } })) as
       | (RepoRow & { deletedAt?: Date | null })
       | null;
-    if (!repo || repo.deletedAt) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+    if (!repo || repo.deletedAt)
+      throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
     if (repo.ownerId !== userId && String(repo.visibility).toUpperCase() === 'PRIVATE') {
       throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
     }
@@ -147,7 +184,8 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const repo = (await prisma.repository.findUnique({ where: { id } })) as
       | (RepoRow & { deletedAt?: Date | null })
       | null;
-    if (!repo || repo.deletedAt) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+    if (!repo || repo.deletedAt)
+      throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
     if (repo.ownerId !== userId && String(repo.visibility).toUpperCase() === 'PRIVATE') {
       throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
     }
@@ -238,35 +276,63 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.get<{ Params: { id: string } }>('/:id/commits', async (request, reply) => {
-    await loadReadableRepo(request, request.params.id);
+  fastify.get<{
+    Params: { id: string };
+    Querystring: { ref?: string; limit?: string; skip?: string };
+  }>('/:id/commits', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const limit = Math.max(1, Math.min(100, Number(request.query.limit) || 30));
+    const skip = Math.max(0, Number(request.query.skip) || 0);
+    const commits = await inspectionPort().listCommits({
+      owner: repo.ownerId,
+      name: repo.name,
+      ref: request.query.ref ?? repo.defaultBranch ?? 'HEAD',
+      limit,
+      skip,
+    });
     return reply.send({
       success: true,
-      data: [],
-      metadata: { total: 0, page: 1, pageSize: 0 },
+      data: commits,
+      metadata: { total: commits.length, page: Math.floor(skip / limit) + 1, pageSize: limit },
     });
   });
 
-  fastify.get<{ Params: { id: string } }>('/:id/tree', async (request, reply) => {
-    await loadReadableRepo(request, request.params.id);
-    return reply.send({ success: true, data: [] });
-  });
+  fastify.get<{ Params: { id: string }; Querystring: { ref?: string; path?: string } }>(
+    '/:id/tree',
+    async (request, reply) => {
+      const repo = await loadReadableRepo(request, request.params.id);
+      const tree = await inspectionPort().listTree({
+        owner: repo.ownerId,
+        name: repo.name,
+        ref: request.query.ref ?? repo.defaultBranch ?? 'HEAD',
+        path: request.query.path,
+      });
+      return reply.send({ success: true, data: tree });
+    },
+  );
 
-  fastify.get<{ Params: { id: string }; Querystring: { path?: string } }>(
+  fastify.get<{ Params: { id: string }; Querystring: { path?: string; ref?: string } }>(
     '/:id/file',
     async (request, reply) => {
-      await loadReadableRepo(request, request.params.id);
-      return reply.send({
-        success: true,
-        data: { path: request.query.path ?? '', content: '' },
+      const repo = await loadReadableRepo(request, request.params.id);
+      const path = request.query.path;
+      if (!path) throw createAppError('File path is required', 400, 'FILE_PATH_REQUIRED');
+      const blob = await inspectionPort().readBlob({
+        owner: repo.ownerId,
+        name: repo.name,
+        ref: request.query.ref ?? repo.defaultBranch ?? 'HEAD',
+        path,
       });
+      return reply.send({ success: true, data: blob });
     },
   );
 
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
-    const repo = (await prisma.repository.findUnique({ where: { id: request.params.id } })) as RepoRow | null;
+    const repo = (await prisma.repository.findUnique({
+      where: { id: request.params.id },
+    })) as RepoRow | null;
     if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
     if (repo.ownerId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
     await prisma.repository.update({
