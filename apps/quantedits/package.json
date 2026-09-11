@@ -1,8 +1,8 @@
 {
-  "name": "@quant/quantedits",
+  "name": "@quant/quantcooks",
   "version": "1.0.0",
   "private": true,
-  "description": "QuantEdits - Professional video/photo editor with AI-powered tools and real-time collaboration",
+  "description": "QuantCooks - CapCut + Higgsfield killer platform with AI video generation and auto-edit pipelines",
   "main": "backend/app.ts",
   "scripts": {
     "dev": "next dev",
