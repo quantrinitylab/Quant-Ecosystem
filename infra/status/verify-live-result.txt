@@ -1,0 +1,32 @@
+=== verify-live 2026-09-11T20:31:47Z ===
+--- dig quantmail.quantrinity.in ---
+104.21.56.186
+172.67.155.74
+--- GET / ---
+status=301
+server: cloudflare
+cf-ray: a3997024cb78bd11-ATL
+<title>301 Moved Permanently</title>
+--- GET /api/ ---
+api_status=301
+<html>
+<head><title>301 Moved Permanently</title></head>
+<body>
+<center><h1>301 Moved Permanently</h1></center>
+<hr><center>cloudflare</center>
+</body>
+</html>
+
+
+--- dig staging.quantrinity.in ---
+104.21.56.186
+172.67.155.74
+--- GET / ---
+status=522
+server: cloudflare
+cf-ray: a3997027290913c4-ATL
+--- GET /api/ ---
+api_status=522
+error code: 522
+
+
