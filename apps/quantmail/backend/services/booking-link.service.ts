@@ -1,4 +1,5 @@
 import { createAppError } from '@quant/server-core';
+import { RecurringService, type CalendarEvent } from './recurring.service';
 
 export interface BookingLink {
   id: string;
@@ -100,10 +101,23 @@ export class BookingLinkService {
     const events = await this.prisma.event.findMany({
       where: {
         userId: link.userId,
+        recurrenceRule: null,
         startTime: { lt: dayEnd },
         endTime: { gt: dayStart },
       },
     });
+
+    const recurringEvents = (await this.prisma.event.findMany({
+      where: {
+        userId: link.userId,
+        recurrenceRule: { not: null },
+        startTime: { lte: dayEnd },
+      },
+    })) as Array<Record<string, unknown>>;
+    const recurringService = new RecurringService(this.prisma as any);
+    const expandedOccurrences = recurringEvents.flatMap((event) =>
+      recurringService.expandOccurrences(this.toCalendarEvent(event), dayStart, dayEnd),
+    );
 
     const busySlots = (events as Array<Record<string, unknown>>).map((event) => ({
       start: new Date(event['startTime'] as string | Date),
@@ -115,10 +129,19 @@ export class BookingLinkService {
     let current = dayStart.getTime();
 
     while (current + slotDuration <= dayEnd.getTime()) {
-      const start = new Date(current);
-      const end = new Date(current + slotDuration);
-      const isBooked = busySlots.some((busy) => busy.start < end && busy.end > start);
-      slots.push({ start, end, available: !isBooked });
+      const slotStart = new Date(current);
+      const slotEnd = new Date(current + slotDuration);
+      const conflictsWithStandard = busySlots.some(
+        (busy) => busy.start < slotEnd && busy.end > slotStart,
+      );
+      const conflictsWithRecurring = expandedOccurrences.some(
+        (occurrence) => slotStart < occurrence.endTime && slotEnd > occurrence.startTime,
+      );
+      slots.push({
+        start: slotStart,
+        end: slotEnd,
+        available: !conflictsWithStandard && !conflictsWithRecurring,
+      });
       current += slotDuration;
     }
 
@@ -157,6 +180,7 @@ export class BookingLinkService {
     const existingEvents = await this.prisma.event.findMany({
       where: {
         userId: link.userId,
+        recurrenceRule: null,
         startTime: { lt: endTime },
         endTime: { gt: startTime },
       },
@@ -164,6 +188,24 @@ export class BookingLinkService {
 
     if (existingEvents.length > 0) {
       throw createAppError('Slot is no longer available', 409, 'SLOT_UNAVAILABLE');
+    }
+
+    const recurringEvents = (await this.prisma.event.findMany({
+      where: {
+        userId: link.userId,
+        recurrenceRule: { not: null },
+        startTime: { lte: dayEnd },
+      },
+    })) as Array<Record<string, unknown>>;
+    const recurringService = new RecurringService(this.prisma as any);
+    const expandedOccurrences = recurringEvents.flatMap((event) =>
+      recurringService.expandOccurrences(this.toCalendarEvent(event), dayStart, dayEnd),
+    );
+    const conflictsWithRecurring = expandedOccurrences.some(
+      (occurrence) => startTime < occurrence.endTime && endTime > occurrence.startTime,
+    );
+    if (conflictsWithRecurring) {
+      throw createAppError('Selected slot is no longer available', 409, 'SLOT_UNAVAILABLE');
     }
 
     const now = new Date();
@@ -191,6 +233,36 @@ export class BookingLinkService {
   async listBookings(userId: string): Promise<BookingLink[]> {
     const links = await this.prisma.bookingLink.findMany({ where: { userId } });
     return links.map((link) => this.toBookingLink(link));
+  }
+
+  private parseArray(value: unknown): unknown[] {
+    if (Array.isArray(value)) return value;
+    if (typeof value !== 'string') return [];
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private toCalendarEvent(raw: Record<string, unknown>): CalendarEvent {
+    return {
+      id: String(raw['id']),
+      title: String(raw['title']),
+      description: String(raw['description'] ?? ''),
+      startTime: new Date(raw['startTime'] as string | Date),
+      endTime: new Date(raw['endTime'] as string | Date),
+      allDay: Boolean(raw['allDay']),
+      location: String(raw['location'] ?? ''),
+      userId: String(raw['userId']),
+      attendees: this.parseArray(raw['attendees']),
+      recurrenceRule: (raw['recurrenceRule'] as string | null) ?? null,
+      status: (raw['status'] as CalendarEvent['status']) ?? 'confirmed',
+      reminders: this.parseArray(raw['reminders']),
+      createdAt: new Date(raw['createdAt'] as string | Date),
+      updatedAt: new Date(raw['updatedAt'] as string | Date),
+    };
   }
 
   private toBookingLink(raw: unknown): BookingLink {
