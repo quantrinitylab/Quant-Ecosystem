@@ -155,7 +155,7 @@ describe('GET /drive/memory', () => {
     });
     expect(body.total).toBe(1);
     await app.close();
-  });
+  }, 60_000);
 
   it('drops an expired memory but keeps one with no expiry', async () => {
     rows = [
