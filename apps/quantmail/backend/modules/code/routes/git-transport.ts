@@ -55,12 +55,13 @@ function requestBodyBuffer(body: unknown): Buffer {
 }
 
 export default async function gitTransportRoutes(fastify: FastifyInstance): Promise<void> {
-  const prisma = (fastify as unknown as { prisma?: PrismaClient }).prisma ?? null;
-  if (!prisma) {
+  const rawPrisma = (fastify as unknown as { prisma?: PrismaClient }).prisma;
+  if (!rawPrisma) {
     throw new Error(
       'PrismaClient is not available. Register the prisma plugin before git transport routes.',
     );
   }
+  const prisma: PrismaClient = rawPrisma;
 
   const repoStorage = new RepoStorageService();
   const uploadPack = new GitUploadPackService();
