@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+import { createHmac } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+const required = (name) => {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing ${name}`);
+  return value;
+};
+
+const commands = readFileSync(0, 'utf8')
+  .split('\n')
+  .filter(Boolean)
+  .map((line) => {
+    const [oldSha, newSha, ref] = line.split(' ');
+    return { oldSha, newSha, ref };
+  });
+
+const fail = (reason) => {
+  process.stderr.write(`QuantCode: ${reason}\n`);
+  process.exit(1);
+};
+
+try {
+  const url = `${required('QUANTCODE_HOOK_URL')}/pre-receive`;
+  const secret = required('QUANTCODE_HOOK_SECRET');
+  const payload = JSON.stringify({
+    pushId: required('QUANTCODE_PUSH_ID'),
+    repoId: required('QUANTCODE_REPO_ID'),
+    userId: required('QUANTCODE_PUSHER_ID'),
+    quarantinePath: process.env.GIT_QUARANTINE_PATH ?? null,
+    gitDir: process.env.GIT_DIR ?? process.cwd(),
+    commands,
+  });
+  const signature = createHmac("sha256", secret).update(payload).digest('hex');
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-quantcode-signature': `sha256=${signature}`,
+    },
+    body: payload,
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) fail(`branch-protection service returned HTTP ${response.status}`);
+  const decision = await response.json();
+  if (decision.allowed === true) process.exit(0);
+  const reasons = Array.isArray(decision.reasons) ? decision.reasons : ['Push rejected'];
+  for (const reason of reasons) process.stderr.write(`QuantCode: ${reason}\n`);
+  process.exit(1);
+} catch (error) {
+  fail(error instanceof Error ? error.message : 'branch-protection service unavailable');
+}

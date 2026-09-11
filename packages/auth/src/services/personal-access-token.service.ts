@@ -2,8 +2,6 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 
 const TOKEN_PREFIX = 'qcp';
-const TOKEN_ID_PATTERN = /^[0-9a-f]{24}$/;
-const TOKEN_SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const LAST_USED_WRITE_INTERVAL_MS = 5 * 60 * 1000;
 
 export type PersonalAccessTokenScope = 'repo:read' | 'repo:write' | 'repo:admin';
@@ -44,18 +42,12 @@ export async function verifyPersonalAccessToken(
   token: string,
   now: Date = new Date(),
 ): Promise<VerifiedPersonalAccessToken | null> {
-  const parts = token.split('_');
-  if (
-    parts.length !== 3 ||
-    parts[0] !== TOKEN_PREFIX ||
-    !TOKEN_ID_PATTERN.test(parts[1] ?? '') ||
-    !TOKEN_SECRET_PATTERN.test(parts[2] ?? '')
-  ) {
-    return null;
-  }
+  const match = token.match(/^(qcp)_([0-9a-f]{24})_([A-Za-z0-9_-]{43})$/);
+  if (!match) return null;
+  const tokenId = match[2]!;
 
   const record = await prisma.personalAccessToken.findUnique({
-    where: { tokenId: parts[1] },
+    where: { tokenId },
   });
   if (!record) return null;
 

@@ -513,6 +513,10 @@ declare module '@prisma/client' {
     where: WhereUniqueInput;
   }
 
+  interface DeleteManyArgs {
+    where?: WhereInput;
+  }
+
   interface UpsertArgs {
     where: WhereUniqueInput;
     create: Record<string, unknown>;
@@ -536,6 +540,7 @@ declare module '@prisma/client' {
     updateMany(args: UpdateManyArgs): Promise<{ count: number }>;
     upsert(args: UpsertArgs): Promise<T>;
     delete(args: DeleteArgs): Promise<T>;
+    deleteMany(args?: DeleteManyArgs): Promise<{ count: number }>;
     count(args?: CountArgs): Promise<number>;
   }
 
@@ -573,6 +578,6 @@ declare module '@prisma/client' {
     creditLedgerEntry: ModelDelegate<CreditLedgerEntry>;
     planSubscription: ModelDelegate<PlanSubscription>;
     paymentRecord: ModelDelegate<PaymentRecord>;
-    $transaction<T>(fn: (tx: PrismaClient) => Promise<T>): Promise<T>;
+    $transaction<T>(arg: Promise<unknown>[] | ((tx: PrismaClient) => Promise<T>)): Promise<T>;
   }
 }

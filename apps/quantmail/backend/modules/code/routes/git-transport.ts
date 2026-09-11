@@ -1,8 +1,12 @@
+import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { PrismaClient, Repository } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { verifyPersonalAccessToken } from '@quant/auth';
 import {
+  GitHookServer,
   GitReceivePackService,
   GitUploadPackService,
   RECEIVE_PACK_ADV_CONTENT_TYPE,
@@ -15,8 +19,10 @@ import {
 type GitRouteParams = { owner: string; name: string };
 type GitInfoRefsQuery = { service?: string };
 type RepositoryAccess = Pick<Repository, 'ownerId' | 'name' | 'visibility'>;
+type ProvisionedRepository = RepositoryAccess & { id: string; storagePathUrl: string | null };
 
 const GIT_BODY_LIMIT = 100 * 1024 * 1024;
+const HOOKS_DIRECTORY = resolve(fileURLToPath(new URL('../git-hooks', import.meta.url)));
 
 type GitCredential = {
   userId: string;
@@ -75,13 +81,14 @@ async function requireWriteAccess(
   reply: FastifyReply,
   repo: RepositoryAccess,
   prisma: PrismaClient,
-): Promise<void> {
+): Promise<GitCredential> {
   const credential = await resolveCredential(request, reply, prisma);
   if (!credential) return authenticationRequired(reply, 'write_no_credential');
   requireScope(credential, 'repo:write');
   if (repo.ownerId !== credential.userId) {
     throw createAppError('Write access required', 403, 'FORBIDDEN');
   }
+  return credential;
 }
 
 async function requireReadAccess(
@@ -121,7 +128,10 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
 
   const repoStorage = new RepoStorageService();
   const uploadPack = new GitUploadPackService();
-  const receivePack = new GitReceivePackService();
+  const hookServer = new GitHookServer(prisma);
+  await hookServer.start();
+  fastify.addHook('onClose', async () => hookServer.close());
+  const receivePack = new GitReceivePackService({ hooksDirectory: HOOKS_DIRECTORY });
 
   const parseBuffer = (
     _request: unknown,
@@ -226,8 +236,27 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
     },
   );
 
-  // Astra audit GT-03: git-receive-pack must remain unmounted until a
-  // pre-receive hook invokes BranchProtectionService. Pushes currently flow
-  // through GitService.pushRefs, which enforces branch protection before refs
-  // advance. Do not expose POST /repos/:owner/:name/git-receive-pack here.
+  fastify.post<{ Params: GitRouteParams }>(
+    '/repos/:owner/:name/git-receive-pack',
+    { bodyLimit: GIT_BODY_LIMIT },
+    async (request, reply) => {
+      const owner = request.params.owner;
+      const name = stripGitSuffix(request.params.name);
+      const repo = (await findRepository(owner, name)) as ProvisionedRepository;
+      const credential = await requireWriteAccess(request, reply, repo, prisma);
+      const repoPath = await requireDiskRepository(repo);
+      const result = await receivePack.execute(repoPath, requestBodyBuffer(request.body), {
+        repoId: repo.id,
+        userId: credential.userId,
+        pushId: randomUUID(),
+        hookUrl: hookServer.url,
+        hookSecret: hookServer.secret,
+      });
+
+      return reply
+        .header('Content-Type', 'application/x-git-receive-pack-result')
+        .header('Cache-Control', 'no-cache')
+        .send(result);
+    },
+  );
 }
