@@ -2,16 +2,11 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createAppError } from '@quant/server-core';
 import { RepoStorageService } from './repo-storage.service';
+import { GIT_CHILD_ENV } from './git-child-env';
 
 const execFileAsync = promisify(execFile);
 const MAX_GIT_OUTPUT_BUFFER = 50 * 1024 * 1024;
 const VALID_REF = /^[a-zA-Z0-9_.\-/]+$/;
-const GIT_CHILD_ENV: NodeJS.ProcessEnv = {
-  PATH: process.env.PATH,
-  GIT_CONFIG_NOSYSTEM: '1',
-  GIT_CONFIG_GLOBAL: '/dev/null',
-  GIT_TERMINAL_PROMPT: '0',
-};
 
 function validateRef(ref: string): void {
   if (!ref || ref.startsWith('-') || !VALID_REF.test(ref)) {
@@ -75,14 +70,16 @@ export class GitInspectService {
           if (!match) return [];
           const [, mode, type, sha, rawSize, path] = match;
           const pathParts = path.split('/');
-          return [{
-            mode,
-            type: type as 'blob' | 'tree',
-            sha,
-            size: rawSize === '-' ? 0 : Number.parseInt(rawSize, 10),
-            path,
-            name: pathParts[pathParts.length - 1] ?? path,
-          }];
+          return [
+            {
+              mode,
+              type: type as 'blob' | 'tree',
+              sha,
+              size: rawSize === '-' ? 0 : Number.parseInt(rawSize, 10),
+              path,
+              name: pathParts[pathParts.length - 1] ?? path,
+            },
+          ];
         });
     } catch {
       return [];

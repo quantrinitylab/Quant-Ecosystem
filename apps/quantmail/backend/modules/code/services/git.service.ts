@@ -9,14 +9,9 @@ import type { PrismaClient, Repository } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { BranchProtectionService } from './branch-protection.service';
 import { RepoStorageService } from './git-transport/repo-storage.service';
+import { GIT_CHILD_ENV } from './git-transport/git-child-env';
 
 const execFileAsync = promisify(execFile);
-const GIT_CHILD_ENV: NodeJS.ProcessEnv = {
-  PATH: process.env.PATH,
-  GIT_CONFIG_NOSYSTEM: '1',
-  GIT_CONFIG_GLOBAL: '/dev/null',
-  GIT_TERMINAL_PROMPT: '0',
-};
 
 export interface RefUpdate {
   ref: string;
@@ -114,8 +109,7 @@ export class GitService {
   ) {
     this.access = options.access ?? ownerOnlyAccess;
     this.branchProtection = options.branchProtection ?? new BranchProtectionService(prisma);
-    this.gitServer =
-      options.gitServer ?? new LocalGitServerPort(new RepoStorageService(), prisma);
+    this.gitServer = options.gitServer ?? new LocalGitServerPort(new RepoStorageService(), prisma);
   }
 
   async pushRefs(
@@ -141,11 +135,7 @@ export class GitService {
     const outcomes: RefUpdateOutcome[] = [];
     for (const update of refUpdates) {
       const branch = refToBranch(update.ref);
-      const enforcement = await this.branchProtection.enforceOnPush(
-        repo.id,
-        branch,
-        update.prId,
-      );
+      const enforcement = await this.branchProtection.enforceOnPush(repo.id, branch, update.prId);
 
       if (!enforcement.allowed) {
         outcomes.push({

@@ -2,14 +2,9 @@ import { execFile } from 'node:child_process';
 import { access, mkdir, rm } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
+import { GIT_CHILD_ENV } from './git-child-env';
 
 const execFileAsync = promisify(execFile);
-const GIT_CHILD_ENV: NodeJS.ProcessEnv = {
-  PATH: process.env.PATH,
-  GIT_CONFIG_NOSYSTEM: '1',
-  GIT_CONFIG_GLOBAL: '/dev/null',
-  GIT_TERMINAL_PROMPT: '0',
-};
 
 export class RepoStorageService {
   private readonly basePath: string;

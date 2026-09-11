@@ -1,14 +1,9 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
+import { GIT_CHILD_ENV } from './git-child-env';
 
 const execFileAsync = promisify(execFile);
 const MAX_GIT_OUTPUT_BUFFER = 50 * 1024 * 1024;
-const GIT_CHILD_ENV: NodeJS.ProcessEnv = {
-  PATH: process.env.PATH,
-  GIT_CONFIG_NOSYSTEM: '1',
-  GIT_CONFIG_GLOBAL: '/dev/null',
-  GIT_TERMINAL_PROMPT: '0',
-};
 
 export class GitReceivePackService {
   async advertiseRefs(repoPath: string): Promise<Buffer> {
@@ -40,9 +35,7 @@ export class GitReceivePackService {
         if (code !== 0) {
           const stderr = Buffer.concat(stderrChunks).toString('utf8').trim();
           reject(
-            new Error(
-              `git receive-pack exited with code ${code}${stderr ? `: ${stderr}` : ''}`,
-            ),
+            new Error(`git receive-pack exited with code ${code}${stderr ? `: ${stderr}` : ''}`),
           );
           return;
         }
