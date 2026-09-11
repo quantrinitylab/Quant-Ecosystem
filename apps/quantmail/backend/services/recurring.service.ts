@@ -85,6 +85,7 @@ export class RecurringService {
     try {
       rule = this.parseRRule(event.recurrenceRule);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn(`Unable to expand corrupt recurrence rule for event ${event.id}`, error);
       return [event];
     }
