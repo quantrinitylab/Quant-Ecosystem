@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import type { PrismaClient } from '@prisma/client';
 import { GitService } from '../services/git.service';
+import { RepoStorageService } from '../services/git-transport/repo-storage.service';
 
 function getUserId(request: unknown): string {
   const req = request as { auth?: { userId?: string } };
@@ -45,6 +46,7 @@ export default async function gitRoutes(fastify: FastifyInstance) {
     throw new Error('PrismaClient is not available. Register the prisma plugin before git routes.');
   }
   const gitService = new GitService(prisma);
+  const repoStorage = new RepoStorageService();
 
   // POST /repos - create repo
   fastify.post('/repos', async (request, reply) => {
@@ -60,6 +62,8 @@ export default async function gitRoutes(fastify: FastifyInstance) {
         ownerId: userId,
       },
     });
+
+    await repoStorage.initBareRepo(repo.ownerId, repo.name);
 
     return reply.send({ success: true, data: repo });
   });
@@ -103,6 +107,7 @@ export default async function gitRoutes(fastify: FastifyInstance) {
       }
 
       await prisma.repository.delete({ where: { id: repo.id } });
+      await repoStorage.deleteRepo(owner, name);
 
       return reply.send({ success: true, data: { deleted: true } });
     },

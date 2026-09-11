@@ -23,16 +23,18 @@
 //        only advances when protection passes; a non-protected ref advances
 //        normally for a write-scoped caller.
 //
-//   The actual ref transport (where the packfile lands and the ref pointer is
-//   moved) lives in the `git-server` infra service. That side-effect is hidden
-//   behind the injectable `GitServerPort` seam so the authorization +
-//   protection logic stays pure and unit-testable, and so the real transport
-//   can be swapped in (HTTP receive-pack call to `git-server`) without touching
-//   this module's policy code.
+//   The actual ref transport is hidden behind the injectable `GitServerPort`
+//   seam. The default local adapter advances refs in the on-disk bare repo,
+//   while tests and future remote deployments can supply another adapter.
 
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { PrismaClient, Repository } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import { BranchProtectionService } from './branch-protection.service';
+import { RepoStorageService } from './git-transport/repo-storage.service';
+
+const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------------------
 // Input / output contracts
@@ -76,15 +78,11 @@ export interface RefUpdateResult {
 // Injectable ports (seams for testability + git-server wiring)
 // ---------------------------------------------------------------------------
 
-/**
- * Transport seam to the `git-server` infra service. The default adapter records
- * the advance against the QuantCode metadata view (the `Branch` table); the
- * production adapter performs the real `git receive-pack` transmission to
- * `git-server` for the repo's storage path.
- */
 export interface GitServerPort {
   advanceRef(input: {
     repoId: string;
+    owner: string;
+    name: string;
     storagePathUrl: string | null;
     branch: string;
     ref: string;
@@ -92,6 +90,24 @@ export interface GitServerPort {
     oldSha?: string;
     packfile?: Buffer;
   }): Promise<{ newSha: string }>;
+}
+
+/** Advance refs directly in the local bare-repository store. */
+export class LocalGitServerPort implements GitServerPort {
+  constructor(private readonly repoStorage: RepoStorageService = new RepoStorageService()) {}
+
+  async advanceRef(input: Parameters<GitServerPort['advanceRef']>[0]): Promise<{ newSha: string }> {
+    if (await this.repoStorage.repoExists(input.owner, input.name)) {
+      const repoPath = this.repoStorage.getRepoPath(input.owner, input.name);
+      await execFileAsync(
+        'git',
+        ['update-ref', input.ref, input.newSha, input.oldSha ?? ''],
+        { cwd: repoPath },
+      );
+    }
+
+    return { newSha: input.newSha };
+  }
 }
 
 /**
@@ -141,14 +157,7 @@ export class GitService {
   ) {
     this.access = options.access ?? ownerOnlyAccess;
     this.branchProtection = options.branchProtection ?? new BranchProtectionService(prisma);
-    // Default transport adapter: persist the advanced ref into the `Branch`
-    // metadata view. The production wiring replaces this with a real
-    // git-server receive-pack call (see GitServerPort docs).
-    this.gitServer =
-      options.gitServer ??
-      ({
-        advanceRef: async ({ newSha }) => ({ newSha }),
-      } satisfies GitServerPort);
+    this.gitServer = options.gitServer ?? new LocalGitServerPort();
   }
 
   /**
@@ -214,6 +223,8 @@ export class GitService {
       // Protection passed (or branch is unprotected) — transport the advance.
       const { newSha } = await this.gitServer.advanceRef({
         repoId: repo.id,
+        owner: repo.ownerId,
+        name: repo.name,
         storagePathUrl: repo.storagePathUrl,
         branch,
         ref: update.ref,

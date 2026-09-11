@@ -32,6 +32,7 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 
 import gitRoutes from './routes/git';
+import gitTransportRoutes from './routes/git-transport';
 import pullRequestRoutes from './routes/pull-requests';
 import reviewRoutes from './routes/reviews';
 import issueRoutes from './routes/issues';
@@ -92,7 +93,11 @@ export type {
   EnforceResult,
 } from './services/branch-protection.service';
 
-export { GitService, ownerOnlyAccess } from './services/git.service';
+export {
+  GitService,
+  LocalGitServerPort,
+  ownerOnlyAccess,
+} from './services/git.service';
 export type {
   RefUpdate,
   RefUpdateOutcome,
@@ -112,6 +117,7 @@ export type {
  */
 const quantCodeRoutes: FastifyPluginAsync = async (app) => {
   await app.register(gitRoutes, { prefix: '/git' });
+  await app.register(gitTransportRoutes, { prefix: '/git' });
   await app.register(pullRequestRoutes, { prefix: '/git' });
   await app.register(reviewRoutes, { prefix: '/git' });
   await app.register(issueRoutes, { prefix: '/git' });
