@@ -27,14 +27,23 @@ export interface UserQuota {
   percentUsed: number;
 }
 
-type Db = any;
+export interface QuotaPrismaClient {
+  file: {
+    aggregate(args: Record<string, unknown>): Promise<{ _sum: { size: number | null } }>;
+  };
+  userSubscription: {
+    findUnique(args: Record<string, unknown>): Promise<{ tier?: unknown } | null>;
+    update(args: Record<string, unknown>): Promise<unknown>;
+    create(args: Record<string, unknown>): Promise<unknown>;
+  };
+}
 
 function isStorageTier(value: unknown): value is StorageTier {
   return typeof value === 'string' && Object.prototype.hasOwnProperty.call(STORAGE_TIERS, value);
 }
 
 export class StorageQuotaService {
-  constructor(private readonly prisma: Db) {}
+  constructor(private readonly prisma: QuotaPrismaClient) {}
 
   async getUsage(userId: string): Promise<number> {
     const result = await this.prisma.file.aggregate({

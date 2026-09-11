@@ -14,10 +14,21 @@ export interface CompareResult {
 
 export const PERCEPTUAL_MIN_BYTES = 64;
 
-type Db = any;
+interface DuplicateFileRow {
+  id: string;
+  name: string;
+  size: number;
+  contentHash: string | null;
+}
+
+export interface DuplicatePrismaClient {
+  file: {
+    findMany(args: Record<string, unknown>): Promise<DuplicateFileRow[]>;
+  };
+}
 
 export class AIDuplicateService {
-  constructor(private readonly prisma: Db) {}
+  constructor(private readonly prisma: DuplicatePrismaClient) {}
 
   computeHash(content: Buffer): string {
     const blockCount = 64;
@@ -47,10 +58,10 @@ export class AIDuplicateService {
   }
 
   async findDuplicates(userId: string): Promise<FindDuplicatesResult> {
-    const files = (await this.prisma.file.findMany({
+    const files = await this.prisma.file.findMany({
       where: { userId, isDeleted: false },
       select: { id: true, name: true, size: true, contentHash: true },
-    })) as Array<{ id: string; name: string; size: number; contentHash: string }>;
+    });
     const groupsByHash = new Map<string, Array<{ id: string; name: string; size: number }>>();
     for (const file of files) {
       if (!file.contentHash) continue;

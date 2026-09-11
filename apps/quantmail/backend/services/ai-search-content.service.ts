@@ -1,7 +1,4 @@
-export const DRIVE_AI_SEARCH_CONTEXT = {
-  app: 'quantmail',
-  feature: 'drive-ai-search',
-} as const;
+import { createAppError } from '@quant/server-core';
 
 export interface FileIndexRecord {
   id: string;
@@ -24,12 +21,35 @@ export interface SearchOptions {
   limit?: number;
 }
 
-type Db = any;
+interface SearchFileRow {
+  id: string;
+  name: string;
+}
 
-type IndexedFileRecord = FileIndexRecord;
+export interface SearchPrismaTransactionClient {
+  fileIndex: {
+    findFirst(args: Record<string, unknown>): Promise<FileIndexRecord | null>;
+    create(args: Record<string, unknown>): Promise<FileIndexRecord>;
+    update(args: Record<string, unknown>): Promise<FileIndexRecord>;
+    deleteMany(args: Record<string, unknown>): Promise<unknown>;
+  };
+}
+
+export interface SearchPrismaClient {
+  file: {
+    findFirst(args: Record<string, unknown>): Promise<{ id: string } | null>;
+    findMany(args: Record<string, unknown>): Promise<SearchFileRow[]>;
+  };
+  fileIndex: {
+    findMany(args: Record<string, unknown>): Promise<FileIndexRecord[]>;
+  };
+  $transaction<T>(
+    callback: (tx: SearchPrismaTransactionClient) => Promise<T>,
+  ): Promise<T>;
+}
 
 export class AISearchContentService {
-  constructor(private readonly prisma: Db) {}
+  constructor(private readonly prisma: SearchPrismaClient) {}
 
   async indexFile(
     fileId: string,
@@ -42,9 +62,9 @@ export class AISearchContentService {
       where: { id: fileId, userId, isDeleted: false },
       select: { id: true },
     });
-    if (!file) throw new Error('Cannot index a missing, deleted, or foreign file');
+    if (!file) throw createAppError('File not found', 404, 'FILE_NOT_FOUND');
 
-    return this.prisma.$transaction(async (tx: Db) => {
+    return this.prisma.$transaction(async (tx: SearchPrismaTransactionClient) => {
       const existing = await tx.fileIndex.findFirst({
         where: { fileId, userId },
         orderBy: { indexedAt: 'desc' },
@@ -53,7 +73,6 @@ export class AISearchContentService {
       if (!existing) return tx.fileIndex.create({ data });
 
       const updated = await tx.fileIndex.update({ where: { id: existing.id }, data });
-      // Clean up historical duplicates left by the former create-only implementation.
       await tx.fileIndex.deleteMany({
         where: { fileId, userId, id: { not: existing.id } },
       });
@@ -70,14 +89,14 @@ export class AISearchContentService {
     if (!terms.length) return [];
     const limit = Math.min(100, Math.max(1, options?.limit ?? 20));
 
-    const records = (await this.prisma.fileIndex.findMany({
+    const records = await this.prisma.fileIndex.findMany({
       where: {
         userId,
         OR: terms.map((term) => ({ content: { contains: term, mode: 'insensitive' } })),
       },
       orderBy: { indexedAt: 'desc' },
       take: Math.max(limit * 10, 100),
-    })) as IndexedFileRecord[];
+    });
 
     const fileIds = [...new Set(records.map((record) => record.fileId))];
     const files = fileIds.length
@@ -87,7 +106,7 @@ export class AISearchContentService {
         })
       : [];
     const fileNameById = new Map<string, string>(
-      files.map((file: { id: string; name: string }) => [file.id, file.name]),
+      files.map((file) => [file.id, file.name]),
     );
 
     const results: SearchResult[] = [];

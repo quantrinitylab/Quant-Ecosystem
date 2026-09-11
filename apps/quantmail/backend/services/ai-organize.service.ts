@@ -54,10 +54,34 @@ export interface AutoOrganizeResult extends CategorizeResult {
   applied: boolean;
 }
 
-type Db = any;
+interface OrganizeFileRow {
+  id: string;
+  userId: string;
+  name: string;
+  mimeType: string;
+  isDeleted: boolean;
+}
+
+interface OrganizeFolderRow {
+  id: string;
+}
+
+export interface OrganizePrismaClient {
+  file: {
+    findUnique(args: Record<string, unknown>): Promise<OrganizeFileRow | null>;
+    update(args: Record<string, unknown>): Promise<unknown>;
+  };
+  folder: {
+    findFirst(args: Record<string, unknown>): Promise<OrganizeFolderRow | null>;
+    create(args: Record<string, unknown>): Promise<OrganizeFolderRow>;
+  };
+}
 
 export class AIOrganizeService {
-  constructor(private readonly ai: AIEngine, private readonly prisma: Db) {}
+  constructor(
+    private readonly ai: AIEngine,
+    private readonly prisma: OrganizePrismaClient,
+  ) {}
 
   async categorizeFile(
     filename: string,
