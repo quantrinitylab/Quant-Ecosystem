@@ -4,10 +4,12 @@ export function byteEnv(name: string, defaultBytes: number, maxBytes?: number): 
 
   const parsed = Number(raw);
   if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    // eslint-disable-next-line no-console
     console.warn(`[quantmail] Ignoring invalid ${name}; using ${defaultBytes} bytes`);
     return defaultBytes;
   }
   if (maxBytes !== undefined && parsed > maxBytes) {
+    // eslint-disable-next-line no-console
     console.warn(`[quantmail] Clamping ${name} from ${parsed} to ${maxBytes} bytes`);
     return maxBytes;
   }
