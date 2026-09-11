@@ -22,15 +22,15 @@
     "@quant/auth": "workspace:*",
     "react": "^18.3.0",
     "zod": "^3.24.2",
-    "@capacitor/core": "^6.1.0",
+    "@capacitor/core": "^6.2.2",
     "react-dom": "^18.3.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.1",
     "@types/react": "^19.0.0",
     "vitest": "^4",
-    "typescript": "~5.5.0",
-    "@capacitor/cli": "^6.1.0",
+    "typescript": "~5.9.3",
+    "@capacitor/cli": "^6.2.2",
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.4.2",
     "@types/react-dom": "^19.0.0"
