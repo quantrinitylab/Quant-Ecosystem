@@ -78,6 +78,7 @@ import prismaDefaultImport from '@quant/auth/lib/prisma';
 
 const db = vi.mocked(
   prismaDefaultImport as unknown as {
+    oAuthClient: { findUnique: ReturnType<typeof vi.fn> };
     authorizationCode: {
       findUnique: ReturnType<typeof vi.fn>;
       delete: ReturnType<typeof vi.fn>;
@@ -106,6 +107,12 @@ beforeEach(() => {
     email: 'user@test.com',
     username: 'tester',
     role: 'USER',
+  } as never);
+  db.oAuthClient.findUnique.mockResolvedValue({
+    id: 'client-1',
+    clientId: 'client_prop',
+    isConfidential: false,
+    clientSecretHash: null,
   } as never);
 });
 
@@ -145,6 +152,7 @@ describe('Feature: quantmail-superhub, Property 1: PKCE rejects mismatched verif
         generateTokenPair.mockClear();
         db.authorizationCode.findUnique.mockResolvedValue({
           code: 'ac_mismatch',
+          clientId: 'client_prop',
           userId: 'user-1',
           scopes: ['openid'],
           codeChallenge: boundChallenge,
@@ -177,6 +185,7 @@ describe('Feature: quantmail-superhub, Property 1: PKCE rejects mismatched verif
         generateTokenPair.mockClear();
         db.authorizationCode.findUnique.mockResolvedValue({
           code: 'ac_match',
+          clientId: 'client_prop',
           userId: 'user-1',
           scopes: ['openid'],
           codeChallenge: challenge,
