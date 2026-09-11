@@ -99,7 +99,7 @@ export class AIOrganizeService {
     fileId: string,
     userId: string,
     contentPreview: string,
-    apply = true,
+    apply = false,
   ): Promise<AutoOrganizeResult> {
     const file = await this.prisma.file.findUnique({ where: { id: fileId } });
     if (!file || file.isDeleted) throw createAppError('File not found', 404, 'FILE_NOT_FOUND');
