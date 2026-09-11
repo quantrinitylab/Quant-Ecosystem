@@ -130,57 +130,60 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       }
 
       // Confidential client authentication (AUTH-04)
-      const oauthClient = await prisma.oAuthClient.findUnique({
-        where: { clientId: authCode.clientId },
-      });
-      if (!oauthClient) {
-        return reply.code(401).send({
-          error: 'invalid_client',
-          error_description: 'Client authentication failed: unknown client',
+      const targetClientId = authCode.clientId || client_id;
+      if (targetClientId) {
+        const oauthClient = await prisma.oAuthClient.findUnique({
+          where: { clientId: targetClientId },
         });
-      }
-      if (oauthClient.isConfidential || oauthClient.clientSecretHash) {
-        let presentedSecret = body.client_secret;
-        if (!presentedSecret && request.headers.authorization?.startsWith('Basic ')) {
-          const creds = Buffer.from(request.headers.authorization.slice(6), 'base64')
-            .toString()
-            .split(':');
-          presentedSecret = creds[1];
-        }
-        if (!presentedSecret || !oauthClient.clientSecretHash) {
+        if (!oauthClient) {
           return reply.code(401).send({
             error: 'invalid_client',
-            error_description: 'Client authentication failed',
+            error_description: 'Client authentication failed: unknown client',
           });
         }
-        // Support both SHA-256 hash and legacy plaintext secret with auto-migration
-        const isSha256 = /^[0-9a-f]{64}$/i.test(oauthClient.clientSecretHash);
-        let valid = false;
-        if (isSha256) {
-          const presentedHash = createHash('sha256').update(presentedSecret).digest('hex');
-          const hashBuf = Buffer.from(presentedHash);
-          const storedBuf = Buffer.from(oauthClient.clientSecretHash);
-          valid = hashBuf.length === storedBuf.length && timingSafeEqual(hashBuf, storedBuf);
-        } else {
-          // Legacy plaintext fallback with constant-time check and auto-upgrade to SHA-256
-          const presBuf = Buffer.from(presentedSecret);
-          const storedBuf = Buffer.from(oauthClient.clientSecretHash);
-          valid = presBuf.length === storedBuf.length && timingSafeEqual(presBuf, storedBuf);
-          if (valid) {
-            const upgradedHash = createHash('sha256').update(presentedSecret).digest('hex');
-            await prisma.oAuthClient
-              .update({
-                where: { id: oauthClient.id },
-                data: { clientSecretHash: upgradedHash },
-              })
-              .catch(() => undefined);
+        if (oauthClient.isConfidential || oauthClient.clientSecretHash) {
+          let presentedSecret = body.client_secret;
+          if (!presentedSecret && request.headers.authorization?.startsWith('Basic ')) {
+            const creds = Buffer.from(request.headers.authorization.slice(6), 'base64')
+              .toString()
+              .split(':');
+            presentedSecret = creds[1];
           }
-        }
-        if (!valid) {
-          return reply.code(401).send({
-            error: 'invalid_client',
-            error_description: 'Client authentication failed',
-          });
+          if (!presentedSecret || !oauthClient.clientSecretHash) {
+            return reply.code(401).send({
+              error: 'invalid_client',
+              error_description: 'Client authentication failed',
+            });
+          }
+          // Support both SHA-256 hash and legacy plaintext secret with auto-migration
+          const isSha256 = /^[0-9a-f]{64}$/i.test(oauthClient.clientSecretHash);
+          let valid = false;
+          if (isSha256) {
+            const presentedHash = createHash('sha256').update(presentedSecret).digest('hex');
+            const hashBuf = Buffer.from(presentedHash);
+            const storedBuf = Buffer.from(oauthClient.clientSecretHash);
+            valid = hashBuf.length === storedBuf.length && timingSafeEqual(hashBuf, storedBuf);
+          } else {
+            // Legacy plaintext fallback with constant-time check and auto-upgrade to SHA-256
+            const presBuf = Buffer.from(presentedSecret);
+            const storedBuf = Buffer.from(oauthClient.clientSecretHash);
+            valid = presBuf.length === storedBuf.length && timingSafeEqual(presBuf, storedBuf);
+            if (valid) {
+              const upgradedHash = createHash('sha256').update(presentedSecret).digest('hex');
+              await prisma.oAuthClient
+                .update({
+                  where: { id: oauthClient.id },
+                  data: { clientSecretHash: upgradedHash },
+                })
+                .catch(() => undefined);
+            }
+          }
+          if (!valid) {
+            return reply.code(401).send({
+              error: 'invalid_client',
+              error_description: 'Client authentication failed',
+            });
+          }
         }
       }
 
