@@ -1,11 +1,18 @@
-import type { Prisma, PrismaClient } from '@prisma/client';
 import { prisma as defaultPrisma } from '@quant/database';
 import { createAppError } from '@quant/server-core';
 
 export type PermissionRole = 'owner' | 'editor' | 'viewer';
 export type PermissionAction = 'read' | 'write' | 'delete';
 export type PermissionSubject = `user:${string}` | `role:${PermissionRole}`;
-export type PermissionPrismaClient = Pick<PrismaClient, 'document'>;
+export type JsonValue = string | number | boolean | null | { [key: string]: JsonValue } | JsonValue[];
+
+export interface PermissionPrismaClient {
+  document: {
+    findUnique(args: any): Promise<any>;
+    update(args: any): Promise<any>;
+    updateMany(args: any): Promise<any>;
+  };
+}
 
 export interface PermissionActor { userId: string; roles: PermissionRole[]; }
 export interface ParagraphPermission {
@@ -31,11 +38,11 @@ const ROLE_ACTIONS: Record<PermissionRole, PermissionAction[]> = {
   owner: ['read', 'write', 'delete'], editor: ['read', 'write'], viewer: ['read'],
 };
 
-function object(value: Prisma.JsonValue | undefined): Record<string, Prisma.JsonValue> {
+function object(value: JsonValue | undefined): Record<string, JsonValue> {
   return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, Prisma.JsonValue> : {};
+    ? value as Record<string, JsonValue> : {};
 }
-function collaboration(metadata: Prisma.JsonValue): CollaborationMetadata {
+function collaboration(metadata: JsonValue): CollaborationMetadata {
   const root = object(metadata);
   const value = object(root.collaboration);
   return {
@@ -43,8 +50,8 @@ function collaboration(metadata: Prisma.JsonValue): CollaborationMetadata {
     paragraphLocks: object(value.paragraphLocks) as unknown as CollaborationMetadata['paragraphLocks'],
   };
 }
-function withCollaboration(metadata: Prisma.JsonValue, state: CollaborationMetadata): Prisma.InputJsonValue {
-  return { ...object(metadata), collaboration: state as unknown as Prisma.InputJsonValue } as Prisma.InputJsonValue;
+function withCollaboration(metadata: JsonValue, state: CollaborationMetadata): any {
+  return { ...object(metadata), collaboration: state as any };
 }
 function strongestRole(actor: PermissionActor): PermissionRole {
   return actor.roles.includes('owner') ? 'owner' : actor.roles.includes('editor') ? 'editor' : 'viewer';

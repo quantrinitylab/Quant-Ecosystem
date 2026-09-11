@@ -10,12 +10,11 @@ const SYNC_UPDATE = 2;
 const OPEN = 1;
 
 export interface WebSocketLike {
-  readonly readyState: number;
+  readyState: number;
   send(data: Uint8Array): void;
   close(code?: number, reason?: string): void;
-  on(event: 'message', listener: (data: unknown) => void): void;
-  on(event: 'close' | 'error', listener: () => void): void;
-  off?(event: 'message' | 'close' | 'error', listener: (...args: never[]) => void): void;
+  on(event: string, listener: (...args: any[]) => void): void;
+  off?(event: string, listener: (...args: any[]) => void): void;
 }
 
 export interface AwarenessState {
@@ -52,6 +51,10 @@ export interface WebSocketRequestLike {
 
 const rooms = new Map<string, DocRoom>();
 const persistenceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+export function getLiveDoc(docName: string): Y.Doc | undefined {
+  return rooms.get(docName)?.doc;
+}
 
 function frame(type: number, subtype: number, payload = new Uint8Array()): Uint8Array {
   const message = new Uint8Array(payload.byteLength + 2);
@@ -103,7 +106,7 @@ function schedulePersist(room: DocRoom, persistence: PersistenceAdapter, delayMs
   if (previous) clearTimeout(previous);
   const timer = setTimeout(() => {
     persistenceTimers.delete(room.name);
-    void persistence.saveDoc(room.name, room.doc);
+    void persistence.saveDoc(room.name, room.doc).catch(() => {});
   }, delayMs);
   timer.unref();
   persistenceTimers.set(room.name, timer);

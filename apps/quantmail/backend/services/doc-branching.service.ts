@@ -1,13 +1,26 @@
-import type { PrismaClient } from '@prisma/client';
 import { prisma as defaultPrisma } from '@quant/database';
 import { createAppError } from '@quant/server-core';
 import * as Y from 'yjs';
 import { collabPersistence, type PersistenceAdapter } from './collab-persistence';
+import { getLiveDoc } from './yjs-server';
 
 const BRANCH_PREFIX = '__branch__:';
 const PAYLOAD_KIND = 'quantmail-yjs-branch-v1';
 
-export type BranchPrismaClient = Pick<PrismaClient, 'document' | 'documentVersion'>;
+export interface BranchingPrismaClient {
+  document: {
+    findUnique(args: any): Promise<any>;
+    findFirst(args: any): Promise<any>;
+    create(args: any): Promise<any>;
+    update(args: any): Promise<any>;
+  };
+  documentVersion: {
+    findMany(args: any): Promise<any>;
+    create(args: any): Promise<any>;
+    findUnique(args: any): Promise<any>;
+    update(args: any): Promise<any>;
+  };
+}
 
 interface StoredBranch {
   kind: typeof PAYLOAD_KIND;
@@ -64,7 +77,7 @@ function changed(update: Uint8Array): boolean {
 /** Durable document branches stored as typed Prisma DocumentVersion rows. */
 export class DocBranchingService {
   constructor(
-    private readonly db: BranchPrismaClient = defaultPrisma,
+    private readonly db: BranchingPrismaClient = defaultPrisma,
     private readonly persistence: PersistenceAdapter = collabPersistence,
   ) {}
 
@@ -100,7 +113,7 @@ export class DocBranchingService {
       orderBy: { createdAt: 'desc' },
       select: { id: true, docId: true, content: true, createdAt: true },
     });
-    return rows.flatMap((row) => {
+    return rows.flatMap((row: any) => {
       const branch = parseBranch(row.content);
       return branch ? [{ id: row.id, docId: row.docId, branchName: branch.branchName,
         userId: branch.userId, createdAt: row.createdAt, status: branch.status }] : [];
@@ -136,16 +149,21 @@ export class DocBranchingService {
       const trunkDelta = Y.encodeStateAsUpdate(trunkDoc, baseVector);
       Y.applyUpdate(mergedDoc, trunkDelta, 'trunk');
       Y.applyUpdate(mergedDoc, branchDelta, 'branch');
-      const state = Y.encodeStateAsUpdate(mergedDoc);
+      const mergedUpdate = Y.encodeStateAsUpdate(mergedDoc);
       const conflicts = changed(branchDelta) && changed(trunkDelta) ? [{
         path: 'document', resolution: 'yjs-crdt' as const,
         description: 'Concurrent branch and trunk operations were deterministically merged by Yjs.',
       }] : [];
-      await this.persistence.saveDoc(row.docId, state);
+      const trunkDocId = row.docId;
+      await this.persistence.saveDoc(trunkDocId, mergedUpdate);
       branch.status = 'merged';
       branch.mergedAt = new Date().toISOString();
       await this.db.documentVersion.update({ where: { id: branchId }, data: { content: JSON.stringify(branch) } });
-      return { state, conflicts };
+      const liveDoc = getLiveDoc(trunkDocId);
+      if (liveDoc) {
+        Y.applyUpdate(liveDoc, mergedUpdate, 'branch-merge');
+      }
+      return { state: mergedUpdate, conflicts };
     } finally {
       baseDoc.destroy(); branchDoc.destroy(); trunkDoc.destroy(); mergedDoc.destroy();
     }

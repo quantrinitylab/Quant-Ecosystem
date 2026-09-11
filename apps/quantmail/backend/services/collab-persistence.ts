@@ -1,11 +1,20 @@
-import type { PrismaClient } from '@prisma/client';
 import { prisma as defaultPrisma } from '@quant/database';
 import { createAppError } from '@quant/server-core';
 import * as Y from 'yjs';
 
 const YJS_STATE_PREFIX = 'yjs:v1:';
 
-export type CollabPrismaClient = Pick<PrismaClient, 'document' | 'documentVersion'>;
+export interface CollabPrismaClient {
+  document: {
+    findUnique(args: any): Promise<any>;
+    update(args: any): Promise<any>;
+    create?(args: any): Promise<any>;
+  };
+  documentVersion?: {
+    findMany(args: any): Promise<any>;
+    create(args: any): Promise<any>;
+  };
+}
 
 export interface DocumentVersion {
   id: string;
@@ -75,12 +84,12 @@ export class PersistenceAdapter {
   }
 
   async listVersions(docId: string): Promise<DocumentVersion[]> {
-    const versions = await this.db.documentVersion.findMany({
+    const versions = await this.db.documentVersion!.findMany({
       where: { docId, title: { not: { startsWith: '__branch__:' } } },
       orderBy: { createdAt: 'desc' },
       select: { id: true, docId: true, title: true, createdAt: true },
     });
-    return versions.map(({ title, ...version }) => ({ ...version, name: title }));
+    return versions.map(({ title, ...version }: any) => ({ ...version, name: title }));
   }
 
   async createCheckpoint(
@@ -88,7 +97,7 @@ export class PersistenceAdapter {
     name: string,
     source: Y.Doc | Uint8Array,
   ): Promise<DocumentVersion> {
-    const version = await this.db.documentVersion.create({
+    const version = await this.db.documentVersion!.create({
       data: { docId, title: name, content: encodeUpdate(toUpdate(source)) },
       select: { id: true, docId: true, title: true, createdAt: true },
     });
