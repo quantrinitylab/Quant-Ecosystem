@@ -21,6 +21,7 @@ export interface CreateRecurringInput {
 
 export interface CalendarEvent {
   id: string;
+  parentId?: string;
   title: string;
   description: string;
   startTime: Date;
@@ -55,6 +56,8 @@ const FREQUENCIES = new Set<RecurrenceRule['frequency']>([
   'yearly',
 ]);
 const WEEKDAYS = new Set(['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']);
+const DAY_MS = 86_400_000;
+const MAX_OCCURRENCES = 500;
 
 export class RecurringService {
   private readonly prisma: PrismaClient | null;
@@ -100,17 +103,25 @@ export class RecurringService {
     if (!event.recurrenceRule) return [event];
     if (endRange < startRange) return [];
 
-    const rule = this.parseRRule(event.recurrenceRule);
+    let rule: RecurrenceRule;
+    try {
+      rule = this.parseRRule(event.recurrenceRule);
+    } catch (error) {
+      console.warn(`Unable to expand corrupt recurrence rule for event ${event.id}`, error);
+      return [event];
+    }
+
     const occurrences: CalendarEvent[] = [];
-    const duration = event.endTime.getTime() - event.startTime.getTime();
+    const duration = Math.max(0, event.endTime.getTime() - event.startTime.getTime());
     const exceptionSet = new Set(
       (rule.exceptions ?? []).map((value) => value.toISOString().slice(0, 10)),
     );
-    let current = new Date(event.startTime);
+    let current = this.fastForward(event.startTime, startRange, duration, rule);
     let generatedCount = 0;
+    const effectiveCount = Math.min(rule.count ?? Number.POSITIVE_INFINITY, MAX_OCCURRENCES);
 
-    while (current <= endRange) {
-      if (rule.count !== undefined && generatedCount >= rule.count) break;
+    while (current <= endRange && occurrences.length < MAX_OCCURRENCES) {
+      if (generatedCount >= effectiveCount) break;
       if (rule.until && current > rule.until) break;
 
       if (this.matchesRule(current, rule, event.startTime)) {
@@ -121,6 +132,7 @@ export class RecurringService {
           if (current <= endRange && occurrenceEnd >= startRange) {
             occurrences.push({
               ...event,
+              parentId: event.parentId ?? event.id,
               id: `${event.id}_${current.toISOString()}`,
               startTime: new Date(current),
               endTime: occurrenceEnd,
@@ -279,33 +291,113 @@ export class RecurringService {
   matchesRule(date: Date, rule: RecurrenceRule, seriesStart: Date = date): boolean {
     if (rule.byDay?.length) {
       const dayNames = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
-      if (!rule.byDay.includes(dayNames[date.getDay()]!)) return false;
+      if (!rule.byDay.includes(dayNames[date.getUTCDay()]!)) return false;
       if (rule.frequency === 'weekly' && rule.interval > 1) {
         const elapsedWeeks = Math.floor(
           (this.startOfUtcWeek(date).getTime() - this.startOfUtcWeek(seriesStart).getTime()) /
-            (7 * 86_400_000),
+            (7 * DAY_MS),
         );
         if (elapsedWeeks % rule.interval !== 0) return false;
       }
     }
-    if (rule.byMonth?.length && !rule.byMonth.includes(date.getMonth() + 1)) return false;
+    if (rule.byMonth?.length && !rule.byMonth.includes(date.getUTCMonth() + 1)) return false;
     return true;
+  }
+
+  private fastForward(
+    seriesStart: Date,
+    startRange: Date,
+    duration: number,
+    rule: RecurrenceRule,
+  ): Date {
+    const target = new Date(startRange.getTime() - duration);
+    if (target <= seriesStart || rule.count !== undefined) return new Date(seriesStart);
+
+    if (rule.byDay?.length) {
+      const reserveDays = Math.max(7, 7 * rule.interval);
+      const jumpDays = Math.max(
+        0,
+        Math.floor((target.getTime() - seriesStart.getTime()) / DAY_MS) - reserveDays,
+      );
+      const jumped = new Date(seriesStart);
+      jumped.setUTCDate(jumped.getUTCDate() + jumpDays);
+      return jumped;
+    }
+
+    if (rule.frequency === 'daily' || rule.frequency === 'weekly') {
+      const intervalDays = rule.frequency === 'daily' ? rule.interval : 7 * rule.interval;
+      const jumps = Math.max(
+        0,
+        Math.floor((target.getTime() - seriesStart.getTime()) / (intervalDays * DAY_MS)),
+      );
+      const jumped = new Date(seriesStart);
+      jumped.setUTCDate(jumped.getUTCDate() + jumps * intervalDays);
+      return jumped;
+    }
+
+    if (rule.frequency === 'monthly') {
+      const monthDifference =
+        (target.getUTCFullYear() - seriesStart.getUTCFullYear()) * 12 +
+        target.getUTCMonth() - seriesStart.getUTCMonth();
+      const jumps = Math.max(0, Math.floor(monthDifference / rule.interval));
+      let candidate = this.shiftUtcMonths(seriesStart, jumps * rule.interval);
+      if (candidate > target && jumps > 0) {
+        candidate = this.shiftUtcMonths(seriesStart, (jumps - 1) * rule.interval);
+      }
+      return candidate;
+    }
+
+    const yearDifference = target.getUTCFullYear() - seriesStart.getUTCFullYear();
+    const jumps = Math.max(0, Math.floor(yearDifference / rule.interval));
+    let candidate = this.shiftUtcYears(seriesStart, jumps * rule.interval);
+    if (candidate > target && jumps > 0) {
+      candidate = this.shiftUtcYears(seriesStart, (jumps - 1) * rule.interval);
+    }
+    return candidate;
   }
 
   private advanceDate(date: Date, rule: RecurrenceRule): Date {
     const next = new Date(date);
     if ((rule.frequency === 'daily' || rule.frequency === 'weekly') && rule.byDay?.length) {
-      next.setDate(next.getDate() + 1);
-    } else if (rule.frequency === 'daily') {
-      next.setDate(next.getDate() + rule.interval);
-    } else if (rule.frequency === 'weekly') {
-      next.setDate(next.getDate() + 7 * rule.interval);
-    } else if (rule.frequency === 'monthly') {
-      next.setMonth(next.getMonth() + rule.interval);
-    } else {
-      next.setFullYear(next.getFullYear() + rule.interval);
+      next.setUTCDate(next.getUTCDate() + 1);
+      return next;
     }
-    return next;
+    if (rule.frequency === 'daily') {
+      next.setUTCDate(next.getUTCDate() + rule.interval);
+      return next;
+    }
+    if (rule.frequency === 'weekly') {
+      next.setUTCDate(next.getUTCDate() + 7 * rule.interval);
+      return next;
+    }
+    if (rule.frequency === 'monthly') return this.shiftUtcMonths(next, rule.interval);
+    return this.shiftUtcYears(next, rule.interval);
+  }
+
+  private shiftUtcMonths(date: Date, months: number): Date {
+    const day = date.getUTCDate();
+    const target = new Date(date);
+    target.setUTCDate(1);
+    target.setUTCMonth(target.getUTCMonth() + months);
+    const lastDay = new Date(Date.UTC(
+      target.getUTCFullYear(), target.getUTCMonth() + 1, 0,
+    )).getUTCDate();
+    target.setUTCDate(Math.min(day, lastDay));
+    return target;
+  }
+
+  private shiftUtcYears(date: Date, years: number): Date {
+    const day = date.getUTCDate();
+    const month = date.getUTCMonth();
+    const target = new Date(date);
+    target.setUTCDate(1);
+    target.setUTCFullYear(target.getUTCFullYear() + years);
+    target.setUTCMonth(month);
+    const lastDay = new Date(Date.UTC(
+      target.getUTCFullYear(), month + 1, 0,
+    )).getUTCDate();
+    target.setUTCDate(Math.min(day, lastDay));
+    return target;
   }
 
   private startOfUtcWeek(value: Date): Date {
