@@ -125,9 +125,15 @@ function alarmReminders(raw: unknown): AlarmEvent['reminders'] {
   });
 }
 function normalizeRecurrenceRule(value: string | null | undefined, recurringService: RecurringService): string | null {
-  if (value === null || value === undefined) return null; const trimmed = value.trim();
+  if (value === null || value === undefined) return null;
+  const trimmed = value.trim();
   if (trimmed === '' || /^(none|does not repeat)$/i.test(trimmed)) return null;
-  return recurringService.serializeRRule(recurringService.parseRRule(trimmed));
+  try {
+    recurringService.parseRRule(trimmed);
+  } catch {
+    return null;
+  }
+  return trimmed;
 }
 function pickRecurrence(data: { recurrence?: string | null; recurrenceRule?: string | null }): string | null | undefined {
   return data.recurrence !== undefined ? data.recurrence : data.recurrenceRule;
@@ -238,6 +244,13 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
   });
 
   const updateEvent = async (request: any, reply: any) => {
+    if (request.params.id.includes('_')) {
+      throw createAppError(
+        'Cannot update or delete synthetic recurring occurrence directly; modify parent event',
+        400,
+        'CANNOT_MUTATE_SYNTHETIC_OCCURRENCE',
+      );
+    }
     const parsed = eventUpdateSchema.safeParse(request.body); if (!parsed.success) throw parsed.error;
     const userId = requireUserId(request); const prisma = getPrisma(fastify); const eventId = parentEventId(request.params.id);
     const existing = await prisma.event.findUnique({ where: { id: eventId } });
@@ -257,6 +270,13 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
   };
   fastify.put('/events/:id', updateEvent); fastify.patch('/events/:id', updateEvent);
   fastify.delete<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
+    if (request.params.id.includes('_')) {
+      throw createAppError(
+        'Cannot update or delete synthetic recurring occurrence directly; modify parent event',
+        400,
+        'CANNOT_MUTATE_SYNTHETIC_OCCURRENCE',
+      );
+    }
     const userId = requireUserId(request); const prisma = getPrisma(fastify); const eventId = parentEventId(request.params.id);
     const event = await prisma.event.findUnique({ where: { id: eventId } });
     if (!event || event.userId !== userId) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');

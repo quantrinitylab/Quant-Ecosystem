@@ -37,27 +37,22 @@ export interface CalendarEvent {
   updatedAt: Date;
 }
 
-/** Prisma's Event model is mapped to the shared `calendar_events` table. */
 export interface PrismaClient {
   event: {
     create: (args: { data: Record<string, unknown> }) => Promise<unknown>;
     findUnique: (args: { where: Record<string, unknown> }) => Promise<unknown>;
-    update: (args: {
-      where: Record<string, unknown>;
-      data: Record<string, unknown>;
-    }) => Promise<unknown>;
+    update: (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => Promise<unknown>;
   };
 }
 
-const FREQUENCIES = new Set<RecurrenceRule['frequency']>([
-  'daily',
-  'weekly',
-  'monthly',
-  'yearly',
-]);
+const FREQUENCIES = new Set<RecurrenceRule['frequency']>(['daily', 'weekly', 'monthly', 'yearly']);
 const WEEKDAYS = new Set(['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']);
 const DAY_MS = 86_400_000;
 const MAX_OCCURRENCES = 500;
+
+function daysInUtcMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+}
 
 export class RecurringService {
   private readonly prisma: PrismaClient | null;
@@ -67,31 +62,15 @@ export class RecurringService {
   }
 
   async createRecurring(userId: string, input: CreateRecurringInput): Promise<CalendarEvent> {
-    if (!this.prisma) {
-      throw createAppError('Prisma client not available', 500, 'INTERNAL_ERROR');
-    }
-    if (input.endTime < input.startTime) {
-      throw createAppError('`endTime` cannot be before `startTime`', 400, 'INVALID_RANGE');
-    }
-
+    if (!this.prisma) throw createAppError('Prisma client not available', 500, 'INTERNAL_ERROR');
+    if (input.endTime < input.startTime) throw createAppError('`endTime` cannot be before `startTime`', 400, 'INVALID_RANGE');
     const now = new Date();
-    const event = await this.prisma.event.create({
-      data: {
-        title: input.title,
-        description: input.description ?? '',
-        startTime: input.startTime,
-        endTime: input.endTime,
-        allDay: false,
-        location: '',
-        userId,
-        attendees: JSON.stringify([]),
-        recurrenceRule: this.serializeRRule(input.rule),
-        status: 'confirmed',
-        reminders: JSON.stringify([]),
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
+    const event = await this.prisma.event.create({ data: {
+      title: input.title, description: input.description ?? '', startTime: input.startTime,
+      endTime: input.endTime, allDay: false, location: '', userId,
+      attendees: JSON.stringify([]), recurrenceRule: this.serializeRRule(input.rule),
+      status: 'confirmed', reminders: JSON.stringify([]), createdAt: now, updatedAt: now,
+    } });
     return this.toCalendarEvent(event);
   }
 
@@ -102,7 +81,6 @@ export class RecurringService {
   expandRecurrence(event: CalendarEvent, startRange: Date, endRange: Date): CalendarEvent[] {
     if (!event.recurrenceRule) return [event];
     if (endRange < startRange) return [];
-
     let rule: RecurrenceRule;
     try {
       rule = this.parseRRule(event.recurrenceRule);
@@ -110,50 +88,34 @@ export class RecurringService {
       console.warn(`Unable to expand corrupt recurrence rule for event ${event.id}`, error);
       return [event];
     }
-
     const occurrences: CalendarEvent[] = [];
     const duration = Math.max(0, event.endTime.getTime() - event.startTime.getTime());
-    const exceptionSet = new Set(
-      (rule.exceptions ?? []).map((value) => value.toISOString().slice(0, 10)),
-    );
+    const exceptionSet = new Set((rule.exceptions ?? []).map((value) => value.toISOString().slice(0, 10)));
     let current = this.fastForward(event.startTime, startRange, duration, rule);
     let generatedCount = 0;
     const effectiveCount = Math.min(rule.count ?? Number.POSITIVE_INFINITY, MAX_OCCURRENCES);
-
     while (current <= endRange && occurrences.length < MAX_OCCURRENCES) {
       if (generatedCount >= effectiveCount) break;
       if (rule.until && current > rule.until) break;
-
       if (this.matchesRule(current, rule, event.startTime)) {
         const excluded = exceptionSet.has(current.toISOString().slice(0, 10));
         if (!excluded) {
           generatedCount += 1;
           const occurrenceEnd = new Date(current.getTime() + duration);
           if (current <= endRange && occurrenceEnd >= startRange) {
-            occurrences.push({
-              ...event,
-              parentId: event.parentId ?? event.id,
-              id: `${event.id}_${current.toISOString()}`,
-              startTime: new Date(current),
-              endTime: occurrenceEnd,
-            });
+            occurrences.push({ ...event, parentId: event.parentId ?? event.id,
+              id: `${event.id}_${current.toISOString()}`, startTime: new Date(current), endTime: occurrenceEnd });
           }
         }
       }
-
-      const next = this.advanceDate(current, rule);
+      const next = this.advanceDate(current, rule, event.startTime.getUTCDate());
       if (next.getTime() <= current.getTime()) break;
       current = next;
     }
-
     return occurrences;
   }
 
-  addException(
-    eventId: string,
-    _userId: string,
-    exceptionDate: Date,
-  ): { eventId: string; exceptionDate: Date } {
+  addException(eventId: string, _userId: string, exceptionDate: Date): { eventId: string; exceptionDate: Date } {
     return { eventId, exceptionDate };
   }
 
@@ -162,38 +124,22 @@ export class RecurringService {
     userId: string,
     data: { title?: string; description?: string; startTime?: Date; endTime?: Date },
   ): Promise<CalendarEvent> {
-    if (!this.prisma) {
-      throw createAppError('Prisma client not available', 500, 'INTERNAL_ERROR');
-    }
+    if (!this.prisma) throw createAppError('Prisma client not available', 500, 'INTERNAL_ERROR');
     const parentId = occurrenceId.split('_')[0];
-    if (!parentId) {
-      throw createAppError('Invalid occurrence ID', 400, 'INVALID_OCCURRENCE_ID');
-    }
+    if (!parentId) throw createAppError('Invalid occurrence ID', 400, 'INVALID_OCCURRENCE_ID');
     const parent = await this.prisma.event.findUnique({ where: { id: parentId } });
     if (!parent) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
     const record = parent as Record<string, unknown>;
-    if (record['userId'] !== userId) {
-      throw createAppError('Not authorized', 403, 'UNAUTHORIZED');
-    }
-
+    if (record['userId'] !== userId) throw createAppError('Not authorized', 403, 'UNAUTHORIZED');
     const now = new Date();
-    const created = await this.prisma.event.create({
-      data: {
-        title: data.title ?? record['title'],
-        description: data.description ?? record['description'] ?? '',
-        startTime: data.startTime ?? record['startTime'],
-        endTime: data.endTime ?? record['endTime'],
-        allDay: record['allDay'] ?? false,
-        location: record['location'] ?? '',
-        userId,
-        attendees: record['attendees'] ?? JSON.stringify([]),
-        recurrenceRule: null,
-        status: record['status'] ?? 'confirmed',
-        reminders: record['reminders'] ?? JSON.stringify([]),
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
+    const created = await this.prisma.event.create({ data: {
+      title: data.title ?? record['title'], description: data.description ?? record['description'] ?? '',
+      startTime: data.startTime ?? record['startTime'], endTime: data.endTime ?? record['endTime'],
+      allDay: record['allDay'] ?? false, location: record['location'] ?? '', userId,
+      attendees: record['attendees'] ?? JSON.stringify([]), recurrenceRule: null,
+      status: record['status'] ?? 'confirmed', reminders: record['reminders'] ?? JSON.stringify([]),
+      createdAt: now, updatedAt: now,
+    } });
     return this.toCalendarEvent(created);
   }
 
@@ -202,24 +148,16 @@ export class RecurringService {
     userId: string,
     data: { title?: string; description?: string; startTime?: Date; endTime?: Date },
   ): Promise<CalendarEvent> {
-    if (!this.prisma) {
-      throw createAppError('Prisma client not available', 500, 'INTERNAL_ERROR');
-    }
+    if (!this.prisma) throw createAppError('Prisma client not available', 500, 'INTERNAL_ERROR');
     const event = await this.prisma.event.findUnique({ where: { id: recurringId } });
     if (!event) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
     const record = event as Record<string, unknown>;
-    if (record['userId'] !== userId) {
-      throw createAppError('Not authorized', 403, 'UNAUTHORIZED');
-    }
-
+    if (record['userId'] !== userId) throw createAppError('Not authorized', 403, 'UNAUTHORIZED');
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
     for (const key of ['title', 'description', 'startTime', 'endTime'] as const) {
       if (data[key] !== undefined) updateData[key] = data[key];
     }
-    const updated = await this.prisma.event.update({
-      where: { id: recurringId },
-      data: updateData,
-    });
+    const updated = await this.prisma.event.update({ where: { id: recurringId }, data: updateData });
     return this.toCalendarEvent(updated);
   }
 
@@ -232,7 +170,6 @@ export class RecurringService {
     if (preset === 'every weekday' || preset === 'weekdays') {
       return { frequency: 'weekly', interval: 1, byDay: ['MO', 'TU', 'WE', 'TH', 'FR'] };
     }
-
     const normalized = source.replace(/^RRULE:/i, '');
     if (!normalized.includes('=')) this.invalidRule();
     const values = new Map<string, string>();
@@ -241,13 +178,11 @@ export class RecurringService {
       if (separator <= 0 || separator === part.length - 1) this.invalidRule();
       values.set(part.slice(0, separator).toUpperCase(), part.slice(separator + 1));
     }
-
     const frequency = values.get('FREQ')?.toLowerCase() as RecurrenceRule['frequency'] | undefined;
     if (!frequency || !FREQUENCIES.has(frequency)) this.invalidRule();
     const interval = values.has('INTERVAL') ? Number(values.get('INTERVAL')) : 1;
     if (!Number.isInteger(interval) || interval < 1) this.invalidRule();
     const rule: RecurrenceRule = { frequency, interval };
-
     if (values.has('COUNT')) {
       const count = Number(values.get('COUNT'));
       if (!Number.isInteger(count) || count < 1) this.invalidRule();
@@ -261,30 +196,22 @@ export class RecurringService {
     }
     if (values.has('BYMONTH')) {
       const byMonth = values.get('BYMONTH')!.split(',').map(Number);
-      if (byMonth.some((value) => !Number.isInteger(value) || value < 1 || value > 12)) {
-        this.invalidRule();
-      }
+      if (byMonth.some((value) => !Number.isInteger(value) || value < 1 || value > 12)) this.invalidRule();
       rule.byMonth = byMonth;
     }
-    if (values.has('EXDATE')) {
-      rule.exceptions = values.get('EXDATE')!.split(',').map((value) => this.parseRRuleDate(value));
-    }
+    if (values.has('EXDATE')) rule.exceptions = values.get('EXDATE')!.split(',').map((value) => this.parseRRuleDate(value));
     return rule;
   }
 
   serializeRRule(rule: RecurrenceRule): string {
-    if (!FREQUENCIES.has(rule.frequency) || !Number.isInteger(rule.interval) || rule.interval < 1) {
-      this.invalidRule();
-    }
+    if (!FREQUENCIES.has(rule.frequency) || !Number.isInteger(rule.interval) || rule.interval < 1) this.invalidRule();
     const parts = [`FREQ=${rule.frequency.toUpperCase()}`];
     if (rule.interval > 1) parts.push(`INTERVAL=${rule.interval}`);
     if (rule.count !== undefined) parts.push(`COUNT=${rule.count}`);
     if (rule.until) parts.push(`UNTIL=${this.formatRRuleDate(rule.until)}`);
     if (rule.byDay?.length) parts.push(`BYDAY=${rule.byDay.join(',')}`);
     if (rule.byMonth?.length) parts.push(`BYMONTH=${rule.byMonth.join(',')}`);
-    if (rule.exceptions?.length) {
-      parts.push(`EXDATE=${rule.exceptions.map((date) => this.formatRRuleDate(date)).join(',')}`);
-    }
+    if (rule.exceptions?.length) parts.push(`EXDATE=${rule.exceptions.map((date) => this.formatRRuleDate(date)).join(',')}`);
     return parts.join(';');
   }
 
@@ -294,8 +221,7 @@ export class RecurringService {
       if (!rule.byDay.includes(dayNames[date.getUTCDay()]!)) return false;
       if (rule.frequency === 'weekly' && rule.interval > 1) {
         const elapsedWeeks = Math.floor(
-          (this.startOfUtcWeek(date).getTime() - this.startOfUtcWeek(seriesStart).getTime()) /
-            (7 * DAY_MS),
+          (this.startOfUtcWeek(date).getTime() - this.startOfUtcWeek(seriesStart).getTime()) / (7 * DAY_MS),
         );
         if (elapsedWeeks % rule.interval !== 0) return false;
       }
@@ -304,59 +230,38 @@ export class RecurringService {
     return true;
   }
 
-  private fastForward(
-    seriesStart: Date,
-    startRange: Date,
-    duration: number,
-    rule: RecurrenceRule,
-  ): Date {
+  private fastForward(seriesStart: Date, startRange: Date, duration: number, rule: RecurrenceRule): Date {
     const target = new Date(startRange.getTime() - duration);
     if (target <= seriesStart || rule.count !== undefined) return new Date(seriesStart);
-
     if (rule.byDay?.length) {
       const reserveDays = Math.max(7, 7 * rule.interval);
-      const jumpDays = Math.max(
-        0,
-        Math.floor((target.getTime() - seriesStart.getTime()) / DAY_MS) - reserveDays,
-      );
+      const jumpDays = Math.max(0, Math.floor((target.getTime() - seriesStart.getTime()) / DAY_MS) - reserveDays);
       const jumped = new Date(seriesStart);
       jumped.setUTCDate(jumped.getUTCDate() + jumpDays);
       return jumped;
     }
-
     if (rule.frequency === 'daily' || rule.frequency === 'weekly') {
       const intervalDays = rule.frequency === 'daily' ? rule.interval : 7 * rule.interval;
-      const jumps = Math.max(
-        0,
-        Math.floor((target.getTime() - seriesStart.getTime()) / (intervalDays * DAY_MS)),
-      );
+      const jumps = Math.max(0, Math.floor((target.getTime() - seriesStart.getTime()) / (intervalDays * DAY_MS)));
       const jumped = new Date(seriesStart);
       jumped.setUTCDate(jumped.getUTCDate() + jumps * intervalDays);
       return jumped;
     }
-
     if (rule.frequency === 'monthly') {
-      const monthDifference =
-        (target.getUTCFullYear() - seriesStart.getUTCFullYear()) * 12 +
-        target.getUTCMonth() - seriesStart.getUTCMonth();
+      const monthDifference = (target.getUTCFullYear() - seriesStart.getUTCFullYear()) * 12 + target.getUTCMonth() - seriesStart.getUTCMonth();
       const jumps = Math.max(0, Math.floor(monthDifference / rule.interval));
-      let candidate = this.shiftUtcMonths(seriesStart, jumps * rule.interval);
-      if (candidate > target && jumps > 0) {
-        candidate = this.shiftUtcMonths(seriesStart, (jumps - 1) * rule.interval);
-      }
+      let candidate = this.shiftUtcMonths(seriesStart, jumps * rule.interval, seriesStart.getUTCDate());
+      if (candidate > target && jumps > 0) candidate = this.shiftUtcMonths(seriesStart, (jumps - 1) * rule.interval, seriesStart.getUTCDate());
       return candidate;
     }
-
     const yearDifference = target.getUTCFullYear() - seriesStart.getUTCFullYear();
     const jumps = Math.max(0, Math.floor(yearDifference / rule.interval));
     let candidate = this.shiftUtcYears(seriesStart, jumps * rule.interval);
-    if (candidate > target && jumps > 0) {
-      candidate = this.shiftUtcYears(seriesStart, (jumps - 1) * rule.interval);
-    }
+    if (candidate > target && jumps > 0) candidate = this.shiftUtcYears(seriesStart, (jumps - 1) * rule.interval);
     return candidate;
   }
 
-  private advanceDate(date: Date, rule: RecurrenceRule): Date {
+  private advanceDate(date: Date, rule: RecurrenceRule, targetDay: number = date.getUTCDate()): Date {
     const next = new Date(date);
     if ((rule.frequency === 'daily' || rule.frequency === 'weekly') && rule.byDay?.length) {
       next.setUTCDate(next.getUTCDate() + 1);
@@ -370,20 +275,20 @@ export class RecurringService {
       next.setUTCDate(next.getUTCDate() + 7 * rule.interval);
       return next;
     }
-    if (rule.frequency === 'monthly') return this.shiftUtcMonths(next, rule.interval);
+    if (rule.frequency === 'monthly') return this.shiftUtcMonths(next, rule.interval, targetDay);
     return this.shiftUtcYears(next, rule.interval);
   }
 
-  private shiftUtcMonths(date: Date, months: number): Date {
-    const day = date.getUTCDate();
-    const target = new Date(date);
-    target.setUTCDate(1);
-    target.setUTCMonth(target.getUTCMonth() + months);
-    const lastDay = new Date(Date.UTC(
-      target.getUTCFullYear(), target.getUTCMonth() + 1, 0,
-    )).getUTCDate();
-    target.setUTCDate(Math.min(day, lastDay));
-    return target;
+  private shiftUtcMonths(date: Date, months: number, targetDay: number = date.getUTCDate()): Date {
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    const targetYear = year + Math.floor((month + months) / 12);
+    const targetMonth = ((month + months) % 12 + 12) % 12;
+    const daysInMonth = daysInUtcMonth(targetYear, targetMonth);
+    const day = Math.min(targetDay, daysInMonth);
+    const shifted = new Date(date.getTime());
+    shifted.setUTCFullYear(targetYear, targetMonth, day);
+    return shifted;
   }
 
   private shiftUtcYears(date: Date, years: number): Date {
@@ -393,9 +298,7 @@ export class RecurringService {
     target.setUTCDate(1);
     target.setUTCFullYear(target.getUTCFullYear() + years);
     target.setUTCMonth(month);
-    const lastDay = new Date(Date.UTC(
-      target.getUTCFullYear(), month + 1, 0,
-    )).getUTCDate();
+    const lastDay = new Date(Date.UTC(target.getUTCFullYear(), month + 1, 0)).getUTCDate();
     target.setUTCDate(Math.min(day, lastDay));
     return target;
   }
@@ -440,20 +343,12 @@ export class RecurringService {
   private toCalendarEvent(raw: unknown): CalendarEvent {
     const record = raw as Record<string, unknown>;
     return {
-      id: String(record['id']),
-      title: String(record['title']),
-      description: String(record['description'] ?? ''),
-      startTime: new Date(record['startTime'] as string | Date),
-      endTime: new Date(record['endTime'] as string | Date),
-      allDay: Boolean(record['allDay']),
-      location: String(record['location'] ?? ''),
-      userId: String(record['userId']),
-      attendees: this.parseArray(record['attendees']),
-      recurrenceRule: (record['recurrenceRule'] as string | null) ?? null,
-      status: (record['status'] as CalendarEvent['status']) ?? 'confirmed',
-      reminders: this.parseArray(record['reminders']),
-      createdAt: new Date(record['createdAt'] as string | Date),
-      updatedAt: new Date(record['updatedAt'] as string | Date),
+      id: String(record['id']), title: String(record['title']), description: String(record['description'] ?? ''),
+      startTime: new Date(record['startTime'] as string | Date), endTime: new Date(record['endTime'] as string | Date),
+      allDay: Boolean(record['allDay']), location: String(record['location'] ?? ''), userId: String(record['userId']),
+      attendees: this.parseArray(record['attendees']), recurrenceRule: (record['recurrenceRule'] as string | null) ?? null,
+      status: (record['status'] as CalendarEvent['status']) ?? 'confirmed', reminders: this.parseArray(record['reminders']),
+      createdAt: new Date(record['createdAt'] as string | Date), updatedAt: new Date(record['updatedAt'] as string | Date),
     };
   }
 }
