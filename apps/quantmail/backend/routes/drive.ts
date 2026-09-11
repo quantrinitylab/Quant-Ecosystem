@@ -37,7 +37,7 @@ const AI_SEARCH_SCHEMA = z.object({
 });
 const AI_ORGANIZE_SCHEMA = z.object({
   fileId: z.string().min(1),
-  apply: z.boolean().optional().default(true),
+  apply: z.boolean().optional().default(false),
 });
 const QUOTA_CHECK_SCHEMA = z.object({ additionalBytes: z.number().int().nonnegative() });
 const AI_TEXT_MIME_TYPES = new Set([
