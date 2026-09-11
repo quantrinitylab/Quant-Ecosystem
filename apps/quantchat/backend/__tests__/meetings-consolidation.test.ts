@@ -673,7 +673,7 @@ describe('Fastify /meetings route integration', () => {
     authUserId = 'host';
     const { prisma } = createMockPrisma();
     app = Fastify();
-    app.decorate('prisma', prisma);
+    (app as unknown as { decorate: (key: string, value: unknown) => void }).decorate('prisma', prisma);
     app.addHook('preHandler', async (request) => {
       (request as unknown as { auth: { userId: string } }).auth = { userId: authUserId };
     });
