@@ -2,37 +2,41 @@ import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
+const MAX_GIT_OUTPUT_BUFFER = 50 * 1024 * 1024;
+const GIT_CHILD_ENV: NodeJS.ProcessEnv = {
+  PATH: process.env.PATH,
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_TERMINAL_PROMPT: '0',
+};
 
 export class GitUploadPackService {
-  async advertiseRefs(repoPath: string): Promise<string> {
-    const { stdout } = await execFileAsync('git', [
-      'upload-pack',
-      '--stateless-rpc',
-      '--advertise-refs',
-      repoPath,
-    ]);
-
-    return stdout;
+  async advertiseRefs(repoPath: string): Promise<Buffer> {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['upload-pack', '--stateless-rpc', '--advertise-refs', repoPath],
+      {
+        encoding: 'buffer',
+        maxBuffer: MAX_GIT_OUTPUT_BUFFER,
+        env: GIT_CHILD_ENV,
+      },
+    );
+    return Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout);
   }
 
   execute(repoPath: string, input: Buffer): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const process = spawn('git', ['upload-pack', '--stateless-rpc', repoPath]);
+      const child = spawn('git', ['upload-pack', '--stateless-rpc', repoPath], {
+        env: GIT_CHILD_ENV,
+      });
       const stdoutChunks: Buffer[] = [];
       const stderrChunks: Buffer[] = [];
 
-      process.stdout.on('data', (chunk: Buffer) => {
-        stdoutChunks.push(chunk);
-      });
-
-      process.stderr.on('data', (chunk: Buffer) => {
-        stderrChunks.push(chunk);
-      });
-
-      process.on('error', reject);
-      process.stdin.on('error', reject);
-
-      process.on('close', (code) => {
+      child.stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
+      child.stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
+      child.on('error', reject);
+      child.stdin.on('error', reject);
+      child.on('close', (code) => {
         if (code !== 0) {
           const stderr = Buffer.concat(stderrChunks).toString('utf8').trim();
           reject(
@@ -42,12 +46,11 @@ export class GitUploadPackService {
           );
           return;
         }
-
         resolve(Buffer.concat(stdoutChunks));
       });
 
-      process.stdin.write(input);
-      process.stdin.end();
+      child.stdin.write(input);
+      child.stdin.end();
     });
   }
 }

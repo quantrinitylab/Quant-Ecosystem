@@ -1,11 +1,10 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { PrismaClient, Repository } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import {
   GitReceivePackService,
   GitUploadPackService,
   RECEIVE_PACK_ADV_CONTENT_TYPE,
-  RECEIVE_PACK_CONTENT_TYPE,
   RepoStorageService,
   UPLOAD_PACK_ADV_CONTENT_TYPE,
   UPLOAD_PACK_CONTENT_TYPE,
@@ -16,32 +15,67 @@ type GitRouteParams = { owner: string; name: string };
 type GitInfoRefsQuery = { service?: string };
 type RepositoryAccess = Pick<Repository, 'ownerId' | 'name' | 'visibility'>;
 
+const GIT_BODY_LIMIT = 100 * 1024 * 1024;
+
 function getOptionalUserId(request: unknown): string | undefined {
-  return (request as { auth?: { userId?: string } }).auth?.userId;
+  const req = request as {
+    auth?: { userId?: string };
+    headers?: { authorization?: string };
+  };
+  if (req.auth?.userId) return req.auth.userId;
+
+  const authorization = req.headers?.authorization;
+  if (!authorization?.startsWith('Basic ')) return undefined;
+
+  const decoded = Buffer.from(authorization.slice('Basic '.length), 'base64').toString('utf8');
+  const separator = decoded.indexOf(':');
+  if (separator <= 0) return undefined;
+
+  const username = decoded.slice(0, separator);
+  const passwordOrToken = decoded.slice(separator + 1);
+  return username && passwordOrToken ? username : undefined;
 }
 
-function requireWriteAccess(request: unknown, repo: RepositoryAccess): void {
+function sendAuthenticationRequired(reply: FastifyReply): void {
+  reply
+    .header('WWW-Authenticate', 'Basic realm="QuantCode"')
+    .status(401)
+    .send({ error: 'Authentication required' });
+}
+
+function requireWriteAccess(
+  request: unknown,
+  reply: FastifyReply,
+  repo: RepositoryAccess,
+): boolean {
   const userId = getOptionalUserId(request);
   if (!userId) {
-    throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    sendAuthenticationRequired(reply);
+    return false;
   }
   if (repo.ownerId !== userId) {
     throw createAppError('Write access required', 403, 'FORBIDDEN');
   }
+  return true;
 }
 
-function requireReadAccess(request: unknown, repo: RepositoryAccess): void {
-  if (String(repo.visibility).toUpperCase() === 'PUBLIC') return;
+function requireReadAccess(
+  request: unknown,
+  reply: FastifyReply,
+  repo: RepositoryAccess,
+): boolean {
+  const visibility = String(repo.visibility).toUpperCase();
+  if (visibility === 'PUBLIC') return true;
 
   const userId = getOptionalUserId(request);
   if (!userId) {
-    throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    sendAuthenticationRequired(reply);
+    return false;
   }
-
-  const isPrivate = String(repo.visibility).toUpperCase() === 'PRIVATE';
-  if (isPrivate && repo.ownerId !== userId) {
+  if (repo.ownerId !== userId) {
     throw createAppError('Read access required', 403, 'FORBIDDEN');
   }
+  return true;
 }
 
 function stripGitSuffix(name: string): string {
@@ -67,7 +101,11 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
   const uploadPack = new GitUploadPackService();
   const receivePack = new GitReceivePackService();
 
-  const parseBuffer = (_request: unknown, body: Buffer, done: (error: Error | null, value?: Buffer) => void) => {
+  const parseBuffer = (
+    _request: unknown,
+    body: Buffer,
+    done: (error: Error | null, value?: Buffer) => void,
+  ) => {
     done(null, body);
   };
 
@@ -85,7 +123,7 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
 
   async function findRepository(owner: string, name: string): Promise<Repository> {
     const repo = await prisma.repository.findFirst({
-      where: { ownerId: owner, name },
+      where: { ownerId: owner, name, deletedAt: null },
     });
 
     if (!repo) {
@@ -112,12 +150,14 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
 
       const owner = request.params.owner;
       const name = stripGitSuffix(request.params.name);
+      // Astra GT-07: the database lookup must succeed before any lazy disk
+      // initialization, so clone discovery can never create an unregistered repo.
       const repo = await findRepository(owner, name);
 
       if (service === 'git-receive-pack') {
-        requireWriteAccess(request, repo);
-      } else {
-        requireReadAccess(request, repo);
+        if (!requireWriteAccess(request, reply, repo)) return reply;
+      } else if (!requireReadAccess(request, reply, repo)) {
+        return reply;
       }
 
       const repoPath = (await repoStorage.repoExists(owner, name))
@@ -132,21 +172,26 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
         service === 'git-upload-pack'
           ? UPLOAD_PACK_ADV_CONTENT_TYPE
           : RECEIVE_PACK_ADV_CONTENT_TYPE;
+      const response = Buffer.concat([
+        Buffer.from(formatSmartHttpHeader(service), 'utf8'),
+        refs,
+      ]);
 
       return reply
         .header('Content-Type', contentType)
         .header('Cache-Control', 'no-cache')
-        .send(formatSmartHttpHeader(service) + refs);
+        .send(response);
     },
   );
 
   fastify.post<{ Params: GitRouteParams }>(
     '/repos/:owner/:name/git-upload-pack',
+    { bodyLimit: GIT_BODY_LIMIT },
     async (request, reply) => {
       const owner = request.params.owner;
       const name = stripGitSuffix(request.params.name);
       const repo = await findRepository(owner, name);
-      requireReadAccess(request, repo);
+      if (!requireReadAccess(request, reply, repo)) return reply;
 
       const repoPath = await requireDiskRepository(owner, name);
       const result = await uploadPack.execute(repoPath, requestBodyBuffer(request.body));
@@ -158,21 +203,8 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
     },
   );
 
-  fastify.post<{ Params: GitRouteParams }>(
-    '/repos/:owner/:name/git-receive-pack',
-    async (request, reply) => {
-      const owner = request.params.owner;
-      const name = stripGitSuffix(request.params.name);
-      const repo = await findRepository(owner, name);
-      requireWriteAccess(request, repo);
-
-      const repoPath = await requireDiskRepository(owner, name);
-      const result = await receivePack.execute(repoPath, requestBodyBuffer(request.body));
-
-      return reply
-        .header('Content-Type', RECEIVE_PACK_CONTENT_TYPE)
-        .header('Cache-Control', 'no-cache')
-        .send(result);
-    },
-  );
+  // Astra audit GT-03: git-receive-pack must remain unmounted until a
+  // pre-receive hook invokes BranchProtectionService. Pushes currently flow
+  // through GitService.pushRefs, which enforces branch protection before refs
+  // advance. Do not expose POST /repos/:owner/:name/git-receive-pack here.
 }

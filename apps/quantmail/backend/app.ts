@@ -48,44 +48,24 @@ export function getConfig(): AppConfig {
     jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
     jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantmail',
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
-    // Pre-authentication endpoints that must bypass the global auth hook so
-    // users can sign in / sign up / run OAuth without a token. `/oauth/authorize`
-    // stays protected (it needs a logged-in user for the consent screen).
-    //
-    // These are matched by PREFIX (`packages/server-core/src/app.ts`), so an entry
-    // here exempts every path beneath it. Nothing may be mounted under one of
-    // these unless it is meant to be public: `/webhook/inbound/sync-all` used to
-    // exist and inherited this exemption, which is how replaying the entire
-    // inbound S3 bucket into every user's mailbox became an unauthenticated POST.
-    // It now lives at `/admin/inbound/sync-all`, outside the prefix.
     publicPaths: [
       '/auth/login',
       '/auth/register',
       '/auth/refresh',
       '/auth/logout',
-      // Completes a login that stopped at the second factor: the caller holds a
-      // signed challenge and no access token yet, so it cannot pass the JWT
-      // hook. Listed as the exact path — NEVER as `/auth/2fa`, which would
-      // expose setup, enable, disable and backup-code regeneration to anyone.
       '/auth/2fa/verify',
-      // Forgot-password is for people who cannot sign in. Behind the auth hook
-      // it was reachable only by users who did not need it. The prefix also
-      // covers `/auth/password-reset/confirm`, which is intended — the person
-      // clicking the emailed link has a single-use token, not a session.
       '/auth/password-reset',
       '/oauth/token',
       '/oauth/revoke',
       '/oauth/register',
-      // Public booking link availability and booking slots (CAL-03)
       '/calendar/booking',
       '/api/calendar/booking',
-      // Invite preview (/public/invites/:token): shown to people who may not
-      // have an account yet. Accepting an invite stays authenticated.
       '/public/invites',
       '/.well-known',
-      // Authenticated by the AWS SNS message signature, not by a JWT — SNS
-      // cannot present a bearer token. See routes/inbound-webhook.ts.
       '/webhook/inbound',
+      // Git Smart HTTP performs its own Basic/Bearer-compatible authentication.
+      '/api/code/git',
+      '/api/v1/git',
     ],
     env,
   };
