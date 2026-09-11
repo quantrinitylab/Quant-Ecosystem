@@ -12,6 +12,8 @@ export interface CompareResult {
   isLikelyDuplicate: boolean;
 }
 
+export const PERCEPTUAL_MIN_BYTES = 64;
+
 type Db = any;
 
 export class AIDuplicateService {
@@ -46,12 +48,12 @@ export class AIDuplicateService {
 
   async findDuplicates(userId: string): Promise<FindDuplicatesResult> {
     const files = (await this.prisma.file.findMany({
-      where: { userId, isDeleted: false, size: { gte: 64 } },
+      where: { userId, isDeleted: false },
       select: { id: true, name: true, size: true, contentHash: true },
     })) as Array<{ id: string; name: string; size: number; contentHash: string }>;
     const groupsByHash = new Map<string, Array<{ id: string; name: string; size: number }>>();
     for (const file of files) {
-      if (file.size < 64 || !file.contentHash) continue;
+      if (!file.contentHash) continue;
       groupsByHash.set(file.contentHash, [
         ...(groupsByHash.get(file.contentHash) ?? []),
         { id: file.id, name: file.name, size: file.size },
@@ -65,7 +67,7 @@ export class AIDuplicateService {
   }
 
   compareTwoFiles(contentA: Buffer, contentB: Buffer): CompareResult {
-    if (contentA.length < 64 || contentB.length < 64) {
+    if (contentA.length < PERCEPTUAL_MIN_BYTES || contentB.length < PERCEPTUAL_MIN_BYTES) {
       return { similarity: 0, isLikelyDuplicate: false };
     }
     const distance = this.hammingDistance(this.computeHash(contentA), this.computeHash(contentB));
