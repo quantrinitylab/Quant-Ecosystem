@@ -1,8 +1,8 @@
 {
-  "name": "@quant/quantsync",
+  "name": "@quant/quantwave",
   "version": "1.0.0",
   "private": true,
-  "description": "QuantSync - Twitter/X + Threads + Reddit hybrid with anonymous feeds and live spaces",
+  "description": "QuantWave - Twitter/X + Threads + Reddit killer platform with real-time threads, communities, and verified spaces",
   "main": "backend/app.ts",
   "scripts": {
     "dev": "next dev -p 3003",

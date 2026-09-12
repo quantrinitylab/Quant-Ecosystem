@@ -67,14 +67,14 @@ export class MemoryExporter {
     return this.importFromJson(json);
   }
 
-  importFromJson(json: string): MemoryEntry[] {
+  importFromJson(json: string, overrideUserId?: string): MemoryEntry[] {
     const parsed: unknown = JSON.parse(json);
     const validated = MemoryExportSchema.parse(parsed);
 
     const imported: MemoryEntry[] = [];
     for (const entry of validated.entries) {
       const created = this.store.create({
-        userId: entry.userId,
+        userId: overrideUserId ?? entry.userId,
         category: entry.category,
         content: entry.content,
         source: entry.source,

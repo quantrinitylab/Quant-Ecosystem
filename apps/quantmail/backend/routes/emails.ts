@@ -225,27 +225,6 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         logger: request.log,
       });
 
-      // Notify recipients about the new email
-      try {
-        const me = await (prisma as any).user.findUnique({
-          where: { id: userId },
-          select: { email: true, username: true },
-        });
-        await transmitExternalViaSes({
-          fromEmail: me?.email || `${userId}@quantmail.in`,
-          fromName: me?.username || undefined,
-          toAddresses: parseResult.data.toAddresses,
-          ccAddresses: parseResult.data.ccAddresses,
-          bccAddresses: parseResult.data.bccAddresses,
-          subject: parseResult.data.subject,
-          bodyPlain: parseResult.data.bodyPlain,
-          bodyHtml: sanitizedHtml,
-          logger: request.log,
-        });
-      } catch (err) {
-        request.log.warn({ err }, 'direct SES send attempt failed');
-      }
-
       return reply.status(201).send({ success: true, data: formatEmailRecord(sent) });
     }
 

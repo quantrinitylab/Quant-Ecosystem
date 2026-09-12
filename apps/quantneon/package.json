@@ -1,8 +1,8 @@
 {
-  "name": "@quant/quantneon",
+  "name": "@quant/quantgram",
   "version": "1.0.0",
   "private": true,
-  "description": "QuantNeon - Instagram-like social platform with mini games, AR/VR, and shopping",
+  "description": "QuantGram - Instagram killer platform with Reels, stories, close friends, filters, and in-feed games",
   "main": "backend/app.ts",
   "scripts": {
     "dev": "next dev",

@@ -2,6 +2,7 @@
   "name": "@quant/quantdrive",
   "version": "1.0.0",
   "private": true,
+  "deprecated": true,
   "type": "module",
   "description": "QuantDrive - Encrypted cloud storage for the Quant Ecosystem",
   "main": "backend/app.ts",

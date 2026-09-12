@@ -26,7 +26,7 @@ export class SwarmOrchestrator {
     this.retryConfigs.set(goalId, config);
   }
 
-  createGoal(desc: string, budget: BudgetConfig): SwarmGoal {
+  createGoal(desc: string, budget: BudgetConfig, owner?: { userId?: string; tenantId?: string }): SwarmGoal {
     const g: SwarmGoal = {
       id: uid(),
       description: desc,
@@ -34,6 +34,8 @@ export class SwarmOrchestrator {
       subGoals: [],
       budget,
       createdAt: now(),
+      userId: owner?.userId,
+      tenantId: owner?.tenantId,
     };
     this.goals.set(g.id, g);
     return g;

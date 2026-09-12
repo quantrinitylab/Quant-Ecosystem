@@ -182,6 +182,12 @@ beforeEach(() => {
     username: 'tester',
     role: 'USER',
   } as never);
+  db.oAuthClient.findUnique.mockResolvedValue({
+    clientId: 'client_abc',
+    clientSecretHash: null,
+    isConfidential: false,
+    redirectUris: ['https://app.example.com/cb', 'https://app.example.com/callback'],
+  } as never);
 });
 
 // ===========================================================================
@@ -265,6 +271,7 @@ describe('V3 — PKCE rejects a mismatched verifier (Req 1.2, 1.3)', () => {
     db.authorizationCode.findUnique.mockResolvedValue({
       code: 'ac_v3_mismatch',
       userId: 'user-1',
+      clientId: 'client_abc',
       scopes: ['openid'],
       redirectUri: 'https://app.example.com/cb',
       codeChallenge: challenge,
@@ -293,6 +300,7 @@ describe('V3 — PKCE rejects a mismatched verifier (Req 1.2, 1.3)', () => {
     db.authorizationCode.findUnique.mockResolvedValue({
       code: 'ac_v3_ok',
       userId: 'user-1',
+      clientId: 'client_abc',
       scopes: ['openid'],
       redirectUri: 'https://app.example.com/cb',
       codeChallenge: challenge,

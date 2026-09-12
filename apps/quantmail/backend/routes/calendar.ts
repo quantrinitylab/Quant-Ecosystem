@@ -1,12 +1,12 @@
-// ============================================================================
-// QuantMail — Calendar routes (/events, /calendars) for the Calendar page.
-// The page called /events and /calendars which did not exist ("Failed to load
-// events"). Backed by the Event + Calendar Prisma models. Enveloped responses
-// ({ success, data }) to match the api-client. Global auth hook → req.auth.
-// ============================================================================
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
+import { CalendarService } from '../services/calendar.service';
+import { AlarmService, type AlarmEvent } from '../services/alarm.service';
+import { BookingLinkService } from '../services/booking-link.service';
+import { RecurringService, type CalendarEvent } from '../services/recurring.service';
+
+const MAX_EVENT_WINDOW_MS = 365 * 86_400_000;
 
 function getPrisma(fastify: FastifyInstance): any {
   return (fastify as unknown as { prisma: unknown }).prisma;
@@ -16,447 +16,310 @@ function requireUserId(request: unknown): string {
   if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
   return userId;
 }
+function parentEventId(id: string): string {
+  return id.includes('_') ? id.split('_')[0]! : id;
+}
 
-// An attendee arrives from the calendar page as a bare email string and from
-// anything typed against api-client's `CalendarEvent` as an object. Both are
-// accepted for the same reason both date spellings are: one route, two clients.
-// A reminder has a third spelling — a bare minute count.
-//
-// Every inner field is optional because the alternative is a 400 on the whole
-// event save over one malformed row in a guest list. An entry the normalisers
-// below cannot use is dropped there, where the loss costs one line instead of
-// the user's edit.
-const attendeeInput = z.union([
-  z.string().max(320),
-  z.object({ email: z.string().max(320).optional() }).passthrough(),
-]);
-const reminderInput = z.union([
-  z.string().max(120),
-  z.number(),
-  z.object({ minutesBefore: z.number().optional() }).passthrough(),
-]);
-
-// `calendarId` has no column on Event — it is accepted so a client that sends
-// one is not rejected, and then dropped. See the note on the model below.
+const attendeeInput = z.union([z.string().max(320), z.object({ email: z.string().max(320).optional() }).passthrough()]);
+const reminderInput = z.union([z.string().max(120), z.number(), z.object({ minutesBefore: z.number().optional() }).passthrough()]);
 const eventCollectionFields = {
-  attendees: z.array(attendeeInput).max(200).optional(),
-  reminders: z.array(reminderInput).max(50).optional(),
-  recurrence: z.string().max(200).nullable().optional(),
-  recurrenceRule: z.string().max(200).nullable().optional(),
+  attendees: z.array(attendeeInput).max(200).optional(), reminders: z.array(reminderInput).max(50).optional(),
+  recurrence: z.string().max(200).nullable().optional(), recurrenceRule: z.string().max(200).nullable().optional(),
   calendarId: z.string().optional(),
 };
-
 const eventCreateSchema = z.object({
-  title: z.string().min(1).max(300),
-  description: z.string().max(5000).optional(),
-  start: z.string(),
-  end: z.string().optional(),
-  allDay: z.boolean().optional(),
-  location: z.string().max(500).optional(),
+  title: z.string().min(1).max(300), description: z.string().max(5000).optional(), start: z.string(),
+  end: z.string().optional(), allDay: z.boolean().optional(), location: z.string().max(500).optional(),
   ...eventCollectionFields,
 });
-
-// Update is create with every field optional, plus the startTime/endTime
-// spelling. api-client sends both spellings on purpose — quantcalendar
-// validates startTime/endTime and this route validates start/end — so a
-// payload that satisfies either service has to be accepted by both.
 const eventUpdateSchema = z.object({
-  title: z.string().min(1).max(300).optional(),
-  description: z.string().max(5000).optional(),
-  start: z.string().optional(),
-  end: z.string().optional(),
-  startTime: z.string().optional(),
-  endTime: z.string().optional(),
-  allDay: z.boolean().optional(),
-  location: z.string().max(500).optional(),
-  ...eventCollectionFields,
+  title: z.string().min(1).max(300).optional(), description: z.string().max(5000).optional(),
+  start: z.string().optional(), end: z.string().optional(), startTime: z.string().optional(),
+  endTime: z.string().optional(), allDay: z.boolean().optional(), location: z.string().max(500).optional(),
+  status: z.enum(['confirmed', 'tentative', 'cancelled']).optional(), ...eventCollectionFields,
 });
+const calendarCreateSchema = z.object({ name: z.string().min(1).max(200), color: z.string().max(32).optional() });
+const calendarUpdateSchema = z.object({ name: z.string().min(1).max(200).optional(), color: z.string().max(32).optional() })
+  .refine((value) => value.name !== undefined || value.color !== undefined, { message: 'At least one of name or color must be provided' });
+const rsvpSchema = z.object({ status: z.enum(['accepted', 'declined', 'tentative', 'pending']) });
+const bookingLinkSchema = z.object({
+  slug: z.string().min(1).max(100), title: z.string().min(1).max(255), description: z.string().optional(),
+  duration: z.number().int().min(5).max(480), availableDays: z.array(z.number().int().min(0).max(6)).optional(),
+  startHour: z.number().int().min(0).max(23).optional(), endHour: z.number().int().min(1).max(24).optional(),
+});
+const confirmBookingSchema = z.object({ slot: z.string(), name: z.string().min(1), email: z.string().email(), notes: z.string().optional() });
 
 type AttendeeInput = z.infer<typeof attendeeInput>;
 type ReminderInput = z.infer<typeof reminderInput>;
-
-// An unparseable date reaches Prisma as `Invalid Date` and comes back as a 500,
-// which tells the caller nothing. Reject it here as the 400 it is.
-function toDate(value: string, field: string): Date {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime()))
-    throw createAppError(`\`${field}\` is not a valid date`, 400, 'INVALID_DATE');
-  return date;
-}
-
-// ----------------------------------------------------------------------------
-// attendees / reminders / recurrenceRule
-//
-// The page has always sent all three and this route used to drop all three, so
-// an invite list survived until the sheet closed and no further.
-//
-// The columns are `String` holding JSON, and quantmail is not their only writer:
-// apps/quantcalendar/backend/services/event.service.ts writes the same
-// `calendar_events` table and defines the shape — `Attendee` is
-// {userId,email,name,status} and `Reminder` is {type,minutesBefore}. Storing a
-// bare `["ada@x.com"]` here would read back through that service as an attendee
-// with no email and no userId, and its next RSVP write would flatten the row.
-// So quantmail writes ITS shape, and adds one field: `label`, the exact string
-// the user picked, because the calendar page's reminders are human phrases and a
-// number alone cannot reproduce "1 week before at 9 AM".
-// ----------------------------------------------------------------------------
 type StoredAttendee = { userId: string; email: string; name: string; status: string };
 type StoredReminder = { type: string; minutesBefore: number | null; label: string };
-
-const REMINDER_UNIT_MINUTES: Record<string, number> = {
-  minute: 1,
-  hour: 60,
-  day: 1440,
-  week: 10080,
+type EventRow = {
+  id: string; title: string; description: string; startTime: Date; endTime: Date; allDay: boolean;
+  location: string; userId: string; status: string; attendees?: unknown; reminders?: unknown;
+  recurrenceRule?: string | null; createdAt: Date; updatedAt: Date;
 };
+const REMINDER_UNIT_MINUTES: Record<string, number> = { minute: 1, hour: 60, day: 1440, week: 10080 };
 
-/**
- * '30 minutes before' → 30, '1 week before at 9 AM' → 10080, 'On the day at
- * 9 AM' → 0, anything else → null. Derived rather than looked up: the page owns
- * the label list (NOTIFICATION_SLIDER_VALUES) and a copy of that table here
- * would rot the first time someone adds a row to it. A label this parser does
- * not recognise still stores — with `minutesBefore: null` and its text intact.
- */
+function toDate(value: string, field: string): Date {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw createAppError(`\`${field}\` is not a valid date`, 400, 'INVALID_DATE');
+  return date;
+}
+function parseJsonArray(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== 'string' || raw.trim() === '') return [];
+  try { const parsed: unknown = JSON.parse(raw); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+}
 function minutesFromLabel(label: string): number | null {
-  const relative = /^(\d+)\s+(minute|hour|day|week)s?\s+before/i.exec(label.trim());
-  if (relative) {
-    const unit = REMINDER_UNIT_MINUTES[relative[2]!.toLowerCase()];
-    if (unit) return Number(relative[1]) * unit;
-  }
+  const match = /^(\d+)\s+(minute|hour|day|week)s?\s+before/i.exec(label.trim());
+  if (match) return Number(match[1]) * REMINDER_UNIT_MINUTES[match[2]!.toLowerCase()]!;
   if (/^on the day/i.test(label.trim())) return 0;
   return null;
 }
-
-/** The inverse, for a reminder written by a service that stores only a number. */
 function labelFromMinutes(minutes: number): string {
   if (minutes <= 0) return 'On the day';
   for (const unit of ['week', 'day', 'hour'] as const) {
     const size = REMINDER_UNIT_MINUTES[unit]!;
-    if (minutes % size === 0) {
-      const n = minutes / size;
-      return `${n} ${unit}${n === 1 ? '' : 's'} before`;
-    }
+    if (minutes % size === 0) { const count = minutes / size; return `${count} ${unit}${count === 1 ? '' : 's'} before`; }
   }
   return `${minutes} minute${minutes === 1 ? '' : 's'} before`;
 }
-
-/** A JSON column that a legacy row may have left malformed. Never throws. */
-function parseJsonArray(raw: unknown): unknown[] {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw !== 'string' || raw.trim() === '') return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    // One unreadable row must not 500 a whole month of the calendar.
-    return [];
-  }
-}
-
 function toStoredAttendees(input: AttendeeInput[]): StoredAttendee[] {
-  const seen = new Set<string>();
-  const out: StoredAttendee[] = [];
+  const seen = new Set<string>(); const result: StoredAttendee[] = [];
   for (const entry of input) {
-    const source = typeof entry === 'string' ? { email: entry } : entry;
-    const email = String(source.email ?? '').trim();
-    if (!email) continue;
-    const key = email.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({
-      userId: typeof source['userId'] === 'string' ? source['userId'] : '',
-      email,
-      name: typeof source['name'] === 'string' ? source['name'] : '',
-      // An email invite has not answered yet, and re-saving an event must not
-      // reset somebody who already accepted.
-      status: typeof source['status'] === 'string' ? source['status'] : 'pending',
-    });
+    const source = typeof entry === 'string' ? { email: entry } : entry; const email = String(source.email ?? '').trim();
+    if (!email || seen.has(email.toLowerCase())) continue; seen.add(email.toLowerCase());
+    result.push({ userId: typeof source['userId'] === 'string' ? source['userId'] : '', email,
+      name: typeof source['name'] === 'string' ? source['name'] : '', status: typeof source['status'] === 'string' ? source['status'] : 'pending' });
   }
-  return out;
+  return result;
 }
-
 function toStoredReminders(input: ReminderInput[]): StoredReminder[] {
-  const out: StoredReminder[] = [];
+  const result: StoredReminder[] = [];
   for (const entry of input) {
-    if (typeof entry === 'string') {
-      const label = entry.trim();
-      if (!label) continue;
-      // 'push' and not 'call': the page's notification slider is not asking for
-      // a phone call, and quantcalendar's alarm service only rings on 'call'.
-      out.push({ type: 'push', minutesBefore: minutesFromLabel(label), label });
-      continue;
-    }
-    if (typeof entry === 'number') {
-      if (!Number.isFinite(entry)) continue;
-      out.push({ type: 'push', minutesBefore: entry, label: labelFromMinutes(entry) });
-      continue;
-    }
+    if (typeof entry === 'string') { const label = entry.trim(); if (label) result.push({ type: 'push', minutesBefore: minutesFromLabel(label), label }); continue; }
+    if (typeof entry === 'number') { if (Number.isFinite(entry)) result.push({ type: 'push', minutesBefore: entry, label: labelFromMinutes(entry) }); continue; }
     const type = typeof entry['type'] === 'string' ? entry['type'] : 'push';
-    const explicitLabel = typeof entry['label'] === 'string' ? entry['label'].trim() : '';
-    const minutes = Number(entry.minutesBefore);
-    if (!Number.isFinite(minutes)) {
-      // An object carrying only a label is still a reminder the user chose.
-      if (!explicitLabel) continue;
-      out.push({ type, minutesBefore: minutesFromLabel(explicitLabel), label: explicitLabel });
-      continue;
-    }
-    out.push({ type, minutesBefore: minutes, label: explicitLabel || labelFromMinutes(minutes) });
+    const label = typeof entry['label'] === 'string' ? entry['label'].trim() : ''; const minutes = Number(entry.minutesBefore);
+    if (Number.isFinite(minutes)) result.push({ type, minutesBefore: minutes, label: label || labelFromMinutes(minutes) });
+    else if (label) result.push({ type, minutesBefore: minutesFromLabel(label), label });
   }
-  return out;
+  return result;
 }
-
-/** The page renders emails; `CalendarEventLike` declares `attendees?: string[]`. */
 function attendeeEmails(raw: unknown): string[] {
-  return parseJsonArray(raw)
-    .map((entry) =>
-      typeof entry === 'string' ? entry : String((entry as { email?: unknown })?.email ?? ''),
-    )
-    .filter((email) => email !== '');
+  return parseJsonArray(raw).map((entry) => typeof entry === 'string' ? entry : String((entry as { email?: unknown })?.email ?? '')).filter(Boolean);
 }
-
 function reminderLabels(raw: unknown): string[] {
-  return parseJsonArray(raw)
-    .map((entry) => {
-      if (typeof entry === 'string') return entry;
-      if (typeof entry === 'number') return labelFromMinutes(entry);
-      const row = entry as { label?: unknown; minutesBefore?: unknown };
-      if (typeof row?.label === 'string' && row.label !== '') return row.label;
-      const minutes = Number(row?.minutesBefore);
-      return Number.isFinite(minutes) ? labelFromMinutes(minutes) : '';
-    })
-    .filter((label) => label !== '');
+  return parseJsonArray(raw).map((entry) => {
+    if (typeof entry === 'string') return entry; if (typeof entry === 'number') return labelFromMinutes(entry);
+    const reminder = entry as { label?: unknown; minutesBefore?: unknown };
+    if (typeof reminder?.label === 'string' && reminder.label) return reminder.label;
+    const minutes = Number(reminder?.minutesBefore); return Number.isFinite(minutes) ? labelFromMinutes(minutes) : '';
+  }).filter(Boolean);
 }
-
-// 'Does not repeat' is the page's way of saying "no rule", and a sentinel string
-// in a nullable column is how `WHERE recurrenceRule IS NOT NULL` starts lying.
-function toRecurrenceRule(value: string | null | undefined): string | null {
+function alarmReminders(raw: unknown): AlarmEvent['reminders'] {
+  return parseJsonArray(raw).flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []; const reminder = entry as { type?: unknown; minutesBefore?: unknown };
+    const minutesBefore = Number(reminder.minutesBefore);
+    return typeof reminder.type === 'string' && Number.isFinite(minutesBefore) ? [{ type: reminder.type, minutesBefore }] : [];
+  });
+}
+function normalizeRecurrenceRule(value: string | null | undefined, recurringService: RecurringService): string | null {
   if (value === null || value === undefined) return null;
   const trimmed = value.trim();
   if (trimmed === '' || /^(none|does not repeat)$/i.test(trimmed)) return null;
+  try {
+    recurringService.parseRRule(trimmed);
+  } catch {
+    return null;
+  }
   return trimmed;
 }
-
-/**
- * The page sends `recurrence`; the column is called `recurrenceRule`; either may
- * be `null` to clear it. Returns `undefined` only when the client mentioned
- * neither, which is how the update route tells "clear this" from "leave it".
- */
-function pickRecurrence(data: {
-  recurrence?: string | null;
-  recurrenceRule?: string | null;
-}): string | null | undefined {
+function pickRecurrence(data: { recurrence?: string | null; recurrenceRule?: string | null }): string | null | undefined {
   return data.recurrence !== undefined ? data.recurrence : data.recurrenceRule;
 }
-
-type EventRow = {
-  id: string;
-  title: string;
-  description: string;
-  startTime: Date;
-  endTime: Date;
-  allDay: boolean;
-  location: string;
-  status: string;
-  attendees?: unknown;
-  reminders?: unknown;
-  recurrenceRule?: string | null;
-};
-
-function toEventDto(e: EventRow) {
+function toCalendarEvent(row: EventRow): CalendarEvent {
+  return { id: row.id, title: row.title, description: row.description ?? '', startTime: new Date(row.startTime),
+    endTime: new Date(row.endTime), allDay: row.allDay ?? false, location: row.location ?? '', userId: row.userId,
+    attendees: parseJsonArray(row.attendees), recurrenceRule: row.recurrenceRule ?? null,
+    status: row.status as CalendarEvent['status'], reminders: parseJsonArray(row.reminders),
+    createdAt: new Date(row.createdAt), updatedAt: new Date(row.updatedAt) };
+}
+function toEventDto(event: EventRow | CalendarEvent) {
   return {
-    id: e.id,
-    title: e.title,
-    description: e.description,
-    start: e.startTime,
-    end: e.endTime,
-    startTime: e.startTime,
-    endTime: e.endTime,
-    allDay: e.allDay,
-    location: e.location,
-    status: e.status,
-    attendees: attendeeEmails(e.attendees),
-    reminders: reminderLabels(e.reminders),
-    // Null, not 'Does not repeat': the page already falls back to that label,
-    // and the DTO should not invent a rule the row does not have.
-    recurrence: e.recurrenceRule ?? null,
+    id: event.id,
+    parentId: (event as CalendarEvent).parentId ?? (event.id.includes('_') ? event.id.split('_')[0] : event.id),
+    title: event.title, description: event.description, start: event.startTime, end: event.endTime,
+    startTime: event.startTime, endTime: event.endTime, allDay: event.allDay, location: event.location,
+    status: event.status, attendees: attendeeEmails(event.attendees), reminders: reminderLabels(event.reminders),
+    recurrence: event.recurrenceRule ?? null,
   };
 }
 
 export default async function calendarRoutes(fastify: FastifyInstance) {
-  // GET /calendars — the user's calendars (auto-provision a primary one).
-  fastify.get('/calendars', async (request, reply) => {
-    const userId = requireUserId(request);
-    const prisma = getPrisma(fastify);
-    let calendars = await prisma.calendar.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-    });
-    if (!calendars || calendars.length === 0) {
-      const primary = await prisma.calendar.create({
-        data: { userId, name: 'My Calendar', color: '#4F46E5', isPrimary: true },
+  const calendarService = () => new CalendarService(getPrisma(fastify));
+  const bookingService = () => new BookingLinkService(getPrisma(fastify));
+  const recurringService = new RecurringService(getPrisma(fastify));
+
+  fastify.get('/calendars', async (request, reply) => reply.send({ success: true, data: await calendarService().listCalendars(requireUserId(request)) }));
+  fastify.post('/calendars', async (request, reply) => {
+    const parsed = calendarCreateSchema.safeParse(request.body); if (!parsed.success) throw parsed.error;
+    return reply.status(201).send({ success: true, data: await calendarService().createCalendar(requireUserId(request), parsed.data) });
+  });
+  fastify.put<{ Params: { id: string } }>('/calendars/:id', async (request, reply) => {
+    const parsed = calendarUpdateSchema.safeParse(request.body); if (!parsed.success) throw parsed.error;
+    return reply.send({ success: true, data: await calendarService().updateCalendar(requireUserId(request), request.params.id, parsed.data) });
+  });
+  fastify.delete<{ Params: { id: string } }>('/calendars/:id', async (request, reply) => reply.send({ success: true, data: await calendarService().deleteCalendar(requireUserId(request), request.params.id) }));
+  fastify.post<{ Params: { id: string } }>('/calendars/:id/primary', async (request, reply) => reply.send({ success: true, data: await calendarService().setPrimary(requireUserId(request), request.params.id) }));
+
+  fastify.get<{ Querystring: { start?: string; end?: string; calendarId?: string } }>('/events', async (request, reply) => {
+    const userId = requireUserId(request); const { start, end } = request.query;
+    if (start && end) {
+      const startDate = toDate(start, 'start'); const requestedEnd = toDate(end, 'end');
+      if (requestedEnd < startDate) throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
+      const maxEnd = new Date(startDate.getTime() + MAX_EVENT_WINDOW_MS);
+      const endDate = requestedEnd > maxEnd ? maxEnd : requestedEnd;
+      const rows = await getPrisma(fastify).event.findMany({
+        where: { userId, recurrenceRule: null, startTime: { gte: startDate, lte: endDate } },
+        orderBy: { startTime: 'asc' }, take: 1000,
+      }) as EventRow[];
+      const recurringRows = await getPrisma(fastify).event.findMany({
+        where: { userId, recurrenceRule: { not: null }, startTime: { lte: endDate } }, take: 200,
+      }) as EventRow[];
+      const expandedDtos = recurringRows.flatMap((row) => {
+        try {
+          return recurringService.expandOccurrences(toCalendarEvent(row), startDate, endDate)
+            .filter((occurrence) => occurrence.startTime <= endDate && occurrence.endTime >= startDate)
+            .map(toEventDto);
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.warn(`Unable to expand recurring calendar event ${row.id}`, error);
+          return [];
+        }
       });
-      calendars = [primary];
+      const merged = [...rows.map(toEventDto), ...expandedDtos];
+      const data = [...new Map(merged.map((event) => [event.id, event])).values()]
+        .sort((left, right) => new Date(left.start).getTime() - new Date(right.start).getTime());
+      return reply.send({ success: true, data });
     }
-    return reply.send({ success: true, data: calendars });
+    const where: Record<string, unknown> = { userId };
+    if (start || end) where.startTime = { ...(start ? { gte: toDate(start, 'start') } : {}), ...(end ? { lte: toDate(end, 'end') } : {}) };
+    const rows = await getPrisma(fastify).event.findMany({ where, orderBy: { startTime: 'asc' }, take: 1000 }) as EventRow[];
+    return reply.send({ success: true, data: rows.map(toEventDto) });
   });
-
-  // GET /events — events for the signed-in user, optional [start,end] window.
-  fastify.get<{ Querystring: { start?: string; end?: string; calendarId?: string } }>(
-    '/events',
-    async (request, reply) => {
-      const userId = requireUserId(request);
-      const prisma = getPrisma(fastify);
-      const where: Record<string, unknown> = { userId };
-      const { start, end } = request.query;
-      if (start || end) {
-        // Same rule as the bodies: a bad window is a bad request, not a 500 out
-        // of the query engine. The grid sends this on every month change.
-        where.startTime = {
-          ...(start ? { gte: toDate(start, 'start') } : {}),
-          ...(end ? { lte: toDate(end, 'end') } : {}),
-        };
-      }
-      const rows = (await prisma.event.findMany({
-        where,
-        orderBy: { startTime: 'asc' },
-        take: 1000,
-      })) as EventRow[];
-      return reply.send({ success: true, data: rows.map(toEventDto) });
-    },
-  );
-
-  // GET /events/today — events whose start falls within the current day.
   fastify.get('/events/today', async (request, reply) => {
-    const userId = requireUserId(request);
-    const prisma = getPrisma(fastify);
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const now = new Date(); const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    const rows = (await prisma.event.findMany({
-      where: { userId, startTime: { gte: startOfDay, lt: endOfDay } },
-      orderBy: { startTime: 'asc' },
-      take: 200,
-    })) as EventRow[];
+    const rows = await getPrisma(fastify).event.findMany({ where: { userId: requireUserId(request), startTime: { gte: startOfDay, lt: endOfDay } }, orderBy: { startTime: 'asc' }, take: 200 }) as EventRow[];
     return reply.send({ success: true, data: rows.map(toEventDto) });
   });
-
-  // GET /events/upcoming — the next N events from now onward.
   fastify.get<{ Querystring: { limit?: string } }>('/events/upcoming', async (request, reply) => {
-    const userId = requireUserId(request);
-    const prisma = getPrisma(fastify);
     const limit = Math.min(Math.max(Number(request.query.limit) || 10, 1), 100);
-    const rows = (await prisma.event.findMany({
-      where: { userId, startTime: { gte: new Date() } },
-      orderBy: { startTime: 'asc' },
-      take: limit,
-    })) as EventRow[];
+    const rows = await getPrisma(fastify).event.findMany({ where: { userId: requireUserId(request), startTime: { gte: new Date() } }, orderBy: { startTime: 'asc' }, take: limit }) as EventRow[];
     return reply.send({ success: true, data: rows.map(toEventDto) });
   });
-
-  // GET /events/:id — one event, owner only. Registered after the static
-  // /events/today and /events/upcoming routes, which find-my-way matches ahead
-  // of a parametric segment, so neither is shadowed by this.
-  fastify.get<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
-    const userId = requireUserId(request);
-    const prisma = getPrisma(fastify);
-    const ev = (await prisma.event.findUnique({ where: { id: request.params.id } })) as
-      | (EventRow & { userId: string })
-      | null;
-    if (!ev || ev.userId !== userId)
-      throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
-    return reply.send({ success: true, data: toEventDto(ev) });
+  fastify.get('/events/alarms/due', async (request, reply) => {
+    const userId = requireUserId(request); const alarms = new AlarmService(); const now = new Date(); const { start, end } = alarms.fetchWindow(now);
+    const rows = await getPrisma(fastify).event.findMany({ where: { userId, startTime: { lt: end }, endTime: { gt: start } }, orderBy: { startTime: 'asc' } }) as EventRow[];
+    const events: AlarmEvent[] = rows.map((event) => ({ id: event.id, title: event.title, startTime: event.startTime, status: event.status, reminders: alarmReminders(event.reminders) }));
+    return reply.send({ success: true, data: alarms.getDueCallAlarms(events, now) });
   });
-
-  // POST /events — create an event.
+  fastify.get<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
+    const userId = requireUserId(request); const event = await getPrisma(fastify).event.findUnique({ where: { id: request.params.id } });
+    if (!event || event.userId !== userId) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+    return reply.send({ success: true, data: toEventDto(event as EventRow) });
+  });
   fastify.post('/events', async (request, reply) => {
-    const parsed = eventCreateSchema.safeParse(request.body);
-    if (!parsed.success) throw parsed.error;
-    const userId = requireUserId(request);
-    const prisma = getPrisma(fastify);
-    const now = new Date();
-    const start = toDate(parsed.data.start, 'start');
-    const end = parsed.data.end
-      ? toDate(parsed.data.end, 'end')
-      : new Date(start.getTime() + 3600_000);
-    const created = (await prisma.event.create({
-      data: {
-        title: parsed.data.title,
-        description: parsed.data.description ?? '',
-        startTime: start,
-        endTime: end,
-        allDay: parsed.data.allDay ?? false,
-        location: parsed.data.location ?? '',
-        userId,
-        status: 'confirmed',
-        // Written on every create, not only when sent: the columns are
-        // `String @default("[]")`, and a row that came through this route should
-        // read back the same way whether or not the client had an invite list.
-        attendees: JSON.stringify(toStoredAttendees(parsed.data.attendees ?? [])),
-        reminders: JSON.stringify(toStoredReminders(parsed.data.reminders ?? [])),
-        recurrenceRule: toRecurrenceRule(pickRecurrence(parsed.data)),
-        createdAt: now,
-        updatedAt: now,
-      },
-    })) as EventRow;
+    const parsed = eventCreateSchema.safeParse(request.body); if (!parsed.success) throw parsed.error;
+    const start = toDate(parsed.data.start, 'start'); const end = parsed.data.end ? toDate(parsed.data.end, 'end') : new Date(start.getTime() + 3_600_000);
+    if (end < start) throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
+    const now = new Date(); const recurrence = pickRecurrence(parsed.data);
+    const created = await getPrisma(fastify).event.create({ data: {
+      title: parsed.data.title, description: parsed.data.description ?? '', startTime: start, endTime: end,
+      allDay: parsed.data.allDay ?? false, location: parsed.data.location ?? '', userId: requireUserId(request), status: 'confirmed',
+      attendees: JSON.stringify(toStoredAttendees(parsed.data.attendees ?? [])), reminders: JSON.stringify(toStoredReminders(parsed.data.reminders ?? [])),
+      recurrenceRule: normalizeRecurrenceRule(recurrence, recurringService), createdAt: now, updatedAt: now,
+    } }) as EventRow;
     return reply.status(201).send({ success: true, data: toEventDto(created) });
   });
 
-  // PUT /events/:id — edit an event (owner only). The calendar page's edit sheet
-  // has always called this through api-client's `updateEvent`; without it the
-  // request reached the allow-list, passed, and 404'd here, so saving an edit
-  // failed while creating the same entry worked.
-  fastify.put<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
-    const parsed = eventUpdateSchema.safeParse(request.body);
-    if (!parsed.success) throw parsed.error;
-    const userId = requireUserId(request);
-    const prisma = getPrisma(fastify);
-    const ev = await prisma.event.findUnique({ where: { id: request.params.id } });
-    if (!ev || ev.userId !== userId)
-      throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
-
-    const { title, description, allDay, location } = parsed.data;
-    const startRaw = parsed.data.start ?? parsed.data.startTime;
-    const endRaw = parsed.data.end ?? parsed.data.endTime;
-    const start = startRaw ? toDate(startRaw, 'start') : undefined;
-    const end = endRaw ? toDate(endRaw, 'end') : undefined;
-    if (start && end && end.getTime() < start.getTime())
-      throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
-
-    // `updatedAt` has no @updatedAt attribute in the schema, so Prisma will not
-    // touch it on its own — the create route sets it by hand and so must this.
+  const updateEvent = async (request: any, reply: any) => {
+    if (request.params.id.includes('_')) {
+      throw createAppError(
+        'Cannot update or delete synthetic recurring occurrence directly; modify parent event',
+        400,
+        'CANNOT_MUTATE_SYNTHETIC_OCCURRENCE',
+      );
+    }
+    const parsed = eventUpdateSchema.safeParse(request.body); if (!parsed.success) throw parsed.error;
+    const userId = requireUserId(request); const prisma = getPrisma(fastify); const eventId = parentEventId(request.params.id);
+    const existing = await prisma.event.findUnique({ where: { id: eventId } });
+    if (!existing || existing.userId !== userId) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+    const startRaw = parsed.data.start ?? parsed.data.startTime; const endRaw = parsed.data.end ?? parsed.data.endTime;
+    const start = startRaw ? toDate(startRaw, 'start') : undefined; const end = endRaw ? toDate(endRaw, 'end') : undefined;
+    if (start && end && end < start) throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
     const data: Record<string, unknown> = { updatedAt: new Date() };
-    if (title !== undefined) data.title = title;
-    if (description !== undefined) data.description = description;
-    if (allDay !== undefined) data.allDay = allDay;
-    if (location !== undefined) data.location = location;
-    if (start) data.startTime = start;
-    if (end) data.endTime = end;
-
-    // Absent means "leave the column alone"; an empty array means "clear it".
-    // The edit sheet re-sends the whole list every save, so a removed guest has
-    // to be a write of the shorter list and not a no-op.
-    if (parsed.data.attendees !== undefined)
-      data.attendees = JSON.stringify(toStoredAttendees(parsed.data.attendees));
-    if (parsed.data.reminders !== undefined)
-      data.reminders = JSON.stringify(toStoredReminders(parsed.data.reminders));
+    for (const key of ['title', 'description', 'allDay', 'location', 'status'] as const) if (parsed.data[key] !== undefined) data[key] = parsed.data[key];
+    if (start) data.startTime = start; if (end) data.endTime = end;
+    if (parsed.data.attendees !== undefined) data.attendees = JSON.stringify(toStoredAttendees(parsed.data.attendees));
+    if (parsed.data.reminders !== undefined) data.reminders = JSON.stringify(toStoredReminders(parsed.data.reminders));
     const recurrence = pickRecurrence(parsed.data);
-    if (recurrence !== undefined) data.recurrenceRule = toRecurrenceRule(recurrence);
-
-    const updated = (await prisma.event.update({
-      where: { id: request.params.id },
-      data,
-    })) as EventRow;
+    if (recurrence !== undefined) data.recurrenceRule = normalizeRecurrenceRule(recurrence, recurringService);
+    const updated = await prisma.event.update({ where: { id: eventId }, data }) as EventRow;
     return reply.send({ success: true, data: toEventDto(updated) });
+  };
+  fastify.put('/events/:id', updateEvent); fastify.patch('/events/:id', updateEvent);
+  fastify.delete<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
+    if (request.params.id.includes('_')) {
+      throw createAppError(
+        'Cannot update or delete synthetic recurring occurrence directly; modify parent event',
+        400,
+        'CANNOT_MUTATE_SYNTHETIC_OCCURRENCE',
+      );
+    }
+    const userId = requireUserId(request); const prisma = getPrisma(fastify); const eventId = parentEventId(request.params.id);
+    const event = await prisma.event.findUnique({ where: { id: eventId } });
+    if (!event || event.userId !== userId) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+    await prisma.event.delete({ where: { id: eventId } });
+    return reply.send({ success: true, data: { message: 'Event deleted' } });
+  });
+  fastify.post<{ Params: { id: string } }>('/events/:id/rsvp', async (request, reply) => {
+    const parsed = rsvpSchema.safeParse(request.body); if (!parsed.success) throw parsed.error;
+    const userId = requireUserId(request); const prisma = getPrisma(fastify); const event = await prisma.event.findUnique({ where: { id: request.params.id } });
+    if (!event) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } }); const email = String(user?.email ?? '').toLowerCase(); let matched = false;
+    const attendees = toStoredAttendees(parseJsonArray(event.attendees) as AttendeeInput[]).map((attendee) => {
+      if (attendee.userId !== userId && attendee.email.toLowerCase() !== email) return attendee; matched = true;
+      return { ...attendee, userId: attendee.userId || userId, status: parsed.data.status };
+    });
+    if (!matched) throw createAppError('The authenticated user is not an attendee', 403, 'NOT_EVENT_ATTENDEE');
+    const updated = await prisma.event.update({ where: { id: request.params.id }, data: { attendees: JSON.stringify(attendees), updatedAt: new Date() } });
+    return reply.send({ success: true, data: { ...toEventDto(updated), attendees } });
   });
 
-  // DELETE /events/:id — remove an event (owner only).
-  fastify.delete<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
-    const userId = requireUserId(request);
-    const prisma = getPrisma(fastify);
-    const ev = await prisma.event.findUnique({ where: { id: request.params.id } });
-    if (!ev || ev.userId !== userId)
-      throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
-    await prisma.event.delete({ where: { id: request.params.id } });
-    return reply.send({ success: true, data: { message: 'Event deleted' } });
+  fastify.post('/booking/links', async (request, reply) => {
+    const parsed = bookingLinkSchema.safeParse(request.body); if (!parsed.success) throw parsed.error;
+    return reply.status(201).send({ success: true, data: await bookingService().createBookingLink({ ...parsed.data, userId: requireUserId(request) }) });
+  });
+  fastify.get<{ Params: { slug: string } }>('/booking/links/:slug', async (request, reply) => reply.send({ success: true, data: await bookingService().getBookingLink(request.params.slug) }));
+  fastify.get<{ Params: { slug: string } }>('/calendar/booking/:slug', async (request, reply) => reply.send({ success: true, data: await bookingService().getBookingLink(request.params.slug) }));
+  fastify.get<{ Params: { slug: string }; Querystring: { date?: string } }>('/booking/links/:slug/slots', async (request, reply) => {
+    if (!request.query.date) throw createAppError('Date query parameter is required', 400, 'VALIDATION_FAILED');
+    return reply.send({ success: true, data: await bookingService().getAvailableSlots(request.params.slug, toDate(request.query.date, 'date')) });
+  });
+  fastify.get<{ Params: { slug: string }; Querystring: { date?: string } }>('/calendar/booking/:slug/slots', async (request, reply) => {
+    if (!request.query.date) throw createAppError('Date query parameter is required', 400, 'VALIDATION_FAILED');
+    return reply.send({ success: true, data: await bookingService().getAvailableSlots(request.params.slug, toDate(request.query.date, 'date')) });
+  });
+  fastify.post<{ Params: { slug: string } }>('/booking/links/:slug/book', async (request, reply) => {
+    const parsed = confirmBookingSchema.safeParse(request.body); if (!parsed.success) throw parsed.error;
+    const data = await bookingService().confirmBooking(request.params.slug, toDate(parsed.data.slot, 'slot'), { name: parsed.data.name, email: parsed.data.email, notes: parsed.data.notes });
+    return reply.status(201).send({ success: true, data });
+  });
+  fastify.post<{ Params: { slug: string } }>('/calendar/booking/:slug/book', async (request, reply) => {
+    const parsed = confirmBookingSchema.safeParse(request.body); if (!parsed.success) throw parsed.error;
+    const data = await bookingService().confirmBooking(request.params.slug, toDate(parsed.data.slot, 'slot'), { name: parsed.data.name, email: parsed.data.email, notes: parsed.data.notes });
+    return reply.status(201).send({ success: true, data });
   });
 }

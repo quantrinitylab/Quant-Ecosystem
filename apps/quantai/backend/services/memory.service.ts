@@ -133,7 +133,7 @@ export class MemoryService {
   }
 
   importMemories(userId: string, json: string): MemoryEntry[] {
-    return this.exporter.importFromJson(json);
+    return this.exporter.importFromJson(json, userId);
   }
 
   getFullDisclosure(userId: string): FullDisclosure {

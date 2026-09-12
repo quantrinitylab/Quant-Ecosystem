@@ -16,10 +16,20 @@ export const QUANT_APPS: Record<QuantApp, { name: string; description: string; c
     description: 'Email platform and central OAuth provider for the ecosystem',
     color: '#4285F4',
   },
-  quantsync: {
-    name: 'QuantSync',
-    description: 'Social feed with posts, threads, and communities',
+  quantwave: {
+    name: 'QuantWave',
+    description: 'Social feed with threads, communities, and real-time news',
     color: '#1DA1F2',
+  },
+  quantgram: {
+    name: 'QuantGram',
+    description: 'Photo and video sharing with filters, stories, and reels',
+    color: '#E1306C',
+  },
+  quantcooks: {
+    name: 'QuantCooks',
+    description: 'Professional AI video and photo creation and editing suite',
+    color: '#9B59B6',
   },
   quantads: {
     name: 'QuantAds',
@@ -31,16 +41,6 @@ export const QUANT_APPS: Record<QuantApp, { name: string; description: string; c
     description: 'Video and music streaming platform',
     color: '#FF0000',
   },
-  quantneon: {
-    name: 'QuantNeon',
-    description: 'Photo and video sharing with filters and stories',
-    color: '#E1306C',
-  },
-  quantedits: {
-    name: 'QuantEdits',
-    description: 'Professional video and photo editing suite',
-    color: '#9B59B6',
-  },
   quantmax: {
     name: 'QuantMax',
     description: 'Short-form video, live video chat, and dating',
@@ -50,6 +50,26 @@ export const QUANT_APPS: Record<QuantApp, { name: string; description: string; c
     name: 'QuantAI',
     description: 'Central AI hub for the ecosystem with device control',
     color: '#00D4AA',
+  },
+  quanttrinity: {
+    name: 'QuantTrinity',
+    description: 'Central owner administrative brain and ecosystem governance',
+    color: '#6366F1',
+  },
+  quantsync: {
+    name: 'QuantSync',
+    description: 'Social feed with posts, threads, and communities',
+    color: '#1DA1F2',
+  },
+  quantneon: {
+    name: 'QuantNeon',
+    description: 'Photo and video sharing with filters and stories',
+    color: '#E1306C',
+  },
+  quantedits: {
+    name: 'QuantEdits',
+    description: 'Professional video and photo editing suite',
+    color: '#9B59B6',
   },
   quantdocs: {
     name: 'QuantDocs',
