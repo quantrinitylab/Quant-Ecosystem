@@ -1,4 +1,4 @@
-﻿export interface RepositoryTreeEntry {
+export interface RepositoryTreeEntry {
   mode: string;
   type: 'blob' | 'tree';
   sha: string;
@@ -46,6 +46,11 @@ export interface RepositoryInspectionPort {
 
 export interface RepositoryProvisioningPort {
   provision(input: { owner: string; name: string }): Promise<{ storagePath: string }>;
+  archive(input: {
+    owner: string;
+    name: string;
+    tombstoneName: string;
+  }): Promise<{ storagePath: string | null }>;
   destroy(input: { owner: string; name: string }): Promise<void>;
 }
 

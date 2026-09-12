@@ -226,6 +226,39 @@ describe('RepoStorageService', () => {
 
     await expect(readFile(sentinel, 'utf8')).resolves.toBe('preserve me');
   });
+
+  it('archives storage and recreates the same name without adopting history', async () => {
+    const name = 'reusable-name';
+    const originalPath = await repoStorage.initBareRepo(owner, name);
+    const originalCommit = await createCommit(
+      originalPath,
+      'SECRET.md',
+      'deleted repository data\n',
+      'Deleted repository commit',
+    );
+    git(originalPath, ['update-ref', 'refs/heads/main', originalCommit]);
+
+    const tombstoneName = `${name}-deleted-1726123456789`;
+    const tombstonePath = await repoStorage.archiveRepo(owner, name, tombstoneName);
+    expect(tombstonePath).toBe(repoStorage.getRepoPath(owner, tombstoneName));
+    await expect(access(originalPath)).rejects.toThrow();
+    await expect(access(tombstonePath!)).resolves.toBeUndefined();
+    expect(git(tombstonePath!, ['rev-parse', 'refs/heads/main'])).toBe(originalCommit);
+
+    const recreatedPath = await repoStorage.initBareRepo(owner, name);
+    expect(git(recreatedPath, ['for-each-ref', '--format=%(refname)'])).toBe('');
+    expect(() => git(recreatedPath, ['cat-file', '-e', `${originalCommit}^{commit}`])).toThrow();
+  });
+
+  it('fails closed rather than adopting an existing bare repository', async () => {
+    const name = 'storage-conflict';
+    await repoStorage.initBareRepo(owner, name);
+
+    await expect(repoStorage.initBareRepo(owner, name)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'REPOSITORY_STORAGE_CONFLICT',
+    });
+  });
 });
 
 describe('Git upload-pack and receive-pack services', () => {

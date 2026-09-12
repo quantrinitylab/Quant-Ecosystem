@@ -1,10 +1,21 @@
 import { execFile } from 'node:child_process';
-import { access, mkdir, rm } from 'node:fs/promises';
+import { access, mkdir, rename, rm } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
+import { createAppError } from '@quant/server-core';
 import { GIT_CHILD_ENV } from './git-child-env';
 
 const execFileAsync = promisify(execFile);
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
 
 export class RepoStorageService {
   private readonly basePath: string;
@@ -38,14 +49,15 @@ export class RepoStorageService {
 
   async initBareRepo(owner: string, name: string): Promise<string> {
     const repoPath = this.getRepoPath(owner, name);
-    let existedBeforeInit = false;
-    try {
-      await access(repoPath);
-      existedBeforeInit = true;
-    } catch {
-      // A missing path is the normal first-provisioning case.
+    if (await this.repoExists(owner, name)) {
+      throw createAppError(
+        'Repository storage already contains Git history',
+        409,
+        'REPOSITORY_STORAGE_CONFLICT',
+      );
     }
 
+    const existedBeforeInit = await pathExists(repoPath);
     await mkdir(repoPath, { recursive: true });
     try {
       await execFileAsync('git', ['init', '--bare', repoPath], { env: GIT_CHILD_ENV });
@@ -60,16 +72,27 @@ export class RepoStorageService {
     }
   }
 
+  async archiveRepo(owner: string, name: string, tombstoneName: string): Promise<string | null> {
+    const sourcePath = this.getRepoPath(owner, name);
+    const tombstonePath = this.getRepoPath(owner, tombstoneName);
+    if (!(await pathExists(sourcePath))) return null;
+    if (await pathExists(tombstonePath)) {
+      throw createAppError(
+        'Repository tombstone storage already exists',
+        409,
+        'REPOSITORY_STORAGE_CONFLICT',
+      );
+    }
+
+    await rename(sourcePath, tombstonePath);
+    return tombstonePath;
+  }
+
   async deleteRepo(owner: string, name: string): Promise<void> {
     await rm(this.getRepoPath(owner, name), { recursive: true, force: true });
   }
 
   async repoExists(owner: string, name: string): Promise<boolean> {
-    try {
-      await access(join(this.getRepoPath(owner, name), 'HEAD'));
-      return true;
-    } catch {
-      return false;
-    }
+    return pathExists(join(this.getRepoPath(owner, name), 'HEAD'));
   }
 }

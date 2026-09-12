@@ -158,6 +158,9 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     } catch (error) {
       await prisma.repository.delete({ where: { id: created.id } });
       request.log.error({ err: error, repoId: created.id }, 'repository provisioning failed');
+      if ((error as { code?: string }).code === 'REPOSITORY_STORAGE_CONFLICT') {
+        throw error;
+      }
       throw createAppError(
         'Repository storage could not be provisioned',
         503,
@@ -338,11 +341,31 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
     if (repo.ownerId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
     const deletedAt = new Date();
-    const deletedName = `${repo.name}-deleted-${deletedAt.getTime()}`;
-    await prisma.repository.update({
-      where: { id: request.params.id },
-      data: { deletedAt, name: deletedName },
+    const tombstoneName = `${repo.name}-deleted-${deletedAt.getTime()}`;
+    const { storagePath } = await provisioningPort().archive({
+      owner: repo.ownerId,
+      name: repo.name,
+      tombstoneName,
     });
+    try {
+      await prisma.repository.update({
+        where: { id: request.params.id },
+        data: {
+          deletedAt,
+          name: tombstoneName,
+          storagePathUrl: storagePath ?? repo.storagePathUrl,
+        },
+      });
+    } catch (error) {
+      if (storagePath) {
+        await provisioningPort().archive({
+          owner: repo.ownerId,
+          name: tombstoneName,
+          tombstoneName: repo.name,
+        });
+      }
+      throw error;
+    }
     // Astra GT-12: soft delete preserves the on-disk bare repository for recovery.
     return reply.send({ success: true, data: { message: 'Repository deleted' } });
   });

@@ -1,4 +1,4 @@
-﻿import type { RepositoryInspectionPort, RepositoryProvisioningPort } from '@quant/server-core';
+import type { RepositoryInspectionPort, RepositoryProvisioningPort } from '@quant/server-core';
 import { GitInspectService, RepoStorageService } from '../services/git-transport';
 
 export class GitInspectAdapter implements RepositoryInspectionPort {
@@ -24,6 +24,14 @@ export class GitProvisioningAdapter implements RepositoryProvisioningPort {
   constructor(private readonly storage: RepoStorageService = new RepoStorageService()) {}
   async provision(input: Parameters<RepositoryProvisioningPort['provision']>[0]) {
     const storagePath = await this.storage.initBareRepo(input.owner, input.name);
+    return { storagePath };
+  }
+  async archive(input: Parameters<RepositoryProvisioningPort['archive']>[0]) {
+    const storagePath = await this.storage.archiveRepo(
+      input.owner,
+      input.name,
+      input.tombstoneName,
+    );
     return { storagePath };
   }
   destroy(input: Parameters<RepositoryProvisioningPort['destroy']>[0]) {

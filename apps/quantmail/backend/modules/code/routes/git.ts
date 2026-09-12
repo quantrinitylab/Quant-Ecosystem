@@ -138,6 +138,9 @@ export default async function gitRoutes(fastify: FastifyInstance) {
     } catch (error) {
       await prisma.repository.delete({ where: { id: repo.id } });
       request.log.error({ err: error, repoId: repo.id }, 'repository provisioning failed');
+      if ((error as { code?: string }).code === 'REPOSITORY_STORAGE_CONFLICT') {
+        throw error;
+      }
       throw createAppError(
         'Repository storage could not be provisioned',
         503,
@@ -169,11 +172,27 @@ export default async function gitRoutes(fastify: FastifyInstance) {
         throw createAppError('Not authorized to delete this repository', 403, 'FORBIDDEN');
       }
       const deletedAt = new Date();
-      const deletedName = `${repo.name}-deleted-${deletedAt.getTime()}`;
-      await prisma.repository.update({
-        where: { id: repo.id },
-        data: { deletedAt, name: deletedName },
-      });
+      const tombstoneName = `${repo.name}-deleted-${deletedAt.getTime()}`;
+      const archivedStoragePath = await repoStorage.archiveRepo(
+        repo.ownerId,
+        repo.name,
+        tombstoneName,
+      );
+      try {
+        await prisma.repository.update({
+          where: { id: repo.id },
+          data: {
+            deletedAt,
+            name: tombstoneName,
+            storagePathUrl: archivedStoragePath ?? repo.storagePathUrl,
+          },
+        });
+      } catch (error) {
+        if (archivedStoragePath) {
+          await repoStorage.archiveRepo(repo.ownerId, tombstoneName, repo.name);
+        }
+        throw error;
+      }
       return reply.send({ success: true, data: { deleted: true, recoverable: true } });
     },
   );
