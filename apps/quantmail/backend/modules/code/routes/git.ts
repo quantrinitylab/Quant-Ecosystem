@@ -106,11 +106,26 @@ export default async function gitRoutes(fastify: FastifyInstance) {
         visibility: body.visibility,
         defaultBranch: body.defaultBranch,
         ownerId: userId,
+        storagePathUrl: null,
       },
     });
 
-    await repoStorage.initBareRepo(repo.ownerId, repo.name);
-    return reply.send({ success: true, data: repo });
+    try {
+      const storagePathUrl = await repoStorage.initBareRepo(repo.ownerId, repo.name);
+      const provisioned = await prisma.repository.update({
+        where: { id: repo.id },
+        data: { storagePathUrl },
+      });
+      return reply.status(201).send({ success: true, data: provisioned });
+    } catch (error) {
+      await prisma.repository.delete({ where: { id: repo.id } });
+      request.log.error({ err: error, repoId: repo.id }, 'repository provisioning failed');
+      throw createAppError(
+        'Repository storage could not be provisioned',
+        503,
+        'STORAGE_UNAVAILABLE',
+      );
+    }
   });
 
   fastify.get<{ Params: { owner: string; name: string } }>(
@@ -118,8 +133,7 @@ export default async function gitRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       getUserId(request);
       const { owner, name } = request.params;
-      const repo = await prisma.repository.findFirst({ where: { ownerId: owner, name } });
-      if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+      const repo = await loadReadableRepository(request, owner, name);
       return reply.send({ success: true, data: repo });
     },
   );
@@ -129,14 +143,18 @@ export default async function gitRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const userId = getUserId(request);
       const { owner, name } = request.params;
-      const repo = await prisma.repository.findFirst({ where: { ownerId: owner, name } });
+      const repo = await prisma.repository.findFirst({
+        where: { ownerId: owner, name, deletedAt: null },
+      });
       if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
       if (repo.ownerId !== userId) {
         throw createAppError('Not authorized to delete this repository', 403, 'FORBIDDEN');
       }
-      await prisma.repository.delete({ where: { id: repo.id } });
-      await repoStorage.deleteRepo(owner, name);
-      return reply.send({ success: true, data: { deleted: true } });
+      await prisma.repository.update({
+        where: { id: repo.id },
+        data: { deletedAt: new Date() },
+      });
+      return reply.send({ success: true, data: { deleted: true, recoverable: true } });
     },
   );
 
@@ -146,7 +164,9 @@ export default async function gitRoutes(fastify: FastifyInstance) {
       const userId = getUserId(request);
       const { owner, name } = request.params;
       const body = UpdateRepoSchema.parse(request.body);
-      const repo = await prisma.repository.findFirst({ where: { ownerId: owner, name } });
+      const repo = await prisma.repository.findFirst({
+        where: { ownerId: owner, name, deletedAt: null },
+      });
       if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
       if (repo.ownerId !== userId) {
         throw createAppError('Not authorized to update this repository', 403, 'FORBIDDEN');
@@ -161,8 +181,7 @@ export default async function gitRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       getUserId(request);
       const { owner, name } = request.params;
-      const repo = await prisma.repository.findFirst({ where: { ownerId: owner, name } });
-      if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+      const repo = await loadReadableRepository(request, owner, name);
       const branches = await prisma.branch.findMany({
         where: { repoId: repo.id },
         orderBy: { name: 'asc' },
@@ -177,8 +196,7 @@ export default async function gitRoutes(fastify: FastifyInstance) {
       const userId = getUserId(request);
       const { owner, name } = request.params;
       const body = PushRefsSchema.parse(request.body);
-      const repo = await prisma.repository.findFirst({ where: { ownerId: owner, name } });
-      if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+      const repo = await loadReadableRepository(request, owner, name);
       const result = await gitService.pushRefs(userId, repo.id, body.refs);
       return reply.send({ success: true, data: result });
     },
