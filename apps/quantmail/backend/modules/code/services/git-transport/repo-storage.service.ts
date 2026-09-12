@@ -38,13 +38,24 @@ export class RepoStorageService {
 
   async initBareRepo(owner: string, name: string): Promise<string> {
     const repoPath = this.getRepoPath(owner, name);
+    let existedBeforeInit = false;
+    try {
+      await access(repoPath);
+      existedBeforeInit = true;
+    } catch {
+      // A missing path is the normal first-provisioning case.
+    }
+
     await mkdir(repoPath, { recursive: true });
     try {
       await execFileAsync('git', ['init', '--bare', repoPath], { env: GIT_CHILD_ENV });
       await access(join(repoPath, 'HEAD'));
       return repoPath;
     } catch (error) {
-      await rm(repoPath, { recursive: true, force: true });
+      // GZ-01: rollback owns only storage created by this invocation.
+      if (!existedBeforeInit) {
+        await rm(repoPath, { recursive: true, force: true });
+      }
       throw error;
     }
   }

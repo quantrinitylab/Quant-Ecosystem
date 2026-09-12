@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { access, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -214,6 +214,18 @@ describe('RepoStorageService', () => {
     await repoStorage.deleteRepo(owner, 'delete-repo');
     await expect(repoStorage.repoExists(owner, 'delete-repo')).resolves.toBe(false);
   });
+
+  it('never removes a repository path that existed before a failed initialization', async () => {
+    const repoPath = repoStorage.getRepoPath(owner, 'pre-existing-storage');
+    await mkdir(repoPath, { recursive: true });
+    await writeFile(join(repoPath, 'objects'), 'not-a-directory', 'utf8');
+    const sentinel = join(repoPath, 'do-not-delete.txt');
+    await writeFile(sentinel, 'preserve me', 'utf8');
+
+    await expect(repoStorage.initBareRepo(owner, 'pre-existing-storage')).rejects.toThrow();
+
+    await expect(readFile(sentinel, 'utf8')).resolves.toBe('preserve me');
+  });
 });
 
 describe('Git upload-pack and receive-pack services', () => {
@@ -334,8 +346,8 @@ describe('Git upload-pack and receive-pack services', () => {
       `${address.replace('http://', `http://x-access-token:${generated.token}@`)}` +
       `/repos/${e2eOwner}/${e2eName}.git`;
 
-    const pushFeature = await new Promise<{ code: number | null; stderr: string }>((resolve) => {
-      const child = spawn('git', ['push', remote, 'HEAD:refs/heads/feature'], {
+    const pushMain = await new Promise<{ code: number | null; stderr: string }>((resolve) => {
+      const child = spawn('git', ['push', remote, 'HEAD:refs/heads/main'], {
         cwd: work,
         env: process.env,
       });
@@ -345,13 +357,29 @@ describe('Git upload-pack and receive-pack services', () => {
       });
       child.on('close', (code) => resolve({ code, stderr }));
     });
-    expect(pushFeature.code).toBe(0);
+    expect(pushMain.code).toBe(0);
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({ repoId: 'e2e-repo-id', name: 'feature' }),
+        create: expect.objectContaining({ repoId: 'e2e-repo-id', name: 'main' }),
       }),
     );
 
+    const acceptedSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: work,
+      encoding: 'utf8',
+    }).trim();
+    await writeFile(join(work, 'README.md'), 'rejected update\n', 'utf8');
+    execFileSync('git', ['add', 'README.md'], { cwd: work });
+    execFileSync('git', ['commit', '-m', 'protected update'], {
+      cwd: work,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: 'E2E',
+        GIT_AUTHOR_EMAIL: 'e2e@example.test',
+        GIT_COMMITTER_NAME: 'E2E',
+        GIT_COMMITTER_EMAIL: 'e2e@example.test',
+      },
+    });
     protectedBranch = 'main';
     const rejected = await new Promise<{ code: number | null; stderr: string }>((resolve) => {
       const child = spawn('git', ['push', remote, 'HEAD:refs/heads/main'], {
@@ -366,7 +394,7 @@ describe('Git upload-pack and receive-pack services', () => {
     });
     expect(rejected.code).not.toBe(0);
     expect(rejected.stderr).toContain('Direct push to protected branch is not allowed');
-    expect(() => git(e2ePath, ['rev-parse', 'refs/heads/main'])).toThrow();
+    expect(git(e2ePath, ['rev-parse', 'refs/heads/main'])).toBe(acceptedSha);
     await app.close();
   }, 30_000);
 });

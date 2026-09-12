@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 try {
   const commands = readFileSync(0, 'utf8').split('\n').filter(Boolean).map((line) => {
@@ -15,7 +16,7 @@ try {
     repoId: process.env.QUANTCODE_REPO_ID,
     userId: process.env.QUANTCODE_PUSHER_ID,
     quarantinePath: process.env.GIT_QUARANTINE_PATH ?? null,
-    gitDir: process.env.GIT_DIR ?? process.cwd(),
+    gitDir: resolve(process.env.GIT_DIR ?? process.cwd()),
     commands,
   });
   const signature = createHmac('sha256', secret).update(payload).digest('hex');

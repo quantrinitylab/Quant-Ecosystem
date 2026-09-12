@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 const required = (name) => {
   const value = process.env[name];
   if (!value) throw new Error(`Missing ${name}`);
@@ -28,7 +29,7 @@ try {
     repoId: required('QUANTCODE_REPO_ID'),
     userId: required('QUANTCODE_PUSHER_ID'),
     quarantinePath: process.env.GIT_QUARANTINE_PATH ?? null,
-    gitDir: process.env.GIT_DIR ?? process.cwd(),
+    gitDir: resolve(process.env.GIT_DIR ?? process.cwd()),
     commands,
   });
   const signature = createHmac("sha256", secret).update(payload).digest('hex');
