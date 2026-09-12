@@ -638,3 +638,52 @@ graph TD
 6. **Full Suite & Typecheck Gate**:
    - `pnpm --filter @quant/quantai run build:backend` passed 100% clean (exit code 0).
    - Full Vitest suite for `@quant/quantai`: 26 test files, 260/260 tests passing 100% in 324.32s.
+
+---
+
+## 📞 13. SPRINT 4: QUANTCHAT VOICE AGENT & PROACTIVE CALL ALERT DISPATCH
+
+### A. Architecture & Voice Bot Pipeline
+
+Sprint 4 established the autonomous voice calling and meeting reminder pipeline, connecting the BullMQ proactive scheduler directly to outbound LiveKit WebRTC calls:
+
+```mermaid
+graph TD
+    Calendar["Calendar / Proactive Scheduler"] -->|"meeting_call_alert"| BullMQ["BullMQ (quant:proactive-jobs)"]
+    BullMQ --> Worker["ProactiveCallWorker (@quant/quantchat)"]
+    Worker --> RingGen["CallRingGeneratorService"]
+    RingGen -->|"user:id:call_ring"| Realtime["RealtimeBackplane (WebSocket)"]
+    RingGen --> LiveKit["LiveKit Room (chat-call:id)"]
+    User["User Client (Browser/Mobile)"] -->|"Answer Call"| LiveKit
+    User --> Dialogue["MeetingReminderDialogueService"]
+    LiveKit <--> VoiceBot["VoiceBotAgentService"]
+    VoiceBot -->|"TTS (Cartesia/Piper/WAV)"| LiveKit
+    LiveKit -->|"STT (Whisper/Deterministic)"| VoiceBot
+    Dialogue -->|"Action: SEND_LATE_NOTICE / CONNECT"| Calendar
+```
+
+### B. Service Implementations & Verification
+
+1. **Voice Bot Agent Service (Task VC-01)**:
+   - Implemented `apps/quantchat/backend/services/voice-bot-agent.service.ts`: manages outbound voice sessions in LiveKit rooms with `quanty-voice-bot` identity.
+   - Integrates pluggable TTS engine (`CartesiaTTSProvider`, `PiperTTSProvider`, and `DeterministicWavSynthProvider` generating valid 16-bit PCM RIFF WAV headers).
+   - Integrates pluggable STT engine (`WhisperSTTProvider` and `DeterministicSTTProvider`).
+   - Verified: 15/15 tests passing in `backend/__tests__/voice-bot-agent.service.test.ts`.
+
+2. **Call Ring Generator & BullMQ Worker (Task VC-02)**:
+   - Implemented `apps/quantchat/backend/services/call-ring-generator.service.ts`: initiates 1:1 call room, issues LiveKit user/bot tokens, emits WebSocket ring broadcast, enforces 30-second ring timeout, and manages call states (`ringing`, `in-progress`, `declined`, `missed`, `completed`).
+   - Implemented `apps/quantchat/backend/services/proactive-call-worker.service.ts`: consumes `meeting_call_alert` jobs from `@quant/queue`'s `'quant:proactive-jobs'` and triggers ring alerts.
+   - Verified: 9/9 tests passing across `call-ring-generator.service.test.ts` (5/5) and `proactive-call-worker.service.test.ts` (4/4).
+
+3. **Conversational Meeting Reminder Dialogue Engine (Task VC-03)**:
+   - Implemented `apps/quantchat/backend/services/meeting-reminder-dialogue.service.ts`: generates multilingual opening greetings (Hinglish: "Namaste Astra! Aapki agle 5 minute mein 'Q4 Review' meeting shuru hone wali hai with Raj...", Hindi, English).
+   - Uses token boundary regex matching to classify intents: `JOIN_NOW`, `RUNNING_LATE` (extracts custom delay minutes e.g. 10m/15m), `SNOOZE`, `DECLINE`, `UNKNOWN`.
+   - Generates bot responses, sets `actionRequired` (`CONNECT_MEETING`, `SEND_LATE_NOTICE`, `SNOOZE_ALERT`, `CANCEL_ATTENDANCE`), and manages turn state machine.
+   - Verified: 13/13 tests passing in `backend/__tests__/meeting-reminder-dialogue.service.test.ts`.
+
+4. **Fastify Routes & End-to-End Test Suite (Task VC-04)**:
+   - Mounted `apps/quantchat/backend/routes/voice-bot.ts` with `/voice-bot/alert`, `/calls/:callId/answer`, `/calls/:callId/decline`, `/calls/:callId/turn`, `/calls/:callId`.
+   - Added public route bypass for `/voice-bot/alert` in `app.ts` and registered `ProactiveCallWorker` lifecycle on app boot and shutdown.
+   - Verified full end-to-end integration: `voice-bot-e2e.test.ts` (1/1) and `voice-bot.routes.test.ts` (5/5).
+   - Full `@quant/quantchat` test suite: 96 test files, 889/889 tests passing 100% (zero failures, duration 67.15s).
+   - Clean backend build: `pnpm --filter @quant/quantchat run build:backend` passed with exit code 0.

@@ -1,5 +1,6 @@
 export { TypedQueue, type TypedQueueOptions } from './queue-manager.js';
 export { createTypedWorker, type TypedWorkerOptions, type TypedJob } from './worker-factory.js';
+export type { Worker } from 'bullmq';
 export {
   SendEmailJobSchema,
   type SendEmailJob,

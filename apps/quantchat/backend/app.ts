@@ -25,6 +25,8 @@ import channelsRoutes from './routes/channels';
 import voiceNoteRoutes from './routes/voice-notes';
 import mapRoutes from './routes/map';
 import meetingsRoutes from './routes/meetings';
+import voiceBotRoutes, { createVoiceBotServices } from './routes/voice-bot';
+import { ProactiveCallWorker } from './services/proactive-call-worker.service';
 import { websocketRoutes } from './routes/websocket';
 import { InMemoryE2EERelay } from './lib/e2ee-relay';
 import { AutoReplyManager } from './lib/auto-reply-manager';
@@ -63,6 +65,7 @@ export function getConfig(): AppConfig {
       '/auth/otp/request',
       '/auth/otp/verify',
       '/meetings/webhooks/livekit',
+      '/voice-bot/alert',
     ],
   };
 }
@@ -71,7 +74,10 @@ export async function buildApp(config?: AppConfig) {
   const appConfig = config ?? getConfig();
   const app = await createApp(appConfig);
 
-  app.decorate('otpService', new OtpService(new LoggingSmsSender((message) => app.log.info(message))));
+  app.decorate(
+    'otpService',
+    new OtpService(new LoggingSmsSender((message) => app.log.info(message))),
+  );
   app.decorate(
     'sessionTokens',
     new SessionTokenIssuer({
@@ -99,8 +105,22 @@ export async function buildApp(config?: AppConfig) {
   await app.register(encryptionRoutes, { prefix: '/encryption' });
   await app.register(mediaRoutes, { prefix: '/media' });
   await app.register(callsRoutes, { prefix: '/calls' });
+  await app.register(voiceBotRoutes, { prefix: '/voice-bot' });
   await app.register(aiRoutes, { prefix: '/ai' });
   await app.register(meetingsRoutes, { prefix: '/meetings' });
+
+  const voiceBotServices = createVoiceBotServices(app);
+  const proactiveCallWorker = new ProactiveCallWorker({
+    redisUrl: appConfig.redisUrl,
+    ringGenerator: voiceBotServices.ringGenerator,
+    onError: (err) => app.log.error({ err }, 'proactive call worker error'),
+  });
+  if (appConfig.env !== 'test') {
+    proactiveCallWorker.start();
+  }
+  app.addHook('onClose', async () => {
+    await proactiveCallWorker.stop();
+  });
 
   const autoReplyManager = new AutoReplyManager();
   app.decorate('autoReplyManager', autoReplyManager);

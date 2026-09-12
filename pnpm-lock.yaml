@@ -433,6 +433,9 @@ importers:
       '@quant/notifications':
         specifier: workspace:*
         version: link:../../packages/notifications
+      '@quant/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
