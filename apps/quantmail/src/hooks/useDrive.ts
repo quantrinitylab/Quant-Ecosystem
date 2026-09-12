@@ -7,6 +7,7 @@ import { useState, useCallback, useRef } from 'react';
 import { logger } from '@quant/common';
 import { browserApiRequest as apiRequest } from '../services/browser-api-request';
 import { browserAuthSession } from '../services/browser-auth-session';
+import { getUploadBatchError } from '../lib/drive-upload-results';
 
 interface DriveFile {
   id: string;
@@ -53,7 +54,7 @@ interface UseDriveReturn {
   breadcrumbs: { id: string | null; name: string }[];
   fetchFiles: (folderId?: string | null) => Promise<void>;
   uploadFiles: (files: File[]) => Promise<void>;
-  createFolder: (name: string, parentId?: string | null) => Promise<DriveFile | null>;
+  createFolder: (name: string, parentId?: string | null) => Promise<DriveFile>;
   deleteFiles: (fileIds: string[]) => Promise<void>;
   renameFile: (fileId: string, newName: string) => Promise<void>;
   moveFiles: (fileIds: string[], targetFolderId: string) => Promise<void>;
@@ -137,6 +138,8 @@ export function useDrive(): UseDriveReturn {
 
   const uploadFiles = useCallback(
     async (fileList: File[]) => {
+      setError(null);
+      const failures: string[] = [];
       const newUploads: UploadProgress[] = fileList.map((file, i) => ({
         fileId: `upload-${Date.now()}-${i}`,
         fileName: file.name,
@@ -195,12 +198,12 @@ export function useDrive(): UseDriveReturn {
                 detachAbort();
                 if (xhr.status === 401 && allowRefreshRetry) {
                   void (async () => {
-                    const refreshed = await browserAuthSession.refresh();
-                    if (!refreshed.success || !browserAuthSession.getAccessToken()) {
-                      reject(new Error('Upload authorization failed'));
-                      return;
-                    }
                     try {
+                      const refreshed = await browserAuthSession.refresh();
+                      if (!refreshed.success || !browserAuthSession.getAccessToken()) {
+                        reject(new Error('Upload authorization failed'));
+                        return;
+                      }
                       await uploadOnce(false);
                       resolve();
                     } catch (retryError) {
@@ -247,6 +250,7 @@ export function useDrive(): UseDriveReturn {
           );
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : 'Upload failed';
+          failures.push(errorMsg);
           setUploads((prev) =>
             prev.map((u) =>
               u.fileId === uploadId ? { ...u, status: 'error' as const, error: errorMsg } : u,
@@ -257,12 +261,17 @@ export function useDrive(): UseDriveReturn {
         }
       }
       await fetchFiles();
+      const batchError = getUploadBatchError(fileList.length, failures);
+      if (batchError) {
+        setError(batchError);
+        throw new Error(batchError);
+      }
     },
     [currentFolderId, fetchFiles],
   );
 
   const createFolder = useCallback(
-    async (name: string, parentId?: string | null): Promise<DriveFile | null> => {
+    async (name: string, parentId?: string | null): Promise<DriveFile> => {
       try {
         const response = await apiRequest('/api/drive/folders', {
           method: 'POST',
@@ -276,8 +285,9 @@ export function useDrive(): UseDriveReturn {
         setFiles((prev) => [folder, ...prev]);
         return folder;
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Create failed');
-        return null;
+        const message = err instanceof Error ? err.message : 'Create failed';
+        setError(message);
+        throw new Error(message);
       }
     },
     [currentFolderId],
