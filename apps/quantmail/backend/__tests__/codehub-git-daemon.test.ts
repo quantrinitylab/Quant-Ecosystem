@@ -1,11 +1,13 @@
 // @vitest-environment node
 
-import { execFileSync } from 'node:child_process';
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { access, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { generatePersonalAccessToken } from '@quant/auth';
 import { errorHandlerPlugin } from '@quant/server-core';
 import gitRoutes from '../modules/code/routes/git';
 import gitTransportRoutes from '../modules/code/routes/git-transport';
@@ -234,6 +236,139 @@ describe('Git upload-pack and receive-pack services', () => {
     expect(refs.length).toBeGreaterThan(0);
     expect(refs.toString('utf8')).toContain('capabilities^{}');
   });
+
+  it('ships executable hook files without a UTF-8 BOM', async () => {
+    for (const name of ['pre-receive', 'post-receive']) {
+      const hookDir = resolve(fileURLToPath(new URL('../modules/code/git-hooks', import.meta.url)));
+      const path = join(hookDir, name);
+      const [content, metadata] = await Promise.all([readFile(path), stat(path)]);
+      expect(content[0]).toBe(0x23);
+      expect(content.subarray(0, 2).toString('utf8')).toBe('#!');
+      if (process.platform !== 'win32') {
+        expect(metadata.mode & 0o111).not.toBe(0);
+      } else {
+        const ls = execFileSync('git', ['ls-files', '-s', path], { encoding: 'utf8' });
+        expect(ls).toMatch(/^100755/);
+      }
+    }
+  });
+
+  it('rejects protected Smart HTTP pushes and synchronizes accepted branches', async () => {
+    const e2eOwner = 'e2e-owner';
+    const e2eName = 'e2e-repo';
+    const e2ePath = await repoStorage.initBareRepo(e2eOwner, e2eName);
+    const generated = generatePersonalAccessToken();
+    let protectedBranch: string | null = null;
+    const upsert = vi.fn(async () => ({}));
+    const e2ePrisma = {
+      repository: {
+        findFirst: vi.fn(async () => ({
+          id: 'e2e-repo-id',
+          ownerId: e2eOwner,
+          name: e2eName,
+          visibility: 'PRIVATE',
+          defaultBranch: 'main',
+          storagePathUrl: e2ePath,
+          deletedAt: null,
+        })),
+      },
+      personalAccessToken: {
+        findUnique: vi.fn(async ({ where }: { where: { tokenId: string } }) =>
+          where.tokenId === generated.tokenId
+            ? {
+                id: 'e2e-pat-id',
+                tokenId: generated.tokenId,
+                tokenHash: generated.tokenHash,
+                userId: e2eOwner,
+                scopes: ['repo:read', 'repo:write'],
+                expiresAt: new Date('2099-01-01T00:00:00Z'),
+                revokedAt: null,
+                lastUsedAt: new Date(),
+              }
+            : null,
+        ),
+        update: vi.fn(),
+      },
+      branchProtection: {
+        findMany: vi.fn(async () =>
+          protectedBranch
+            ? [
+                {
+                  id: 'e2e-rule-id',
+                  repoId: 'e2e-repo-id',
+                  branchPattern: protectedBranch,
+                  requiredApprovals: 1,
+                  requireStatusChecks: false,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                },
+              ]
+            : [],
+        ),
+      },
+      branch: { upsert, deleteMany: vi.fn() },
+      $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(e2ePrisma)),
+    };
+
+    const app = Fastify();
+    await app.register(errorHandlerPlugin);
+    app.decorate('prisma', e2ePrisma as never);
+    await app.register(gitTransportRoutes);
+    const address = await app.listen({ host: '127.0.0.1', port: 0 });
+
+    const work = join(testRoot, 'e2e-work');
+    execFileSync('git', ['init', work]);
+    await writeFile(join(work, 'README.md'), 'accepted\n', 'utf8');
+    execFileSync('git', ['add', 'README.md'], { cwd: work });
+    execFileSync('git', ['commit', '-m', 'accepted'], {
+      cwd: work,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: 'E2E',
+        GIT_AUTHOR_EMAIL: 'e2e@example.test',
+        GIT_COMMITTER_NAME: 'E2E',
+        GIT_COMMITTER_EMAIL: 'e2e@example.test',
+      },
+    });
+    const remote =
+      `${address.replace('http://', `http://x-access-token:${generated.token}@`)}` +
+      `/repos/${e2eOwner}/${e2eName}.git`;
+
+    const pushFeature = await new Promise<{ code: number | null; stderr: string }>((resolve) => {
+      const child = spawn('git', ['push', remote, 'HEAD:refs/heads/feature'], {
+        cwd: work,
+        env: process.env,
+      });
+      let stderr = '';
+      child.stderr.on('data', (d) => {
+        stderr += d.toString();
+      });
+      child.on('close', (code) => resolve({ code, stderr }));
+    });
+    expect(pushFeature.code).toBe(0);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ repoId: 'e2e-repo-id', name: 'feature' }),
+      }),
+    );
+
+    protectedBranch = 'main';
+    const rejected = await new Promise<{ code: number | null; stderr: string }>((resolve) => {
+      const child = spawn('git', ['push', remote, 'HEAD:refs/heads/main'], {
+        cwd: work,
+        env: process.env,
+      });
+      let stderr = '';
+      child.stderr.on('data', (d) => {
+        stderr += d.toString();
+      });
+      child.on('close', (code) => resolve({ code, stderr }));
+    });
+    expect(rejected.code).not.toBe(0);
+    expect(rejected.stderr).toContain('Direct push to protected branch is not allowed');
+    expect(() => git(e2ePath, ['rev-parse', 'refs/heads/main'])).toThrow();
+    await app.close();
+  }, 30_000);
 });
 
 describe('LocalGitServerPort', () => {
