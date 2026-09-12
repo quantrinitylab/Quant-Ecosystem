@@ -30,12 +30,13 @@ export interface HttpAppConnectorsOptions {
 }
 
 function envUrls(): HttpConnectorUrls {
+  const mailUrl = process.env['QUANTMAIL_BACKEND_URL'];
   return {
-    mail: process.env['QUANTMAIL_BACKEND_URL'],
+    mail: mailUrl,
     chat: process.env['QUANTCHAT_BACKEND_URL'],
-    docs: process.env['QUANTDOCS_BACKEND_URL'],
-    calendar: process.env['QUANTCALENDAR_BACKEND_URL'],
-    drive: process.env['QUANTDRIVE_BACKEND_URL'],
+    docs: process.env['QUANTDOCS_BACKEND_URL'] || mailUrl,
+    calendar: process.env['QUANTCALENDAR_BACKEND_URL'] || mailUrl,
+    drive: process.env['QUANTDRIVE_BACKEND_URL'] || mailUrl,
   };
 }
 

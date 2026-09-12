@@ -610,6 +610,69 @@ export class EmailService {
     });
   }
 
+  async batchMarkRead(
+    emailIds: string[],
+    userId: string,
+    isRead = true,
+  ): Promise<{ count: number }> {
+    if (emailIds.length === 0) return { count: 0 };
+    const result = await this.prisma.email.updateMany({
+      where: {
+        id: { in: emailIds },
+        userId,
+        deletedAt: null,
+      },
+      data: { isRead },
+    });
+    return { count: result.count };
+  }
+
+  async batchArchive(
+    emailIds: string[],
+    archiveFolderId: string,
+    userId: string,
+  ): Promise<{ count: number }> {
+    if (emailIds.length === 0) return { count: 0 };
+    const result = await this.prisma.email.updateMany({
+      where: {
+        id: { in: emailIds },
+        userId,
+        deletedAt: null,
+      },
+      data: { folderId: archiveFolderId },
+    });
+    return { count: result.count };
+  }
+
+  async batchDelete(emailIds: string[], userId: string, hard = false): Promise<{ count: number }> {
+    if (emailIds.length === 0) return { count: 0 };
+    if (hard) {
+      const result = await this.prisma.email.updateMany({
+        where: { id: { in: emailIds }, userId },
+        data: { deletedAt: new Date() },
+      });
+      return { count: result.count };
+    }
+    const result = await this.prisma.email.updateMany({
+      where: { id: { in: emailIds }, userId, deletedAt: null },
+      data: { isTrash: true },
+    });
+    return { count: result.count };
+  }
+
+  async batchStar(
+    emailIds: string[],
+    userId: string,
+    isStarred = true,
+  ): Promise<{ count: number }> {
+    if (emailIds.length === 0) return { count: 0 };
+    const result = await this.prisma.email.updateMany({
+      where: { id: { in: emailIds }, userId, deletedAt: null },
+      data: { isStarred },
+    });
+    return { count: result.count };
+  }
+
   async search(
     userId: string,
     query: string,

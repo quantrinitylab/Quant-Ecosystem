@@ -1036,4 +1036,68 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
 
     return reply.send({ success: true, data: email });
   });
+
+  const batchActionSchema = z.object({
+    action: z.enum(['markRead', 'markUnread', 'archive', 'delete', 'star', 'unstar']),
+    emailIds: z.array(z.string().min(1)).min(1).max(500),
+    folderId: z.string().optional(),
+    hard: z.boolean().optional(),
+  });
+
+  // POST /emails/batch - single batch transaction for bulk email actions (Task QM-04)
+  fastify.post('/batch', async (request, reply) => {
+    const parseResult = batchActionSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const service = new EmailService(prisma as never);
+    const { action, emailIds, folderId, hard } = parseResult.data;
+
+    let result: { count: number };
+    switch (action) {
+      case 'markRead':
+        result = await service.batchMarkRead(emailIds, userId, true);
+        break;
+      case 'markUnread':
+        result = await service.batchMarkRead(emailIds, userId, false);
+        break;
+      case 'archive': {
+        let targetFolderId = folderId;
+        if (!targetFolderId) {
+          const archiveFolder = await prisma.emailFolder.findFirst({
+            where: { userId, type: 'ARCHIVE' },
+            select: { id: true },
+          });
+          targetFolderId = archiveFolder?.id;
+        }
+        if (!targetFolderId) {
+          const created = await prisma.emailFolder.create({
+            data: { userId, name: 'Archive', type: 'ARCHIVE' },
+            select: { id: true },
+          });
+          targetFolderId = created.id;
+        }
+        result = await service.batchArchive(emailIds, targetFolderId!, userId);
+        break;
+      }
+      case 'delete':
+        result = await service.batchDelete(emailIds, userId, hard ?? false);
+        break;
+      case 'star':
+        result = await service.batchStar(emailIds, userId, true);
+        break;
+      case 'unstar':
+        result = await service.batchStar(emailIds, userId, false);
+        break;
+    }
+
+    return reply.send({ success: true, data: result });
+  });
 }

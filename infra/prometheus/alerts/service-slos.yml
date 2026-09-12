@@ -130,21 +130,6 @@ groups:
           description: "QuantCalendar error rate exceeds 0.1% threshold."
           runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
 
-      - alert: QuantMeetAvailabilitySLO
-        expr: |
-          (
-            sum(rate(http_requests_total{service="quantmeet",status_code=~"5.."}[1h]))
-            / sum(rate(http_requests_total{service="quantmeet"}[1h]))
-          ) > 0.001
-        for: 5m
-        labels:
-          severity: critical
-          service: quantmeet
-          slo_type: availability
-        annotations:
-          summary: "QuantMeet availability SLO violation"
-          description: "QuantMeet error rate exceeds 0.1% threshold."
-          runbook_url: "https://docs.quant.internal/runbooks/high-error-rate"
 
       - alert: QuantNeonAvailabilitySLO
         expr: |
@@ -238,18 +223,6 @@ groups:
           description: "QuantChat p95 latency exceeds 200ms threshold."
           runbook_url: "https://docs.quant.internal/runbooks/high-latency"
 
-      - alert: QuantMeetLatencySLO
-        expr: |
-          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="quantmeet"}[5m])) by (le)) > 0.2
-        for: 5m
-        labels:
-          severity: warning
-          service: quantmeet
-          slo_type: latency
-        annotations:
-          summary: "QuantMeet p95 latency SLO violation"
-          description: "QuantMeet p95 latency exceeds 200ms threshold."
-          runbook_url: "https://docs.quant.internal/runbooks/high-latency"
 
       - alert: QuantSyncLatencySLO
         expr: |
