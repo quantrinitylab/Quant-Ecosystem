@@ -112,6 +112,10 @@ export class GitService {
     this.gitServer = options.gitServer ?? new LocalGitServerPort(new RepoStorageService(), prisma);
   }
 
+  /**
+   * Push refs to a repository.
+   * Requirement 6.3: Enforces write scope and branch protection rules before updating refs.
+   */
   async pushRefs(
     userId: string,
     repoId: string,

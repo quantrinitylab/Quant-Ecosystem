@@ -95,6 +95,24 @@ export default async function gitRoutes(fastify: FastifyInstance) {
     return repo;
   }
 
+  async function loadWritableRepository(
+    request: unknown,
+    owner: string,
+    name: string,
+  ): Promise<Repository> {
+    const userId = getUserId(request);
+    const repo = await prisma.repository.findFirst({
+      where: { ownerId: owner, name, deletedAt: null },
+    });
+    if (!repo) {
+      throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+    }
+    if (repo.ownerId !== userId) {
+      throw createAppError('Write scope required', 403, 'WRITE_SCOPE_REQUIRED');
+    }
+    return repo;
+  }
+
   fastify.post('/repos', async (request, reply) => {
     const userId = getUserId(request);
     const body = CreateRepoSchema.parse(request.body);
@@ -150,9 +168,11 @@ export default async function gitRoutes(fastify: FastifyInstance) {
       if (repo.ownerId !== userId) {
         throw createAppError('Not authorized to delete this repository', 403, 'FORBIDDEN');
       }
+      const deletedAt = new Date();
+      const deletedName = `${repo.name}-deleted-${deletedAt.getTime()}`;
       await prisma.repository.update({
         where: { id: repo.id },
-        data: { deletedAt: new Date() },
+        data: { deletedAt, name: deletedName },
       });
       return reply.send({ success: true, data: { deleted: true, recoverable: true } });
     },
@@ -190,13 +210,14 @@ export default async function gitRoutes(fastify: FastifyInstance) {
     },
   );
 
+  // Requirement 6.3: Push refs to repository (enforces write scope / owner access).
   fastify.post<{ Params: { owner: string; name: string } }>(
     '/repos/:owner/:name/push',
     async (request, reply) => {
       const userId = getUserId(request);
       const { owner, name } = request.params;
       const body = PushRefsSchema.parse(request.body);
-      const repo = await loadReadableRepository(request, owner, name);
+      const repo = await loadWritableRepository(request, owner, name);
       const result = await gitService.pushRefs(userId, repo.id, body.refs);
       return reply.send({ success: true, data: result });
     },

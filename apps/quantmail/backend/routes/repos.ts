@@ -337,9 +337,11 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     })) as RepoRow | null;
     if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
     if (repo.ownerId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    const deletedAt = new Date();
+    const deletedName = `${repo.name}-deleted-${deletedAt.getTime()}`;
     await prisma.repository.update({
       where: { id: request.params.id },
-      data: { deletedAt: new Date() },
+      data: { deletedAt, name: deletedName },
     });
     // Astra GT-12: soft delete preserves the on-disk bare repository for recovery.
     return reply.send({ success: true, data: { message: 'Repository deleted' } });
