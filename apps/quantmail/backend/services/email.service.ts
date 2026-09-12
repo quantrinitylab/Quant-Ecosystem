@@ -177,7 +177,10 @@ export class EmailService {
           a: unknown,
         ): Promise<Array<{ id: string; email: string; username: string | null }>>;
       };
-      folder: {
+      folder?: {
+        findFirst(a: unknown): Promise<{ id: string } | null>;
+      };
+      emailFolder?: {
         findFirst(a: unknown): Promise<{ id: string } | null>;
       };
     };
@@ -187,22 +190,31 @@ export class EmailService {
       select: { email: true, displayName: true, username: true },
     });
 
-    const targetHandles = recipients.map((r) => r.split('@')[0].toLowerCase());
+    // MAIL-04: Only derive handle matches for explicitly internal domains or bare handles.
+    // External domain addresses (@gmail.com, etc.) must NEVER match unrelated internal accounts by local-part.
+    const internalDomains = ['quantmail.in', 'quantrinity.in', 'quantchat.online'];
+    const isInternalAddress = (email: string): boolean => {
+      const parts = email.toLowerCase().split('@');
+      return parts.length === 2 && internalDomains.includes(parts[1]);
+    };
+
+    const internalRecipients = recipients.filter((r) => !r.includes('@') || isInternalAddress(r));
+    const targetHandles = internalRecipients.map((r) => r.split('@')[0].toLowerCase());
+
+    const orConditions: any[] = [{ email: { in: recipients, mode: 'insensitive' } }];
+    if (targetHandles.length > 0) {
+      orConditions.push({ username: { in: targetHandles, mode: 'insensitive' } });
+      orConditions.push(
+        ...targetHandles.flatMap((h) => [
+          { email: { equals: `${h}@quantmail.in`, mode: 'insensitive' as const } },
+          { email: { equals: `${h}@quantrinity.in`, mode: 'insensitive' as const } },
+          { email: { equals: `${h}@quantchat.online`, mode: 'insensitive' as const } },
+        ]),
+      );
+    }
+
     const matches = await userModel.user.findMany({
-      where: {
-        OR: [
-          { email: { in: recipients, mode: 'insensitive' } },
-          { username: { in: targetHandles, mode: 'insensitive' } },
-          ...recipients.flatMap((r) => {
-            const h = r.split('@')[0].toLowerCase();
-            return [
-              { email: { equals: `${h}@quantmail.in`, mode: 'insensitive' as const } },
-              { email: { equals: `${h}@quantrinity.in`, mode: 'insensitive' as const } },
-              { email: { equals: `${h}@quantchat.online`, mode: 'insensitive' as const } },
-            ];
-          }),
-        ],
-      },
+      where: { OR: orConditions },
       select: { id: true, email: true, username: true },
     });
 
@@ -215,12 +227,15 @@ export class EmailService {
 
     const hasAttachments = Array.isArray(input.attachments) && input.attachments.length > 0;
     let delivered = 0;
+    const folderDelegate = userModel.emailFolder || userModel.folder;
     for (const recipient of matches) {
-      const inboxFolder = await userModel.folder
-        .findFirst({
-          where: { userId: recipient.id, type: 'INBOX' },
-        })
-        .catch(() => null);
+      const inboxFolder = folderDelegate
+        ? await folderDelegate
+            .findFirst({
+              where: { userId: recipient.id, type: 'INBOX' },
+            })
+            .catch(() => null)
+        : null;
 
       let recipientThreadId: string | null = null;
       try {
@@ -343,7 +358,20 @@ export class EmailService {
         internal = [];
       }
     }
-    const external = recipients.filter((address) => !internal.includes(address));
+    const toList = asAddressList((email as { toAddresses?: unknown }).toAddresses).map((a) =>
+      a.trim().toLowerCase(),
+    );
+    const ccList = asAddressList((email as { ccAddresses?: unknown }).ccAddresses).map((a) =>
+      a.trim().toLowerCase(),
+    );
+    const bccList = asAddressList((email as { bccAddresses?: unknown }).bccAddresses).map((a) =>
+      a.trim().toLowerCase(),
+    );
+
+    const externalTo = toList.filter((address) => !internal.includes(address));
+    const externalCc = ccList.filter((address) => !internal.includes(address));
+    const externalBcc = bccList.filter((address) => !internal.includes(address));
+    const external = [...externalTo, ...externalCc, ...externalBcc];
 
     let deliveryStatus = 'delivered';
     let deliveryError: string | undefined;
@@ -351,17 +379,20 @@ export class EmailService {
     if (external.length > 0) {
       deliveryStatus = 'queued';
 
-      // Durable job (retries, per-recipient attempts) when Redis/queue exist.
+      // MAIL-01: Single authoritative delivery owner. When the durable BullMQ pipeline
+      // is available, delegate delivery to the worker. Do NOT also submit via SES directly.
+      let enqueued = false;
       if (this.pipeline) {
         try {
           await this.pipeline.enqueueSend(userId, emailId, { sentFolderId });
+          enqueued = true;
         } catch (error) {
           deliveryError = error instanceof Error ? error.message : String(error);
         }
       }
 
-      // Immediate transmission so delivery does not depend on a worker being up.
-      if (isSesConfigured()) {
+      // Direct SES fallback ONLY when no queue pipeline is running
+      if (!enqueued && isSesConfigured()) {
         try {
           const fromDomain = process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.in';
           let fromAddress = email.fromAddress;
@@ -369,21 +400,36 @@ export class EmailService {
             fromAddress = `${fromAddress || 'noreply'}@${fromDomain}`;
           }
           const from = email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress;
+
+          const bodyHtmlClean =
+            email.bodyHtml && email.bodyHtml.trim().length > 0 ? email.bodyHtml : undefined;
+          const bodyPlainClean =
+            email.bodyPlain && email.bodyPlain.trim().length > 0 ? email.bodyPlain : undefined;
+
+          // MAIL-03: Separate envelope Bcc from visible To/Cc headers.
+          // MAIL-06: Support plain text fallback when HTML is empty.
           await sendViaSes({
             from,
-            to: external,
+            to:
+              externalTo.length > 0
+                ? externalTo
+                : externalBcc.length > 0
+                  ? ['undisclosed-recipients:;']
+                  : external,
+            cc: externalCc.length > 0 ? externalCc : undefined,
+            bcc: externalBcc.length > 0 ? externalBcc : undefined,
             subject: email.subject,
-            ...(email.bodyHtml ? { bodyHtml: email.bodyHtml } : {}),
-            ...(email.bodyPlain ? { bodyText: email.bodyPlain } : {}),
+            ...(bodyHtmlClean ? { bodyHtml: bodyHtmlClean } : {}),
+            ...(bodyPlainClean ? { bodyText: bodyPlainClean } : {}),
             replyTo: fromAddress,
           });
           deliveryStatus = 'delivered';
           deliveryError = undefined;
         } catch (error) {
           deliveryError = error instanceof Error ? error.message : String(error);
-          if (!this.pipeline) deliveryStatus = 'failed';
+          deliveryStatus = 'failed';
         }
-      } else if (!this.pipeline) {
+      } else if (!enqueued && !this.pipeline) {
         deliveryStatus = 'failed';
         deliveryError = 'No outbound transport configured (SES env vars missing)';
       }

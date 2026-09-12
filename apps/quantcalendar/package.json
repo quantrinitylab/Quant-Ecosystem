@@ -2,6 +2,7 @@
   "name": "@quant/quantcalendar",
   "version": "1.0.0",
   "private": true,
+  "deprecated": true,
   "type": "module",
   "description": "QuantCalendar - Calendar with AI scheduling, booking links, and smart time management",
   "main": "backend/app.ts",

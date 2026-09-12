@@ -27,6 +27,15 @@ export type { PhoneAuthConfig, SMSDeliveryResult } from './providers/phone-provi
 // Services
 export { TokenService } from './services/token-service';
 export type { TokenServiceOptions } from './services/token-service';
+export {
+  generatePersonalAccessToken,
+  verifyPersonalAccessToken,
+} from './services/personal-access-token.service';
+export type {
+  GeneratedPersonalAccessToken,
+  PersonalAccessTokenScope,
+  VerifiedPersonalAccessToken,
+} from './services/personal-access-token.service';
 export { getJwtSecret, getJwtRefreshSecret } from './lib/secrets';
 export { EnvConfigJwtKms, VaultJwtKms, deriveKid } from './lib/jwt-kms';
 export type {

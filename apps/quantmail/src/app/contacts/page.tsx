@@ -6,12 +6,10 @@ import { Button, Modal, Avatar, Skeleton, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { ContactsLetterIndex } from '../../components/ContactsLetterIndex';
-import {
-  useContacts,
-  useCreateContact,
-  useUpdateContact,
-  useDeleteContact,
-} from '../../hooks/useContacts';
+import { ContactsPagination } from '../../components/ContactsPagination';
+import { useContactsPage } from '../../hooks/useContactsPage';
+import { getContactPageCorrection } from '../../lib/contacts-pagination';
+import { useCreateContact, useUpdateContact, useDeleteContact } from '../../hooks/useContacts';
 import { useInbox } from '../../hooks/useInbox';
 import { useConfirm } from '../../hooks/useConfirm';
 import { IconChevronRight, IconStar, IconStarFilled } from '../../components/icons';
@@ -25,6 +23,7 @@ export default function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
+  const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [inspectContact, setInspectContact] = useState<Contact | null>(null);
@@ -40,19 +39,44 @@ export default function ContactsPage() {
 
   // Debounce search so we don't hit the API on every keystroke
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    const nextQuery = searchQuery.trim();
+    if (nextQuery === debouncedQuery) return;
+    const t = setTimeout(() => {
+      setDebouncedQuery(nextQuery);
+      setPage(1);
+      setInspectContact(null);
+    }, 300);
     return () => clearTimeout(t);
-  }, [searchQuery]);
+  }, [searchQuery, debouncedQuery]);
 
   const {
-    data: contacts,
-    isLoading,
+    data: contactPage,
+    isLoading: pageLoading,
+    isFetching,
     error,
     refetch,
-  } = useContacts({
+  } = useContactsPage({
     q: debouncedQuery || undefined,
     favorites: activeTab === 'favorites' || undefined,
+    page,
   });
+  const contacts = contactPage?.contacts;
+  const pagination = contactPage?.pagination;
+  const pageCorrection = !isFetching && !error ? getContactPageCorrection(page, pagination) : null;
+  const isLoading = pageLoading || pageCorrection !== null;
+
+  useEffect(() => {
+    if (pageCorrection !== null) {
+      setPage(pageCorrection);
+      setInspectContact(null);
+    }
+  }, [pageCorrection]);
+
+  const handleTabChange = useCallback((tab: 'all' | 'favorites') => {
+    setActiveTab(tab);
+    setPage(1);
+    setInspectContact(null);
+  }, []);
   const createContact = useCreateContact();
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
@@ -208,7 +232,7 @@ export default function ContactsPage() {
     [threadCounts],
   );
 
-  // Export all contacts as .vcf
+  // Export only the currently displayed page as .vcf
   const handleExportVCard = () => {
     const list = contacts ?? [];
     if (list.length === 0) {
@@ -228,10 +252,13 @@ export default function ContactsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `QuantContacts_${new Date().toISOString().slice(0, 10)}.vcf`;
+    link.download = `QuantContacts_${new Date().toISOString().slice(0, 10)}_page-${page}.vcf`;
     link.click();
     URL.revokeObjectURL(url);
-    showToast({ text: `Exported ${list.length} contacts to vCard`, type: 'success' });
+    showToast({
+      text: `Exported ${list.length} contacts from page ${page} to vCard`,
+      type: 'success',
+    });
   };
 
   const handleImportVCard = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -456,18 +483,18 @@ export default function ContactsPage() {
             <div className="flex items-center rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] p-0.5">
               <button
                 type="button"
-                onClick={() => setActiveTab('all')}
+                onClick={() => handleTabChange('all')}
                 className={`inline-flex min-h-11 items-center justify-center rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                   activeTab === 'all'
                     ? 'bg-[#FF8C42] text-[#111111] font-bold shadow-sm'
                     : 'text-[#A1A4AC] hover:text-white'
                 }`}
               >
-                All{activeTab === 'all' && contacts ? ` (${contacts.length})` : ''}
+                All{activeTab === 'all' && pagination && !error ? ` (${pagination.total})` : ''}
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab('favorites')}
+                onClick={() => handleTabChange('favorites')}
                 className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                   activeTab === 'favorites'
                     ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
@@ -488,7 +515,10 @@ export default function ContactsPage() {
                   />
                 </svg>
                 <span>
-                  Favorites{activeTab === 'favorites' && contacts ? ` (${contacts.length})` : ''}
+                  Favorites
+                  {activeTab === 'favorites' && pagination && !error
+                    ? ` (${pagination.total})`
+                    : ''}
                 </span>
               </button>
             </div>
@@ -514,8 +544,15 @@ export default function ContactsPage() {
             <button
               type="button"
               onClick={handleExportVCard}
-              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#282C35] bg-[#16181D] px-3 py-1.5 text-xs text-[#A1A4AC] transition-colors hover:border-[#3A404D] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
-              title="Export to vCard .vcf"
+              disabled={
+                isLoading ||
+                isFetching ||
+                !!error ||
+                !contacts?.length ||
+                searchQuery.trim() !== debouncedQuery
+              }
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#282C35] bg-[#16181D] px-3 py-1.5 text-xs text-[#A1A4AC] transition-colors hover:border-[#3A404D] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Export this page to vCard .vcf"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -525,7 +562,7 @@ export default function ContactsPage() {
                   d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                 />
               </svg>
-              <span>Export</span>
+              <span>Export page</span>
             </button>
 
             {/*
@@ -540,6 +577,20 @@ export default function ContactsPage() {
             </div>
           </div>
         </div>
+
+        <ContactsPagination
+          page={page}
+          pagination={pagination}
+          isFetching={
+            isFetching || pageCorrection !== null || searchQuery.trim() !== debouncedQuery
+          }
+          hasError={!!error}
+          onPageChange={(nextPage) => {
+            setPage(nextPage);
+            setInspectContact(null);
+            streamRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+          }}
+        />
 
         {/* Contacts Stream Grouped Alphabetically */}
         <div className="relative flex-1 overflow-hidden">
@@ -579,20 +630,28 @@ export default function ContactsPage() {
                   </svg>
                 </div>
                 <h3 className="text-lg font-bold text-[#F5F5F5]">
-                  {searchQuery
-                    ? 'No contacts matched your search'
-                    : activeTab === 'favorites'
-                      ? 'No favorites yet'
-                      : 'Your address book is empty'}
+                  {(pagination?.total ?? 0) > 0
+                    ? 'No contacts on this page'
+                    : debouncedQuery
+                      ? 'No contacts matched your search'
+                      : activeTab === 'favorites'
+                        ? 'No favorites yet'
+                        : 'Your address book is empty'}
                 </h3>
                 <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
-                  {activeTab === 'favorites' && !searchQuery
-                    ? 'Tap the star on any contact to pin it here for quick access.'
-                    : 'Add contacts or import a .vcf file to start emailing and scheduling meetings.'}
+                  {(pagination?.total ?? 0) > 0
+                    ? 'Your address book changed. Refresh this page or use page navigation.'
+                    : activeTab === 'favorites' && !debouncedQuery
+                      ? 'Tap the star on any contact to pin it here for quick access.'
+                      : 'Add contacts or import a .vcf file to start emailing and scheduling meetings.'}
                 </p>
                 <div className="pt-2 flex items-center justify-center gap-2">
-                  {activeTab === 'favorites' && !searchQuery ? (
-                    <Button variant="secondary" onClick={() => setActiveTab('all')}>
+                  {(pagination?.total ?? 0) > 0 ? (
+                    <Button variant="secondary" onClick={() => void refetch()}>
+                      Refresh contacts
+                    </Button>
+                  ) : activeTab === 'favorites' && !debouncedQuery ? (
+                    <Button variant="secondary" onClick={() => handleTabChange('all')}>
                       Browse all contacts
                     </Button>
                   ) : (

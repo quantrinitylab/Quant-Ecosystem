@@ -136,6 +136,20 @@ declare module '@prisma/client' {
     updatedAt: Date;
   }
 
+  export interface PersonalAccessToken {
+    id: string;
+    tokenId: string;
+    tokenHash: string;
+    userId: string;
+    name: string;
+    scopes: string[];
+    expiresAt: Date;
+    lastUsedAt: Date | null;
+    revokedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
   export interface CiRun {
     id: string;
     repoId: string;
@@ -513,6 +527,10 @@ declare module '@prisma/client' {
     where: WhereUniqueInput;
   }
 
+  interface DeleteManyArgs {
+    where?: WhereInput;
+  }
+
   interface UpsertArgs {
     where: WhereUniqueInput;
     create: Record<string, unknown>;
@@ -536,6 +554,7 @@ declare module '@prisma/client' {
     updateMany(args: UpdateManyArgs): Promise<{ count: number }>;
     upsert(args: UpsertArgs): Promise<T>;
     delete(args: DeleteArgs): Promise<T>;
+    deleteMany(args?: DeleteManyArgs): Promise<{ count: number }>;
     count(args?: CountArgs): Promise<number>;
   }
 
@@ -549,6 +568,7 @@ declare module '@prisma/client' {
     review: ModelDelegate<Review>;
     reviewComment: ModelDelegate<ReviewComment>;
     branchProtection: ModelDelegate<BranchProtection>;
+    personalAccessToken: ModelDelegate<PersonalAccessToken>;
     ciRun: ModelDelegate<CiRun>;
     ciJob: ModelDelegate<CiJob>;
     branch: ModelDelegate<Branch>;
@@ -573,6 +593,6 @@ declare module '@prisma/client' {
     creditLedgerEntry: ModelDelegate<CreditLedgerEntry>;
     planSubscription: ModelDelegate<PlanSubscription>;
     paymentRecord: ModelDelegate<PaymentRecord>;
-    $transaction<T>(fn: (tx: PrismaClient) => Promise<T>): Promise<T>;
+    $transaction<T>(arg: Promise<unknown>[] | ((tx: PrismaClient) => Promise<T>)): Promise<T>;
   }
 }
