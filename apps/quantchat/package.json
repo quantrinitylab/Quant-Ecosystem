@@ -23,6 +23,7 @@
     "@quant/common": "workspace:*",
     "@quant/cross-app-gaming": "workspace:*",
     "@quant/database": "workspace:*",
+    "@quant/queue": "workspace:*",
     "@prisma/client": "^6.19.3",
     "@quant/ar-lenses": "workspace:*",
     "@quant/encryption": "workspace:*",

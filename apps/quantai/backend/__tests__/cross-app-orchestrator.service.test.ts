@@ -10,7 +10,7 @@ describe('CrossAppOrchestrator', () => {
   beforeEach(() => {
     connectors = new DemoModeConnector();
     permissions = {
-      'user-1': ['mail', 'chat', 'docs', 'calendar', 'drive'],
+      'user-1': ['mail', 'chat', 'docs', 'calendar', 'drive', 'code'],
       'user-2': ['mail', 'calendar'],
       'admin-user': ['*'],
     };
@@ -104,6 +104,50 @@ describe('CrossAppOrchestrator', () => {
       expect(result.success).toBe(true);
       expect(result.result).toHaveProperty('eventId');
     });
+
+    it('creates a calendar event with voice alert enabled and attaches call reminder', async () => {
+      const result = await orchestrator.scheduleMeeting('user-1', {
+        title: 'Quarterly Executive Review',
+        attendees: ['exec@example.com'],
+        preferredTime: '2025-01-22T15:00:00.000Z',
+        enableVoiceAlert: true,
+        voiceAlertMinutesBefore: 10,
+      });
+
+      expect(result.success).toBe(true);
+      const res = result.result as any;
+      expect(res.voiceAlertEnabled).toBe(true);
+      expect(res.voiceAlertMinutesBefore).toBe(10);
+      expect(res.reminders).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'call',
+            minutesBefore: 10,
+          }),
+        ]),
+      );
+    });
+
+    it('scheduleMeetingWithVoiceAlert creates event with voice alert enabled by default', async () => {
+      const result = await orchestrator.scheduleMeetingWithVoiceAlert('user-1', {
+        title: 'Urgent Ops Sync',
+        attendees: ['oncall@example.com'],
+        preferredTime: '2025-01-23T09:00:00.000Z',
+      });
+
+      expect(result.success).toBe(true);
+      const res = result.result as any;
+      expect(res.voiceAlertEnabled).toBe(true);
+      expect(res.voiceAlertMinutesBefore).toBe(5);
+      expect(res.reminders).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'call',
+            minutesBefore: 5,
+          }),
+        ]),
+      );
+    });
   });
 
   describe('searchAndSummarize', () => {
@@ -162,6 +206,49 @@ describe('CrossAppOrchestrator', () => {
       await expect(restricted.chatFollowup('user-no-chat', 'conv-123')).rejects.toThrow(
         /Permission denied.*chat/,
       );
+    });
+  });
+
+  describe('listUserRepositories', () => {
+    it('lists repositories with citations', async () => {
+      const result = await orchestrator.listUserRepositories('user-1');
+
+      expect(result.success).toBe(true);
+      expect(Array.isArray(result.result)).toBe(true);
+      expect(result.result.length).toBeGreaterThan(0);
+      expect(result.result[0]).toHaveProperty('name', 'quant-core');
+      expect(result.citations.length).toBeGreaterThan(0);
+      expect(result.citations[0]!.app).toBe('code');
+    });
+
+    it('denies access when user lacks code permission', async () => {
+      const restricted = new CrossAppOrchestrator(connectors, { 'user-limited': ['mail'] });
+      await expect(restricted.listUserRepositories('user-limited')).rejects.toThrow(
+        /Permission denied.*code/,
+      );
+    });
+  });
+
+  describe('reviewPullRequest', () => {
+    it('triggers automated AI review on pull request and returns structured report', async () => {
+      const result = await orchestrator.reviewPullRequest('user-1', 'quant', 'quant-core', 42);
+
+      expect(result.success).toBe(true);
+      expect(result.result).toHaveProperty('riskLevel', 'LOW');
+      expect(result.result).toHaveProperty('summary');
+      expect(result.result.summary).toContain('Automated AI review for PR #42');
+      expect(result.result.suggestions).toContain(
+        'Consider adding an integration test for edge case timeout.',
+      );
+      expect(result.citations).toHaveLength(1);
+      expect(result.citations[0]!.app).toBe('code');
+    });
+
+    it('denies access when user lacks code permission', async () => {
+      const restricted = new CrossAppOrchestrator(connectors, { 'user-limited': ['mail'] });
+      await expect(
+        restricted.reviewPullRequest('user-limited', 'quant', 'quant-core', 42),
+      ).rejects.toThrow(/Permission denied.*code/);
     });
   });
 

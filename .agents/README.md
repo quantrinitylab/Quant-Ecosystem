@@ -33,3 +33,7 @@ A claim becomes durable institutional memory only when it is verified against re
 - implementation fact → code, test, migration, or blocking CI evidence.
 
 Never resume implementation solely from an agent task status, generated report, log, or conversation memory. Re-check the source commit and the [institutional-memory index](../docs/README.md). Do not mass-delete this directory during memory cleanup; archive or remove artifacts only in a separately reviewed change.
+
+## Role team and resumable handoffs
+
+The [team working-memory kit](./team/START_HERE.md) adds portable role briefs, a checkpoint format, and cooperative task-claim guards. It is non-authoritative coordination material, not a second execution queue, a deployed agent fleet, a scheduler, or a new permission source. Existing canonical memory and promotion rules remain unchanged.

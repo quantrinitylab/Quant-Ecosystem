@@ -69,6 +69,19 @@ export interface PaginatedResult<T> {
   hasPrev: boolean;
 }
 
+export interface ImportResult {
+  imported: number;
+  duplicates: number;
+  errors: number;
+  total: number;
+}
+
+export interface DuplicateGroup {
+  primaryContact: Contact;
+  duplicates: Contact[];
+  reason: 'email' | 'name' | 'phone';
+}
+
 export class ContactService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -394,6 +407,295 @@ export class ContactService {
     await this.requireOwnedContact(contactId, userId);
 
     return contactModel.delete({ where: { id: contactId } });
+  }
+
+  async exportVCard(userId: string): Promise<string> {
+    const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
+    const contacts = await contactModel.findMany({ where: { userId } });
+    const cards: string[] = [];
+
+    for (const c of contacts) {
+      const lines = ['BEGIN:VCARD', 'VERSION:3.0', `FN:${c.name}`, `EMAIL:${c.email}`];
+      if (c.phone) lines.push(`TEL:${c.phone}`);
+      if (c.company) lines.push(`ORG:${c.company}`);
+      if (c.tags && c.tags.length > 0) lines.push(`CATEGORIES:${c.tags.join(',')}`);
+      lines.push('END:VCARD');
+      cards.push(lines.join('\r\n'));
+    }
+
+    return cards.join('\r\n\r\n');
+  }
+
+  async importVCard(userId: string, content: string): Promise<ImportResult> {
+    const blocks = content.split(/BEGIN:VCARD/i).slice(1);
+    let imported = 0;
+    let duplicates = 0;
+    let errors = 0;
+
+    for (const block of blocks) {
+      let name = '';
+      let email = '';
+      let phone: string | undefined;
+      let company: string | undefined;
+      let tags: string[] | undefined;
+
+      const lines = block.split(/\r?\n/);
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        const upper = line.toUpperCase();
+        if (upper.startsWith('FN:')) {
+          name = line.slice(3).trim();
+        } else if (upper.startsWith('EMAIL:') || upper.startsWith('EMAIL;')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            email = line
+              .slice(colonIdx + 1)
+              .trim()
+              .toLowerCase();
+          }
+        } else if (upper.startsWith('TEL:') || upper.startsWith('TEL;')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            phone = line.slice(colonIdx + 1).trim();
+          }
+        } else if (upper.startsWith('ORG:') || upper.startsWith('ORG;')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            company = line.slice(colonIdx + 1).trim();
+          }
+        } else if (upper.startsWith('CATEGORIES:') || upper.startsWith('CATEGORIES;')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            tags = line
+              .slice(colonIdx + 1)
+              .split(',')
+              .map((t) => t.trim())
+              .filter(Boolean);
+          }
+        }
+      }
+
+      if (!name || !email || !email.includes('@')) {
+        errors++;
+        continue;
+      }
+
+      try {
+        await this.addContact({
+          userId,
+          name,
+          email,
+          phone,
+          company,
+          tags,
+        });
+        imported++;
+      } catch (err: any) {
+        if (err?.code === 'CONTACT_EXISTS' || err?.statusCode === 409) {
+          duplicates++;
+        } else {
+          errors++;
+        }
+      }
+    }
+
+    return { imported, duplicates, errors, total: blocks.length };
+  }
+
+  async exportCsv(userId: string): Promise<string> {
+    const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
+    const contacts = await contactModel.findMany({ where: { userId } });
+    const header = 'Name,Email,Phone,Company,Tags,IsFavorite';
+
+    const escape = (val: string | null | undefined) => `"${(val ?? '').replace(/"/g, '""')}"`;
+    const rows = contacts.map((c) =>
+      [
+        escape(c.name),
+        escape(c.email),
+        escape(c.phone),
+        escape(c.company),
+        escape((c.tags ?? []).join(';')),
+        c.isFavorite ? 'true' : 'false',
+      ].join(','),
+    );
+
+    return [header, ...rows].join('\r\n');
+  }
+
+  async importCsv(userId: string, content: string): Promise<ImportResult> {
+    const lines = content
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (lines.length <= 1) {
+      return { imported: 0, duplicates: 0, errors: 0, total: 0 };
+    }
+
+    const dataLines = lines.slice(1);
+    let imported = 0;
+    let duplicates = 0;
+    let errors = 0;
+
+    for (const line of dataLines) {
+      const fields: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ',' && !inQuotes) {
+          fields.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      fields.push(current.trim());
+
+      const [name, email, phone, company, tagsRaw, isFavRaw] = fields;
+      if (!name || !email || !email.includes('@')) {
+        errors++;
+        continue;
+      }
+
+      try {
+        await this.addContact({
+          userId,
+          name,
+          email: email.toLowerCase(),
+          phone: phone || undefined,
+          company: company || undefined,
+          tags: tagsRaw
+            ? tagsRaw
+                .split(';')
+                .map((t) => t.trim())
+                .filter(Boolean)
+            : undefined,
+          isFavorite: isFavRaw?.toLowerCase() === 'true',
+        });
+        imported++;
+      } catch (err: any) {
+        if (err?.code === 'CONTACT_EXISTS' || err?.statusCode === 409) {
+          duplicates++;
+        } else {
+          errors++;
+        }
+      }
+    }
+
+    return { imported, duplicates, errors, total: dataLines.length };
+  }
+
+  async findDuplicates(userId: string): Promise<DuplicateGroup[]> {
+    const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
+    const contacts = await contactModel.findMany({ where: { userId } });
+
+    const groups: DuplicateGroup[] = [];
+    const groupedIds = new Set<string>();
+
+    // 1. Group by email (case-insensitive)
+    const byEmail = new Map<string, Contact[]>();
+    for (const c of contacts) {
+      const email = c.email.trim().toLowerCase();
+      const list = byEmail.get(email) ?? [];
+      list.push(c);
+      byEmail.set(email, list);
+    }
+    for (const [, list] of byEmail) {
+      if (list.length > 1) {
+        const primary = list[0]!;
+        const dups = list.slice(1);
+        groups.push({ primaryContact: primary, duplicates: dups, reason: 'email' });
+        list.forEach((c) => groupedIds.add(c.id));
+      }
+    }
+
+    // 2. Group by exact Name + same Company or Phone
+    const remaining = contacts.filter((c) => !groupedIds.has(c.id));
+    const byName = new Map<string, Contact[]>();
+    for (const c of remaining) {
+      const name = c.name.trim().toLowerCase();
+      const list = byName.get(name) ?? [];
+      list.push(c);
+      byName.set(name, list);
+    }
+    for (const [, list] of byName) {
+      if (list.length > 1) {
+        const hasMatching = list.some((c1, i) =>
+          list.some(
+            (c2, j) =>
+              i !== j &&
+              ((c1.phone && c1.phone === c2.phone) ||
+                (c1.company &&
+                  c2.company &&
+                  c1.company.toLowerCase() === c2.company.toLowerCase())),
+          ),
+        );
+        if (hasMatching) {
+          const primary = list[0]!;
+          const dups = list.slice(1);
+          groups.push({ primaryContact: primary, duplicates: dups, reason: 'name' });
+          list.forEach((c) => groupedIds.add(c.id));
+        }
+      }
+    }
+
+    return groups;
+  }
+
+  async mergeContacts(userId: string, primaryId: string, duplicateIds: string[]): Promise<Contact> {
+    const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
+    const primary = await this.requireOwnedContact(primaryId, userId);
+
+    const duplicates: Contact[] = [];
+    for (const id of duplicateIds) {
+      const dup = await this.requireOwnedContact(id, userId);
+      duplicates.push(dup);
+    }
+
+    const mergedTags = Array.from(new Set([...primary.tags, ...duplicates.flatMap((d) => d.tags)]));
+    const mergedPhone = primary.phone ?? duplicates.find((d) => !!d.phone)?.phone ?? null;
+    const mergedCompany = primary.company ?? duplicates.find((d) => !!d.company)?.company ?? null;
+    const mergedAvatar = primary.avatar ?? duplicates.find((d) => !!d.avatar)?.avatar ?? null;
+    const mergedFrequency =
+      primary.frequency + duplicates.reduce((sum, d) => sum + (d.frequency || 0), 0);
+    const lastContactedTimes = [
+      primary.lastContactedAt,
+      ...duplicates.map((d) => d.lastContactedAt),
+    ]
+      .filter((d): d is Date => d instanceof Date)
+      .map((d) => d.getTime());
+    const mergedLastContacted =
+      lastContactedTimes.length > 0
+        ? new Date(Math.max(...lastContactedTimes))
+        : primary.lastContactedAt;
+    const isFavorite = primary.isFavorite || duplicates.some((d) => d.isFavorite);
+
+    const updated = await contactModel.update({
+      where: { id: primaryId },
+      data: {
+        tags: mergedTags,
+        phone: mergedPhone,
+        company: mergedCompany,
+        avatar: mergedAvatar,
+        frequency: mergedFrequency,
+        lastContactedAt: mergedLastContacted,
+        isFavorite,
+      },
+    });
+
+    for (const id of duplicateIds) {
+      await contactModel.delete({ where: { id } });
+    }
+
+    return updated;
   }
 }
 

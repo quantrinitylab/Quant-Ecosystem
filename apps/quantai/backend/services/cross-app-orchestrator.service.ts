@@ -21,12 +21,19 @@ export interface DocResult {
   docId: string;
 }
 
+export interface CalendarEventReminder {
+  type: string;
+  minutesBefore: number;
+  label?: string;
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
   start: string;
   end: string;
   attendees: string[];
+  reminders?: CalendarEventReminder[];
 }
 
 export interface FileResult {
@@ -39,6 +46,33 @@ export interface FileResult {
 export interface FileSummary {
   fileId: string;
   summary: string;
+}
+
+export interface CodeRepoResult {
+  id: string;
+  name: string;
+  fullName: string;
+  description: string;
+  defaultBranch: string;
+  visibility: string;
+}
+
+export interface PullRequestResult {
+  id: string;
+  number: number;
+  title: string;
+  status: string;
+  authorId: string;
+  sourceBranch: string;
+  targetBranch: string;
+}
+
+export interface AiReviewResult {
+  summary: string;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  filesChanged: number;
+  findingsCount: number;
+  suggestions: string[];
 }
 
 export interface AppConnectors {
@@ -59,11 +93,17 @@ export interface AppConnectors {
       start: string,
       end: string,
       attendees: string[],
+      reminders?: CalendarEventReminder[],
     ): Promise<CalendarEvent>;
   };
   drive: {
     search(query: string): Promise<FileResult[]>;
     summarize(fileId: string): Promise<FileSummary>;
+  };
+  code: {
+    listRepos(): Promise<CodeRepoResult[]>;
+    getPullRequests(owner: string, name: string): Promise<PullRequestResult[]>;
+    reviewPullRequest(owner: string, name: string, number: number): Promise<AiReviewResult>;
   };
 }
 
@@ -83,6 +123,11 @@ export interface ScheduleMeetingParams {
   title: string;
   attendees: string[];
   preferredTime: string;
+  durationMinutes?: number;
+  location?: string;
+  enableVoiceAlert?: boolean;
+  voiceAlertMinutesBefore?: number;
+  reminders?: CalendarEventReminder[];
 }
 
 export interface Permissions {
@@ -196,15 +241,31 @@ export class CrossAppOrchestrator {
     );
 
     const start = params.preferredTime;
+    const durationMinutes = params.durationMinutes ?? 60;
     const endDate = new Date(start);
-    endDate.setHours(endDate.getHours() + 1);
+    endDate.setMinutes(endDate.getMinutes() + durationMinutes);
     const end = endDate.toISOString();
+
+    const reminders: CalendarEventReminder[] = [...(params.reminders ?? [])];
+    const voiceAlertEnabled = Boolean(
+      params.enableVoiceAlert || params.voiceAlertMinutesBefore !== undefined,
+    );
+    const voiceMinutes = params.voiceAlertMinutesBefore ?? 5;
+
+    if (voiceAlertEnabled && !reminders.some((r) => r.type === 'call')) {
+      reminders.push({
+        type: 'call',
+        minutesBefore: voiceMinutes,
+        label: `${voiceMinutes} minutes before`,
+      });
+    }
 
     const event = await this.connectors.calendar.createEvent(
       params.title,
       start,
       end,
       params.attendees,
+      reminders,
     );
 
     return {
@@ -216,9 +277,22 @@ export class CrossAppOrchestrator {
         end,
         attendees: params.attendees,
         hadConflict: hasConflict,
+        voiceAlertEnabled,
+        voiceAlertMinutesBefore: voiceAlertEnabled ? voiceMinutes : undefined,
+        reminders: event.reminders ?? reminders,
       },
       citations: [{ source: params.title, app: 'calendar', id: event.id }],
     };
+  }
+
+  async scheduleMeetingWithVoiceAlert(
+    userId: string,
+    params: Omit<ScheduleMeetingParams, 'enableVoiceAlert'>,
+  ): Promise<OrchestrationResult> {
+    return this.scheduleMeeting(userId, {
+      ...params,
+      enableVoiceAlert: true,
+    });
   }
 
   async searchAndSummarize(userId: string, query: string): Promise<OrchestrationResult> {
@@ -282,6 +356,37 @@ export class CrossAppOrchestrator {
       citations: [
         { source: `Conversation ${conversationId}`, app: 'chat', id: conversationId },
         { source: 'Follow-up document', app: 'docs', id: doc.docId },
+      ],
+    };
+  }
+
+  async listUserRepositories(userId: string): Promise<OrchestrationResult<CodeRepoResult[]>> {
+    this.assertPermission(userId, 'code');
+    const repos = await this.connectors.code.listRepos();
+    return {
+      success: true,
+      result: repos,
+      citations: repos.map((r) => ({ source: r.fullName, app: 'code', id: r.id })),
+    };
+  }
+
+  async reviewPullRequest(
+    userId: string,
+    owner: string,
+    name: string,
+    number: number,
+  ): Promise<OrchestrationResult<AiReviewResult>> {
+    this.assertPermission(userId, 'code');
+    const report = await this.connectors.code.reviewPullRequest(owner, name, number);
+    return {
+      success: true,
+      result: report,
+      citations: [
+        {
+          source: `PR #${number} in ${owner}/${name}`,
+          app: 'code',
+          id: `${owner}/${name}#${number}`,
+        },
       ],
     };
   }

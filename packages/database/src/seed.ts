@@ -163,7 +163,13 @@ async function seedDemoData(demoUsers: Awaited<ReturnType<typeof seedDemoUsers>>
           title: faker.lorem.words(3),
           body: faker.lorem.sentence(),
           isRead: i < 5,
-          sourceApp: faker.helpers.arrayElement(['quantsync', 'quantchat', 'quantube']),
+          sourceApp: faker.helpers.arrayElement([
+            'quantwave',
+            'quantchat',
+            'quantube',
+            'quantmail',
+            'quantgram',
+          ]),
         },
       });
     }
@@ -401,7 +407,13 @@ async function main() {
         title: faker.lorem.words(3),
         body: faker.lorem.sentence(),
         isRead: faker.datatype.boolean(),
-        sourceApp: faker.helpers.arrayElement(['quantsync', 'quantchat', 'quantube']),
+        sourceApp: faker.helpers.arrayElement([
+          'quantwave',
+          'quantchat',
+          'quantube',
+          'quantmail',
+          'quantgram',
+        ]),
       },
     });
   }

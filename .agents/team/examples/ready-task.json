@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "authority": "working-context",
+  "taskId": "EXAMPLE-ONLY",
+  "repository": "quantrinitylab/Quant-Ecosystem",
+  "role": "vector",
+  "goal": "Synthetic task example only; not a live assignment.",
+  "permission": "draft-code",
+  "writePaths": ["apps/quantmail/src/components/"],
+  "revision": 0,
+  "fence": 0,
+  "status": "ready",
+  "blockedReason": null,
+  "lease": null,
+  "checkpoint": {
+    "sourceCommit": "26a8173409ad768b8d096b68f9a3a6ea031ea00e",
+    "branch": "ai/example-only-do-not-run",
+    "checkedAt": "2026-09-10T05:49:41.800Z",
+    "observed": ["Synthetic schema example; no worker is assigned."],
+    "reported": [],
+    "hypotheses": [],
+    "notRun": ["No execution is authorized by this example."],
+    "evidence": [
+      "https://github.com/quantrinitylab/Quant-Ecosystem/pull/238",
+      "https://github.com/quantrinitylab/Quant-Ecosystem/pull/238#issuecomment-5609198153",
+      "https://github.com/quantrinitylab/Quant-Ecosystem/pull/238#issuecomment-5609080096"
+    ],
+    "next": "Owner prepares a real bounded task after verifying scope and capability."
+  }
+}

@@ -40,6 +40,10 @@ export class TypedQueue<TPayload> {
     return this.queue.getJob(id);
   }
 
+  async remove(jobId: string): Promise<void> {
+    await this.queue.remove(jobId);
+  }
+
   async drain(): Promise<void> {
     await this.queue.drain();
   }
