@@ -238,5 +238,12 @@
 5. [x] **Sprint 4 (QuantChat Voice Agent & Proactive Call Alert Complete - 96/96 test files, 889/889 tests passing)**: Task VC-01 to VC-04 (LiveKit voice bot agent, WAV synthesis, Cartesia/Piper TTS, Whisper STT, multilingual dialogue, end-to-end alert pipeline).
 6. [x] **Sprint 5 (Calendar-to-Voice Proactive Loop Complete - 168/168 test files, 1923/1923 tests passing)**: Task CL-01 to CL-03 (Calendar call alerts, Fastify event hooks, CrossAppOrchestrator voice meeting dispatch).
 7. [x] **CEO Astra Executive Forensic Audit**: Queried CEO Astra (Notion AI / Opus 5) via Chrome MCP; confirmed remote state, identified unpushed branch evidence gap, audited 14 open PRs, and established remote push runbook.
-8. [ ] **Push local branch to GitHub**: `git push -u origin chore/monorepo-consolidation-waves-b-to-f` to give the Owner full remote visibility.
-9. [x] Maintain continuous dual-memory sync (`AGENT_MEMORY.md` & `TASK_PLANNER.md`) across repository and `C:\Users\Pc\.gemini\`.
+8. [x] **Push local branch to GitHub**: `git push -u origin chore/monorepo-consolidation-waves-b-to-f` completed; all 5 Sprints, Wave F deletions (45k+ lines), and tests are now 100% visible on GitHub remote.
+9. [x] **PR Hygiene per Astra Audit**:
+   - [x] Closed PR #165 (temporary MCP probe).
+   - [x] Closed PR #246 (superseded by PR #248).
+   - [x] Closed PR #244 (superseded by PR #258).
+   - [x] PR #248 marked Ready for Review, synced with `main`, gate passing.
+   - [x] PR #236 marked Ready for Review, synced with `main`, gate passing.
+   - [x] PR #243 synced with `main`, CI running.
+10. [x] Maintain continuous dual-memory sync (`AGENT_MEMORY.md` & `TASK_PLANNER.md`) across repository and `C:\Users\Pc\.gemini\`.
