@@ -90,14 +90,33 @@ export default async function voiceBotRoutes(
   // POST /voice-bot/alert — Trigger outbound call alert for a meeting
   fastify.post('/alert', async (request, reply) => {
     const signature = request.headers['x-quant-signature'] as string | undefined;
-    const internalSecret =
-      process.env['VOICE_BOT_SECRET'] || process.env['LIVEKIT_API_SECRET'] || 'devsecret';
+    const internalSecret = process.env['VOICE_BOT_SECRET'] || process.env['LIVEKIT_API_SECRET'];
+    if (!internalSecret && process.env['NODE_ENV'] === 'production') {
+      throw createAppError(
+        'VOICE_BOT_SECRET environment variable is required in production',
+        500,
+        'INTERNAL_SERVER_ERROR',
+      );
+    }
+    const secret = internalSecret || 'devsecret';
 
-    // Fail-closed HMAC validation if signature is present or if enforcement is enabled
-    if (signature || process.env['ENFORCE_VOICE_BOT_HMAC'] === 'true') {
+    // Fail-closed HMAC validation:
+    // Required in all non-test environments or when ENFORCE_VOICE_BOT_HMAC is true
+    const isEnforced =
+      process.env['NODE_ENV'] !== 'test' || process.env['ENFORCE_VOICE_BOT_HMAC'] === 'true';
+    if (isEnforced) {
+      if (!signature) {
+        throw createAppError('Missing x-quant-signature header', 401, 'UNAUTHORIZED');
+      }
       const payloadString =
         typeof request.body === 'string' ? request.body : JSON.stringify(request.body);
-      if (!validVoiceBotSignature(payloadString, signature, internalSecret)) {
+      if (!validVoiceBotSignature(payloadString, signature, secret)) {
+        throw createAppError('Invalid HMAC signature', 401, 'UNAUTHORIZED');
+      }
+    } else if (signature) {
+      const payloadString =
+        typeof request.body === 'string' ? request.body : JSON.stringify(request.body);
+      if (!validVoiceBotSignature(payloadString, signature, secret)) {
         throw createAppError('Invalid HMAC signature', 401, 'UNAUTHORIZED');
       }
     }
@@ -129,8 +148,12 @@ export default async function voiceBotRoutes(
       throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
     }
 
-    if (authUserId && authUserId !== call.userId) {
-      throw createAppError('You are not authorized to answer this call', 403, 'FORBIDDEN');
+    if (authUserId) {
+      if (authUserId !== call.userId) {
+        throw createAppError('You are not authorized to answer this call', 403, 'FORBIDDEN');
+      }
+    } else if (process.env['NODE_ENV'] !== 'test') {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
     const targetUserId = authUserId || call.userId;
@@ -159,8 +182,12 @@ export default async function voiceBotRoutes(
       throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
     }
 
-    if (authUserId && authUserId !== call.userId) {
-      throw createAppError('You are not authorized to decline this call', 403, 'FORBIDDEN');
+    if (authUserId) {
+      if (authUserId !== call.userId) {
+        throw createAppError('You are not authorized to decline this call', 403, 'FORBIDDEN');
+      }
+    } else if (process.env['NODE_ENV'] !== 'test') {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
     const targetUserId = authUserId || call.userId;
@@ -181,8 +208,16 @@ export default async function voiceBotRoutes(
       throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
     }
 
-    if (authUserId && authUserId !== call.userId) {
-      throw createAppError('You are not authorized to send turns for this call', 403, 'FORBIDDEN');
+    if (authUserId) {
+      if (authUserId !== call.userId) {
+        throw createAppError(
+          'You are not authorized to send turns for this call',
+          403,
+          'FORBIDDEN',
+        );
+      }
+    } else if (process.env['NODE_ENV'] !== 'test') {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
     const parseResult = dialogueTurnSchema.safeParse(request.body);
@@ -217,8 +252,12 @@ export default async function voiceBotRoutes(
       throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
     }
 
-    if (authUserId && authUserId !== call.userId) {
-      throw createAppError('You are not authorized to view this call', 403, 'FORBIDDEN');
+    if (authUserId) {
+      if (authUserId !== call.userId) {
+        throw createAppError('You are not authorized to view this call', 403, 'FORBIDDEN');
+      }
+    } else if (process.env['NODE_ENV'] !== 'test') {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
     const session = call.voiceSessionId ? voiceBot.getSession(call.voiceSessionId) : undefined;

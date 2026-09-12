@@ -49,6 +49,16 @@ export function getConfig(): AppConfig {
     throw new Error('JWT_SECRET environment variable is required in production');
   }
 
+  if (
+    env === 'production' &&
+    !process.env['VOICE_BOT_SECRET'] &&
+    !process.env['LIVEKIT_API_SECRET']
+  ) {
+    throw new Error(
+      'VOICE_BOT_SECRET or LIVEKIT_API_SECRET environment variable is required in production',
+    );
+  }
+
   return {
     port: Number(process.env['PORT'] ?? 3002),
     host: process.env['HOST'] ?? '0.0.0.0',

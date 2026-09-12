@@ -35,6 +35,7 @@ export interface RelationalRepo {
   name: string;
   defaultBranch: string;
   visibility: string;
+  updatedAt?: Date | string;
 }
 
 export interface UnifiedRelationalSnapshot {

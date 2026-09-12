@@ -227,6 +227,25 @@ describe('voice-bot Fastify routes (Task VC-01 & VC-02)', () => {
     });
     expect(invalidRes.statusCode).toBe(401);
 
+    // Missing signature when enforced should fail with 401
+    const originalEnforce = process.env['ENFORCE_VOICE_BOT_HMAC'];
+    process.env['ENFORCE_VOICE_BOT_HMAC'] = 'true';
+    try {
+      const missingSigRes = await app.inject({
+        method: 'POST',
+        url: '/voice-bot/alert',
+        payload,
+      });
+      expect(missingSigRes.statusCode).toBe(401);
+      expect(missingSigRes.json().message).toContain('Missing x-quant-signature');
+    } finally {
+      if (originalEnforce !== undefined) {
+        process.env['ENFORCE_VOICE_BOT_HMAC'] = originalEnforce;
+      } else {
+        delete process.env['ENFORCE_VOICE_BOT_HMAC'];
+      }
+    }
+
     // Valid signature should succeed with 201
     const secret =
       process.env['VOICE_BOT_SECRET'] || process.env['LIVEKIT_API_SECRET'] || 'devsecret';
