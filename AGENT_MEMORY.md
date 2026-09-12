@@ -561,3 +561,10 @@ To build this systematically without breaking working code or overwhelming the t
    - Implemented `exportVCard`, `importVCard`, `exportCsv`, `importCsv`, `findDuplicates`, and `mergeContacts` in `contact.service.ts`.
    - Mounted routes `GET /contacts/export/vcard`, `POST /contacts/import/vcard`, `GET /contacts/export/csv`, `POST /contacts/import/csv`, `GET /contacts/duplicates`, `POST /contacts/merge`.
    - Verified with test suite `backend/__tests__/contacts-import-export-merge.test.ts` (6/6 tests passing 100%).
+
+### C. Consolidation Commit & Build Verification
+
+- **Commit**: `6172906445ee51f100c74a7925d2813bd7c919cb` on branch `chore/monorepo-consolidation-waves-b-to-f`
+- **Commit Message**: `feat(quantmail): consolidate monorepo waves B-I and sprint 2 harvest`
+- **Backend Build**: `pnpm --filter @quant/quantmail run build:backend` passed with exit code 0 (zero errors).
+- **Working Tree**: 100% clean across all 125 workspace packages.
