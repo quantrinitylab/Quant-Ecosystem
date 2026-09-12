@@ -236,4 +236,31 @@ describe('ADR-CH-002 pre-receive policy', () => {
       await server.close();
     }
   });
+
+  it('rate limits callbacks presenting forged sha256 signatures (GA-07)', async () => {
+    const server = new GitHookServer(prismaWithRules([]));
+    await server.start();
+    try {
+      const rawPayload = JSON.stringify(payload(first, second));
+      const forgedSignature = `sha256=${'0'.repeat(64)}`;
+      const request = () =>
+        fetch(`${server.url}/pre-receive`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-quantcode-signature': forgedSignature,
+          },
+          body: rawPayload,
+        });
+      for (let index = 0; index < GIT_HOOK_RATE_LIMIT_MAX; index += 1) {
+        const response = await request();
+        expect(response.status).toBe(401);
+      }
+      const limited = await request();
+      expect(limited.status).toBe(429);
+      expect(limited.headers.get('retry-after')).toBeTruthy();
+    } finally {
+      await server.close();
+    }
+  });
 });

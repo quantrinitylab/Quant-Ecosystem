@@ -132,6 +132,7 @@ export class GitHookServer {
     const app = Fastify({ logger: false, bodyLimit: 1024 * 1024 });
     await app.register(rateLimit, {
       global: false,
+      hook: 'preHandler',
     });
     app.removeContentTypeParser('application/json');
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) => {
@@ -148,11 +149,12 @@ export class GitHookServer {
     };
 
     const isAllowedLoopbackHook = (req: FastifyRequest): boolean => {
-      // Loopback hook callbacks containing authentic HMAC signature are trusted
-      // and must not be throttled to prevent capping git push throughput.
-      const signature = req.headers['x-quantcode-signature'];
-      if (!signature || typeof signature !== 'string') return false;
-      return signature.startsWith('sha256=');
+      // Authenticated loopback hook callbacks with a cryptographically verified HMAC
+      // signature are trusted and exempted to prevent capping git push throughput (GA-07).
+      const signature = req.headers['x-quantcode-signature'] as string | undefined;
+      const body = req.body as string | undefined;
+      if (!body || !signature) return false;
+      return validSignature(body, signature, this.secret);
     };
 
     app.post(
