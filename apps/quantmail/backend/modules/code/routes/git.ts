@@ -296,3 +296,24 @@ export default async function gitRoutes(fastify: FastifyInstance) {
     },
   );
 }
+
+export async function gitPurgeRoutes(fastify: FastifyInstance): Promise<void> {
+  const prisma = (fastify as unknown as { prisma?: PrismaClient }).prisma;
+  if (!prisma) throw new Error('PrismaClient must be registered before purge routes');
+  const repoStorage = new RepoStorageService();
+  fastify.delete<{ Params: { owner: string; name: string } }>(
+    '/repos/:owner/:name/purge',
+    async (request, reply) => {
+      const userId = getUserId(request);
+      const { owner, name } = request.params;
+      const repo = await prisma.repository.findFirst({ where: { ownerId: owner, name } });
+      if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+      if (repo.ownerId !== userId) {
+        throw createAppError('Not authorized to purge this repository', 403, 'FORBIDDEN');
+      }
+      await repoStorage.deleteRepo(repo.ownerId, repo.name);
+      await prisma.repository.delete({ where: { id: repo.id } });
+      return reply.send({ success: true, data: { purged: true } });
+    },
+  );
+}

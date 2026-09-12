@@ -31,7 +31,7 @@
 
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 
-import gitRoutes from './routes/git';
+import gitRoutes, { gitPurgeRoutes } from './routes/git';
 import gitTransportRoutes from './routes/git-transport';
 import pullRequestRoutes from './routes/pull-requests';
 import reviewRoutes from './routes/reviews';
@@ -110,6 +110,7 @@ const quantCodeRoutes: FastifyPluginAsync = async (app) => {
   await app.register(reviewRoutes, { prefix: '/git' });
   await app.register(issueRoutes, { prefix: '/git' });
   await app.register(ciRoutes);
+  await app.register(gitPurgeRoutes);
 };
 
 /**
