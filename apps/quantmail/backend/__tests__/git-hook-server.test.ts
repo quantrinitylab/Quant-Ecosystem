@@ -159,4 +159,26 @@ describe('ADR-CH-002 pre-receive policy', () => {
       await server.close();
     }
   });
+
+  it('rate limits unsigned loopback post-receive hook callbacks', async () => {
+    const server = new GitHookServer(prismaWithRules([]));
+    await server.start();
+    try {
+      const request = () =>
+        fetch(`${server.url}/post-receive`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload(first, second)),
+        });
+      for (let index = 0; index < GIT_HOOK_RATE_LIMIT_MAX; index += 1) {
+        const response = await request();
+        expect(response.status).toBe(401);
+      }
+      const limited = await request();
+      expect(limited.status).toBe(429);
+      expect(limited.headers.get('retry-after')).toBeTruthy();
+    } finally {
+      await server.close();
+    }
+  });
 });
