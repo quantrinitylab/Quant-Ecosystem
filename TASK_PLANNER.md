@@ -239,11 +239,13 @@
 6. [x] **Sprint 5 (Calendar-to-Voice Proactive Loop Complete - 168/168 test files, 1923/1923 tests passing)**: Task CL-01 to CL-03 (Calendar call alerts, Fastify event hooks, CrossAppOrchestrator voice meeting dispatch).
 7. [x] **CEO Astra Executive Forensic Audit**: Queried CEO Astra (Notion AI / Opus 5) via Chrome MCP; confirmed remote state, identified unpushed branch evidence gap, audited 14 open PRs, and established remote push runbook.
 8. [x] **Push local branch to GitHub**: `git push -u origin chore/monorepo-consolidation-waves-b-to-f` completed; all 5 Sprints, Wave F deletions (45k+ lines), and tests are now 100% visible on GitHub remote.
-9. [x] **PR Hygiene per Astra Audit**:
+9. [x] **PR Hygiene & Landing per Astra Audit**:
    - [x] Closed PR #165 (temporary MCP probe).
    - [x] Closed PR #246 (superseded by PR #248).
    - [x] Closed PR #244 (superseded by PR #258).
-   - [x] PR #248 marked Ready for Review, synced with `main`, gate passing.
+   - [x] **PR #248 MERGED TO MAIN (`2eac333b`)**: Official App Map and De-duplication decision record now live on `main`.
    - [x] PR #236 marked Ready for Review, synced with `main`, gate passing.
-   - [x] PR #243 synced with `main`, CI running.
+   - [x] PR #237 marked Ready for Review, synced with `main`, 24/27 CI checks passing.
+   - [x] PR #243 synced with `main`, gate passing.
+   - [x] **PR #260 (Draft)**: Created for `chore/monorepo-consolidation-waves-b-to-f` (`https://github.com/quantrinitylab/Quant-Ecosystem/pull/260`) for full transparent Owner review of Sprints 2-5 and Wave F deletions.
 10. [x] Maintain continuous dual-memory sync (`AGENT_MEMORY.md` & `TASK_PLANNER.md`) across repository and `C:\Users\Pc\.gemini\`.
