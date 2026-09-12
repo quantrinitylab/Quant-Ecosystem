@@ -136,6 +136,20 @@ declare module '@prisma/client' {
     updatedAt: Date;
   }
 
+  export interface PersonalAccessToken {
+    id: string;
+    tokenId: string;
+    tokenHash: string;
+    userId: string;
+    name: string;
+    scopes: string[];
+    expiresAt: Date;
+    lastUsedAt: Date | null;
+    revokedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }
+
   export interface CiRun {
     id: string;
     repoId: string;
@@ -554,6 +568,7 @@ declare module '@prisma/client' {
     review: ModelDelegate<Review>;
     reviewComment: ModelDelegate<ReviewComment>;
     branchProtection: ModelDelegate<BranchProtection>;
+    personalAccessToken: ModelDelegate<PersonalAccessToken>;
     ciRun: ModelDelegate<CiRun>;
     ciJob: ModelDelegate<CiJob>;
     branch: ModelDelegate<Branch>;

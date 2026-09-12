@@ -24,6 +24,7 @@ import phoneRoutes from './routes/phone';
 import { authRoutes } from './routes/auth';
 import { twoFactorRoutes } from './routes/two-factor';
 import { passwordResetRoutes } from './routes/password-reset';
+import settingsTokenRoutes from './routes/settings-tokens';
 import reposRoutes from './routes/repos';
 import workspaceRoutes from './routes/workspaces';
 import ciRoutes from './routes/ci';
@@ -117,6 +118,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(authRoutes);
   await app.register(twoFactorRoutes);
   await app.register(passwordResetRoutes);
+  await app.register(settingsTokenRoutes);
   await app.register(oauthRoutes);
   await app.register(phoneRoutes);
   await app.register(emailsRoutes, { prefix: '/emails' });
