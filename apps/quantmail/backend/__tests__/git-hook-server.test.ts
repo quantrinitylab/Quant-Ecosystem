@@ -1,4 +1,4 @@
-﻿// @vitest-environment node
+// @vitest-environment node
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -6,7 +6,11 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { evaluatePreReceive, GitHookServer } from '../modules/code/services/git-transport';
+import {
+  evaluatePreReceive,
+  GIT_HOOK_RATE_LIMIT_MAX,
+  GitHookServer,
+} from '../modules/code/services/git-transport';
 
 const ZERO = '0'.repeat(40);
 let root = '';
@@ -132,5 +136,27 @@ describe('ADR-CH-002 pre-receive policy', () => {
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('QuantCode:');
+  });
+
+  it('rate limits unsigned loopback hook callbacks', async () => {
+    const server = new GitHookServer(prismaWithRules([]));
+    await server.start();
+    try {
+      const request = () =>
+        fetch(`${server.url}/pre-receive`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload(first, second)),
+        });
+      for (let index = 0; index < GIT_HOOK_RATE_LIMIT_MAX; index += 1) {
+        const response = await request();
+        expect(response.status).toBe(401);
+      }
+      const limited = await request();
+      expect(limited.status).toBe(429);
+      expect(limited.headers.get('retry-after')).toBeTruthy();
+    } finally {
+      await server.close();
+    }
   });
 });

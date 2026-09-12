@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import Fastify, { type FastifyInstance } from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { BranchProtectionService } from '../branch-protection.service';
@@ -10,6 +11,8 @@ import { GIT_CHILD_ENV } from './git-child-env';
 const execFileAsync = promisify(execFile);
 const ZERO_SHA = '0'.repeat(40);
 const SHA = /^[0-9a-f]{40}$/;
+export const GIT_HOOK_RATE_LIMIT_MAX = 60;
+const GIT_HOOK_RATE_LIMIT_WINDOW = '1 minute';
 
 const commandSchema = z.object({
   oldSha: z.string().regex(SHA),
@@ -127,6 +130,9 @@ export class GitHookServer {
   async start(): Promise<void> {
     if (this.app) return;
     const app = Fastify({ logger: false, bodyLimit: 1024 * 1024 });
+    await app.register(rateLimit, {
+      global: false,
+    });
     app.removeContentTypeParser('application/json');
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) => {
       done(null, body);
@@ -141,25 +147,48 @@ export class GitHookServer {
       }
     };
 
-    app.post('/internal/git/pre-receive', async (request, reply) => {
-      const body = request.body as string;
-      const payload = authenticate(body, request.headers['x-quantcode-signature'] as string);
-      if (!payload) return reply.code(401).send({ allowed: false, reasons: ['Unauthorized hook'] });
-      return evaluatePreReceive(this.prisma, payload);
-    });
+    app.post(
+      '/internal/git/pre-receive',
+      {
+        config: {
+          rateLimit: {
+            max: GIT_HOOK_RATE_LIMIT_MAX,
+            timeWindow: GIT_HOOK_RATE_LIMIT_WINDOW,
+          },
+        },
+      },
+      async (request, reply) => {
+        const body = request.body as string;
+        const payload = authenticate(body, request.headers['x-quantcode-signature'] as string);
+        if (!payload)
+          return reply.code(401).send({ allowed: false, reasons: ['Unauthorized hook'] });
+        return evaluatePreReceive(this.prisma, payload);
+      },
+    );
 
-    app.post('/internal/git/post-receive', async (request, reply) => {
-      const body = request.body as string;
-      const payload = authenticate(body, request.headers['x-quantcode-signature'] as string);
-      if (!payload) return reply.code(401).send({ synchronized: false });
-      try {
-        await synchronizeBranches(this.prisma, payload);
-        return { synchronized: true };
-      } catch (error) {
-        request.log.error({ err: error, pushId: payload.pushId }, 'post-receive sync failed');
-        return reply.code(500).send({ synchronized: false });
-      }
-    });
+    app.post(
+      '/internal/git/post-receive',
+      {
+        config: {
+          rateLimit: {
+            max: GIT_HOOK_RATE_LIMIT_MAX,
+            timeWindow: GIT_HOOK_RATE_LIMIT_WINDOW,
+          },
+        },
+      },
+      async (request, reply) => {
+        const body = request.body as string;
+        const payload = authenticate(body, request.headers['x-quantcode-signature'] as string);
+        if (!payload) return reply.code(401).send({ synchronized: false });
+        try {
+          await synchronizeBranches(this.prisma, payload);
+          return { synchronized: true };
+        } catch (error) {
+          request.log.error({ err: error, pushId: payload.pushId }, 'post-receive sync failed');
+          return reply.code(500).send({ synchronized: false });
+        }
+      },
+    );
 
     await app.listen({ host: '127.0.0.1', port: 0 });
     const address = app.server.address();
