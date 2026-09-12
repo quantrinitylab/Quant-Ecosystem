@@ -54,12 +54,26 @@ export interface RelationalPrismaClient {
       take?: number;
     }): Promise<RelationalContact[]>;
   };
+  event?: {
+    findMany(args: {
+      where?: Record<string, unknown>;
+      orderBy?: Record<string, 'asc' | 'desc'>;
+      take?: number;
+    }): Promise<RelationalEvent[]>;
+  };
   calendarEvent?: {
     findMany(args: {
       where?: Record<string, unknown>;
       orderBy?: Record<string, 'asc' | 'desc'>;
       take?: number;
     }): Promise<RelationalEvent[]>;
+  };
+  file?: {
+    findMany(args: {
+      where?: Record<string, unknown>;
+      orderBy?: Record<string, 'asc' | 'desc'>;
+      take?: number;
+    }): Promise<RelationalFile[]>;
   };
   driveFile?: {
     findMany(args: {
@@ -81,9 +95,10 @@ export class RelationalMemoryService {
   constructor(private readonly prisma?: RelationalPrismaClient) {}
 
   async getUpcomingEvents(userId: string, limit = 5): Promise<RelationalEvent[]> {
-    if (this.prisma?.calendarEvent?.findMany) {
+    const delegate = this.prisma?.event || this.prisma?.calendarEvent;
+    if (delegate?.findMany) {
       try {
-        return await this.prisma.calendarEvent.findMany({
+        return await delegate.findMany({
           where: { userId, startTime: { gte: new Date() } },
           orderBy: { startTime: 'asc' },
           take: limit,
@@ -111,9 +126,10 @@ export class RelationalMemoryService {
   }
 
   async getRecentFiles(userId: string, limit = 5): Promise<RelationalFile[]> {
-    if (this.prisma?.driveFile?.findMany) {
+    const delegate = this.prisma?.file || this.prisma?.driveFile;
+    if (delegate?.findMany) {
       try {
-        return await this.prisma.driveFile.findMany({
+        return await delegate.findMany({
           where: { userId, isDeleted: false },
           orderBy: { updatedAt: 'desc' },
           take: limit,

@@ -1,4 +1,5 @@
 import Fastify, { type FastifyInstance } from 'fastify';
+import { createHmac } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import voiceBotRoutes from '../routes/voice-bot';
 
@@ -73,7 +74,7 @@ describe('voice-bot Fastify routes (Task VC-01 & VC-02)', () => {
     expect(body.data.callId).toMatch(/^call_/);
     expect(body.data.state).toBe('ringing');
     expect(body.data.userId).toBe('usr-100');
-    expect(body.data.userToken).toBeDefined();
+    expect(body.data.userToken).toBeUndefined();
   });
 
   it('POST /voice-bot/calls/:callId/answer answers call and returns audio greeting', async () => {
@@ -201,5 +202,118 @@ describe('voice-bot Fastify routes (Task VC-01 & VC-02)', () => {
 
     expect(declineRes.statusCode).toBe(200);
     expect(declineRes.json().data.message).toBe('Call declined');
+  });
+
+  it('validates HMAC SHA-256 signatures on POST /voice-bot/alert', async () => {
+    const payload = {
+      userId: 'usr-secure',
+      meetingId: 'mtg-hmac',
+      title: 'Secret Sync',
+      organizer: 'Security',
+      startTime: new Date().toISOString(),
+      minutesUntilStart: 5,
+    };
+    const bodyStr = JSON.stringify(payload);
+
+    // Invalid signature should fail with 401
+    const invalidRes = await app.inject({
+      method: 'POST',
+      url: '/voice-bot/alert',
+      headers: {
+        'x-quant-signature':
+          'sha256=0000000000000000000000000000000000000000000000000000000000000000',
+      },
+      payload,
+    });
+    expect(invalidRes.statusCode).toBe(401);
+
+    // Valid signature should succeed with 201
+    const secret =
+      process.env['VOICE_BOT_SECRET'] || process.env['LIVEKIT_API_SECRET'] || 'devsecret';
+    const validSig = 'sha256=' + createHmac('sha256', secret).update(bodyStr).digest('hex');
+
+    const validRes = await app.inject({
+      method: 'POST',
+      url: '/voice-bot/alert',
+      headers: {
+        'x-quant-signature': validSig,
+      },
+      payload,
+    });
+    expect(validRes.statusCode).toBe(201);
+  });
+
+  it('rejects unauthorized users from answering, declining, or sending turns for another user call', async () => {
+    const initRes = await app.inject({
+      method: 'POST',
+      url: '/voice-bot/alert',
+      payload: {
+        userId: 'usr-victim',
+        meetingId: 'mtg-auth-test',
+        title: 'Confidential Call',
+        organizer: 'Boss',
+        startTime: new Date().toISOString(),
+        minutesUntilStart: 5,
+      },
+    });
+    const { callId } = initRes.json().data;
+
+    // Fastify request simulation with mismatched auth.userId
+    const unauthorizedApp = Fastify({ logger: false });
+    unauthorizedApp.addHook('preHandler', async (req) => {
+      (req as unknown as { auth: { userId: string } }).auth = { userId: 'usr-attacker' };
+    });
+    await unauthorizedApp.register(voiceBotRoutes, { prefix: '/voice-bot' });
+    await unauthorizedApp.ready();
+
+    try {
+      // First initiate on unauthorizedApp instance
+      const attackerInit = await unauthorizedApp.inject({
+        method: 'POST',
+        url: '/voice-bot/alert',
+        payload: {
+          userId: 'usr-victim',
+          meetingId: 'mtg-auth-test-2',
+          title: 'Victim Meeting',
+          organizer: 'Boss',
+          startTime: new Date().toISOString(),
+          minutesUntilStart: 5,
+        },
+      });
+      const victimCallId = attackerInit.json().data.callId;
+
+      // Attacker tries to answer victim's call -> 403
+      const answerRes = await unauthorizedApp.inject({
+        method: 'POST',
+        url: `/voice-bot/calls/${victimCallId}/answer`,
+        payload: {},
+      });
+      expect(answerRes.statusCode).toBe(403);
+
+      // Attacker tries to decline victim's call -> 403
+      const declineRes = await unauthorizedApp.inject({
+        method: 'POST',
+        url: `/voice-bot/calls/${victimCallId}/decline`,
+        payload: {},
+      });
+      expect(declineRes.statusCode).toBe(403);
+
+      // Attacker tries to send turn to victim's call -> 403
+      const turnRes = await unauthorizedApp.inject({
+        method: 'POST',
+        url: `/voice-bot/calls/${victimCallId}/turn`,
+        payload: { userUtterance: 'hello' },
+      });
+      expect(turnRes.statusCode).toBe(403);
+
+      // Attacker tries to view victim's call -> 403
+      const viewRes = await unauthorizedApp.inject({
+        method: 'GET',
+        url: `/voice-bot/calls/${victimCallId}`,
+      });
+      expect(viewRes.statusCode).toBe(403);
+    } finally {
+      await unauthorizedApp.close();
+    }
   });
 });

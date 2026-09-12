@@ -433,14 +433,48 @@ export class ContactService {
     let errors = 0;
 
     for (const block of blocks) {
-      const fnMatch = block.match(/FN:(.+?)(?:\r?\n|$)/i);
-      const emailMatch = block.match(/EMAIL(?:;[^:]+)?:(.+?)(?:\r?\n|$)/i);
-      const telMatch = block.match(/TEL(?:;[^:]+)?:(.+?)(?:\r?\n|$)/i);
-      const orgMatch = block.match(/ORG(?:;[^:]+)?:(.+?)(?:\r?\n|$)/i);
-      const catMatch = block.match(/CATEGORIES:(.+?)(?:\r?\n|$)/i);
+      let name = '';
+      let email = '';
+      let phone: string | undefined;
+      let company: string | undefined;
+      let tags: string[] | undefined;
 
-      const name = fnMatch ? fnMatch[1]?.trim() : '';
-      const email = emailMatch ? emailMatch[1]?.trim().toLowerCase() : '';
+      const lines = block.split(/\r?\n/);
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        const upper = line.toUpperCase();
+        if (upper.startsWith('FN:')) {
+          name = line.slice(3).trim();
+        } else if (upper.startsWith('EMAIL:') || upper.startsWith('EMAIL;')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            email = line
+              .slice(colonIdx + 1)
+              .trim()
+              .toLowerCase();
+          }
+        } else if (upper.startsWith('TEL:') || upper.startsWith('TEL;')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            phone = line.slice(colonIdx + 1).trim();
+          }
+        } else if (upper.startsWith('ORG:') || upper.startsWith('ORG;')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            company = line.slice(colonIdx + 1).trim();
+          }
+        } else if (upper.startsWith('CATEGORIES:') || upper.startsWith('CATEGORIES;')) {
+          const colonIdx = line.indexOf(':');
+          if (colonIdx !== -1) {
+            tags = line
+              .slice(colonIdx + 1)
+              .split(',')
+              .map((t) => t.trim())
+              .filter(Boolean);
+          }
+        }
+      }
 
       if (!name || !email || !email.includes('@')) {
         errors++;
@@ -452,14 +486,9 @@ export class ContactService {
           userId,
           name,
           email,
-          phone: telMatch ? telMatch[1]?.trim() : undefined,
-          company: orgMatch ? orgMatch[1]?.trim() : undefined,
-          tags: catMatch
-            ? catMatch[1]
-                ?.split(',')
-                .map((t) => t.trim())
-                .filter(Boolean)
-            : undefined,
+          phone,
+          company,
+          tags,
         });
         imported++;
       } catch (err: any) {

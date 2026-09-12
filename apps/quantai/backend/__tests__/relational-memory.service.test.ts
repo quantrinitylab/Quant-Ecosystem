@@ -103,4 +103,40 @@ describe('RelationalMemoryService (Layer 2 Relational Memory)', () => {
     expect(snapshot.upcomingEvents).toEqual([]);
     expect(snapshot.frequentContacts).toHaveLength(1);
   });
+
+  it('queries actual prisma.event and prisma.file delegates successfully', async () => {
+    const mockPrisma: RelationalPrismaClient = {
+      event: {
+        findMany: vi.fn(async () => [
+          {
+            id: 'ev-canon-1',
+            title: 'Executive Sync',
+            startTime: new Date('2026-09-16T10:00:00Z'),
+            endTime: new Date('2026-09-16T11:00:00Z'),
+          },
+        ]),
+      },
+      file: {
+        findMany: vi.fn(async () => [
+          {
+            id: 'f-canon-1',
+            name: 'strategy.docx',
+            size: 2048,
+            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            updatedAt: new Date(),
+          },
+        ]),
+      },
+    };
+
+    const service = new RelationalMemoryService(mockPrisma);
+    const snapshot = await service.getUnifiedSnapshot('user-canon');
+
+    expect(mockPrisma.event?.findMany).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.file?.findMany).toHaveBeenCalledTimes(1);
+    expect(snapshot.upcomingEvents).toHaveLength(1);
+    expect(snapshot.upcomingEvents[0]?.title).toBe('Executive Sync');
+    expect(snapshot.recentFiles).toHaveLength(1);
+    expect(snapshot.recentFiles[0]?.name).toBe('strategy.docx');
+  });
 });

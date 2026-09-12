@@ -111,8 +111,13 @@ describe('CalendarCallAlertService Unit Tests', () => {
     expect(active).toHaveLength(2);
   });
 
-  it('cancels scheduled alerts for an event', async () => {
-    const service = new CalendarCallAlertService();
+  it('cancels scheduled alerts for an event and removes BullMQ job', async () => {
+    const mockQueue = {
+      add: vi.fn().mockResolvedValue({ id: 'job-1' }),
+      remove: vi.fn().mockResolvedValue(undefined),
+    } as unknown as TypedQueue<ProactiveAgentJob>;
+
+    const service = new CalendarCallAlertService({ queue: mockQueue });
     const event: CalendarEventInput = {
       id: 'event-to-cancel',
       title: 'Sync',
@@ -127,6 +132,7 @@ describe('CalendarCallAlertService Unit Tests', () => {
     const cancelledCount = await service.cancelAlertsForEvent('event-to-cancel');
     expect(cancelledCount).toBe(1);
     expect(service.getScheduledAlerts('user-cancel')).toHaveLength(0);
+    expect(mockQueue.remove).toHaveBeenCalledWith('call-alert-event-to-cancel-5');
   });
 
   it('gracefully handles queue failure and retains memory alert', async () => {

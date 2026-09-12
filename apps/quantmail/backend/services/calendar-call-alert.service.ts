@@ -136,6 +136,13 @@ export class CalendarCallAlertService {
       if (alert.eventId === eventId) {
         alert.status = 'cancelled';
         this.memoryAlerts.delete(jobId);
+        if (this.queue) {
+          try {
+            await this.queue.remove(jobId);
+          } catch {
+            // Non-fatal if job was already processed or removed
+          }
+        }
         count++;
       }
     }

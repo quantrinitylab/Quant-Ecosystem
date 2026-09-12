@@ -1,10 +1,24 @@
 import type { FastifyInstance } from 'fastify';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { CallService } from '../services/call.service';
 import { VoiceBotAgentService } from '../services/voice-bot-agent.service';
 import { MeetingReminderDialogueService } from '../services/meeting-reminder-dialogue.service';
 import { CallRingGeneratorService } from '../services/call-ring-generator.service';
+
+export function validVoiceBotSignature(
+  body: string,
+  supplied: string | undefined,
+  secret: string,
+): boolean {
+  if (!supplied?.startsWith('sha256=')) return false;
+  const expected = Buffer.from(createHmac('sha256', secret).update(body).digest('hex'), 'hex');
+  const actualHex = supplied.slice('sha256='.length);
+  if (!/^[0-9a-f]{64}$/i.test(actualHex)) return false;
+  const actual = Buffer.from(actualHex, 'hex');
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
 
 const triggerAlertSchema = z.object({
   userId: z.string().min(1),
@@ -75,6 +89,19 @@ export default async function voiceBotRoutes(
 
   // POST /voice-bot/alert — Trigger outbound call alert for a meeting
   fastify.post('/alert', async (request, reply) => {
+    const signature = request.headers['x-quant-signature'] as string | undefined;
+    const internalSecret =
+      process.env['VOICE_BOT_SECRET'] || process.env['LIVEKIT_API_SECRET'] || 'devsecret';
+
+    // Fail-closed HMAC validation if signature is present or if enforcement is enabled
+    if (signature || process.env['ENFORCE_VOICE_BOT_HMAC'] === 'true') {
+      const payloadString =
+        typeof request.body === 'string' ? request.body : JSON.stringify(request.body);
+      if (!validVoiceBotSignature(payloadString, signature, internalSecret)) {
+        throw createAppError('Invalid HMAC signature', 401, 'UNAUTHORIZED');
+      }
+    }
+
     const parseResult = triggerAlertSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw parseResult.error;
@@ -88,7 +115,6 @@ export default async function voiceBotRoutes(
         roomName: activeCall.roomName,
         userId: activeCall.userId,
         state: activeCall.state,
-        userToken: activeCall.userToken,
         ringStartedAt: activeCall.ringStartedAt,
       },
     });
@@ -96,16 +122,18 @@ export default async function voiceBotRoutes(
 
   // POST /voice-bot/calls/:callId/answer — User answers incoming call
   fastify.post<{ Params: { callId: string } }>('/calls/:callId/answer', async (request, reply) => {
-    const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
+    const authUserId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
     const call = ringGenerator.getCall(request.params.callId);
 
     if (!call) {
       throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
     }
 
-    // Use authenticated userId or fallback to targeted user in call record
-    const targetUserId = userId || call.userId;
+    if (authUserId && authUserId !== call.userId) {
+      throw createAppError('You are not authorized to answer this call', 403, 'FORBIDDEN');
+    }
 
+    const targetUserId = authUserId || call.userId;
     const result = await ringGenerator.answerCall(request.params.callId, targetUserId);
     return reply.send({
       success: true,
@@ -124,14 +152,18 @@ export default async function voiceBotRoutes(
 
   // POST /voice-bot/calls/:callId/decline — User declines call
   fastify.post<{ Params: { callId: string } }>('/calls/:callId/decline', async (request, reply) => {
-    const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
+    const authUserId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
     const call = ringGenerator.getCall(request.params.callId);
 
     if (!call) {
       throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
     }
 
-    const targetUserId = userId || call.userId;
+    if (authUserId && authUserId !== call.userId) {
+      throw createAppError('You are not authorized to decline this call', 403, 'FORBIDDEN');
+    }
+
+    const targetUserId = authUserId || call.userId;
     await ringGenerator.declineCall(request.params.callId, targetUserId);
 
     return reply.send({
@@ -142,6 +174,17 @@ export default async function voiceBotRoutes(
 
   // POST /voice-bot/calls/:callId/turn — User sends conversational turn (voice or text)
   fastify.post<{ Params: { callId: string } }>('/calls/:callId/turn', async (request, reply) => {
+    const authUserId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
+    const call = ringGenerator.getCall(request.params.callId);
+
+    if (!call) {
+      throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
+    }
+
+    if (authUserId && authUserId !== call.userId) {
+      throw createAppError('You are not authorized to send turns for this call', 403, 'FORBIDDEN');
+    }
+
     const parseResult = dialogueTurnSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw parseResult.error;
@@ -168,9 +211,14 @@ export default async function voiceBotRoutes(
 
   // GET /voice-bot/calls/:callId — Get call & transcript status
   fastify.get<{ Params: { callId: string } }>('/calls/:callId', async (request, reply) => {
+    const authUserId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
     const call = ringGenerator.getCall(request.params.callId);
     if (!call) {
       throw createAppError('Call not found', 404, 'CALL_NOT_FOUND');
+    }
+
+    if (authUserId && authUserId !== call.userId) {
+      throw createAppError('You are not authorized to view this call', 403, 'FORBIDDEN');
     }
 
     const session = call.voiceSessionId ? voiceBot.getSession(call.voiceSessionId) : undefined;
