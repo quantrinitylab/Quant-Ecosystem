@@ -179,13 +179,49 @@ function writeSummary(counts, findings, level) {
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary.join('\n')}\n`);
 }
 
+/**
+ * Documented, time-boxed exceptions for known transitive advisories where upstream
+ * has not yet released a patched version.
+ */
+const AUDIT_EXCEPTIONS = [
+  {
+    packageName: 'adm-zip',
+    advisorySnippet: 'GHSA-vwc7-r8mq-g2x9',
+    maxSeverity: 'moderate',
+    expiresAt: '2026-12-31',
+    justification:
+      'Transitive dependency via onnxruntime-node. adm-zip@0.6.0 is the latest version published to npm and resolves the HIGH severity CVE-2026-39244. No upstream patch yet exists for GHSA-vwc7-r8mq-g2x9.',
+  },
+];
+
+function isDocumentedException(finding) {
+  const now = new Date();
+  return AUDIT_EXCEPTIONS.some((exc) => {
+    if (exc.packageName !== finding.packageName) return false;
+    if (exc.advisorySnippet && !finding.url?.includes(exc.advisorySnippet) && !finding.title?.includes(exc.advisorySnippet)) return false;
+    if (new Date(exc.expiresAt) < now) return false;
+    return severityRank(finding.severity) <= severityRank(exc.maxSeverity);
+  });
+}
+
 try {
   const level = String(argumentValue('--level') ?? 'high').toLowerCase();
   if (!SEVERITIES.includes(level)) throw new Error(`Unsupported severity level: ${level}`);
 
   const { counts, findings } = normalizeAudit(loadAuditReport());
+  const activeFindings = [];
+  for (const finding of findings) {
+    if (isDocumentedException(finding)) {
+      counts[finding.severity] = Math.max(0, counts[finding.severity] - 1);
+      console.warn(
+        `[dependency-audit] Allowed documented time-boxed exception: ${finding.packageName} (${finding.severity}) - ${finding.url ?? finding.title}`,
+      );
+    } else {
+      activeFindings.push(finding);
+    }
+  }
   const minimumRank = severityRank(level);
-  const blockingFindings = findings.filter((finding) => severityRank(finding.severity) >= minimumRank);
+  const blockingFindings = activeFindings.filter((finding) => severityRank(finding.severity) >= minimumRank);
   const blocked = blockingCount(counts, minimumRank);
 
   console.error(
