@@ -1,104 +1,60 @@
-import { describe, it, expect } from 'vitest';
-import { CIJobExecutor } from '../executor.js';
+import { beforeEach, describe, it, expect } from 'vitest';
+import { CIJobExecutor, CIExecutorUnavailableError } from '../executor.js';
 import type { CIJobConfig } from '../parser.js';
 
-describe('CIJobExecutor', () => {
+const fixtureJob = (overrides: Partial<CIJobConfig> = {}): CIJobConfig => ({
+  name: 'fixture-job',
+  image: 'node:22',
+  stage: 'test',
+  script: ['echo fixture'],
+  timeout: '30m',
+  allowFailure: false,
+  ...overrides,
+});
+
+describe('CIJobExecutor availability contract', () => {
   let executor: CIJobExecutor;
 
   beforeEach(() => {
     executor = new CIJobExecutor();
   });
 
-  describe('executeJob', () => {
-    it('executes a job with script lines and returns success', async () => {
-      const job: CIJobConfig = {
-        name: 'test-job',
-        image: 'node:22',
-        stage: 'test',
-        script: ['npm ci', 'npm test'],
-        timeout: '30m',
-        allowFailure: false,
-      };
+  it('leaves an untouched job pending', () => {
+    expect(executor.getStatus('fixture-job')).toBe('pending');
+  });
 
-      const result = await executor.executeJob(job, {});
+  it('reports unavailable execution infrastructure explicitly', () => {
+    expect(() => executor.assertAvailable()).toThrow(CIExecutorUnavailableError);
+    expect(new CIExecutorUnavailableError().code).toBe('CI_EXECUTOR_UNAVAILABLE');
+  });
 
-      expect(result.status).toBe('success');
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toContain('$ npm ci');
-      expect(result.stdout).toContain('[OK] npm ci');
-      expect(result.stdout).toContain('$ npm test');
-      expect(result.stdout).toContain('[OK] npm test');
-      expect(result.duration).toBeGreaterThanOrEqual(0);
+  it('rejects a job instead of manufacturing a successful result', async () => {
+    await expect(executor.executeJob(fixtureJob(), {})).rejects.toThrow(CIExecutorUnavailableError);
+    expect(executor.getStatus('fixture-job')).toBe('failed');
+  });
+
+  it('does not treat an empty script as an executed success', async () => {
+    await expect(executor.executeJob(fixtureJob({ script: [] }), {})).rejects.toThrow(
+      CIExecutorUnavailableError,
+    );
+  });
+
+  it('does not suppress unavailability for an allowed step failure', async () => {
+    await expect(executor.executeJob(fixtureJob({ allowFailure: true }), {})).rejects.toThrow(
+      CIExecutorUnavailableError,
+    );
+  });
+
+  it('does not expand or read workflow variables before rejecting', async () => {
+    const variables: Record<string, string> = {};
+    Object.defineProperty(variables, 'FIXTURE_VALUE', {
+      enumerable: true,
+      get() {
+        throw new Error('Variables must not be inspected by an unavailable executor');
+      },
     });
-
-    it('expands variables in script lines', async () => {
-      const job: CIJobConfig = {
-        name: 'build-job',
-        image: 'node:22',
-        stage: 'build',
-        script: ['echo $NODE_ENV', 'echo ${APP_NAME}'],
-        timeout: '30m',
-        allowFailure: false,
-      };
-
-      const result = await executor.executeJob(job, {
-        NODE_ENV: 'production',
-        APP_NAME: 'my-app',
-      });
-
-      expect(result.status).toBe('success');
-      expect(result.stdout).toContain('$ echo production');
-      expect(result.stdout).toContain('$ echo my-app');
-    });
-
-    it('tracks status transitions correctly', async () => {
-      const job: CIJobConfig = {
-        name: 'status-job',
-        image: 'node:22',
-        stage: 'test',
-        script: ['npm test'],
-        timeout: '30m',
-        allowFailure: false,
-      };
-
-      expect(executor.getStatus('status-job')).toBe('pending');
-
-      await executor.executeJob(job, {});
-
-      expect(executor.getStatus('status-job')).toBe('success');
-    });
-
-    it('handles empty script array', async () => {
-      const job: CIJobConfig = {
-        name: 'empty-job',
-        image: 'node:22',
-        stage: 'test',
-        script: [],
-        timeout: '30m',
-        allowFailure: false,
-      };
-
-      const result = await executor.executeJob(job, {});
-
-      expect(result.status).toBe('success');
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).toBe('');
-    });
-
-    it('returns duration as a number', async () => {
-      const job: CIJobConfig = {
-        name: 'duration-job',
-        image: 'node:22',
-        stage: 'test',
-        script: ['echo hello'],
-        timeout: '30m',
-        allowFailure: false,
-      };
-
-      const result = await executor.executeJob(job, {});
-
-      expect(typeof result.duration).toBe('number');
-      expect(result.duration).toBeGreaterThanOrEqual(0);
-    });
+    await expect(
+      executor.executeJob(fixtureJob({ script: ['echo $FIXTURE_VALUE'] }), variables),
+    ).rejects.toThrow(CIExecutorUnavailableError);
   });
 });

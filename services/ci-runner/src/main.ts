@@ -22,6 +22,9 @@ export const ciWorker = createTypedWorker(
   'ci-runs',
   CIRunJobSchema,
   async (job) => {
+    // Missing execution infrastructure must reject the whole run before parsing
+    // or logging. Empty workflows and allowFailure cannot turn it into success.
+    executor.assertAvailable();
     const { runId, configYaml, variables } = job.data;
     const config = parser.parseConfig(configYaml);
     const executionOrder = parser.getExecutionOrder(config);

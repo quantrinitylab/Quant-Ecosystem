@@ -10,6 +10,16 @@ export interface ExecutionResult {
   status: 'success' | 'failed';
 }
 
+/** Infrastructure unavailability is not an allowed workflow-step failure. */
+export class CIExecutorUnavailableError extends Error {
+  readonly code = 'CI_EXECUTOR_UNAVAILABLE';
+
+  constructor() {
+    super('CI execution is unavailable: an isolated execution backend has not been configured.');
+    this.name = 'CIExecutorUnavailableError';
+  }
+}
+
 export class CIJobExecutor {
   private statusMap = new Map<string, JobStatus>();
 
@@ -17,52 +27,15 @@ export class CIJobExecutor {
     return this.statusMap.get(jobName) ?? 'pending';
   }
 
-  async executeJob(job: CIJobConfig, variables: Record<string, string>): Promise<ExecutionResult> {
-    this.statusMap.set(job.name, 'running');
-    const startTime = Date.now();
-
-    const stdoutLines: string[] = [];
-    const stderrLines: string[] = [];
-
-    try {
-      for (const line of job.script) {
-        const expandedLine = this.expandVariables(line, variables);
-        stdoutLines.push(`$ ${expandedLine}`);
-        stdoutLines.push(`[OK] ${expandedLine}`);
-      }
-
-      const duration = Date.now() - startTime;
-      this.statusMap.set(job.name, 'success');
-
-      return {
-        exitCode: 0,
-        stdout: stdoutLines.join('\n'),
-        stderr: stderrLines.join('\n'),
-        duration,
-        status: 'success',
-      };
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      stderrLines.push(errorMessage);
-      this.statusMap.set(job.name, 'failed');
-
-      return {
-        exitCode: 1,
-        stdout: stdoutLines.join('\n'),
-        stderr: stderrLines.join('\n'),
-        duration,
-        status: 'failed',
-      };
-    }
+  /** Check before accepting any run, including one with no executable jobs. */
+  assertAvailable(): void {
+    throw new CIExecutorUnavailableError();
   }
 
-  private expandVariables(line: string, variables: Record<string, string>): string {
-    let result = line;
-    for (const [key, value] of Object.entries(variables)) {
-      result = result.replace(new RegExp(`\\$\\{${key}\\}`, 'g'), value);
-      result = result.replace(new RegExp(`\\$${key}\\b`, 'g'), value);
-    }
-    return result;
+  async executeJob(job: CIJobConfig, _variables: Record<string, string>): Promise<ExecutionResult> {
+    // Do not expand or print script variables, invent output, or claim a build
+    // succeeded. A real isolated backend must supply an actual execution result.
+    this.statusMap.set(job.name, 'failed');
+    throw new CIExecutorUnavailableError();
   }
 }
