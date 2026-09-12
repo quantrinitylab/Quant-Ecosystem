@@ -245,7 +245,7 @@
    - [x] Closed PR #244 (superseded by PR #258).
    - [x] **PR #248 MERGED TO MAIN (`2eac333b`)**: Official App Map and De-duplication decision record now live on `main`.
    - [x] PR #236 marked Ready for Review, synced with `main`, gate passing.
-   - [x] PR #237 marked Ready for Review, synced with `main`, 24/27 CI checks passing.
+   - [x] **PR #237 MERGED TO MAIN (`f3c9a4ac`)**: Drive upload error propagation & UI results handling merged (all 29/29 CI checks passing 100%, full-sweep green in 26m4s).
    - [x] PR #243 synced with `main`, gate passing.
    - [x] **PR #260 (Draft)**: Created for `chore/monorepo-consolidation-waves-b-to-f` (`https://github.com/quantrinitylab/Quant-Ecosystem/pull/260`) for full transparent Owner review of Sprints 2-5 and Wave F deletions.
 10. [x] Maintain continuous dual-memory sync (`AGENT_MEMORY.md` & `TASK_PLANNER.md`) across repository and `C:\Users\Pc\.gemini\`.
@@ -255,11 +255,11 @@
 ## 🛡️ PR #260 REMEDIATION SPRINT (ASTRA EXECUTIVE VERDICT REMEDIATIONS)
 
 - **Audit Origin**: CEO Astra (Notion AI / Opus 5) Official PR #260 Audit (Timestamp: 2026-09-12 17:30 IST)
-- **Status**: Architecture GRANTED. Merge withheld on 6 specific items:
-- [ ] **Task MC-01 (Critical Security - Dev 1 / Dev 8)**: Secure `POST /voice-bot/alert`: enforce ADR-CH-002 HMAC SHA-256 signature verification and stop returning `userToken` in response.
-- [ ] **Task MC-02 (High Security - Dev 1)**: Fix `targetUserId = userId || call.userId` in `/calls` and enforce strict authentication & caller ownership on `/calls/:callId/turn`.
-- [ ] **Task MC-03 (CodeQL ReDoS - Dev 3)**: Replace exponential regexes with non-backtracking parsing in `contact.service.ts:436–440` vCard parser (resolves alerts 63–67).
-- [ ] **Task MC-04 (Correctness - Dev 3)**: Ensure `cancelAlertsForEvent` in `calendar-call-alert.service.ts` calls `queue.remove(jobId)` on BullMQ queue.
-- [ ] **Task MC-05 (Correctness - Dev 7)**: Align `RelationalMemoryService` to use actual Prisma delegates `prisma.event` and `prisma.file` (replacing `calendarEvent`/`driveFile`).
-- [ ] **Task MC-15 (Governance - Dev 1)**: Author database migration for persisted `QuantApp` table values.
-- [ ] **Task MC-18 (Review Gate 18 - Dev 6 / Astra)**: Re-open PR #260 under Developer 6 account to allow CEO Astra independent `APPROVE` review.
+- **Status**: Architecture GRANTED. Remediations implemented in commit `415b4870`, synced with `origin/main` at `e63435d7`, pushed to GitHub remote.
+- [x] **Task MC-01 (Critical Security - Dev 1 / Dev 8)**: Secure `POST /voice-bot/alert`: enforced ADR-CH-002 HMAC SHA-256 signature verification fail-closed and eliminated `userToken` response leakage. _(Commit `415b4870`, 23/23 tests passing)_.
+- [x] **Task MC-02 (High Security - Dev 1)**: Fixed ownership check in `/calls/:callId/answer`, `/decline`, `/turn`, and `GET /calls/:callId` to throw 403 `FORBIDDEN` on caller mismatch. _(Commit `415b4870`, discriminating tests passing)_.
+- [x] **Task MC-03 (CodeQL ReDoS - Dev 3)**: Replaced exponential regexes with linear line-by-line parsing in `contact.service.ts:436–440` vCard importer (resolves alerts 63–67). _(Commit `415b4870`, 6/6 tests passing)_.
+- [x] **Task MC-04 (Correctness - Dev 3)**: Added `queue.remove(jobId)` to BullMQ `TypedQueue` and called it in `cancelAlertsForEvent` inside `calendar-call-alert.service.ts`. _(Commit `415b4870`, 7/7 tests passing)_.
+- [x] **Task MC-05 (Correctness - Dev 7)**: Aligned `RelationalMemoryService` to use actual Prisma delegates `prisma.event` and `prisma.file` with legacy fallback. _(Commit `415b4870`, 4/4 tests passing)_.
+- [x] **Task MC-15 (Governance - Dev 1)**: Authored database migration `0061_quantapp_rebrand_backfill` for persisted `QuantApp` table values and updated `seed.ts` demo notifications. _(Commit `415b4870`, 174/174 tests passing)_.
+- [ ] **Task MC-18 (Review Gate 18 - Dev 6 / Astra)**: Re-open PR #260 under Developer 6 account or authorize CEO Astra independent `APPROVE` review.
