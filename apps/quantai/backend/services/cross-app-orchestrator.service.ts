@@ -41,6 +41,33 @@ export interface FileSummary {
   summary: string;
 }
 
+export interface CodeRepoResult {
+  id: string;
+  name: string;
+  fullName: string;
+  description: string;
+  defaultBranch: string;
+  visibility: string;
+}
+
+export interface PullRequestResult {
+  id: string;
+  number: number;
+  title: string;
+  status: string;
+  authorId: string;
+  sourceBranch: string;
+  targetBranch: string;
+}
+
+export interface AiReviewResult {
+  summary: string;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  filesChanged: number;
+  findingsCount: number;
+  suggestions: string[];
+}
+
 export interface AppConnectors {
   mail: {
     search(query: string): Promise<EmailResult[]>;
@@ -64,6 +91,11 @@ export interface AppConnectors {
   drive: {
     search(query: string): Promise<FileResult[]>;
     summarize(fileId: string): Promise<FileSummary>;
+  };
+  code: {
+    listRepos(): Promise<CodeRepoResult[]>;
+    getPullRequests(owner: string, name: string): Promise<PullRequestResult[]>;
+    reviewPullRequest(owner: string, name: string, number: number): Promise<AiReviewResult>;
   };
 }
 
@@ -282,6 +314,37 @@ export class CrossAppOrchestrator {
       citations: [
         { source: `Conversation ${conversationId}`, app: 'chat', id: conversationId },
         { source: 'Follow-up document', app: 'docs', id: doc.docId },
+      ],
+    };
+  }
+
+  async listUserRepositories(userId: string): Promise<OrchestrationResult<CodeRepoResult[]>> {
+    this.assertPermission(userId, 'code');
+    const repos = await this.connectors.code.listRepos();
+    return {
+      success: true,
+      result: repos,
+      citations: repos.map((r) => ({ source: r.fullName, app: 'code', id: r.id })),
+    };
+  }
+
+  async reviewPullRequest(
+    userId: string,
+    owner: string,
+    name: string,
+    number: number,
+  ): Promise<OrchestrationResult<AiReviewResult>> {
+    this.assertPermission(userId, 'code');
+    const report = await this.connectors.code.reviewPullRequest(owner, name, number);
+    return {
+      success: true,
+      result: report,
+      citations: [
+        {
+          source: `PR #${number} in ${owner}/${name}`,
+          app: 'code',
+          id: `${owner}/${name}#${number}`,
+        },
       ],
     };
   }

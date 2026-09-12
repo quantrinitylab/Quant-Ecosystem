@@ -8,6 +8,9 @@ import type {
   CalendarEvent,
   FileResult,
   FileSummary,
+  CodeRepoResult,
+  PullRequestResult,
+  AiReviewResult,
 } from './cross-app-orchestrator.service';
 
 type FetchImpl = typeof fetch;
@@ -18,6 +21,7 @@ export interface HttpConnectorUrls {
   docs?: string;
   calendar?: string;
   drive?: string;
+  code?: string;
 }
 
 export interface HttpAppConnectorsOptions {
@@ -37,6 +41,7 @@ function envUrls(): HttpConnectorUrls {
     docs: process.env['QUANTDOCS_BACKEND_URL'] || mailUrl,
     calendar: process.env['QUANTCALENDAR_BACKEND_URL'] || mailUrl,
     drive: process.env['QUANTDRIVE_BACKEND_URL'] || mailUrl,
+    code: process.env['QUANTCODE_BACKEND_URL'] || mailUrl,
   };
 }
 
@@ -214,6 +219,68 @@ export class HttpAppConnectors implements AppConnectors {
         { method: 'POST' },
       );
       return { fileId, summary: this.str(data, 'summary') };
+    },
+  };
+
+  code = {
+    listRepos: async (): Promise<CodeRepoResult[]> => {
+      const data = await this.call<unknown>('code', '/repos');
+      return this.asArray(data).map((r) => ({
+        id: this.str(r, 'id'),
+        name: this.str(r, 'name'),
+        fullName: this.str(r, 'fullName', 'name'),
+        description: this.str(r, 'description'),
+        defaultBranch: this.str(r, 'defaultBranch') || 'main',
+        visibility: this.str(r, 'visibility') || 'private',
+      }));
+    },
+    getPullRequests: async (owner: string, name: string): Promise<PullRequestResult[]> => {
+      const data = await this.call<unknown>(
+        'code',
+        `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/pulls`,
+      );
+      return this.asArray(data).map((p) => ({
+        id: this.str(p, 'id'),
+        number:
+          typeof p['number'] === 'number' ? p['number'] : parseInt(this.str(p, 'number'), 10) || 0,
+        title: this.str(p, 'title'),
+        status: this.str(p, 'status'),
+        authorId: this.str(p, 'authorId'),
+        sourceBranch: this.str(p, 'sourceBranch'),
+        targetBranch: this.str(p, 'targetBranch'),
+      }));
+    },
+    reviewPullRequest: async (
+      owner: string,
+      name: string,
+      number: number,
+    ): Promise<AiReviewResult> => {
+      const data = await this.call<Record<string, unknown>>(
+        'code',
+        `/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/pulls/${number}/ai-review`,
+        { method: 'POST' },
+      );
+      const suggestionsRaw = data['suggestions'];
+      const suggestions: string[] = Array.isArray(suggestionsRaw)
+        ? suggestionsRaw.map((s) => String(s))
+        : [];
+      const risk = this.str(data, 'riskLevel');
+      const validRisk: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = [
+        'LOW',
+        'MEDIUM',
+        'HIGH',
+        'CRITICAL',
+      ].includes(risk)
+        ? (risk as 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL')
+        : 'LOW';
+
+      return {
+        summary: this.str(data, 'summary'),
+        riskLevel: validRisk,
+        filesChanged: typeof data['filesChanged'] === 'number' ? data['filesChanged'] : 0,
+        findingsCount: typeof data['findingsCount'] === 'number' ? data['findingsCount'] : 0,
+        suggestions,
+      };
     },
   };
 }

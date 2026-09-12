@@ -10,7 +10,7 @@ describe('CrossAppOrchestrator', () => {
   beforeEach(() => {
     connectors = new DemoModeConnector();
     permissions = {
-      'user-1': ['mail', 'chat', 'docs', 'calendar', 'drive'],
+      'user-1': ['mail', 'chat', 'docs', 'calendar', 'drive', 'code'],
       'user-2': ['mail', 'calendar'],
       'admin-user': ['*'],
     };
@@ -162,6 +162,49 @@ describe('CrossAppOrchestrator', () => {
       await expect(restricted.chatFollowup('user-no-chat', 'conv-123')).rejects.toThrow(
         /Permission denied.*chat/,
       );
+    });
+  });
+
+  describe('listUserRepositories', () => {
+    it('lists repositories with citations', async () => {
+      const result = await orchestrator.listUserRepositories('user-1');
+
+      expect(result.success).toBe(true);
+      expect(Array.isArray(result.result)).toBe(true);
+      expect(result.result.length).toBeGreaterThan(0);
+      expect(result.result[0]).toHaveProperty('name', 'quant-core');
+      expect(result.citations.length).toBeGreaterThan(0);
+      expect(result.citations[0]!.app).toBe('code');
+    });
+
+    it('denies access when user lacks code permission', async () => {
+      const restricted = new CrossAppOrchestrator(connectors, { 'user-limited': ['mail'] });
+      await expect(restricted.listUserRepositories('user-limited')).rejects.toThrow(
+        /Permission denied.*code/,
+      );
+    });
+  });
+
+  describe('reviewPullRequest', () => {
+    it('triggers automated AI review on pull request and returns structured report', async () => {
+      const result = await orchestrator.reviewPullRequest('user-1', 'quant', 'quant-core', 42);
+
+      expect(result.success).toBe(true);
+      expect(result.result).toHaveProperty('riskLevel', 'LOW');
+      expect(result.result).toHaveProperty('summary');
+      expect(result.result.summary).toContain('Automated AI review for PR #42');
+      expect(result.result.suggestions).toContain(
+        'Consider adding an integration test for edge case timeout.',
+      );
+      expect(result.citations).toHaveLength(1);
+      expect(result.citations[0]!.app).toBe('code');
+    });
+
+    it('denies access when user lacks code permission', async () => {
+      const restricted = new CrossAppOrchestrator(connectors, { 'user-limited': ['mail'] });
+      await expect(
+        restricted.reviewPullRequest('user-limited', 'quant', 'quant-core', 42),
+      ).rejects.toThrow(/Permission denied.*code/);
     });
   });
 

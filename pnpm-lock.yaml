@@ -318,6 +318,9 @@ importers:
       '@quant/quant-tools':
         specifier: workspace:*
         version: link:../../packages/quant-tools
+      '@quant/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime

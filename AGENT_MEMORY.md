@@ -569,3 +569,72 @@ To build this systematically without breaking working code or overwhelming the t
 - **Backend Build**: `pnpm --filter @quant/quantmail run build:backend` passed with exit code 0 (zero errors).
 - **Backend Vitest Full Sweep**: 147 test files, 1,602 tests passing 100% (zero failures, duration 666.89s).
 - **Working Tree**: 100% clean across all 125 workspace packages.
+
+---
+
+## 🧠 12. SPRINT 3: FEDERATED QUANTY AGENT SWARM & LAYERED SHARED MEMORY
+
+### A. Core Architecture & 3-Layer Shared Memory Model
+
+Quanty operates as a unified federated personal AI controller across all 10 ecosystem applications. To enable instantaneous zero-latency reasoning while maintaining long-term cross-session knowledge and scheduled proactive autonomy, Sprint 3 established the 3-Layer Shared Memory Architecture and BullMQ proactive scheduling:
+
+```mermaid
+graph TD
+    subgraph UI["Quanty Personal Assistant"]
+        Prompt["User Request / Action Trigger"]
+    end
+    subgraph L1["Layer 1: Working Memory (Redis)"]
+        WM["Fast Session State (<2ms)<br/>Recent turns, scratchpad, active app"]
+    end
+    subgraph L2["Layer 2: Relational Memory (Prisma DB)"]
+        RM["Unified Relational Snapshot<br/>Events, frequent contacts, recent files, CodeHub repos"]
+    end
+    subgraph L3["Layer 3: Semantic Vector Memory (QuantDrive)"]
+        SVM["Dense Vector Embeddings (Cosine Sim)<br/>Long-term cross-agent episodic memory & knowledge"]
+    end
+    subgraph Sched["BullMQ Proactive Scheduler (Redis)"]
+        PQ["quant:proactive-jobs queue<br/>Meeting call alerts, triage, reminders"]
+    end
+    subgraph Orchestrator["Cross-App Orchestrator"]
+        CAO["QuantMail, Calendar, Drive, CodeHub Connectors"]
+    end
+
+    Prompt --> WM
+    Prompt --> RM
+    Prompt --> SVM
+    WM & RM & SVM --> Orchestrator
+    Sched --> CAO
+```
+
+### B. Sprint 3 Service Implementations & Verification
+
+1. **Cross-App CodeHub Wiring (Task AI-01)**:
+   - Updated `apps/quantai/backend/services/cross-app-orchestrator.service.ts`: added `CodeRepoResult`, `PullRequestResult`, `AiReviewResult` interfaces; wired `listUserRepositories` and `reviewPullRequest` with permission guards and citations.
+   - Updated `apps/quantai/backend/services/demo-mode.service.ts`: added mock CodeHub repos, PRs, and AI review summaries.
+   - Updated `apps/quantai/backend/services/http-connectors.service.ts`: added `code` to `HttpConnectorUrls` and `envUrls` (defaults to `QUANTCODE_BACKEND_URL || mailUrl`), implemented `listRepos`, `getPullRequests`, `reviewPullRequest`.
+   - Verified: 25/25 tests passing in `cross-app-orchestrator.service.test.ts` (18/18) and `http-connectors.service.test.ts` (7/7).
+
+2. **Layer 1 Working Memory in Redis (Task AI-02)**:
+   - Implemented `apps/quantai/backend/services/working-memory.service.ts`: sub-2ms state store managing conversation turns (bounded by `maxRecentTurns`), context variables, active app, and scratchpad with Redis key TTL.
+   - Built robust zero-crash in-memory fallback map when Redis connection is unavailable.
+   - Verified: 6/6 tests passing in `backend/__tests__/working-memory.service.test.ts`.
+
+3. **Layer 2 Relational Memory in Prisma (Task AI-03)**:
+   - Implemented `apps/quantai/backend/services/relational-memory.service.ts`: queries Prisma across calendar events, frequent contacts, drive files, and CodeHub repos to construct a structured `RelationalMemorySnapshot` for injection into Quanty LLM context.
+   - Includes graceful error containment so partial database failures return empty sections without failing the whole snapshot.
+   - Verified: 3/3 tests passing in `backend/__tests__/relational-memory.service.test.ts`.
+
+4. **Layer 3 Semantic Vector Memory in QuantDrive (Task AI-04)**:
+   - Implemented `apps/quantai/backend/services/semantic-vector-memory.service.ts`: stores embeddings with metadata (`userId`, `app`, `entityId`, `entityType`, `content`).
+   - Supports cosine similarity search over normalized dense vectors with top-k ranking and score filtering.
+   - Includes `DeterministicEmbeddingProvider` (64-dimensional L2-normalized hashing vectors) providing deterministic, zero-external-dependency offline embeddings.
+   - Verified: 6/6 tests passing in `backend/__tests__/semantic-vector-memory.service.test.ts`.
+
+5. **BullMQ Background Task Queue & Proactive Scheduler (Task AI-05)**:
+   - Defined `ProactiveAgentJobSchema` and exported `ProactiveAgentJob` in `packages/queue/src/job-definitions.ts` supporting `meeting_reminder`, `meeting_call_alert`, `inbox_triage`, `code_review_reminder`, `daily_digest`.
+   - Implemented `apps/quantai/backend/services/proactive-scheduler.service.ts` using `TypedQueue<ProactiveAgentJob>` on queue `'quant:proactive-jobs'` with delayed BullMQ scheduling and local memory registry fallback.
+   - Verified: 4/4 tests passing in `backend/__tests__/proactive-scheduler.service.test.ts`, 30/30 tests passing in `packages/queue`.
+
+6. **Full Suite & Typecheck Gate**:
+   - `pnpm --filter @quant/quantai run build:backend` passed 100% clean (exit code 0).
+   - Full Vitest suite for `@quant/quantai`: 26 test files, 260/260 tests passing 100% in 324.32s.

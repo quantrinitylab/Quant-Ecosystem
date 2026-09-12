@@ -22,6 +22,7 @@
     "@quant/browser-agent": "workspace:*",
     "@quant/code-agent": "workspace:*",
     "@quant/quant-tools": "workspace:*",
+    "@quant/queue": "workspace:*",
     "@quant/user-owned-ai": "workspace:*",
     "@quant/auth": "workspace:*",
     "@quant/ai": "workspace:*",

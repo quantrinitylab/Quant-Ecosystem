@@ -11,6 +11,8 @@ export {
   type GenerateReportJob,
   ModerationJobSchema,
   type ModerationJob,
+  ProactiveAgentJobSchema,
+  type ProactiveAgentJob,
 } from './job-definitions.js';
 export { QueueDeadLetter } from './dead-letter.js';
 export type { DeadLetterRecord, DeadLetterFilters, DeadLetterStats } from './dead-letter.js';
