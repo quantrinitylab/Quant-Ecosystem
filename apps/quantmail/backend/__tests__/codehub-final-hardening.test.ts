@@ -7,21 +7,26 @@ import { join } from 'node:path';
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { errorHandlerPlugin } from '@quant/server-core';
-import gitRoutes from '../modules/code/routes/git';
+import gitRoutes, { gitPurgeRoutes } from '../modules/code/routes/git';
 import { RepoStorageService } from '../modules/code/services/git-transport';
 
-async function buildRouteApp(userId: string) {
+const defaultRepository = {
+  id: 'repo-1',
+  ownerId: 'owner-1',
+  name: 'project',
+  description: null,
+  visibility: 'PUBLIC',
+  defaultBranch: 'main',
+  storagePathUrl: '/tmp/project.git',
+  deletedAt: null as Date | null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+async function buildRouteApp(userId?: string, repoOverrides?: Partial<typeof defaultRepository>) {
   const repository = {
-    id: 'repo-1',
-    ownerId: 'owner-1',
-    name: 'project',
-    description: null,
-    visibility: 'PUBLIC',
-    defaultBranch: 'main',
-    storagePathUrl: '/tmp/project.git',
-    deletedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    ...defaultRepository,
+    ...repoOverrides,
   };
   const prisma = {
     repository: {
@@ -31,17 +36,21 @@ async function buildRouteApp(userId: string) {
         ...repository,
         ...data,
       })),
+      delete: vi.fn(async () => repository),
     },
   };
   const app = Fastify();
   await app.register(errorHandlerPlugin);
   app.decorate('prisma', prisma as never);
-  app.addHook('onRequest', async (request) => {
-    (request as unknown as { auth: { userId: string } }).auth = { userId };
-  });
+  if (userId) {
+    app.addHook('onRequest', async (request) => {
+      (request as unknown as { auth: { userId: string } }).auth = { userId };
+    });
+  }
   await app.register(gitRoutes);
+  await app.register(gitPurgeRoutes);
   await app.ready();
-  return { app, prisma };
+  return { app, prisma, repository };
 }
 
 const apps: Array<Awaited<ReturnType<typeof buildRouteApp>>['app']> = [];
@@ -149,5 +158,89 @@ describe('CodeHub final release hardening', () => {
 
     expect(response.statusCode).toBe(403);
     expect(response.json().error.code).toBe('WRITE_SCOPE_REQUIRED');
+  });
+
+  describe('DELETE /repos/:owner/:name/purge', () => {
+    it('requires authentication for permanent purge', async () => {
+      const { app } = await buildRouteApp();
+      apps.push(app);
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/repos/owner-1/project/purge',
+      });
+
+      expect(response.statusCode).toBe(401);
+      expect(response.json().error.code).toBe('UNAUTHORIZED');
+    });
+
+    it('rejects non-owner callers from purging a repository', async () => {
+      const { app } = await buildRouteApp('reader-1');
+      apps.push(app);
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/repos/owner-1/project/purge',
+      });
+
+      expect(response.statusCode).toBe(403);
+      expect(response.json().error.code).toBe('FORBIDDEN');
+    });
+
+    it('rejects purging an active repository before soft delete', async () => {
+      const { app } = await buildRouteApp('owner-1', { deletedAt: null });
+      apps.push(app);
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/repos/owner-1/project/purge',
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error.code).toBe('REPO_NOT_DELETED');
+    });
+
+    it('returns 404 when purging a non-existent repository', async () => {
+      const { app, prisma } = await buildRouteApp('owner-1');
+      apps.push(app);
+      prisma.repository.findFirst.mockResolvedValueOnce(null as never);
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/repos/owner-1/nonexistent/purge',
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.json().error.code).toBe('REPO_NOT_FOUND');
+    });
+
+    it('permanently purges soft-deleted repository and destroys on-disk storage', async () => {
+      const root = await mkdtemp(join(tmpdir(), 'codehub-purge-test-'));
+      process.env['GIT_REPOS_PATH'] = root;
+      const storage = new RepoStorageService(root);
+      const tombstoneName = 'project-deleted-1726123456789';
+      const tombstonePath = await storage.initBareRepo('owner-1', tombstoneName);
+      await expect(access(tombstonePath)).resolves.toBeUndefined();
+
+      const { app, prisma } = await buildRouteApp('owner-1', {
+        name: tombstoneName,
+        deletedAt: new Date(),
+        storagePathUrl: tombstonePath,
+      });
+      apps.push(app);
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/repos/owner-1/${tombstoneName}/purge`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().data.purged).toBe(true);
+      expect(prisma.repository.delete).toHaveBeenCalledWith({
+        where: { id: 'repo-1' },
+      });
+      await expect(access(tombstonePath)).rejects.toThrow();
+      await rm(root, { recursive: true, force: true });
+    });
   });
 });

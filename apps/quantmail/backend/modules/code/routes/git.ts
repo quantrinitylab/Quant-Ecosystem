@@ -311,8 +311,21 @@ export async function gitPurgeRoutes(fastify: FastifyInstance): Promise<void> {
       if (repo.ownerId !== userId) {
         throw createAppError('Not authorized to purge this repository', 403, 'FORBIDDEN');
       }
-      await repoStorage.deleteRepo(repo.ownerId, repo.name);
+      const deletedAt = (repo as unknown as { deletedAt?: Date | null }).deletedAt;
+      if (!deletedAt) {
+        throw createAppError(
+          'Repository must be soft-deleted before it can be purged',
+          400,
+          'REPO_NOT_DELETED',
+        );
+      }
       await prisma.repository.delete({ where: { id: repo.id } });
+      try {
+        await repoStorage.deleteRepo(repo.ownerId, repo.name);
+      } catch (error) {
+        request.log.error({ err: error, repoId: repo.id }, 'repository storage purge failed');
+        throw createAppError('Repository storage purge failed', 500, 'REPO_STORAGE_PURGE_FAILED');
+      }
       return reply.send({ success: true, data: { purged: true } });
     },
   );
