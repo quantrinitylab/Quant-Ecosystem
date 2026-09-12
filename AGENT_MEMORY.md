@@ -140,7 +140,11 @@ From `Quant-Ecosystem-Audit-d8f88fc.zip` & `Quant-Ecosystem-Deep-Architecture-Au
     - [x] `MC-05` (Correctness - Dev 7): Aligned `RelationalMemoryService` to query actual Prisma delegates `prisma.event` and `prisma.file` with backward-compatible fallback.
     - [x] `MC-15` (Governance - Dev 1): Authored database migration `0061_quantapp_rebrand_backfill` to update persisted `sourceApp` values in `notifications` to unified names and updated `seed.ts` demo seed.
     - [x] **PR #237 MERGED TO MAIN (`f3c9a4ac`)**: Drive upload error propagation merged with all 29/29 CI checks green (full-sweep green in 26m4s).
-    - [ ] `MC-18` (Swarm Review Authority): Re-open PR #260 under Developer 6's GitHub account or authorize CEO Astra independent `APPROVE` review to satisfy Gate 18.
+    - [x] **PR #243 MERGED TO MAIN (`4e74b101`)**: Workspace RBAC, transactional invite acceptance, and ownership transfer merged with all 10/10 CI checks green.
+    - [x] **PR Closures & Supersessions**: PR #240 (superseded by PR #247/252), PR #241 (superseded by PR #247/251), PR #242 (superseded by PR #247), PR #245 (superseded by PR #247/258), PR #235 (superseded by PR #247).
+    - [x] **PR #239 CONSOLIDATED**: Team memory and handoff kit merged into PR #260 (commit `96fb7e5a`, 32/32 tests passing) and closed.
+    - [x] **PR #260 (READY FOR REVIEW)**: Master consolidation PR open with all Sprints 2-5, Wave F deletions, and Astra remediations. Open PR queue reduced from 14 to 1 (+ Dependabot).
+    - [ ] `MC-18` (Swarm Review Authority): Satisfy Gate 18 review approval for PR #260 merge to `main`.
 
 ---
 

@@ -244,10 +244,16 @@
    - [x] Closed PR #246 (superseded by PR #248).
    - [x] Closed PR #244 (superseded by PR #258).
    - [x] **PR #248 MERGED TO MAIN (`2eac333b`)**: Official App Map and De-duplication decision record now live on `main`.
-   - [x] PR #236 marked Ready for Review, synced with `main`, gate passing.
-   - [x] **PR #237 MERGED TO MAIN (`f3c9a4ac`)**: Drive upload error propagation & UI results handling merged (all 29/29 CI checks passing 100%, full-sweep green in 26m4s).
-   - [x] PR #243 synced with `main`, gate passing.
-   - [x] **PR #260 (Draft)**: Created for `chore/monorepo-consolidation-waves-b-to-f` (`https://github.com/quantrinitylab/Quant-Ecosystem/pull/260`) for full transparent Owner review of Sprints 2-5 and Wave F deletions.
+   - [x] **PR #236 MERGED TO MAIN (`e144bfe4`)**: CI honesty and execution backend isolation merged (10/10 CI checks green).
+   - [x] **PR #237 MERGED TO MAIN (`f3c9a4ac`)**: Drive upload error propagation & UI results handling merged (all 29/29 CI checks green).
+   - [x] **PR #243 MERGED TO MAIN (`4e74b101`)**: Workspace RBAC, transactional invite acceptance, and ownership transfer merged (all 10/10 CI checks green).
+   - [x] Closed PR #240 (superseded by PR #247 and Wave B PR #252).
+   - [x] Closed PR #241 (superseded by PR #247 and Wave A PR #251/253).
+   - [x] Closed PR #242 (superseded by PR #247).
+   - [x] Closed PR #245 (superseded by PR #247 and PR #258).
+   - [x] Closed PR #235 (superseded by PR #247).
+   - [x] **PR #239 CONSOLIDATED**: Team memory and handoff kit merged into PR #260 (commit `96fb7e5a`, 32/32 tests passing) and closed.
+   - [x] **PR #260 (READY FOR REVIEW)**: Master consolidation PR (`https://github.com/quantrinitylab/Quant-Ecosystem/pull/260`) updated with Sprints 2-5, Wave F deletions, PR #239 coordination kit, and all 6 Astra audit remediations.
 10. [x] Maintain continuous dual-memory sync (`AGENT_MEMORY.md` & `TASK_PLANNER.md`) across repository and `C:\Users\Pc\.gemini\`.
 
 ---
