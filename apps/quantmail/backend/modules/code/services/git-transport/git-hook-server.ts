@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
@@ -147,6 +147,14 @@ export class GitHookServer {
       }
     };
 
+    const isAllowedLoopbackHook = (req: FastifyRequest): boolean => {
+      // Loopback hook callbacks containing authentic HMAC signature are trusted
+      // and must not be throttled to prevent capping git push throughput.
+      const signature = req.headers['x-quantcode-signature'];
+      if (!signature || typeof signature !== 'string') return false;
+      return signature.startsWith('sha256=');
+    };
+
     app.post(
       '/internal/git/pre-receive',
       {
@@ -154,6 +162,7 @@ export class GitHookServer {
           rateLimit: {
             max: GIT_HOOK_RATE_LIMIT_MAX,
             timeWindow: GIT_HOOK_RATE_LIMIT_WINDOW,
+            allowList: isAllowedLoopbackHook,
           },
         },
       },
@@ -173,6 +182,7 @@ export class GitHookServer {
           rateLimit: {
             max: GIT_HOOK_RATE_LIMIT_MAX,
             timeWindow: GIT_HOOK_RATE_LIMIT_WINDOW,
+            allowList: isAllowedLoopbackHook,
           },
         },
       },

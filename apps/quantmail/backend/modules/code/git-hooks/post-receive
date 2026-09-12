@@ -20,15 +20,25 @@ try {
     commands,
   });
   const signature = createHmac('sha256', secret).update(payload).digest('hex');
-  const response = await fetch(`${baseUrl}/post-receive`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-quantcode-signature': `sha256=${signature}`,
-    },
-    body: payload,
-    signal: AbortSignal.timeout(10_000),
-  });
+  let response;
+  const maxAttempts = 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    response = await fetch(`${baseUrl}/post-receive`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-quantcode-signature': `sha256=${signature}`,
+      },
+      body: payload,
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.status === 429 && attempt < maxAttempts - 1) {
+      const retryAfter = Number(response.headers.get('retry-after')) || 1;
+      await new Promise((resolveWait) => setTimeout(resolveWait, Math.min(retryAfter * 1000, 2000)));
+      continue;
+    }
+    break;
+  }
   if (!response.ok) throw new Error(`metadata service returned HTTP ${response.status}`);
 } catch (error) {
   // post-receive cannot roll back an accepted push. Reconciliation repairs any

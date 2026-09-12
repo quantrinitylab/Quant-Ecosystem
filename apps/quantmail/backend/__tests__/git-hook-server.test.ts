@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { createHmac } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -50,11 +51,17 @@ afterAll(async () => {
 });
 
 function prismaWithRules(rules: Array<Record<string, unknown>>) {
-  return {
+  const mockPrisma = {
     branchProtection: { findMany: vi.fn(async () => rules) },
     branch: { upsert: vi.fn(), deleteMany: vi.fn() },
-    $transaction: vi.fn(async (ops: unknown[]) => Promise.all(ops)),
-  } as never;
+    $transaction: vi.fn(async (arg: unknown) => {
+      if (typeof arg === 'function') {
+        return arg(mockPrisma);
+      }
+      return Promise.all(arg as unknown[]);
+    }),
+  };
+  return mockPrisma as never;
 }
 
 function payload(oldSha: string, newSha: string, ref = 'refs/heads/main') {
@@ -177,6 +184,54 @@ describe('ADR-CH-002 pre-receive policy', () => {
       const limited = await request();
       expect(limited.status).toBe(429);
       expect(limited.headers.get('retry-after')).toBeTruthy();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('does not rate limit signed loopback pre-receive hook callbacks', async () => {
+    const server = new GitHookServer(prismaWithRules([]));
+    await server.start();
+    try {
+      const rawPayload = JSON.stringify(payload(first, second));
+      const signature = createHmac('sha256', server.secret).update(rawPayload).digest('hex');
+      const request = () =>
+        fetch(`${server.url}/pre-receive`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-quantcode-signature': `sha256=${signature}`,
+          },
+          body: rawPayload,
+        });
+      for (let index = 0; index < GIT_HOOK_RATE_LIMIT_MAX + 5; index += 1) {
+        const response = await request();
+        expect(response.status).toBe(200);
+      }
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('does not rate limit signed loopback post-receive hook callbacks', async () => {
+    const server = new GitHookServer(prismaWithRules([]));
+    await server.start();
+    try {
+      const rawPayload = JSON.stringify(payload(first, second));
+      const signature = createHmac('sha256', server.secret).update(rawPayload).digest('hex');
+      const request = () =>
+        fetch(`${server.url}/post-receive`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-quantcode-signature': `sha256=${signature}`,
+          },
+          body: rawPayload,
+        });
+      for (let index = 0; index < GIT_HOOK_RATE_LIMIT_MAX + 5; index += 1) {
+        const response = await request();
+        expect(response.status).toBe(200);
+      }
     } finally {
       await server.close();
     }

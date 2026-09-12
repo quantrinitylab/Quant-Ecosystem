@@ -33,16 +33,31 @@ try {
     commands,
   });
   const signature = createHmac("sha256", secret).update(payload).digest('hex');
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-quantcode-signature': `sha256=${signature}`,
-    },
-    body: payload,
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!response.ok) fail(`branch-protection service returned HTTP ${response.status}`);
+  let response;
+  const maxAttempts = 3;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-quantcode-signature': `sha256=${signature}`,
+      },
+      body: payload,
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.status === 429 && attempt < maxAttempts - 1) {
+      const retryAfter = Number(response.headers.get('retry-after')) || 1;
+      await new Promise((resolveWait) => setTimeout(resolveWait, Math.min(retryAfter * 1000, 2000)));
+      continue;
+    }
+    break;
+  }
+  if (!response.ok) {
+    if (response.status === 429) {
+      fail('branch-protection service temporarily rate-limited; please retry push');
+    }
+    fail(`branch-protection service returned HTTP ${response.status}`);
+  }
   const decision = await response.json();
   if (decision.allowed === true) process.exit(0);
   const reasons = Array.isArray(decision.reasons) ? decision.reasons : ['Push rejected'];
