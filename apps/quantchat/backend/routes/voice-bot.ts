@@ -91,14 +91,20 @@ export default async function voiceBotRoutes(
   fastify.post('/alert', async (request, reply) => {
     const signature = request.headers['x-quant-signature'] as string | undefined;
     const internalSecret = process.env['VOICE_BOT_SECRET'] || process.env['LIVEKIT_API_SECRET'];
-    if (!internalSecret && process.env['NODE_ENV'] === 'production') {
+    const isDeployed =
+      process.env['NODE_ENV'] === 'production' || process.env['NODE_ENV'] === 'staging';
+    if (!internalSecret && isDeployed) {
       throw createAppError(
-        'VOICE_BOT_SECRET environment variable is required in production',
+        'VOICE_BOT_SECRET environment variable is required in production and staging',
         500,
         'INTERNAL_SERVER_ERROR',
       );
     }
-    const secret = internalSecret || 'devsecret';
+    const secret =
+      internalSecret ||
+      (process.env['NODE_ENV'] === 'test' || process.env['NODE_ENV'] === 'development'
+        ? 'devsecret'
+        : '');
 
     // Fail-closed HMAC validation:
     // Required in all non-test environments or when ENFORCE_VOICE_BOT_HMAC is true

@@ -50,12 +50,12 @@ export function getConfig(): AppConfig {
   }
 
   if (
-    env === 'production' &&
+    (env === 'production' || (env as string) === 'staging') &&
     !process.env['VOICE_BOT_SECRET'] &&
     !process.env['LIVEKIT_API_SECRET']
   ) {
     throw new Error(
-      'VOICE_BOT_SECRET or LIVEKIT_API_SECRET environment variable is required in production',
+      'VOICE_BOT_SECRET or LIVEKIT_API_SECRET environment variable is required in production and staging',
     );
   }
 

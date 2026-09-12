@@ -59,6 +59,8 @@ BEGIN
     UPDATE "user_presences" SET "activeApp" = 'quantmail' WHERE "activeApp" IN ('quantdrive', 'quantdocs', 'quantcalendar');
     GET DIAGNOSTICS v_count = ROW_COUNT;
     RAISE NOTICE 'Backfilled user_presences.activeApp (rows updated: %)', v_count;
+  ELSE
+    RAISE NOTICE 'Table user_presences or column activeApp not found in Postgres schema, skipping';
   END IF;
 
   -- 4. app_grants.appId
@@ -73,6 +75,8 @@ BEGIN
     UPDATE "app_grants" SET "appId" = 'quantmail' WHERE "appId" IN ('quantdrive', 'quantdocs', 'quantcalendar');
     GET DIAGNOSTICS v_count = ROW_COUNT;
     RAISE NOTICE 'Backfilled app_grants.appId (rows updated: %)', v_count;
+  ELSE
+    RAISE NOTICE 'Table app_grants or column appId not found in Postgres schema, skipping';
   END IF;
 
   -- 5. memory_items.appSource
@@ -87,5 +91,7 @@ BEGIN
     UPDATE "memory_items" SET "appSource" = 'quantmail' WHERE "appSource" IN ('quantdrive', 'quantdocs', 'quantcalendar');
     GET DIAGNOSTICS v_count = ROW_COUNT;
     RAISE NOTICE 'Backfilled memory_items.appSource (rows updated: %)', v_count;
+  ELSE
+    RAISE NOTICE 'Table memory_items or column appSource not found in Postgres schema, skipping';
   END IF;
 END $$;
