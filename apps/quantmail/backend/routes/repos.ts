@@ -1,26 +1,21 @@
 // ============================================================================
 // QuantMail — Repositories route (GitHub-inside-your-inbox).
-//
-// The frontend Repos page + api-client talk to a flat, id-based contract:
-//   GET    /repos            -> list the signed-in user's repos (array data)
-//   POST   /repos            -> create { name, description, visibility }
-//   GET    /repos/:id        -> one repo by id
-//   DELETE /repos/:id        -> soft-delete
-// The existing QuantCode module exposes an owner/name git API under
-// /api/code/git/*; this thin route serves the id-based product surface the mail
-// app expects, backed by the same `Repository` Prisma model. Protected by the
-// global auth hook (req.auth.userId).
 // ============================================================================
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 
+const repoNameSchema = z
+  .string()
+  .min(1)
+  .max(100)
+  .regex(/^[a-zA-Z0-9_.-]+$/, 'Use letters, numbers, dot, dash or underscore')
+  .refine((name) => !name.toLowerCase().endsWith('.git'), {
+    message: 'Repository name cannot be .git or end in .git',
+  });
+
 const createRepoSchema = z.object({
-  name: z
-    .string()
-    .min(1)
-    .max(100)
-    .regex(/^[a-zA-Z0-9._-]+$/, 'Use letters, numbers, dot, dash or underscore'),
+  name: repoNameSchema,
   description: z.string().max(500).optional(),
   visibility: z.enum(['public', 'private', 'internal']).optional(),
   initReadme: z.boolean().optional(),
@@ -39,13 +34,13 @@ type RepoRow = {
   description: string | null;
   visibility: string;
   defaultBranch: string;
+  storagePathUrl: string | null;
   starCount: number;
   forkCount: number;
   createdAt: Date;
   updatedAt: Date;
 };
 
-/** Map a Prisma Repository row to the frontend Repository DTO shape. */
 function toDto(r: RepoRow, ownerHandle?: string) {
   const slug = ownerHandle ? `${ownerHandle}/${r.name}` : r.name;
   const appUrl = (process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://quantmail.in').replace(/\/$/, '');
@@ -66,7 +61,9 @@ function toDto(r: RepoRow, ownerHandle?: string) {
     isTemplate: false,
     isFork: false,
     topics: [] as string[],
-    cloneUrl: `${appUrl}/git/${slug}.git`,
+    cloneUrl: `${appUrl}/api/code/gitd/repos/${encodeURIComponent(
+      r.ownerId,
+    )}/${encodeURIComponent(r.name)}.git`,
     sshUrl: `git@quantmail.in:${slug}.git`,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
@@ -84,18 +81,28 @@ function requireUserId(request: unknown): string {
 }
 
 export default async function reposRoutes(fastify: FastifyInstance) {
-  // GET /repos — list the signed-in user's repositories.
+  function inspectionPort() {
+    if (!fastify.repositoryInspection) {
+      throw createAppError('Repository inspection is unavailable', 503, 'INSPECTION_UNAVAILABLE');
+    }
+    return fastify.repositoryInspection;
+  }
+
+  function provisioningPort() {
+    if (!fastify.repositoryProvisioning) {
+      throw createAppError('Repository storage is unavailable', 503, 'STORAGE_UNAVAILABLE');
+    }
+    return fastify.repositoryProvisioning;
+  }
   fastify.get('/', async (request, reply) => {
     const parsed = paginationSchema.safeParse(request.query);
     if (!parsed.success) throw parsed.error;
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
-
     const page = parsed.data.page ?? 1;
     const pageSize = parsed.data.pageSize ?? 30;
     const where: Record<string, unknown> = { ownerId: userId, deletedAt: null };
     if (parsed.data.visibility) where.visibility = parsed.data.visibility.toUpperCase();
-
     const [rows, total] = await Promise.all([
       prisma.repository.findMany({
         where,
@@ -105,21 +112,18 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       }),
       prisma.repository.count({ where }),
     ]);
-
     return reply.send({
       success: true,
-      data: (rows as RepoRow[]).map((r) => toDto(r)),
+      data: (rows as RepoRow[]).map((row) => toDto(row)),
       metadata: { total, page, pageSize, totalPages: Math.ceil(total / pageSize) },
     });
   });
 
-  // POST /repos — create a repository and its default branch atomically.
   fastify.post('/', async (request, reply) => {
     const parsed = createRepoSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
-
     const existing = await prisma.repository.findFirst({
       where: { ownerId: userId, name: parsed.data.name, deletedAt: null },
     });
@@ -134,40 +138,51 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         description: parsed.data.description ?? null,
         visibility: (parsed.data.visibility ?? 'private').toUpperCase(),
         defaultBranch: 'main',
-        branches: {
-          create: {
-            name: 'main',
-            // Empty repositories have an unborn default branch until the first push.
-            commitSha: '',
-          },
-        },
+        storagePathUrl: null,
+        branches: { create: { name: 'main', commitSha: '' } },
       },
     })) as RepoRow;
 
-    return reply.status(201).send({ success: true, data: toDto(created) });
+    try {
+      const { storagePath } = await provisioningPort().provision({
+        owner: created.ownerId,
+        name: created.name,
+      });
+
+      const provisioned = (await prisma.repository.update({
+        where: { id: created.id },
+        data: { storagePathUrl: storagePath },
+      })) as RepoRow;
+
+      return reply.status(201).send({ success: true, data: toDto(provisioned) });
+    } catch (error) {
+      await prisma.repository.delete({ where: { id: created.id } });
+      request.log.error({ err: error, repoId: created.id }, 'repository provisioning failed');
+      if ((error as { code?: string }).code === 'REPOSITORY_STORAGE_CONFLICT') {
+        throw error;
+      }
+      throw createAppError(
+        'Repository storage could not be provisioned',
+        503,
+        'STORAGE_UNAVAILABLE',
+      );
+    }
   });
 
-  // GET /repos/:id — a single repository the user can access.
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
-
-    const repo = (await prisma.repository.findUnique({
-      where: { id: request.params.id },
-    })) as RepoRow | null;
-
-    if (!repo || (repo as unknown as { deletedAt?: Date | null }).deletedAt) {
+    const repo = (await prisma.repository.findUnique({ where: { id: request.params.id } })) as
+      | (RepoRow & { deletedAt?: Date | null })
+      | null;
+    if (!repo || repo.deletedAt)
       throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-    }
-    // Owner can always see; others only public/internal.
     if (repo.ownerId !== userId && String(repo.visibility).toUpperCase() === 'PRIVATE') {
       throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
     }
-
     return reply.send({ success: true, data: toDto(repo) });
   });
 
-  // Load a repo the caller may read (owner, or non-private), else 404.
   async function loadReadableRepo(request: unknown, id: string): Promise<RepoRow> {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
@@ -182,7 +197,6 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     return repo;
   }
 
-  // GET /repos/:id/branches — query real persisted branches.
   fastify.get<{ Params: { id: string } }>('/:id/branches', async (request, reply) => {
     const repo = await loadReadableRepo(request, request.params.id);
     const prisma = getPrisma(fastify);
@@ -192,19 +206,18 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     })) as Array<{ name: string; commitSha: string; isProtected: boolean }>;
     return reply.send({
       success: true,
-      data: rows.map((b) => ({
-        name: b.name,
-        sha: b.commitSha,
-        isDefault: b.name === repo.defaultBranch,
-        isProtected: b.isProtected,
-        protection: b.isProtected ? 'require_reviews' : 'none',
+      data: rows.map((branch) => ({
+        name: branch.name,
+        sha: branch.commitSha,
+        isDefault: branch.name === repo.defaultBranch,
+        isProtected: branch.isProtected,
+        protection: branch.isProtected ? 'require_reviews' : 'none',
         aheadBy: 0,
         behindBy: 0,
       })),
     });
   });
 
-  // GET /repos/:id/pulls — DB-backed pull requests (with author).
   fastify.get<{ Params: { id: string }; Querystring: { status?: string } }>(
     '/:id/pulls',
     async (request, reply) => {
@@ -227,23 +240,22 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       }>;
       return reply.send({
         success: true,
-        data: rows.map((p) => ({
-          id: p.id,
-          number: p.number,
-          title: p.title,
-          status: p.status.toLowerCase(),
-          sourceBranch: p.sourceBranch,
-          targetBranch: p.targetBranch,
+        data: rows.map((pull) => ({
+          id: pull.id,
+          number: pull.number,
+          title: pull.title,
+          status: pull.status.toLowerCase(),
+          sourceBranch: pull.sourceBranch,
+          targetBranch: pull.targetBranch,
           author: {
-            name: p.author?.displayName ?? p.author?.username ?? '',
-            username: p.author?.username ?? '',
+            name: pull.author?.displayName ?? pull.author?.username ?? '',
+            username: pull.author?.username ?? '',
           },
         })),
       });
     },
   );
 
-  // GET /repos/:id/issues — DB-backed issues.
   fastify.get<{ Params: { id: string }; Querystring: { status?: string } }>(
     '/:id/issues',
     async (request, reply) => {
@@ -251,63 +263,110 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       const prisma = getPrisma(fastify);
       const where: Record<string, unknown> = { repoId: request.params.id };
       if (request.query.status) where.status = request.query.status.toUpperCase();
-      const rows = (await prisma.issue.findMany({
-        where,
-        orderBy: { number: 'desc' },
-      })) as Array<{ id: string; number: number; title: string; status: string }>;
+      const rows = (await prisma.issue.findMany({ where, orderBy: { number: 'desc' } })) as Array<{
+        id: string;
+        number: number;
+        title: string;
+        status: string;
+      }>;
       return reply.send({
         success: true,
-        data: rows.map((i) => ({
-          id: i.id,
-          number: i.number,
-          title: i.title,
-          status: i.status.toLowerCase(),
+        data: rows.map((issue) => ({
+          id: issue.id,
+          number: issue.number,
+          title: issue.title,
+          status: issue.status.toLowerCase(),
         })),
       });
     },
   );
 
-  // GET /repos/:id/commits — commit history requires the git storage backend
-  // (not yet wired for the product surface); a repo with no pushes has none.
-  fastify.get<{ Params: { id: string } }>('/:id/commits', async (request, reply) => {
-    await loadReadableRepo(request, request.params.id);
-    return reply.send({ success: true, data: [], metadata: { total: 0, page: 1, pageSize: 0 } });
+  fastify.get<{
+    Params: { id: string };
+    Querystring: { ref?: string; limit?: string; skip?: string };
+  }>('/:id/commits', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const limit = Math.max(1, Math.min(100, Number(request.query.limit) || 30));
+    const skip = Math.max(0, Number(request.query.skip) || 0);
+    const commits = await inspectionPort().listCommits({
+      owner: repo.ownerId,
+      name: repo.name,
+      ref: request.query.ref ?? repo.defaultBranch ?? 'HEAD',
+      limit,
+      skip,
+    });
+    return reply.send({
+      success: true,
+      data: commits,
+      metadata: { total: commits.length, page: Math.floor(skip / limit) + 1, pageSize: limit },
+    });
   });
 
-  // GET /repos/:id/tree — file tree (empty until the repo has content).
-  fastify.get<{ Params: { id: string } }>('/:id/tree', async (request, reply) => {
-    await loadReadableRepo(request, request.params.id);
-    return reply.send({ success: true, data: [] });
-  });
-
-  // GET /repos/:id/file — file content (none until the repo has content).
-  fastify.get<{ Params: { id: string }; Querystring: { path?: string } }>(
-    '/:id/file',
+  fastify.get<{ Params: { id: string }; Querystring: { ref?: string; path?: string } }>(
+    '/:id/tree',
     async (request, reply) => {
-      await loadReadableRepo(request, request.params.id);
-      return reply.send({
-        success: true,
-        data: { path: request.query.path ?? '', content: '' },
+      const repo = await loadReadableRepo(request, request.params.id);
+      const tree = await inspectionPort().listTree({
+        owner: repo.ownerId,
+        name: repo.name,
+        ref: request.query.ref ?? repo.defaultBranch ?? 'HEAD',
+        path: request.query.path,
       });
+      return reply.send({ success: true, data: tree });
     },
   );
 
-  // DELETE /repos/:id — soft-delete (owner only).
+  fastify.get<{ Params: { id: string }; Querystring: { path?: string; ref?: string } }>(
+    '/:id/file',
+    async (request, reply) => {
+      const repo = await loadReadableRepo(request, request.params.id);
+      const path = request.query.path;
+      if (!path) throw createAppError('File path is required', 400, 'FILE_PATH_REQUIRED');
+      const blob = await inspectionPort().readBlob({
+        owner: repo.ownerId,
+        name: repo.name,
+        ref: request.query.ref ?? repo.defaultBranch ?? 'HEAD',
+        path,
+      });
+      return reply.send({ success: true, data: blob });
+    },
+  );
+
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
-
     const repo = (await prisma.repository.findUnique({
       where: { id: request.params.id },
     })) as RepoRow | null;
     if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
     if (repo.ownerId !== userId) throw createAppError('Not authorized', 403, 'FORBIDDEN');
-
-    await prisma.repository.update({
-      where: { id: request.params.id },
-      data: { deletedAt: new Date() },
+    const deletedAt = new Date();
+    const tombstoneName = `${repo.name}-deleted-${deletedAt.getTime()}`;
+    const { storagePath } = await provisioningPort().archive({
+      owner: repo.ownerId,
+      name: repo.name,
+      tombstoneName,
     });
-
+    try {
+      await prisma.repository.update({
+        where: { id: request.params.id },
+        data: {
+          deletedAt,
+          name: tombstoneName,
+          storagePathUrl: storagePath ?? repo.storagePathUrl,
+        },
+      });
+    } catch (error) {
+      if (storagePath) {
+        await provisioningPort().archive({
+          owner: repo.ownerId,
+          name: tombstoneName,
+          tombstoneName: repo.name,
+        });
+      }
+      throw error;
+    }
+    // Astra GT-12: soft delete preserves the on-disk bare repository for recovery.
     return reply.send({ success: true, data: { message: 'Repository deleted' } });
   });
 }

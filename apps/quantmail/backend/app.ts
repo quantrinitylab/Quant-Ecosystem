@@ -14,7 +14,7 @@ import emailTemplatesRoutes from './routes/email-templates';
 import emailSignaturesRoutes from './routes/email-signatures';
 import notificationRoutes from './routes/notifications';
 import searchRoutes from './routes/search';
-import { registerQuantCodeModule } from './modules/code';
+import { registerQuantCodeModule, GitInspectAdapter, GitProvisioningAdapter } from './modules/code';
 import aiDevtoolsRoutes from './routes/ai-devtools';
 import attachmentRoutes from './routes/attachments';
 import e2eeRoutes from './routes/e2ee';
@@ -24,6 +24,7 @@ import phoneRoutes from './routes/phone';
 import { authRoutes } from './routes/auth';
 import { twoFactorRoutes } from './routes/two-factor';
 import { passwordResetRoutes } from './routes/password-reset';
+import settingsTokenRoutes from './routes/settings-tokens';
 import reposRoutes from './routes/repos';
 import workspaceRoutes from './routes/workspaces';
 import ciRoutes from './routes/ci';
@@ -36,7 +37,8 @@ import { InMemoryE2EERelay } from './lib/e2ee-relay';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
-  if (env === 'production' && !process.env['JWT_SECRET']) throw new Error('JWT_SECRET environment variable is required in production');
+  if (env === 'production' && !process.env['JWT_SECRET'])
+    throw new Error('JWT_SECRET environment variable is required in production');
   return {
     port: Number(process.env['PORT'] ?? 3010),
     host: process.env['HOST'] ?? '0.0.0.0',
@@ -86,6 +88,9 @@ export function getConfig(): AppConfig {
       // Authenticated by the AWS SNS message signature, not by a JWT — SNS
       // cannot present a bearer token. See routes/inbound-webhook.ts.
       '/webhook/inbound',
+      // Leaf Smart HTTP transport. It performs PAT verification itself; never
+      // mount repository administration, PR, review, or issue routes below it.
+      '/api/code/gitd',
     ],
     env,
   };
@@ -94,14 +99,26 @@ export function getConfig(): AppConfig {
 export async function buildApp(config?: AppConfig) {
   const app = await createApp(config ?? getConfig());
   app.removeContentTypeParser('application/json');
-  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body: string, done) => {
-    if (!body || body.trim() === '') return done(null, {});
-    try { done(null, JSON.parse(body)); } catch (error) { done(error as Error, undefined); }
-  });
+  app.addContentTypeParser(
+    'application/json',
+    { parseAs: 'string' },
+    (_request, body: string, done) => {
+      if (!body || body.trim() === '') return done(null, {});
+      try {
+        done(null, JSON.parse(body));
+      } catch (error) {
+        done(error as Error, undefined);
+      }
+    },
+  );
+
+  app.decorate('repositoryInspection', new GitInspectAdapter());
+  app.decorate('repositoryProvisioning', new GitProvisioningAdapter());
 
   await app.register(authRoutes);
   await app.register(twoFactorRoutes);
   await app.register(passwordResetRoutes);
+  await app.register(settingsTokenRoutes);
   await app.register(oauthRoutes);
   await app.register(phoneRoutes);
   await app.register(emailsRoutes, { prefix: '/emails' });
@@ -131,7 +148,9 @@ export async function buildApp(config?: AppConfig) {
 
   const e2eeRelay = new InMemoryE2EERelay();
   app.decorate('e2ee', e2eeRelay);
-  app.addHook('onClose', async () => { e2eeRelay.shutdown(); });
+  app.addHook('onClose', async () => {
+    e2eeRelay.shutdown();
+  });
   await app.register(e2eeRoutes, { prefix: '/e2ee' });
   app.decorate('federation', createFederationService());
   await app.register(federationRoutes, { prefix: '/federation' });
