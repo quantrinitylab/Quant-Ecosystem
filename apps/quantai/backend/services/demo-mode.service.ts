@@ -5,6 +5,7 @@ import type {
   ChatMessage,
   DocResult,
   CalendarEvent,
+  CalendarEventReminder,
   FileResult,
   FileSummary,
   CodeRepoResult,
@@ -123,6 +124,7 @@ export class DemoModeConnector implements AppConnectors {
       start: string,
       end: string,
       attendees: string[],
+      reminders?: CalendarEventReminder[],
     ): Promise<CalendarEvent> {
       return {
         id: `event-${Date.now()}`,
@@ -130,6 +132,7 @@ export class DemoModeConnector implements AppConnectors {
         start,
         end,
         attendees,
+        reminders,
       };
     },
   };

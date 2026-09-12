@@ -21,12 +21,19 @@ export interface DocResult {
   docId: string;
 }
 
+export interface CalendarEventReminder {
+  type: string;
+  minutesBefore: number;
+  label?: string;
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
   start: string;
   end: string;
   attendees: string[];
+  reminders?: CalendarEventReminder[];
 }
 
 export interface FileResult {
@@ -86,6 +93,7 @@ export interface AppConnectors {
       start: string,
       end: string,
       attendees: string[],
+      reminders?: CalendarEventReminder[],
     ): Promise<CalendarEvent>;
   };
   drive: {
@@ -115,6 +123,11 @@ export interface ScheduleMeetingParams {
   title: string;
   attendees: string[];
   preferredTime: string;
+  durationMinutes?: number;
+  location?: string;
+  enableVoiceAlert?: boolean;
+  voiceAlertMinutesBefore?: number;
+  reminders?: CalendarEventReminder[];
 }
 
 export interface Permissions {
@@ -228,15 +241,31 @@ export class CrossAppOrchestrator {
     );
 
     const start = params.preferredTime;
+    const durationMinutes = params.durationMinutes ?? 60;
     const endDate = new Date(start);
-    endDate.setHours(endDate.getHours() + 1);
+    endDate.setMinutes(endDate.getMinutes() + durationMinutes);
     const end = endDate.toISOString();
+
+    const reminders: CalendarEventReminder[] = [...(params.reminders ?? [])];
+    const voiceAlertEnabled = Boolean(
+      params.enableVoiceAlert || params.voiceAlertMinutesBefore !== undefined,
+    );
+    const voiceMinutes = params.voiceAlertMinutesBefore ?? 5;
+
+    if (voiceAlertEnabled && !reminders.some((r) => r.type === 'call')) {
+      reminders.push({
+        type: 'call',
+        minutesBefore: voiceMinutes,
+        label: `${voiceMinutes} minutes before`,
+      });
+    }
 
     const event = await this.connectors.calendar.createEvent(
       params.title,
       start,
       end,
       params.attendees,
+      reminders,
     );
 
     return {
@@ -248,9 +277,22 @@ export class CrossAppOrchestrator {
         end,
         attendees: params.attendees,
         hadConflict: hasConflict,
+        voiceAlertEnabled,
+        voiceAlertMinutesBefore: voiceAlertEnabled ? voiceMinutes : undefined,
+        reminders: event.reminders ?? reminders,
       },
       citations: [{ source: params.title, app: 'calendar', id: event.id }],
     };
+  }
+
+  async scheduleMeetingWithVoiceAlert(
+    userId: string,
+    params: Omit<ScheduleMeetingParams, 'enableVoiceAlert'>,
+  ): Promise<OrchestrationResult> {
+    return this.scheduleMeeting(userId, {
+      ...params,
+      enableVoiceAlert: true,
+    });
   }
 
   async searchAndSummarize(userId: string, query: string): Promise<OrchestrationResult> {

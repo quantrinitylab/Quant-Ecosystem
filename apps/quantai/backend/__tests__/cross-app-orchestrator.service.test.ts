@@ -104,6 +104,50 @@ describe('CrossAppOrchestrator', () => {
       expect(result.success).toBe(true);
       expect(result.result).toHaveProperty('eventId');
     });
+
+    it('creates a calendar event with voice alert enabled and attaches call reminder', async () => {
+      const result = await orchestrator.scheduleMeeting('user-1', {
+        title: 'Quarterly Executive Review',
+        attendees: ['exec@example.com'],
+        preferredTime: '2025-01-22T15:00:00.000Z',
+        enableVoiceAlert: true,
+        voiceAlertMinutesBefore: 10,
+      });
+
+      expect(result.success).toBe(true);
+      const res = result.result as any;
+      expect(res.voiceAlertEnabled).toBe(true);
+      expect(res.voiceAlertMinutesBefore).toBe(10);
+      expect(res.reminders).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'call',
+            minutesBefore: 10,
+          }),
+        ]),
+      );
+    });
+
+    it('scheduleMeetingWithVoiceAlert creates event with voice alert enabled by default', async () => {
+      const result = await orchestrator.scheduleMeetingWithVoiceAlert('user-1', {
+        title: 'Urgent Ops Sync',
+        attendees: ['oncall@example.com'],
+        preferredTime: '2025-01-23T09:00:00.000Z',
+      });
+
+      expect(result.success).toBe(true);
+      const res = result.result as any;
+      expect(res.voiceAlertEnabled).toBe(true);
+      expect(res.voiceAlertMinutesBefore).toBe(5);
+      expect(res.reminders).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'call',
+            minutesBefore: 5,
+          }),
+        ]),
+      );
+    });
   });
 
   describe('searchAndSummarize', () => {

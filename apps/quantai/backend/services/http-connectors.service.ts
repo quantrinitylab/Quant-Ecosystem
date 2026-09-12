@@ -6,6 +6,7 @@ import type {
   ChatMessage,
   DocResult,
   CalendarEvent,
+  CalendarEventReminder,
   FileResult,
   FileSummary,
   CodeRepoResult,
@@ -187,10 +188,22 @@ export class HttpAppConnectors implements AppConnectors {
       start: string,
       end: string,
       attendees: string[],
+      reminders?: CalendarEventReminder[],
     ): Promise<CalendarEvent> => {
+      const payload: Record<string, unknown> = {
+        title,
+        start,
+        end,
+        startTime: start,
+        endTime: end,
+        attendees,
+      };
+      if (reminders && reminders.length > 0) {
+        payload.reminders = reminders;
+      }
       const data = await this.call<Record<string, unknown>>('calendar', '/events', {
         method: 'POST',
-        body: JSON.stringify({ title, start, end, startTime: start, endTime: end, attendees }),
+        body: JSON.stringify(payload),
       });
       return {
         id: this.str(data, 'id'),
@@ -198,6 +211,7 @@ export class HttpAppConnectors implements AppConnectors {
         start: this.str(data, 'start', 'startTime') || start,
         end: this.str(data, 'end', 'endTime') || end,
         attendees,
+        reminders,
       };
     },
   };
