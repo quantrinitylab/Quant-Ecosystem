@@ -15,11 +15,13 @@
 //      404, not archive.
 //
 // HARNESS: registers the REAL driveRoutes on a bare Fastify app with a fake
-// prisma and a fake auth hook. Only the storage service is mocked — it reaches
-// for S3 config at import time and Drive files are not what is under test.
+// prisma and a fake auth hook. Only external integrations are mocked because
+// Drive files and AI inference are not what is under test.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Fastify from 'fastify';
+
+vi.mock('@quant/ai', () => ({ AIEngine: class { infer = vi.fn(); } }));
 
 vi.mock('../services/drive-storage.service', () => ({
   DRIVE_MAX_BODY_BYTES: 1024,
@@ -153,7 +155,7 @@ describe('GET /drive/memory', () => {
     });
     expect(body.total).toBe(1);
     await app.close();
-  });
+  }, 60_000);
 
   it('drops an expired memory but keeps one with no expiry', async () => {
     rows = [

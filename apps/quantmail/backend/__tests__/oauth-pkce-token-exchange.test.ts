@@ -75,6 +75,7 @@ import prismaDefaultImport from '@quant/auth/lib/prisma';
 
 const db = vi.mocked(
   prismaDefaultImport as unknown as {
+    oAuthClient: { findUnique: ReturnType<typeof vi.fn> };
     authorizationCode: {
       findUnique: ReturnType<typeof vi.fn>;
       delete: ReturnType<typeof vi.fn>;
@@ -104,6 +105,12 @@ beforeEach(() => {
     username: 'tester',
     role: 'USER',
   } as never);
+  db.oAuthClient.findUnique.mockResolvedValue({
+    id: 'client-1',
+    clientId: 'client_pkce',
+    isConfidential: false,
+    clientSecretHash: null,
+  } as never);
 });
 
 const futureExpiry = () => new Date(Date.now() + 5 * 60 * 1000);
@@ -118,6 +125,7 @@ describe('Task 1.1 — PKCE enforcement at /oauth/token', () => {
     const challenge = await generateCodeChallenge(verifier);
     db.authorizationCode.findUnique.mockResolvedValue({
       code: 'ac_match',
+      clientId: 'client_pkce',
       userId: 'user-1',
       scopes: ['openid'],
       codeChallenge: challenge,
@@ -142,6 +150,7 @@ describe('Task 1.1 — PKCE enforcement at /oauth/token', () => {
     const challenge = await generateCodeChallenge(generateCodeVerifier());
     db.authorizationCode.findUnique.mockResolvedValue({
       code: 'ac_mismatch',
+      clientId: 'client_pkce',
       userId: 'user-1',
       scopes: ['openid'],
       codeChallenge: challenge,
@@ -164,6 +173,7 @@ describe('Task 1.1 — PKCE enforcement at /oauth/token', () => {
     const challenge = await generateCodeChallenge(generateCodeVerifier());
     db.authorizationCode.findUnique.mockResolvedValue({
       code: 'ac_missing',
+      clientId: 'client_pkce',
       userId: 'user-1',
       scopes: ['openid'],
       codeChallenge: challenge,
@@ -181,6 +191,7 @@ describe('Task 1.1 — PKCE enforcement at /oauth/token', () => {
   it('remains backward-compatible when no challenge was bound to the code', async () => {
     db.authorizationCode.findUnique.mockResolvedValue({
       code: 'ac_nopkce',
+      clientId: 'client_pkce',
       userId: 'user-1',
       scopes: ['openid'],
       codeChallenge: null,

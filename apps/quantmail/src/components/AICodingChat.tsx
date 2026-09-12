@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useRegisterCommands } from '../lib/keyboard/hooks';
+import { readAIIntent } from '../lib/ai-intent-preference';
+import { browserApiRequest } from '../services/browser-api-request';
 import { Quanty } from './Quanty';
 import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
 
@@ -33,367 +34,118 @@ const QUICK_ACTIONS = [
   { id: 'convert', label: 'Convert to...' },
 ];
 
-/**
- * AI Coding Chat Panel — the Claude Code / GitHub Copilot Chat / Codex killer.
- *
- * Features:
- * - Context-aware (knows current file, language, content)
- * - Quick action buttons (explain, refactor, test, fix, optimize)
- * - Code blocks with "Apply" button to directly edit the file
- * - Conversation history
- * - Keyboard shortcut: Ctrl+L to focus chat
- *
- * Uses Cloudflare Workers AI (Llama 3.2) via the QuantMail backend.
- */
-export function AICodingChat({
-  currentFile,
-  currentContent,
-  language,
-  onApplyCode,
-  onClose,
-}: AICodingChatProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'system',
-      content:
-        "I'm Quanty — your AI coding assistant. Ask me anything about your code — I can explain, refactor, write tests, fix bugs, or generate new code.",
-      timestamp: new Date(),
-    },
-  ]);
+const ACTION_PROMPTS: Record<string, string> = {
+  explain: 'Explain what this code does in plain English. Be concise.',
+  refactor: 'Refactor this code to be cleaner and safer. Return the complete improved file in a fenced code block.',
+  test: 'Write comprehensive unit tests for this code in a fenced code block.',
+  fix: 'Find and fix bugs and edge cases. Return the complete corrected file in a fenced code block.',
+  optimize: 'Optimize this code for performance and explain the important changes.',
+  document: 'Add appropriate JSDoc or TSDoc. Return the complete documented file in a fenced code block.',
+  types: 'Make this code fully type-safe. Return the complete updated file in a fenced code block.',
+  convert: 'Suggest an appropriate alternative approach and show the converted code.',
+};
+
+function splitCodeBlock(message: string, fallbackLanguage: string) {
+  const match = message.match(/```([\w+-]*)\n([\s\S]*?)```/);
+  if (!match) return { text: message };
+  return {
+    text: message.replace(match[0], '').trim() || 'Generated code:',
+    code: match[2],
+    language: match[1] || fallbackLanguage,
+  };
+}
+
+export function AICodingChat({ currentFile, currentContent, language, onApplyCode, onClose }: AICodingChatProps) {
+  const [messages, setMessages] = useState<ChatMessage[]>([{
+    id: 'welcome', role: 'system',
+    content: "I'm Quanty — your AI coding assistant. Ask me to explain, refactor, test, fix, optimize, or document the current code.",
+    timestamp: new Date(),
+  }]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  /*
-   * `ai` and `sys`. This panel answers about code and nothing else, so an AI outcome and a
-   * lost connection are its business while a send or an upload elsewhere in the app is not.
-   *
-   * The header mount below already reads `isLoading` and that stays on top: a local typing
-   * row that disagrees with the face beside it is worse than either alone. What the bus adds
-   * is the tail — `proud` for the beat after an answer lands, `error` when one does not, and
-   * `idle` (the open capsule eye) at rest instead of a constant.
-   */
   const mood = useQuantyMood({ channels: ['ai', 'sys'] });
 
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useRegisterCommands([{ id: 'ai.focusChat', label: 'Focus Quanty chat', group: 'AI', keys: 'mod+l', icon: 'sparkle', description: 'Focus the coding assistant prompt', keywords: ['assistant', 'code'], allowInInput: true, run: () => inputRef.current?.focus() }]);
 
-  /**
-   * `⌘L` focuses the chat input.
-   *
-   * Registered as a command rather than a raw listener so it shows up in the
-   * palette and the shortcuts sheet alongside everything else, and so the engine
-   * — not this component — decides precedence when another surface wants the
-   * same chord. `allowInInput` is on because the natural use is jumping here from
-   * the code editor, which is itself a text surface.
-   */
-  useRegisterCommands([
-    {
-      id: 'ai.focusChat',
-      label: 'Focus Quanty chat',
-      group: 'AI',
-      keys: 'mod+l',
-      icon: 'sparkle',
-      description: 'Jump to the coding assistant prompt without leaving the editor',
-      keywords: ['assistant', 'ask', 'prompt', 'copilot'],
-      allowInInput: true,
-      run: () => inputRef.current?.focus(),
-    },
-  ]);
+  const sendMessage = useCallback(async (content: string) => {
+    const trimmed = content.trim();
+    if (!trimmed || isLoading) return;
+    const userMessage: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: trimmed, timestamp: new Date() };
+    const requestMessages = [...messages, userMessage]
+      .filter((message) => message.role !== 'system')
+      .slice(-24)
+      .map(({ role, content: messageContent }) => ({ role: role as 'user' | 'assistant', content: messageContent }));
 
-  const sendMessage = useCallback(
-    async (content: string) => {
-      if (!content.trim()) return;
-
-      const userMsg: ChatMessage = {
-        id: `msg-${Date.now()}`,
-        role: 'user',
-        content,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, userMsg]);
-      setInput('');
-      setIsLoading(true);
-      // A 25s latch in the reaction table, so a request that never resolves cannot strand the
-      // mascot mid-thought on the header trigger two components up, which is listening too.
-      quantyReact('ai:thinking');
-
-      // Build context for AI
-      const context = currentFile
-        ? `Current file: ${currentFile} (${language})\nContent:\n\`\`\`${language}\n${currentContent.slice(0, 3000)}\n\`\`\``
-        : 'No file open.';
-
-      try {
-        // In production: call backend /ai/code-assist endpoint
-        // For now, generate intelligent responses based on the request
-        const response = await simulateAIResponse(content, context, language);
-
-        const assistantMsg: ChatMessage = {
-          id: `msg-${Date.now()}-ai`,
-          role: 'assistant',
-          content: response.text,
-          codeBlock: response.code ? { language, code: response.code } : undefined,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-        quantyReact('ai:answered');
-      } catch {
-        quantyReact('ai:failed');
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `msg-${Date.now()}-err`,
-            role: 'assistant',
-            content: "Sorry, I couldn't process that. Try again or rephrase your request.",
-            timestamp: new Date(),
+    setMessages((previous) => [...previous, userMessage]);
+    setInput('');
+    setIsLoading(true);
+    quantyReact('ai:thinking');
+    try {
+      const response = await browserApiRequest('/api/ai/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          messages: requestMessages,
+          intent: readAIIntent(),
+          context: {
+            app: 'QuantGit',
+            route: '/codehub/editor',
+            view: currentFile ? `Editing ${currentFile} (${language})` : 'Code editor with no file open',
+            screenText: currentFile ? currentContent.slice(0, 8000) : undefined,
           },
-        ]);
-      } finally {
-        setIsLoading(false);
+        }),
+      });
+      const payload = await response.json().catch(() => null) as { success?: boolean; data?: { message?: string }; error?: { message?: string } } | null;
+      if (!response.ok || !payload?.success || !payload.data?.message) {
+        throw new Error(payload?.error?.message || `QuantAI request failed (${response.status})`);
       }
-    },
-    [currentContent, currentFile, language],
-  );
-
-  const handleQuickAction = useCallback(
-    (actionId: string) => {
-      const actionMap: Record<string, string> = {
-        explain: `Explain what this code does in plain English. Be concise.`,
-        refactor: `Refactor this code to be cleaner, more readable, and follow best practices. Show the improved version.`,
-        test: `Write comprehensive unit tests for this code. Use the appropriate testing framework.`,
-        fix: `Review this code for bugs, edge cases, and potential issues. Fix any problems you find.`,
-        optimize: `Optimize this code for performance. Explain what you changed and why.`,
-        document: `Add JSDoc/TSDoc comments to all functions and complex logic in this code.`,
-        types: `Add proper TypeScript types to this code. Make it fully type-safe.`,
-        convert: `Show me how to convert this code to a different approach or pattern.`,
-      };
-      sendMessage(actionMap[actionId] || 'Help me with this code.');
-    },
-    [sendMessage],
-  );
-
-  const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      sendMessage(input);
-    },
-    [input, sendMessage],
-  );
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage(input);
-      }
-    },
-    [input, sendMessage],
-  );
+      const parsed = splitCodeBlock(payload.data.message, language);
+      setMessages((previous) => [...previous, {
+        id: crypto.randomUUID(), role: 'assistant', content: parsed.text,
+        codeBlock: parsed.code ? { language: parsed.language || language, code: parsed.code } : undefined,
+        timestamp: new Date(),
+      }]);
+      quantyReact('ai:answered');
+    } catch (error) {
+      quantyReact('ai:failed');
+      setMessages((previous) => [...previous, {
+        id: crypto.randomUUID(), role: 'assistant',
+        content: error instanceof Error ? error.message : 'QuantAI is temporarily unavailable.',
+        timestamp: new Date(),
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentContent, currentFile, isLoading, language, messages]);
 
   return (
     <div className="ai-coding-chat">
       <header className="ai-chat-header">
-        <div className="ai-chat-title">
-          <Quanty expression={isLoading ? 'thinking' : mood} size={34} />
-          <strong>QuantAI Code</strong>
-        </div>
-        <div className="ai-chat-context">
-          {currentFile ? (
-            <span className="ai-chat-file">{currentFile.split('/').pop()}</span>
-          ) : (
-            <span className="ai-chat-no-file">No file open</span>
-          )}
-        </div>
-        <button
-          type="button"
-          className="ai-chat-close flex items-center justify-center"
-          onClick={onClose}
-        >
-          <svg
-            className="size-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
+        <div className="ai-chat-title"><Quanty expression={isLoading ? 'thinking' : mood} size={34} /><strong>QuantAI Code</strong></div>
+        <div className="ai-chat-context">{currentFile ? <span className="ai-chat-file">{currentFile.split('/').pop()}</span> : <span className="ai-chat-no-file">No file open</span>}</div>
+        <button type="button" className="ai-chat-close" onClick={onClose} aria-label="Close coding assistant">×</button>
       </header>
-
-      {/* Quick actions */}
       <div className="ai-chat-actions">
-        {QUICK_ACTIONS.map((action) => (
-          <button
-            key={action.id}
-            type="button"
-            className="ai-quick-action"
-            onClick={() => handleQuickAction(action.id)}
-            disabled={isLoading || !currentFile}
-          >
-            <span>{action.label}</span>
-          </button>
-        ))}
+        {QUICK_ACTIONS.map((action) => <button key={action.id} type="button" className="ai-quick-action" onClick={() => void sendMessage(ACTION_PROMPTS[action.id] || 'Help me with this code.')} disabled={isLoading || !currentFile}>{action.label}</button>)}
       </div>
-
-      {/* Messages */}
       <div className="ai-chat-messages">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`ai-chat-msg ai-chat-msg--${msg.role}`}>
-            {msg.role === 'assistant' && (
-              <span className="ai-msg-avatar">
-                {/*
-                  Deliberately not live, and the same call as the assistant panel's transcript.
-                  This avatar is rendered per message inside the map, so a live mood would put
-                  one identical reacting face on every past reply and make a finished message
-                  answer to a present event. No `expression` resolves to `idle`, the open
-                  capsule eye, which is the right resting mark for a line of history. The one
-                  live face here is the header mount above.
-                */}
-                <Quanty size={22} />
-              </span>
-            )}
-            {msg.role === 'user' && (
-              <span className="ai-msg-avatar flex items-center justify-center">
-                <svg
-                  className="size-4 text-[#A1A4AC]"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </span>
-            )}
-            <div className="ai-msg-content">
-              <p>{msg.content}</p>
-              {msg.codeBlock && (
-                <div className="ai-code-block">
-                  <header className="ai-code-header">
-                    <span>{msg.codeBlock.language}</span>
-                    <button
-                      type="button"
-                      className="ai-apply-btn"
-                      onClick={() => onApplyCode(msg.codeBlock!.code)}
-                    >
-                      Apply to editor
-                    </button>
-                  </header>
-                  <pre className="ai-code-content">
-                    <code>{msg.codeBlock.code}</code>
-                  </pre>
-                </div>
-              )}
-            </div>
+        {messages.map((message) => (
+          <div key={message.id} className={`ai-chat-msg ai-chat-msg--${message.role}`}>
+            {message.role === 'assistant' && <span className="ai-msg-avatar"><Quanty size={22} /></span>}
+            {message.role === 'user' && <span className="ai-msg-avatar">●</span>}
+            <div className="ai-msg-content"><p>{message.content}</p>{message.codeBlock && <div className="ai-code-block"><header className="ai-code-header"><span>{message.codeBlock.language}</span><button type="button" className="ai-apply-btn" onClick={() => onApplyCode(message.codeBlock!.code)}>Apply to editor</button></header><pre className="ai-code-content"><code>{message.codeBlock.code}</code></pre></div>}</div>
           </div>
         ))}
-        {isLoading && (
-          <div className="ai-chat-msg ai-chat-msg--assistant">
-            <span className="ai-msg-avatar">
-              <Quanty size={22} expression="thinking" />
-            </span>
-            <div className="ai-msg-content">
-              <div className="ai-typing">
-                <span />
-                <span />
-                <span />
-              </div>
-            </div>
-          </div>
-        )}
+        {isLoading && <div className="ai-chat-msg ai-chat-msg--assistant"><span className="ai-msg-avatar"><Quanty size={22} expression="thinking" /></span><div className="ai-msg-content"><div className="ai-typing"><span /><span /><span /></div></div></div>}
         <div ref={messagesEndRef} />
       </div>
-
-      {/* Input */}
-      <form className="ai-chat-input-area" onSubmit={handleSubmit}>
-        <textarea
-          ref={inputRef}
-          className="ai-chat-input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            currentFile
-              ? `Ask about ${currentFile.split('/').pop()}... (Enter to send)`
-              : 'Ask me to generate code...'
-          }
-          rows={2}
-          disabled={isLoading}
-        />
-        <button type="submit" className="ai-chat-send" disabled={isLoading || !input.trim()}>
-          Send
-        </button>
+      <form className="ai-chat-input-area" onSubmit={(event) => { event.preventDefault(); void sendMessage(input); }}>
+        <textarea ref={inputRef} className="ai-chat-input" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void sendMessage(input); } }} placeholder={currentFile ? `Ask about ${currentFile.split('/').pop()}…` : 'Ask me to generate code…'} rows={2} disabled={isLoading} />
+        <button type="submit" className="ai-chat-send" disabled={isLoading || !input.trim()}>Send</button>
       </form>
       <p className="ai-chat-hint">Ctrl+L to focus • Shift+Enter for newline • Enter to send</p>
     </div>
   );
-}
-
-/**
- * Simulates AI response for demo. In production, this calls the backend.
- */
-async function simulateAIResponse(
-  prompt: string,
-  context: string,
-  language: string,
-): Promise<{ text: string; code?: string }> {
-  await new Promise((r) => setTimeout(r, 1200 + Math.random() * 800));
-
-  const lower = prompt.toLowerCase();
-
-  if (lower.includes('explain')) {
-    return {
-      text: `This code defines a module that handles the core logic for this feature. Here's a breakdown:\n\n• The main function processes the input data\n• Error handling is done via try/catch blocks\n• The return value is typed for type safety\n\nThe overall pattern follows a clean architecture approach with separation of concerns.`,
-    };
-  }
-
-  if (lower.includes('refactor')) {
-    return {
-      text: "Here's the refactored version with improved readability, better naming, and modern patterns:",
-      code: `// Refactored version\n// TODO: Replace with actual AI-generated refactored code\n// This would use the current file content as input\n\nexport function processData(input: unknown) {\n  if (!input) {\n    throw new Error('Input is required');\n  }\n  \n  // Process and return\n  return input;\n}`,
-    };
-  }
-
-  if (lower.includes('test')) {
-    return {
-      text: 'Here are comprehensive tests for your code:',
-      code: `import { describe, it, expect } from 'vitest';\n\ndescribe('Module', () => {\n  it('should handle valid input', () => {\n    // TODO: Generated from actual code analysis\n    expect(true).toBe(true);\n  });\n\n  it('should throw on invalid input', () => {\n    expect(() => {\n      // Call with invalid input\n    }).toThrow();\n  });\n\n  it('should handle edge cases', () => {\n    // Edge case testing\n    expect(null).toBeNull();\n  });\n});`,
-    };
-  }
-
-  if (lower.includes('fix') || lower.includes('bug')) {
-    return {
-      text: "I found a few potential issues:\n\n1. **Possible null reference** — add null checks before accessing nested properties\n2. **Missing error handling** — wrap async operations in try/catch\n3. **Type safety** — use explicit types instead of `any`\n\nHere's the fixed version:",
-      code: `// Fixed version with proper error handling\n// TODO: Generated from actual code analysis`,
-    };
-  }
-
-  if (lower.includes('optimize')) {
-    return {
-      text: "Here are the optimizations I'd suggest:\n\n• **Memoize expensive computations** — use useMemo for derived values\n• **Reduce re-renders** — wrap callbacks in useCallback\n• **Lazy load** — split code for features not immediately visible\n• **Batch state updates** — combine related setState calls",
-    };
-  }
-
-  if (lower.includes('document') || lower.includes('doc')) {
-    return {
-      text: "Here's the code with comprehensive documentation added:",
-      code: `/**\n * Module documentation\n * @module\n * @description Handles the core feature logic\n */\n\n/**\n * Process the input data and return the result.\n * @param input - The input data to process\n * @returns The processed result\n * @throws {Error} If input is invalid\n */\nexport function processData(input: unknown): unknown {\n  return input;\n}`,
-    };
-  }
-
-  // Default response for any other prompt
-  return {
-    text: `I understand you want to: "${prompt}"\n\nI can help with that. Based on the current ${language} file, here's my suggestion. In the full version, this response would be generated by the AI model with full context of your codebase.`,
-  };
 }

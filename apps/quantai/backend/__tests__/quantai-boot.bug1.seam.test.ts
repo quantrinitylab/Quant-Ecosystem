@@ -37,6 +37,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import type { AppConfig } from '@quant/server-core';
+import { buildApp } from '../app';
 
 // apps/quantai/backend/__tests__  ->  repo root (../../../..)
 const here = dirname(fileURLToPath(import.meta.url));
@@ -155,10 +156,9 @@ describe('Bug 1 — quantai buildApp() phantom/undeclared @quant/* boot failure'
   // outcome: resolves, boots, and registers every previously-broken prefix.
   // --------------------------------------------------------------------------
   it('imports the real buildApp() and boots with all engine prefixes registered', async () => {
-    const appModule = await import('../app');
-    expect(typeof appModule.buildApp).toBe('function');
+    expect(typeof buildApp).toBe('function');
 
-    const app = await appModule.buildApp(testConfig);
+    const app = await buildApp(testConfig);
     try {
       await app.ready();
       // Fastify's default `printRoutes()` collapses shared path segments into a

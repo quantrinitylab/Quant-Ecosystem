@@ -1,4 +1,6 @@
 import { FastifyInstance } from 'fastify';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import * as jose from 'jose';
 import { TokenService } from '@quant/auth/services/token-service';
 import { getJwtSecret, getJwtRefreshSecret } from '@quant/auth/lib/secrets';
 import prisma from '@quant/auth/lib/prisma';
@@ -118,6 +120,73 @@ export async function oauthRoutes(fastify: FastifyInstance) {
         });
       }
 
+      // Enforce client_id binding (AUTH-04): The token exchange client_id MUST
+      // match the client_id bound to the authorization code.
+      if (client_id && authCode.clientId !== client_id) {
+        return reply.code(400).send({
+          error: 'invalid_grant',
+          error_description: 'client_id mismatch',
+        });
+      }
+
+      // Confidential client authentication (AUTH-04)
+      const targetClientId = authCode.clientId || client_id;
+      if (targetClientId) {
+        const oauthClient = await prisma.oAuthClient.findUnique({
+          where: { clientId: targetClientId },
+        });
+        if (!oauthClient) {
+          return reply.code(401).send({
+            error: 'invalid_client',
+            error_description: 'Client authentication failed: unknown client',
+          });
+        }
+        if (oauthClient.isConfidential || oauthClient.clientSecretHash) {
+          let presentedSecret = body.client_secret;
+          if (!presentedSecret && request.headers.authorization?.startsWith('Basic ')) {
+            const creds = Buffer.from(request.headers.authorization.slice(6), 'base64')
+              .toString()
+              .split(':');
+            presentedSecret = creds[1];
+          }
+          if (!presentedSecret || !oauthClient.clientSecretHash) {
+            return reply.code(401).send({
+              error: 'invalid_client',
+              error_description: 'Client authentication failed',
+            });
+          }
+          // Support both SHA-256 hash and legacy plaintext secret with auto-migration
+          const isSha256 = /^[0-9a-f]{64}$/i.test(oauthClient.clientSecretHash);
+          let valid = false;
+          if (isSha256) {
+            const presentedHash = createHash('sha256').update(presentedSecret).digest('hex');
+            const hashBuf = Buffer.from(presentedHash);
+            const storedBuf = Buffer.from(oauthClient.clientSecretHash);
+            valid = hashBuf.length === storedBuf.length && timingSafeEqual(hashBuf, storedBuf);
+          } else {
+            // Legacy plaintext fallback with constant-time check and auto-upgrade to SHA-256
+            const presBuf = Buffer.from(presentedSecret);
+            const storedBuf = Buffer.from(oauthClient.clientSecretHash);
+            valid = presBuf.length === storedBuf.length && timingSafeEqual(presBuf, storedBuf);
+            if (valid) {
+              const upgradedHash = createHash('sha256').update(presentedSecret).digest('hex');
+              await prisma.oAuthClient
+                .update({
+                  where: { id: oauthClient.id },
+                  data: { clientSecretHash: upgradedHash },
+                })
+                .catch(() => undefined);
+            }
+          }
+          if (!valid) {
+            return reply.code(401).send({
+              error: 'invalid_client',
+              error_description: 'Client authentication failed',
+            });
+          }
+        }
+      }
+
       // Enforce PKCE: when a code_challenge was bound at authorize time, the
       // exchange MUST present a code_verifier whose challenge-method transform
       // equals the stored code_challenge. Reject (issuing no tokens, and
@@ -215,12 +284,37 @@ export async function oauthRoutes(fastify: FastifyInstance) {
     return reply.code(400).send({ error: 'unsupported_grant_type' });
   });
 
-  // POST /oauth/revoke
+  // POST /oauth/revoke (AUTH-05: resolve credential to token identifier/hash)
   fastify.post('/oauth/revoke', async (request, reply) => {
     const { token } = request.body as any;
     if (!token) return reply.code(400).send({ error: 'invalid_request' });
 
-    await tokenService.revokeToken(token);
+    let targetTokenId: string = token;
+    try {
+      const decoded = jose.decodeJwt(token);
+      if (decoded && typeof decoded.jti === 'string') {
+        targetTokenId = decoded.jti;
+      }
+    } catch {
+      // Not a JWT, use token directly
+    }
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    try {
+      if ((prisma as any)?.refreshToken?.updateMany) {
+        await (prisma as any).refreshToken.updateMany({
+          where: {
+            OR: [{ id: targetTokenId }, { id: token }, { token: tokenHash }, { token: token }],
+          },
+          data: { isRevoked: true },
+        });
+      } else {
+        request.log.error('prisma.refreshToken delegate unavailable during revocation');
+      }
+    } catch (err: any) {
+      request.log.warn({ err }, 'Token revocation database note');
+    }
+    // RFC 7009 §2.2: The authorization server responds with HTTP status code 200
+    // if the token has been revoked successfully or if the client submitted an invalid token.
     return reply.send({ success: true });
   });
 
@@ -264,8 +358,19 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       },
     });
 
-    if (existingConsent) {
-      // Auto-approve if consent already given
+    const existingScopes: string[] = Array.isArray(existingConsent?.scopes)
+      ? (existingConsent.scopes as string[])
+      : [];
+    const requestedScopes: string[] = scope
+      ? scope.split(' ').filter(Boolean)
+      : existingScopes.length > 0
+        ? existingScopes
+        : ['openid', 'profile', 'email'];
+
+    const hasAllScopes = requestedScopes.every((s: string) => existingScopes.includes(s));
+
+    if (existingConsent && hasAllScopes) {
+      // Auto-approve ONLY when all requested scopes are already consented (AUTH-03)
       const code = generateId('ac_');
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
@@ -275,7 +380,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
           clientId: client_id,
           userId,
           redirectUri: redirect_uri,
-          scopes: (scope || 'openid profile email').split(' '),
+          scopes: requestedScopes,
           codeChallenge: code_challenge ?? null,
           codeChallengeMethod: code_challenge
             ? normalizeChallengeMethod(code_challenge_method)
@@ -332,11 +437,25 @@ export async function oauthRoutes(fastify: FastifyInstance) {
     return reply.type('text/html').send(consentHtml);
   });
 
-  // POST /oauth/consent
-  fastify.post('/oauth/consent', async (request, reply) => {
+  // POST /oauth/consent (AUTH-01: require authenticated user session, reject user_id spoofing)
+  fastify.post('/oauth/consent', { preHandler: requireAuth }, async (request: any, reply) => {
     const body = request.body as any;
     const { action, client_id, redirect_uri, user_id, scope, state } = body;
     const { code_challenge, code_challenge_method, nonce } = body;
+
+    const authUserId = request.user?.id || request.user?.sub;
+    if (!authUserId) {
+      return reply.code(401).send({ error: 'unauthorized' });
+    }
+
+    // AUTH-01: Reject user_id mismatch with the authenticated session
+    if (user_id && user_id !== authUserId) {
+      return reply.code(403).send({
+        error: 'forbidden',
+        error_description: 'User identity mismatch with authenticated session',
+      });
+    }
+    const effectiveUserId = authUserId;
 
     const safeRedirectUri = await resolveRedirectUri(client_id, redirect_uri);
     if (!safeRedirectUri) {
@@ -350,21 +469,38 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       return reply.redirect(errorUrl);
     }
 
-    // Save consent
+    const oauthClient = await prisma.oAuthClient.findUnique({ where: { clientId: client_id } });
+    if (!oauthClient) {
+      return reply.code(400).send({ error: 'invalid_client' });
+    }
+
+    const requestedScopes = (scope || 'openid profile email').split(' ').filter(Boolean);
+    const clientAllowed = Array.isArray(oauthClient.allowedScopes) ? oauthClient.allowedScopes : [];
+    if (
+      clientAllowed.length > 0 &&
+      !requestedScopes.every((s: string) => clientAllowed.includes(s))
+    ) {
+      return reply.code(400).send({
+        error: 'invalid_scope',
+        error_description: 'Requested scope exceeds allowed client scopes',
+      });
+    }
+
+    // Save consent bound to the authenticated user
     await prisma.oAuthConsent.upsert({
       where: {
         userId_clientId: {
-          userId: user_id,
+          userId: effectiveUserId,
           clientId: client_id,
         },
       },
       update: {
-        scopes: scope.split(' '),
+        scopes: requestedScopes,
       },
       create: {
-        userId: user_id,
+        userId: effectiveUserId,
         clientId: client_id,
-        scopes: scope.split(' '),
+        scopes: requestedScopes,
       },
     });
 
@@ -375,9 +511,9 @@ export async function oauthRoutes(fastify: FastifyInstance) {
       data: {
         code,
         clientId: client_id,
-        userId: user_id,
+        userId: effectiveUserId,
         redirectUri: redirect_uri,
-        scopes: scope.split(' '),
+        scopes: requestedScopes,
         codeChallenge: code_challenge || null,
         codeChallengeMethod: code_challenge
           ? normalizeChallengeMethod(code_challenge_method)
@@ -402,11 +538,14 @@ export async function oauthRoutes(fastify: FastifyInstance) {
 
     const clientId = generateId('client_');
     const clientSecret = is_confidential ? generateId('secret_') : null;
+    const clientSecretHash = clientSecret
+      ? createHash('sha256').update(clientSecret).digest('hex')
+      : null;
 
     const client = await prisma.oAuthClient.create({
       data: {
         clientId,
-        clientSecretHash: clientSecret,
+        clientSecretHash,
         name,
         redirectUris: redirect_uris,
         allowedScopes: scopes || ['openid', 'profile', 'email'],
@@ -468,7 +607,7 @@ export async function oauthRoutes(fastify: FastifyInstance) {
     grant_types_supported: ['authorization_code', 'refresh_token'],
     subject_types_supported: ['public'],
     id_token_signing_alg_values_supported: ['RS256'],
-    token_endpoint_auth_methods_supported: ['client_secret_post', 'none'],
+    token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
     code_challenge_methods_supported: ['S256', 'plain'],
     scopes_supported: ['openid', 'profile', 'email'],
     claims_supported: [
