@@ -904,4 +904,16 @@ graph TD
 - **Authentic Spam Architecture & Tab Switching Fix**:
   - Eliminated tab bouncing bug: clicking `Groups`, `Contacts`, or `Unread` while on `Spam` now stays on the selected lens via `router.replace(target, { scroll: false })` and reactive `searchParams` synchronization.
   - Purged all exaggerated buzzwords and marketing claims ("Crypto Verify", "Local Bayes", "Sovereign Spam Defense", "quarantine scan", etc.).
-  - Restored authentic, clean, standard email spam experience: standard banner ("Messages that have been in Spam more than 30 days will be automatically deleted."), clean "Empty Spam now" action, standard "No spam messages" empty state, clean "Spam" badges, and simple "Not spam" action.
+  - Restored authentic, clean, standard email spam experience: standard banner, clean "Empty Spam now" action, standard "No spam messages" empty state, clean "Spam" badges, and simple "Not spam" action.
+
+### 5. QuantMail UX Polish & Architectural Hygiene (Astra Verified):
+
+- **Spam Subtext Removal**: Completely eliminated unverified 30-day retention claims across `page.tsx` (banner + empty state) and `ConversationalThreadView.tsx`.
+- **Lens Badge Count Bug**: Updated `lensCounts` to strictly count unread conversations for `all`, `unread`, `contacts`, `groups`, and `spam`. Badges now display only when unread count is > 0.
+- **Starred vs Pinned Unification & Row Clutter**: Consolidated Starred into Pin; added Pin quick-action to `HoverActions` on desktop hover, and eliminated resting row button clutter by showing Pin icon only when actively pinned.
+- **Empty Inbox Non-Scroll Lock**: Wrapped empty state containers in a flex-centered full-height container (`flex-1 min-h-[420px]`) and set `min-height: 100%` on `.inbox-zero` in `overrides.css` to eliminate blank overscroll dragging.
+- **Contacts Empty State Copy**: Replaced negative copy with positive, action-oriented standard copy: "No conversations with contacts yet. Messages from people in your address book will appear here."
+- **Sidebar Streamlining**: Removed premature `pipelines` item (per §9.1), preserved `Archive` for pointer reachability, and added semantic `aria-label`s to unread, drafts, and spam badge pills.
+- **Groups Experience**: Streamlined groups presentation with rich group cards and clean creation flows.
+- **Build & Gate Validation**: Verified 100% clean typecheck (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json` passed 0 errors) and Next.js production build (62 static & dynamic routes prerendered).
+

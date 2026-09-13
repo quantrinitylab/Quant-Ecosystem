@@ -6,11 +6,13 @@ import { motion } from 'framer-motion';
 interface HoverActionsProps {
   emailId: string;
   isRead: boolean;
+  isStarred?: boolean;
   onArchive: () => void;
   onDelete: () => void;
   onMarkRead: () => void;
   onMarkUnread: () => void;
   onSnooze: () => void;
+  onToggleStar?: (e: React.MouseEvent) => void;
   onLabel?: () => void;
   isSpam?: boolean;
   onRescueSpam?: () => void;
@@ -18,17 +20,19 @@ interface HoverActionsProps {
 
 /**
  * Gmail-style hover action bar that appears on the right side of an email row.
- * Shows: Archive, Delete, Mark Read/Unread, Snooze, Label, and Not Spam rescue.
+ * Shows: Pin, Archive, Delete, Mark Read/Unread, Snooze, Label, and Not Spam rescue.
  * Hidden on touch/coarse-pointer devices via shell.css.
  */
 export const HoverActions = memo(function HoverActions({
   emailId,
   isRead,
+  isStarred,
   onArchive,
   onDelete,
   onMarkRead,
   onMarkUnread,
   onSnooze,
+  onToggleStar,
   onLabel,
   isSpam,
   onRescueSpam,
@@ -43,6 +47,32 @@ export const HoverActions = memo(function HoverActions({
       onClick={(e) => e.stopPropagation()}
       aria-label="Quick actions"
     >
+      {onToggleStar && !isSpam && (
+        <button
+          type="button"
+          className={`hover-action-btn ${
+            isStarred ? 'text-[#FF8C42] bg-[#2B1A11]' : 'text-[#A1A4AC] hover:text-[#EDEDED]'
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleStar(e);
+          }}
+          aria-label={isStarred ? 'Unpin from top' : 'Pin to top'}
+          title={isStarred ? 'Unpin from top' : 'Pin to top'}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill={isStarred ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="12" y1="17" x2="12" y2="22" />
+            <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
+          </svg>
+        </button>
+      )}
       {isSpam && onRescueSpam && (
         <button
           type="button"

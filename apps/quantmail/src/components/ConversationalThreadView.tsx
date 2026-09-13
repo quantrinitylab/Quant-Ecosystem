@@ -1017,9 +1017,6 @@ export function ConversationalThreadView({
               </span>
               <div>
                 <h4 className="text-sm font-semibold text-white">This message is in Spam</h4>
-                <p className="text-xs text-[#A1A4AC] mt-0.5">
-                  Messages that have been in Spam more than 30 days will be automatically deleted.
-                </p>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">

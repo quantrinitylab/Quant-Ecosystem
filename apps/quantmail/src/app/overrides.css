@@ -716,9 +716,10 @@
   transform: translateY(-1px) scale(1.05);
 }
 
-/* P02: Outlook-style empty inbox + one solid colour everywhere */
 .inbox-zero {
   display: flex;
+  flex: 1;
+  min-height: 100%;
   flex-direction: column;
   align-items: center;
   justify-content: center;

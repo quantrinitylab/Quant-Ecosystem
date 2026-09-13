@@ -150,10 +150,10 @@ function SpamBanner({
 }) {
   return (
     <div className="mx-3 sm:mx-4 my-2.5 px-3.5 py-2.5 rounded-xl bg-[#12141A] border border-[#282C35] flex items-center justify-between gap-3 text-xs">
-      <div className="flex items-center gap-2 text-[#A1A4AC] min-w-0">
+      <div className="flex items-center gap-2 text-[#EDEDED] min-w-0">
         <IconSpam size={15} className="text-[#FF8C42] shrink-0" />
-        <span className="truncate text-xs">
-          Messages that have been in Spam more than 30 days will be automatically deleted.
+        <span className="font-semibold text-xs text-[#EDEDED]">
+          Spam
         </span>
       </div>
       {spamCount > 0 && (
@@ -433,11 +433,13 @@ function EmailRow({
             <HoverActions
               emailId={thread.id}
               isRead={thread.isRead}
+              isStarred={email.isStarred}
               onArchive={onArchive}
               onDelete={onDelete}
               onMarkRead={onMarkRead}
               onMarkUnread={onMarkUnread}
               onSnooze={() => setShowSnoozeMenu((prev) => !prev)}
+              onToggleStar={onToggleStar}
               isSpam={isSpamMode}
               onRescueSpam={onRescueSpam}
             />
@@ -525,24 +527,20 @@ function EmailRow({
             <MailIcon name="archive" className="size-4" />
           </button>
         )}
-        {/* Pin button */}
-        {!isSpamMode && !isHovered && !showSnoozeMenu && (
+        {/* Pin button: shown on resting row only when pinned, or on hover via HoverActions */}
+        {!isSpamMode && email.isStarred && !isHovered && !showSnoozeMenu && (
           <button
             type="button"
-            className={`flex items-center justify-center shrink-0 p-1.5 rounded-xl transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-              email.isStarred
-                ? 'text-[#FF8C42] fill-[#FF8C42] bg-[#FF8C42]/15'
-                : 'text-[#6B6E76] hover:text-[#A1A4AC] hover:bg-[#282C35]/60'
-            }`}
+            className="flex items-center justify-center shrink-0 p-1.5 rounded-xl transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] text-[#FF8C42] fill-[#FF8C42] bg-[#FF8C42]/15"
             onClick={onToggleStar}
-            aria-label={email.isStarred ? 'Unpin email' : 'Pin email'}
-            aria-pressed={email.isStarred}
-            title={email.isStarred ? 'Pinned to top' : 'Pin to top'}
+            aria-label="Unpin email"
+            aria-pressed={true}
+            title="Pinned to top"
           >
             <svg
               className="size-4"
               viewBox="0 0 24 24"
-              fill={email.isStarred ? 'currentColor' : 'none'}
+              fill="currentColor"
               stroke="currentColor"
               strokeWidth="2"
             >
@@ -1751,27 +1749,30 @@ export default function InboxPage() {
   const lensCounts = useMemo(() => {
     const basePool = showArchivedView ? allArchivedThreads : (threads ?? []);
     const pool = narrowThreads(basePool, 'all', activeTurn, activeFilters);
-    let unread = 0;
-    let groups = 0;
-    let contacts: number | null = isDirectoryPending ? null : 0;
+    let allUnread = 0;
+    let groupsUnread = 0;
+    let contactsUnread: number | null = isDirectoryPending ? null : 0;
     for (const t of pool) {
-      if (!t.isRead) unread += 1;
-      if (isGroupThread(t)) groups += 1;
-      if (contacts !== null && isContactThread(t)) contacts += 1;
+      if (!t.isRead) {
+        allUnread += 1;
+        if (isGroupThread(t)) groupsUnread += 1;
+        if (contactsUnread !== null && isContactThread(t)) contactsUnread += 1;
+      }
     }
+    const spamUnread = allSpamThreads.filter((t) => !t.isRead).length;
     const counts: Record<InboxLens, number | null> = {
-      all: pool.length,
-      unread,
-      contacts,
-      groups,
-      spam: allSpamThreads.length,
+      all: allUnread,
+      unread: allUnread,
+      contacts: contactsUnread,
+      groups: groupsUnread,
+      spam: spamUnread,
     };
     return counts;
   }, [
     showArchivedView,
     allArchivedThreads,
     threads,
-    allSpamThreads.length,
+    allSpamThreads,
     activeTurn,
     activeFilters,
     narrowThreads,
@@ -2945,177 +2946,152 @@ export default function InboxPage() {
             {!isLoading &&
               !isSearching &&
               !error &&
-              displayThreads.length === 0 &&
-              (debouncedQuery ? (
-                <div className="mail-empty">
-                  <span className="mail-empty-icon">
-                    <MailIcon name="search" />
-                  </span>
-                  <p className="reading-eyebrow">Search query</p>
-                  <h2>No matching messages.</h2>
-                  <p>
-                    No messages matched "{debouncedQuery}". Try searching for another keyword,
-                    email, or subject.
-                  </p>
-                  <div className="flex items-center justify-center gap-2 flex-wrap">
-                    <Button
-                      variant="primary"
-                      onClick={() => {
-                        setSearchQuery('');
-                        setDebouncedQuery('');
-                      }}
-                    >
-                      Clear search
-                    </Button>
-                    <Button variant="secondary" onClick={() => router.push('/search')}>
-                      Advanced search
-                    </Button>
-                  </div>
-                </div>
-              ) : activeLens === 'groups' && narrowingCount === 0 ? (
-                /*
-                  Same two-situations problem as the Contacts branch below, and the
-                  same answer: a reader with four saved groups does not need to be
-                  told to create one. An empty shelf gets the invitation; a full one
-                  gets the fact — that no *conversation* in the mailbox has more than
-                  one other person in it, which is what this lens narrows on.
-
-                  While the groups query is still in flight neither sentence is
-                  known, so the copy stays on the lens's own meaning and the button
-                  is left out rather than guessed at.
-                */
-                <div className="mail-empty py-12 px-4 text-center space-y-3">
-                  <div className="size-12 rounded-full bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto mb-1">
-                    <svg
-                      className="size-6"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      aria-hidden="true"
-                    >
-                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                      <circle cx="9" cy="7" r="4" />
-                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                    </svg>
-                  </div>
-                  <h3 className="text-base font-bold text-white">
-                    {areGroupsPending || savedGroups.length > 0
-                      ? 'No group conversations yet'
-                      : 'No groups saved yet'}
-                  </h3>
-                  <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
-                    {areGroupsPending
-                      ? 'Conversations with more than one other person collect here.'
-                      : savedGroups.length > 0
-                        ? 'Your saved groups are in the strip above. Nothing in your inbox is a conversation with more than one other person yet — write to a group and its thread lands here.'
-                        : 'A group is a set of addresses you write to in one tap — a team, a family, a project. Save one and it appears in the strip above.'}
-                  </p>
-                  {!areGroupsPending && savedGroups.length === 0 && (
-                    <div className="pt-2 flex justify-center">
-                      <Button variant="primary" onClick={() => setGroupEditorTarget('new')}>
-                        Create your first group
-                      </Button>
+              displayThreads.length === 0 && (
+                <div className="w-full flex-1 min-h-[420px] flex flex-col items-center justify-center py-6">
+                  {debouncedQuery ? (
+                    <div className="mail-empty">
+                      <span className="mail-empty-icon">
+                        <MailIcon name="search" />
+                      </span>
+                      <p className="reading-eyebrow">Search query</p>
+                      <h2>No matching messages.</h2>
+                      <p>
+                        No messages matched "{debouncedQuery}". Try searching for another keyword,
+                        email, or subject.
+                      </p>
+                      <div className="flex items-center justify-center gap-2 flex-wrap">
+                        <Button
+                          variant="primary"
+                          onClick={() => {
+                            setSearchQuery('');
+                            setDebouncedQuery('');
+                          }}
+                        >
+                          Clear search
+                        </Button>
+                        <Button variant="secondary" onClick={() => router.push('/search')}>
+                          Advanced search
+                        </Button>
+                      </div>
                     </div>
+                  ) : activeLens === 'groups' && narrowingCount === 0 ? (
+                    <div className="mail-empty py-12 px-4 text-center space-y-3">
+                      <div className="size-12 rounded-full bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto mb-1">
+                        <svg
+                          className="size-6"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          aria-hidden="true"
+                        >
+                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                      </div>
+                      <h3 className="text-base font-bold text-white">
+                        No group conversations yet
+                      </h3>
+                      <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
+                        Conversations with multiple participants or your saved teams collect here.
+                      </p>
+                      <div className="pt-2 flex justify-center">
+                        <Button variant="primary" onClick={() => setGroupEditorTarget('new')}>
+                          Create a group
+                        </Button>
+                      </div>
+                    </div>
+                  ) : activeLens === 'spam' && narrowingCount === 0 ? (
+                    <div className="mail-empty py-12 px-4 text-center space-y-3">
+                      <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
+                        <IconSpam size={22} />
+                      </div>
+                      <h3 className="text-base font-bold text-white">No spam messages</h3>
+                      <div className="pt-2 flex justify-center">
+                        <Button variant="secondary" onClick={() => selectLens('all')}>
+                          Back to Inbox
+                        </Button>
+                      </div>
+                    </div>
+                  ) : activeLens === 'unread' && narrowingCount === 0 ? (
+                    <div className="mail-empty py-12 px-4 text-center space-y-2">
+                      <div className="size-12 rounded-full bg-emerald-950/40 border border-emerald-800/60 text-emerald-400 flex items-center justify-center mx-auto mb-1">
+                        <svg
+                          className="size-6"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                      <h3 className="text-base font-bold text-white">All caught up!</h3>
+                      <p className="text-xs text-[#A1A4AC]">Zero unread messages in your inbox.</p>
+                    </div>
+                  ) : activeLens === 'contacts' && narrowingCount === 0 ? (
+                    <div className="mail-empty py-12 px-4 text-center space-y-3">
+                      <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
+                        <svg
+                          className="size-6"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                        >
+                          <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+                          <circle cx="9" cy="11" r="2.2" />
+                          <path d="M5.6 16.6c.5-1.7 1.9-2.6 3.4-2.6s2.9.9 3.4 2.6" />
+                          <path d="M15.6 10.4h2.8M15.6 13.6h2.8" />
+                        </svg>
+                      </div>
+                      <h3 className="text-base font-bold text-white">
+                        {contactDirectory && contactDirectory.size === 0
+                          ? 'No saved contacts yet'
+                          : 'No conversations with contacts yet'}
+                      </h3>
+                      <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
+                        {contactDirectory && contactDirectory.size === 0
+                          ? 'Save someone to your address book and their conversations collect here.'
+                          : 'Messages from people in your address book will appear here.'}
+                      </p>
+                      <div className="pt-2 flex justify-center">
+                        <Button variant="secondary" onClick={() => router.push('/contacts')}>
+                          Open Contacts
+                        </Button>
+                      </div>
+                    </div>
+                  ) : activeLens !== 'all' || narrowingCount > 0 ? (
+                    <div className="mail-empty py-12 px-4 text-center space-y-2">
+                      <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
+                        <IconFilter size={22} />
+                      </div>
+                      <h3 className="text-base font-bold text-white">Nothing in this view</h3>
+                      <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
+                        {activeTurn === 'needs_you'
+                          ? 'Nothing here is on your turn — no one is waiting on a reply from you.'
+                          : activeTurn === 'waiting'
+                            ? 'Nothing here is on their turn — you are not waiting on a reply from anyone.'
+                            : 'No conversation matches everything you have on.'}
+                        {heldBackCount > 0 &&
+                          ` ${heldBackCount} automated ${
+                            heldBackCount === 1 ? 'conversation is' : 'conversations are'
+                          } held out of this view.`}
+                      </p>
+                      <div className="pt-2 flex justify-center">
+                        <Button variant="secondary" onClick={resetInboxView}>
+                          Show all conversations
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <InboxZeroState />
                   )}
                 </div>
-              ) : activeLens === 'spam' && narrowingCount === 0 ? (
-                <div className="mail-empty py-12 px-4 text-center space-y-3">
-                  <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
-                    <IconSpam size={22} />
-                  </div>
-                  <h3 className="text-base font-bold text-white">No spam messages</h3>
-                  <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
-                    Messages that have been in Spam more than 30 days will be automatically deleted.
-                  </p>
-                  <div className="pt-2 flex justify-center">
-                    <Button variant="secondary" onClick={() => selectLens('all')}>
-                      Back to Inbox
-                    </Button>
-                  </div>
-                </div>
-              ) : activeLens === 'unread' && narrowingCount === 0 ? (
-                <div className="mail-empty py-12 px-4 text-center space-y-2">
-                  <div className="size-12 rounded-full bg-emerald-950/40 border border-emerald-800/60 text-emerald-400 flex items-center justify-center mx-auto mb-1">
-                    <svg
-                      className="size-6"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </div>
-                  <h3 className="text-base font-bold text-white">All caught up!</h3>
-                  <p className="text-xs text-[#A1A4AC]">Zero unread messages in your inbox.</p>
-                </div>
-              ) : activeLens === 'contacts' && narrowingCount === 0 ? (
-                /*
-                  Two different situations wear the same empty list, and telling a
-                  reader to "save a contact" when they have two hundred saved is the
-                  kind of copy that teaches people to stop reading empty states.
-                  An empty address book gets the invitation; a full one gets the fact.
-                */
-                <div className="mail-empty py-12 px-4 text-center space-y-3">
-                  <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
-                    <svg
-                      className="size-6"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                    >
-                      <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
-                      <circle cx="9" cy="11" r="2.2" />
-                      <path d="M5.6 16.6c.5-1.7 1.9-2.6 3.4-2.6s2.9.9 3.4 2.6" />
-                      <path d="M15.6 10.4h2.8M15.6 13.6h2.8" />
-                    </svg>
-                  </div>
-                  <h3 className="text-base font-bold text-white">
-                    {contactDirectory && contactDirectory.size === 0
-                      ? 'No saved contacts yet'
-                      : 'Nothing from your contacts'}
-                  </h3>
-                  <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
-                    {contactDirectory && contactDirectory.size === 0
-                      ? 'Save someone to your address book and their conversations collect here. Anyone you send mail to is saved automatically.'
-                      : 'Every conversation in your inbox is with someone outside your address book.'}
-                  </p>
-                  <div className="pt-2 flex justify-center">
-                    <Button variant="secondary" onClick={() => router.push('/contacts')}>
-                      Open Contacts
-                    </Button>
-                  </div>
-                </div>
-              ) : activeLens !== 'all' || narrowingCount > 0 ? (
-                <div className="mail-empty py-12 px-4 text-center space-y-2">
-                  <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
-                    <IconFilter size={22} />
-                  </div>
-                  <h3 className="text-base font-bold text-white">Nothing in this view</h3>
-                  <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
-                    {activeTurn === 'needs_you'
-                      ? 'Nothing here is on your turn — no one is waiting on a reply from you.'
-                      : activeTurn === 'waiting'
-                        ? 'Nothing here is on their turn — you are not waiting on a reply from anyone.'
-                        : 'No conversation matches everything you have on.'}
-                    {heldBackCount > 0 &&
-                      ` ${heldBackCount} automated ${
-                        heldBackCount === 1 ? 'conversation is' : 'conversations are'
-                      } held out of this view.`}
-                  </p>
-                  <div className="pt-2 flex justify-center">
-                    <Button variant="secondary" onClick={resetInboxView}>
-                      Show all conversations
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <InboxZeroState />
-              ))}
+              )}
             {showThreadList && (
               /**
                * Windowed list. Only the visible rows plus an overscan margin are

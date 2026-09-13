@@ -237,13 +237,6 @@ const NAV_GROUPS: Array<{
       { id: 'contacts', label: 'Contacts', icon: 'contacts', path: '/contacts', desktopOnly: true },
       { id: 'drive', label: 'Drive', icon: 'drive', path: '/drive', desktopOnly: true },
       { id: 'code', label: 'QuantGit', icon: 'code', path: '/quantgit' },
-      {
-        id: 'pipelines',
-        label: 'Pipelines',
-        icon: 'pipeline',
-        path: '/pipelines',
-        desktopOnly: true,
-      },
     ],
   },
   {
@@ -354,13 +347,16 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
                       <Icon name={item.icon} />
                       <span>{item.label}</span>
                       {item.id === 'inbox' && unreadCount > 0 && (
-                        <span className="sidebar-count">{unreadCount}</span>
+                        <span className="sidebar-count" aria-label={`${unreadCount} unread`}>{unreadCount}</span>
                       )}
                       {item.id === 'drafts' && draftCount > 0 && (
-                        <span className="sidebar-count sidebar-count-muted">{draftCount}</span>
+                        <span className="sidebar-count sidebar-count-muted" aria-label={`${draftCount} drafts`}>{draftCount}</span>
                       )}
                       {item.id === 'spam' && spamCount > 0 && (
-                        <span className="sidebar-count bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]">
+                        <span
+                          className="sidebar-count bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]"
+                          aria-label={`${spamCount} spam`}
+                        >
                           {spamCount}
                         </span>
                       )}
