@@ -496,20 +496,10 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     targets: ['quantmeet', 'quantai'],
     stage: 3,
     dependsOn: ['prisma'],
-    status: 'done',
+    status: 'deferred',
     reason:
-      'Task 11.3 quantmeet DoD gate. DoD-1 — imported by apps/quantmeet ' +
-      '(backend/app.ts, backend/routes/quant-live.ts) AND declared in apps/quantmeet ' +
-      'dependencies (wiring:dod [DONE], 2 importers). DoD-2/4 — ' +
-      'backend/__tests__/engine-surfaces.seam.test.ts traverses POST /quant-live/sessions via ' +
-      'buildApp() inject(): 401 (unauth), 403 (missing live:write), 201 (authed, engine ' +
-      'reached); GET /quant-live/sessions: 401 (unauth) / 200 (authed). DoD-3 — Next proxies ' +
-      '(src/app/api/quant-live/**) + api-client hook (src/features/live/useQuantLive.ts), ' +
-      'forward asserted in src/__tests__/engine-proxy.forward.test.ts. Task 15.3 FIXED the ' +
-      'prior `/live` PUBLIC_PATHS auth-bypass collision by moving the route prefix from `/live` ' +
-      'to `/quant-live` (PUBLIC_PATHS left unchanged, Req 7.3); the global auth hook now ' +
-      'protects all quant-live routes. quant-live also targets quantai (Stage 2/3) — tracked ' +
-      'separately.',
+      'Wave D/F consolidation: standalone apps/quantmeet was retired into apps/quantchat; ' +
+      'quant-live engine deferred pending unified voice pipeline integration into QuantChat/QuantAI.',
   },
   {
     engine: '@quant/webrtc',
@@ -517,11 +507,10 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     targets: ['quantmeet'],
     stage: 3,
     dependsOn: [],
-    status: 'done',
+    status: 'deferred',
     reason:
-      "Task 15.1 reconciliation. Beyond the design's authoritative engine set, but DoD-1 " +
-      '[DONE] via wiring:dod — imported by apps/quantmeet (1 importer) + declared dependency ' +
-      '(wired alongside the quant-live voice seam). Marked done on real importer evidence per Req 5.1.',
+      'Wave D/F consolidation: standalone apps/quantmeet was retired into apps/quantchat ' +
+      '(which uses LiveKit SFU natively). Deferred for follow-up wiring pass.',
   },
   {
     engine: '@quant/encryption',
@@ -608,12 +597,10 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     targets: ['quantmail', 'quantneon', 'quantube'],
     stage: 4,
     dependsOn: ['prisma'],
-    status: 'done',
+    status: 'deferred',
     reason:
-      'Task 15.1 reconciliation. DoD-1 [DONE] via wiring:dod — imported by apps/admin ' +
-      '(1 importer) + declared dependency; wired as-is even though its core is @simulated ' +
-      '(Req 9.1). Marked done on real importer evidence per Req 5.1. NOTE: additional named ' +
-      'targets (quantmail/quantneon/quantube) tracked separately for a follow-up wiring pass.',
+      'Wave F consolidation: apps/admin was retired. Standalone search engine deferred ' +
+      'pending wiring into keeper apps (quantmail/quantneon/quantube).',
   },
   {
     engine: '@quant/recommendations',
