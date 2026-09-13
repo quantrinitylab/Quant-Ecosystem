@@ -259,7 +259,13 @@ export default function SearchPage() {
   const handleEmailClick = useCallback(
     (email: Email) => {
       const targetId = email.threadId || email.id;
-      if (targetId) router.push(`/thread/${targetId}`);
+      if (targetId) {
+        const returnPath =
+          typeof window !== 'undefined'
+            ? window.location.pathname + window.location.search
+            : '/search';
+        router.push(`/thread/${targetId}?returnTo=${encodeURIComponent(returnPath)}`);
+      }
     },
     [router],
   );

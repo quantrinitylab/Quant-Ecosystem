@@ -99,7 +99,9 @@ export function MailFolderPage({
         });
         return;
       }
-      router.push(`/thread/${target}`);
+      const returnPath =
+        typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/';
+      router.push(`/thread/${target}?returnTo=${encodeURIComponent(returnPath)}`);
     },
     [router],
   );

@@ -14,6 +14,7 @@ import {
 } from '../hooks/useContactGroups';
 import { GroupInfoModal, ContactProfileInspector } from './GroupInfoModal';
 import { GroupEditorModal, type GroupDraft } from './GroupEditorModal';
+import { AddMemberModal } from './AddMemberModal';
 import { AnchoredMenu } from './AnchoredMenu';
 import { showToast } from './InboxToast';
 import { IdentityAvatar } from './IdentityAvatar';
@@ -197,6 +198,7 @@ export function ConversationalThreadView({
     if (initialThread?.messages && initialThread.messages.length > 0) return initialThread.messages;
     return [];
   });
+  const primaryMessage = messages[0];
 
   const [threadSubject, setThreadSubject] = useState(
     subject || initialThread?.subject || '(No Subject)',
@@ -263,7 +265,37 @@ export function ConversationalThreadView({
   const [groupInfoOpen, setGroupInfoOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<ContactGroup | null>(null);
+  const [addingMembersGroup, setAddingMembersGroup] = useState<ContactGroup | null>(null);
   const [confirmTrash, setConfirmTrash] = useState(false);
+
+  const openReplyComposer = useCallback(() => {
+    const recipient = primaryMessage?.from?.email || '';
+    const subj = threadSubject.startsWith('Re:') ? threadSubject : `Re: ${threadSubject}`;
+    router.push(
+      `/compose?to=${encodeURIComponent(recipient)}&subject=${encodeURIComponent(subj)}&replyTo=${primaryMessage?.id || threadId}`,
+    );
+  }, [primaryMessage, router, threadId, threadSubject]);
+
+  const openReplyAllComposer = useCallback(() => {
+    const recipients = messages
+      .flatMap((m) => [m.from?.email, ...(m.to ?? []).map((to) => to.email)])
+      .filter(Boolean)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .join(',');
+    const subj = threadSubject.startsWith('Re:') ? threadSubject : `Re: ${threadSubject}`;
+    router.push(
+      `/compose?to=${encodeURIComponent(recipients)}&subject=${encodeURIComponent(subj)}&replyTo=${messages.at(-1)?.id || threadId}`,
+    );
+  }, [messages, router, threadId, threadSubject]);
+
+  const openForwardComposer = useCallback(() => {
+    const latest = messages.at(-1) || primaryMessage;
+    const body = latest?.bodyText || latest?.snippet || '';
+    const subj = threadSubject.startsWith('Fwd:') ? threadSubject : `Fwd: ${threadSubject}`;
+    router.push(
+      `/compose?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body ? `\n\n---------- Forwarded message ---------\n${body}` : '')}`,
+    );
+  }, [messages, primaryMessage, router, threadSubject]);
 
   const otherParticipant = useMemo(() => {
     const addresses = threadParticipants(messages, currentEmail);
@@ -809,7 +841,6 @@ export function ConversationalThreadView({
     void handleSendReply();
   }, [composeMode, handleSendReply, openFullComposer]);
 
-  const primaryMessage = messages[0];
   const allExpanded = messages.length > 0 && expandedIndices.size === messages.length;
 
   return (
@@ -919,33 +950,47 @@ export function ConversationalThreadView({
           target inside the footprint the five were already using.
         */}
         <div className="flex items-center gap-1.5 shrink-0 sm:gap-1">
-          {/*
-            Expand All is a desktop convenience and a phone liability: on a fourteen
-            message conversation it produces a page you have to scroll past, and the
-            model here is that you tap the message you want. So it stands down below
-            `sm` — into the overflow menu, not out of existence — and the ~50px it
-            frees goes to the correspondent's name.
-          */}
+          {/* 1. Reply Button */}
           <button
             type="button"
-            onClick={allExpanded ? collapseAll : expandAll}
-            className="hidden min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-xl border border-[#282C35] bg-[#111318]/90 px-2.5 py-1.5 text-[11px] font-medium text-[#A1A4AC] shadow-sm transition-all hover:bg-[#282C35] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:flex sm:min-h-0 sm:min-w-0"
-            title={allExpanded ? 'Collapse All Messages' : 'Expand All Messages'}
+            onClick={openReplyComposer}
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 sm:min-w-0"
+            title="Reply (R)"
+            aria-label="Reply to conversation"
           >
             <svg
-              className={`size-3.5 transition-transform ${allExpanded ? 'rotate-180' : ''}`}
+              className="size-[18px]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2.2"
+              strokeWidth="2"
             >
-              <path d="m7 15 5 5 5-5" />
-              <path d="m7 9 5-5 5 5" />
+              <polyline points="9 17 4 12 9 7" />
+              <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
             </svg>
-            <span className="hidden sm:inline">{allExpanded ? 'Collapse All' : 'Expand All'}</span>
           </button>
 
-          {/* Pin Button */}
+          {/* 2. Forward Button */}
+          <button
+            type="button"
+            onClick={openForwardComposer}
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 sm:min-w-0"
+            title="Forward message"
+            aria-label="Forward conversation"
+          >
+            <svg
+              className="size-[18px]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <polyline points="15 17 20 12 15 7" />
+              <path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+            </svg>
+          </button>
+
+          {/* 3. Pin Button */}
           <button
             type="button"
             onClick={handleToggleStar}
@@ -968,15 +1013,20 @@ export function ConversationalThreadView({
             </svg>
           </button>
 
-          {/* Open Full Thread Page */}
+          {/* 4. Open Full Thread Page (with returnTo) */}
           {variant === 'pane' && (
             <button
               type="button"
-              onClick={() =>
-                router.push(`/thread/${primaryMessage?.threadId || primaryMessage?.id || threadId}`)
-              }
-              className="p-2 rounded-xl text-[#A1A4AC] hover:text-[#FFB875] hover:bg-[#282C35] transition-all"
+              onClick={() => {
+                const search = typeof window !== 'undefined' ? window.location.search : '';
+                const currentPath = `${typeof window !== 'undefined' ? window.location.pathname : '/'}${search}`;
+                router.push(
+                  `/thread/${primaryMessage?.threadId || primaryMessage?.id || threadId}?returnTo=${encodeURIComponent(currentPath)}`,
+                );
+              }}
+              className="p-2 rounded-xl text-[#A1A4AC] hover:text-[#FFB875] hover:bg-[#282C35] transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center"
               title="Open in Full Thread View"
+              aria-label="Open in full thread view"
             >
               <svg
                 className="size-[18px]"
@@ -992,43 +1042,53 @@ export function ConversationalThreadView({
             </button>
           )}
 
-          {/* Print Thread */}
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="hidden rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:block"
-            title="Print entire conversation (Ctrl+P / Cmd+P)"
-          >
-            <svg
-              className="size-[18px]"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
+          {/* 5. Archive */}
+          {onArchive && (
+            <button
+              type="button"
+              onClick={() => onArchive(conversationMessageIds)}
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:min-w-0"
+              title="Archive conversation (E)"
+              aria-label="Archive conversation"
             >
-              <polyline points="6 9 6 2 18 2 18 9" />
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-              <rect width="12" height="8" x="6" y="14" />
-            </svg>
-          </button>
+              <svg
+                className="size-[18px]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <rect width="20" height="5" x="2" y="3" rx="1" />
+                <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+                <path d="M10 12h4" />
+              </svg>
+            </button>
+          )}
 
-          {/*
-            The phone's home for the two buttons above.
+          {/* 6. Not Spam (Rescue) */}
+          {isQuarantined && (
+            <button
+              type="button"
+              onClick={handleRescueSpam}
+              disabled={isRescuingSpam}
+              className="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-xl px-3 py-1.5 bg-[#2B1A11] hover:bg-[#3D2518] text-xs font-semibold text-[#FF8C42] border border-[#5C3016] transition-all disabled:opacity-50"
+              title="Not spam"
+            >
+              <svg
+                className="size-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+              >
+                <path d="M3 10h10a5 5 0 0 1 5 5v2" />
+                <path d="M7 6L3 10l4 4" />
+              </svg>
+              <span>{isRescuingSpam ? 'Rescuing…' : 'Not spam'}</span>
+            </button>
+          )}
 
-            `sm:hidden`, so it is exactly the inverse of Expand All and Print: one of
-            the two is always reachable at every width, and neither action is simply
-            absent on the device this mailbox is mostly read on.
-
-            `AnchoredMenu` rather than the hand-rolled popover this used to be. That
-            one declared `role="menu"` and delivered none of the keyboard the role
-            promises — no arrow traversal, no focus on open — while carrying its own
-            outside-press and Escape listeners, a third copy of machinery two other
-            menus already share (§18). The primitive brings the roving arrows, an
-            exclusive keyboard scope so `e`/`#`/`j` cannot act on the conversation
-            behind the open sheet, Escape that hands focus back somewhere it can live,
-            and a viewport clamp. `height` is the panel's real height — two 44px rows
-            plus the `py-1` — so the clamp never lifts it off its anchor.
-          */}
+          {/* 7. Far Right: More conversation actions (...) */}
           <AnchoredMenu
             icon={
               <svg className="size-[18px]" viewBox="0 0 24 24" fill="currentColor">
@@ -1043,10 +1103,35 @@ export function ConversationalThreadView({
             menuLabel="Conversation actions"
             menuClassName="w-52 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] py-1 shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
             scope="thread-header-menu"
-            height={150}
+            height={180}
           >
             {(close) => (
               <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  onClick={() => {
+                    close();
+                    openReplyAllComposer();
+                  }}
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[#F5F5F5] transition-colors hover:bg-[#282C35] focus-visible:outline-none focus-visible:bg-[#282C35]"
+                >
+                  <svg
+                    className="size-4 shrink-0 text-[#A1A4AC]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden="true"
+                  >
+                    <polyline points="7 17 2 12 7 7" />
+                    <polyline points="12 17 7 12 12 7" />
+                    <path d="M22 18v-2a4 4 0 0 0-4-4H7" />
+                  </svg>
+                  Reply all
+                </button>
+
                 <button
                   type="button"
                   role="menuitem"
@@ -1126,51 +1211,6 @@ export function ConversationalThreadView({
               </>
             )}
           </AnchoredMenu>
-
-          {/* Not Spam (Rescue) */}
-          {isQuarantined && (
-            <button
-              type="button"
-              onClick={handleRescueSpam}
-              disabled={isRescuingSpam}
-              className="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-xl px-3 py-1.5 bg-[#2B1A11] hover:bg-[#3D2518] text-xs font-semibold text-[#FF8C42] border border-[#5C3016] transition-all disabled:opacity-50"
-              title="Not spam"
-            >
-              <svg
-                className="size-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-              >
-                <path d="M3 10h10a5 5 0 0 1 5 5v2" />
-                <path d="M7 6L3 10l4 4" />
-              </svg>
-              <span>{isRescuingSpam ? 'Rescuing…' : 'Not spam'}</span>
-            </button>
-          )}
-
-          {/* Archive */}
-          {onArchive && (
-            <button
-              type="button"
-              onClick={() => onArchive(conversationMessageIds)}
-              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:min-w-0"
-              title="Archive conversation (E)"
-            >
-              <svg
-                className="size-[18px]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <rect width="20" height="5" x="2" y="3" rx="1" />
-                <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
-                <path d="M10 12h4" />
-              </svg>
-            </button>
-          )}
         </div>
       </div>
 
@@ -1579,50 +1619,6 @@ export function ConversationalThreadView({
           navigation a radio group promises.
         */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <div role="group" aria-label="Reply actions" className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                const recipient = primaryMessage?.from?.email || '';
-                const subj = threadSubject.startsWith('Re:')
-                  ? threadSubject
-                  : `Re: ${threadSubject}`;
-                router.push(
-                  `/compose?to=${encodeURIComponent(recipient)}&subject=${encodeURIComponent(subj)}&replyTo=${primaryMessage?.id || threadId}`,
-                );
-              }}
-              className="min-h-[44px] rounded-lg border border-[#282C35] bg-[#16181D] px-3 text-xs font-semibold text-[#A1A4AC] hover:text-white focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-            >
-              Reply
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const recipients = messages
-                  .flatMap((m) => [m.from?.email, ...(m.to ?? []).map((to) => to.email)])
-                  .filter(Boolean)
-                  .filter((v, i, a) => a.indexOf(v) === i)
-                  .join(',');
-                router.push(
-                  `/compose?to=${encodeURIComponent(recipients)}&subject=${encodeURIComponent(threadSubject)}&replyTo=${messages.at(-1)?.id || threadId}`,
-                );
-              }}
-              className="min-h-[44px] rounded-lg border border-[#282C35] bg-[#16181D] px-3 text-xs font-semibold text-[#A1A4AC] hover:text-white focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-            >
-              Reply all
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                router.push(
-                  `/compose?subject=${encodeURIComponent(threadSubject.startsWith('Fwd:') ? threadSubject : `Fwd: ${threadSubject}`)}`,
-                )
-              }
-              className="min-h-[44px] rounded-lg border border-[#282C35] bg-[#16181D] px-3 text-xs font-semibold text-[#A1A4AC] hover:text-white focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-            >
-              Forward
-            </button>
-          </div>
           <div
             role="group"
             aria-label="Send as"
@@ -1808,9 +1804,37 @@ export function ConversationalThreadView({
           messages={messages}
           currentUserEmail={currentEmail}
           onClose={() => setGroupInfoOpen(false)}
+          onAddMembers={() => {
+            setGroupInfoOpen(false);
+            setAddingMembersGroup(activeGroup);
+          }}
           onEditGroup={() => {
             setGroupInfoOpen(false);
             setEditingGroup(activeGroup);
+          }}
+        />
+      )}
+      {addingMembersGroup && (
+        <AddMemberModal
+          open={Boolean(addingMembersGroup)}
+          groupName={addingMembersGroup.name}
+          existingEmails={addingMembersGroup.emails}
+          onClose={() => {
+            setAddingMembersGroup(null);
+            setGroupInfoOpen(true);
+          }}
+          onAdd={async (newEmails) => {
+            const merged = Array.from(new Set([...addingMembersGroup.emails, ...newEmails]));
+            await updateGroup.mutateAsync({
+              id: addingMembersGroup.id,
+              data: {
+                name: addingMembersGroup.name,
+                color: addingMembersGroup.color,
+                emails: merged,
+              },
+            });
+            setAddingMembersGroup(null);
+            setGroupInfoOpen(true);
           }}
         />
       )}

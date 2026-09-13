@@ -261,6 +261,39 @@ function recipientsOf(email: Email): EmailAddress[] {
 }
 
 /**
+ * Sanitize contact display names across the ecosystem.
+ *
+ * Removes raw digits, punctuation, and email noise so that
+ * `kundansinghrajput31980@gmail.com` cleanly renders as `Kundan`.
+ */
+export function contactDisplayName(email?: string, name?: string): string {
+  const explicit = (name || '').trim();
+  const normalizedEmail = (email || '').trim().toLowerCase();
+
+  // If explicit name exists and is not just the raw email:
+  if (explicit && explicit.toLowerCase() !== normalizedEmail && !explicit.includes('@')) {
+    const cleanedExplicit = explicit
+      .replace(/\d+/g, '')
+      .replace(/[._-]+/g, ' ')
+      .trim();
+    if (cleanedExplicit.length >= 2) {
+      const first = cleanedExplicit.split(/\s+/).filter(Boolean)[0] || explicit;
+      return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+    }
+    return explicit;
+  }
+
+  if (!normalizedEmail) return 'Contact';
+  const local = normalizedEmail.split('@')[0] || '';
+  const cleaned = local
+    .replace(/\d+/g, '')
+    .replace(/[._-]+/g, ' ')
+    .trim();
+  const first = cleaned.split(/\s+/).filter(Boolean)[0] || local || 'Contact';
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+}
+
+/**
  * How to show a person on one line, and the key that decides whether two mentions
  * of them are the same person.
  *

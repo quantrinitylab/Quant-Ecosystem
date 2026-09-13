@@ -209,6 +209,7 @@ type EmailRowProps = {
   isActive: boolean;
   isFocused: boolean;
   isSpamMode?: boolean;
+  savedGroups?: ContactGroup[];
   onRescueSpam?: () => void;
   /**
    * The event is forwarded so the page can read `shiftKey` and extend the
@@ -235,6 +236,7 @@ function EmailRow({
   isActive,
   isFocused,
   isSpamMode = false,
+  savedGroups,
   onRescueSpam,
   onToggleSelect,
   onToggleStar,
@@ -277,6 +279,47 @@ function EmailRow({
 
   const email = thread.latestEmail;
   const reducedMotion = useReducedMotion();
+
+  const groupInfo = useMemo(() => {
+    const groupSubjectMatch = thread.subject.match(/^\[group\]\s*(.+)$/i);
+    if (groupSubjectMatch) {
+      const parsedName = groupSubjectMatch[1].trim();
+      const matched = savedGroups?.find(
+        (g) => g.name.trim().toLowerCase() === parsedName.toLowerCase(),
+      );
+      return {
+        isGroup: true,
+        name: matched?.name ?? parsedName,
+        color: matched?.color ?? '#FF8C42',
+      };
+    }
+    if (savedGroups && savedGroups.length > 0) {
+      const addresses = new Set(
+        thread.messages
+          .flatMap((m) => [m.from?.email, ...(m.to ?? []).map((t) => t.email)])
+          .filter(Boolean)
+          .map((e) => e.trim().toLowerCase()),
+      );
+      for (const group of savedGroups) {
+        if (!group.emails || group.emails.length === 0) continue;
+        const groupEmails = new Set(
+          group.emails.map((e) => e.trim().toLowerCase()).filter(Boolean),
+        );
+        if (
+          groupEmails.size > 0 &&
+          groupEmails.size === addresses.size &&
+          [...groupEmails].every((e) => addresses.has(e))
+        ) {
+          return {
+            isGroup: true,
+            name: group.name,
+            color: group.color ?? '#FF8C42',
+          };
+        }
+      }
+    }
+    return null;
+  }, [savedGroups, thread.messages, thread.subject]);
 
   /*
    * Left files the conversation away, right puts it down until tomorrow morning.
@@ -379,20 +422,29 @@ function EmailRow({
           }}
           className="flex shrink-0 items-center justify-center rounded-full min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
           title="Select conversation"
-          aria-label={`Select ${thread.participantsSummary}`}
+          aria-label={`Select ${groupInfo?.name ?? thread.participantsSummary}`}
         >
-          {/*
-            Seeded on the first participant rather than the whole summary so one
-            person keeps one colour across every row they appear in — the summary
-            changes as a thread grows, the person does not.
-          */}
-          <IdentityAvatar name={thread.participants[0] || 'You'} size="sm" />
+          {groupInfo ? (
+            <span
+              className="flex size-7 items-center justify-center rounded-full text-xs font-bold text-white shadow-sm shrink-0"
+              style={{ backgroundColor: groupInfo.color || '#FF8C42' }}
+              aria-hidden="true"
+            >
+              {groupInfo.name
+                .split(/\s+/)
+                .slice(0, 2)
+                .map((w) => w[0]?.toUpperCase())
+                .join('') || 'GP'}
+            </span>
+          ) : (
+            <IdentityAvatar name={thread.participants[0] || 'You'} size="sm" />
+          )}
         </button>
         <div className="mail-row-copy">
           <div className="mail-row-meta">
             <div className="flex items-center gap-1.5 min-w-0">
               <strong className="truncate text-[#F5F5F5] font-semibold">
-                {thread.participantsSummary}
+                {groupInfo?.name ?? thread.participantsSummary}
               </strong>
               {thread.count > 1 && (
                 <span className="px-1.5 py-0.2 rounded-full bg-[#282C35] text-[10px] font-mono text-[#A1A4AC] shrink-0">
@@ -406,24 +458,13 @@ function EmailRow({
               )}
             </div>
             {!thread.isRead && <UnreadDot />}
-            {/*
-              The kind mark is here only when it says something. A conversation of
-              letters is what an inbox holds by default, so a `Mail` pill on every
-              row was 100% coverage carrying 0 bits — and it was the loudest thing
-              on the line, since a letter takes the brand-soft fill. `chat` and
-              `mixed` are the cases worth a mark, and `mixed` is the one that makes
-              a unified thread worth having.
-
-              The glyph alone: the meta line already carries a name, a count, a dot
-              and a time, and `.mail-row-meta time` takes `margin-left: auto`, so
-              every word added to its left eats into the subject beneath it. The
-              word stays in the accessibility tree via the badge's `sr-only` text.
-            */}
             {thread.kindMix !== 'mail' && <ThreadKindBadge mix={thread.kindMix} />}
             <time>{formatReceivedAt(thread.receivedAt)}</time>
           </div>
           <h3 className="text-xs sm:text-sm font-medium text-[#A1A4AC] truncate">
-            {sanitizeSnippetText(thread.subject) || '(no subject)'}
+            {groupInfo && thread.subject.toLowerCase() === `[group] ${groupInfo.name.toLowerCase()}`
+              ? sanitizeSnippetText(email.snippet || email.bodyText) || '(no subject)'
+              : sanitizeSnippetText(thread.subject) || '(no subject)'}
           </h3>
           <p className="text-xs text-[#A1A4AC] truncate">
             {sanitizeSnippetText(email.snippet || email.bodyText)}
@@ -2021,7 +2062,8 @@ export default function InboxPage() {
       void mutations.markRead(conversationIds(email.id));
       const targetId = email.threadId || email.id;
       if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 900px)').matches) {
-        router.push(`/thread/${targetId}`);
+        const currentPath = window.location.pathname + window.location.search;
+        router.push(`/thread/${targetId}?returnTo=${encodeURIComponent(currentPath)}`);
       }
     },
     [mutations, router, threads, conversationIds],
@@ -2750,6 +2792,7 @@ export default function InboxPage() {
                               }
                               isFocused={displayIndex >= 0 && focusedIndex === displayIndex}
                               isSpamMode={false}
+                              savedGroups={savedGroups}
                               onToggleSelect={(event) => toggleSelect(thread.id, event)}
                               onToggleStar={(event) => void toggleStar(event, thread.id)}
                               onOpen={() => {
@@ -3021,6 +3064,7 @@ export default function InboxPage() {
                           }
                           isFocused={focusedIndex === item.index}
                           isSpamMode={activeLens === 'spam'}
+                          savedGroups={savedGroups}
                           onRescueSpam={() => void handleRescueSpamThread(thread)}
                           onToggleSelect={(event) => toggleSelect(thread.id, event)}
                           onToggleStar={(event) => void toggleStar(event, thread.id)}

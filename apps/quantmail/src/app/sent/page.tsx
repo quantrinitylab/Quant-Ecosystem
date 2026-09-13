@@ -199,7 +199,9 @@ export default function SentPage() {
         });
         return;
       }
-      router.push(`/thread/${target}`);
+      const returnPath =
+        typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/sent';
+      router.push(`/thread/${target}?returnTo=${encodeURIComponent(returnPath)}`);
     },
     [router],
   );

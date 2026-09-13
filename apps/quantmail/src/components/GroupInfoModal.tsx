@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useFocusTrap } from '@quant/shared-ui';
 import type { ContactGroup, Email, EmailAttachment } from '../types';
 
@@ -94,6 +94,9 @@ interface InspectorProps {
   currentUserEmail?: string;
   onClose: () => void;
   onEdit?: () => void;
+  onAddMembers?: () => void;
+  contactEmail?: string;
+  onSaveContactName?: (name: string) => void;
 }
 
 function Inspector({
@@ -107,11 +110,21 @@ function Inspector({
   currentUserEmail,
   onClose,
   onEdit,
+  onAddMembers,
+  contactEmail,
+  onSaveContactName,
 }: InspectorProps) {
   const id = useId();
   const [tab, setTab] = useState<Tab>(members ? 'members' : 'media');
+  const [isEditingContactName, setIsEditingContactName] = useState(false);
+  const [contactNameInput, setContactNameInput] = useState(title);
   const panelRef = useFocusTrap<HTMLDivElement>({ active: open, onEscape: onClose });
   const shared = useMemo(() => inspect(messages), [messages]);
+
+  useEffect(() => {
+    setContactNameInput(title);
+  }, [title]);
+
   if (!open) return null;
   const tabs: Array<{ key: Tab; label: string; count: number }> = [
     ...(members ? [{ key: 'members' as const, label: 'Members', count: members.length }] : []),
@@ -139,9 +152,68 @@ function Inspector({
             {initials(avatarLabel)}
           </div>
           <div className="min-w-0 flex-1">
-            <h2 id={`${id}-title`} className="truncate text-lg font-bold text-white">
-              {title}
-            </h2>
+            {!isEditingContactName ? (
+              <div className="flex items-center gap-2">
+                <h2 id={`${id}-title`} className="truncate text-lg font-bold text-white">
+                  {title}
+                </h2>
+                {!members && contactEmail && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContactNameInput(title);
+                      setIsEditingContactName(true);
+                    }}
+                    className="rounded p-1 text-[#A1A4AC] hover:bg-[#282C35] hover:text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    title="Edit contact nickname"
+                    aria-label="Edit contact nickname"
+                  >
+                    <svg
+                      className="size-3.5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (contactNameInput.trim()) {
+                    onSaveContactName?.(contactNameInput.trim());
+                    setIsEditingContactName(false);
+                  }
+                }}
+                className="flex items-center gap-1.5"
+              >
+                <input
+                  type="text"
+                  value={contactNameInput}
+                  onChange={(e) => setContactNameInput(e.target.value)}
+                  placeholder="Enter friendly name"
+                  autoFocus
+                  className="min-h-[36px] rounded-lg border border-[#FF8C42] bg-[#090A0C] px-2.5 text-sm font-semibold text-white focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="min-h-[36px] rounded-lg bg-[#FF8C42] px-3 text-xs font-bold text-[#090A0C] hover:bg-[#FF9B5A]"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingContactName(false)}
+                  className="min-h-[36px] rounded-lg border border-[#282C35] bg-[#16181D] px-2.5 text-xs text-[#A1A4AC] hover:text-white"
+                >
+                  Cancel
+                </button>
+              </form>
+            )}
             <p className="truncate text-xs text-[#A1A4AC]">{subtitle}</p>
             {onEdit && (
               <button
@@ -188,10 +260,13 @@ function Inspector({
         <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
           {tab === 'members' && members && (
             <div className="space-y-2">
-              {onEdit && (
+              {(onAddMembers || onEdit) && (
                 <button
                   type="button"
-                  onClick={onEdit}
+                  onClick={() => {
+                    if (onAddMembers) onAddMembers();
+                    else if (onEdit) onEdit();
+                  }}
                   className="mb-2 min-h-[48px] w-full rounded-xl border border-dashed border-[#3A404D] bg-[#111318] text-sm font-bold text-[#FF8C42] hover:bg-[#2B1A11]"
                 >
                   + Add or edit members
@@ -339,6 +414,7 @@ export interface GroupInfoModalProps {
   currentUserEmail?: string;
   onClose: () => void;
   onEditGroup: () => void;
+  onAddMembers?: () => void;
 }
 
 export function GroupInfoModal(props: GroupInfoModalProps) {
@@ -356,6 +432,7 @@ export function GroupInfoModal(props: GroupInfoModalProps) {
       currentUserEmail={props.currentUserEmail}
       onClose={props.onClose}
       onEdit={props.onEditGroup}
+      onAddMembers={props.onAddMembers}
     />
   );
 }
@@ -366,6 +443,7 @@ export interface ContactProfileInspectorProps {
   name?: string;
   messages: Email[];
   onClose: () => void;
+  onSaveContactName?: (name: string) => void;
 }
 
 export function ContactProfileInspector({
@@ -374,17 +452,43 @@ export function ContactProfileInspector({
   name,
   messages,
   onClose,
+  onSaveContactName,
 }: ContactProfileInspectorProps) {
-  const clean = name?.trim() || displayName(email);
+  const [localName, setLocalName] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = JSON.parse(localStorage.getItem('quantmail_contact_names') || '{}');
+        const key = normalize(email);
+        if (saved[key]) return saved[key];
+      } catch {}
+    }
+    return name?.trim() || displayName(email);
+  });
+
+  const handleSave = (newName: string) => {
+    setLocalName(newName);
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = JSON.parse(localStorage.getItem('quantmail_contact_names') || '{}');
+        saved[normalize(email)] = newName;
+        localStorage.setItem('quantmail_contact_names', JSON.stringify(saved));
+        window.dispatchEvent(new Event('storage'));
+      } catch {}
+    }
+    onSaveContactName?.(newName);
+  };
+
   return (
     <Inspector
       open={open}
-      title={clean}
+      title={localName}
       subtitle={email}
       accent="#FF8C42"
-      avatarLabel={clean}
+      avatarLabel={localName}
       messages={messages}
       onClose={onClose}
+      contactEmail={email}
+      onSaveContactName={handleSave}
     />
   );
 }
