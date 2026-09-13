@@ -865,3 +865,36 @@ graph TD
      - Frontend Deployment: Run `34750703968` (`quantmail` build & deploy via AWS OIDC to EKS).
      - Backend Deployment: Run `34750708804` (`quantmail-backend` build & deploy via AWS OIDC to EKS).
      - Immutable Tag: `staging-pin-latest` updated to `08da9d40`.
+
+---
+
+## 💎 12. QUANTMAIL LOGO RESTORATION, INLINE SPAM LENS & REPO-FIRST QUANTGIT
+
+### 1. Authentic QuantMail Logo Mark Restored (`QuantMailLogo.tsx`):
+
+- Restored original signature "M" glyph with dynamic pupil physics and ember plate squircle.
+- Removed experimental envelope/mascot redesigns in accordance with user and brand directives.
+- Retained interactive refresh dispatch (`quant:refresh`) and smooth top scroll.
+
+### 2. Native Inline Spam Lens Tab (`apps/quantmail/src/app/page.tsx`):
+
+- Re-architected Spam from an external link redirect (`<Link href="/spam">`) into a native `InboxLens` (`'all' | 'unread' | 'contacts' | 'groups' | 'spam'`).
+- Integrated `useInbox({ folderType: 'SPAM' })` directly into the inbox thread pool, filtering spam in-place without page reloads.
+- Rendered inline tab button matching All, Unread, Contacts, Groups with roving keyboard focus and real-time spam count badge.
+- Added dedicated spam empty state with one-tap rescue guidance.
+
+### 3. QuantGit Mobile Ergonomics & Repository-First Agent Lab (`apps/quantmail/src/app/quantgit/page.tsx`):
+
+- **Header**: Minimalist bar with official QuantGit logo and active status pill. Removed redundant sidebar drawer buttons.
+- **Quanty Tab**: Replaced oversized 70% static card with full conversational chat stream and an ultra-compact command deck docked at `bottom-[68px]` with interactive `[Plan | Build]` mode toggle, effort indicator, and active send trigger.
+- **Agent Lab Tab**: Enforced strict **Repository-First Hierarchy**:
+  1. Repository Selection List: Displays user repositories with live agent counts.
+  2. Repository Agent Station: Clicking a repo opens its dedicated agent fleet view.
+  3. Dynamic Empty State: Prominent `+ Deploy Agent` CTA when no agents are deployed on a repo.
+  4. Deploy Modal: 1-click deployment from the 6 specialized fleet catalog (Astra, Forge, Scout, Pixel, Sentinel, Ledger).
+- **Repos Tab & Exit**: Filterable repository browser, HTTPS/SSH clone dialog with 1-click clipboard copy, and single-tap exit back to inbox.
+- **Verified Build**: `pnpm --filter @quant/quantmail build` 100% clean (61/61 static pages generated, 0 errors).
+
+```
+
+```

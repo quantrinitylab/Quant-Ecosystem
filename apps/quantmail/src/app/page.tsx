@@ -88,13 +88,10 @@ const ESTIMATED_ROW_HEIGHT = 80;
  * with the lens — which the old chip strip could not do, since choosing `Unread`
  * there discarded the category and vice versa.
  *
- * `Spam` sits in the chip row but is deliberately not a lens. Spam is a folder the
- * inbox query excludes at the database, `/spam` already renders it with a working
- * `Not spam` action, and a second spam list built inside the inbox would be that
- * rescue button missing. So the chip is a link, and the row is a tablist plus one
- * link rather than five tabs.
+ * `Spam` sits in the chip row as an inline lens, filtering junk messages directly
+ * in the active thread pool without navigating away.
  */
-type InboxLens = 'all' | 'unread' | 'contacts' | 'groups';
+type InboxLens = 'all' | 'unread' | 'contacts' | 'groups' | 'spam';
 type InboxTurn = 'any' | 'needs_you' | 'waiting';
 type InboxFilter = 'starred' | 'attachment';
 
@@ -108,6 +105,7 @@ const INBOX_LENSES: Array<{ key: InboxLens; label: string; hint: string }> = [
   { key: 'unread', label: 'Unread', hint: 'Conversations you have not opened yet' },
   { key: 'contacts', label: 'Contacts', hint: 'Conversations with someone in your address book' },
   { key: 'groups', label: 'Groups', hint: 'Conversations with more than one other person' },
+  { key: 'spam', label: 'Spam', hint: 'Junk and suspicious messages' },
 ];
 
 /**
@@ -1181,6 +1179,7 @@ export default function InboxPage() {
   } = useScrollElement<HTMLDivElement>();
   const { data: allEmails, isLoading, error, refetch } = useInbox({ folderType: 'INBOX' });
   const { data: archivedEmails } = useInbox({ folderType: 'ARCHIVE' });
+  const { data: spamEmails } = useInbox({ folderType: 'SPAM' });
   const { data: searchResults, isLoading: isSearching } = useSearchEmails(
     debouncedQuery ? { query: debouncedQuery } : null,
   );
@@ -1396,6 +1395,14 @@ export default function InboxPage() {
     () => filterThreadsByQuery(groupedArchivedThreads, debouncedQuery, currentEmail, serverHitIds),
     [groupedArchivedThreads, debouncedQuery, currentEmail, serverHitIds],
   );
+  const groupedSpamThreads = useMemo(
+    () => groupEmailsIntoThreads(spamEmails ?? [], currentEmail),
+    [spamEmails, currentEmail],
+  );
+  const allSpamThreads = useMemo(
+    () => filterThreadsByQuery(groupedSpamThreads, debouncedQuery, currentEmail, serverHitIds),
+    [groupedSpamThreads, debouncedQuery, currentEmail, serverHitIds],
+  );
 
   const isGroupThread = useCallback((t: ConversationThread) => {
     if (t.category === 'forums') return true;
@@ -1447,7 +1454,9 @@ export default function InboxPage() {
       if (lens === 'all') return true;
       if (lens === 'unread') return !t.isRead;
       if (lens === 'contacts') return isContactThread(t);
-      return isGroupThread(t);
+      if (lens === 'groups') return isGroupThread(t);
+      if (lens === 'spam') return true;
+      return true;
     },
     [isContactThread, isGroupThread],
   );
@@ -1593,8 +1602,13 @@ export default function InboxPage() {
    * from. A count that does not describe the list under it is worse than no count.
    */
   const activeThreadPool = useMemo(
-    () => (showArchivedView ? allArchivedThreads : (threads ?? [])),
-    [showArchivedView, allArchivedThreads, threads],
+    () =>
+      showArchivedView
+        ? allArchivedThreads
+        : activeLens === 'spam'
+          ? allSpamThreads
+          : (threads ?? []),
+    [showArchivedView, allArchivedThreads, activeLens, allSpamThreads, threads],
   );
 
   /**
@@ -1611,7 +1625,8 @@ export default function InboxPage() {
    * false statement; the chip shows no badge until it can show a true one.
    */
   const lensCounts = useMemo(() => {
-    const pool = narrowThreads(activeThreadPool, 'all', activeTurn, activeFilters);
+    const basePool = showArchivedView ? allArchivedThreads : (threads ?? []);
+    const pool = narrowThreads(basePool, 'all', activeTurn, activeFilters);
     let unread = 0;
     let groups = 0;
     let contacts: number | null = isDirectoryPending ? null : 0;
@@ -1620,10 +1635,19 @@ export default function InboxPage() {
       if (isGroupThread(t)) groups += 1;
       if (contacts !== null && isContactThread(t)) contacts += 1;
     }
-    const counts: Record<InboxLens, number | null> = { all: pool.length, unread, contacts, groups };
+    const counts: Record<InboxLens, number | null> = {
+      all: pool.length,
+      unread,
+      contacts,
+      groups,
+      spam: allSpamThreads.length,
+    };
     return counts;
   }, [
-    activeThreadPool,
+    showArchivedView,
+    allArchivedThreads,
+    threads,
+    allSpamThreads.length,
     activeTurn,
     activeFilters,
     narrowThreads,
@@ -2347,21 +2371,6 @@ export default function InboxPage() {
                   );
                 })}
               </div>
-              <span aria-hidden="true" className="shrink-0 w-px h-5 mx-0.5 bg-[#282C35]" />
-              {/*
-                A real anchor, so it prefetches, opens in a new tab on a modified
-                click, and is announced as a link. No count badge: a third
-                thirty-second poll on the landing route to number a chip that
-                navigates away is a bad trade.
-              */}
-              <Link
-                href="/spam"
-                title="Spam is kept in its own folder — open it to rescue anything caught by mistake"
-                className="px-3.5 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 border border-transparent text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-              >
-                <IconSpam size={13} aria-hidden="true" />
-                <span>Spam</span>
-              </Link>
             </div>
             <div className="relative shrink-0" ref={filterMenuRef}>
               <button
@@ -2838,6 +2847,17 @@ export default function InboxPage() {
                       </Button>
                     </div>
                   )}
+                </div>
+              ) : activeLens === 'spam' && narrowingCount === 0 ? (
+                <div className="mail-empty py-12 px-4 text-center space-y-2">
+                  <div className="size-12 rounded-full bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto mb-1">
+                    <IconSpam size={24} />
+                  </div>
+                  <h3 className="text-base font-bold text-white">Spam is empty</h3>
+                  <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
+                    Suspicious mail lands here automatically so your inbox stays clean. Anything
+                    caught by mistake can be rescued with one tap.
+                  </p>
                 </div>
               ) : activeLens === 'unread' && narrowingCount === 0 ? (
                 <div className="mail-empty py-12 px-4 text-center space-y-2">

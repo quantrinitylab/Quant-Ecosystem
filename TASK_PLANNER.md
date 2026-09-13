@@ -344,3 +344,13 @@
     - [x] Frontend Deploy: Run `34750703968` dispatched to EKS.
     - [x] Backend Deploy: Run `34750708804` dispatched to EKS.
     - [x] Staging tag `staging-pin-latest` updated on remote origin.
+- [x] **QuantMail Logo Restoration & Inline Spam Lens**:
+  - [x] Restored authentic geometric obsidian ember QuantMail logo mark with live squircle and pupil physics (`apps/quantmail/src/components/QuantMailLogo.tsx`).
+  - [x] Replaced external `/spam` route redirect with native inline `InboxLens` in `apps/quantmail/src/app/page.tsx`.
+  - [x] Integrated `useInbox({ folderType: 'SPAM' })` with active thread filtering and dedicated spam empty state.
+- [x] **QuantGit Mobile Ergonomics & Repository-First Agent Lab**:
+  - [x] Minimalist header with official QuantGit logo and active indicator (removed redundant sidebar toggle).
+  - [x] Ultra-compact prompt command deck docked at `bottom-[68px]` with `[Plan | Build]` toggle and active send trigger ("hi").
+  - [x] Full conversational Quanty chat stream with suggestions and intelligent assistant replies.
+  - [x] Repository-First Agent Lab: Select repository -> view deployed fleet -> empty state with `+ Deploy Agent` -> 6-agent fleet catalog (Astra, Forge, Scout, Pixel, Sentinel, Ledger).
+  - [x] Full Next.js production build verified (`pnpm --filter @quant/quantmail build` passed, 61/61 static pages generated).

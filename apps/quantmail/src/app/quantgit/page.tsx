@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { FormEvent, KeyboardEvent, ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRepos } from '../../hooks/useRepos';
 
@@ -26,6 +26,77 @@ type Repo = {
   checksStatus?: 'passing' | 'pending' | 'failing';
 };
 
+type ChatMessage = {
+  id: string;
+  role: 'assistant' | 'user';
+  text: string;
+  mode?: BuildMode;
+  timestamp: string;
+  suggestions?: string[];
+};
+
+type DeployedAgent = {
+  id: string;
+  name: string;
+  role: string;
+  pod: string;
+  status: 'active' | 'idle' | 'building' | 'analyzing';
+  currentTask: string;
+  initial: string;
+  color: string;
+};
+
+const AGENT_FLEET_CATALOG = [
+  {
+    id: 'astra',
+    name: 'Astra',
+    role: 'Executive Lead & Architecture Gatekeeper',
+    pod: 'COMMAND',
+    initial: 'A',
+    description: 'Verifies architectural invariants, reviews diffs, and controls security gates.',
+  },
+  {
+    id: 'forge',
+    name: 'Forge',
+    role: 'Autonomous Code Builder',
+    pod: 'BUILD',
+    initial: 'F',
+    description: 'Implements deep refactors, generates tests, and resolves compile errors.',
+  },
+  {
+    id: 'scout',
+    name: 'Scout',
+    role: 'Codebase Researcher & Bug Finder',
+    pod: 'RESEARCH',
+    initial: 'S',
+    description: 'Performs semantic searches, traces AST paths, and benchmarks competitor APIs.',
+  },
+  {
+    id: 'pixel',
+    name: 'Pixel',
+    role: 'UI/UX & Mobile Ergonomics',
+    pod: 'STUDIO',
+    initial: 'P',
+    description: 'Polishes component responsiveness, touch targets, and visual fidelity.',
+  },
+  {
+    id: 'sentinel',
+    name: 'Sentinel',
+    role: 'Security & QA Auditor',
+    pod: 'SHIELD',
+    initial: 'S',
+    description: 'Runs zero-mock test gates, checks OWASP top 10, and monitors CI/CD status.',
+  },
+  {
+    id: 'ledger',
+    name: 'Ledger',
+    role: 'Data Services & Migrations',
+    pod: 'DATA',
+    initial: 'L',
+    description: 'Manages database schemas, Prisma migrations, and caching layers.',
+  },
+];
+
 type IconName =
   | 'sparkles'
   | 'repo'
@@ -33,7 +104,6 @@ type IconName =
   | 'exit'
   | 'plan'
   | 'build'
-  | 'paperclip'
   | 'arrow'
   | 'search'
   | 'star'
@@ -41,103 +111,13 @@ type IconName =
   | 'branch'
   | 'copy'
   | 'close'
-  | 'terminal'
-  | 'monitor'
-  | 'tasks'
-  | 'ask'
-  | 'schedule'
-  | 'memory'
-  | 'graph'
-  | 'activity'
-  | 'commands'
-  | 'workers'
-  | 'coffee';
-
-const agents = [
-  {
-    id: '001',
-    name: 'Astra',
-    role: 'Fleet lead',
-    pod: 'ORBIT',
-    thought: 'Roadmap clear',
-    initial: 'A',
-  },
-  {
-    id: '002',
-    name: 'Forge',
-    role: 'Builder',
-    pod: 'SHIP',
-    thought: 'Compiling',
-    initial: 'F',
-  },
-  {
-    id: '003',
-    name: 'Scout',
-    role: 'Research',
-    pod: 'RADAR',
-    thought: '3 signals',
-    initial: 'S',
-  },
-  {
-    id: '004',
-    name: 'Pixel',
-    role: 'Design',
-    pod: 'STUDIO',
-    thought: 'Polishing',
-    initial: 'P',
-  },
-  {
-    id: '005',
-    name: 'Sentinel',
-    role: 'Security',
-    pod: 'SHIELD',
-    thought: 'Perimeter clean',
-    initial: 'S',
-  },
-  {
-    id: '006',
-    name: 'Ledger',
-    role: 'Data',
-    pod: 'VAULT',
-    thought: 'Index synced',
-    initial: 'L',
-  },
-  {
-    id: '007',
-    name: 'Relay',
-    role: 'Operations',
-    pod: 'PULSE',
-    thought: 'Deploy healthy',
-    initial: 'R',
-  },
-  {
-    id: '008',
-    name: 'Voice Bot',
-    role: 'Voice',
-    pod: 'ECHO',
-    thought: 'Listening',
-    initial: 'V',
-  },
-] as const;
-
-const commands: Array<{ label: string; icon: IconName; memoryQuery?: string }> = [
-  { label: 'Terminal', icon: 'terminal' },
-  { label: 'Monitor', icon: 'monitor' },
-  { label: 'Tasks', icon: 'tasks' },
-  { label: 'Ask me', icon: 'ask' },
-  { label: 'Schedules', icon: 'schedule' },
-  { label: 'Memory', icon: 'memory', memoryQuery: 'deploy' },
-  { label: 'Graph', icon: 'graph' },
-  { label: 'Activity', icon: 'activity' },
-  { label: 'Commands', icon: 'commands' },
-  { label: 'Workers', icon: 'workers' },
-];
-
-const memoryFacts = [
-  { id: '01', text: 'Deploys require a green gate', kind: 'policy' },
-  { id: '02', text: 'Brand orange is #FF8C42', kind: 'design' },
-  { id: '03', text: 'Primary region is us-east-1', kind: 'infra' },
-] as const;
+  | 'check'
+  | 'plus'
+  | 'back'
+  | 'bot'
+  | 'shield'
+  | 'cpu'
+  | 'terminal';
 
 function Icon({ name, className = 'size-4' }: { name: IconName; className?: string }) {
   const paths: Record<IconName, ReactNode> = {
@@ -175,9 +155,6 @@ function Icon({ name, className = 'size-4' }: { name: IconName; className?: stri
         <path d="m14 6 4 4M3 21l3.5-1 11-11a2.8 2.8 0 0 0-4-4l-11 11L3 21Z" />
       </>
     ),
-    paperclip: (
-      <path d="m21 11-8.5 8.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.9-2.9l8.5-8.5" />
-    ),
     arrow: (
       <>
         <path d="M5 12h14M14 7l5 5-5 5" />
@@ -200,77 +177,40 @@ function Icon({ name, className = 'size-4' }: { name: IconName; className?: stri
     ),
     branch: (
       <>
-        <circle cx="6" cy="5" r="2" />
-        <circle cx="18" cy="6" r="2" />
-        <circle cx="6" cy="19" r="2" />
-        <path d="M6 7v10M8 12h4a6 6 0 0 0 6-6" />
+        <circle cx="6" cy="6" r="3" />
+        <circle cx="6" cy="18" r="3" />
+        <circle cx="18" cy="9" r="3" />
+        <path d="M6 9v6M9 6h3a3 3 0 0 1 3 3v0" />
       </>
     ),
     copy: (
       <>
-        <rect x="8" y="8" width="11" height="11" rx="2" />
-        <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
       </>
     ),
-    close: <path d="m6 6 12 12M18 6 6 18" />,
-    terminal: <path d="m4 7 4 4-4 4m7 0h9" />,
-    monitor: (
+    close: <path d="M18 6 6 18M6 6l12 12" />,
+    check: <polyline points="20 6 9 17 4 12" />,
+    plus: <path d="M12 5v14M5 12h14" />,
+    back: <path d="M19 12H5M12 19l-7-7 7-7" />,
+    bot: (
       <>
-        <rect x="3" y="4" width="18" height="13" rx="2" />
-        <path d="M8 21h8M12 17v4" />
+        <rect x="4" y="8" width="16" height="12" rx="2" />
+        <path d="M12 4v4M9 13h.01M15 13h.01M8 17h8" />
       </>
     ),
-    tasks: (
+    shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
+    cpu: (
       <>
-        <path d="m4 7 2 2 4-4M12 7h8M4 15l2 2 4-4M12 15h8" />
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+        <rect x="9" y="9" width="6" height="6" />
+        <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3" />
       </>
     ),
-    ask: (
+    terminal: (
       <>
-        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z" />
-        <path d="M9 11h6" />
-      </>
-    ),
-    schedule: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v5l3 2" />
-      </>
-    ),
-    memory: (
-      <>
-        <ellipse cx="12" cy="5" rx="7" ry="3" />
-        <path d="M5 5v6c0 1.7 3.1 3 7 3s7-1.3 7-3V5M5 11v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" />
-      </>
-    ),
-    graph: (
-      <>
-        <circle cx="5" cy="12" r="2" />
-        <circle cx="12" cy="5" r="2" />
-        <circle cx="19" cy="12" r="2" />
-        <circle cx="12" cy="19" r="2" />
-        <path d="m6.5 10.5 4-4m3 0 4 4m0 3-4 4m-3 0-4-4" />
-      </>
-    ),
-    activity: <path d="M3 12h4l2-6 4 12 2-6h6" />,
-    commands: (
-      <>
-        <path d="M4 6h16M4 12h16M4 18h16" />
-        <path d="M8 4v4m8 2v4M10 16v4" />
-      </>
-    ),
-    workers: (
-      <>
-        <rect x="4" y="4" width="6" height="6" rx="1" />
-        <rect x="14" y="4" width="6" height="6" rx="1" />
-        <rect x="4" y="14" width="6" height="6" rx="1" />
-        <rect x="14" y="14" width="6" height="6" rx="1" />
-      </>
-    ),
-    coffee: (
-      <>
-        <path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z" />
-        <path d="M17 10h2a2 2 0 1 1 0 4h-2M8 3v2m4-2v2" />
+        <polyline points="4 17 10 11 4 5" />
+        <line x1="12" y1="19" x2="20" y2="19" />
       </>
     ),
   };
@@ -281,7 +221,7 @@ function Icon({ name, className = 'size-4' }: { name: IconName; className?: stri
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
@@ -290,24 +230,19 @@ function Icon({ name, className = 'size-4' }: { name: IconName; className?: stri
   );
 }
 
-function Logo() {
+function QuantGitLogo() {
   return (
-    <div className="flex items-center gap-3">
-      <span className="relative grid size-10 place-items-center rounded-xl border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] text-[var(--brand-primary)]">
-        <span className="size-[17px] rotate-45 rounded-[4px] border-2 border-current" />
-        <span className="absolute size-1.5 rounded-full bg-current shadow-[0_0_12px_var(--brand-primary)]" />
+    <div className="flex items-center gap-2.5">
+      <span className="relative grid size-8 place-items-center rounded-lg border border-[#5C3016] bg-[#2B1A11] text-[#FF8C42]">
+        <span className="size-3.5 rotate-45 rounded-[3px] border-2 border-current" />
+        <span className="absolute size-1 rounded-full bg-current shadow-[0_0_8px_#FF8C42]" />
       </span>
-      <span>
-        <strong className="block text-[15px] font-semibold tracking-[-0.035em]">QuantGit</strong>
-        <small className="block text-[10px] font-semibold uppercase tracking-[0.17em] text-[var(--quant-muted-foreground)]">
-          Agentic code studio
-        </small>
-      </span>
+      <span className="text-sm font-semibold tracking-tight text-white">QuantGit</span>
     </div>
   );
 }
 
-function Deck({
+function BottomDeck({
   tab,
   setTab,
   exit,
@@ -325,7 +260,7 @@ function Deck({
   return (
     <nav
       aria-label="QuantGit deck"
-      className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 mx-auto grid max-w-xl grid-cols-4 gap-1 rounded-2xl border border-[var(--quant-border)] bg-[color-mix(in_srgb,var(--quant-surface)_94%,transparent)] p-1.5 shadow-[var(--quant-shadow-xl)] backdrop-blur-xl"
+      className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 mx-auto grid max-w-xl grid-cols-4 gap-1 rounded-2xl border border-[#282C35] bg-[#0B0C0E]/95 p-1.5 shadow-2xl backdrop-blur-xl"
     >
       {items.map((item) => {
         const selected = item.key === tab;
@@ -335,10 +270,14 @@ function Deck({
             type="button"
             onClick={() => (item.key === 'exit' ? exit() : setTab(item.key))}
             aria-current={selected ? 'page' : undefined}
-            className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-semibold transition-colors ${selected ? 'bg-[var(--brand-soft)] text-[var(--brand-primary)] ring-1 ring-inset ring-[var(--brand-soft-border)]' : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)]'}`}
+            className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold transition-all ${
+              selected
+                ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
+                : 'text-[#A1A4AC] hover:bg-[#1C1F26] hover:text-white'
+            }`}
           >
-            <Icon name={item.icon} className="size-[18px]" />
-            {item.label}
+            <Icon name={item.icon} className="size-4" />
+            <span>{item.label}</span>
           </button>
         );
       })}
@@ -346,630 +285,737 @@ function Deck({
   );
 }
 
-function Quanty({ repoNames }: { repoNames: string[] }) {
+function QuantyChatStream({ repoNames }: { repoNames: string[] }) {
   const [mode, setMode] = useState<BuildMode>('plan');
   const [effort, setEffort] = useState<Effort>('fast');
-  const [prompt, setPrompt] = useState('');
-  const [contexts, setContexts] = useState(() =>
-    repoNames.slice(0, 2).length ? repoNames.slice(0, 2) : ['Quant-Ecosystem', 'main'],
-  );
-  const [queued, setQueued] = useState('');
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    const value = prompt.trim();
-    if (!value) return;
-    setQueued(
-      `${mode === 'plan' ? 'Planning' : 'Building'} · ${effort === 'fast' ? 'Fast' : 'Deep'} · ${value}`,
-    );
-    setPrompt('');
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 'welcome',
+      role: 'assistant',
+      text: "Hi! I'm Quanty, your autonomous coding companion in QuantGit. What would you like to plan, audit, or build today?",
+      timestamp: 'Just now',
+      suggestions: [
+        'Audit repository',
+        'Plan next sprint wave',
+        'Check CI/CD health',
+        'Deploy specialized agent',
+      ],
+    },
+  ]);
+  const [isResponding, setIsResponding] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-  const suggestions = [
-    'Audit this repository',
-    'Build a release plan',
-    'Fix failing checks',
-    'Create a feature branch',
-  ];
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isResponding]);
+
+  const handleSend = (textToSend?: string) => {
+    const text = (textToSend || input).trim();
+    if (!text || isResponding) return;
+
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      text,
+      mode,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+    setIsResponding(true);
+
+    window.setTimeout(() => {
+      let replyText = '';
+      const lower = text.toLowerCase();
+
+      if (lower === 'hi' || lower === 'hello' || lower === 'hey') {
+        replyText =
+          'Hello! Ready to ship. Choose [Plan] for architectural specs & audits, or [Build] to generate and modify code. You can also explore Repos and the Agent Lab below!';
+      } else if (lower.includes('audit')) {
+        replyText =
+          'Initiating repository audit: Static analysis, OWASP security checks, and zero-mock verification queued. All critical paths passing.';
+      } else if (lower.includes('sprint') || lower.includes('plan')) {
+        replyText =
+          'Sprint Planner synchronized: Next wave tasks loaded in TASK_PLANNER.md. Swarm roster is online across all 8 agent pods.';
+      } else if (lower.includes('deploy') || lower.includes('agent')) {
+        replyText =
+          "To deploy an agent to a specific repository, tap the 'Agent Lab' tab below, choose your repository, and tap '+ Deploy Agent'.";
+      } else {
+        replyText = `Understood. Analyzing "${text}" in ${mode.toUpperCase()} mode (${effort} effort). Checking repository AST and dependencies... Ready to execute next step.`;
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          text: replyText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+      setIsResponding(false);
+    }, 450);
+  };
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    handleSend();
+  };
+
   return (
-    <section
-      aria-labelledby="quanty-title"
-      className="mx-auto max-w-4xl px-4 pb-28 pt-10 sm:px-6 sm:pt-14"
-    >
-      <div className="text-center">
-        <div className="mx-auto mb-5 grid size-16 place-items-center rounded-[20px] border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] text-[var(--brand-primary)]">
-          <Icon name="sparkles" className="size-8" />
-        </div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--brand-primary)]">
-          Build alongside Quanty
-        </p>
-        <h1
-          id="quanty-title"
-          className="mt-2 text-3xl font-semibold tracking-[-0.055em] sm:text-5xl"
-        >
-          What should we ship next?
-        </h1>
-        <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-[var(--quant-muted-foreground)]">
-          Turn an idea into an executable plan, or let your agent fleet build the first working
-          pass.
-        </p>
-      </div>
-      <form
-        onSubmit={handleSubmit}
-        className="mt-8 overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] shadow-[var(--quant-shadow-xl)] transition-colors focus-within:border-[var(--brand-soft-border)]"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--quant-border-subtle)] p-2">
-          <div aria-label="Mode" className="flex rounded-xl bg-[var(--quant-background)] p-1">
-            {(['plan', 'build'] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={mode === value}
-                onClick={() => setMode(value)}
-                className={`flex min-h-10 items-center gap-2 rounded-lg px-4 text-xs font-semibold ${mode === value ? 'bg-[var(--quant-surface-elevated)] text-[var(--quant-foreground)]' : 'text-[var(--quant-muted-foreground)]'}`}
-              >
-                <Icon name={value} />
-                {value === 'plan' ? 'Plan' : 'Build'}
-              </button>
-            ))}
+    <div className="flex flex-col min-h-[calc(100dvh-3.5rem)] pb-36">
+      {/* Messages Stream */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+          >
+            <div
+              className={`max-w-[85%] rounded-2xl p-3.5 text-xs leading-relaxed ${
+                msg.role === 'user'
+                  ? 'bg-[#2B1A11] text-white border border-[#5C3016] rounded-br-none shadow-md'
+                  : 'bg-[#16181D] text-[#F5F5F5] border border-[#282C35] rounded-bl-none shadow-md'
+              }`}
+            >
+              {msg.mode && (
+                <span className="inline-block mb-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#FF8C42]/20 text-[#FF8C42]">
+                  {msg.mode}
+                </span>
+              )}
+              <p className="whitespace-pre-wrap">{msg.text}</p>
+              {msg.suggestions && msg.suggestions.length > 0 && (
+                <div className="mt-3 pt-2 border-t border-[#282C35] flex flex-wrap gap-1.5">
+                  {msg.suggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => handleSend(suggestion)}
+                      className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-[#0B0C0E] border border-[#282C35] text-[#A1A4AC] hover:text-[#FF8C42] hover:border-[#5C3016] transition-colors"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <span className="text-[10px] text-[#A1A4AC]/60 mt-1 px-1">{msg.timestamp}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden text-[10px] font-bold uppercase tracking-wider text-[var(--quant-muted-foreground)] sm:inline">
-              Effort
-            </span>
-            <button
-              type="button"
-              aria-label={`Effort: ${effort}. Activate for ${effort === 'fast' ? 'deep' : 'fast'} effort`}
-              aria-pressed={effort === 'deep'}
-              onClick={() => setEffort((value) => (value === 'fast' ? 'deep' : 'fast'))}
-              className="flex min-h-10 items-center gap-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-3 text-xs font-semibold"
-            >
-              <span
-                className={`size-2 rounded-full ${effort === 'deep' ? 'bg-[var(--quant-warning)]' : 'bg-[var(--quant-info)]'}`}
-              />
-              {effort === 'fast' ? 'Fast' : 'Deep'}
-            </button>
-            <span
-              className={`rounded-lg px-2 py-1 text-[10px] font-bold ${mode === 'plan' ? 'bg-[color-mix(in_srgb,var(--quant-info)_12%,transparent)] text-[var(--quant-info)]' : 'bg-[var(--brand-soft)] text-[var(--brand-primary)]'}`}
-            >
-              {mode === 'plan' ? 'READ ONLY' : 'WRITES ON'}
-            </span>
-          </div>
-        </div>
-        <textarea
-          aria-label="Prompt for Quanty"
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          rows={5}
-          placeholder={`Tell Quanty what to ${mode}…`}
-          className="w-full resize-none bg-transparent p-5 text-base leading-7 outline-none placeholder:text-[var(--quant-muted-foreground)]"
-        />
-        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--quant-border-subtle)] p-3">
-          <button
-            type="button"
-            onClick={() =>
-              setContexts((current) =>
-                current.includes('Current selection') ? current : [...current, 'Current selection'],
-              )
-            }
-            className="flex min-h-11 items-center gap-2 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-3 text-xs text-[var(--quant-muted-foreground)]"
-          >
-            <Icon name="paperclip" />
-            Context
-          </button>
-          {contexts.map((context, index) => (
-            <button
-              type="button"
-              key={`${context}-${index}`}
-              onClick={() =>
-                setContexts((current) => current.filter((_, itemIndex) => itemIndex !== index))
-              }
-              aria-label={`Remove ${context} context`}
-              className="min-h-11 rounded-full border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-xs text-[var(--quant-muted-foreground)]"
-            >
-              {context} <span aria-hidden="true">×</span>
-            </button>
-          ))}
-          <button
-            disabled={!prompt.trim()}
-            className="ml-auto flex min-h-11 items-center gap-2 rounded-xl bg-[var(--brand-primary)] px-5 text-xs font-bold text-[var(--quant-background)] hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {mode === 'plan' ? 'Plan it' : 'Build it'}
-            <Icon name="arrow" />
-          </button>
-        </div>
-      </form>
-      {queued && (
-        <p
-          role="status"
-          className="mt-4 rounded-xl border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] p-4 text-sm"
-        >
-          <strong className="text-[var(--brand-primary)]">Queued:</strong> {queued}
-        </p>
-      )}
-      <div aria-label="Suggested actions" className="mt-5 flex flex-wrap justify-center gap-2">
-        {suggestions.map((suggestion) => (
-          <button
-            key={suggestion}
-            type="button"
-            onClick={() => setPrompt(suggestion)}
-            className="min-h-11 rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 text-xs text-[var(--quant-muted-foreground)] hover:border-[var(--brand-soft-border)] hover:text-[var(--brand-primary)]"
-          >
-            {suggestion}
-          </button>
         ))}
+        {isResponding && (
+          <div className="flex items-center gap-2 self-start bg-[#16181D] border border-[#282C35] px-3.5 py-2.5 rounded-2xl rounded-bl-none">
+            <span className="size-1.5 rounded-full bg-[#FF8C42] animate-bounce" />
+            <span className="size-1.5 rounded-full bg-[#FF8C42] animate-bounce [animation-delay:0.15s]" />
+            <span className="size-1.5 rounded-full bg-[#FF8C42] animate-bounce [animation-delay:0.3s]" />
+            <span className="text-[10px] text-[#A1A4AC] ml-1">Quanty is thinking…</span>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
       </div>
-    </section>
+
+      {/* Ultra-Compact Docked Command Bar (Positioned tightly above bottom tabs) */}
+      <div className="fixed bottom-[68px] inset-x-3 max-w-xl mx-auto z-30">
+        <form
+          onSubmit={handleSubmit}
+          className="flex items-center gap-1.5 p-1.5 rounded-2xl border border-[#282C35] bg-[#16181D]/95 backdrop-blur-md shadow-xl"
+        >
+          {/* Mode Toggle: Plan vs Build */}
+          <div className="flex items-center bg-[#0B0C0E] rounded-xl p-0.5 border border-[#282C35]/60 shrink-0">
+            <button
+              type="button"
+              onClick={() => setMode('plan')}
+              className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all ${
+                mode === 'plan'
+                  ? 'bg-[#1C1F26] text-[#FF8C42] shadow-sm'
+                  : 'text-[#A1A4AC] hover:text-white'
+              }`}
+            >
+              Plan
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('build')}
+              className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all ${
+                mode === 'build'
+                  ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] shadow-sm'
+                  : 'text-[#A1A4AC] hover:text-white'
+              }`}
+            >
+              Build
+            </button>
+          </div>
+
+          {/* Effort Indicator */}
+          <button
+            type="button"
+            onClick={() => setEffort((prev) => (prev === 'fast' ? 'deep' : 'fast'))}
+            title={`Effort: ${effort}. Click to toggle.`}
+            className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-[#0B0C0E] border border-[#282C35] text-[#A1A4AC] shrink-0"
+          >
+            <span
+              className={`size-1.5 rounded-full ${effort === 'deep' ? 'bg-amber-400' : 'bg-blue-400'}`}
+            />
+            <span>{effort === 'fast' ? 'Fast' : 'Deep'}</span>
+          </button>
+
+          {/* Single-line Text Input */}
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={`Tell Quanty what to ${mode}…`}
+            className="flex-1 min-w-0 bg-transparent px-2.5 text-xs text-white placeholder-[#A1A4AC] outline-none"
+          />
+
+          {/* Send Button */}
+          <button
+            type="submit"
+            disabled={!input.trim() || isResponding}
+            aria-label="Send to Quanty"
+            className="size-8 shrink-0 rounded-xl bg-[#FF8C42] text-black flex items-center justify-center font-bold hover:bg-[#ff9b5a] disabled:opacity-30 transition-all"
+          >
+            <Icon name="arrow" className="size-3.5" />
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
 
 function CloneDialog({ repo, onClose }: { repo: Repo; onClose: () => void }) {
   const [protocol, setProtocol] = useState<CloneProtocol>('https');
   const [copied, setCopied] = useState(false);
-  const closeRef = useRef<HTMLButtonElement>(null);
-  const titleId = useId();
   const slug = repo.fullName || `quantrinitylab/${repo.name}`;
   const url =
     protocol === 'https'
-      ? repo.cloneUrl || 'https:' + '//github.com/' + slug + '.git'
+      ? repo.cloneUrl || `https://github.com/${slug}.git`
       : repo.sshUrl || `git@github.com:${slug}.git`;
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    closeRef.current?.focus();
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      previous?.focus();
-    };
-  }, [onClose]);
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
+      window.setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
     }
   };
+
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-end bg-black/75 p-3 backdrop-blur-sm sm:place-items-center"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+      className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4 backdrop-blur-sm"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
       }}
     >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="w-full max-w-lg rounded-2xl border border-[var(--quant-border-strong)] bg-[var(--quant-surface-elevated)] p-5 shadow-[var(--quant-shadow-dialog)]"
-      >
-        <div className="flex items-start justify-between gap-4">
+      <div className="w-full max-w-md rounded-2xl border border-[#282C35] bg-[#16181D] p-5 shadow-2xl">
+        <div className="flex items-center justify-between pb-3 border-b border-[#282C35]">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#FF8C42]">
               Clone repository
             </p>
-            <h2 id={titleId} className="mt-1 break-all text-lg font-semibold">
-              {slug}
-            </h2>
+            <h3 className="text-sm font-semibold text-white truncate max-w-[280px]">{slug}</h3>
           </div>
           <button
-            ref={closeRef}
             type="button"
             onClick={onClose}
-            aria-label="Close clone dialog"
-            className="grid size-11 shrink-0 place-items-center rounded-xl text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-hover)] hover:text-[var(--quant-foreground)]"
+            className="size-8 rounded-lg flex items-center justify-center text-[#A1A4AC] hover:bg-[#1C1F26] hover:text-white"
           >
-            <Icon name="close" />
+            <Icon name="close" className="size-4" />
           </button>
         </div>
-        <div
-          aria-label="Clone protocol"
-          className="mt-5 flex rounded-xl bg-[var(--quant-background)] p-1"
-        >
-          {(['https', 'ssh'] as const).map((value) => (
+
+        <div className="mt-4 flex rounded-xl bg-[#0B0C0E] p-1 border border-[#282C35]">
+          {(['https', 'ssh'] as const).map((proto) => (
             <button
-              key={value}
+              key={proto}
               type="button"
-              aria-pressed={protocol === value}
-              onClick={() => setProtocol(value)}
-              className={`min-h-10 flex-1 rounded-lg text-xs font-semibold uppercase ${protocol === value ? 'bg-[var(--quant-surface)] text-[var(--brand-primary)]' : 'text-[var(--quant-muted-foreground)]'}`}
+              onClick={() => setProtocol(proto)}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg uppercase transition-colors ${
+                protocol === proto
+                  ? 'bg-[#1C1F26] text-[#FF8C42]'
+                  : 'text-[#A1A4AC] hover:text-white'
+              }`}
             >
-              {value}
+              {proto}
             </button>
           ))}
         </div>
-        <div className="mt-3 flex gap-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-background)] p-2">
-          <code className="min-w-0 flex-1 overflow-x-auto p-2 text-xs text-[var(--quant-foreground)]">
+
+        <div className="mt-3 flex items-center gap-2 p-2 rounded-xl bg-[#0B0C0E] border border-[#282C35]">
+          <code className="flex-1 min-w-0 text-[11px] font-mono text-[#F5F5F5] overflow-x-auto truncate">
             {url}
           </code>
           <button
             type="button"
-            onClick={() => void copy()}
-            className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg bg-[var(--brand-primary)] px-4 text-xs font-bold text-[var(--quant-background)] hover:bg-[var(--brand-primary-hover)]"
+            onClick={copy}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#FF8C42] text-black hover:bg-[#ff9b5a] shrink-0 transition-colors flex items-center gap-1.5"
           >
-            <Icon name="copy" />
-            {copied ? 'Copied' : 'Copy'}
+            <Icon name={copied ? 'check' : 'copy'} className="size-3.5" />
+            <span>{copied ? 'Copied' : 'Copy'}</span>
           </button>
         </div>
-        <div className="mt-4 rounded-xl border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] p-4 text-xs leading-5 text-[var(--quant-muted-foreground)]">
-          <strong className="text-[var(--brand-primary)]">PAT guidance:</strong> Use a fine-grained
-          personal access token as the HTTPS password. Grant access only to this repository with the
-          minimum Contents permission. Never put a token in a URL or commit it.
-        </div>
-      </section>
+      </div>
     </div>
   );
 }
 
-function Repos({
+function ReposList({
   repos,
   loading,
   error,
   retry,
+  onSelectRepoForLab,
 }: {
   repos: Repo[];
   loading: boolean;
   error: boolean;
   retry: () => void;
+  onSelectRepoForLab?: (repo: Repo) => void;
 }) {
   const [query, setQuery] = useState('');
   const [cloneRepo, setCloneRepo] = useState<Repo | null>(null);
-  const rows = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return needle
-      ? repos.filter((repo) =>
-          `${repo.fullName || repo.name} ${repo.description || ''}`.toLowerCase().includes(needle),
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q
+      ? repos.filter((r) =>
+          `${r.fullName || r.name} ${r.description || ''}`.toLowerCase().includes(q),
         )
       : repos;
   }, [repos, query]);
-  const status = (repo: Repo) => repo.checksStatus || 'passing';
+
   return (
-    <section aria-labelledby="repos-title" className="mx-auto max-w-5xl px-4 pb-28 pt-8 sm:px-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <section className="max-w-3xl mx-auto px-4 pt-6 pb-36 w-full">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
-            Source control
-          </p>
-          <h1 id="repos-title" className="mt-1 text-3xl font-semibold tracking-[-0.04em]">
-            Repositories
-          </h1>
-          <p className="mt-2 text-sm text-[var(--quant-muted-foreground)]">
-            Code, commits, and deployment confidence in one place.
+          <h2 className="text-xl font-bold text-white tracking-tight">Repositories</h2>
+          <p className="text-xs text-[#A1A4AC] mt-0.5">
+            Git source control & autonomous code agents in one unified hub.
           </p>
         </div>
-        <label className="flex min-h-12 items-center gap-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 text-[var(--quant-muted-foreground)] focus-within:border-[var(--brand-soft-border)]">
-          <Icon name="search" />
-          <span className="sr-only">Search repositories</span>
+        <div className="relative">
+          <Icon
+            name="search"
+            className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#A1A4AC]"
+          />
           <input
             type="search"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search repositories"
-            className="min-w-0 flex-1 bg-transparent text-sm text-[var(--quant-foreground)] outline-none placeholder:text-[var(--quant-muted-foreground)]"
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search repos…"
+            className="w-full sm:w-64 pl-9 pr-3 py-1.5 text-xs rounded-xl bg-[#16181D] border border-[#282C35] text-white placeholder-[#A1A4AC] outline-none focus:border-[#5C3016]"
           />
-        </label>
+        </div>
       </div>
+
       {loading && (
-        <div role="status" aria-label="Loading repositories" className="mt-6 grid gap-3">
-          {[0, 1, 2].map((item) => (
+        <div className="space-y-3">
+          {[1, 2, 3].map((n) => (
             <div
-              key={item}
-              className="h-28 animate-pulse rounded-2xl border border-[var(--quant-border-subtle)] bg-[var(--quant-surface)]"
+              key={n}
+              className="h-24 rounded-2xl bg-[#16181D] border border-[#282C35] animate-pulse"
             />
           ))}
         </div>
       )}
+
       {error && (
-        <div
-          role="alert"
-          className="mt-6 flex items-center justify-between gap-4 rounded-xl border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] p-4 text-sm"
-        >
-          <span>Could not load repositories.</span>
+        <div className="p-4 rounded-xl bg-[#2B1A11] border border-[#5C3016] text-xs flex items-center justify-between">
+          <span className="text-[#FF8C42]">Could not load repositories.</span>
           <button
             type="button"
             onClick={retry}
-            className="min-h-11 rounded-lg px-3 font-semibold text-[var(--brand-primary)]"
+            className="font-bold underline text-[#FF8C42] hover:text-white"
           >
             Retry
           </button>
         </div>
       )}
-      {!loading && !error && rows.length === 0 && (
-        <div className="mt-8 rounded-2xl border border-dashed border-[var(--quant-border-strong)] p-10 text-center text-sm text-[var(--quant-muted-foreground)]">
-          No repositories match “{query}”.
+
+      {!loading && !error && filtered.length === 0 && (
+        <div className="p-8 text-center rounded-2xl border border-dashed border-[#282C35] text-xs text-[#A1A4AC]">
+          No repositories found matching &ldquo;{query}&rdquo;.
         </div>
       )}
-      <ul className="mt-6 grid list-none gap-3 p-0">
-        {rows.map((repo) => (
-          <li
+
+      <div className="space-y-3">
+        {filtered.map((repo) => (
+          <div
             key={repo.id}
-            className="rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-4 transition-colors hover:border-[var(--quant-border-strong)]"
+            className="p-4 rounded-2xl bg-[#16181D] border border-[#282C35] hover:border-[#3A404D] transition-all flex flex-col gap-2.5"
           >
-            <div className="flex gap-3">
-              <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[var(--quant-surface-elevated)] text-[var(--brand-primary)]">
-                <Icon name="repo" className="size-5" />
-              </span>
+            <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <strong className="min-w-0 truncate text-sm">{repo.fullName || repo.name}</strong>
-                  <span className="rounded-full border border-[var(--quant-border)] px-2 py-0.5 text-[10px] text-[var(--quant-muted-foreground)]">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-white truncate">
+                    {repo.fullName || repo.name}
+                  </h3>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded border border-[#282C35] text-[#A1A4AC] bg-[#0B0C0E]">
                     {repo.visibility || 'private'}
                   </span>
-                  <span
-                    className={`ml-auto flex items-center gap-1.5 text-[10px] font-semibold ${status(repo) === 'passing' ? 'text-[var(--quant-success)]' : status(repo) === 'pending' ? 'text-[var(--quant-warning)]' : 'text-[var(--quant-destructive)]'}`}
-                  >
-                    <span className="size-1.5 rounded-full bg-current" />
-                    {status(repo) === 'passing'
-                      ? 'Checks passing'
-                      : status(repo) === 'pending'
-                        ? 'Checks pending'
-                        : 'Checks failing'}
-                  </span>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-[var(--quant-muted-foreground)]">
-                  {repo.description || 'No description yet.'}
+                <p className="text-xs text-[#A1A4AC] mt-1 line-clamp-2">
+                  {repo.description || 'Unified repository workspace inside Quant Ecosystem.'}
                 </p>
-                <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] text-[var(--quant-muted-foreground)]">
-                  <span className="flex items-center gap-1.5 text-[var(--quant-info)]">
-                    <span className="size-2 rounded-full bg-current" />
-                    {repo.language || 'TypeScript'}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Icon name="star" className="size-3.5" />
-                    {repo.stars ?? 0}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Icon name="fork" className="size-3.5" />
-                    {repo.forks ?? 0}
-                  </span>
-                  <span className="flex items-center gap-1 font-mono">
-                    <Icon name="branch" className="size-3.5" />
-                    {repo.defaultBranch || 'main'}
-                  </span>
-                  <span className="font-mono">{repo.latestCommit || 'Latest commit'}</span>
-                  <button
-                    type="button"
-                    onClick={() => setCloneRepo(repo)}
-                    className="ml-auto min-h-11 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-4 font-semibold text-[var(--quant-foreground)] hover:border-[var(--brand-soft-border)] hover:text-[var(--brand-primary)]"
-                  >
-                    Clone
-                  </button>
-                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setCloneRepo(repo)}
+                className="px-3 py-1 text-xs font-semibold rounded-lg bg-[#0B0C0E] border border-[#282C35] text-white hover:bg-[#1C1F26] shrink-0"
+              >
+                Clone
+              </button>
             </div>
-          </li>
+
+            <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#A1A4AC] pt-2 border-t border-[#282C35]/60">
+              <span className="flex items-center gap-1">
+                <span className="size-2 rounded-full bg-blue-400" />
+                <span>{repo.language || 'TypeScript'}</span>
+              </span>
+              <span className="flex items-center gap-1 font-mono">
+                <Icon name="branch" className="size-3" />
+                <span>{repo.defaultBranch || 'main'}</span>
+              </span>
+              {typeof repo.stars === 'number' && (
+                <span className="flex items-center gap-1">
+                  <Icon name="star" className="size-3" />
+                  <span>{repo.stars}</span>
+                </span>
+              )}
+              {onSelectRepoForLab && (
+                <button
+                  type="button"
+                  onClick={() => onSelectRepoForLab(repo)}
+                  className="ml-auto text-[11px] font-bold text-[#FF8C42] hover:underline flex items-center gap-1"
+                >
+                  <Icon name="lab" className="size-3" />
+                  <span>Open Agent Lab →</span>
+                </button>
+              )}
+            </div>
+          </div>
         ))}
-      </ul>
+      </div>
+
       {cloneRepo && <CloneDialog repo={cloneRepo} onClose={() => setCloneRepo(null)} />}
     </section>
   );
 }
 
-function AgentLab() {
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [fleet, setFleet] = useState(8);
-  const [memoryQuery, setMemoryQuery] = useState('');
-  const selected = agents[selectedIndex];
-  const facts = memoryFacts.filter(
-    (fact) =>
-      !memoryQuery.trim() ||
-      `${fact.text} ${fact.kind}`.toLowerCase().includes(memoryQuery.toLowerCase()),
+function RepositoryFirstAgentLab({ repos }: { repos: Repo[] }) {
+  const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
+  const [deployedAgentsByRepo, setDeployedAgentsByRepo] = useState<Record<string, DeployedAgent[]>>(
+    {
+      'Quant-Ecosystem': [
+        {
+          id: 'astra',
+          name: 'Astra',
+          role: 'Fleet Lead & Security Gatekeeper',
+          pod: 'COMMAND',
+          status: 'active',
+          currentTask: 'Verifying staging migrations & CI pass',
+          initial: 'A',
+          color: '#FF8C42',
+        },
+        {
+          id: 'sentinel',
+          name: 'Sentinel',
+          role: 'Audit & QA Sentinel',
+          pod: 'SHIELD',
+          status: 'analyzing',
+          currentTask: 'Zero-mock Vitest regression suites',
+          initial: 'S',
+          color: '#34d399',
+        },
+      ],
+    },
   );
-  const onAgentKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    let next = index;
-    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = (index + 1) % agents.length;
-    else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp')
-      next = (index - 1 + agents.length) % agents.length;
-    else return;
-    event.preventDefault();
-    setSelectedIndex(next);
-    document.getElementById(`agent-${agents[next].id}`)?.focus();
+  const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    window.setTimeout(() => setToastMessage(null), 2500);
   };
+
+  const handleDeployAgent = (catalogAgent: (typeof AGENT_FLEET_CATALOG)[0]) => {
+    if (!selectedRepo) return;
+    const repoKey = selectedRepo.name;
+    const current = deployedAgentsByRepo[repoKey] || [];
+
+    if (current.some((a) => a.id === catalogAgent.id)) {
+      showToast(`${catalogAgent.name} is already deployed on ${repoKey}!`);
+      setIsDeployModalOpen(false);
+      return;
+    }
+
+    const newAgent: DeployedAgent = {
+      id: catalogAgent.id,
+      name: catalogAgent.name,
+      role: catalogAgent.role,
+      pod: catalogAgent.pod,
+      status: 'active',
+      currentTask: 'Standing by for instructions',
+      initial: catalogAgent.initial,
+      color: '#FF8C42',
+    };
+
+    setDeployedAgentsByRepo((prev) => ({
+      ...prev,
+      [repoKey]: [...(prev[repoKey] || []), newAgent],
+    }));
+
+    setIsDeployModalOpen(false);
+    showToast(`Deployed ${catalogAgent.name} to ${repoKey}`);
+  };
+
+  const deployed = selectedRepo
+    ? deployedAgentsByRepo[selectedRepo.name] ||
+      deployedAgentsByRepo[selectedRepo.fullName || ''] ||
+      []
+    : [];
+
   return (
-    <section aria-labelledby="lab-title" className="mx-auto max-w-6xl px-4 pb-28 pt-8 sm:px-6">
-      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
-        Autonomous operations
-      </p>
-      <h1 id="lab-title" className="mt-1 text-3xl font-semibold tracking-[-0.04em]">
-        Agent Lab
-      </h1>
-      <p className="mt-2 text-sm text-[var(--quant-muted-foreground)]">
-        Eight specialists, one always-on digital office.
-      </p>
-      <section
-        aria-labelledby="office-title"
-        className="mt-6 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] p-4"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 id="office-title" className="font-semibold">
-            Quantrinity Paper Co. · Night shift
-          </h2>
-          <span className="flex items-center gap-2 text-xs text-[var(--quant-success)]">
-            <span className="size-2 animate-pulse rounded-full bg-current" />
-            LIVE <Icon name="coffee" />
-          </span>
+    <div className="max-w-3xl mx-auto px-4 pt-6 pb-36 w-full">
+      {/* Toast */}
+      {toastMessage && (
+        <div className="fixed top-16 inset-x-4 max-w-sm mx-auto z-50 p-3 rounded-xl bg-[#2B1A11] border border-[#5C3016] text-xs font-semibold text-[#FF8C42] shadow-xl text-center">
+          {toastMessage}
         </div>
-        <div
-          role="tablist"
-          aria-label="Agent desks"
-          className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4"
-        >
-          {agents.map((agent, index) => (
+      )}
+
+      {/* STEP 1: Repository Selection View */}
+      {!selectedRepo ? (
+        <div>
+          <div className="mb-6">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#FF8C42]">
+              Autonomous Operations
+            </p>
+            <h2 className="text-xl font-bold text-white tracking-tight mt-0.5">Agent Lab</h2>
+            <p className="text-xs text-[#A1A4AC] mt-1">
+              Select a repository to inspect its deployed agents or launch new fleet specialists.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {repos.map((repo) => {
+              const count = (deployedAgentsByRepo[repo.name] || []).length;
+              return (
+                <button
+                  key={repo.id}
+                  type="button"
+                  onClick={() => setSelectedRepo(repo)}
+                  className="w-full text-left p-4 rounded-2xl bg-[#16181D] border border-[#282C35] hover:border-[#FF8C42]/50 transition-all flex items-center justify-between group"
+                >
+                  <div className="min-w-0 flex-1 pr-3">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-white group-hover:text-[#FF8C42] transition-colors truncate">
+                        {repo.fullName || repo.name}
+                      </h3>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded border border-[#282C35] text-[#A1A4AC] bg-[#0B0C0E]">
+                        {repo.visibility || 'private'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#A1A4AC] mt-1 truncate">
+                      {repo.description || 'Select to view and manage repository agents.'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${
+                        count > 0
+                          ? 'bg-[#2B1A11] text-[#FF8C42] border-[#5C3016]'
+                          : 'bg-[#0B0C0E] text-[#A1A4AC] border-[#282C35]'
+                      }`}
+                    >
+                      {count} {count === 1 ? 'Agent' : 'Agents'}
+                    </span>
+                    <span className="text-[#A1A4AC] group-hover:text-[#FF8C42] transition-colors">
+                      →
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        /* STEP 2: Repository Agents Station View */
+        <div>
+          {/* Breadcrumb Header */}
+          <div className="flex items-center justify-between gap-3 mb-6">
             <button
-              id={`agent-${agent.id}`}
-              role="tab"
-              aria-selected={selectedIndex === index}
-              tabIndex={selectedIndex === index ? 0 : -1}
-              key={agent.id}
               type="button"
-              onClick={() => setSelectedIndex(index)}
-              onKeyDown={(event) => onAgentKeyDown(event, index)}
-              className={`relative min-h-32 rounded-xl border p-3 text-left transition-colors ${selectedIndex === index ? 'border-[var(--brand-soft-border)] bg-[var(--brand-soft)]' : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[var(--quant-border-strong)]'}`}
+              onClick={() => setSelectedRepo(null)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-[#A1A4AC] hover:text-white transition-colors"
             >
-              <span className="absolute -top-3 left-3 max-w-[calc(100%-1.5rem)] truncate rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-2 py-1 text-[10px] text-[var(--quant-muted-foreground)]">
-                {agent.thought}
-              </span>
-              <span className="mt-4 grid size-10 place-items-center rounded-lg bg-[var(--quant-background)] font-bold text-[var(--brand-primary)]">
-                {agent.initial}
-              </span>
-              <strong className="mt-2 block text-xs">{agent.name}</strong>
-              <small className="text-[10px] text-[var(--quant-muted-foreground)]">
-                Desk {index + 1} · {agent.pod}
-              </small>
-              <span className="mt-2 block h-1 rounded-full bg-[var(--quant-border)]">
-                <span className="block h-full w-2/3 rounded-full bg-[var(--quant-success)]" />
-              </span>
+              <Icon name="back" className="size-3.5" />
+              <span>Repositories</span>
             </button>
-          ))}
-        </div>
-        <div className="mt-3 flex items-center justify-center gap-3 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-3 text-center text-xs text-[var(--quant-muted-foreground)]">
-          <Icon name="coffee" />
-          <span>Coffee break corner</span>
-          <span className="text-[var(--quant-success)]">steam online</span>
-        </div>
-      </section>
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <article
-          role="tabpanel"
-          aria-label={`${selected.name} agent dossier`}
-          className="rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-4"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--quant-muted-foreground)]">
-                Agent dossier
-              </p>
-              <h2 className="mt-1 text-xl font-semibold">
-                Node #{selected.id} · {selected.name}
-              </h2>
-            </div>
-            <span className="flex items-center gap-1.5 text-xs text-[var(--quant-success)]">
-              <span className="size-1.5 rounded-full bg-current" />
-              ONLINE
-            </span>
-          </div>
-          <div className="mt-5 flex gap-4">
-            <div className="grid size-20 shrink-0 place-items-center rounded-2xl border border-[var(--brand-soft-border)] bg-[var(--brand-soft)] text-3xl font-bold text-[var(--brand-primary)]">
-              {selected.initial}
-            </div>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-xs">
-              <dt className="text-[var(--quant-muted-foreground)]">Assignment</dt>
-              <dd>{selected.role}</dd>
-              <dt className="text-[var(--quant-muted-foreground)]">Pod</dt>
-              <dd>{selected.pod}</dd>
-              <dt className="text-[var(--quant-muted-foreground)]">Queue</dt>
-              <dd className="text-[var(--quant-warning)]">3 tasks</dd>
-            </dl>
-          </div>
-          <div
-            aria-label="Agent activity waveform"
-            className="mt-5 flex h-10 items-center gap-1 overflow-hidden"
-          >
-            {Array.from({ length: 46 }, (_, index) => (
-              <span
-                key={index}
-                className="w-0.5 shrink-0 rounded-full bg-[var(--quant-foreground)] opacity-50"
-                style={{ height: `${8 + ((index * 13) % 28)}px` }}
-              />
-            ))}
-          </div>
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-            {agents.map((agent, index) => (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-white truncate max-w-[180px]">
+                {selectedRepo.name}
+              </span>
               <button
-                key={agent.id}
                 type="button"
-                onClick={() => setSelectedIndex(index)}
-                aria-label={`Select ${agent.name}`}
-                className={`size-11 shrink-0 rounded-xl border text-xs ${index === selectedIndex ? 'border-[var(--brand-soft-border)] bg-[var(--brand-soft)] text-[var(--brand-primary)]' : 'border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] text-[var(--quant-muted-foreground)]'}`}
+                onClick={() => setIsDeployModalOpen(true)}
+                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#FF8C42] text-black hover:bg-[#ff9b5a] transition-all flex items-center gap-1"
               >
-                {agent.id}
+                <Icon name="plus" className="size-3" />
+                <span>Deploy Agent</span>
               </button>
-            ))}
-          </div>
-        </article>
-        <article className="rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--quant-muted-foreground)]">
-            Command center
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {commands.map((command) => (
-              <button
-                key={command.label}
-                type="button"
-                onClick={() => command.memoryQuery && setMemoryQuery(command.memoryQuery)}
-                className="flex min-h-16 flex-col items-center justify-center gap-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] text-[10px] text-[var(--quant-muted-foreground)] hover:border-[var(--brand-soft-border)] hover:text-[var(--brand-primary)]"
-              >
-                <Icon name={command.icon} />
-                {command.label}
-              </button>
-            ))}
-          </div>
-          <div className="mt-5 border-t border-[var(--quant-border-subtle)] pt-4">
-            <div className="flex items-end justify-between gap-4">
-              <p>
-                <strong>Fleet scale</strong>
-                <br />
-                <span className="text-xs text-[var(--quant-muted-foreground)]">
-                  8 to 32 workers
-                </span>
-              </p>
-              <output
-                htmlFor="fleet-scale"
-                className="font-mono text-2xl text-[var(--brand-primary)]"
-              >
-                {fleet}
-              </output>
             </div>
-            <input
-              id="fleet-scale"
-              aria-label="Fleet scale"
-              type="range"
-              min="8"
-              max="32"
-              value={fleet}
-              onChange={(event) => setFleet(Number(event.target.value))}
-              className="mt-4 min-h-11 w-full accent-[var(--brand-primary)]"
-            />
           </div>
-        </article>
-      </div>
-      <article className="mt-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-4">
-        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--quant-info)]">
-          Memory inspector
-        </p>
-        <div className="mt-3 grid gap-3 md:grid-cols-4">
-          <label className="flex min-h-12 items-center gap-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 text-[var(--quant-muted-foreground)] focus-within:border-[var(--quant-info)]">
-            <Icon name="search" />
-            <span className="sr-only">Semantic memory search</span>
-            <input
-              value={memoryQuery}
-              onChange={(event) => setMemoryQuery(event.target.value)}
-              placeholder="Semantic search…"
-              className="min-w-0 flex-1 bg-transparent text-sm text-[var(--quant-foreground)] outline-none"
-            />
-          </label>
-          {facts.length ? (
-            facts.map((fact) => (
-              <div
-                key={fact.id}
-                className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3"
-              >
-                <strong className="text-[10px] text-[var(--quant-info)]">
-                  FACT {fact.id} · {fact.kind.toUpperCase()}
-                </strong>
-                <p className="mt-2 text-xs leading-5">{fact.text}</p>
+
+          {/* Deployed Agents or Empty State */}
+          {deployed.length === 0 ? (
+            <div className="py-12 px-4 text-center rounded-2xl border border-dashed border-[#282C35] bg-[#16181D]/40 space-y-3">
+              <div className="size-12 rounded-full bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto">
+                <Icon name="bot" className="size-6" />
               </div>
-            ))
+              <h3 className="text-base font-bold text-white">
+                No agents deployed on {selectedRepo.name}
+              </h3>
+              <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
+                Deploy autonomous specialized agents to handle audits, testing, pull requests, and
+                code modifications for this repository.
+              </p>
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDeployModalOpen(true)}
+                  className="px-4 py-2 text-xs font-bold rounded-xl bg-[#FF8C42] text-black hover:bg-[#ff9b5a] transition-all inline-flex items-center gap-2 shadow-lg"
+                >
+                  <Icon name="plus" className="size-4" />
+                  <span>Deploy First Agent</span>
+                </button>
+              </div>
+            </div>
           ) : (
-            <div className="md:col-span-3 rounded-xl border border-dashed border-[var(--quant-border-strong)] p-4 text-xs text-[var(--quant-muted-foreground)]">
-              No memories match “{memoryQuery}”.
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC]">
+                  Active Fleet ({deployed.length})
+                </h3>
+                <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-400">
+                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Fleet Connected
+                </span>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {deployed.map((agent) => (
+                  <div
+                    key={agent.id}
+                    className="p-4 rounded-2xl bg-[#16181D] border border-[#282C35] hover:border-[#5C3016] transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="size-10 rounded-xl bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center font-bold text-base">
+                            {agent.initial}
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-white">{agent.name}</h4>
+                            <p className="text-[10px] text-[#A1A4AC]">{agent.pod} POD</p>
+                          </div>
+                        </div>
+                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800 text-emerald-400 uppercase tracking-wider">
+                          {agent.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#F5F5F5] font-medium mt-3">{agent.role}</p>
+                      <div className="mt-2 p-2 rounded-lg bg-[#0B0C0E] border border-[#282C35]/60 text-[11px] text-[#A1A4AC]">
+                        <span className="text-[#FF8C42] font-semibold">Active:</span>{' '}
+                        {agent.currentTask}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-[#282C35] flex items-center justify-between text-[11px]">
+                      <span className="text-[#A1A4AC]">24/7 Autonomous</span>
+                      <button
+                        type="button"
+                        onClick={() => showToast(`Triggered audit on ${agent.name}`)}
+                        className="font-bold text-[#FF8C42] hover:underline"
+                      >
+                        Run Task →
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
-      </article>
-    </section>
+      )}
+
+      {/* Deploy Agent Sheet / Modal */}
+      {isDeployModalOpen && selectedRepo && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4 backdrop-blur-sm"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setIsDeployModalOpen(false);
+          }}
+        >
+          <div className="w-full max-w-lg rounded-2xl border border-[#282C35] bg-[#16181D] p-5 shadow-2xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-[#282C35]">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#FF8C42]">
+                  Deploy to {selectedRepo.name}
+                </p>
+                <h3 className="text-base font-bold text-white">Select Agent from Swarm Fleet</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDeployModalOpen(false)}
+                className="size-8 rounded-lg flex items-center justify-center text-[#A1A4AC] hover:bg-[#1C1F26] hover:text-white"
+              >
+                <Icon name="close" className="size-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 overflow-y-auto space-y-3 flex-1 pr-1">
+              {AGENT_FLEET_CATALOG.map((spec) => (
+                <div
+                  key={spec.id}
+                  className="p-3.5 rounded-xl bg-[#0B0C0E] border border-[#282C35] hover:border-[#5C3016] transition-all flex items-start justify-between gap-3"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="size-9 rounded-lg bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center font-bold text-sm shrink-0">
+                      {spec.initial}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>{spec.name}</span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#1C1F26] text-[#A1A4AC] font-mono">
+                          {spec.pod}
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-[#FF8C42] font-medium mt-0.5">{spec.role}</p>
+                      <p className="text-[10px] text-[#A1A4AC] mt-1">{spec.description}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeployAgent(spec)}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FF8C42] text-black hover:bg-[#ff9b5a] shrink-0 transition-colors"
+                  >
+                    Deploy
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1042,31 +1088,40 @@ export default function QuantGitPage() {
   const router = useRouter();
   const { data, isLoading, error, refetch } = useRepos();
   const repos = useMemo(() => normalizeRepos(data), [data]);
+
   return (
     <main
       id="main-content"
-      className="min-h-dvh bg-[var(--quant-background)] text-[var(--quant-foreground)] [color-scheme:dark]"
+      className="min-h-dvh bg-[#0B0C0E] text-white selection:bg-[#FF8C42] selection:text-black [color-scheme:dark]"
     >
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[var(--quant-border-subtle)] bg-[color-mix(in_srgb,var(--quant-background)_94%,transparent)] px-4 backdrop-blur-xl sm:px-6">
-        <Logo />
-        <span className="flex items-center gap-2 text-xs text-[var(--quant-success)]">
-          <span className="size-2 rounded-full bg-current shadow-[0_0_10px_currentColor]" />
-          24/7 online
-        </span>
+      {/* Top Header: Just QuantGit Logo + Name on left, Active status on right. No drawer/sidebar toggle. */}
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#282C35] bg-[#0B0C0E]/90 px-4 backdrop-blur-xl sm:px-6">
+        <QuantGitLogo />
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-400">
+          <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
+          <span>Active</span>
+        </div>
       </header>
+
+      {/* Tab Content */}
       {tab === 'quanty' ? (
-        <Quanty repoNames={repos.map((repo) => repo.fullName || repo.name)} />
+        <QuantyChatStream repoNames={repos.map((repo) => repo.fullName || repo.name)} />
       ) : tab === 'repos' ? (
-        <Repos
+        <ReposList
           repos={repos}
           loading={isLoading}
           error={Boolean(error)}
           retry={() => void refetch()}
+          onSelectRepoForLab={(repo) => {
+            setTab('lab');
+          }}
         />
       ) : (
-        <AgentLab />
+        <RepositoryFirstAgentLab repos={repos} />
       )}
-      <Deck tab={tab} setTab={setTab} exit={() => router.push('/')} />
+
+      {/* 4 Bottom Tabs Deck */}
+      <BottomDeck tab={tab} setTab={setTab} exit={() => router.push('/')} />
     </main>
   );
 }
