@@ -145,12 +145,37 @@ function Inspector({
         className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-[#282C35] bg-[#090A0C] shadow-[0_24px_80px_rgba(0,0,0,.75)] sm:rounded-3xl"
       >
         <header className="flex items-center gap-3 border-b border-[#282C35] bg-[#111318] p-4 sm:p-5">
-          <div
-            className="flex size-14 shrink-0 items-center justify-center rounded-full text-base font-black text-[#090A0C]"
-            style={{ backgroundColor: accent }}
-          >
-            {initials(avatarLabel)}
-          </div>
+          {onEdit ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="group relative flex size-14 shrink-0 items-center justify-center rounded-full text-base font-black text-[#090A0C] transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              style={{ backgroundColor: accent }}
+              title="Change group photo or color"
+              aria-label="Change group photo or color"
+            >
+              {initials(avatarLabel)}
+              <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                <svg
+                  className="size-5 text-white"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+                  <circle cx="12" cy="13" r="3" />
+                </svg>
+              </span>
+            </button>
+          ) : (
+            <div
+              className="flex size-14 shrink-0 items-center justify-center rounded-full text-base font-black text-[#090A0C]"
+              style={{ backgroundColor: accent }}
+            >
+              {initials(avatarLabel)}
+            </div>
+          )}
           <div className="min-w-0 flex-1">
             {!isEditingContactName ? (
               <div className="flex items-center gap-2">
