@@ -47,6 +47,16 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
 
+  async redirects() {
+    return [
+      {
+        source: '/codehub',
+        destination: '/quantgit',
+        permanent: false,
+      },
+    ];
+  },
+
   // Workspace TS packages (e.g. @quant/bharat-ai pulled in via @quant/shared-ui)
   // use NodeNext-style `.js` extension specifiers that point at `.ts` sources.
   // Teach webpack to resolve those `.js`/`.mjs` specifiers to their TS sources

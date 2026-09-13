@@ -748,3 +748,112 @@ graph TD
   - **Staging Execution Runbook Created by CEO Astra**: Published '§4 + §6 Staging Execution Runbook — QuantMail v2' in Notion; §4 confirmed with 4 additions (snapshot before 0059 OAuth rehash, baseline counts, scratch dry-run, psql NOTICE capture); §6 sequenced across 7 stages with 3 expected failures declared upfront.
   - **Runbook S6 Delegate Probe Verified**: Generated Prisma client delegates tested directly: `event`, `file`, `folder`, `userSubscription`, `aISession`, `notification` all confirmed `function` (zero `undefined`).
   - **CI Gate on a09d448c Verified (Run 34742416417)**: `gate` passed in 3m02s (ID `103684276065`), `quantchat-coverage` passed in 59s, `memory-shadow-postgres` passed in 44s.
+  - **FULL-SWEEP ON MAIN 100% GREEN (Run 34743140368)**: `full-sweep` (ID `103686180070`) passed in 18m29s! `gate` passed in 2m20s, `quantchat-coverage` passed in 1m12s, `memory-shadow-postgres` in 43s. All CI checks green!
+  - **CodeQL Advanced on main (Run 34743140386)**: 100% green across JS/TS in 9m26s, Python in 57s, Actions in 39s. Zero security alerts!
+  - **Step S1/S2 Live RDS Staging Verification**: `pg_dump` snapshot `/tmp/quant-pre0059-20260913T064201Z.dump` (434.2 KB, SHA-256 `cbb036d80ecce18e76e1b44ffc7bd4e89f0ae44a648bc525f1aa4d78694efd0b`) proved restored into clone DB `quant_restore_test` with exit code 0 (`RESTORE_VERIFICATION=SUCCESS`). Pre-state counts recorded (0 in `notifications`, 0 in `ai_sessions`).
+
+---
+
+## 🐙 12. QUANTGIT MOBILE UI/UX ARCHITECTURE & DESIGN SPECIFICATION
+
+> **MASTER UI/UX REBRANDING & MOBILE BLUEPRINT (User-Approved 2026-09-13)**: The developer platform is officially rebranded from `CodeHub` / `QuantCode` to **`QuantGit`** (route `/quantgit` with backwards-compatible alias from `/codehub`).
+
+### Mobile-First 4-Deck Architecture (`390x844` Viewport):
+
+1. **Top Navigation Bar (Clean Mobile Header)**:
+   - Left: `[🐙 QuantGit Logo + Typography]`. (Note: Top hamburger is removed on Mobile because the bottom `Exit` tab navigates back; hamburger remains on Desktop for the full app switcher).
+   - Right: `[🔍 Search]` + `[🔔 Notifications]` (with unread badge) + `[Q Avatar]` (User profile, Organization switcher, PAT tokens, SSH keys, Quant Credits wallet).
+
+2. **Sub-Header (Strictly Scoped to Quanty Tab Only)**:
+   - Left: `[☰]` (Task & History Drawer Icon): Opens left slide-over drawer with `+ New Coding Task`, `📁 Projects`, `⚡ Skills & Plugins`, and date-wise chat history (`Today`, `Yesterday`, `Previous 7 Days`), plus user plan badge & Upgrade modal.
+   - Center: `[✎ Active Task Title]`: Active task title (e.g. `Auth PKCE Hardening`) with inline edit pencil button.
+   - Right: `[>_ Logs]` (Live Terminal Inspector): Modal displaying autonomous agent terminal outputs (`pnpm test`, `git diff`, runner logs).
+   - _Note_: This sub-header is EXCLUSIVELY rendered on the `Quanty` tab; it does NOT appear on `Repos` or `Agent Lab`.
+
+3. **Bottom Navigation Deck (QuantGit Context Switcher)**:
+   - Replaces generic QuantMail bottom tabs with 4 specialized tabs (`h-15`):
+     1. **`⚡ Quanty`**: AI Coding Agent chat & execution cockpit.
+     2. **`📁 Repos`**: Git repo browser, HTTPS/SSH clone URLs, file tree, commits, diffs, branches, PRs.
+     3. **`🤖 Agent Lab`**: Autonomous Multi-Agent Swarm coordinator & Virtual Office floorplan.
+     4. **`🚪 Exit`**: 1-tap exit returning to QuantMail Hub (Mail, Drive, Calendar).
+
+4. **Tab 1 `Quanty` Docked Command Center**:
+   - **Solid Docking**: Strictly docked (`shrink-0`) directly above the bottom navigation bar (`h-15`) with opaque styling, so chat messages (`flex-1 overflow-y-auto`) never scroll behind or peek underneath.
+   - **Mode Button**: `[ ⚡ Auto ▾ ]` popover button to switch `Auto` | `Plan` | `Build`.
+   - **Target Repo Button**: `[ 📦 Quant-Ecosystem ▾ ]` (1-tap repo switcher).
+   - **Review Button**: `[ 🔍 Review ▾ ]` popover trigger for AI PR Review, Lint & Typo Sweep, and Security Audit.
+   - **Skills Button**: `[ 🧩 Skills ▾ ]` popover displaying active swarm skills (Git Smart Daemon, Vitest Runner, CodeQL, BullMQ).
+   - **Model Button**: `[ 🧠 Opus 5 ▾ ]` with effort level options.
+   - **Prompt Input Box**: Multi-line auto-expanding textarea with `[+]` context menu (attach repo files, upload from device, MCP connectors), voice dictation (`🎙️`), and Send (`➤`).
+
+5. **Tab 2 `Repos` (Bare Git Explorer)**:
+   - Clean top header: `Your Repositories` + `+ New Repo` button + search bar.
+   - Each repo card features:
+     - Repo name, public/private badge, description, language, and last updated time.
+     - **GitHub-style `[Code ▾]` button**: Opens slide-up clone modal with HTTPS URL (and Personal Access Token reminder) and SSH URL with 1-click copy.
+     - Interactive quick tabs: `Files`, `Commits`, `PRs`, `Branches`. Clicking the repo card opens the full repository tree explorer.
+
+6. **Tab 3 `Agent Lab` (Agency OS / Virtual Agent Office)**:
+   - Top banner: Active Repository (`Quant-Ecosystem 🟢`) + `+ Deploy Agent` button.
+   - **Virtual Office Floorplan**:
+     - Visual desk grid for active agents (👑 CEO Astra, 🔐 Dev 1 Auth, 🛡️ Dev 2 QA Sentinel, 🐙 Dev 6 Git Engine) with live status and speech bubbles displaying real-time thoughts.
+     - **☕ Coffee Break Lounge**: Dedicated lounge zone with animated steam where idle agents hang out (e.g. Dev 7 sipping espresso between tasks) with an interactive `[Page Dev 7]` button that pages them back to their desk.
+     - **Live Inter-Agent Swarm Bus**: Real-time peer-to-peer WebSocket mesh message stream showing inter-agent communication and task handoffs.
+     - **1:1 Agent Direct Chat Drawer**: Clicking any agent's desk opens an instant slide-up drawer to chat directly with that specific agent.
+
+### 8. Exact QuantMail Design System & WCAG AAA Harmonization (User & Astra Directive):
+
+- **Palette Invariants (Strict QuantMail Tokens)**:
+  - Canvas / Background: `#090A0C` (`var(--quant-background)`)
+  - Surface & Cards: `#111318` (`var(--quant-surface)`)
+  - Surface Elevated: `#16181D` (`var(--quant-surface-elevated)`)
+  - Borders: `#282C35` (`var(--quant-border)`), Strong: `#3A404D` (`var(--quant-border-strong)`)
+  - Brand Primary Accent: `#FF8C42` (`var(--brand-primary)`), Hover: `#FF9B5A`, Pressed: `#E8752F`
+  - Brand Soft Fill: `#2B1A11` (`var(--brand-soft)`), Soft Border: `#5C3016` (`var(--brand-soft-border)`)
+  - Status Indicators: Emerald `#22C55E` (success/online), Electric Blue `#3B82F6` (git/info), Amber `#F59E0B`
+  - Typography: Foreground `#F5F5F5`, Muted `#A1A4AC`, Text-Muted `#6B6E76`
+- **Astra's WCAG 1.4.11 & AAA Color Contrast Audit**:
+  - Computed relative luminance: `#FF8C42` $L \approx 0.40406$, `#090A0C` $L \approx 0.003017$. Contrast ratio: **8.6:1** (comfortably passes AAA for normal text).
+  - **Button Contrast Invariant**: White text on `#FF8C42` yields $2.31:1$ (FAILS WCAG AA). All orange buttons MUST use dark text (`#090A0C`), yielding **9.08:1** (PASSES WCAG AAA).
+  - **Boundary Invariant**: Border `#282C35` on `#111318` gives $1.33:1$; inputs and focus boundaries must rely on `--quant-ring` (`#FF8C42`) and `--quant-border-strong` (`#3A404D`) rather than decorative borders alone.
+
+---
+
+## 🚀 11. QUANTGIT PRODUCTION IMPLEMENTATION & NOTION SWARM COLLABORATION
+
+### 👥 Active Swarm Account Switching (All 8 Notion Agents):
+
+- **CEO Astra**: Executive Audit chat (`https://app.notion.com/chat?t=3d7dc63ef75880e1ab7600a96626b891`) — S4 staging authorization granted; WCAG contrast formulas and token deduplication verified.
+- **Developer 6 (Git & CodeHub Specialist)**: Notion account `marvelmoviesads@gmail.com` (`https://app.notion.com/chat?t=3da56f3825818097a71600a90e11e05d`) — Authored full production React TypeScript component: `apps/quantmail/src/app/quantgit/page.tsx` (1,141 lines, 42.4 KB).
+- **Available Swarm Accounts Roster**:
+  - `kurfhiuh@gmail.com`: Developer 1 (Auth & Security)
+  - `roshanisingh70049234@gmail.com`: Developer 2 (QA Sentinel) & Developer 3 (Calendar)
+  - `neerajvishwakarma35284@gmail.com`: Developer 4 (Drive & Storage) & Developer 5 (Docs & CRDT)
+  - `marvelmoviesads@gmail.com`: Developer 6 (Git Engine) & Developer 7 (QuantAI & WebRTC)
+  - Primary CEO: CEO Astra (Opus 5 / GPT-6 Astra)
+
+### 📦 Production Artifacts & Verification:
+
+1. **Production Component (`apps/quantmail/src/app/quantgit/page.tsx`)**:
+   - 1,141 lines of production Next.js React TypeScript.
+   - Clean client component with 4-tab bottom deck (`Quanty`, `Repos`, `Agent Lab`, `Exit`).
+   - Munder Difflin inspired 24/7 retro virtual office with 8 desks, thought bubbles, Dossiers #001–#008, 10-button Command Center, memory inspector, and fleet scale.
+   - 100% harmonized with QuantMail official CSS variables (`--quant-background`, `--quant-surface`, `--brand-primary`, `--brand-soft`).
+2. **TypeScript Compilation**:
+   - `pnpm --filter @quant/quantmail exec tsc --noEmit` verified: **0 errors, exit code 0**.
+3. **Live Visual Proofs Verified in Chrome Browser**:
+   - Quanty Cockpit (QuantMail theme): [`media_0.png`](file:///C:/Users/Pc/.gemini/antigravity/brain/31b9b531-fd78-4f8a-bcca-268562b5f750/.system_generated/steps/10579/media_0.png)
+   - Agent Lab Retro Console & 8-Desk Office: [`media_0.png`](file:///C:/Users/Pc/.gemini/antigravity/brain/31b9b531-fd78-4f8a-bcca-268562b5f750/.system_generated/steps/10607/media_0.png)
+   - Agent Dossier ID Card & Command Center: [`media_0.png`](file:///C:/Users/Pc/.gemini/antigravity/brain/31b9b531-fd78-4f8a-bcca-268562b5f750/.system_generated/steps/10613/media_0.png)
+   - Command Center & Memory Inspector: [`media_0.png`](file:///C:/Users/Pc/.gemini/antigravity/brain/31b9b531-fd78-4f8a-bcca-268562b5f750/.system_generated/steps/10619/media_0.png)
+   - Clones That Talk & Fleet Scale Slider: [`media_0.png`](file:///C:/Users/Pc/.gemini/antigravity/brain/31b9b531-fd78-4f8a-bcca-268562b5f750/.system_generated/steps/10625/media_0.png)
+   - Repositories Browser & Clone Modal: [`media_0.png`](file:///C:/Users/Pc/.gemini/antigravity/brain/31b9b531-fd78-4f8a-bcca-268562b5f750/.system_generated/steps/10661/media_0.png)
+4. **Live Staging Database Migration (Step S4, S5 & S6) 100% EXECUTED & VERIFIED**:
+   - **Step S1/Condition 1 Snapshot**: Fresh pre-0059 snapshot `/tmp/quant-pre0059-20260913T094304Z.dump` (434.6 KB) with SHA-256 `9f3f98fa40f9b66a67b186ac7d6ff9a48ea83c215230d06ba9024b4bfe2cfe01` secured.
+   - **Step S4 Applied**: Sequentially executed `0058_drive_star_trash`, `0059_rehash_legacy_oauth_clients`, `0060_personal_access_tokens`, and `0061_quantapp_rebrand_backfill` on live staging database `quant_staging`. Recorded all 4 migrations in `_prisma_migrations`.
+   - **Step S5 Assertions Passed**: S5 SQL assertions executed on `quant_staging` with exactly 0 legacy rows in `notifications` and `ai_sessions`, cardinality preserved, 0 NULLs, and all 4 migrations recorded with `finished_at` set and `rolled_back_at` null.
+   - **Step S6 Staging Container Delegate Probe**: Executed directly inside the running staging container `quant-quantmail-backend-7b9b467d75-9k4q8`. All 6 delegates (`event`, `file`, `folder`, `userSubscription`, `aISession`, `notification`) returned `function`.
+   - **QuantGit Navigation & Routing**:
+     - Added `/codehub` -> `/quantgit` redirect in `apps/quantmail/next.config.js`.
+     - Updated `apps/quantmail/src/components/AppSidebar.tsx` and `AppShell.tsx` to mount `QuantGit` under `/quantgit`.
+     - Verified clean client & backend TypeScript compilation (0 errors, exit code 0).

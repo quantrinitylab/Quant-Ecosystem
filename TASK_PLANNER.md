@@ -291,3 +291,48 @@
   - [x] **Staging Execution Runbook Created by CEO Astra**: Notion runbook '§4 + §6 Staging Execution Runbook — QuantMail v2' published; §4 procedure confirmed with 4 additions (OAuth 0059 snapshot guard, baseline counts, scratch dry-run, psql NOTICE capture); §6 sequence confirmed across 7 dependency-ordered stages (preflight negatives, security preflight, mail, Drive, calendar-to-voice loop, CodeHub, chaos/destructive).
   - [x] **Runbook S6 Delegate Probe Verified**: Generated Prisma client delegates tested directly: `event`, `file`, `folder`, `userSubscription`, `aISession`, `notification` all confirmed `function` (zero `undefined`).
   - [x] **CI Gate on a09d448c Verified (Run 34742416417)**: `gate` passed in 3m02s (ID `103684276065`), `quantchat-coverage` passed in 59s, `memory-shadow-postgres` passed in 44s.
+  - [x] **Voice-Bot Discriminating Tests & Boot Guard Cleanup (Commit `25472feb`)**: Removed unreachable dead code from `apps/quantchat/backend/app.ts`; added discriminating test for line 109 throw with `NODE_ENV=preview` and exact string match `'Voice bot secret is not configured'`; preserved staging check with exact string match as MC-01 regression test; guarded `finally` against coercion of undefined `NODE_ENV` (9/9 tests passing, build clean).
+  - [x] **Pinned Staging Tags Created & Pushed**: Created and pushed immutable tags `staging-pin-a09d448c` and `staging-pin-latest` (`25472feb`) to `origin`.
+  - [x] **FULL-SWEEP ON MAIN 100% GREEN (Run 34743140368)**: `full-sweep` (ID `103686180070`) passed in 18m29s! `gate` passed in 2m20s (ID `103686180129`), `quantchat-coverage` passed in 1m12s (ID `103686180084`), `memory-shadow-postgres` passed in 43s (ID `103686180136`). Astra's §0 full-sweep condition is 100% SATISFIED on `main`!
+  - [x] **CodeQL Advanced on main Verified (Run 34743140386)**: 100% green across JS/TS in 9m26s (ID `103686149760`), Python in 57s (ID `103686149885`), Actions in 39s (ID `103686149872`). Zero alerts!
+  - [x] **Step S1 Pre-Migration Snapshot & Restore Verified on RDS**: Executed `pg_dump` of staging database to `/tmp/quant-pre0059-20260913T064201Z.dump` (434.2 KB); SHA-256 `cbb036d80ecce18e76e1b44ffc7bd4e89f0ae44a648bc525f1aa4d78694efd0b`; successfully created and proved restore into clone database `quant_restore_test` with exit code 0 (`RESTORE_VERIFICATION=SUCCESS`).
+  - [x] **Step S2 Baseline Pre-Migration Counts Recorded**: Staging database currently on migration `0057_contact_groups`; pending migrations `0058`, `0059`, `0060`, `0061`. Core table audit on `quant_staging`: `users` = 7, `emails` = 5, `notifications` = 0, `ai_sessions` = 0, `drive_files` = 0, `oauth_clients` = 0 (169 total tables).
+  - [x] **Retired Superseded Tag**: Deleted `staging-pin-a09d448c` from local and remote `origin`. Authoritative deploy pin is consolidated to single tag `staging-pin-latest` pointing at head `25472feb`.
+  - [x] **Verified CI Run URLs for Evidence Pack**:
+    - Full-Sweep / CI: `https://github.com/quantrinitylab/Quant-Ecosystem/actions/runs/34743140368` (Job ID `103686180070`, 18m29s green).
+    - CodeQL Advanced: `https://github.com/quantrinitylab/Quant-Ecosystem/actions/runs/34743140386` (Job ID `103686149760`, 9m26s green, 0 alerts).
+  - [x] **Step S3 Rehearsal Passed & S4 AUTHORIZED by CEO Astra (Opus 5)**:
+    - S3 evidence pack submitted to CEO Astra on Notion AI chat (`t=3d7dc63ef75880e1ab7600a96626b891`).
+    - Astra analyzed source code of migration `0061` and resolved the 3-vs-7 discrepancy: `GET DIAGNOSTICS v_count = ROW_COUNT` was positioned immediately following the 5th statement (`quantmail` 3-way collapse), capturing only the 3 collapsed rows. Rehearsal PASSED: S5 SQL assertion proved authoritative with all 7 rows mapped, zero legacy rows, and zero NULLs.
+    - **CEO Astra Official Verdict**: **"S4 AUTHORIZED on quant_staging"**.
+  - [x] **QuantGit Agent Lab Re-Architected with Munder Difflin Inspiration**:
+    - Modeled after `munderdiffl.in` retro handheld console casing, gold metallic bezel, rivets, cyan crystal lens, and status LEDs.
+    - 24/7 pixel-art virtual office floor with glowing monitors and live desk speech bubbles across all 8 agents.
+    - Dynamic Agent Dossier ID Badges (Node #001 to #008) with pixel avatars, role specs, status, and barcode.
+    - 10-Button Command Center (`>_ terminal`, `monitor`, `✓ tasks`, `ask me`, `schedules`, `* memory`, `graph`, `activity`, `<> commands`, `workers`).
+    - Dual text & semantic search bars (`MemPalace` pgvector memory) and live memory file inspector.
+    - Clones That Talk E2E peer mesh handoffs.
+    - Swarm fleet scaling slider (8 to 32 agents) & sandbox compute specs ($39/seat/mo).
+    - Verified live click-by-click in Chrome browser with active switching across agents.
+  - [x] **QuantGit UI/UX Harmonized to Official QuantMail Theme (User & Astra Directive)**:
+    - Synchronized colors with QuantMail's official dark foundation: `#090A0C` (canvas), `#111318` (surface), `#16181D` (elevated), `#282C35` (border), `#3A404D` (strong border), `#FF8C42` (brand primary), `#2B1A11` (brand soft fill), `#5C3016` (brand soft border), and `#22C55E` (emerald green).
+    - Astra WCAG AAA compliance: Button background `#FF8C42` paired with `#090A0C` dark text (9.08:1 contrast).
+    - Switched accounts across Notion developer workspaces (`marvelmoviesads@gmail.com`) to activate Developer 6 (Git Specialist).
+    - Production component authored directly by Developer 6 at `apps/quantmail/src/app/quantgit/page.tsx` (1,141 lines, 42.4 KB).
+    - `pnpm --filter @quant/quantmail exec tsc --noEmit` verified 100% clean (0 errors, exit code 0).
+    - Full Chrome browser click verification with screenshots across all 3 tabs (`Quanty`, `Repos`, `Agent Lab`).
+  - [x] **Step S4 Live Staging Migration Applied on quant_staging**:
+    - [x] Fresh pre-0059 snapshot `/tmp/quant-pre0059-20260913T094304Z.dump` (434.6 KB) with SHA-256 `9f3f98fa40f9b66a67b186ac7d6ff9a48ea83c215230d06ba9024b4bfe2cfe01` verified.
+    - [x] Sequentially applied migrations `0058_drive_star_trash`, `0059_rehash_legacy_oauth_clients`, `0060_personal_access_tokens`, and `0061_quantapp_rebrand_backfill` on `quant_staging`.
+    - [x] Recorded all 4 migrations in `_prisma_migrations` with `finished_at` set and `applied_steps_count = 1`.
+  - [x] **Step S5 SQL Assertions Verified on quant_staging**:
+    - [x] Zero legacy rows in `notifications` and `ai_sessions` (0 rows returned).
+    - [x] Cardinality preserved, zero NULL values.
+    - [x] Confirmed `personal_access_tokens` table and drive star/trash columns active on RDS.
+  - [x] **Step S6 Delegate Probe Verified Inside Staging Pod**:
+    - [x] Executed probe inside `quant-quantmail-backend-7b9b467d75-9k4q8`.
+    - [x] All 6 delegates (`event`, `file`, `folder`, `userSubscription`, `aISession`, `notification`) returned `function`.
+  - [x] **QuantGit Navigation & Routing Wired**:
+    - [x] `/codehub` -> `/quantgit` redirect configured in `apps/quantmail/next.config.js`.
+    - [x] AppShell & AppSidebar updated to route QuantGit directly to `/quantgit`.
+    - [x] `tsc --noEmit` and `build:backend` 100% clean (0 errors, exit code 0).

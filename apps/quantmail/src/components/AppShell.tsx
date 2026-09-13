@@ -140,8 +140,8 @@ const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNo
   },
   {
     id: 'code',
-    label: 'Git',
-    path: '/codehub',
+    label: 'QuantGit',
+    path: '/quantgit',
     icon: (
       <svg
         className="size-5"
@@ -285,7 +285,7 @@ export function AppShell({
       ? 'drive'
       : pathname.startsWith('/contacts')
         ? 'contacts'
-        : pathname.startsWith('/codehub')
+        : pathname.startsWith('/quantgit') || pathname.startsWith('/codehub')
           ? 'code'
           : 'mail';
 
@@ -297,11 +297,16 @@ export function AppShell({
     if (pathname.startsWith('/calendar') && pathname !== '/calendar') router.push('/calendar');
     else if (pathname.startsWith('/drive') && pathname !== '/drive') router.push('/drive');
     else if (pathname.startsWith('/contacts') && pathname !== '/contacts') router.push('/contacts');
-    else if (pathname.startsWith('/codehub') && pathname !== '/codehub') router.push('/codehub');
+    else if (
+      (pathname.startsWith('/quantgit') || pathname.startsWith('/codehub')) &&
+      pathname !== '/quantgit'
+    )
+      router.push('/quantgit');
     else if (
       !pathname.startsWith('/calendar') &&
       !pathname.startsWith('/drive') &&
       !pathname.startsWith('/contacts') &&
+      !pathname.startsWith('/quantgit') &&
       !pathname.startsWith('/codehub') &&
       pathname !== '/'
     ) {
@@ -544,6 +549,7 @@ export function AppShell({
       pathname.startsWith('/calendar') ||
       pathname.startsWith('/compose') ||
       pathname.startsWith('/thread') ||
+      pathname.startsWith('/quantgit') ||
       pathname.startsWith('/codehub') ||
       pathname.includes('/settings')
     ) {
