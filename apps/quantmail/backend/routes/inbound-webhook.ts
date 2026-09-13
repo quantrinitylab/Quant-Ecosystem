@@ -246,9 +246,24 @@ function verdictFromReceipt(receipt: SesReceipt | undefined, fromAddress: string
  * them, honouring only `spamVerdict` and only by setting an `isSpam` flag on a row
  * that still landed in the inbox.
  */
-function shouldQuarantine(verdict: AuthVerdict, receipt: SesReceipt | undefined): boolean {
+function shouldQuarantine(
+  verdict: AuthVerdict,
+  receipt: SesReceipt | undefined,
+  fromAddress?: string,
+): boolean {
   if (verdict.dmarc === 'fail') {
     return true;
+  }
+  // Hard failure on both SPF and DKIM indicates unauthenticated/spoofed mail (Task QM-02)
+  if (verdict.spf === 'fail' && verdict.dkim === 'fail') {
+    return true;
+  }
+  // Inbound mail from external claiming to be an internal QuantMail address
+  // that fails SPF or DKIM is an attempted internal domain spoof (Task QM-02)
+  if (fromAddress && isQuantMailAddress(fromAddress)) {
+    if (verdict.spf === 'fail' || verdict.dkim === 'fail') {
+      return true;
+    }
   }
   return (
     receipt?.spamVerdict?.status?.toUpperCase() === 'FAIL' ||
@@ -355,7 +370,7 @@ async function deliverStoredMessage(
   }
 
   const verdict = verdictFromReceipt(receipt, parsed.fromAddress);
-  const quarantine = shouldQuarantine(verdict, receipt);
+  const quarantine = shouldQuarantine(verdict, receipt, parsed.fromAddress);
   const raw = toRawMessage(
     parsed,
     users.map((user) => user.email),

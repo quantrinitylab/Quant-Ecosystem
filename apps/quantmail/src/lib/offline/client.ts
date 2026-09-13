@@ -19,11 +19,12 @@
 import { Database } from './database';
 
 export const DATABASE_NAME = 'quantmail-offline';
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const STORE_EMAILS = 'emails';
 export const STORE_MAILBOXES = 'mailboxes';
 export const STORE_OUTBOX = 'outbox';
+export const STORE_DRAFTS = 'drafts';
 
 export const mailDatabase = new Database(DATABASE_NAME, SCHEMA_VERSION, [
   { name: STORE_EMAILS, keyPath: 'id' },
@@ -32,6 +33,11 @@ export const mailDatabase = new Database(DATABASE_NAME, SCHEMA_VERSION, [
     name: STORE_OUTBOX,
     keyPath: 'id',
     indexes: [{ name: 'byCreatedAt', keyPath: 'createdAt' }],
+  },
+  {
+    name: STORE_DRAFTS,
+    keyPath: 'id',
+    indexes: [{ name: 'byUpdatedAt', keyPath: 'updatedAt' }],
   },
 ]);
 

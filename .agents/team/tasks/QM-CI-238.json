@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "authority": "working-context",
+  "taskId": "QM-CI-238",
+  "repository": "quantrinitylab/Quant-Ecosystem",
+  "role": "sentinel",
+  "goal": "Identify the actual QuantMail CI failure using authorized evidence; do not invent a cause.",
+  "permission": "read-only",
+  "writePaths": [],
+  "revision": 0,
+  "fence": 0,
+  "status": "blocked",
+  "blockedReason": "access",
+  "lease": null,
+  "checkpoint": {
+    "sourceCommit": "be33aeaf5b9d05ae4620aaf1964205cb0ddfc5ee",
+    "branch": "ai/quantmail-contacts-pagination-20260909",
+    "checkedAt": "2026-09-10T05:49:41.800Z",
+    "observed": [
+      "Open-PR metadata confirms draft #238 remains at the recorded commit."
+    ],
+    "reported": [
+      "Sentinel reported that the exact failing QuantMail test remains unknown; its work was read-only.",
+      "A one-line annotation proposal was prepared by Compass but not applied."
+    ],
+    "hypotheses": [
+      "A JSX transform/import-analysis issue was proposed as H6; no real failing log or installed-version reproduction confirmed it."
+    ],
+    "notRun": [
+      "Genuine QuantMail Vitest reproduction and exact installed-version check are not established by this checkpoint."
+    ],
+    "evidence": [
+      "https://github.com/quantrinitylab/Quant-Ecosystem/pull/238",
+      "https://github.com/quantrinitylab/Quant-Ecosystem/pull/238#issuecomment-5609198153",
+      "https://github.com/quantrinitylab/Quant-Ecosystem/pull/238#issuecomment-5609080096"
+    ],
+    "next": "Obtain the authorized failing log or a genuine installed-environment reproduction before asserting a cause. Keep reporter/JSX proposals separate and unapplied unless explicitly authorized."
+  }
+}

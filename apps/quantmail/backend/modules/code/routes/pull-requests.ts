@@ -8,6 +8,10 @@ import {
   MergePRInputSchema,
 } from '../services/pr.service';
 import { MergeEligibilityService } from '../services/merge-eligibility.service';
+import { AiReviewBotService } from '../services/ai-review-bot.service';
+import { ReviewService } from '../services/review.service';
+import { GitInspectService } from '../services/git-transport/git-inspect.service';
+import { RepoStorageService } from '../services/git-transport/repo-storage.service';
 
 function getUserId(request: unknown): string {
   const req = request as { auth?: { userId?: string } };
@@ -33,6 +37,10 @@ export default async function pullRequestRoutes(fastify: FastifyInstance) {
   }
   const prService = new PullRequestService(prisma);
   const mergeEligibilityService = new MergeEligibilityService(prisma);
+  const reviewService = new ReviewService(prisma);
+  const gitInspect = new GitInspectService();
+  const repoStorage = new RepoStorageService();
+  const aiReviewBot = new AiReviewBotService(prisma, reviewService, gitInspect, repoStorage);
 
   // POST / - create PR
   fastify.post<{ Params: { owner: string; name: string } }>(
@@ -189,6 +197,27 @@ export default async function pullRequestRoutes(fastify: FastifyInstance) {
 
       const result = await prService.getDiff(repo.id, prNumber);
       return reply.send({ success: true, data: result });
+    },
+  );
+
+  // POST /:number/ai-review - generate automated AI review and lint suggestions (Task CH-05)
+  fastify.post<{ Params: { owner: string; name: string; number: string } }>(
+    '/:owner/:name/pulls/:number/ai-review',
+    async (request, reply) => {
+      const userId = getUserId(request);
+      const { owner, name } = request.params;
+      const prNumber = parseInt(request.params.number, 10);
+
+      const repo = await prisma.repository.findFirst({
+        where: { ownerId: owner, name },
+      });
+
+      if (!repo) {
+        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+      }
+
+      const report = await aiReviewBot.reviewPullRequest(repo.id, prNumber, userId);
+      return reply.send({ success: true, data: report });
     },
   );
 }

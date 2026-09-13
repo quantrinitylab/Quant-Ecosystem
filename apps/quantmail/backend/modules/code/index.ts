@@ -52,6 +52,9 @@ export {
   AddCommentInputSchema,
 } from './services/review.service';
 
+export { AiReviewBotService } from './services/ai-review-bot.service';
+export type { LintFinding, AiReviewReport } from './services/ai-review-bot.service';
+
 export { MergeEligibilityService } from './services/merge-eligibility.service';
 export type { MergeDecision, MergeEligibilityOptions } from './services/merge-eligibility.service';
 

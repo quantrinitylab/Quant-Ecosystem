@@ -10,6 +10,7 @@ import { EmailService } from './email.service';
 import { ThreadService } from './thread.service';
 import { MailFilterService, type ResolvedActions } from './mail-filter.service';
 import { VacationResponderService } from './vacation-responder.service';
+import { SpamClassifierService } from './spam-classifier.service';
 // Observability (Task 23.1, Req 23.2): every inbound delivery operation emits a span.
 import { noopSpanPort, withSpan, type SpanPort } from '../shared/observability';
 
@@ -126,6 +127,11 @@ export interface InboundIngestDeps {
   vacation?: VacationResponderService;
   /** Sink for ingest-originated mail (vacation replies, filter forwards). */
   autoResponder?: InboundAutoResponderPort;
+  /**
+   * Optional local Bayesian / heuristic spam classifier (Task QM-03).
+   * Evaluates content tokens & headers when auth verdict does not force quarantine.
+   */
+  spamClassifier?: SpamClassifierService;
 }
 
 /** Structural view of the folder lookups this adapter needs. */
@@ -208,6 +214,7 @@ export class InboundIngestAdapter {
   private readonly filters: MailFilterService | undefined;
   private readonly vacation: VacationResponderService | undefined;
   private readonly autoResponder: InboundAutoResponderPort | undefined;
+  private readonly spamClassifier: SpamClassifierService | undefined;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -221,6 +228,7 @@ export class InboundIngestAdapter {
     this.filters = deps.filters;
     this.vacation = deps.vacation;
     this.autoResponder = deps.autoResponder;
+    this.spamClassifier = deps.spamClassifier;
   }
 
   /**
@@ -280,7 +288,19 @@ export class InboundIngestAdapter {
         }
 
         // 3) Routing decision.
-        const quarantine = options.quarantine ?? InboundIngestAdapter.shouldQuarantine(verdict);
+        let quarantine = options.quarantine ?? InboundIngestAdapter.shouldQuarantine(verdict);
+        if (!quarantine && this.spamClassifier) {
+          const classification = this.spamClassifier.classify({
+            from: rawMessage.from,
+            subject: rawMessage.subject,
+            text: rawMessage.text,
+            html: rawMessage.html,
+            headers: rawMessage.headers,
+          });
+          if (classification.isSpam) {
+            quarantine = true;
+          }
+        }
         const folderId = await this.resolveFolder(userId, quarantine ? 'SPAM' : 'INBOX');
 
         // 4) Thread stitching (Requirement 5.2).

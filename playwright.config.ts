@@ -16,7 +16,7 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   webServer: {
-    command: 'pnpm --filter @quant/admin dev',
+    command: 'pnpm --filter @quant/quantmail dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

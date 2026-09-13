@@ -5,8 +5,12 @@ import type {
   ChatMessage,
   DocResult,
   CalendarEvent,
+  CalendarEventReminder,
   FileResult,
   FileSummary,
+  CodeRepoResult,
+  PullRequestResult,
+  AiReviewResult,
 } from './cross-app-orchestrator.service';
 
 export class DemoModeConnector implements AppConnectors {
@@ -120,6 +124,7 @@ export class DemoModeConnector implements AppConnectors {
       start: string,
       end: string,
       attendees: string[],
+      reminders?: CalendarEventReminder[],
     ): Promise<CalendarEvent> {
       return {
         id: `event-${Date.now()}`,
@@ -127,6 +132,7 @@ export class DemoModeConnector implements AppConnectors {
         start,
         end,
         attendees,
+        reminders,
       };
     },
   };
@@ -154,6 +160,49 @@ export class DemoModeConnector implements AppConnectors {
         fileId: _fileId,
         summary:
           'This document covers the quarterly performance metrics, including revenue growth of 15%, user acquisition targets, and strategic priorities for the next quarter. Key highlights include the successful launch of three new features and a 20% reduction in customer churn.',
+      };
+    },
+  };
+
+  code = {
+    async listRepos(): Promise<CodeRepoResult[]> {
+      return [
+        {
+          id: 'repo-001',
+          name: 'quant-core',
+          fullName: 'quant/quant-core',
+          description: 'Core engine and microservices',
+          defaultBranch: 'main',
+          visibility: 'public',
+        },
+      ];
+    },
+
+    async getPullRequests(_owner: string, _name: string): Promise<PullRequestResult[]> {
+      return [
+        {
+          id: 'pr-001',
+          number: 42,
+          title: 'feat: add high performance streaming',
+          status: 'OPEN',
+          authorId: 'user-001',
+          sourceBranch: 'feat/streaming',
+          targetBranch: 'main',
+        },
+      ];
+    },
+
+    async reviewPullRequest(
+      _owner: string,
+      _name: string,
+      number: number,
+    ): Promise<AiReviewResult> {
+      return {
+        summary: `Automated AI review for PR #${number}: all checks passed with no detected secrets.`,
+        riskLevel: 'LOW',
+        filesChanged: 3,
+        findingsCount: 0,
+        suggestions: ['Consider adding an integration test for edge case timeout.'],
       };
     },
   };

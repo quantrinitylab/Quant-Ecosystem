@@ -102,4 +102,75 @@ describe('HttpAppConnectors', () => {
     expect(String(url)).toBe('http://docs.local/documents');
     expect((init as RequestInit).method).toBe('POST');
   });
+
+  it('lists CodeHub repositories and maps fields', async () => {
+    const fetchMock = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse({
+        success: true,
+        data: [
+          {
+            id: 'repo-1',
+            name: 'quant-engine',
+            fullName: 'alice/quant-engine',
+            description: 'Core engine',
+            defaultBranch: 'main',
+            visibility: 'public',
+          },
+        ],
+      }),
+    );
+    const connectors = new HttpAppConnectors({
+      token: 'pat-xyz',
+      urls: { code: 'http://code.local' },
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    const repos = await connectors.code.listRepos();
+    expect(repos).toHaveLength(1);
+    expect(repos[0]).toEqual({
+      id: 'repo-1',
+      name: 'quant-engine',
+      fullName: 'alice/quant-engine',
+      description: 'Core engine',
+      defaultBranch: 'main',
+      visibility: 'public',
+    });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe('http://code.local/repos');
+    expect(((init as RequestInit).headers as Record<string, string>)['authorization']).toBe(
+      'Bearer pat-xyz',
+    );
+  });
+
+  it('triggers automated PR AI review and parses report', async () => {
+    const fetchMock = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse({
+        success: true,
+        data: {
+          summary: 'Review passed with 0 critical findings.',
+          riskLevel: 'LOW',
+          filesChanged: 2,
+          findingsCount: 0,
+          suggestions: ['Add unit tests.'],
+        },
+      }),
+    );
+    const connectors = new HttpAppConnectors({
+      token: 'tok-pr',
+      urls: { code: 'http://code.local' },
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    const report = await connectors.code.reviewPullRequest('alice', 'quant-engine', 7);
+    expect(report).toEqual({
+      summary: 'Review passed with 0 critical findings.',
+      riskLevel: 'LOW',
+      filesChanged: 2,
+      findingsCount: 0,
+      suggestions: ['Add unit tests.'],
+    });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe('http://code.local/alice/quant-engine/pulls/7/ai-review');
+    expect((init as RequestInit).method).toBe('POST');
+  });
 });

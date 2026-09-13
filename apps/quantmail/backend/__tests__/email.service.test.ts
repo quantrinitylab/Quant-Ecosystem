@@ -9,6 +9,7 @@ function createMockPrisma() {
       findMany: vi.fn(),
       count: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
       delete: vi.fn(),
     },
     user: {
@@ -552,6 +553,88 @@ describe('EmailService', () => {
       await expect(service.applyLabel('email-1', 'label-1', 'user-1')).rejects.toThrow(
         'Not authorized',
       );
+    });
+  });
+
+  describe('batch operations', () => {
+    it('batchMarkRead marks multiple emails as read', async () => {
+      prisma.email.updateMany.mockResolvedValue({ count: 5 });
+
+      const result = await service.batchMarkRead(['e1', 'e2', 'e3', 'e4', 'e5'], 'user-1', true);
+      expect(result.count).toBe(5);
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ['e1', 'e2', 'e3', 'e4', 'e5'] },
+          userId: 'user-1',
+          deletedAt: null,
+        },
+        data: { isRead: true },
+      });
+    });
+
+    it('batchArchive moves multiple emails to the archive folder', async () => {
+      prisma.email.updateMany.mockResolvedValue({ count: 3 });
+
+      const result = await service.batchArchive(['e1', 'e2', 'e3'], 'archive-folder-id', 'user-1');
+      expect(result.count).toBe(3);
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ['e1', 'e2', 'e3'] },
+          userId: 'user-1',
+          deletedAt: null,
+        },
+        data: { folderId: 'archive-folder-id' },
+      });
+    });
+
+    it('batchDelete soft deletes multiple emails to trash', async () => {
+      prisma.email.updateMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.batchDelete(['e1', 'e2'], 'user-1', false);
+      expect(result.count).toBe(2);
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ['e1', 'e2'] },
+          userId: 'user-1',
+          deletedAt: null,
+        },
+        data: { isTrash: true },
+      });
+    });
+
+    it('batchDelete hard deletes multiple emails', async () => {
+      prisma.email.updateMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.batchDelete(['e1', 'e2'], 'user-1', true);
+      expect(result.count).toBe(2);
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ['e1', 'e2'] },
+          userId: 'user-1',
+        },
+        data: { deletedAt: expect.any(Date) },
+      });
+    });
+
+    it('batchStar stars multiple emails', async () => {
+      prisma.email.updateMany.mockResolvedValue({ count: 4 });
+
+      const result = await service.batchStar(['e1', 'e2', 'e3', 'e4'], 'user-1', true);
+      expect(result.count).toBe(4);
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: { in: ['e1', 'e2', 'e3', 'e4'] },
+          userId: 'user-1',
+          deletedAt: null,
+        },
+        data: { isStarred: true },
+      });
+    });
+
+    it('returns count 0 immediately on empty list without DB calls', async () => {
+      const result = await service.batchMarkRead([], 'user-1');
+      expect(result.count).toBe(0);
+      expect(prisma.email.updateMany).not.toHaveBeenCalled();
     });
   });
 });

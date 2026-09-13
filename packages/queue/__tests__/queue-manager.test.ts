@@ -6,6 +6,7 @@ const mockAddBulk = vi.fn().mockResolvedValue([]);
 const mockGetJob = vi.fn().mockResolvedValue({ id: 'job-1', data: {} });
 const mockDrain = vi.fn().mockResolvedValue(undefined);
 const mockClose = vi.fn().mockResolvedValue(undefined);
+const mockRemove = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('bullmq', () => ({
   Queue: vi.fn().mockImplementation(function () {
@@ -15,6 +16,7 @@ vi.mock('bullmq', () => ({
       getJob: mockGetJob,
       drain: mockDrain,
       close: mockClose,
+      remove: mockRemove,
     };
   }),
 }));
@@ -85,6 +87,11 @@ describe('TypedQueue', () => {
   it('should drain the queue', async () => {
     await queue.drain();
     expect(mockDrain).toHaveBeenCalled();
+  });
+
+  it('should remove a job by id', async () => {
+    await queue.remove('job-1');
+    expect(mockRemove).toHaveBeenCalledWith('job-1');
   });
 
   it('should close the queue', async () => {

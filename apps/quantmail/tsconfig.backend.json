@@ -23,7 +23,9 @@
       "@quant/ai": ["../../packages/ai/src/index.ts"],
       "@quant/ai/*": ["../../packages/ai/src/*"],
       "@quant/credits": ["../../packages/credits/src/index.ts"],
-      "@quant/credits/*": ["../../packages/credits/src/*"]
+      "@quant/credits/*": ["../../packages/credits/src/*"],
+      "@quant/queue": ["../../packages/queue/src/index.ts"],
+      "@quant/queue/*": ["../../packages/queue/src/*"]
     }
   },
   "include": ["backend/**/*.ts"],

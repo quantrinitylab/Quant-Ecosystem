@@ -454,6 +454,10 @@ const QUARANTINE_CASES: Array<[string, ReceiptOverrides]> = [
   ['a DMARC failure', { dmarcVerdict: { status: 'FAIL' } }],
   ['a spam verdict', { spamVerdict: { status: 'FAIL' } }],
   ['a virus verdict', { virusVerdict: { status: 'FAIL' } }],
+  [
+    'both SPF and DKIM failure',
+    { spfVerdict: { status: 'FAIL' }, dkimVerdict: { status: 'FAIL' } },
+  ],
 ];
 
 describe('POST /webhook/inbound — spam, virus and DMARC decide the folder', () => {

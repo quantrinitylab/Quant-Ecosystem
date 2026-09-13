@@ -209,6 +209,98 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: { emails } });
   });
 
+  // GET /contacts/export/vcard (Task QC-01)
+  fastify.get('/export/vcard', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new ContactService(prisma as never);
+    const vcard = await service.exportVCard(userId);
+    return reply.type('text/vcard').send(vcard);
+  });
+
+  // POST /contacts/import/vcard (Task QC-01)
+  fastify.post('/import/vcard', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const body = (request.body ?? {}) as { content?: string };
+    if (!body.content || typeof body.content !== 'string') {
+      throw createAppError('Invalid vCard content provided', 400, 'INVALID_INPUT');
+    }
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new ContactService(prisma as never);
+    const result = await service.importVCard(userId, body.content);
+    return reply.send({ success: true, data: result });
+  });
+
+  // GET /contacts/export/csv (Task QC-01)
+  fastify.get('/export/csv', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new ContactService(prisma as never);
+    const csv = await service.exportCsv(userId);
+    return reply.type('text/csv').send(csv);
+  });
+
+  // POST /contacts/import/csv (Task QC-01)
+  fastify.post('/import/csv', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const body = (request.body ?? {}) as { content?: string };
+    if (!body.content || typeof body.content !== 'string') {
+      throw createAppError('Invalid CSV content provided', 400, 'INVALID_INPUT');
+    }
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new ContactService(prisma as never);
+    const result = await service.importCsv(userId, body.content);
+    return reply.send({ success: true, data: result });
+  });
+
+  // GET /contacts/duplicates (Task QC-02)
+  fastify.get('/duplicates', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new ContactService(prisma as never);
+    const duplicates = await service.findDuplicates(userId);
+    return reply.send({ success: true, data: duplicates });
+  });
+
+  // POST /contacts/merge (Task QC-02)
+  fastify.post('/merge', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const mergeSchema = z.object({
+      primaryId: z.string().min(1),
+      duplicateIds: z.array(z.string().min(1)).min(1),
+    });
+    const parseResult = mergeSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new ContactService(prisma as never);
+    const merged = await service.mergeContacts(
+      userId,
+      parseResult.data.primaryId,
+      parseResult.data.duplicateIds,
+    );
+    return reply.send({ success: true, data: merged });
+  });
+
   // GET /contacts/:id
   //
   // Registered after the three static routes it shares a prefix with. Fastify's

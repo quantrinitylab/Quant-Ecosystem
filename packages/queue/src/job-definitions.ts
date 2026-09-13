@@ -75,3 +75,20 @@ export const TranscodeJobSchema = z.object({
 });
 
 export type TranscodeJob = z.infer<typeof TranscodeJobSchema>;
+
+export const ProactiveAgentJobSchema = z.object({
+  jobType: z.enum([
+    'meeting_reminder',
+    'meeting_call_alert',
+    'inbox_triage',
+    'code_review_reminder',
+    'daily_digest',
+  ]),
+  userId: z.string(),
+  targetApp: z.string(),
+  scheduledFor: z.string(),
+  payload: z.record(z.string(), z.unknown()),
+  priority: z.enum(['low', 'normal', 'high', 'urgent']),
+});
+
+export type ProactiveAgentJob = z.infer<typeof ProactiveAgentJobSchema>;
