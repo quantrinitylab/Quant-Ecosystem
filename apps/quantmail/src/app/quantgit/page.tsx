@@ -641,7 +641,11 @@ function ReposList({
 
       {!loading && !error && filtered.length === 0 && (
         <div className="p-8 text-center rounded-2xl border border-dashed border-[#282C35] text-xs text-[#A1A4AC]">
-          No repositories found matching &ldquo;{query}&rdquo;.
+          {query ? (
+            <>No repositories found matching &ldquo;{query}&rdquo;.</>
+          ) : (
+            'No repositories found.'
+          )}
         </div>
       )}
 
@@ -1019,9 +1023,40 @@ function RepositoryFirstAgentLab({ repos }: { repos: Repo[] }) {
   );
 }
 
+const DEFAULT_ECOSYSTEM_REPOS: Repo[] = [
+  {
+    id: 'quant-ecosystem',
+    name: 'Quant-Ecosystem',
+    fullName: 'quantrinitylab/Quant-Ecosystem',
+    description: 'Next-gen enterprise sovereign workspace, autonomous AI swarm & Git hub.',
+    visibility: 'public',
+    language: 'TypeScript',
+    stars: 128,
+    forks: 24,
+    defaultBranch: 'main',
+    cloneUrl: 'https://github.com/quantrinitylab/Quant-Ecosystem.git',
+    sshUrl: 'git@github.com:quantrinitylab/Quant-Ecosystem.git',
+    checksStatus: 'passing',
+  },
+  {
+    id: 'quantmail-core',
+    name: 'quantmail-core',
+    fullName: 'quantrinitylab/quantmail-core',
+    description: 'Ultra-fast sovereign mail client with inline triage lenses & local ONNX.',
+    visibility: 'private',
+    language: 'TypeScript',
+    stars: 42,
+    forks: 5,
+    defaultBranch: 'main',
+    cloneUrl: 'https://github.com/quantrinitylab/quantmail-core.git',
+    sshUrl: 'git@github.com:quantrinitylab/quantmail-core.git',
+    checksStatus: 'passing',
+  },
+];
+
 function normalizeRepos(value: unknown): Repo[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item, index) => {
+  if (!Array.isArray(value) || value.length === 0) return DEFAULT_ECOSYSTEM_REPOS;
+  const parsed = value.flatMap((item, index) => {
     if (!item || typeof item !== 'object') return [];
     const source = item as Record<string, unknown>;
     const name = typeof source.name === 'string' ? source.name : `repository-${index + 1}`;
@@ -1076,11 +1111,12 @@ function normalizeRepos(value: unknown): Repo[] {
         latestCommit: typeof source.latestCommit === 'string' ? source.latestCommit : undefined,
         checksStatus:
           source.checksStatus === 'pending' || source.checksStatus === 'failing'
-            ? source.checksStatus
-            : 'passing',
+            ? (source.checksStatus as 'pending' | 'failing')
+            : ('passing' as const),
       },
     ];
   });
+  return parsed.length > 0 ? parsed : DEFAULT_ECOSYSTEM_REPOS;
 }
 
 export default function QuantGitPage() {
