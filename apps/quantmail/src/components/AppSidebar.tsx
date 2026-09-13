@@ -222,10 +222,6 @@ const NAV_GROUPS: Array<{
       { id: 'inbox', label: 'Mail', icon: 'inbox', path: '/' },
       { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
-      { id: 'starred', label: 'Starred', icon: 'star', path: '/starred' },
-      { id: 'snoozed', label: 'Snoozed', icon: 'clock', path: '/snoozed' },
-      { id: 'archive', label: 'Archive', icon: 'archive', path: '/archive' },
-      { id: 'spam', label: 'Spam', icon: 'spam', path: '/?lens=spam' },
       { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
     ],
   },
@@ -264,20 +260,15 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
   const searchParams = useSearchParams();
   const currentLens = searchParams.get('lens');
   const isActive = (path: string) => {
-    if (path === '/?lens=spam') {
-      return pathname === '/' && currentLens === 'spam';
-    }
     if (path === '/') {
-      return pathname === '/' && currentLens !== 'spam';
+      return pathname === '/' && !currentLens;
     }
     return pathname.startsWith(path);
   };
   const { data: inboxEmails } = useInbox();
   const { data: draftEmails } = useInbox({ folderType: 'DRAFTS' });
-  const { data: spamEmails } = useInbox({ folderType: 'SPAM' });
   const unreadCount = inboxEmails?.filter((e) => !e.isRead).length ?? 0;
   const draftCount = draftEmails?.length ?? 0;
-  const spamCount = spamEmails?.length ?? 0;
   const { quota, known: quotaKnown, usedPct } = useStorageQuota();
 
   return (
@@ -347,17 +338,16 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
                       <Icon name={item.icon} />
                       <span>{item.label}</span>
                       {item.id === 'inbox' && unreadCount > 0 && (
-                        <span className="sidebar-count" aria-label={`${unreadCount} unread`}>{unreadCount}</span>
+                        <span className="sidebar-count" aria-label={`${unreadCount} unread`}>
+                          {unreadCount}
+                        </span>
                       )}
                       {item.id === 'drafts' && draftCount > 0 && (
-                        <span className="sidebar-count sidebar-count-muted" aria-label={`${draftCount} drafts`}>{draftCount}</span>
-                      )}
-                      {item.id === 'spam' && spamCount > 0 && (
                         <span
-                          className="sidebar-count bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]"
-                          aria-label={`${spamCount} spam`}
+                          className="sidebar-count sidebar-count-muted"
+                          aria-label={`${draftCount} drafts`}
                         >
-                          {spamCount}
+                          {draftCount}
                         </span>
                       )}
                       {item.id === 'inbox' && (
