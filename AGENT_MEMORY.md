@@ -857,3 +857,11 @@ graph TD
      - Added `/codehub` -> `/quantgit` redirect in `apps/quantmail/next.config.js`.
      - Updated `apps/quantmail/src/components/AppSidebar.tsx` and `AppShell.tsx` to mount `QuantGit` under `/quantgit`.
      - Verified clean client & backend TypeScript compilation (0 errors, exit code 0).
+     - Prerendered Next.js production build: `/quantgit` (10.4 kB, 126 kB First Load JS), `/codehub` redirect (342 B).
+   - **EKS Cluster Architecture (Astra Q1 Cleared)**:
+     - Nodes: `ip-192-168-23-39.ec2.internal` & `ip-192-168-38-58.ec2.internal` confirmed EC2 managed node groups (Amazon Linux 2023, Kernel 6.12.100, containerd 2.2.5). Not Fargate; gVisor runtime is 100% supported.
+   - **Automated Staging Deployment Dispatched on main (`08da9d40`)**:
+     - CI Gate: Run `34750494085`, Job `103706071844` passed in 4m45s (0 errors).
+     - Frontend Deployment: Run `34750703968` (`quantmail` build & deploy via AWS OIDC to EKS).
+     - Backend Deployment: Run `34750708804` (`quantmail-backend` build & deploy via AWS OIDC to EKS).
+     - Immutable Tag: `staging-pin-latest` updated to `08da9d40`.

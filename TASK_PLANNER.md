@@ -336,3 +336,11 @@
     - [x] `/codehub` -> `/quantgit` redirect configured in `apps/quantmail/next.config.js`.
     - [x] AppShell & AppSidebar updated to route QuantGit directly to `/quantgit`.
     - [x] `tsc --noEmit` and `build:backend` 100% clean (0 errors, exit code 0).
+    - [x] Next.js production build verified (`/quantgit` static prerender 10.4 kB).
+  - [x] **EKS Cluster Architecture Verified (Astra Q1)**:
+    - [x] Both nodes (`ip-192-168-23-39`, `ip-192-168-38-58`) confirmed EC2 managed nodes with containerd 2.2.5 (gVisor ready).
+  - [x] **Staging Deployment Dispatched on main (08da9d40)**:
+    - [x] CI Gate: Run `34750494085` passed (Job `103706071844` green in 4m45s).
+    - [x] Frontend Deploy: Run `34750703968` dispatched to EKS.
+    - [x] Backend Deploy: Run `34750708804` dispatched to EKS.
+    - [x] Staging tag `staging-pin-latest` updated on remote origin.
