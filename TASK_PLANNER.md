@@ -279,3 +279,9 @@
 - [x] **Task MC-19 (CI & Seam Alignment - Dev 2 / Dev 6)**: Fixed push notifications cross-compiler typing (`urlBase64ToUint8Array` returns standard `Uint8Array`, `applicationServerKey` cast to `BufferSource`), aligned `@quant/quant-live`, `@quant/webrtc`, and `@quant/search` to `status: 'deferred'` (preserving `lane: 'per-app'`) to reflect Wave D/F standalone prototype retirements. Verified 14/14 inventory tests and 9/9 `dod-cli` tree scan tests pass 100%. (Commit `4a419996`).
 - [x] **Task MC-20 (Search Component Alignment - Dev 4 / Dev 7)**: Verified QuantMail search is completely self-contained in `search-query.service.ts` + `email.service.ts` (PostgreSQL Prisma queries) and `ai-search-content.service.ts` (file content Prisma queries); deferred `@quant/search` package was an un-migrated prototype from `apps/admin` (retired in Wave F). Closed as cleanup per CEO Astra review.
 - [x] **Task MC-18 (Review Gate 18 - Dev 6 / Astra)**: CEO Astra officially reviewed and granted architectural sign-off on PR #260 ("Architecture: GRANTED. Code: CLEARED. CI: CLEARED on the substance. There is no remaining engineering objection to this branch"). Merged into `main` at commit `b68b86e4` with all 11 CI check runs passing green.
+- [x] **Task MC-Followups (Commit `dfb2e60f`)**:
+  - [x] Blocker 1 in `APP_MAP_AND_DEDUPLICATION_DECISIONS.md` aligned with migration 0061 schema reality.
+  - [x] Added explicit 500 error when voice bot secret is unconfigured in `apps/quantchat/backend/routes/voice-bot.ts` (7/7 tests passing).
+  - [x] Improved `SearchQueryService` to match independent free-text search terms with `AND` in any order across subject, snippet, and body (18/18 tests passing).
+  - [x] Documented PostgreSQL Prisma ILIKE search backend in `ai-search-content.service.ts`.
+  - [x] Triggered `@dependabot rebase` on PR #249.

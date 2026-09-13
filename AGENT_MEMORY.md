@@ -735,3 +735,9 @@ graph TD
   - 47,882 lines of dead prototype code pruned.
   - All 11 CI checks verified green (gate 7m17s, full-sweep 22m37s, QuantMail build 2m13s, CodeQL Advanced JS/TS 5m00s).
   - Open PR count on repository reduced from 14 down to 1 (only dependabot #249 remaining).
+- **Follow-up Hardening Landed (`dfb2e60f`)**:
+  - `APP_MAP_AND_DEDUPLICATION_DECISIONS.md`: aligned blocker 1 with Postgres schema reality.
+  - `voice-bot.ts`: added explicit 500 error when voice bot secret is unconfigured (7/7 tests passing).
+  - `search-query.service.ts`: matched independent free-text search terms with `AND` in any order across subject, snippet, and body (18/18 tests passing).
+  - `ai-search-content.service.ts`: documented PostgreSQL Prisma ILIKE search backend over `fileIndex`.
+  - Triggered `@dependabot rebase` on PR #249.
