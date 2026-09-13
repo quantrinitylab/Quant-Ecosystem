@@ -22,6 +22,14 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **PR #260 (`b68b86e4`)**: Master Consolidation PR (Waves B-F, Sprints 2-5, Wave F Deletions)
+  - [x] Pruned 7 dead standalone app directories from GitHub remote (`admin`, `marketing`, `status`, `quantcalendar`, `quantdocs`, `quantdrive`, `quantmeet`) — -47,882 dead lines eliminated.
+  - [x] Sprint 2 QuantMail flagship harvest (Git Smart HTTP, offline drafts, Bayes spam classifier, chunked uploads, storage quota locks, contact deduplication).
+  - [x] Sprint 3 Federated QuantAI swarm & 3-layer shared memory (Redis, Prisma, QuantDrive vector embeddings, BullMQ proactive scheduler).
+  - [x] Sprint 4 QuantChat voice agent & call alerts (LiveKit WebRTC bot, TTS/STT, multilingual reminder dialogue).
+  - [x] Sprint 5 Calendar-to-voice proactive loop (real-time calendar call alerts, CrossAppOrchestrator voice dispatch).
+  - [x] CEO Astra architectural audit remediations landed: MC-01 to MC-05, MC-15, MC-19, MC-20.
+  - [x] All 11 CI checks verified green (gate 7m17s, full-sweep 22m37s, QuantMail build 2m13s, CodeQL Advanced JS/TS 5m00s).
 - [x] **PR #247 (`948e3612`)**: QuantMail v2.0 Production Integration (Audited & Unified)
   - [x] `AUTH-01`: Hardened `/oauth/consent` session binding (prevented arbitrary `user_id` injection).
   - [x] `AUTH-03`: Eliminated internal mail spoofing/leak in `deliverInternally`.
@@ -253,7 +261,7 @@
    - [x] Closed PR #245 (superseded by PR #247 and PR #258).
    - [x] Closed PR #235 (superseded by PR #247).
    - [x] **PR #239 CONSOLIDATED**: Team memory and handoff kit merged into PR #260 (commit `96fb7e5a`, 32/32 tests passing) and closed.
-   - [x] **PR #260 (READY FOR REVIEW)**: Master consolidation PR (`https://github.com/quantrinitylab/Quant-Ecosystem/pull/260`) updated with Sprints 2-5, Wave F deletions, PR #239 coordination kit, and all 6 Astra audit remediations.
+   - [x] **PR #260 (MERGED TO MAIN `b68b86e4`)**: Master consolidation PR merged! Sprints 2-5, Wave F deletions (-47,882 dead lines), 7 standalone folders pruned from GitHub remote, all 11 CI checks green.
 10. [x] Maintain continuous dual-memory sync (`AGENT_MEMORY.md` & `TASK_PLANNER.md`) across repository and `C:\Users\Pc\.gemini\`.
 
 ---
@@ -261,11 +269,13 @@
 ### 🛡️ PR #260 REMEDIATION SPRINT (ASTRA EXECUTIVE VERDICT REMEDIATIONS)
 
 - **Audit Origin**: CEO Astra (Notion AI / Opus 5) Official PR #260 Audit (Timestamp: 2026-09-12 18:05 IST)
-- **Status**: Architecture GRANTED. Remediations implemented across commits `415b4870` and current hardening commit.
+- **Status**: Architecture GRANTED, Code CLEARED, CI CLEARED, PR #260 MERGED TO `main` at `b68b86e4`.
 - [x] **Task MC-01 (Critical Security - Dev 1 / Dev 8)**: Secure `POST /voice-bot/alert`: eliminated `userToken` leak; enforced strictly fail-closed HMAC SHA-256 verification (`x-quant-signature` header mandatory in non-test mode and when enforced); required `VOICE_BOT_SECRET` or `LIVEKIT_API_SECRET` at boot time in `app.ts` (7/7 tests passing).
 - [x] **Task MC-02 (High Security - Dev 1)**: Fixed ownership & auth in `/calls/:callId/answer`, `/decline`, `/turn`, and `GET /calls/:callId`: requires authenticated user in non-test environments (401 `UNAUTHORIZED`) and strictly enforces caller ownership against `call.userId` (403 `FORBIDDEN`).
 - [x] **Task MC-03 (CodeQL ReDoS - Dev 3)**: Replaced exponential regexes with linear line-by-line parsing in `contact.service.ts:436–440` vCard importer (CodeQL alert threads 63–67 resolved & outdated, 6/6 tests passing).
 - [x] **Task MC-04 (Correctness - Dev 3)**: Added `queue.remove(jobId)` to BullMQ `TypedQueue` and called it in `cancelAlertsForEvent` inside `calendar-call-alert.service.ts`. _(7/7 tests passing)_.
 - [x] **Task MC-05 (Correctness - Dev 7)**: Aligned `RelationalMemoryService` to use actual Prisma delegates `prisma.event` and `prisma.file` with legacy fallback, and added `updatedAt` to `RelationalRepo`. _(4/4 tests passing)_.
 - [x] **Task MC-15 (Governance - Dev 1)**: Expanded database migration `0061_quantapp_rebrand_backfill` to cover all 5 persisted `QuantApp` tables (`notifications.sourceApp`, `ai_sessions.sourceApp`, `user_presences.activeApp`, `app_grants.appId`, `memory_items.appSource`) with transparent `RAISE NOTICE` logging. _(174/174 database tests passing)_.
-- [ ] **Task MC-18 (Review Gate 18 - Dev 6 / Astra)**: Re-open PR #260 under Developer 6 account or authorize independent `APPROVE` review. (Astra published [QuantMail v2 — Production Staging Readiness Checklist](https://app.notion.com/p/QuantMail-v2-Production-Staging-Readiness-Checklist-1d3ec1e59ede414582907769172c226a?pvs=24) in Notion Team HQ).
+- [x] **Task MC-19 (CI & Seam Alignment - Dev 2 / Dev 6)**: Fixed push notifications cross-compiler typing (`urlBase64ToUint8Array` returns standard `Uint8Array`, `applicationServerKey` cast to `BufferSource`), aligned `@quant/quant-live`, `@quant/webrtc`, and `@quant/search` to `status: 'deferred'` (preserving `lane: 'per-app'`) to reflect Wave D/F standalone prototype retirements. Verified 14/14 inventory tests and 9/9 `dod-cli` tree scan tests pass 100%. (Commit `4a419996`).
+- [x] **Task MC-20 (Search Component Alignment - Dev 4 / Dev 7)**: Verified QuantMail search is completely self-contained in `search-query.service.ts` + `email.service.ts` (PostgreSQL Prisma queries) and `ai-search-content.service.ts` (file content Prisma queries); deferred `@quant/search` package was an un-migrated prototype from `apps/admin` (retired in Wave F). Closed as cleanup per CEO Astra review.
+- [x] **Task MC-18 (Review Gate 18 - Dev 6 / Astra)**: CEO Astra officially reviewed and granted architectural sign-off on PR #260 ("Architecture: GRANTED. Code: CLEARED. CI: CLEARED on the substance. There is no remaining engineering objection to this branch"). Merged into `main` at commit `b68b86e4` with all 11 CI check runs passing green.

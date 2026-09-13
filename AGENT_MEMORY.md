@@ -701,3 +701,37 @@ graph TD
    - Verified full end-to-end integration: `voice-bot-e2e.test.ts` (1/1) and `voice-bot.routes.test.ts` (5/5).
    - Full `@quant/quantchat` test suite: 96 test files, 889/889 tests passing 100% (zero failures, duration 67.15s).
    - Clean backend build: `pnpm --filter @quant/quantchat run build:backend` passed with exit code 0.
+
+---
+
+## ⚡ 9. SPRINT 5: CALENDAR-TO-VOICE PROACTIVE LOOP & ORCHESTRATOR
+
+1. **Calendar Call Alert Service (`Task CL-01`)**:
+   - Implemented `apps/quantmail/backend/services/calendar-call-alert.service.ts`: parses `type: 'call'` reminders, schedules BullMQ jobs on `'quant:proactive-jobs'`, and maintains memory fallback.
+   - Verified 7/7 tests passing in `calendar-call-alert.service.test.ts`.
+2. **Calendar Routes Integration (`Task CL-02`)**:
+   - Integrated alert scheduling into `POST /events`, rescheduling on `PUT/PATCH /events/:id`, and cancellation on `DELETE /events/:id`. Exposes `GET /events/alerts/scheduled`.
+3. **Cross-App Voice Meeting Dispatch (`Task CL-03`)**:
+   - Extended `apps/quantai/backend/services/cross-app-orchestrator.service.ts` with `scheduleMeetingWithVoiceAlert`.
+   - Verified: 20/20 tests passing in `cross-app-orchestrator.service.test.ts` (41/41 quantai suites passing, 441/441 tests passing).
+
+---
+
+## 🛡️ 10. PR #260 REMEDIATION SPRINT & ASTRA ARCHITECTURE SIGN-OFF
+
+- **Astra Official Verdict**: `"Architecture: GRANTED (unchanged). Code: CLEARED — no blocking code finding remains on the remediation set. CI: CLEARED on the substance. Stated as plainly as I can: there is no remaining engineering objection to this branch."`
+- **Tracking Ledger**: [🚦 QuantMail v2 — Production Staging Readiness Checklist](https://app.notion.com/p/QuantMail-v2-Production-Staging-Readiness-Checklist-1d3ec1e59ede414582907769172c226a?pvs=24) in Notion Team HQ.
+- **Remediations Landed**:
+  - `MC-01`: Fail-closed HMAC SHA-256 on `POST /voice-bot/alert`, removed token leak, boot guard requiring `VOICE_BOT_SECRET` in prod/staging.
+  - `MC-02`: Caller authentication (401) and ownership checks (403) on `/calls/:callId/answer`, `/decline`, `/turn`, and view routes.
+  - `MC-03`: ReDoS fix in `contact.service.ts` line parser.
+  - `MC-04`: BullMQ `queue.remove(jobId)` on alert cancellation.
+  - `MC-05`: Aligned `RelationalMemoryService` to Prisma delegates with `updatedAt` support.
+  - `MC-15`: Database migration `0061_quantapp_rebrand_backfill` covering all 5 persisted consumers with `RAISE NOTICE`.
+  - `MC-19`: Cross-compiler Push Notification `Uint8Array` typing and engine inventory seam alignment for retired prototypes. Verified 14/14 inventory tests and 9/9 `dod-cli` tests passing 100%.
+  - `MC-20`: Verified QuantMail search is self-contained in `search-query.service.ts` + `email.service.ts` (Postgres Prisma queries) and `ai-search-content.service.ts` (file content Prisma queries); deferred `@quant/search` package was an un-migrated prototype from `apps/admin` (retired in Wave F). Closed as cleanup.
+- **Master Merge to `main`**: PR #260 officially squash-merged into `main` at commit `b68b86e4eb270975901a5d29f03461725b817cab`.
+  - 7 deprecated standalone app directories permanently deleted from GitHub remote: `apps/admin`, `apps/marketing`, `apps/status`, `apps/quantcalendar`, `apps/quantdocs`, `apps/quantdrive`, `apps/quantmeet`.
+  - 47,882 lines of dead prototype code pruned.
+  - All 11 CI checks verified green (gate 7m17s, full-sweep 22m37s, QuantMail build 2m13s, CodeQL Advanced JS/TS 5m00s).
+  - Open PR count on repository reduced from 14 down to 1 (only dependabot #249 remaining).
