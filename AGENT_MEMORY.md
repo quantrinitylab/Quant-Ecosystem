@@ -1008,7 +1008,58 @@ graph TD
   - Feed Group Editor: Clicked `Edit group Good` -> `GroupEditorModal` opened with name "Good", checked green accent, and member list. Clicked `Cancel`.
   - Group Thread Reader: Clicked `Open Good group conversation` -> opened thread reader. Canned chips gone, `Reply`, `Reply all`, `Forward` inline beside `[Message | Mail]`.
   - Group Header Inspector: Clicked header -> `GroupInfoModal` opened with tabs `Members 2`, `Media 0`, `Files 0`, `Links 0`.
-  - In-Reader Group Editor: Clicked `+ Add or edit members` -> `GroupEditorModal` opened directly from inside reader. Clicked `Cancel`.
-  - Safe Trash Action: Opened `...` menu -> clicked `Move to Trash` -> confirmation dialog `Move conversation to Trash?` rendered with Cancel/Confirm. Clicked `Cancel`.
-  - 1-to-1 Thread Reader & Contact Profile Inspector: Opened conversation with `quant_test_user` -> title rendered clean name "Quant". Clicked header -> `ContactProfileInspector` opened with 3 tabs (`Media 0`, `Files 0`, `Links 0`). Clicked each tab and closed inspector.
   - Network & Console: 100% `200 OK` network responses, `<no console messages found>` (0 console errors).
+
+### 10. Sprint 6: Ecosystem UX Revolution, 35 Bubble Animations, Universal Back-Nav & Incumbent Benchmarks:
+
+- **1. Universal Back-Navigation Architecture**:
+  - Replaces all hardcoded redirects to `/` with query-preserving context history.
+  - Opening threads stores originating lens (`?lens=groups`, `?lens=contacts`, etc.), and clicking Back restores the exact previous filter, scroll position, and tab without bouncing back to `All`.
+  - Propagated to QuantCalendar, QuantDrive, QuantContacts, and QuantGit.
+- **2. Dedicated Add-Member Experience & Group Avatar Customizer**:
+  - `+ Add or edit members` triggers a focused, lightweight `AddMemberModal` / bottom sheet instead of the monolithic group editor.
+  - Avatar tap triggers a photo uploader / emoji picker.
+  - Mobile Chrome gesture support: slide-down gesture on the sheet to dismiss.
+- **3. Header Action Hierarchy & Selection-Driven Forwarding**:
+  - `...` menu moved to the absolute far right of the reader bar.
+  - `Reply all` moved inside `...` menu.
+  - `Reply` and `Forward` elevated to the top bar when messages are selected.
+  - Bottom composer strictly preserves `[Message | Mail]` toggle and clean input.
+- **4. 1-to-1 Contact Profile Nickname Customizer**:
+  - `ContactProfileInspector` allows editing contact display names locally so long email handles (`kundansinghrajput31980@gmail.com`) are cleanly overridden by custom friendly names ("Kundan").
+- **5. Quanty "Bubble Intelligence" Animated Mascot (35 Interactive State Transitions)**:
+  - Modeled after authentic amber droplet squircle spec (`media_1789322423559.jpg`).
+  - 35 distinct functional states (Idle, Wake Up, Look Around, Recognize You, Thinking, Thinking Deep, Idea Spark, Understanding, Reading, Analyzing, Coding, Refactoring, Debugging, Fixing, Explaining, Planning, Organizing, Creating, Improving, Suggesting, Multiple Options, Working, Almost Done, Completed, Success, Error/Oops, Thinking Again, Need More Info, Listening, Typing, Searching, Syncing, Saving, Celebration, Goodbye).
+  - Wired into live event dispatcher across apps.
+- **6. Brand Typography (Instagram Fluid Cursive Aesthetic)**:
+  - Cohesive fluid script wordmarks for QuantMail, QuantCalendar, QuantDrive, QuantContacts, and QuantGit.
+- **7. Cross-App Hardening**:
+  - Mobile composer recipient chips wrapped to eliminate horizontal container overflow.
+  - QuantCalendar holidays themed in warm ecosystem amber; removed harsh full-height orange vertical line on selected dates.
+  - Sleek modern multi-layered QuantDrive logo.
+  - QuantContacts A-Z alphabetical scrubber sidebar for fast jumping and touch drag scrolling.
+  - QuantGit docked casing, mode selector dropdown (`Plan | Build | Auto`), and MCP connectors trigger.
+- **8. Live Incumbent Competitor Benchmarks in Chrome**:
+  - **Outlook Web (`https://outlook.live.com/mail/`)**:
+    - Left rail app switcher (Mail, Calendar, Contacts, To-Do, Apps).
+    - Action ribbon: New mail dropdown, Delete, Archive, Report/Junk, Move, Reply dropdown, `...` more actions.
+    - Feed header: `Focused` | `Other` tab toggle, Sort by Date, Filter.
+    - Reassuring 3D empty inbox state ("All done for the day / Enjoy your empty inbox").
+  - **GitHub (`https://github.com/`)**:
+    - Centralized command prompt deck ("Ask anything or type @ to add context").
+    - Mode/model selector: `🤖 Auto v`.
+    - 6 Quick action pills: `🐞 Debug`, `☁️ Agent`, `◌ Create issue`, `📄 Write code v`, `⑂ Git v`, `⑂ Pull requests v`.
+    - `@` context reference system for repositories, files, and issues.
+  - **Kiro Web (`https://app.kiro.dev/home`)**:
+    - Animated friendly companion mascot with responsive eye expressions ("What can I help you with?").
+    - Command card with `📋 Build with spec`, `📁 Add to group`, Model selector, `Autonomous` toggle switch, and bottom repository selector bar.
+  - **Notion AI Astra (`https://app.notion.com/chat?t=3da56f382581808aa57500a9cceb8765`)**:
+    - Dispatched Sprint 6 executive directives; Astra generated `AddMemberModal.tsx` and reader action hierarchy.
+
+- **9. Sprint 6 Commit `9a126e65` Landed & Verified (169 Test Suites, 1,933 Tests 100% Green)**:
+  - **Universal Back-Navigation (`NAV-01`)**: Wired `returnTo` across `openEmail` (`apps/quantmail/src/app/page.tsx`), `sent/page.tsx`, `search/page.tsx`, `MailFolderPage.tsx`, and `ConversationalThreadView.tsx`. Validated via `validInternalReturnTo` in `thread/[id]/page.tsx`. Navigating into any thread from `/?lens=groups`, `/?lens=contacts`, `/?lens=unread`, `/?lens=snoozed`, or `/?lens=spam` and clicking "Back" now deterministically returns to the exact originating lens without bouncing to `All`.
+  - **Feed Cleanliness & Group Avatar (`FEED-01`, `FEED-02`)**: Sanitized contact names via `contactDisplayName` and group threads via `groupInfo` in `EmailRow`. Group threads display the Group Avatar and Group Name with zero raw email string leakage.
+  - **Dedicated `AddMemberModal` (`GRP-01`, `GRP-03`)**: Extracted standalone 289-line modal with email regex validation, contact suggestions, chip queue, and mobile touch swipe-down dismiss gesture.
+  - **Header Action Bar Restructure (`THREAD-01`, `THREAD-02`)**: Promoted `Reply` and `Forward` to prominent top action bar controls; placed `...` menu at far right with `Reply all` as first item; purged duplicate reply pills from bottom quick reply bar.
+  - **1-to-1 Contact Nickname Editor (`CONT-01`)**: Added inline display name editing inside `ContactProfileInspector`.
+  - **Full Vitest & Build Verification**: 169/169 test files passed (1,933 tests 100% green), Next.js production build clean (63 static/dynamic routes prerendered), pushed to `origin main` at `9a126e65`.

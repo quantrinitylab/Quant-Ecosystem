@@ -461,3 +461,119 @@
     - [x] Safe Trash Action: Opened `...` menu -> clicked `Move to Trash` -> confirmation dialog `Move conversation to Trash?` rendered with Cancel/Confirm. Clicked `Cancel`.
     - [x] 1-to-1 Thread Reader & Contact Profile Inspector: Opened conversation with `quant_test_user` -> title rendered clean name "Quant". Clicked header -> `ContactProfileInspector` opened with 3 tabs (`Media 0`, `Files 0`, `Links 0`). Clicked each tab and closed inspector.
     - [x] Network & Console: 100% `200 OK` network responses, `<no console messages found>` (0 console errors).
+
+---
+
+## 💎 SPRINT 6: ECOSYSTEM UX REVOLUTION & COMPETITOR BENCHMARK HARDENING
+
+> **Directive**: Strict anti-hallucination, discrete task execution, continuous Chrome browser benchmarking, and Notion Agent Swarm delegation (Opus 5 / GPT-6 Astra). Every item below must be verified click-by-click.
+
+### 🧭 Track 1: Universal Back-Navigation & Context Preservation
+
+- **Assigned to**: Developer 5 (Navigation & Routing) + Developer 2 (QA)
+- [x] **Task NAV-01**: Implement deterministic back-navigation in QuantMail. When opening any thread from `/?lens=groups`, `/?lens=contacts`, `/?lens=unread`, `/?lens=snoozed`, or `/?lens=spam`, or custom folder/search, preserve the source URL via `searchParams` / `sessionStorage` / `router.back()`. Clicking "Back to inbox" MUST return to the exact originating lens/state, NOT reset blindly to `All`. _(Completed in commit `9a126e65`)_.
+- [ ] **Task NAV-02**: Universal back-navigation audit and propagation across all apps: QuantCalendar (month/week/day view preservation), QuantDrive (folder drill-down preservation), QuantContacts (selected contact/search preservation), and QuantGit (repo/branch/file drill-down preservation).
+
+### 👥 Track 2: Feed & Header Cleanliness (Name & Group Truncation)
+
+- **Assigned to**: Developer 1 (Identity) + Developer 5
+- [x] **Task FEED-01**: Sanitize contact names across all conversation rows (`All`, `Unread`, `Contacts`, etc.). Never display raw concatenated handles like `kundansinghrajput31980` when display name can be cleanly truncated to `"Kundan"`. _(Completed in commit `9a126e65`)_.
+- [x] **Task FEED-02**: Ensure any group conversation in `All` and `Unread` feeds displays the Group Avatar and Group Name, not individual member emails. _(Completed in commit `9a126e65`)_.
+
+### ➕ Track 3: Dedicated Add-Member Experience & Group Avatar Customizer
+
+- **Assigned to**: Developer 3 (Contacts/Groups) + Developer 5
+- [x] **Task GRP-01**: Create dedicated, lightweight `AddMemberModal` / Drawer. Clicking `+ Add or edit members` or `Add member` shows ONLY the member addition interface (input + contact suggestions + add button), rather than launching the full Edit Group dialog. _(Completed in commit `9a126e65`)_.
+- [ ] **Task GRP-02**: Group photo/avatar customizer. Allow clicking the group avatar to upload an image or choose an emoji/color pattern.
+- [x] **Task GRP-03**: Mobile slide-down gesture / bottom sheet dismiss for modals in mobile Chrome. _(Completed in commit `9a126e65`)_.
+
+### ✉️ Track 4: Thread Reader Header & Action Bar Restructure
+
+- **Assigned to**: Developer 5 (QuantMail UX) + Developer 1
+- [x] **Task THREAD-01**: Header action bar reorganization:
+  - Place `...` (More actions menu) at the far right end of the top bar.
+  - Relocate `Reply` and `Forward` icons to the top action bar when a message is selected or active.
+  - Move `Reply all` inside the `...` (Three dots) dropdown menu. _(Completed in commit `9a126e65`)_.
+- [x] **Task THREAD-02**: Clean bottom composer: keep strictly the `[Message | Mail]` toggle, attachments, Quanty assistant trigger, text input, and send button. _(Completed in commit `9a126e65`)_.
+- [ ] **Task THREAD-03**: In-thread message selection mode: Tap/click message or press-and-hold to select message, highlighting it with contextual forward/reply actions.
+
+### 👤 Track 5: 1-to-1 Contact Profile Inspector Name Editing
+
+- **Assigned to**: Developer 3 (Contacts) + Developer 1
+- [x] **Task CONT-01**: Add inline name/nickname editing inside `ContactProfileInspector`. Allow the user to edit how the contact's name appears locally (e.g., customize `kundansinghrajput31980@gmail.com` to "Kundan"). _(Completed in commit `9a126e65`)_.
+
+### 🖱️ Track 6: Desktop Feed Row Actions (Hover 3-Dots Menu)
+
+- **Assigned to**: Developer 5 (QuantMail UX)
+- [ ] **Task ROW-01**: In `EmailRow.tsx`, replace the solitary Archive box with a clean 3-dots (`...`) menu on hover / row actions containing: Pin, Archive, Snooze, Move to Trash, Mark as Unread.
+
+### 🫧 Track 7: Quanty "Bubble Intelligence" Animated Mascot (35 Interactive States)
+
+- **Assigned to**: Developer 7 (AI / Mascot) + Developer 5
+- [ ] **Task MASC-01**: Replace the dual-eye/pupil logo with the authentic "Bubble Intelligence" glowing amber mascot from the user's uploaded spec (`media_1789322423559.jpg`).
+- [ ] **Task MASC-02**: Implement 35 meaningful state animations using lightweight Canvas / SVG / WebGL:
+  1. `Idle` (calm presence)
+  2. `Wake Up` (starts listening)
+  3. `Look Around` (gets context)
+  4. `Recognize You` (feels familiar)
+  5. `Thinking` (processing)
+  6. `Thinking Deep` (working harder)
+  7. `Idea Spark` (got something!)
+  8. `Understanding` (connecting dots)
+  9. `Reading` (scanning content)
+  10. `Analyzing` (breaking it down)
+  11. `Coding` (writing code)
+  12. `Refactoring` (making it better)
+  13. `Debugging` (finding issues)
+  14. `Fixing` (applying solution)
+  15. `Explaining` (breaking it simple)
+  16. `Planning` (creating a roadmap)
+  17. `Organizing` (structuring ideas)
+  18. `Creating` (generating content)
+  19. `Improving` (finding better way)
+  20. `Suggesting` (here's an idea)
+  21. `Multiple Options` (you have choices)
+  22. `Working` (in progress)
+  23. `Almost Done` (wrapping up)
+  24. `Completed` (task finished)
+  25. `Success` (feels good!)
+  26. `Error / Oops` (something's wrong)
+  27. `Thinking Again` (reassessing)
+  28. `Need More Info` (asks a question)
+  29. `Listening` (your turn)
+  30. `Typing` (responding)
+  31. `Searching` (finding resources)
+  32. `Syncing` (working across tools)
+  33. `Saving` (keeping it safe)
+  34. `Celebration` (you did it!)
+  35. `Goodbye` (see you soon!)
+- [ ] **Task MASC-03**: Bind mascot states to live ecosystem events (e.g., mail sending -> `Working`/`Saving`, AI review -> `Coding`/`Analyzing`, search -> `Searching`, error -> `Error/Oops`, etc.).
+
+### ✍️ Track 8: Fluid Cursive Typography & Wordmarks
+
+- **Assigned to**: Developer 5 (Brand & Typography)
+- [ ] **Task BRAND-01**: Restructure wordmarks for `QuantMail`, `QuantCalendar`, `QuantDrive`, `QuantContacts`, and `QuantGit` into cohesive, fluid, Instagram-inspired cursive/crafted aesthetic instead of awkward mechanical splits.
+
+### 🛠️ Track 9: Cross-App UX Polish
+
+- **Assigned to**: Developer 3, Developer 4, Developer 6
+- [ ] **Task COMP-01**: Fix Composer recipient address tag box overflow on mobile screens so tags and email strings wrap neatly within the bounds.
+- [ ] **Task CAL-01**: QuantCalendar Holidays & Selection refinement:
+  - Change green holiday pills (e.g., Ganesh Chaturthi) to ecosystem amber/warm neutral theme.
+  - Remove harsh full-height orange vertical line/shadow bar on the left sidebar date item; rely on subtle surface contrast.
+- [ ] **Task DRV-01**: QuantDrive Logo Redesign: Replace the clunky "paper with hat" look with a sleek, modern, multi-layered cloud/drive symbol harmonized with the ecosystem.
+- [ ] **Task CONT-02**: QuantContacts A-Z scrubber: Add vertical alphabetical index strip (A-Z) on the sidebar for 1-tap jumping and touch drag scrolling.
+- [ ] **Task GIT-01**: QuantGit Command Deck & UI refinement:
+  - Solid bottom docked casing with zero background bleed-through.
+  - Replace side-by-side Plan/Build buttons with a sleek mode selector dropdown / toggle (`Plan`, `Build`, `Auto`).
+  - Add MCP Connectors trigger button (`+`).
+
+### 🌐 Track 10: Competitor Benchmarking Matrix & Notion AI Swarm Orchestration
+
+- **Assigned to**: CEO Astra + Antigravity Orchestrator
+- [ ] **Task BENCH-01**: Deeply audit logged-in competitor sessions via Chrome MCP:
+  - Outlook Web (`outlook.live.com` / `outlook.office.com`)
+  - GitHub (`github.com`)
+  - Kiro AI (`app.kiro.dev/home`)
+  - iCloud / Proton / Yahoo
+- [ ] **Task SWARM-01**: Dispatch technical specifications to all Notion agents (CEO Astra + Devs 1-7) in Notion chat sessions for deep implementation.
