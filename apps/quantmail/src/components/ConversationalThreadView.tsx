@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiClient } from '../services/api-client';
-import type { Email, EmailAttachment, EmailThread, MessageKind } from '../types';
+import type { ContactGroup, Email, EmailAttachment, EmailThread, MessageKind } from '../types';
+import { useContactGroups } from '../hooks/useContactGroups';
+import { GroupInfoModal } from './GroupInfoModal';
 import { AnchoredMenu } from './AnchoredMenu';
 import { showToast } from './InboxToast';
 import { IdentityAvatar } from './IdentityAvatar';
@@ -36,6 +38,72 @@ import { useInbox } from '../hooks/useInbox';
  * first opened; latched from then on so the conversation survives a close.
  */
 const QuantyCopilotDrawer = dynamic(() => import('./QuantyCopilotDrawer'), { ssr: false });
+
+function normalizedEmail(value?: string): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
+function normalizedGroupSubject(value?: string): string {
+  return (value ?? '')
+    .replace(/^(?:re|fwd):\s*/gi, '')
+    .replace(/^\[group\]\s*/i, '')
+    .trim()
+    .toLowerCase();
+}
+
+function messageParticipantAddresses(messages: Email[], currentEmail: string): Set<string> {
+  const ownAddress = normalizedEmail(currentEmail);
+  const addresses = new Set<string>();
+
+  for (const message of messages) {
+    const candidates = [
+      message.from?.email,
+      ...(message.to ?? []).map((recipient) => recipient.email),
+      ...(message.cc ?? []).map((recipient) => recipient.email),
+    ];
+
+    for (const candidate of candidates) {
+      const email = normalizedEmail(candidate);
+      if (email && email !== ownAddress) addresses.add(email);
+    }
+  }
+
+  return addresses;
+}
+
+function findActiveGroup(
+  groups: ContactGroup[],
+  messages: Email[],
+  currentEmail: string,
+  subject: string,
+): ContactGroup | null {
+  if (groups.length === 0 || messages.length === 0) return null;
+
+  const normalizedSubject = normalizedGroupSubject(subject);
+
+  const subjectMatch = groups.find(
+    (group) => normalizedGroupSubject(group.name) === normalizedSubject,
+  );
+
+  if (subjectMatch) return subjectMatch;
+
+  const participants = messageParticipantAddresses(messages, currentEmail);
+
+  return (
+    groups
+      .filter((group) => group.emails.length > 0)
+      .map((group) => ({
+        group,
+        addresses: new Set(group.emails.map(normalizedEmail).filter(Boolean)),
+      }))
+      .filter(
+        ({ addresses }) =>
+          addresses.size === participants.size &&
+          [...addresses].every((email) => participants.has(email)),
+      )
+      .map(({ group }) => group)[0] ?? null
+  );
+}
 
 function formatMessageDate(value?: string | Date): string {
   if (!value) return '';
@@ -160,6 +228,18 @@ export function ConversationalThreadView({
   const { user: currentUser } = useAuth();
   const currentEmail = (currentUser?.email || '').toLowerCase();
   const currentHandle = currentEmail.split('@')[0];
+
+  const { data: contactGroups } = useContactGroups();
+  const [isGroupInfoOpen, setIsGroupInfoOpen] = useState(false);
+
+  const activeGroup = useMemo(
+    () => findActiveGroup(contactGroups ?? [], messages, currentEmail, threadSubject),
+    [contactGroups, currentEmail, messages, threadSubject],
+  );
+
+  useEffect(() => {
+    setIsGroupInfoOpen(false);
+  }, [threadId]);
 
   // Derive participant summary for header
   /**
@@ -541,9 +621,10 @@ export function ConversationalThreadView({
       // Optimistic update: inject the sent reply into the active conversation timeline
       const newReplyMsg: Email = {
         id: (res.data as any)?.id || `reply-${Date.now()}`,
-        threadId: threadId || (res.data as any)?.threadId || '',
+        threadId: res.data?.threadId || messages[messages.length - 1]?.threadId || threadId,
         userId: '',
-        subject: threadSubject.startsWith('Re:') ? threadSubject : `Re: ${threadSubject}`,
+        subject: res.data?.subject || threadSubject,
+        inReplyTo: res.data?.inReplyTo || replyTarget,
         bodyText: replyContent,
         // `plainTextToHtml` rather than a local `replace(/\n/g, '<br/>')`: this is
         // the second place that conversion was hand-written, and the hand-written
@@ -702,37 +783,56 @@ export function ConversationalThreadView({
             </button>
           )}
 
-          <div className="flex flex-col min-w-0 flex-1">
-            {/*
-              Line one is the person, and nothing shares it.
+          {activeGroup ? (
+            <button
+              type="button"
+              onClick={() => setIsGroupInfoOpen(true)}
+              className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1.5 text-left transition-colors hover:bg-[#16181D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              aria-label={`Open details and shared media for ${activeGroup.name}`}
+            >
+              <span
+                aria-hidden="true"
+                className="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-black text-[#090A0C]"
+                style={{
+                  backgroundColor: activeGroup.color ?? '#FF8C42',
+                }}
+              >
+                {activeGroup.name
+                  .replace(/[._-]+/g, ' ')
+                  .split(/\s+/)
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((part) => part[0])
+                  .join('')
+                  .toUpperCase()}
+              </span>
 
-              The count pill used to sit beside the name with `shrink-0`, and on a
-              375px header — back button, four 44px actions — what was left for the two
-              of them was 83px against the pill's 84. `truncate` sets `overflow:hidden`,
-              which lets a flex item's automatic minimum size fall to zero, so the name
-              did not ellipsize, it *vanished*: a chat header whose whole job is to say
-              who you are talking to, rendering it at width 0. The pill reads the same
-              on line two, where the subject can afford to give up the room.
-            */}
-            <h2 className="min-w-0 truncate text-sm font-bold text-white sm:text-base">
-              {participantSummary}
-            </h2>
-            <div className="flex min-w-0 items-center gap-2">
-              {/*
-                A count, not an alert. This was a brand-orange pill, which put the
-                loudest colour on the palette on a number that is present on every
-                conversation ever opened — the same "100% coverage, 0 bits" the inbox
-                row's `Mail` pill had. Neutral card surface; the number still reads at
-                7.94:1.
-              */}
-              <span className="shrink-0 rounded-full border border-[#282C35] bg-[#16181D] px-2 py-0.5 text-[10px] font-bold text-[#A1A4AC]">
-                {messages.length} {messages.length === 1 ? 'Message' : 'Messages'}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-sm font-bold text-white sm:text-base">
+                  {activeGroup.name}
+                </span>
+                <span className="truncate text-[11px] text-[#A1A4AC] transition-colors group-hover:text-[#FF9B5A]">
+                  {activeGroup.emails.length}{' '}
+                  {activeGroup.emails.length === 1 ? 'member' : 'members'} · Tap for group details
+                  &amp; media
+                </span>
               </span>
-              <span className="min-w-0 truncate text-[11px] text-[#A1A4AC]">
-                {threadSubject || '(No Subject)'}
-              </span>
+            </button>
+          ) : (
+            <div className="flex flex-col min-w-0 flex-1">
+              <h2 className="min-w-0 truncate text-sm font-bold text-white sm:text-base">
+                {participantSummary}
+              </h2>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0 rounded-full border border-[#282C35] bg-[#16181D] px-2 py-0.5 text-[10px] font-bold text-[#A1A4AC]">
+                  {messages.length} {messages.length === 1 ? 'Message' : 'Messages'}
+                </span>
+                <span className="min-w-0 truncate text-[11px] text-[#A1A4AC]">
+                  {threadSubject || '(No Subject)'}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/*
@@ -1703,6 +1803,24 @@ export function ConversationalThreadView({
             setTimeout(() => {
               document.getElementById('chatbot-reply-input')?.focus();
             }, 50);
+          }}
+        />
+      )}
+
+      {activeGroup && (
+        <GroupInfoModal
+          isOpen={isGroupInfoOpen}
+          group={activeGroup}
+          messages={messages}
+          currentUserEmail={currentEmail}
+          onClose={() => setIsGroupInfoOpen(false)}
+          onEditGroup={() => {
+            setIsGroupInfoOpen(false);
+            window.dispatchEvent(
+              new CustomEvent('quantmail:edit-contact-group', {
+                detail: { groupId: activeGroup.id },
+              }),
+            );
           }}
         />
       )}

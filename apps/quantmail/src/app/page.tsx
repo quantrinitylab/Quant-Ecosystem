@@ -1247,7 +1247,6 @@ export default function InboxPage() {
    */
   const filterGroupLabelId = useId();
   const filterPanelId = useId();
-  const savedGroupsLabelId = useId();
   /**
    * The tablist's other half. A `role="tab"` owes a reader the thing it controls —
    * `aria-controls` is required on a tab, not advisory — and without it the chips
@@ -1343,6 +1342,24 @@ export default function InboxPage() {
   const updateGroup = useUpdateContactGroup();
   const deleteGroup = useDeleteContactGroup();
   const savedGroups = contactGroups ?? [];
+
+  useEffect(() => {
+    const handleEditGroup = (event: Event) => {
+      const customEvent = event as CustomEvent<{ groupId?: string }>;
+      const groupId = customEvent.detail?.groupId;
+
+      if (!groupId) return;
+
+      const group = savedGroups.find((candidate) => candidate.id === groupId);
+      if (group) setGroupEditorTarget(group);
+    };
+
+    window.addEventListener('quantmail:edit-contact-group', handleEditGroup as EventListener);
+
+    return () => {
+      window.removeEventListener('quantmail:edit-contact-group', handleEditGroup as EventListener);
+    };
+  }, [savedGroups]);
 
   /**
    * Write to a group. The chip is the compose surface, so this is what "using" a
@@ -1543,6 +1560,43 @@ export default function InboxPage() {
     const ccCount = Array.isArray(msg.cc) ? msg.cc.length : 0;
     return toCount + ccCount > 1 || (msg as any).isGroup === true;
   }, []);
+
+  const findGroupThread = useCallback(
+    (group: ContactGroup): ConversationThread | null => {
+      const expectedAddresses = new Set(
+        group.emails.map((email) => email.trim().toLowerCase()).filter(Boolean),
+      );
+
+      if (expectedAddresses.size === 0) return null;
+
+      const normalizedGroupName = group.name.trim().toLowerCase();
+
+      const candidates = (threads ?? []).filter((thread) => {
+        const addresses = new Set(
+          threadAddresses(thread.messages, currentEmail).map((email) => email.trim().toLowerCase()),
+        );
+
+        const exactMemberMatch =
+          addresses.size === expectedAddresses.size &&
+          [...expectedAddresses].every((email) => addresses.has(email));
+
+        const normalizedSubject = thread.subject
+          .replace(/^(?:re|fwd):\s*/gi, '')
+          .replace(/^\[group\]\s*/i, '')
+          .trim()
+          .toLowerCase();
+
+        return exactMemberMatch || normalizedSubject === normalizedGroupName;
+      });
+
+      return (
+        candidates.sort(
+          (a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime(),
+        )[0] ?? null
+      );
+    },
+    [currentEmail, threads],
+  );
 
   /**
    * A conversation carries an attachment when any message in it does — not just
@@ -1929,7 +1983,8 @@ export default function InboxPage() {
    * states each replace it entirely, and the archived shelf has to move with it,
    * so the condition is named once rather than repeated at every branch.
    */
-  const showThreadList = !isLoading && !isSearching && !error && displayThreads.length > 0;
+  const showThreadList =
+    activeLens !== 'groups' && !isLoading && !isSearching && !error && displayThreads.length > 0;
 
   const virtualizer = useVirtualizer({
     count: displayThreads.length,
@@ -2765,117 +2820,6 @@ export default function InboxPage() {
             </div>
           </div>
 
-          {/*
-            Your saved groups.
-
-            A sibling row rather than something inside the list, so it survives
-            every list state — loading, error, empty, populated. A user who opened
-            this lens to write to a group should not have to wait for the mailbox to
-            resolve before the group is reachable.
-
-            It is explicitly labelled `Your groups` and sits apart from the lens
-            chips because the `Groups` lens answers a different question: the chips
-            above narrow the mailbox to multi-person conversations, these chips are
-            address sets the user saved. Folding one into the other would make a
-            single control mean two things.
-          */}
-          {activeLens === 'groups' && (
-            <section
-              aria-labelledby={savedGroupsLabelId}
-              className="flex items-center gap-2 py-2 px-3 sm:px-4 border-b border-[#282C35] bg-[#0B0C0F]"
-            >
-              <p
-                id={savedGroupsLabelId}
-                className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]"
-              >
-                Your groups
-              </p>
-              {areGroupsPending ? (
-                /*
-                  `variant="circle"` for a pill: it is the one variant that sets no
-                  height class of its own, so the `width`/`height` props — which land
-                  as inline style — decide the box outright. A `className` of
-                  `h-11 w-32` would be racing the variant's own `h-4` on stylesheet
-                  order rather than overriding it.
-
-                  The second pill is hidden from assistive tech so the row announces
-                  "loading your groups" once, not twice.
-                */
-                <div className="flex items-center gap-2">
-                  <Skeleton
-                    variant="circle"
-                    width="132px"
-                    height="44px"
-                    aria-label="Loading your groups"
-                  />
-                  <span aria-hidden="true">
-                    <Skeleton variant="circle" width="96px" height="44px" />
-                  </span>
-                </div>
-              ) : groupsError ? (
-                /*
-                  A failed fetch is not "you have no groups". Saying so, with the
-                  create button still available, is the difference between a state
-                  the user can act on and one that quietly invites them to
-                  re-create something they already have.
-                */
-                <p className="text-xs text-rose-300 min-w-0 truncate">
-                  Could not load your groups.{' '}
-                  <span className="text-[#A1A4AC]">They are safe — try again in a moment.</span>
-                </p>
-              ) : savedGroups.length === 0 ? (
-                <p className="text-xs text-[#A1A4AC] min-w-0 truncate">
-                  None yet. A group is a set of addresses you write to in one tap.
-                </p>
-              ) : (
-                /*
-                  A real `ul`/`li` rather than `role="list"` on a div: the roles
-                  come free, and the alternative — a `display: contents` wrapper
-                  carrying `role="listitem"` — is a shape several browsers are known
-                  to strip the semantics from.
-
-                  `role="list"` is still spelled out, redundant as it looks. WebKit
-                  drops list semantics from a `ul` whose `list-style` is `none`, and
-                  a horizontal chip rail cannot keep its bullets — so the one thing
-                  that makes this a list to a reader is the thing the styling
-                  removes, unless the role says otherwise.
-                */
-                <ul
-                  role="list"
-                  className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto no-scrollbar list-none m-0 p-0"
-                >
-                  {savedGroups.map((group) => (
-                    <li key={group.id} className="shrink-0">
-                      <GroupChip
-                        group={group}
-                        onCompose={() => composeToGroup(group)}
-                        onEdit={() => setGroupEditorTarget(group)}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <button
-                type="button"
-                onClick={() => setGroupEditorTarget('new')}
-                className="ml-auto shrink-0 inline-flex items-center gap-1.5 px-3 min-h-touch rounded-full bg-[#111318] border border-dashed border-[#3A404D] text-xs font-semibold text-[#A1A4AC] hover:text-[#FF8C42] hover:border-[#5C3016] hover:bg-[#1C1F26] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-              >
-                <svg
-                  className="size-3.5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  aria-hidden="true"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-                <span className="whitespace-nowrap">New group</span>
-              </button>
-            </section>
-          )}
-
           {/* Pull to Refresh Indicator Bar */}
           <AnimatePresence>
             {(pullDistance > 0 || isRefreshing) && (
@@ -2994,170 +2938,190 @@ export default function InboxPage() {
                     </div>
                   </div>
                 ) : activeLens === 'groups' && narrowingCount === 0 ? (
-                  savedGroups.length > 0 ? (
-                    <div className="w-full flex flex-col divide-y divide-[#282C35] border-b border-[#282C35]">
-                      <div className="px-4 py-2 bg-[#0B0C0F] flex items-center justify-between text-[11px] text-[#A1A4AC] font-semibold tracking-wide uppercase">
-                        <span>Your Groups</span>
-                        <span>
-                          {savedGroups.length} {savedGroups.length === 1 ? 'Group' : 'Groups'}
+                  <section aria-label="Your groups" className="w-full border-b border-[#282C35]">
+                    <header className="flex items-center justify-between gap-3 border-b border-[#282C35] bg-[#0B0C0F] px-4 py-3">
+                      <div>
+                        <h2 className="text-sm font-bold text-[#F5F5F5]">Groups</h2>
+                        <p className="mt-0.5 text-[11px] text-[#A1A4AC]">
+                          Open an existing conversation or start a new group chat.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setGroupEditorTarget('new')}
+                        className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl bg-[#FF8C42] px-3.5 text-xs font-bold text-[#090A0C] transition-colors hover:bg-[#FF9B5A] active:bg-[#E8752F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]"
+                      >
+                        <span aria-hidden="true" className="text-base leading-none">
+                          +
                         </span>
+                        New group
+                      </button>
+                    </header>
+
+                    {areGroupsPending ? (
+                      <div className="space-y-2 p-3">
+                        {[0, 1, 2].map((index) => (
+                          <Skeleton
+                            key={index}
+                            variant="rect"
+                            width="100%"
+                            height="76px"
+                            aria-label={index === 0 ? 'Loading groups' : undefined}
+                          />
+                        ))}
                       </div>
-                      {savedGroups.map((group) => {
-                        const count = group.emails.length;
-                        const accent = group.color ?? '#FF8C42';
-                        const matchingThread = threads.find((t) => {
-                          const addresses = threadAddresses(t.messages, currentEmail);
-                          return group.emails.some((email) =>
-                            addresses.includes(email.toLowerCase()),
-                          );
-                        });
-                        return (
-                          <div
-                            key={group.id}
-                            onClick={() => {
-                              if (matchingThread) {
-                                setSelectedThread(matchingThread);
-                              } else {
-                                setQuickGroupChatTarget(group);
-                              }
-                            }}
-                            className="w-full flex items-center justify-between gap-3.5 px-4 py-3.5 bg-[#111318] hover:bg-[#16181D] cursor-pointer transition-all group select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    ) : groupsError ? (
+                      <div className="px-6 py-14 text-center">
+                        <h3 className="text-sm font-bold text-[#F5F5F5]">
+                          Groups could not be loaded
+                        </h3>
+                        <p className="mt-1 text-xs text-[#A1A4AC]">
+                          Your saved groups are safe. Try again in a moment.
+                        </p>
+                      </div>
+                    ) : savedGroups.length === 0 ? (
+                      <div className="flex min-h-[320px] flex-col items-center justify-center px-6 text-center">
+                        <div className="flex size-14 items-center justify-center rounded-full border border-[#282C35] bg-[#16181D] text-[#FF8C42]">
+                          <svg
+                            className="size-6"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            aria-hidden="true"
                           >
-                            <div className="relative shrink-0">
-                              <div
-                                className="size-11 rounded-full flex items-center justify-center text-[#111318] font-bold shadow-md"
-                                style={{ background: accent }}
-                              >
-                                <svg
-                                  className="size-5 text-[#111318]"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.2"
-                                >
-                                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                                  <circle cx="9" cy="7" r="4" />
-                                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                                </svg>
-                              </div>
-                              <span className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full bg-emerald-500 border-2 border-[#111318]" />
-                            </div>
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                          </svg>
+                        </div>
 
-                            <div className="flex-1 min-w-0 flex flex-col justify-center">
-                              <div className="flex items-center justify-between gap-2 mb-0.5">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="text-sm font-bold text-[#F5F5F5] group-hover:text-white truncate">
-                                    {group.name}
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded-full bg-[#282C35] text-[10px] font-semibold text-[#A1A4AC] shrink-0">
-                                    {count} {count === 1 ? 'member' : 'members'}
-                                  </span>
-                                </div>
-                                <span className="text-[11px] font-mono text-[#A1A4AC] shrink-0">
-                                  {matchingThread
-                                    ? formatReceivedAt(matchingThread.receivedAt)
-                                    : 'Ready'}
-                                </span>
-                              </div>
-                              <p className="text-xs text-[#A1A4AC] group-hover:text-[#D1D5DB] truncate">
-                                {matchingThread ? (
-                                  <span>
-                                    <strong className="text-[#FF8C42] font-medium">
-                                      {matchingThread.participantsSummary}:{' '}
-                                    </strong>
-                                    {matchingThread.latestEmail?.snippet ||
-                                      matchingThread.subject ||
-                                      '(No preview)'}
-                                  </span>
-                                ) : (
-                                  <span className="text-[#A1A4AC]/80 italic">
-                                    Tap to open group chat · {group.emails.slice(0, 3).join(', ')}
-                                    {group.emails.length > 3 ? '...' : ''}
-                                  </span>
-                                )}
-                              </p>
-                            </div>
+                        <h3 className="mt-4 text-base font-bold text-[#F5F5F5]">
+                          Create your first group
+                        </h3>
 
-                            <div
-                              className="flex items-center gap-1.5 shrink-0"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (matchingThread) {
-                                    setSelectedThread(matchingThread);
-                                  } else {
-                                    setQuickGroupChatTarget(group);
-                                  }
-                                }}
-                                className="px-3 py-1.5 rounded-xl bg-[#2B1A11] hover:bg-[#3D2518] text-[#FF8C42] border border-[#5C3016] text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-sm"
-                                title="Open Group Chat"
-                              >
-                                <svg
-                                  className="size-3.5"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.2"
-                                >
-                                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                                </svg>
-                                <span>Chat</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setGroupEditorTarget(group)}
-                                className="p-2 rounded-xl text-[#A1A4AC] hover:text-[#FF8C42] hover:bg-[#282C35] transition-colors"
-                                title="Edit group members"
-                                aria-label={`Edit group ${group.name}`}
-                              >
-                                <svg
-                                  className="size-3.5"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                >
-                                  <path d="M12 20h9" />
-                                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="mail-empty py-12 px-4 text-center space-y-3">
-                      <div className="size-14 rounded-2xl bg-emerald-950/30 border border-emerald-800/40 text-emerald-400 flex items-center justify-center mx-auto mb-1">
-                        <svg
-                          className="size-7"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          aria-hidden="true"
+                        <p className="mt-1 max-w-sm text-xs leading-5 text-[#A1A4AC]">
+                          Save a set of addresses and keep every message in one unified
+                          conversation.
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() => setGroupEditorTarget('new')}
+                          className="mt-5 min-h-[44px] rounded-xl bg-[#FF8C42] px-5 text-xs font-bold text-[#090A0C] hover:bg-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                         >
-                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                          <circle cx="9" cy="7" r="4" />
-                          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                        </svg>
+                          + New group
+                        </button>
                       </div>
-                      <h3 className="text-base font-bold text-white">Start a group conversation</h3>
-                      <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
-                        Bring your team or friends together in one thread — send instant updates,
-                        share attachments, and chat in real time.
-                      </p>
-                      <div className="pt-2 flex justify-center">
-                        <Button variant="primary" onClick={() => setGroupEditorTarget('new')}>
-                          + Create a group
-                        </Button>
-                      </div>
-                    </div>
-                  )
+                    ) : (
+                      <ul role="list" className="m-0 list-none divide-y divide-[#282C35] p-0">
+                        {savedGroups.map((group) => {
+                          const matchingThread = findGroupThread(group);
+                          const latestMessage = matchingThread?.latestEmail;
+                          const accent = group.color ?? '#FF8C42';
+                          const memberCount = group.emails.length;
+
+                          return (
+                            <li key={group.id}>
+                              <div className="group flex min-h-[78px] items-center gap-3 bg-[#111318] px-3 py-2 transition-colors hover:bg-[#16181D] sm:px-4">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (matchingThread) {
+                                      openEmail(matchingThread.latestEmail, matchingThread);
+                                    } else {
+                                      setQuickGroupChatTarget(group);
+                                    }
+                                  }}
+                                  className="flex min-h-[60px] min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                                  aria-label={
+                                    matchingThread
+                                      ? `Open ${group.name} group conversation`
+                                      : `Start a conversation with ${group.name}`
+                                  }
+                                >
+                                  <span className="relative shrink-0">
+                                    <span
+                                      className="flex size-12 items-center justify-center rounded-full text-sm font-black text-[#090A0C]"
+                                      style={{ backgroundColor: accent }}
+                                      aria-hidden="true"
+                                    >
+                                      {group.name
+                                        .replace(/[._-]+/g, ' ')
+                                        .split(/\s+/)
+                                        .filter(Boolean)
+                                        .slice(0, 2)
+                                        .map((part) => part[0])
+                                        .join('')
+                                        .toUpperCase()}
+                                    </span>
+
+                                    <span className="absolute -bottom-1 -right-1 flex min-w-5 items-center justify-center rounded-full border-2 border-[#111318] bg-[#282C35] px-1 text-[9px] font-bold text-[#F5F5F5]">
+                                      {memberCount}
+                                    </span>
+                                  </span>
+
+                                  <span className="min-w-0 flex-1">
+                                    <span className="flex items-center justify-between gap-3">
+                                      <strong className="truncate text-sm text-[#F5F5F5]">
+                                        {group.name}
+                                      </strong>
+
+                                      {matchingThread && (
+                                        <time className="shrink-0 text-[10px] text-[#A1A4AC]">
+                                          {formatReceivedAt(matchingThread.receivedAt)}
+                                        </time>
+                                      )}
+                                    </span>
+
+                                    <span className="mt-0.5 block truncate text-xs text-[#A1A4AC]">
+                                      {matchingThread
+                                        ? sanitizeSnippetText(
+                                            latestMessage?.snippet ||
+                                              latestMessage?.bodyText ||
+                                              matchingThread.subject,
+                                          )
+                                        : `${memberCount} ${
+                                            memberCount === 1 ? 'member' : 'members'
+                                          } · Start the conversation`}
+                                    </span>
+
+                                    <span className="mt-1 block truncate text-[10px] text-[#6B6E76]">
+                                      {group.emails.slice(0, 3).join(', ')}
+                                      {memberCount > 3 ? `, +${memberCount - 3} more` : ''}
+                                    </span>
+                                  </span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setGroupEditorTarget(group)}
+                                  aria-label={`Edit group ${group.name}`}
+                                  className="flex size-11 shrink-0 items-center justify-center rounded-xl text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                                >
+                                  <svg
+                                    className="size-4"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                  >
+                                    <path d="M12 20h9" />
+                                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </section>
                 ) : activeLens === 'snoozed' && narrowingCount === 0 ? (
                   <div className="mail-empty py-12 px-4 text-center space-y-3">
                     <div className="size-12 rounded-full bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto mb-1">
@@ -3503,7 +3467,7 @@ export default function InboxPage() {
             {/* Chat conversation preview */}
             <div className="p-4 min-h-[140px] max-h-[240px] overflow-y-auto bg-[#090A0C]/70 flex flex-col justify-end space-y-3">
               <div className="mx-auto text-center px-3 py-1 rounded-full bg-[#16181D] border border-[#282C35] text-[10px] text-[#A1A4AC]">
-                🔒 End-to-end delivery to all {quickGroupChatTarget.emails.length} group members
+                Delivered to all {quickGroupChatTarget.emails.length} group members
               </div>
               <div className="bg-[#16181D]/80 border border-[#282C35] rounded-xl p-3 text-xs text-[#A1A4AC] text-center">
                 Send a quick message or update to everyone in{' '}
