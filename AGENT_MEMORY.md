@@ -746,3 +746,5 @@ graph TD
   - CodeQL Advanced run `34741362846` on `main`: 100% green (Python 57s, Actions 46s, JS/TS 8m41s).
   - CI gate run `34741362838` on `main`: `gate` passed in 45s, `quantchat-coverage` passed in 1m1s, `memory-shadow-postgres` passed in 48s.
   - **Staging Execution Runbook Created by CEO Astra**: Published '§4 + §6 Staging Execution Runbook — QuantMail v2' in Notion; §4 confirmed with 4 additions (snapshot before 0059 OAuth rehash, baseline counts, scratch dry-run, psql NOTICE capture); §6 sequenced across 7 stages with 3 expected failures declared upfront.
+  - **Runbook S6 Delegate Probe Verified**: Generated Prisma client delegates tested directly: `event`, `file`, `folder`, `userSubscription`, `aISession`, `notification` all confirmed `function` (zero `undefined`).
+  - **CI Gate on a09d448c Verified (Run 34742416417)**: `gate` passed in 3m02s (ID `103684276065`), `quantchat-coverage` passed in 59s, `memory-shadow-postgres` passed in 44s.
