@@ -935,3 +935,24 @@ graph TD
   - CI Gate passed in 4m40s (Run `34765869419`).
   - Staging deployed to EKS in 4m28s (Run `34766118949`).
   - Tested live in Chrome: verified clean sidebar, snoozed empty state, rich group cards, and live WhatsApp-style group chat delivery with zero console errors and 100% successful API responses.
+
+### 7. Telegram/WhatsApp-Style Group Info Inspector Modal, Group Avatar in Reader Header & Redundant Chip Purge (Commit `bcf2d1cb`):
+
+- **Redundant Top Strip Elimination**:
+  - Completely removed the redundant secondary horizontal chip bar (`Your groups` strip) under the top focus lens tabs when `activeLens === 'groups'`.
+  - The top lens tabs (`All`, `Unread`, `Contacts`, `Groups`, `Snoozed`, `Spam`) now flow immediately into the main conversation feed list without vertical clutter.
+- **Direct Feed Group Cards**:
+  - Groups now render as rich WhatsApp-style Group Cards directly in the main conversation feed list (`activeLens === 'groups'`).
+  - Cards feature the Group Avatar with custom accent color, multi-member pill, last message preview/participants list, 1-tap "Chat" trigger, and group member editor.
+- **Conversational Thread Reader Header**:
+  - Opening a group conversation thread now replaces the comma-separated participant list with the Group's custom accent avatar and Group Name ("Founders & Core Team", etc.) prominently displayed.
+  - Subtitle displays `${count} members · Tap for group details & media`.
+- **Telegram/WhatsApp-Style Group Info Inspector Modal (`GroupInfoModal.tsx`)**:
+  - Clicking the group header opens an accessible inspector modal with focus trap, keyboard tab cycling (Left/Right/Home/End), and escape key handling.
+  - 4 specialized tabs:
+    1. `Members`: List of members with initials, email addresses, roles (`Owner` vs `Member`), and "+ Add or edit members" button.
+    2. `Media`: Image and video attachments with preview and download.
+    3. `Files`: Document attachments (PDF, DOC, ZIP, XLS, etc.) with file type badge, size, date, sender, and download.
+    4. `Links`: Extracted URLs from message bodies with title, sender, date, and external open.
+- **Anti-Hallucination & E2EE Purge**:
+  - Eliminated unverified `🔒 End-to-end delivery` claim from quick group chat modal; unified copy on `Delivered to all X group members`.

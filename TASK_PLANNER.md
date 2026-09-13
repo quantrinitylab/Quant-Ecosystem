@@ -405,3 +405,12 @@
     - [x] Snoozed tab verified: clean dedicated empty state ("Nothing snoozed right now").
     - [x] Groups tab verified: rich WhatsApp-style Group Cards rendered for `Founders & Core Team`.
     - [x] Instant WhatsApp Group Chat tested live: typed message, sent to group members, verified live delivery in feed (`09:12 PM`, `Chat` badge, `[Group] Founders & Core Team`), opened reader, and verified zero console errors and 100% successful API responses (200/201/202).
+- [x] **Telegram/WhatsApp-Style Group Info Inspector Modal, Group Avatar in Reader Header & Redundant Chip Purge (Commit `bcf2d1cb`)**:
+  - [x] **Redundant Top Strip Elimination**: Completely removed redundant secondary horizontal chip bar (`Your groups` strip) under the top focus lens tabs when `activeLens === 'groups'`.
+  - [x] **Direct Feed Group Cards**: Rendered rich WhatsApp-style Group Cards directly in the main conversation feed list with 1-tap navigation to matching thread or instant group chat modal.
+  - [x] **Conversational Thread Reader Header**: Replaced comma-separated participant list with the Group's custom accent avatar and Group Name ("Founders & Core Team", etc.) prominently displayed, with subtitle `${count} members · Tap for group details & media`.
+  - [x] **Telegram/WhatsApp-Style Group Info Inspector Modal (`GroupInfoModal.tsx`)**:
+    - [x] Focus trap, keyboard tab cycling, escape key handling, accessible ARIA roles and tablists.
+    - [x] 4 Tabs: `Members` (initials, addresses, Owner/Member badges, Add/edit button), `Media` (photos/videos preview & download), `Files` (PDF, doc badges, file size, sender, download), and `Links` (extracted URLs, external open).
+  - [x] **Anti-Hallucination & E2EE Purge**: Eliminated unverified `🔒 End-to-end delivery` claim from quick group chat modal; unified copy on `Delivered to all X group members`.
+  - [x] **Typecheck & Production Build**: Passed 100% clean typecheck (0 errors) and Next.js production build (`pnpm --filter @quant/quantmail build` 61 routes prerendered).
