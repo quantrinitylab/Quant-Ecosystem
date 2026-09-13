@@ -975,3 +975,40 @@ graph TD
   - Opened group thread `cmu01u7wt001jww014ugvjfnn` in reader, verified prominent Group Avatar "GO" + Group Name "Good" + subtitle "2 members · Tap for group details & media".
   - Tapped group header, verified Telegram/WhatsApp-style `GroupInfoModal` with all 4 tabs (`Members 3` with Owner/Member badges, `Media 0`, `Files 0`, `Links 0`), focus trap, and Escape key dismiss.
   - Verified zero console errors across the entire flow.
+
+### 9. Standalone Group Editor, 1-to-1 Contact Profile Inspector & Streamlined Reader Controls (Commit `ccda4c95`):
+
+- **Leaked Member Emails Purge**:
+  - Feed Group Cards and conversation reader header display strictly the clean Group Avatar and Group Name ("Good", "Hii", "Founders & Core Team"). Raw concatenated email strings (`kundansinghrajput31980@gmail.com, infinitytrinity.labs@gmail.com`) are completely eliminated.
+- **Standalone `GroupEditorModal.tsx`**:
+  - Extracted modular 315-line component with focus trapping, escape key handling, and ARIA modal semantics.
+  - Group name editing with validation.
+  - Accent color picker (Quant orange, Green, Blue, Violet, Rose, Amber).
+  - Member management: Add member with regex email validation and duplicate checking, remove member with 1 tap.
+  - Group deletion with confirmation dialog (`Delete group` -> `Cancel / Delete`).
+  - Mounted directly both in the main inbox feed and inside `GroupInfoModal` via `+ Add or edit members`.
+- **1-to-1 Telegram/WhatsApp Contact Profile Inspector (`ContactProfileInspector`)**:
+  - Integrated into `GroupInfoModal.tsx` for 1-to-1 conversations.
+  - Displays friendly contact display name (e.g. "Quant", "Kundan") and email.
+  - 3 Media tabs: `Media`, `Files`, and `Links` extracted dynamically from thread messages and attachments.
+  - Tapping 1-to-1 conversation header in `ConversationalThreadView` opens `ContactProfileInspector` seamlessly.
+- **Streamlined Thread Reader Controls**:
+  - Purged all canned response suggestion chips (`⚡ Sounds good, thanks!`, `⚡ Let's do that.`, etc.).
+  - Relocated `Reply`, `Reply all`, and `Forward` buttons inline next to the composer mode switch `[Message | Mail]`.
+  - Moved `Move to Trash` inside the `...` (`More conversation actions`) dropdown menu to eliminate accidental deletion.
+  - Attached `alertdialog` confirmation modal to `Move to Trash` (`Move conversation to Trash?` with `Cancel` and `Confirm`).
+- **Eliminated Awkward "Other group conversations" Banner**:
+  - Unmatched multi-person threads render seamlessly into the normal conversation feed with full `EmailRow` actions.
+- **CI Gate & EKS Staging Deployment**:
+  - CI Gate passed 100% green in 4m52s (Run `34771959283`, Job `103763054933`).
+  - Staging deployed to AWS EKS in 4m25s (Run `34772262688`, Job `103763900807`).
+  - Staging tag `staging-pin-latest` updated to `ccda4c95`.
+- **Live Chrome Browser Click-by-Click Verification (`https://quantmail.in/`)**:
+  - Feed: Group card displays avatar + name only, zero raw email leakage. Unmatched conversation `quant_test_user, kumar` renders seamlessly.
+  - Feed Group Editor: Clicked `Edit group Good` -> `GroupEditorModal` opened with name "Good", checked green accent, and member list. Clicked `Cancel`.
+  - Group Thread Reader: Clicked `Open Good group conversation` -> opened thread reader. Canned chips gone, `Reply`, `Reply all`, `Forward` inline beside `[Message | Mail]`.
+  - Group Header Inspector: Clicked header -> `GroupInfoModal` opened with tabs `Members 2`, `Media 0`, `Files 0`, `Links 0`.
+  - In-Reader Group Editor: Clicked `+ Add or edit members` -> `GroupEditorModal` opened directly from inside reader. Clicked `Cancel`.
+  - Safe Trash Action: Opened `...` menu -> clicked `Move to Trash` -> confirmation dialog `Move conversation to Trash?` rendered with Cancel/Confirm. Clicked `Cancel`.
+  - 1-to-1 Thread Reader & Contact Profile Inspector: Opened conversation with `quant_test_user` -> title rendered clean name "Quant". Clicked header -> `ContactProfileInspector` opened with 3 tabs (`Media 0`, `Files 0`, `Links 0`). Clicked each tab and closed inspector.
+  - Network & Console: 100% `200 OK` network responses, `<no console messages found>` (0 console errors).
