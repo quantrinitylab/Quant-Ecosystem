@@ -284,4 +284,6 @@
   - [x] Added explicit 500 error when voice bot secret is unconfigured in `apps/quantchat/backend/routes/voice-bot.ts` (7/7 tests passing).
   - [x] Improved `SearchQueryService` to match independent free-text search terms with `AND` in any order across subject, snippet, and body (18/18 tests passing).
   - [x] Documented PostgreSQL Prisma ILIKE search backend in `ai-search-content.service.ts`.
-  - [x] Triggered `@dependabot rebase` on PR #249.
+  - [x] **PR #249 Closed (Zero Open PRs Milestone)**: Dependabot PR #249 closed as superseded by master consolidation PR #260 (-47k lines, 7 dead apps deleted). Clean slate achieved: exactly 0 open PRs across the entire repository.
+  - [x] **CodeQL Advanced on main Verified (Run 34741362846)**: 100% green across Python (57s), Actions (46s), and JavaScript/TypeScript (8m41s).
+  - [x] **CI Gate on main Verified (Run 34741362838)**: `gate` passed in 45s, `quantchat-coverage` passed in 1m1s, `memory-shadow-postgres` passed in 48s.

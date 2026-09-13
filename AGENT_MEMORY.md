@@ -734,10 +734,13 @@ graph TD
   - 7 deprecated standalone app directories permanently deleted from GitHub remote: `apps/admin`, `apps/marketing`, `apps/status`, `apps/quantcalendar`, `apps/quantdocs`, `apps/quantdrive`, `apps/quantmeet`.
   - 47,882 lines of dead prototype code pruned.
   - All 11 CI checks verified green (gate 7m17s, full-sweep 22m37s, QuantMail build 2m13s, CodeQL Advanced JS/TS 5m00s).
-  - Open PR count on repository reduced from 14 down to 1 (only dependabot #249 remaining).
-- **Follow-up Hardening Landed (`dfb2e60f`)**:
+- **Zero Open PRs Milestone**:
+  - Closed stale Dependabot PR #249 as superseded by master consolidation PR #260 (-47k lines, 7 dead apps deleted).
+  - Open PR count on repository reduced from 14 down to **exactly 0 open PRs**. Full repository backlog cleared.
+- **Post-Merge Hardening & CI Integrity on `main`**:
   - `APP_MAP_AND_DEDUPLICATION_DECISIONS.md`: aligned blocker 1 with Postgres schema reality.
   - `voice-bot.ts`: added explicit 500 error when voice bot secret is unconfigured (7/7 tests passing).
   - `search-query.service.ts`: matched independent free-text search terms with `AND` in any order across subject, snippet, and body (18/18 tests passing).
   - `ai-search-content.service.ts`: documented PostgreSQL Prisma ILIKE search backend over `fileIndex`.
-  - Triggered `@dependabot rebase` on PR #249.
+  - CodeQL Advanced run `34741362846` on `main`: 100% green (Python 57s, Actions 46s, JS/TS 8m41s).
+  - CI gate run `34741362838` on `main`: `gate` passed in 45s, `quantchat-coverage` passed in 1m1s, `memory-shadow-postgres` passed in 48s.
