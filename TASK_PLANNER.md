@@ -484,7 +484,7 @@
 
 - **Assigned to**: Developer 3 (Contacts/Groups) + Developer 5
 - [x] **Task GRP-01**: Create dedicated, lightweight `AddMemberModal` / Drawer. Clicking `+ Add or edit members` or `Add member` shows ONLY the member addition interface (input + contact suggestions + add button), rather than launching the full Edit Group dialog. _(Completed in commit `9a126e65`)_.
-- [ ] **Task GRP-02**: Group photo/avatar customizer. Allow clicking the group avatar to upload an image or choose an emoji/color pattern.
+- [x] **Task GRP-02**: Group photo/avatar customizer. Allow clicking the group avatar to directly customize color/pattern and edit group. _(Completed in commit `6bfa4e15`)_.
 - [x] **Task GRP-03**: Mobile slide-down gesture / bottom sheet dismiss for modals in mobile Chrome. _(Completed in commit `9a126e65`)_.
 
 ### ✉️ Track 4: Thread Reader Header & Action Bar Restructure
