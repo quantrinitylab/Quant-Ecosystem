@@ -139,52 +139,7 @@ function formatReceivedAt(value?: string | Date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function getThreatClassification(thread: ConversationThread) {
-  const latest = thread.latestEmail;
-  const text =
-    `${thread.subject || ''} ${latest?.snippet || ''} ${latest?.bodyText || ''}`.toLowerCase();
-  if (
-    text.includes('password') ||
-    text.includes('verify') ||
-    text.includes('suspended') ||
-    text.includes('security alert') ||
-    text.includes('urgent action') ||
-    text.includes('compromised') ||
-    text.includes('account lock')
-  ) {
-    return { label: 'Phishing Risk', color: 'bg-rose-500/15 text-rose-300 border-rose-500/30' };
-  }
-  if (
-    text.includes('crypto') ||
-    text.includes('bitcoin') ||
-    text.includes('eth') ||
-    text.includes('usdt') ||
-    text.includes('wallet') ||
-    text.includes('airdrop') ||
-    text.includes('seed phrase')
-  ) {
-    return { label: 'Crypto Scam', color: 'bg-amber-500/15 text-amber-300 border-amber-500/30' };
-  }
-  if (
-    text.includes('lottery') ||
-    text.includes('winner') ||
-    text.includes('million') ||
-    text.includes('inheritance') ||
-    text.includes('beneficiary') ||
-    text.includes('unclaimed funds')
-  ) {
-    return {
-      label: 'Advance-Fee Scam',
-      color: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
-    };
-  }
-  if (latest?.phishingScore && latest.phishingScore > 40) {
-    return { label: 'Heuristic Threat', color: 'bg-rose-500/15 text-rose-300 border-rose-500/30' };
-  }
-  return { label: 'Flagged by Bayes', color: 'bg-[#2B1A11] text-[#FF8C42] border-[#5C3016]' };
-}
-
-function SovereignSpamBanner({
+function SpamBanner({
   spamCount,
   onEmptySpam,
   isEmptying,
@@ -193,142 +148,23 @@ function SovereignSpamBanner({
   onEmptySpam: () => void;
   isEmptying: boolean;
 }) {
-  const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
-
   return (
-    <div className="mx-3 sm:mx-4 my-2.5 p-3.5 sm:p-4 rounded-2xl bg-gradient-to-b from-[#1C1F26] to-[#12141A] border border-[#282C35] shadow-lg">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-[#282C35]/60">
-        <div className="flex items-start sm:items-center gap-3">
-          <div className="size-9 rounded-xl bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center shrink-0">
-            <svg
-              className="size-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              <path d="M12 8v4" />
-              <path d="M12 16h.01" />
-            </svg>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm font-bold text-white tracking-tight">
-                Sovereign Spam Quarantine
-              </h3>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]">
-                {spamCount} Quarantined
-              </span>
-            </div>
-            <p className="text-xs text-[#A1A4AC] mt-0.5">
-              100% on-device heuristic &amp; cryptographic threat isolation. Zero telemetry.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsHowItWorksOpen((prev) => !prev)}
-            className="px-2.5 py-1.5 rounded-xl bg-[#16181D] hover:bg-[#20232B] text-xs font-medium text-[#A1A4AC] hover:text-white border border-[#282C35] transition-all flex items-center gap-1.5"
-            aria-expanded={isHowItWorksOpen}
-          >
-            <span>How it works</span>
-            <svg
-              className={`size-3 transition-transform ${isHowItWorksOpen ? 'rotate-180' : ''}`}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </button>
-
-          {spamCount > 0 && (
-            <button
-              type="button"
-              onClick={onEmptySpam}
-              disabled={isEmptying}
-              className="px-3 py-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-rose-100 border border-rose-800/60 text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-50"
-            >
-              <svg
-                className="size-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-              <span>{isEmptying ? 'Emptying…' : 'Empty spam now'}</span>
-            </button>
-          )}
-        </div>
+    <div className="mx-3 sm:mx-4 my-2.5 px-3.5 py-2.5 rounded-xl bg-[#12141A] border border-[#282C35] flex items-center justify-between gap-3 text-xs">
+      <div className="flex items-center gap-2 text-[#A1A4AC] min-w-0">
+        <IconSpam size={15} className="text-[#FF8C42] shrink-0" />
+        <span className="truncate text-xs">
+          Messages that have been in Spam more than 30 days will be automatically deleted.
+        </span>
       </div>
-
-      {/* Security Defense Grid Badges */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3 text-xs">
-        <div className="flex items-center gap-2 p-2 rounded-xl bg-[#16181D]/80 border border-[#282C35]/50">
-          <span className="size-2 rounded-full bg-emerald-400 shrink-0" />
-          <div className="min-w-0">
-            <span className="text-[#A1A4AC] block text-[10px] uppercase font-mono tracking-wider">
-              Authentication
-            </span>
-            <span className="text-white font-medium truncate block">SPF / DKIM Strict</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 p-2 rounded-xl bg-[#16181D]/80 border border-[#282C35]/50">
-          <span className="size-2 rounded-full bg-[#FF8C42] shrink-0" />
-          <div className="min-w-0">
-            <span className="text-[#A1A4AC] block text-[10px] uppercase font-mono tracking-wider">
-              Classification
-            </span>
-            <span className="text-white font-medium truncate block">Local Bayes Classifier</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 p-2 rounded-xl bg-[#16181D]/80 border border-[#282C35]/50">
-          <span className="size-2 rounded-full bg-cyan-400 shrink-0" />
-          <div className="min-w-0">
-            <span className="text-[#A1A4AC] block text-[10px] uppercase font-mono tracking-wider">
-              Privacy Engine
-            </span>
-            <span className="text-white font-medium truncate block">Zero Cloud Surveillance</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Accordion Expand: How QuantMail classifies spam */}
-      {isHowItWorksOpen && (
-        <div className="mt-3.5 pt-3 border-t border-[#282C35]/60 text-xs text-[#A1A4AC] space-y-2.5">
-          <p className="text-[#F5F5F5] font-semibold">
-            How QuantMail isolates threats without surveillance:
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] leading-relaxed">
-            <div className="p-2.5 rounded-xl bg-[#0F1115] border border-[#282C35]">
-              <strong className="text-white block mb-0.5">1. Cryptographic Authentication</strong>
-              SPF, DKIM, and DMARC alignment checks reject spoofed domain headers before the email
-              reaches your screen.
-            </div>
-            <div className="p-2.5 rounded-xl bg-[#0F1115] border border-[#282C35]">
-              <strong className="text-white block mb-0.5">2. Sovereign Local Bayes</strong>
-              Statistical token frequency runs entirely inside your client. Your emails are never
-              harvested to train centralized Big Tech ad models.
-            </div>
-            <div className="p-2.5 rounded-xl bg-[#0F1115] border border-[#282C35]">
-              <strong className="text-white block mb-0.5">3. Heuristic Threat Scanners</strong>
-              Catches phishing traps, fake urgent notices, cryptocurrency seed drains, and
-              advance-fee lottery scams.
-            </div>
-            <div className="p-2.5 rounded-xl bg-[#0F1115] border border-[#282C35]">
-              <strong className="text-white block mb-0.5">4. Continuous Self-Correction</strong>
-              Clicking &ldquo;Not spam&rdquo; immediately trains your local Bayes engine with
-              negative feedback and returns the thread safely to your inbox.
-            </div>
-          </div>
-        </div>
+      {spamCount > 0 && (
+        <button
+          type="button"
+          onClick={onEmptySpam}
+          disabled={isEmptying}
+          className="shrink-0 text-xs font-semibold text-[#FF8C42] hover:text-[#FF9B5A] disabled:opacity-50 transition-colors"
+        >
+          {isEmptying ? 'Emptying…' : 'Empty Spam now'}
+        </button>
       )}
     </div>
   );
@@ -562,12 +398,8 @@ function EmailRow({
                 </span>
               )}
               {isSpamMode && (
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-mono border font-medium ${
-                    getThreatClassification(thread).color
-                  } shrink-0`}
-                >
-                  {getThreatClassification(thread).label}
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-500/15 text-rose-300 border border-rose-500/30 shrink-0">
+                  Spam
                 </span>
               )}
             </div>
@@ -1373,23 +1205,20 @@ export default function InboxPage() {
   const [activeLens, setActiveLens] = useState<InboxLens>(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search).get('lens');
-      if (p === 'spam') return 'spam';
-      if (p === 'unread' || p === 'contacts' || p === 'groups') return p;
+      if (p === 'unread' || p === 'contacts' || p === 'groups' || p === 'spam') return p;
     }
     return 'all';
   });
 
   useEffect(() => {
-    if (lensParam === 'spam' && activeLens !== 'spam') {
-      setActiveLens('spam');
-      setShowArchivedView(false);
-    } else if (!lensParam && activeLens === 'spam') {
+    const p = searchParams?.get('lens');
+    if (p === 'unread' || p === 'contacts' || p === 'groups' || p === 'spam') {
+      setActiveLens(p);
+    } else {
       setActiveLens('all');
-    } else if (lensParam && ['all', 'unread', 'contacts', 'groups'].includes(lensParam)) {
-      setActiveLens(lensParam as InboxLens);
-      setShowArchivedView(false);
     }
-  }, [lensParam, activeLens]);
+    setShowArchivedView(false);
+  }, [searchParams]);
 
   const [activeTurn, setActiveTurn] = useState<InboxTurn>('any');
   const [activeFilters, setActiveFilters] = useState<Set<InboxFilter>>(() => new Set());
@@ -1787,26 +1616,23 @@ export default function InboxPage() {
     setActiveLens('all');
     setActiveTurn('any');
     setActiveFilters(new Set());
-  }, []);
+    router.replace('/', { scroll: false });
+  }, [router]);
 
   /**
    * Every narrowing control leaves the archived shelf, because the shelf is a
    * different pool: staying on it while the lens changes shows a count for one list
    * above a different one.
    */
-  const selectLens = useCallback((lens: InboxLens) => {
-    setActiveLens(lens);
-    setShowArchivedView(false);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      if (lens === 'spam') {
-        url.searchParams.set('lens', 'spam');
-      } else {
-        url.searchParams.delete('lens');
-      }
-      window.history.replaceState({}, '', url.pathname + url.search);
-    }
-  }, []);
+  const selectLens = useCallback(
+    (lens: InboxLens) => {
+      setActiveLens(lens);
+      setShowArchivedView(false);
+      const target = lens === 'all' ? '/' : `/?lens=${lens}`;
+      router.replace(target, { scroll: false });
+    },
+    [router],
+  );
 
   const selectTurn = useCallback((turn: InboxTurn) => {
     setActiveTurn(turn);
@@ -3195,80 +3021,17 @@ export default function InboxPage() {
                   )}
                 </div>
               ) : activeLens === 'spam' && narrowingCount === 0 ? (
-                <div className="mail-empty py-10 px-4 max-w-xl mx-auto text-center space-y-4">
-                  <div className="relative size-16 rounded-2xl bg-gradient-to-br from-[#2B1A11] to-[#1A110B] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto shadow-xl shadow-[#FF8C42]/5">
-                    <svg
-                      className="size-8"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                      <polyline points="9 12 11 14 15 10" />
-                    </svg>
-                    <span className="absolute -top-1 -right-1 size-3 rounded-full bg-emerald-500 ring-4 ring-[#090A0C]" />
+                <div className="mail-empty py-12 px-4 text-center space-y-3">
+                  <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
+                    <IconSpam size={22} />
                   </div>
-
-                  <div>
-                    <h3 className="text-lg font-bold text-white tracking-tight">
-                      Your Inbox is Fortified
-                    </h3>
-                    <p className="text-xs text-[#A1A4AC] max-w-md mx-auto mt-1 leading-relaxed">
-                      Zero junk or suspicious messages in quarantine. QuantMail&apos;s sovereign
-                      defense engine is actively filtering spoofed senders, phishing attempts, and
-                      tracking pixels on-device.
-                    </p>
-                  </div>
-
-                  {/* 3 Pillars */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left pt-1">
-                    <div className="p-3 rounded-xl bg-[#12141A] border border-[#282C35]/80 hover:border-[#FF8C42]/30 transition-all">
-                      <div className="text-xs font-semibold text-white flex items-center gap-1.5 mb-1">
-                        <span className="text-emerald-400">🛡️</span>
-                        <span>Crypto Verify</span>
-                      </div>
-                      <p className="text-[11px] text-[#A1A4AC] leading-snug">
-                        Strict SPF/DKIM verification stops domain impersonation.
-                      </p>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-[#12141A] border border-[#282C35]/80 hover:border-[#FF8C42]/30 transition-all">
-                      <div className="text-xs font-semibold text-white flex items-center gap-1.5 mb-1">
-                        <span className="text-[#FF8C42]">🧠</span>
-                        <span>Local Bayes</span>
-                      </div>
-                      <p className="text-[11px] text-[#A1A4AC] leading-snug">
-                        Risk scoring runs locally in browser with zero cloud scraping.
-                      </p>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-[#12141A] border border-[#282C35]/80 hover:border-[#FF8C42]/30 transition-all">
-                      <div className="text-xs font-semibold text-white flex items-center gap-1.5 mb-1">
-                        <span className="text-cyan-400">🔒</span>
-                        <span>Zero-Ad Policy</span>
-                      </div>
-                      <p className="text-[11px] text-[#A1A4AC] leading-snug">
-                        Your private correspondence is never scanned to sell ads.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 flex items-center justify-center gap-2.5 flex-wrap">
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        void refetchSpam();
-                        showToast({
-                          text: 'Quarantine refreshed — mailbox is secure',
-                          type: 'info',
-                        });
-                      }}
-                    >
-                      Refresh quarantine scan
-                    </Button>
-                    <Button variant="primary" onClick={() => selectLens('all')}>
-                      Back to all mail
+                  <h3 className="text-base font-bold text-white">No spam messages</h3>
+                  <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
+                    Messages that have been in Spam more than 30 days will be automatically deleted.
+                  </p>
+                  <div className="pt-2 flex justify-center">
+                    <Button variant="secondary" onClick={() => selectLens('all')}>
+                      Back to Inbox
                     </Button>
                   </div>
                 </div>
@@ -3375,7 +3138,7 @@ export default function InboxPage() {
                     back to the virtualizer as `paddingStart`. */}
                 <div ref={measureListHeader} className="absolute inset-x-0 top-0">
                   {activeLens === 'spam' && (
-                    <SovereignSpamBanner
+                    <SpamBanner
                       spamCount={allSpamThreads.length}
                       onEmptySpam={handleEmptySpam}
                       isEmptying={isEmptyingSpam}

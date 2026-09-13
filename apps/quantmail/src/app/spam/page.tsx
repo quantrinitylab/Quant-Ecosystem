@@ -14,7 +14,7 @@ export default function SpamPage() {
     <div className="flex min-h-screen items-center justify-center bg-[#090A0C] text-white">
       <div className="flex items-center gap-2 text-sm text-[#A1A4AC]">
         <span className="size-2 rounded-full bg-[#FF8C42] animate-pulse" />
-        <span>Opening Sovereign Spam Shield…</span>
+        <span>Opening Spam…</span>
       </div>
     </div>
   );

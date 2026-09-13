@@ -49,7 +49,7 @@ export const HoverActions = memo(function HoverActions({
           className="hover-action-btn text-[#FF8C42] hover:text-[#FFA666] hover:bg-[#2B1A11]"
           onClick={onRescueSpam}
           aria-label="Not spam"
-          title="Not spam — rescue to inbox"
+          title="Not spam"
         >
           <svg
             viewBox="0 0 24 24"

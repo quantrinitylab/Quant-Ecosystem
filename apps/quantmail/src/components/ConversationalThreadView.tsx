@@ -936,7 +936,7 @@ export function ConversationalThreadView({
               onClick={handleRescueSpam}
               disabled={isRescuingSpam}
               className="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-xl px-3 py-1.5 bg-[#2B1A11] hover:bg-[#3D2518] text-xs font-semibold text-[#FF8C42] border border-[#5C3016] transition-all disabled:opacity-50"
-              title="Not spam — rescue to inbox"
+              title="Not spam"
             >
               <svg
                 className="size-3.5"
@@ -1001,9 +1001,9 @@ export function ConversationalThreadView({
       {/* Main Conversation Stream (Chronological Stack) */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4 max-w-4xl mx-auto w-full">
         {isQuarantined && (
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-[#2B1A11] via-[#1E140E] to-[#12141A] border border-[#5C3016] shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <span className="size-9 rounded-xl bg-[#FF8C42]/20 text-[#FF8C42] border border-[#FF8C42]/30 flex items-center justify-center shrink-0 mt-0.5">
+          <div className="p-3.5 sm:p-4 rounded-xl bg-[#16181D] border border-[#282C35] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="size-8 rounded-lg bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0">
                 <svg
                   className="size-4"
                   viewBox="0 0 24 24"
@@ -1011,21 +1011,14 @@ export function ConversationalThreadView({
                   stroke="currentColor"
                   strokeWidth="2"
                 >
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  <path d="M12 8v4" />
-                  <path d="M12 16h.01" />
+                  <path d="M12 2 2 12l10 10 10-10L12 2z" />
+                  <path d="M12 8v5M12 16h.01" />
                 </svg>
               </span>
               <div>
-                <h4 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-                  <span>Quarantined by Sovereign Spam Defense</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#3D2518] text-[#FF8C42] border border-[#5C3016]">
-                    Isolated
-                  </span>
-                </h4>
-                <p className="text-xs text-[#A1A4AC] mt-0.5 leading-relaxed">
-                  Classified as junk/suspicious via on-device heuristics &amp; DKIM cryptographic
-                  checks. External images, tracking pixels, and links are safeguarded.
+                <h4 className="text-sm font-semibold text-white">This message is in Spam</h4>
+                <p className="text-xs text-[#A1A4AC] mt-0.5">
+                  Messages that have been in Spam more than 30 days will be automatically deleted.
                 </p>
               </div>
             </div>
@@ -1034,19 +1027,19 @@ export function ConversationalThreadView({
                 type="button"
                 onClick={handleRescueSpam}
                 disabled={isRescuingSpam}
-                className="px-3 py-1.5 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-black text-xs font-semibold transition-all flex items-center gap-1.5 shadow-md shadow-[#FF8C42]/10 disabled:opacity-50"
+                className="px-3 py-1.5 rounded-xl bg-[#2B1A11] hover:bg-[#3D2518] text-[#FF8C42] border border-[#5C3016] text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-50"
               >
                 <svg
                   className="size-3.5"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2.5"
+                  strokeWidth="2.2"
                 >
                   <path d="M3 10h10a5 5 0 0 1 5 5v2" />
                   <path d="M7 6L3 10l4 4" />
                 </svg>
-                <span>{isRescuingSpam ? 'Rescuing…' : 'Not spam (Move to inbox)'}</span>
+                <span>{isRescuingSpam ? 'Moving…' : 'Not spam'}</span>
               </button>
             </div>
           </div>

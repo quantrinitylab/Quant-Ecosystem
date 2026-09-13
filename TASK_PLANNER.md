@@ -378,5 +378,6 @@
     - [x] Sidebar `Spam` navigation item routes directly to `/?lens=spam` and closes drawer seamlessly.
     - [x] Direct visit to `https://quantmail.in/spam` triggers immediate client redirect to `/?lens=spam`.
     - [x] 3-Pillar Sovereign Spam Shield empty state rendered (Crypto Verify, Local Bayes, Zero-Ad Policy).
-    - [x] "Back to all mail" and "Refresh quarantine scan" buttons respond immediately.
-    - [x] Zero unhandled console errors detected across all tested user flows.
+  - [x] Fixed tab bouncing bug: clicking `Groups`, `Contacts`, or `Unread` while in `Spam` now stays on the selected lens via `router.replace(target, { scroll: false })` and reactive `searchParams` synchronization.
+  - [x] Purged all exaggerated marketing fluff and fake claims ("Crypto Verify", "Local Bayes", "Sovereign Spam Defense", "quarantine scan", etc.).
+  - [x] Restored clean, authentic, standard email spam experience (standard banner: "Messages that have been in Spam more than 30 days will be automatically deleted.", clean "Empty Spam now" button, standard "No spam messages" empty state, clean "Spam" badge, and simple "Not spam" action).
