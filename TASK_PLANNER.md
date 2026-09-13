@@ -390,4 +390,18 @@
   - [x] **Sidebar Streamlining**: Removed premature `pipelines` item (per §9.1), preserved `Archive` for pointer reachability, and added semantic `aria-label`s to unread, drafts, and spam badge pills.
   - [x] **Groups Experience**: Streamlined groups presentation with rich group cards and clean creation flows.
   - [x] **Build & Gate Validation**: Verified 100% clean typecheck (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json` passed 0 errors) and Next.js production build (62 static & dynamic routes prerendered).
-
+- [x] **WhatsApp-Style Groups Overhaul, Snoozed Focus Lens & Clean Sidebar (PR/Commit `f5b0ee56`)**:
+  - [x] **WhatsApp Groups Parity**: Groups render as rich conversational Group Cards in the main feed (`savedGroups` mapped with custom accent avatar, multi-member badge, participant preview, 1-tap "Chat" button, and member editor).
+  - [x] **Instant Group Messaging**: Built 1-tap WhatsApp-style Quick Group Chat modal allowing instant messaging (`messageKind: 'chat'`) to all group members with immediate feed arrival and zero classical letter composer friction.
+  - [x] **Top Focus Lens Integration**: Integrated `Snoozed` right next to `Spam` (`All` | `Unread` | `Contacts` | `Groups` | `Snoozed` | `Spam`) with reactive query sync and dedicated empty state.
+  - [x] **Streamlined Sidebar**: Purged `Starred`, `Snoozed`, `Archive`, and `Spam` from sidebar `MAIL` section (strictly `Mail`, `Sent`, `Drafts`, `Trash`). Added client redirects for `/snoozed`, `/starred`, and `/archive`.
+  - [x] **CI Gate & EKS Staging Deployment Verified**:
+    - [x] CI Gate: Run `34765869419` (Job `103746602189`) 100% green in 4m40s.
+    - [x] EKS Staging Rollout: Run `34766118949` (Job `103747285709`) succeeded in 4m28s.
+    - [x] Staging tag `staging-pin-latest` updated to `f5b0ee56`.
+  - [x] **Live Chrome Browser Verification on `https://quantmail.in/`**:
+    - [x] Top focus lens tabs verified: `All`, `Unread`, `Contacts`, `Groups`, `Snoozed`, `Spam`.
+    - [x] Sidebar verified: strictly `Mail`, `Sent`, `Drafts`, `Trash` under `MAIL`.
+    - [x] Snoozed tab verified: clean dedicated empty state ("Nothing snoozed right now").
+    - [x] Groups tab verified: rich WhatsApp-style Group Cards rendered for `Founders & Core Team`.
+    - [x] Instant WhatsApp Group Chat tested live: typed message, sent to group members, verified live delivery in feed (`09:12 PM`, `Chat` badge, `[Group] Founders & Core Team`), opened reader, and verified zero console errors and 100% successful API responses (200/201/202).

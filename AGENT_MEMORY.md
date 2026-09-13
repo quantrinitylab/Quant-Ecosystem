@@ -917,3 +917,21 @@ graph TD
 - **Groups Experience**: Streamlined groups presentation with rich group cards and clean creation flows.
 - **Build & Gate Validation**: Verified 100% clean typecheck (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json` passed 0 errors) and Next.js production build (62 static & dynamic routes prerendered).
 
+### 6. WhatsApp-Style Groups Overhaul, Snoozed Lens & Clean Sidebar (Commit `f5b0ee56`):
+
+- **WhatsApp Groups Parity**:
+  - In WhatsApp, group chats exist directly in the primary conversation feed rather than tucked away behind empty state chips.
+  - Groups view (`activeLens === 'groups'`) now displays rich Group Cards in the main feed: circular avatar with group accent color, multi-member badge, last message preview/participants list, 1-tap "Chat" trigger, and group member editor.
+  - Added 1-tap WhatsApp-style Quick Group Chat modal: lets users type a message line and send it instantly (`messageKind: 'chat'`) to all group members, immediately appearing in the feed without forcing the classical email letter composer.
+- **Top Focus Lens Integration**:
+  - Positioned `Snoozed` tab right next to `Spam`: `All` | `Unread` | `Contacts` | `Groups` | `Snoozed` | `Spam`.
+  - Wired `useInbox({ folderType: 'SNOOZED' })` with reactive query synchronization and dedicated empty state ("Nothing snoozed right now. Conversations you snooze will wait here until their wake time.").
+- **Sidebar Streamlining**:
+  - Cleaned sidebar `MAIL` section to strictly: `Mail` (`/`), `Sent` (`/sent`), `Drafts` (`/drafts`), and `Trash` (`/trash`).
+  - Completely purged `Starred`, `Snoozed`, `Archive`, and `Spam` from sidebar.
+  - Starred is unified into Pin at the top of the mailbox (`PIN पर PIN होता तो वह ऊपर में ही रहता`).
+  - Added seamless client redirects for `/snoozed` -> `/?lens=snoozed`, `/starred` -> `/`, and `/archive` -> `/`.
+- **Live Staging Deployment & Chrome DevTools Verification**:
+  - CI Gate passed in 4m40s (Run `34765869419`).
+  - Staging deployed to EKS in 4m28s (Run `34766118949`).
+  - Tested live in Chrome: verified clean sidebar, snoozed empty state, rich group cards, and live WhatsApp-style group chat delivery with zero console errors and 100% successful API responses.
