@@ -92,13 +92,25 @@ describe('SearchQueryService.buildEmailWhere', () => {
     expect(dateCond.receivedAt.lte?.toISOString()).toBe('2026-02-01T00:00:00.000Z');
   });
 
-  it('maps free text to an OR over subject/snippet/body', () => {
-    const where = service.buildEmailWhere('user-1', 'quarterly results');
+  it('maps quoted phrase to an OR over subject/snippet/body', () => {
+    const where = service.buildEmailWhere('user-1', '"quarterly results"');
     const and = where.AND as Record<string, unknown>[];
     const textCond = and.find((c) => 'OR' in c) as { OR: Record<string, unknown>[] };
     expect(textCond.OR).toHaveLength(3);
     expect(textCond.OR[0]).toEqual({
       subject: { contains: 'quarterly results', mode: 'insensitive' },
+    });
+  });
+
+  it('maps multiple terms to separate AND conditions matching in any order', () => {
+    const where = service.buildEmailWhere('user-1', 'invoice acme');
+    const and = where.AND as { OR: Record<string, unknown>[] }[];
+    expect(and).toHaveLength(2);
+    expect(and[0]?.OR[0]).toEqual({
+      subject: { contains: 'invoice', mode: 'insensitive' },
+    });
+    expect(and[1]?.OR[0]).toEqual({
+      subject: { contains: 'acme', mode: 'insensitive' },
     });
   });
 

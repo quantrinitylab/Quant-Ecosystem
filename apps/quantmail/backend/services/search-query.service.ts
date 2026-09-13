@@ -228,13 +228,12 @@ export class SearchQueryService {
       if (parsed.before) receivedAt.lte = parsed.before;
       and.push({ receivedAt });
     }
-    if (parsed.terms.length > 0) {
-      const text = parsed.terms.join(' ');
+    for (const term of parsed.terms) {
       and.push({
         OR: [
-          { subject: { contains: text, mode: 'insensitive' } },
-          { snippet: { contains: text, mode: 'insensitive' } },
-          { bodyPlain: { contains: text, mode: 'insensitive' } },
+          { subject: { contains: term, mode: 'insensitive' } },
+          { snippet: { contains: term, mode: 'insensitive' } },
+          { bodyPlain: { contains: term, mode: 'insensitive' } },
         ],
       });
     }

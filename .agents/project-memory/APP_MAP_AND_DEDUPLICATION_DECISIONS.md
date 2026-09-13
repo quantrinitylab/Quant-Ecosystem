@@ -25,31 +25,31 @@ loses features. Both steps have to happen, in that order.
 
 ## Approved apps
 
-| App            | Role                                | Notes                                                                                                                                                          |
-| -------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `quantmail`    | Flagship unified workspace          | Mail + Calendar + Drive + Contacts + Documents + CodeHub. Hosts the unified cross-app memory inside Drive.                                                      |
-| `quantchat`    | Messaging, meetings, call-alarm     | Absorbs QuantMeet. Quanty creates the meeting link and mails attendees. Also rings like an alarm until the user answers, then talks them through the task.       |
-| `quantai`      | Quanty control plane                | Drives every other app on the user's behalf.                                                                                                                    |
-| `quantwave`    | Twitter/X + Reddit competitor       | **Renamed from `quantsync`.** The existing package description already matches this brief.                                                                      |
-| `quantgram`    | Instagram competitor                | **Renamed from `quantneon`.** Quanty opens it, scrolls reels alongside the user, and comments on request.                                                        |
-| `quantcooks`   | AI creative studio                  | **Renamed from `quantedits`.** Target is to beat Higgsfield.                                                                                                    |
-| `quantube`     | YouTube competitor                  | Short-drama episodes, premium content, and a creator programme in the Bilibili mould.                                                                            |
-| `quantads`     | Ads platform                        | The Meta Ads / Google Ads equivalent across every Quant app. Quanty can place campaigns from user intent.                                                        |
-| `quanttrinity` | Company site and app marketplace    | Company story, download links, and a Play-Store-style marketplace for third-party QuantDeveloper games and apps. Also owns the cross-app native launcher shell.  |
-| `quantmax`     | Short video, dating, games          | TikTok-style feed, Tinder-style matching, WePlay-style games, real-world games, and Omegle-style random chat. Later phase, but kept.                             |
+| App            | Role                             | Notes                                                                                                                                                           |
+| -------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `quantmail`    | Flagship unified workspace       | Mail + Calendar + Drive + Contacts + Documents + CodeHub. Hosts the unified cross-app memory inside Drive.                                                      |
+| `quantchat`    | Messaging, meetings, call-alarm  | Absorbs QuantMeet. Quanty creates the meeting link and mails attendees. Also rings like an alarm until the user answers, then talks them through the task.      |
+| `quantai`      | Quanty control plane             | Drives every other app on the user's behalf.                                                                                                                    |
+| `quantwave`    | Twitter/X + Reddit competitor    | **Renamed from `quantsync`.** The existing package description already matches this brief.                                                                      |
+| `quantgram`    | Instagram competitor             | **Renamed from `quantneon`.** Quanty opens it, scrolls reels alongside the user, and comments on request.                                                       |
+| `quantcooks`   | AI creative studio               | **Renamed from `quantedits`.** Target is to beat Higgsfield.                                                                                                    |
+| `quantube`     | YouTube competitor               | Short-drama episodes, premium content, and a creator programme in the Bilibili mould.                                                                           |
+| `quantads`     | Ads platform                     | The Meta Ads / Google Ads equivalent across every Quant app. Quanty can place campaigns from user intent.                                                       |
+| `quanttrinity` | Company site and app marketplace | Company story, download links, and a Play-Store-style marketplace for third-party QuantDeveloper games and apps. Also owns the cross-app native launcher shell. |
+| `quantmax`     | Short video, dating, games       | TikTok-style feed, Tinder-style matching, WePlay-style games, real-world games, and Omegle-style random chat. Later phase, but kept.                            |
 
 ## Retired
 
-| Directory           | Decision                  | Where its functionality goes                                                                                            |
-| ------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `apps/quantdrive`   | Delete after migration    | `apps/quantmail` Drive                                                                                                  |
-| `apps/quantcalendar`| Delete after migration    | `apps/quantmail` Calendar; the alarm service feeds the QuantChat call-alarm                                              |
-| `apps/quantdocs`    | Delete after migration    | Documents live inside Drive inside QuantMail                                                                            |
-| `apps/quantmeet`    | Delete after migration    | `apps/quantchat`                                                                                                        |
-| `apps/admin`        | Delete                    | Replaced by a per-app admin panel inside each app's own folder                                                          |
-| `apps/status`       | Delete                    | Not a product                                                                                                           |
-| `apps/marketing`    | Delete                    | Shell only (`src/index.ts` is 1,890 B plus near-empty directories). Marketing content belongs on `quanttrinity`.        |
-| `apps/quant-mobile` | Re-home, do not delete    | Becomes `apps/quanttrinity/native/`. It is the Capacitor launcher shell, not a duplicate product.                       |
+| Directory            | Decision               | Where its functionality goes                                                                                     |
+| -------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `apps/quantdrive`    | Delete after migration | `apps/quantmail` Drive                                                                                           |
+| `apps/quantcalendar` | Delete after migration | `apps/quantmail` Calendar; the alarm service feeds the QuantChat call-alarm                                      |
+| `apps/quantdocs`     | Delete after migration | Documents live inside Drive inside QuantMail                                                                     |
+| `apps/quantmeet`     | Delete after migration | `apps/quantchat`                                                                                                 |
+| `apps/admin`         | Delete                 | Replaced by a per-app admin panel inside each app's own folder                                                   |
+| `apps/status`        | Delete                 | Not a product                                                                                                    |
+| `apps/marketing`     | Delete                 | Shell only (`src/index.ts` is 1,890 B plus near-empty directories). Marketing content belongs on `quanttrinity`. |
+| `apps/quant-mobile`  | Re-home, do not delete | Becomes `apps/quanttrinity/native/`. It is the Capacitor launcher shell, not a duplicate product.                |
 
 ## Structural rules
 
@@ -67,9 +67,10 @@ loses features. Both steps have to happen, in that order.
 Every one of these must be handled before any directory is removed.
 
 1. `packages/common/src/types.ts` - the `QuantApp` union lists 13 app ids and is consumed by
-   `Notification.sourceApp`, `UserPresence.activeApp`, `AppGrant.appId`, `MemoryItem.appSource`, and
-   `WebhookPayload.source`. **These are persisted values, so the three renames need a data
-   migration, not just a type edit.**
+   `Notification.sourceApp`, `AiSession.sourceApp`, and type-only consumers (`UserPresence`,
+   `AppGrant`, `MemoryItem`, `WebhookPayload`). **Data migration 0061 backfills the persisted
+   columns in Postgres (`notifications.sourceApp`, `ai_sessions.sourceApp`) with guarded no-op
+   blocks and skip notices for type-only consumers.**
 2. `packages/common/src/constants.ts` - `QUANT_APPS` is a `Record<QuantApp, ...>` and must change in
    lockstep with the union.
 3. `apps/quantmail/backend/routes/calendar.ts` - an in-file comment records that
@@ -124,17 +125,17 @@ the code already matches the QuantWave brief; this is a rename plus the persiste
 
 ## Execution waves
 
-| Wave | Scope                                                                                                                                                                          |
-| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| W-A  | Drive consolidation - port the six missing services into QuantMail Drive                                                                                                       |
-| W-B  | Calendar consolidation - port 12 services, resolve the two-writer conflict, add `/booking` to the public paths                                                                  |
-| W-C  | Documents into Drive - the collaboration stack moves under QuantMail                                                                                                           |
-| W-D  | Meetings and call-alarm into QuantChat                                                                                                                                         |
-| W-E  | `QuantApp` registry union, the three renames, and the persisted-value data migration                                                                                            |
-| W-F  | Deletions and green CI - **only after A through E**                                                                                                                             |
-| W-G  | Per-app admin panels on a shared `@quant/admin-kit`                                                                                                                             |
-| W-H  | Per-app native clients                                                                                                                                                         |
-| W-I  | New product scope: Quanty control plane, unified memory, quantgram, quantube, quantads, the quanttrinity marketplace, quantmax Omegle and games, quantwave spaces                |
+| Wave | Scope                                                                                                                                                             |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| W-A  | Drive consolidation - port the six missing services into QuantMail Drive                                                                                          |
+| W-B  | Calendar consolidation - port 12 services, resolve the two-writer conflict, add `/booking` to the public paths                                                    |
+| W-C  | Documents into Drive - the collaboration stack moves under QuantMail                                                                                              |
+| W-D  | Meetings and call-alarm into QuantChat                                                                                                                            |
+| W-E  | `QuantApp` registry union, the three renames, and the persisted-value data migration                                                                              |
+| W-F  | Deletions and green CI - **only after A through E**                                                                                                               |
+| W-G  | Per-app admin panels on a shared `@quant/admin-kit`                                                                                                               |
+| W-H  | Per-app native clients                                                                                                                                            |
+| W-I  | New product scope: Quanty control plane, unified memory, quantgram, quantube, quantads, the quanttrinity marketplace, quantmax Omegle and games, quantwave spaces |
 
 ## Conflict still to resolve
 

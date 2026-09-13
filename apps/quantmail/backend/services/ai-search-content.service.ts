@@ -1,3 +1,10 @@
+/**
+ * QuantMail Drive — Content Search Service (Wave A4)
+ *
+ * Backed directly by PostgreSQL via Prisma (`fileIndex` table).
+ * Performs case-insensitive `contains` text search with in-process
+ * relevance scoring and snippet extraction.
+ */
 import { createAppError } from '@quant/server-core';
 
 export interface FileIndexRecord {
@@ -43,9 +50,7 @@ export interface SearchPrismaClient {
   fileIndex: {
     findMany(args: Record<string, unknown>): Promise<FileIndexRecord[]>;
   };
-  $transaction<T>(
-    callback: (tx: SearchPrismaTransactionClient) => Promise<T>,
-  ): Promise<T>;
+  $transaction<T>(callback: (tx: SearchPrismaTransactionClient) => Promise<T>): Promise<T>;
 }
 
 export class AISearchContentService {
@@ -105,9 +110,7 @@ export class AISearchContentService {
           select: { id: true, name: true },
         })
       : [];
-    const fileNameById = new Map<string, string>(
-      files.map((file) => [file.id, file.name]),
-    );
+    const fileNameById = new Map<string, string>(files.map((file) => [file.id, file.name]));
 
     const results: SearchResult[] = [];
     for (const record of records) {

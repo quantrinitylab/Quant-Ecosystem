@@ -105,6 +105,9 @@ export default async function voiceBotRoutes(
       (process.env['NODE_ENV'] === 'test' || process.env['NODE_ENV'] === 'development'
         ? 'devsecret'
         : '');
+    if (!secret) {
+      throw createAppError('Voice bot secret is not configured', 500, 'INTERNAL_SERVER_ERROR');
+    }
 
     // Fail-closed HMAC validation:
     // Required in all non-test environments or when ENFORCE_VOICE_BOT_HMAC is true
