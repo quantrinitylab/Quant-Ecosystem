@@ -956,3 +956,22 @@ graph TD
     4. `Links`: Extracted URLs from message bodies with title, sender, date, and external open.
 - **Anti-Hallucination & E2EE Purge**:
   - Eliminated unverified `🔒 End-to-end delivery` claim from quick group chat modal; unified copy on `Delivered to all X group members`.
+
+### 8. Groups Feed Decoupling & Live Staging Verification (Commit `7d6ecbf9`):
+
+- **Root Cause & Architectural Fix**:
+  - Live Chrome browser testing discovered that when `activeLens === 'groups'`, having any group conversation thread in the mailbox caused both `showThreadList` (`activeLens !== 'groups' && ...`) and `displayThreads.length === 0` to be false, rendering a blank viewport.
+  - Decoupled `showGroupsView` (`activeLens === 'groups' && !debouncedQuery && narrowingCount === 0`) from the empty state block.
+  - Placed the Groups view authoritatively at the top level of the feed container.
+  - Added an `unmatchedGroupThreads` section ("Other group conversations") to render any multi-person threads not linked to a saved group.
+- **CI Gate & EKS Staging Rollout**:
+  - CI Gate passed in 4m36s (Run `34769148011`, Job `103755455180`).
+  - Staging deployed to AWS EKS in 4m24s (Run `34769426846`, Job `103756195436`).
+  - Staging pin `staging-pin-latest` updated to `7d6ecbf9`.
+- **Live Chrome Browser Click-by-Click Verification (`https://quantmail.in/`)**:
+  - Verified Groups feed renders rich WhatsApp-style cards directly in the main list.
+  - Verified Quick Group Chat modal opens with accurate delivery notice ("Delivered to all 2 group members").
+  - Sent live message to group "Good", verified optimistic update and feed arrival.
+  - Opened group thread `cmu01u7wt001jww014ugvjfnn` in reader, verified prominent Group Avatar "GO" + Group Name "Good" + subtitle "2 members · Tap for group details & media".
+  - Tapped group header, verified Telegram/WhatsApp-style `GroupInfoModal` with all 4 tabs (`Members 3` with Owner/Member badges, `Media 0`, `Files 0`, `Links 0`), focus trap, and Escape key dismiss.
+  - Verified zero console errors across the entire flow.

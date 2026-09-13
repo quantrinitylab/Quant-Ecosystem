@@ -414,3 +414,17 @@
     - [x] 4 Tabs: `Members` (initials, addresses, Owner/Member badges, Add/edit button), `Media` (photos/videos preview & download), `Files` (PDF, doc badges, file size, sender, download), and `Links` (extracted URLs, external open).
   - [x] **Anti-Hallucination & E2EE Purge**: Eliminated unverified `🔒 End-to-end delivery` claim from quick group chat modal; unified copy on `Delivered to all X group members`.
   - [x] **Typecheck & Production Build**: Passed 100% clean typecheck (0 errors) and Next.js production build (`pnpm --filter @quant/quantmail build` 61 routes prerendered).
+- [x] **Groups Feed Decoupling & Live EKS Staging Verification (Commit `7d6ecbf9`)**:
+  - [x] **Root Cause Resolution**: Decoupled `showGroupsView` (`activeLens === 'groups' && !debouncedQuery && narrowingCount === 0`) from `displayThreads.length === 0` empty-state block. Groups view now renders authoritatively at the top level of the feed container.
+  - [x] **Unmatched Multi-Person Conversations**: Added `unmatchedGroupThreads` section ("Other group conversations") displaying any multi-recipient threads not yet assigned to a named group, with complete `EmailRow` actions.
+  - [x] **CI Gate & EKS Staging Deployment Green**:
+    - [x] CI Gate: Run `34769148011` (Job `103755455180`) passed 100% green in 4m36s.
+    - [x] EKS Staging Rollout: Run `34769426846` (Job `103756195436`) succeeded in 4m24s.
+    - [x] Staging tag `staging-pin-latest` updated to `7d6ecbf9`.
+  - [x] **Live Chrome Browser Verification (`https://quantmail.in/`)**:
+    - [x] Groups Tab: Completely eliminated the redundant secondary strip. Rendered rich cards for "Good" and "Hii" with custom avatars, member counts, and edit buttons.
+    - [x] Other Group Conversations: Neatly displayed multi-person conversation `quant_test_user, kumar`.
+    - [x] Quick Group Chat: Opened modal for group "Good", verified "Delivered to all 2 group members" (no fake E2EE claim), typed message, sent, verified delivery.
+    - [x] Unified Thread Reader: Opened thread `cmu01u7wt001jww014ugvjfnn`, verified circular avatar "GO" + Group Name "Good" + subtitle "2 members · Tap for group details & media".
+    - [x] Telegram-Style GroupInfoModal: Tapped header, verified focus trap, modal title, and all 4 tabs: `Members` (with Owner/Member pills), `Media 0`, `Files 0`, and `Links 0`. Verified Escape key dismiss.
+    - [x] Console Messages: Verified 0 console errors throughout the entire user flow.
