@@ -552,11 +552,15 @@ export class AIEngine {
     this.costTracker.trackUsage(request.userId, model.id, promptTokens, completionTokens, cost);
   }
 
+  /** Monotonic per-process counter guaranteeing collision-free request IDs. */
+  private static requestSequence = 0;
+
   /**
-   * Generate a unique request ID
+   * Generate a unique request ID (deterministic counter, never Math.random).
    */
   private generateRequestId(): string {
-    return `ai_req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+    AIEngine.requestSequence += 1;
+    return `ai_req_${Date.now().toString(36)}_${AIEngine.requestSequence.toString(36)}`;
   }
 
   /**

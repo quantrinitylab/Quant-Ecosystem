@@ -11,6 +11,9 @@ export interface MLTaskPrediction {
 export class MLPoweredIntelligence extends EventEmitter {
   private orchestrator: IntelligentOrchestrator;
   private modelVersion: string = 'v1.2-quantum';
+  /** Running feedback counters used to report a REAL accuracy estimate. */
+  private feedbackCount = 0;
+  private feedbackSuccesses = 0;
 
   constructor(orchestrator: IntelligentOrchestrator) {
     super();
@@ -18,7 +21,7 @@ export class MLPoweredIntelligence extends EventEmitter {
   }
 
   async predictTaskRequirements(task: string): Promise<MLTaskPrediction> {
-    // Simulate ML model inference (in real system would call packages/ml)
+    // Deterministic complexity estimate derived from the task text.
     const complexity = Math.min(Math.max(task.length / 100, 0.3), 0.95);
 
     const prediction: MLTaskPrediction = {
@@ -29,7 +32,9 @@ export class MLPoweredIntelligence extends EventEmitter {
           : 'general',
       predictedComplexity: complexity,
       recommendedAgents: ['quantai', 'personal'],
-      confidence: 0.87 + Math.random() * 0.1,
+      // Confidence is a deterministic function of the estimated complexity —
+      // no randomness, so the same task always scores the same.
+      confidence: Math.min(0.97, 0.85 + complexity * 0.12),
     };
 
     this.emit('ml:prediction', prediction);
@@ -52,8 +57,11 @@ export class MLPoweredIntelligence extends EventEmitter {
   }
 
   async trainOnFeedback(task: string, success: boolean, duration: number) {
-    // Future: send to ML package for model fine-tuning
+    // Record observed feedback and report the REAL running success rate
+    // (previously a hard-coded 0.89).
+    this.feedbackCount += 1;
+    if (success) this.feedbackSuccesses += 1;
     this.emit('ml:feedback', { task, success, duration });
-    return { updated: true, newAccuracy: 0.89 };
+    return { updated: true, newAccuracy: this.feedbackSuccesses / this.feedbackCount };
   }
 }

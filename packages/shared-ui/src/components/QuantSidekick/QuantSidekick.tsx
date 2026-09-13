@@ -5,8 +5,8 @@
 //
 // The universal QuantAI presence. EcosystemShell mounts <QuantSidekickProvider>
 // (so any surface can drive the assistant via useQuantSidekick) and a single
-// floating <QuantSidekick> widget (the animated alien + a small panel). This is
-// how QuantAI appears consistently in EVERY Quant app.
+// floating <QuantSidekick> widget (the Bubble Intelligence avatar + a small
+// panel). This is how QuantAI appears consistently in EVERY Quant app.
 //
 // The provider holds only UI/presence state; the actual intelligence lives in
 // the cross-cutting engines (contextual-sidekick / quant-orchestrator) which a
@@ -14,7 +14,7 @@
 // AI calls (see `runTask` for the common "thinking -> speaking" lifecycle).
 
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { AlienAvatar, type QuantSidekickStatus } from './AlienAvatar';
+import { BubbleAvatar, type QuantSidekickStatus } from './BubbleAvatar';
 
 export interface QuantSidekickSuggestion {
   id: string;
@@ -133,9 +133,9 @@ export interface QuantSidekickProps {
 }
 
 /**
- * The single floating QuantAI widget: the animated alien (a toggle button) plus
- * an expandable panel showing the current message and contextual suggestions.
- * Rendered once by EcosystemShell so it is present in every app.
+ * The single floating QuantAI widget: the Bubble Intelligence avatar (a toggle
+ * button) plus an expandable panel showing the current message and contextual
+ * suggestions. Rendered once by EcosystemShell so it is present in every app.
  */
 export const QuantSidekick: React.FC<QuantSidekickProps> = ({
   position = 'bottom-right',
@@ -154,10 +154,10 @@ export const QuantSidekick: React.FC<QuantSidekickProps> = ({
           role="dialog"
           aria-label="QuantAI assistant"
           data-testid="quant-sidekick-panel"
-          className="w-72 max-w-[80vw] rounded-2xl bg-white/95 p-4 shadow-xl ring-1 ring-black/5 backdrop-blur dark:bg-gray-900/95 dark:ring-white/10"
+          className="w-72 max-w-[80vw] rounded-2xl border border-orange-200/60 bg-[#1a120a]/95 p-4 shadow-[0_12px_40px_-12px_rgba(255,140,66,0.45)] backdrop-blur dark:border-orange-500/20"
         >
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">QuantAI</span>
+            <span className="text-sm font-semibold text-orange-50">QuantAI</span>
             <button
               type="button"
               onClick={close}
@@ -168,7 +168,7 @@ export const QuantSidekick: React.FC<QuantSidekickProps> = ({
             </button>
           </div>
           <p
-            className="min-h-[1.25rem] text-sm text-gray-700 dark:text-gray-300"
+            className="min-h-[1.25rem] text-sm text-orange-100/85"
             data-testid="quant-sidekick-message"
           >
             {message ?? 'How can I help across your Quant apps?'}
@@ -180,7 +180,7 @@ export const QuantSidekick: React.FC<QuantSidekickProps> = ({
                   <button
                     type="button"
                     onClick={s.onSelect}
-                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950"
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-orange-200 transition-colors hover:bg-orange-500/15 hover:text-orange-100"
                   >
                     {s.label}
                   </button>
@@ -197,9 +197,9 @@ export const QuantSidekick: React.FC<QuantSidekickProps> = ({
         aria-label="Open QuantAI assistant"
         aria-expanded={isOpen}
         data-testid="quant-sidekick-toggle"
-        className="rounded-full bg-white/90 p-1 shadow-lg ring-1 ring-black/5 transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-emerald-400 dark:bg-gray-900/90 dark:ring-white/10"
+        className="rounded-full p-0.5 shadow-[0_8px_28px_-8px_rgba(255,140,66,0.7)] transition-transform duration-200 hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 active:scale-95"
       >
-        <AlienAvatar state={status} size={size} />
+        <BubbleAvatar state={status} size={size} />
       </button>
     </div>
   );

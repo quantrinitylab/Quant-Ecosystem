@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'events';
 
 export interface Event {
@@ -20,7 +21,8 @@ export class EventPipeline extends EventEmitter {
   async publish(event: Omit<Event, 'id' | 'timestamp'>): Promise<string> {
     const fullEvent: Event = {
       ...event,
-      id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `evt-${randomUUID()}`,
+
       timestamp: new Date(),
     };
 

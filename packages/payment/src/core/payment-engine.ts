@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { PaymentValidationError } from './errors';
 import { isValidCurrency } from './currency';
 
@@ -103,7 +105,7 @@ export class PaymentEngine {
   ): Promise<PaymentMethod> {
     const newMethod: PaymentMethod = {
       ...method,
-      id: `pm_${Date.now()}`,
+      id: `pm_${randomUUID()}`,
       userId,
     };
 
@@ -139,7 +141,7 @@ export class PaymentEngine {
     }
 
     const transaction: Transaction = {
-      id: `tx_${Date.now()}`,
+      id: `tx_${randomUUID()}`,
       userId,
       amount,
       currency,

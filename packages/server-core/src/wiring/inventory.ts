@@ -22,10 +22,14 @@
  *     `shared-ui`'s `EcosystemShell`, which every app consumes. The DoD-1
  *     evaluator therefore scans `packages/shared-ui` for importers alongside
  *     `apps/**` and `packages/server-core/**` (see `DOD1_SCAN_ROOTS`).
- *   - The directories `ab-testing`, `cache`, `cdn`, `events`, `ml`, `payment`,
- *     `recommendation` and `scaling` have no `package.json` (no importable
- *     specifier) and are likewise excluded; `payment`/`recommendation` are
- *     empty duplicates of `@quant/payments` / `@quant/recommendations`.
+ *   - The `ab-testing`, `cache`, `cdn`, `events`, `ml`, `payment`,
+ *     `recommendation` and `scaling` engines were originally promoted from
+ *     source-only folders; each now ships a real `package.json` manifest and is
+ *     declared + wired by its consuming app, so none of them is an orphan. They
+ *     are still excluded from this orphaned-engine inventory because they are
+ *     not catalogued here as first-class engine rows. `@quant/payment` and
+ *     `@quant/recommendation` also duplicate parts of the `@quant/payments` /
+ *     `@quant/recommendations` surfaces and are candidates for consolidation.
  *   - Cross-cutting rows and per-app rows for engines named in the design's
  *     integration audit are authoritative. Remaining engines are classified by
  *     best-effort reconciliation; `lane`/`stage`/`dependsOn` may be refined as

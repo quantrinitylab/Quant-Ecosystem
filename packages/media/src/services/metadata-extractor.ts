@@ -40,6 +40,68 @@ interface FileAnalysis {
 }
 
 /**
+ * Magic-byte signatures for real container detection. Each signature is matched
+ * at a byte `offset` (mp4 puts `ftyp` after the 4-byte box size); an optional
+ * `alsoAt` refines ambiguous containers (RIFF is also WAV/AVI, so we require
+ * `WEBP` at offset 8 when enough bytes are available).
+ */
+interface MagicSignature {
+  hex: string;
+  offset: number;
+  mime: string;
+  ext: string;
+  type: MediaType;
+  alsoAt?: { hex: string; offset: number };
+}
+
+const MAGIC_SIGNATURES: readonly MagicSignature[] = [
+  { hex: 'ffd8ff', offset: 0, mime: 'image/jpeg', ext: 'jpg', type: 'image' },
+  { hex: '89504e47', offset: 0, mime: 'image/png', ext: 'png', type: 'image' },
+  { hex: '47494638', offset: 0, mime: 'image/gif', ext: 'gif', type: 'image' },
+  {
+    hex: '52494646',
+    offset: 0,
+    mime: 'image/webp',
+    ext: 'webp',
+    type: 'image',
+    alsoAt: { hex: '57454250', offset: 8 },
+  },
+  { hex: '66747970', offset: 4, mime: 'video/mp4', ext: 'mp4', type: 'video' },
+  { hex: '1a45dfa3', offset: 0, mime: 'video/webm', ext: 'webm', type: 'video' },
+  { hex: '494433', offset: 0, mime: 'audio/mpeg', ext: 'mp3', type: 'audio' },
+  { hex: '664c6143', offset: 0, mime: 'audio/flac', ext: 'flac', type: 'audio' },
+];
+
+/** Hex-encode the leading `maxBytes` of a byte array. */
+function toHexPrefix(bytes: Uint8Array, maxBytes: number): string {
+  let hex = '';
+  for (let i = 0; i < bytes.length && i < maxBytes; i++) {
+    hex += (bytes[i] ?? 0).toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+/** Match a byte buffer against the magic-byte table; null when unknown. */
+function matchMagicSignature(bytes: Uint8Array): MagicSignature | null {
+  const hex = toHexPrefix(bytes, 16);
+  for (const signature of MAGIC_SIGNATURES) {
+    const offsetHex = hex.slice(signature.offset * 2);
+    if (!offsetHex.startsWith(signature.hex)) continue;
+    if (signature.alsoAt) {
+      const alsoHex = hex.slice(signature.alsoAt.offset * 2);
+      if (
+        alsoHex.length >= signature.alsoAt.hex.length &&
+        !alsoHex.startsWith(signature.alsoAt.hex)
+      ) {
+        continue;
+      }
+    }
+    return signature;
+  }
+  return null;
+}
+
+/**
  * MetadataExtractor - Comprehensive media metadata extraction
  *
  * Extracts EXIF data, dimensions, duration, codec info,
@@ -399,32 +461,40 @@ export class MetadataExtractor {
   }
 
   /**
-   * Analyze file type from header bytes (simulated)
+   * Analyze a file's type from its REAL header bytes.
+   *
+   * The previous implementation ignored the bytes and returned a randomly
+   * chosen type. It now matches the supplied buffer against known magic-byte
+   * signatures and reports an honest `application/octet-stream` when nothing
+   * matches (or when no bytes were supplied) instead of guessing.
    */
-  public analyzeFile(_fileId: string, _headerBytes?: Uint8Array): FileAnalysis {
-    // Simulate magic byte detection
-    const signatures: Record<string, { mime: string; ext: string; type: MediaType }> = {
-      ffd8ff: { mime: 'image/jpeg', ext: 'jpg', type: 'image' },
-      '89504e47': { mime: 'image/png', ext: 'png', type: 'image' },
-      '47494638': { mime: 'image/gif', ext: 'gif', type: 'image' },
-      '52494646': { mime: 'image/webp', ext: 'webp', type: 'image' },
-      '00000020': { mime: 'video/mp4', ext: 'mp4', type: 'video' },
-      '1a45dfa3': { mime: 'video/webm', ext: 'webm', type: 'video' },
-      '4944330': { mime: 'audio/mpeg', ext: 'mp3', type: 'audio' },
-      '664c6143': { mime: 'audio/flac', ext: 'flac', type: 'audio' },
-    };
-
-    // Pick a random file type for simulation
-    const keys = Object.keys(signatures);
-    const key = keys[Math.floor(Math.random() * keys.length)]!;
-    const sig = signatures[key]!;
+  public analyzeFile(_fileId: string, headerBytes?: Uint8Array): FileAnalysis {
+    if (headerBytes && headerBytes.length > 0) {
+      const match = matchMagicSignature(headerBytes);
+      if (match) {
+        return {
+          mimeType: match.mime,
+          extension: match.ext,
+          mediaType: match.type,
+          isCorrupted: false,
+          headerBytes: match.hex,
+        };
+      }
+      return {
+        mimeType: 'application/octet-stream',
+        extension: 'bin',
+        mediaType: 'document',
+        isCorrupted: true,
+        headerBytes: toHexPrefix(headerBytes, 8),
+      };
+    }
 
     return {
-      mimeType: sig.mime,
-      extension: sig.ext,
-      mediaType: sig.type,
+      mimeType: 'application/octet-stream',
+      extension: 'bin',
+      mediaType: 'document',
       isCorrupted: false,
-      headerBytes: key,
+      headerBytes: '',
     };
   }
 

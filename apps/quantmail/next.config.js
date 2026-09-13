@@ -40,9 +40,6 @@ const nextConfig = {
     // pulls the whole barrel into its route chunk.
     optimizePackageImports: ['@quant/shared-ui', 'framer-motion'],
   },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   eslint: {
     ignoreDuringBuilds: true,
   },

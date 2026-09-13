@@ -1,10 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@quant/shared-ui', '@quant/common'],
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
   serverExternalPackages: ['@prisma/client', 'prisma', 'nats'],
   webpack: (config, { isServer }) => {
     // Resolve workspace TS packages that use NodeNext `.js` import specifiers

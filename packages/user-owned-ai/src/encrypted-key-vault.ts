@@ -2,6 +2,7 @@ import {
   createCipheriv,
   createDecipheriv,
   randomBytes,
+  randomUUID,
   scryptSync,
   type CipherGCM,
   type DecipherGCM,
@@ -65,7 +66,8 @@ export class EncryptedKeyVault {
     const encryptedKey = encrypted + ':' + authTag;
 
     const entry: EncryptedKeyEntry = {
-      id: `key_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      id: `key_${randomUUID()}`,
+
       userId,
       provider,
       encryptedKey,

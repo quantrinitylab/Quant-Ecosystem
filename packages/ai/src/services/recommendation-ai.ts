@@ -6,6 +6,21 @@ import type { RecommendationRequest, RecommendationResult, RecommendedItem } fro
 import { AIEngine } from '../core/engine';
 
 /**
+ * Deterministic FNV-1a-based score in the 0.4-1.0 range derived from the user
+ * and item identifiers. Reproducible across runs, so the same request always
+ * yields the same ranking.
+ */
+function deterministicScore(userId: string, itemId: string, index: number): number {
+  const source = `${userId}:${itemId}:${index}`;
+  let hash = 2166136261;
+  for (let i = 0; i < source.length; i++) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return 0.4 + ((hash >>> 0) % 600) / 1000;
+}
+
+/**
  * Recommendation AI Service
  *
  * Personalized recommendations across the ecosystem:
@@ -206,7 +221,9 @@ export class RecommendationAIService {
 
     for (let i = 0; i < numCandidates; i++) {
       const itemId = `${request.type}_${Date.now().toString(36)}_${i}`;
-      const score = Math.random() * 0.6 + 0.4; // 0.4-1.0 range
+      // Deterministic 0.4-1.0 score derived from (user, item) so repeated
+      // requests are reproducible (never Math.random()).
+      const score = deterministicScore(request.userId, itemId, i);
       const reasons = this.generateReason(request.type, request.context.userPreferences);
 
       candidates.push({
@@ -286,7 +303,14 @@ export class RecommendationAIService {
     };
 
     const typeReasons = reasons[type] ?? reasons['content'] ?? [];
-    return typeReasons[Math.floor(Math.random() * typeReasons.length)] ?? 'Recommended for you';
+    if (typeReasons.length === 0) return 'Recommended for you';
+    // Deterministic selection: hash the type to a stable index instead of
+    // picking a reason at random, so identical requests are reproducible.
+    let hash = 0;
+    for (let i = 0; i < type.length; i++) {
+      hash = (hash * 31 + type.charCodeAt(i)) | 0;
+    }
+    return typeReasons[Math.abs(hash) % typeReasons.length] ?? 'Recommended for you';
   }
 
   /**

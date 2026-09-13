@@ -7,10 +7,6 @@ const nextConfig = {
     '@quant/agentic',
     '@quant/ai',
   ],
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
   serverExternalPackages: ['nats'],
   webpack: (config, { isServer }) => {
     // @quant/agentic ships TS source only and uses NodeNext ESM imports with
