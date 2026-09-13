@@ -72,6 +72,8 @@ export interface ConversationalThreadViewProps {
   isStarred?: boolean;
   className?: string;
   variant?: 'pane' | 'full';
+  isSpam?: boolean;
+  onNotSpam?: (messageIds: string[]) => void;
 }
 
 export function ConversationalThreadView({
@@ -86,6 +88,8 @@ export function ConversationalThreadView({
   isStarred = false,
   className = '',
   variant = 'pane',
+  isSpam = false,
+  onNotSpam,
 }: ConversationalThreadViewProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -204,6 +208,34 @@ export function ConversationalThreadView({
     const ids = messageRowIds(messages);
     return ids.length > 0 ? ids : [threadId].filter(Boolean);
   }, [messages, threadId]);
+
+  const isQuarantined =
+    isSpam || messages.some((m) => (m as any).isSpam || (m as any).folderId === 'SPAM');
+  const [isRescuingSpam, setIsRescuingSpam] = useState(false);
+
+  const handleRescueSpam = useCallback(async () => {
+    const targetId = messages[0]?.id || threadId;
+    if (!targetId) return;
+    setIsRescuingSpam(true);
+    try {
+      await apiClient.markNotSpam(targetId);
+      showToast({ text: 'Rescued from spam — moved back to inbox', type: 'success' });
+      if (onNotSpam) {
+        onNotSpam(conversationMessageIds);
+      }
+      if (onClose) {
+        onClose();
+      }
+      invalidateMailLists(queryClient);
+    } catch (err) {
+      showToast({
+        text: err instanceof Error ? err.message : 'Failed to rescue email',
+        type: 'error',
+      });
+    } finally {
+      setIsRescuingSpam(false);
+    }
+  }, [messages, threadId, conversationMessageIds, onNotSpam, onClose, queryClient]);
 
   /**
    * The conversation this view is about, resolved the way the inbox resolved it.
@@ -897,6 +929,29 @@ export function ConversationalThreadView({
             )}
           </AnchoredMenu>
 
+          {/* Not Spam (Rescue) */}
+          {isQuarantined && (
+            <button
+              type="button"
+              onClick={handleRescueSpam}
+              disabled={isRescuingSpam}
+              className="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-xl px-3 py-1.5 bg-[#2B1A11] hover:bg-[#3D2518] text-xs font-semibold text-[#FF8C42] border border-[#5C3016] transition-all disabled:opacity-50"
+              title="Not spam — rescue to inbox"
+            >
+              <svg
+                className="size-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+              >
+                <path d="M3 10h10a5 5 0 0 1 5 5v2" />
+                <path d="M7 6L3 10l4 4" />
+              </svg>
+              <span>{isRescuingSpam ? 'Rescuing…' : 'Not spam'}</span>
+            </button>
+          )}
+
           {/* Archive */}
           {onArchive && (
             <button
@@ -945,6 +1000,58 @@ export function ConversationalThreadView({
 
       {/* Main Conversation Stream (Chronological Stack) */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4 max-w-4xl mx-auto w-full">
+        {isQuarantined && (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-[#2B1A11] via-[#1E140E] to-[#12141A] border border-[#5C3016] shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className="size-9 rounded-xl bg-[#FF8C42]/20 text-[#FF8C42] border border-[#FF8C42]/30 flex items-center justify-center shrink-0 mt-0.5">
+                <svg
+                  className="size-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <path d="M12 8v4" />
+                  <path d="M12 16h.01" />
+                </svg>
+              </span>
+              <div>
+                <h4 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+                  <span>Quarantined by Sovereign Spam Defense</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-[#3D2518] text-[#FF8C42] border border-[#5C3016]">
+                    Isolated
+                  </span>
+                </h4>
+                <p className="text-xs text-[#A1A4AC] mt-0.5 leading-relaxed">
+                  Classified as junk/suspicious via on-device heuristics &amp; DKIM cryptographic
+                  checks. External images, tracking pixels, and links are safeguarded.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleRescueSpam}
+                disabled={isRescuingSpam}
+                className="px-3 py-1.5 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-black text-xs font-semibold transition-all flex items-center gap-1.5 shadow-md shadow-[#FF8C42]/10 disabled:opacity-50"
+              >
+                <svg
+                  className="size-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <path d="M3 10h10a5 5 0 0 1 5 5v2" />
+                  <path d="M7 6L3 10l4 4" />
+                </svg>
+                <span>{isRescuingSpam ? 'Rescuing…' : 'Not spam (Move to inbox)'}</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {isLoading && (
           <div className="space-y-4 pt-4">
             <div className="h-20 bg-[#111318]/60 rounded-2xl animate-pulse border border-[#282C35]/60" />

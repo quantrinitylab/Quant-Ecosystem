@@ -1,23 +1,21 @@
 'use client';
 
-import { MailFolderPage } from '../../components/MailFolderPage';
-import { apiClient } from '../../services/api-client';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function SpamPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/?lens=spam');
+  }, [router]);
+
   return (
-    <MailFolderPage
-      folderType="SPAM"
-      kicker="Kept at bay"
-      title="Spam"
-      subtitle="flagged as junk"
-      emptyTitle="Spam is empty"
-      emptyDescription="Suspicious mail lands here automatically so your inbox stays clean. Anything wrongly flagged can be rescued with one tap."
-      rowAction={{
-        label: 'Not spam',
-        pendingLabel: 'Rescuing…',
-        successToast: 'Moved to inbox',
-        run: (id) => apiClient.markNotSpam(id),
-      }}
-    />
+    <div className="flex min-h-screen items-center justify-center bg-[#090A0C] text-white">
+      <div className="flex items-center gap-2 text-sm text-[#A1A4AC]">
+        <span className="size-2 rounded-full bg-[#FF8C42] animate-pulse" />
+        <span>Opening Sovereign Spam Shield…</span>
+      </div>
+    </div>
   );
 }

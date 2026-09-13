@@ -12,11 +12,13 @@ interface HoverActionsProps {
   onMarkUnread: () => void;
   onSnooze: () => void;
   onLabel?: () => void;
+  isSpam?: boolean;
+  onRescueSpam?: () => void;
 }
 
 /**
  * Gmail-style hover action bar that appears on the right side of an email row.
- * Shows: Archive, Delete, Mark Read/Unread, Snooze, Label.
+ * Shows: Archive, Delete, Mark Read/Unread, Snooze, Label, and Not Spam rescue.
  * Hidden on touch/coarse-pointer devices via shell.css.
  */
 export const HoverActions = memo(function HoverActions({
@@ -28,6 +30,8 @@ export const HoverActions = memo(function HoverActions({
   onMarkUnread,
   onSnooze,
   onLabel,
+  isSpam,
+  onRescueSpam,
 }: HoverActionsProps) {
   return (
     <motion.div
@@ -39,6 +43,27 @@ export const HoverActions = memo(function HoverActions({
       onClick={(e) => e.stopPropagation()}
       aria-label="Quick actions"
     >
+      {isSpam && onRescueSpam && (
+        <button
+          type="button"
+          className="hover-action-btn text-[#FF8C42] hover:text-[#FFA666] hover:bg-[#2B1A11]"
+          onClick={onRescueSpam}
+          aria-label="Not spam"
+          title="Not spam — rescue to inbox"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M3 10h10a5 5 0 0 1 5 5v2" />
+            <path d="M7 6L3 10l4 4" />
+          </svg>
+        </button>
+      )}
       <button
         type="button"
         className="hover-action-btn"

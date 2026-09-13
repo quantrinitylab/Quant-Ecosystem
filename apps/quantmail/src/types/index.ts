@@ -66,6 +66,8 @@ export interface Email extends BaseEntity {
   isStarred: boolean;
   isArchived: boolean;
   isDraft: boolean;
+  isSpam?: boolean;
+  folderId?: string | null;
   labels: string[];
   attachments: EmailAttachment[];
   inReplyTo?: string;

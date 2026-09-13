@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useInbox } from '../hooks/useInbox';
 import { useStorageQuota } from '../hooks/useStorageQuota';
 import { formatBytes } from '../lib/format-bytes';
@@ -225,7 +225,7 @@ const NAV_GROUPS: Array<{
       { id: 'starred', label: 'Starred', icon: 'star', path: '/starred' },
       { id: 'snoozed', label: 'Snoozed', icon: 'clock', path: '/snoozed' },
       { id: 'archive', label: 'Archive', icon: 'archive', path: '/archive' },
-      { id: 'spam', label: 'Spam', icon: 'spam', path: '/spam' },
+      { id: 'spam', label: 'Spam', icon: 'spam', path: '/?lens=spam' },
       { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
     ],
   },
@@ -268,11 +268,23 @@ export interface AppSidebarProps {
 export function AppSidebar({ extra }: AppSidebarProps = {}) {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
-  const isActive = (path: string) => (path === '/' ? pathname === '/' : pathname.startsWith(path));
+  const searchParams = useSearchParams();
+  const currentLens = searchParams.get('lens');
+  const isActive = (path: string) => {
+    if (path === '/?lens=spam') {
+      return pathname === '/' && currentLens === 'spam';
+    }
+    if (path === '/') {
+      return pathname === '/' && currentLens !== 'spam';
+    }
+    return pathname.startsWith(path);
+  };
   const { data: inboxEmails } = useInbox();
   const { data: draftEmails } = useInbox({ folderType: 'DRAFTS' });
+  const { data: spamEmails } = useInbox({ folderType: 'SPAM' });
   const unreadCount = inboxEmails?.filter((e) => !e.isRead).length ?? 0;
   const draftCount = draftEmails?.length ?? 0;
+  const spamCount = spamEmails?.length ?? 0;
   const { quota, known: quotaKnown, usedPct } = useStorageQuota();
 
   return (
@@ -346,6 +358,11 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
                       )}
                       {item.id === 'drafts' && draftCount > 0 && (
                         <span className="sidebar-count sidebar-count-muted">{draftCount}</span>
+                      )}
+                      {item.id === 'spam' && spamCount > 0 && (
+                        <span className="sidebar-count bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]">
+                          {spamCount}
+                        </span>
                       )}
                       {item.id === 'inbox' && (
                         <span className="sidebar-nav-spark" aria-hidden="true" />

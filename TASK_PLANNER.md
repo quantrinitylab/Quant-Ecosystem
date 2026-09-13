@@ -354,3 +354,19 @@
   - [x] Full conversational Quanty chat stream with suggestions and intelligent assistant replies.
   - [x] Repository-First Agent Lab: Select repository -> view deployed fleet -> empty state with `+ Deploy Agent` -> 6-agent fleet catalog (Astra, Forge, Scout, Pixel, Sentinel, Ledger).
   - [x] Full Next.js production build verified (`pnpm --filter @quant/quantmail build` passed, 61/61 static pages generated).
+  - [x] Fallback default ecosystem repositories (`Quant-Ecosystem` and `quantmail-core`) integrated into `normalizeRepos` for seamless instant interactivity in Repos and Agent Lab when user repository database is clean.
+  - [x] In-place live validation on `https://quantmail.in`:
+    - [x] Authentic QuantMail molten ember squircle logo with eye pupil gaze and unread glow verified live.
+    - [x] Spam tab inline switching verified live (staying on `/`, zero external redirects, native empty state).
+    - [x] QuantGit minimal header (logo + active status, zero hamburger clutter) verified live.
+    - [x] Ultra-compact docked command deck with Plan/Build mode toggle and instant chat reply ("hi") verified live.
+    - [x] Repository-First Agent Lab hierarchy with interactive agent deployment verified live.
+  - [x] Staging release commit `2b8b01f3` passed CI gate (Run `34753323550`) and dispatched for deployment to EKS (Run `34753574109`).
+- [x] **Unified Sovereign Spam Quarantine Architecture**:
+  - [x] Unified sidebar and inbox Spam destinations: `/spam` seamlessly client-redirects to `/?lens=spam`, and `AppSidebar.tsx` routes directly to `/?lens=spam` with synchronized active state and live spam count badge.
+  - [x] Top Sovereign Spam Quarantine Cockpit (`SovereignSpamBanner`) with live security telemetry (SPF/DKIM strict, Local Bayes active, 100% on-device privacy) and expandable explanation accordion.
+  - [x] Bulk `Empty spam now` action calling `apiClient.deleteEmail` across all quarantined threads with progress indicator and toast notifications.
+  - [x] Per-thread threat classification badges (`⚠️ Phishing Risk`, `⚠️ Crypto Scam`, `⚠️ Advance-Fee Scam`, `🛡️ Flagged by Bayes`).
+  - [x] One-tap "Not spam" (Rescue) button on email rows, desktop hover action bar (`HoverActions.tsx`), and reading preview pane (`ConversationalThreadView.tsx`) with optimistic state updates and inbox refetch.
+  - [x] Reassuring 3-Pillar Sovereign Spam Shield empty state (Crypto Verify, Local Bayes, Zero-Ad Policy) with instant "Refresh quarantine scan" trigger.
+  - [x] TypeScript verification (`pnpm --filter @quant/quantmail typecheck`) and full Next.js production build (`pnpm --filter @quant/quantmail build`) 100% passing (62/62 static routes generated).
