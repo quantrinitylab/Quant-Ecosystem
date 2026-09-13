@@ -335,4 +335,44 @@ describe('voice-bot Fastify routes (Task VC-01 & VC-02)', () => {
       await unauthorizedApp.close();
     }
   });
+
+  it('POST /voice-bot/alert returns 500 when voice bot secret is not configured in non-test environment', async () => {
+    const originalEnv = process.env['NODE_ENV'];
+    const originalSecret = process.env['VOICE_BOT_SECRET'];
+    const originalLiveKitSecret = process.env['LIVEKIT_API_SECRET'];
+    try {
+      delete process.env['VOICE_BOT_SECRET'];
+      delete process.env['LIVEKIT_API_SECRET'];
+      process.env['NODE_ENV'] = 'staging';
+
+      const unconfiguredApp = Fastify({ logger: false });
+      await unconfiguredApp.register(voiceBotRoutes, { prefix: '/voice-bot' });
+      await unconfiguredApp.ready();
+
+      const res = await unconfiguredApp.inject({
+        method: 'POST',
+        url: '/voice-bot/alert',
+        payload: {
+          userId: 'usr-100',
+          meetingId: 'mtg-test-500',
+          title: 'Unconfigured Secret Meeting',
+          organizer: 'Alice',
+          startTime: new Date().toISOString(),
+        },
+      });
+
+      expect(res.statusCode).toBe(500);
+      const body = res.json();
+      expect(body.message || body.error).toMatch(
+        /VOICE_BOT_SECRET environment variable is required in production and staging|Voice bot secret is not configured/,
+      );
+
+      await unconfiguredApp.close();
+    } finally {
+      process.env['NODE_ENV'] = originalEnv;
+      if (originalSecret !== undefined) process.env['VOICE_BOT_SECRET'] = originalSecret;
+      if (originalLiveKitSecret !== undefined)
+        process.env['LIVEKIT_API_SECRET'] = originalLiveKitSecret;
+    }
+  });
 });

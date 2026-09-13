@@ -45,6 +45,13 @@ import { SessionTokenIssuer } from './lib/session-tokens';
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
 
+  if (
+    (env === 'production' || (env as string) === 'staging') &&
+    process.env['NODE_ENV'] === 'test'
+  ) {
+    throw new Error('FATAL: Production or staging configuration cannot run with NODE_ENV=test');
+  }
+
   if (env === 'production' && !process.env['JWT_SECRET']) {
     throw new Error('JWT_SECRET environment variable is required in production');
   }

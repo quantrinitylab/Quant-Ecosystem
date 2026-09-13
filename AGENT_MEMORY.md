@@ -739,8 +739,10 @@ graph TD
   - Open PR count on repository reduced from 14 down to **exactly 0 open PRs**. Full repository backlog cleared.
 - **Post-Merge Hardening & CI Integrity on `main`**:
   - `APP_MAP_AND_DEDUPLICATION_DECISIONS.md`: aligned blocker 1 with Postgres schema reality.
-  - `voice-bot.ts`: added explicit 500 error when voice bot secret is unconfigured (7/7 tests passing).
+  - `voice-bot.ts`: added explicit 500 error when voice bot secret is unconfigured, plus boot assertion requiring `NODE_ENV !== 'test'` in standalone server (`server.ts`) and config (`app.ts`).
+  - Added discriminating unit test for 500-on-unconfigured-secret in `voice-bot.routes.test.ts` (8/8 tests passing, build clean).
   - `search-query.service.ts`: matched independent free-text search terms with `AND` in any order across subject, snippet, and body (18/18 tests passing).
   - `ai-search-content.service.ts`: documented PostgreSQL Prisma ILIKE search backend over `fileIndex`.
   - CodeQL Advanced run `34741362846` on `main`: 100% green (Python 57s, Actions 46s, JS/TS 8m41s).
   - CI gate run `34741362838` on `main`: `gate` passed in 45s, `quantchat-coverage` passed in 1m1s, `memory-shadow-postgres` passed in 48s.
+  - **Staging Execution Runbook Created by CEO Astra**: Published '§4 + §6 Staging Execution Runbook — QuantMail v2' in Notion; §4 confirmed with 4 additions (snapshot before 0059 OAuth rehash, baseline counts, scratch dry-run, psql NOTICE capture); §6 sequenced across 7 stages with 3 expected failures declared upfront.

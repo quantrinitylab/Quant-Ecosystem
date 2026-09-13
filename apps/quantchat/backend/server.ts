@@ -12,6 +12,9 @@
 import { buildApp, getConfig } from './app';
 
 async function main(): Promise<void> {
+  if (process.env['NODE_ENV'] === 'test') {
+    throw new Error('FATAL: QuantChat server cannot boot with NODE_ENV=test in standalone process');
+  }
   const config = getConfig();
   const app = await buildApp(config);
 
