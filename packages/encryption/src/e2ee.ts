@@ -10,6 +10,7 @@ import {
   randomBytes,
 } from 'node:crypto';
 
+import type { CipherGCM, DecipherGCM } from 'node:crypto';
 import type {
   E2EEConfig,
   KeyPair,
@@ -291,7 +292,11 @@ export class E2EEManager {
     const iv = randomBytes(12);
 
     const aad = envelopeAad(senderKey.fingerprint, recipientKey.fingerprint, cipher);
-    const encrypter = createCipheriv(cipher, messageKey, iv);
+    // `createCipheriv` returns a union whose GCM members carry the AEAD
+    // methods, but with an algorithm typed as the string union above TS can
+    // only promise the base `Cipher`. Both members of `aeadCipher` are AEAD
+    // and support `setAAD`/`getAuthTag` at runtime, so the view is honest.
+    const encrypter = createCipheriv(cipher, messageKey, iv) as CipherGCM;
     encrypter.setAAD(aad);
     const ciphertextBytes = Buffer.concat([
       encrypter.update(Buffer.from(plaintext, 'utf-8')),
@@ -341,7 +346,7 @@ export class E2EEManager {
       envelope.alg,
       messageKey,
       Buffer.from(envelope.iv, 'base64'),
-    );
+    ) as DecipherGCM;
     decrypter.setAAD(aad);
     decrypter.setAuthTag(Buffer.from(envelope.tag, 'base64'));
 

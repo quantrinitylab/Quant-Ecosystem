@@ -51,8 +51,10 @@ export interface QuantyProps {
  * Group by meaning, not by shape: `sorry` and `sad` and `cry` all land on the
  * bubble's error face because the bubble says "something's wrong" one way —
  * with a downturned mouth and worry brows — no matter which product word
- * triggered it. States with no closer reading (wink, dizzy, offline) map to
- * the nearest gesture so a trigger never blanks the mascot.
+ * triggered it. The vocabulary has outgrown the bubble's sheet (the robot
+ * sheet grew snake_case workflow faces that the bubble expresses through its
+ * chips and rings), so workflow faces collapse onto the state whose *meaning*
+ * they carry; a trigger never blanks the mascot.
  */
 const FACE_TO_BUBBLE: Record<QuantyExpression, BubbleState> = {
   // resting and content
@@ -97,6 +99,36 @@ const FACE_TO_BUBBLE: Record<QuantyExpression, BubbleState> = {
   dizzy: 'syncing',
   error: 'error',
   offline: 'goodbye',
+  // ---- robot-sheet workflow faces (snake_case), mapped by meaning ----
+  wake_up: 'wakeUp',
+  look_around: 'lookAround',
+  recognize_you: 'recognize',
+  thinking_deep: 'thinkingDeep',
+  idea_spark: 'ideaSpark',
+  understanding: 'understanding',
+  reading: 'reading',
+  analyzing: 'analyzing',
+  coding: 'coding',
+  refactoring: 'refactoring',
+  debugging: 'debugging',
+  fixing: 'fixing',
+  explaining: 'explaining',
+  planning: 'planning',
+  organizing: 'organizing',
+  creating: 'creating',
+  improving: 'improving',
+  suggesting: 'suggesting',
+  multiple_options: 'options',
+  almost_done: 'almostDone',
+  completed: 'completed',
+  thinking_again: 'rethinking',
+  need_more_info: 'needInfo',
+  typing: 'typing',
+  searching: 'searching',
+  syncing: 'syncing',
+  saving: 'saving',
+  celebration: 'celebration',
+  goodbye: 'goodbye',
 };
 
 export function Quanty({
