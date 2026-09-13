@@ -895,6 +895,21 @@ graph TD
 - **Repos Tab & Exit**: Filterable repository browser, HTTPS/SSH clone dialog with 1-click clipboard copy, and single-tap exit back to inbox.
 - **Verified Build**: `pnpm --filter @quant/quantmail build` 100% clean (61/61 static pages generated, 0 errors).
 
-```
+### 4. Sovereign Spam Quarantine & Threat Defense Verification:
 
-```
+- **Unified Routing Architecture**:
+  - `apps/quantmail/src/app/spam/page.tsx` now performs an instant client-side redirect to `/?lens=spam`, eliminating detached pages.
+  - Sidebar `Spam` navigation item routes directly to `/?lens=spam` with live spam counter badge and synchronized active highlighting.
+  - In-place lens switching updates browser URL via `window.history.replaceState` without triggering page reload or scroll resets.
+- **Sovereign Defense Engine & Telemetry**:
+  - `SovereignSpamBanner`: Quarantined cockpit with live cryptographic indicators (SPF/DKIM strict enforcement, Local Bayes Classifier, Zero-Ad Policy).
+  - Expandable "How it works" accordion explaining on-device privacy protections.
+  - Bulk `Empty spam now` action using `apiClient.deleteEmail` with real-time feedback.
+  - Per-thread threat badges: `⚠️ Phishing Risk`, `⚠️ Crypto Scam`, `⚠️ Advance-Fee Scam`, `🛡️ Flagged by Bayes`.
+  - One-tap "Not spam" rescue action on rows, hover bar, and message preview pane returning false positives to the inbox via `apiClient.markNotSpam`.
+  - 3-Pillar Sovereign Shield empty state: Crypto Verify, Local Bayes, Zero-Ad Policy.
+- **CI/CD & EKS Staging Deployment**:
+  - Release commit `edb5212501cea16a28c69bab3d56dc9c50ff9162`.
+  - CI Gate: Run `34756013299` (Job `103720389475`) passed in 4m40s (100% green).
+  - Staging Deployment: Run `34756268196` (Job `103721055142`) deployed to EKS cluster in 4m1s.
+  - Live Browser Testing (`https://quantmail.in/`): Verified in-place Spam switching, sidebar drawer navigation, `/spam` redirect, and zero console errors.

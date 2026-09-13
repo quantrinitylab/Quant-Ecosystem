@@ -370,3 +370,13 @@
   - [x] One-tap "Not spam" (Rescue) button on email rows, desktop hover action bar (`HoverActions.tsx`), and reading preview pane (`ConversationalThreadView.tsx`) with optimistic state updates and inbox refetch.
   - [x] Reassuring 3-Pillar Sovereign Spam Shield empty state (Crypto Verify, Local Bayes, Zero-Ad Policy) with instant "Refresh quarantine scan" trigger.
   - [x] TypeScript verification (`pnpm --filter @quant/quantmail typecheck`) and full Next.js production build (`pnpm --filter @quant/quantmail build`) 100% passing (62/62 static routes generated).
+  - [x] Staging release commit `edb52125` passed CI gate in 4m40s (Run `34756013299`, Job `103720389475`).
+  - [x] Staging EKS deployment succeeded in 4m1s (Run `34756268196`, Job `103721055142`).
+  - [x] Live end-to-end browser verification completed on `https://quantmail.in/`:
+    - [x] Authenticated inbox loads with authentic molten-ember QuantMail logo.
+    - [x] Spam focus chip opens `/?lens=spam` in-place with zero external redirects.
+    - [x] Sidebar `Spam` navigation item routes directly to `/?lens=spam` and closes drawer seamlessly.
+    - [x] Direct visit to `https://quantmail.in/spam` triggers immediate client redirect to `/?lens=spam`.
+    - [x] 3-Pillar Sovereign Spam Shield empty state rendered (Crypto Verify, Local Bayes, Zero-Ad Policy).
+    - [x] "Back to all mail" and "Refresh quarantine scan" buttons respond immediately.
+    - [x] Zero unhandled console errors detected across all tested user flows.
