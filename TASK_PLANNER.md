@@ -505,13 +505,13 @@
 ### 🖱️ Track 6: Desktop Feed Row Actions (Hover 3-Dots Menu)
 
 - **Assigned to**: Developer 5 (QuantMail UX)
-- [ ] **Task ROW-01**: In `EmailRow.tsx`, replace the solitary Archive box with a clean 3-dots (`...`) menu on hover / row actions containing: Pin, Archive, Snooze, Move to Trash, Mark as Unread.
+- [x] **Task ROW-01**: In `EmailRow.tsx` and mobile row actions, replace solitary archive with a clean 3-dots (`...`) menu containing: Pin, Archive, Snooze, Move to Trash, Mark as Unread. _(Completed in commit `e71d57a5`)_.
 
 ### 🫧 Track 7: Quanty "Bubble Intelligence" Animated Mascot (35 Interactive States)
 
 - **Assigned to**: Developer 7 (AI / Mascot) + Developer 5
-- [ ] **Task MASC-01**: Replace the dual-eye/pupil logo with the authentic "Bubble Intelligence" glowing amber mascot from the user's uploaded spec (`media_1789322423559.jpg`).
-- [ ] **Task MASC-02**: Implement 35 meaningful state animations using lightweight Canvas / SVG / WebGL:
+- [x] **Task MASC-01**: Replace the dual-eye/pupil logo with the authentic "Bubble Intelligence" glowing amber mascot from the user's uploaded spec (`media_1789322423559.jpg`). _(Completed in commit `e71d57a5`)_.
+- [x] **Task MASC-02**: Implement 35 meaningful state animations in `faces.ts` using lightweight Canvas/SVG data layer:
   1. `Idle` (calm presence)
   2. `Wake Up` (starts listening)
   3. `Look Around` (gets context)
@@ -546,7 +546,7 @@
   32. `Syncing` (working across tools)
   33. `Saving` (keeping it safe)
   34. `Celebration` (you did it!)
-  35. `Goodbye` (see you soon!)
+  35. `Goodbye` (see you soon!) _(Completed in commit `e71d57a5`)_.
 - [ ] **Task MASC-03**: Bind mascot states to live ecosystem events (e.g., mail sending -> `Working`/`Saving`, AI review -> `Coding`/`Analyzing`, search -> `Searching`, error -> `Error/Oops`, etc.).
 
 ### ✍️ Track 8: Fluid Cursive Typography & Wordmarks
@@ -557,23 +557,24 @@
 ### 🛠️ Track 9: Cross-App UX Polish
 
 - **Assigned to**: Developer 3, Developer 4, Developer 6
-- [ ] **Task COMP-01**: Fix Composer recipient address tag box overflow on mobile screens so tags and email strings wrap neatly within the bounds.
-- [ ] **Task CAL-01**: QuantCalendar Holidays & Selection refinement:
+- [x] **Task COMP-01**: Fix Composer recipient address tag box overflow on mobile screens so tags and email strings wrap neatly within the bounds. _(Completed in commit `e71d57a5`)_.
+- [x] **Task CAL-01**: QuantCalendar Holidays & Selection refinement:
   - Change green holiday pills (e.g., Ganesh Chaturthi) to ecosystem amber/warm neutral theme.
-  - Remove harsh full-height orange vertical line/shadow bar on the left sidebar date item; rely on subtle surface contrast.
-- [ ] **Task DRV-01**: QuantDrive Logo Redesign: Replace the clunky "paper with hat" look with a sleek, modern, multi-layered cloud/drive symbol harmonized with the ecosystem.
-- [ ] **Task CONT-02**: QuantContacts A-Z scrubber: Add vertical alphabetical index strip (A-Z) on the sidebar for 1-tap jumping and touch drag scrolling.
-- [ ] **Task GIT-01**: QuantGit Command Deck & UI refinement:
+  - Remove harsh full-height orange vertical line/shadow bar on the left sidebar date item; rely on subtle surface contrast. _(Completed in commit `e71d57a5`)_.
+- [x] **Task DRV-01**: QuantDrive Logo Redesign: Replace the clunky "paper with hat" look with a sleek, modern, multi-layered cloud/drive symbol harmonized with the ecosystem (3 isometric platters + rotating glowing data diamond). _(Completed in commit `e71d57a5`)_.
+- [x] **Task CONT-02**: QuantContacts A-Z scrubber: Add vertical alphabetical index strip (A-Z) on the sidebar for 1-tap jumping and touch drag scrolling across letter groups. _(Completed in commit `e71d57a5`)_.
+- [x] **Task GIT-01**: QuantGit Command Deck & UI refinement:
   - Solid bottom docked casing with zero background bleed-through.
   - Replace side-by-side Plan/Build buttons with a sleek mode selector dropdown / toggle (`Plan`, `Build`, `Auto`).
   - Add MCP Connectors trigger button (`+`).
+  - Add quick action pills (`🐞 Debug`, `☁️ Agent`, `◌ Create issue`, `📄 Write code`, `⑂ Git`, `⑂ Pull requests`). _(Completed in commit `e71d57a5`)_.
 
 ### 🌐 Track 10: Competitor Benchmarking Matrix & Notion AI Swarm Orchestration
 
 - **Assigned to**: CEO Astra + Antigravity Orchestrator
-- [ ] **Task BENCH-01**: Deeply audit logged-in competitor sessions via Chrome MCP:
+- [x] **Task BENCH-01**: Deeply audit logged-in competitor sessions via Chrome MCP:
   - Outlook Web (`outlook.live.com` / `outlook.office.com`)
   - GitHub (`github.com`)
   - Kiro AI (`app.kiro.dev/home`)
-  - iCloud / Proton / Yahoo
+  - iCloud / Proton / Yahoo _(Completed via Chrome MCP live snapshots)_.
 - [ ] **Task SWARM-01**: Dispatch technical specifications to all Notion agents (CEO Astra + Devs 1-7) in Notion chat sessions for deep implementation.
