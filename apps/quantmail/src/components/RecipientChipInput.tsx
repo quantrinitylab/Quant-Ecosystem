@@ -199,12 +199,12 @@ export function RecipientChipInput({
 
   return (
     <div
-      className={`relative flex items-center gap-2 sm:gap-3 w-full ${className}`}
+      className={`relative flex items-start gap-2 sm:gap-3 w-full ${className}`}
       ref={containerRef}
     >
       <label
         htmlFor={id}
-        className="text-xs font-semibold text-[#A1A4AC] w-12 sm:w-16 shrink-0 select-none flex items-center gap-0.5"
+        className="text-xs font-semibold text-[#A1A4AC] w-12 sm:w-16 shrink-0 select-none flex items-center gap-0.5 pt-2"
       >
         <span>{label}</span>
         {required && <span className="text-rose-500">*</span>}:
@@ -218,14 +218,14 @@ export function RecipientChipInput({
         {recipients.map((recipient, idx) => (
           <span
             key={`${recipient.email}-${idx}`}
-            className="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-0.5 rounded-full bg-[#282C35]/90 border border-[#3A404D]/80 text-xs text-[#F5F5F5] hover:border-[#FF8C42]/50 hover:bg-[#282C35] transition-all select-none shadow-sm group"
+            className="inline-flex max-w-full items-center gap-1.5 pl-1.5 pr-2 py-0.5 rounded-full bg-[#282C35]/90 border border-[#3A404D]/80 text-xs text-[#F5F5F5] hover:border-[#FF8C42]/50 hover:bg-[#282C35] transition-all select-none shadow-sm group"
           >
             <IdentityAvatar
               name={recipient.name || recipient.email}
               size="sm"
               className="!size-4 !text-[8px]"
             />
-            <span className="font-medium text-white text-[11px] truncate max-w-[160px]">
+            <span className="font-medium text-white text-[11px] truncate max-w-[120px] sm:max-w-[200px]">
               {recipient.name || recipient.email}
             </span>
             <button
@@ -234,7 +234,7 @@ export function RecipientChipInput({
                 e.stopPropagation();
                 removeRecipient(idx);
               }}
-              className="text-[#A1A4AC] group-hover:text-rose-400 p-0.5 hover:bg-[#3A404D]/60 rounded-full transition-colors"
+              className="text-[#A1A4AC] group-hover:text-rose-400 p-0.5 hover:bg-[#3A404D]/60 rounded-full transition-colors shrink-0"
               title={`Remove ${recipient.name || recipient.email}`}
               aria-label={`Remove ${recipient.name || recipient.email}`}
             >
@@ -271,13 +271,13 @@ export function RecipientChipInput({
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={recipients.length === 0 ? placeholder : ''}
-          className="flex-1 min-w-[120px] min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none py-1"
+          className="flex-1 min-w-[70px] sm:min-w-[120px] min-h-[44px] sm:min-h-0 bg-transparent text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none py-1"
           autoComplete="off"
           spellCheck={false}
         />
       </div>
 
-      {rightAction && <div className="shrink-0">{rightAction}</div>}
+      {rightAction && <div className="shrink-0 pt-1.5">{rightAction}</div>}
 
       {/* Auto-suggest Dropdown */}
       {isOpen && suggestions.length > 0 && (

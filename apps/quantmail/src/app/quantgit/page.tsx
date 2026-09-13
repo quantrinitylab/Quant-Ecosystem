@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useRepos } from '../../hooks/useRepos';
 
 type WorkspaceTab = 'quanty' | 'repos' | 'lab';
-type BuildMode = 'plan' | 'build';
+type BuildMode = 'plan' | 'build' | 'auto';
 type Effort = 'fast' | 'deep';
 type CloneProtocol = 'https' | 'ssh';
 
@@ -94,6 +94,45 @@ const AGENT_FLEET_CATALOG = [
     pod: 'DATA',
     initial: 'L',
     description: 'Manages database schemas, Prisma migrations, and caching layers.',
+  },
+];
+
+const GIT_QUICK_ACTIONS = [
+  {
+    id: 'debug',
+    label: 'Debug',
+    icon: '🐞',
+    prompt: 'Debug recent test failures and build issues',
+  },
+  {
+    id: 'agent',
+    label: 'Agent',
+    icon: '☁️',
+    prompt: 'Deploy autonomous agent to inspect open PRs and issues',
+  },
+  {
+    id: 'issue',
+    label: 'Create issue',
+    icon: '◌',
+    prompt: 'Draft a new issue with repro steps and acceptance criteria',
+  },
+  {
+    id: 'code',
+    label: 'Write code',
+    icon: '📄',
+    prompt: 'Implement technical specification from TASK_PLANNER.md',
+  },
+  {
+    id: 'git',
+    label: 'Git',
+    icon: '⑂',
+    prompt: 'Inspect current git branch, staged diffs, and remote tracking status',
+  },
+  {
+    id: 'pr',
+    label: 'Pull requests',
+    icon: '⑂',
+    prompt: 'Audit open pull requests, conflicts, and CI status',
   },
 ];
 
@@ -419,36 +458,58 @@ function QuantyChatStream({ repoNames }: { repoNames: string[] }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Ultra-Compact Docked Command Bar (Positioned tightly above bottom tabs) */}
-      <div className="fixed bottom-[68px] inset-x-3 max-w-xl mx-auto z-30">
+      {/* Ultra-Compact Docked Command Deck with Action Pills (GitHub & Kiro AI Inspired) */}
+      <div className="fixed bottom-[68px] inset-x-3 max-w-xl mx-auto z-30 flex flex-col gap-1.5">
+        {/* Quick Action Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 px-0.5">
+          {GIT_QUICK_ACTIONS.map((action) => (
+            <button
+              key={action.id}
+              type="button"
+              onClick={() => handleSend(action.prompt)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#12141A] border border-[#282C35] text-[#C4C7CF] hover:text-[#FF8C42] hover:border-[#FF8C42]/50 hover:bg-[#1C1F28] transition-all shrink-0 shadow-sm"
+            >
+              <span>{action.icon}</span>
+              <span>{action.label}</span>
+            </button>
+          ))}
+        </div>
+
         <form
           onSubmit={handleSubmit}
-          className="flex items-center gap-1.5 p-1.5 rounded-2xl border border-[#282C35] bg-[#16181D]/95 backdrop-blur-md shadow-xl"
+          className="flex items-center gap-1.5 p-1.5 rounded-2xl border border-[#282C35] bg-[#0F1117] shadow-2xl"
         >
-          {/* Mode Toggle: Plan vs Build */}
+          {/* MCP Connectors / Context Reference Trigger (+) */}
+          <button
+            type="button"
+            onClick={() => setInput((prev) => (prev ? `${prev} @` : '@'))}
+            title="Add Context or MCP Connector (@)"
+            aria-label="Add Context or MCP Connector"
+            className="size-7 shrink-0 rounded-xl bg-[#1A1D24] text-[#A1A4AC] hover:text-[#FF8C42] hover:bg-[#252932] border border-[#282C35] flex items-center justify-center font-bold text-xs transition-colors"
+          >
+            +
+          </button>
+
+          {/* Mode Toggle: Plan | Build | Auto */}
           <div className="flex items-center bg-[#0B0C0E] rounded-xl p-0.5 border border-[#282C35]/60 shrink-0">
-            <button
-              type="button"
-              onClick={() => setMode('plan')}
-              className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all ${
-                mode === 'plan'
-                  ? 'bg-[#1C1F26] text-[#FF8C42] shadow-sm'
-                  : 'text-[#A1A4AC] hover:text-white'
-              }`}
-            >
-              Plan
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('build')}
-              className={`px-2 py-1 text-[10px] font-bold rounded-lg transition-all ${
-                mode === 'build'
-                  ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] shadow-sm'
-                  : 'text-[#A1A4AC] hover:text-white'
-              }`}
-            >
-              Build
-            </button>
+            {(['plan', 'build', 'auto'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMode(m)}
+                className={`px-2 py-1 text-[10px] font-bold capitalize rounded-lg transition-all ${
+                  mode === m
+                    ? m === 'auto'
+                      ? 'bg-[#1C2030] text-[#70A5FF] shadow-sm'
+                      : m === 'build'
+                        ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] shadow-sm'
+                        : 'bg-[#1C1F26] text-[#FF8C42] shadow-sm'
+                    : 'text-[#A1A4AC] hover:text-white'
+                }`}
+              >
+                {m}
+              </button>
+            ))}
           </div>
 
           {/* Effort Indicator */}
@@ -469,8 +530,12 @@ function QuantyChatStream({ repoNames }: { repoNames: string[] }) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={`Tell Quanty what to ${mode}…`}
-            className="flex-1 min-w-0 bg-transparent px-2.5 text-xs text-white placeholder-[#A1A4AC] outline-none"
+            placeholder={
+              mode === 'auto'
+                ? 'Ask Quanty anything or type @ to add context…'
+                : `Tell Quanty what to ${mode}…`
+            }
+            className="flex-1 min-w-0 bg-transparent px-2 text-xs text-white placeholder-[#A1A4AC] outline-none"
           />
 
           {/* Send Button */}

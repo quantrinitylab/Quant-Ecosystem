@@ -2064,10 +2064,10 @@ export default function CalendarPage() {
                         if (el) dateItemRefs.current.set(item.key, el);
                         else dateItemRefs.current.delete(item.key);
                       }}
-                      className={`rounded-xl py-3 transition-colors ${
+                      className={`rounded-xl py-3 transition-all px-3 ${
                         isSelected
-                          ? 'border-l-2 border-[#FF8C42] bg-[#16181D] pl-3 pr-2'
-                          : 'border-l-2 border-transparent pl-3 pr-2'
+                          ? 'bg-[#181B22] ring-1 ring-white/10 shadow-sm'
+                          : 'hover:bg-[#13151A]/60'
                       }`}
                     >
                       <div className="mb-2.5 flex items-baseline gap-2.5">
@@ -2093,22 +2093,22 @@ export default function CalendarPage() {
                       </div>
 
                       <div className="space-y-3">
-                        {/* Holiday 3D Emerald Glass Card */}
+                        {/* Holiday Warm Amber Glass Card */}
                         {item.holidays.map((h, hi) => (
                           <div
                             key={hi}
-                            className="relative flex items-center justify-between px-4 py-3 rounded-2xl border border-emerald-500/40 bg-[#0C1C14] shadow-[0_4px_16px_rgba(0,0,0,0.6)] text-xs overflow-hidden"
+                            className="relative flex items-center justify-between px-4 py-3 rounded-2xl border border-[#FF8C42]/30 bg-[#1E1610]/80 shadow-[0_4px_16px_rgba(0,0,0,0.6)] text-xs overflow-hidden"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="size-8 rounded-full bg-emerald-500/15 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
+                              <div className="size-8 rounded-full bg-[#FF8C42]/15 border border-[#FF8C42]/40 flex items-center justify-center text-[#FFB875] shrink-0">
                                 <IconFlag size={15} />
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <span className="font-extrabold text-sm text-emerald-200 tracking-wide">
+                                  <span className="font-extrabold text-sm text-[#FFE3C8] tracking-wide">
                                     {h.name}
                                   </span>
-                                  <span className="size-2.5 rounded-full bg-emerald-400" />
+                                  <span className="size-2 rounded-full bg-[#FF8C42]" />
                                 </div>
                                 {h.description && (
                                   <p className="text-[11px] text-[#A1A4AC] mt-0.5">
@@ -2117,7 +2117,7 @@ export default function CalendarPage() {
                                 )}
                               </div>
                             </div>
-                            <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-400/50 shadow-sm">
+                            <span className="text-[10px] uppercase font-bold px-2.5 py-1 rounded-full bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40 shadow-sm">
                               Holiday
                             </span>
                           </div>
@@ -3101,7 +3101,7 @@ export default function CalendarPage() {
                                   <span className="text-[10px]">{d.dayLetter}</span>
                                   <span className="text-xs">{d.dayNum}</span>
                                   {d.hasHoliday && (
-                                    <span className="absolute top-1 right-1 size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    <span className="absolute top-1 right-1 size-1.5 rounded-full bg-[#FF8C42] animate-pulse" />
                                   )}
                                 </button>
                               ))}

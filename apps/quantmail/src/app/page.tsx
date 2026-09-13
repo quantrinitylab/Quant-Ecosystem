@@ -20,6 +20,7 @@ import { useSearchEmails } from '../hooks/useSearchEmails';
 import { AppSidebar } from '../components/AppSidebar';
 import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
 import { EmailSnooze, snoozeUntilNextMorning } from '../components/EmailSnooze';
+import { AnchoredMenu } from '../components/AnchoredMenu';
 import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
 import { InboxZeroState } from '../components/InboxZeroState';
@@ -249,6 +250,7 @@ function EmailRow({
 }: EmailRowProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
+  const [showRowMenu, setShowRowMenu] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef(false);
 
@@ -556,19 +558,137 @@ function EmailRow({
           hover bar; a finger has no hover, so on a phone this is the only way to
           archive without opening the thread.
         */}
-        {!isSpamMode && !showSnoozeMenu && (
-          <button
-            type="button"
-            className="sm:hidden flex items-center justify-center shrink-0 p-1.5 rounded-xl min-h-[44px] min-w-[44px] text-[#A1A4AC] transition-colors hover:text-[#F5F5F5] hover:bg-[#282C35]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-            onClick={(event) => {
-              event.stopPropagation();
-              void onArchive();
-            }}
-            aria-label={`Archive conversation with ${thread.participantsSummary}`}
-            title="Archive"
-          >
-            <MailIcon name="archive" className="size-4" />
-          </button>
+        {!isSpamMode && (
+          <div className="sm:hidden shrink-0" onClick={(e) => e.stopPropagation()}>
+            <AnchoredMenu
+              icon={
+                <svg className="size-4" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="5" r="1.5" />
+                  <circle cx="12" cy="12" r="1.5" />
+                  <circle cx="12" cy="19" r="1.5" />
+                </svg>
+              }
+              triggerLabel={`More actions for conversation with ${thread.participantsSummary}`}
+              triggerTitle="More actions"
+              triggerClassName="flex items-center justify-center p-1.5 rounded-xl min-h-[44px] min-w-[44px] text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#282C35]/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              menuLabel="Conversation actions"
+              open={showRowMenu}
+              onOpenChange={setShowRowMenu}
+              scope="row-actions"
+            >
+              {(close) => (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      close();
+                      onToggleStar(e);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[#1E2128] hover:text-[#FF8C42] rounded-lg transition-colors text-left"
+                  >
+                    <svg
+                      className="size-3.5 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill={email.isStarred ? 'currentColor' : 'none'}
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <line x1="12" y1="17" x2="12" y2="22" />
+                      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
+                    </svg>
+                    <span>{email.isStarred ? 'Unpin from top' : 'Pin to top'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      close();
+                      if (thread.isRead) onMarkUnread();
+                      else onMarkRead();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[#1E2128] rounded-lg transition-colors text-left"
+                  >
+                    <svg
+                      className="size-3.5 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <rect x="3" y="5" width="18" height="14" rx="2" />
+                      <path d="m3 7 9 6 9-6" />
+                    </svg>
+                    <span>{thread.isRead ? 'Mark as unread' : 'Mark as read'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      close();
+                      setShowSnoozeMenu(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[#1E2128] rounded-lg transition-colors text-left"
+                  >
+                    <svg
+                      className="size-3.5 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <circle cx="12" cy="13" r="8" />
+                      <path d="M12 9v4l2 2" />
+                    </svg>
+                    <span>Snooze…</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      close();
+                      void onArchive();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[#1E2128] rounded-lg transition-colors text-left"
+                  >
+                    <MailIcon name="archive" className="size-3.5 shrink-0" />
+                    <span>Archive</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      close();
+                      void onDelete();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-950/40 rounded-lg transition-colors text-left"
+                  >
+                    <svg
+                      className="size-3.5 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M3 6h18" />
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                    </svg>
+                    <span>Move to Trash</span>
+                  </button>
+                </>
+              )}
+            </AnchoredMenu>
+          </div>
         )}
         {/* Pin button: shown on resting row only when pinned, or on hover via HoverActions */}
         {!isSpamMode && email.isStarred && !isHovered && !showSnoozeMenu && (

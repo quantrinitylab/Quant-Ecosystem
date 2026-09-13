@@ -446,7 +446,7 @@ export default function ContactsPage() {
    * render and the first client render agree.
    */
   const hasContacts = (contacts?.length ?? 0) > 0;
-  const railEarnsThumb = (contacts?.length ?? 0) >= 10 && groupedContacts.length > 1;
+  const railEarnsThumb = groupedContacts.length > 1;
   const showScrubRail = hasContacts && groupedContacts.length > 1;
 
   return (
